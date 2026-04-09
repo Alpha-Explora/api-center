@@ -1,0 +1,73 @@
+---
+title: API Center — Auth & Security Architecture
+---
+graph TB
+    subgraph AuthEntry["Authentication Entry Points"]
+        TP["POST /auth/token\nIssue Access + Refresh"]
+        TR["POST /auth/token/refresh\nSilent Token Refresh"]
+        TV["POST /auth/token/revoke\nRevoke Sessions"]
+    end
+
+    subgraph ProviderSwitch["Auth Provider Selection (config-driven)"]
+        AS["AuthService\nProvider-Agnostic Orchestrator"]
+        DevJWT["DevJwtProvider\nRS256 Self-Issued\nDev / CI Environment"]
+        KC["KeycloakProvider\nOIDC Relay\nStaging / Production"]
+        GG["GoogleProvider\nOAuth2 + Service Accounts\nGCP Environments"]
+    end
+
+    subgraph TokenLifecycle["Token Lifecycle Management"]
+        TS["TokenStoreService\nRedis-Backed"]
+        RD[("Redis\nKey: jti\nTTL: refreshToken expiry")]
+        VL["VaultService\nSigning Key Rotation"]
+        HV["HashiCorp Vault"]
+    end
+
+    subgraph Guards["Request-Level Enforcement"]
+        JG["JwtAuthGuard\nValidate Bearer Token\nAttach req.user + req.tribeId"]
+        PA["PlatformAdminGuard\nSuper-admin Operations"]
+        SA["ScopedAdminGuard\nTribe-scoped Admin"]
+        TG["TribeThrottlerGuard\nPer-tribe Rate Limiting"]
+    end
+
+    subgraph SecurityMW["Security Middleware"]
+        SM["SecurityMiddleware"]
+        PL["Payload Limit: 5MB"]
+        HS["Header Stripping\nX-Powered-By, Server"]
+        CC["Cache-Control: no-store"]
+        SH["X-Content-Type-Options\nX-Frame-Options\nStrict-Transport-Security"]
+    end
+
+    subgraph ScopeEnforcement["Scope & Access Control"]
+        SC["RegistryService.canConsume\nTribe-to-Tribe ACL"]
+        RS["Required Scopes Check\nJWT scopes vs service demands"]
+    end
+
+    TP --> AS
+    TR --> AS
+    TV --> AS
+
+    AS -->|"AUTH_PROVIDER=dev-jwt"| DevJWT
+    AS -->|"AUTH_PROVIDER=keycloak"| KC
+    AS -->|"AUTH_PROVIDER=google"| GG
+
+    AS --> TS
+    TS --> RD
+    AS --> VL
+    VL --> HV
+
+    JG --> AS
+    JG --> SC
+    JG --> RS
+    TG --> RD
+
+    SM --> PL
+    SM --> HS
+    SM --> CC
+    SM --> SH
+
+    style AuthEntry fill:#1a1a2e,stroke:#e94560,color:#fff
+    style ProviderSwitch fill:#16213e,stroke:#0f3460,color:#fff
+    style TokenLifecycle fill:#0f3460,stroke:#533483,color:#fff
+    style Guards fill:#1a1a2e,stroke:#e94560,color:#fff
+    style SecurityMW fill:#162447,stroke:#e94560,color:#fff
+    style ScopeEnforcement fill:#16213e,stroke:#533483,color:#fff

@@ -1,0 +1,52 @@
+---
+title: API Center — Resilience Patterns
+---
+stateDiagram-v2
+    direction LR
+
+    state "Circuit Breaker State Machine" as CBMain {
+        [*] --> CLOSED
+
+        state "CLOSED (Normal Operation)" as CLOSED
+        state "OPEN (Fast-Fail Mode)" as OPEN
+        state "HALF_OPEN (Testing Recovery)" as HALF_OPEN
+
+        CLOSED --> OPEN: 5 consecutive failures
+        OPEN --> HALF_OPEN: 30s cooldown expires
+        HALF_OPEN --> CLOSED: 2 successes
+        HALF_OPEN --> OPEN: Any failure
+    }
+
+    state "SDK Retry Strategy" as SDKRetry {
+        state "Attempt 0" as A0
+        state "Backoff ~500ms" as B1
+        state "Attempt 1" as A1
+        state "Backoff ~1000ms" as B2
+        state "Attempt 2" as A2
+        state "Backoff ~2000ms" as B3
+        state "Attempt 3 (final)" as A3
+        state "Throw TribeClientError" as FAIL
+
+        [*] --> A0
+        A0 --> B1: 502/503/504 or network error
+        B1 --> A1
+        A1 --> B2: transient failure
+        B2 --> A2
+        A2 --> B3: transient failure
+        B3 --> A3
+        A3 --> FAIL: still failing
+    }
+
+    state "Health Monitor" as HM {
+        state "Periodic Check (Background)" as PC
+        state "Ping /health" as PING
+        state "Mark Healthy" as MH
+        state "Mark Unhealthy" as MU
+
+        [*] --> PC
+        PC --> PING
+        PING --> MH: 200 OK
+        PING --> MU: Timeout or Error
+        MH --> PC: next interval
+        MU --> PC: next interval
+    }

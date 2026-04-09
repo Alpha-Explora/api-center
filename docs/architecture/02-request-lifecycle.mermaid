@@ -1,0 +1,102 @@
+---
+title: API Center — Full Request Lifecycle
+---
+sequenceDiagram
+    autonumber
+    participant C as Client / SDK
+    participant N as NGINX LB
+    participant SM as SecurityMiddleware
+    participant ML as MorganLogger
+    participant CI as CorrelationID Interceptor
+    participant RL as RateLimit Guard
+    participant JA as JWT Auth Guard
+    participant AS as AuthService
+    participant AP as Auth Provider
+    participant CT as Controller
+    participant PH as ProxyHandler
+    participant RG as RegistryService
+    participant CB as CircuitBreaker
+    participant UP as Upstream Service
+    participant AL as AuditLog Interceptor
+    participant MX as Metrics Interceptor
+    participant EF as ExceptionFilter
+    participant RD as Redis
+    participant KF as Kafka
+
+    C->>N: HTTP Request + Bearer JWT
+    N->>SM: Forward (round-robin)
+    SM->>SM: Check Content-Length under 5MB
+    SM->>SM: Strip X-Powered-By, Server headers
+    SM->>SM: Set Cache-Control, Security headers
+    SM->>ML: Pass through
+    ML->>ML: Log request via Winston
+    ML->>CI: Enter NestJS pipeline
+
+    CI->>CI: Read or generate X-Correlation-ID
+    CI->>RL: Attach correlationId to req
+
+    RL->>RD: Check throttler counter for tribeId
+    RD-->>RL: Current count
+    alt Rate limit exceeded
+        RL-->>C: 429 Too Many Requests
+    end
+    RL->>JA: Under limit - proceed
+
+    JA->>JA: Extract Bearer token
+    JA->>AS: validateToken(token)
+    AS->>AP: Provider-specific validation
+    AP->>AP: Verify JWT signature + expiry
+    AP-->>AS: JwtClaims
+    AS-->>JA: Normalized claims
+    alt Invalid token
+        JA-->>EF: UnauthorizedError
+        EF-->>C: 401 Unauthorized
+    end
+    JA->>JA: Attach req.user, req.tribeId
+    JA->>CT: Authenticated request
+
+    CT->>PH: proxyRequest(targetServiceId, req, res)
+
+    PH->>RG: resolveUpstream(targetServiceId)
+    RG->>RG: In-memory cache lookup
+    alt Cache miss
+        RG->>RD: Redis lookup
+        RD-->>RG: Service manifest
+    end
+    RG-->>PH: baseUrl
+
+    PH->>PH: Validate namespace (tribe/shared)
+    PH->>PH: Lifecycle gate check
+    alt Service retired
+        PH-->>C: 410 Gone + replacement hint
+    end
+
+    PH->>RG: canConsume(tribeId, targetServiceId)
+    alt Not authorized
+        PH-->>C: 403 Forbidden
+    end
+
+    PH->>PH: Validate JWT scopes
+
+    PH->>CB: tryAcquire()
+    alt Circuit OPEN
+        CB-->>PH: Rejected
+        PH-->>C: 503 Service Unavailable
+    end
+    CB-->>PH: Acquired
+
+    PH->>PH: Rewrite path + inject headers
+    PH->>UP: Forward request
+    UP-->>PH: Response
+
+    alt 5xx response
+        PH->>CB: recordFailure()
+    else Success
+        PH->>CB: recordSuccess()
+    end
+
+    PH-->>AL: Response flows back
+    AL->>KF: Publish audit event (async)
+    AL-->>MX: Continue
+    MX->>MX: Record Prometheus metrics
+    MX-->>C: Final HTTP Response + headers

@@ -29,6 +29,7 @@
 #   │  redis-cache      :6381  — service registry + token store       │
 #   │  redis-rate-limit :6380  — distributed rate-limit counters      │
 #   │  kafka            :9092  — event bus (audit, auth, registry)    │
+#   │  kafka-rest       :8082  — HTTP bridge for tribe Kafka access   │
 #   │  vault            :8200  — secrets + Transit signing (dev mode) │
 #   └─────────────────────────────────────────────────────────────────┘
 #
@@ -75,6 +76,7 @@ x-api-center-common: &api-center-common
     REDIS_RATE_LIMIT_URL: redis://redis-rate-limit:6379
     # Kafka internal address
     KAFKA_BROKERS: kafka:29092
+    KAFKA_REST_PROXY_URL: http://kafka-rest:8082
     # Vault dev server — replace with AppRole credentials in production
     VAULT_ADDR:     http://vault:8200
     VAULT_TOKEN:    root
@@ -321,6 +323,53 @@ services:
       timeout:  20s
       retries:  10
       start_period: 60s
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # Schema Registry — required by Confluent Kafka REST Proxy
+  # ---------------------------------------------------------------------------
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.0
+    container_name: schema-registry
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # Kafka REST Proxy — consumed by tribes through /api/v1/external/kafka/*
+  # ---------------------------------------------------------------------------
+  kafka-rest:
+    image: confluentinc/cp-kafka-rest:7.7.0
+    container_name: kafka-rest
+    environment:
+      KAFKA_REST_HOST_NAME: kafka-rest
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      KAFKA_REST_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      KAFKA_REST_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/v3/clusters"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - api-center-network
 

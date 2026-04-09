@@ -1,0 +1,87 @@
+---
+title: API Center — SDK TribeClient Flow
+---
+sequenceDiagram
+    autonumber
+    participant App as Tribe Service
+    participant TC as TribeClient SDK
+    participant AX as Axios Instance
+    participant GW as API Center Gateway
+    participant RD as Redis (Token Store)
+    participant UP as Target Service
+
+    rect rgb(26, 26, 46)
+    Note over App,UP: Phase 1 — Initialization
+    App->>TC: new TribeClient(gatewayUrl, tribeId, secret)
+    TC->>AX: Create Axios instance
+    TC->>TC: Set defaults: timeout 30s, headers
+    end
+
+    rect rgb(15, 52, 96)
+    Note over App,UP: Phase 2 — Authentication
+    App->>TC: await client.authenticate()
+    TC->>AX: POST /api/v1/auth/token
+    AX->>GW: { tribeId, secret }
+    GW->>GW: Validate credentials
+    GW->>RD: Store refresh token (keyed by jti)
+    GW-->>AX: { accessToken, refreshToken, expiresIn }
+    AX-->>TC: Response
+    TC->>TC: Store tokens in memory
+    TC->>TC: Set tokenExpiry = now + expiresIn
+    end
+
+    rect rgb(22, 33, 62)
+    Note over App,UP: Phase 3 — Service Call
+    App->>TC: await client.callService('user-svc', '/users/123')
+    TC->>TC: ensureAuth() - check tokenExpiry
+    alt Token expiring within 30s
+        TC->>AX: POST /api/v1/auth/token/refresh
+        AX->>GW: { refreshToken }
+        GW->>RD: Validate refresh token
+        GW-->>AX: New tokens
+        AX-->>TC: Apply new tokens
+    end
+    TC->>AX: GET /api/v1/tribes/user-svc/users/123
+    Note over AX: Headers injected automatically
+    Note over AX: Authorization: Bearer ...
+    Note over AX: X-Tribe-Id: demand-service
+    Note over AX: X-Correlation-ID: uuid
+    AX->>GW: Forward with headers
+    GW->>GW: Full gateway pipeline
+    GW->>UP: Proxy to upstream
+    UP-->>GW: Response { success, data, meta }
+    GW-->>AX: Gateway response
+    AX-->>TC: Raw response
+    TC->>TC: Unwrap envelope - extract data
+    TC-->>App: Return data only
+    end
+
+    rect rgb(83, 52, 131)
+    Note over App,UP: Phase 4 — Retry on Transient Failure
+    App->>TC: await client.callService('pay-svc', '/charge')
+    TC->>AX: POST /api/v1/tribes/pay-svc/charge
+    AX->>GW: Request
+    GW-->>AX: 503 Service Unavailable
+    TC->>TC: Attempt 1 failed - retryable
+    TC->>TC: Backoff ~500ms with jitter
+    TC->>AX: Retry request
+    AX->>GW: Request
+    GW->>UP: Proxy (circuit half-open)
+    UP-->>GW: 200 OK
+    GW-->>AX: Success
+    AX-->>TC: Response
+    TC->>TC: Unwrap envelope
+    TC-->>App: Return data
+    end
+
+    rect rgb(233, 69, 96)
+    Note over App,UP: Phase 5 — Error Handling
+    App->>TC: await client.callService('unknown', '/foo')
+    TC->>AX: GET /api/v1/tribes/unknown/foo
+    AX->>GW: Request
+    GW-->>AX: 404 Not Found
+    TC->>TC: Not retryable (4xx)
+    TC->>TC: Wrap as ServiceNotFoundError
+    TC-->>App: throw ServiceNotFoundError
+    Note over App: Catch specific error type
+    end

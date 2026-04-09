@@ -101,6 +101,10 @@ export class ConfigService implements OnModuleInit {
       url: process.env.GEOFENCING_API_URL || 'https://api.geofencing.example.com',
       key: process.env.GEOFENCING_API_KEY || '',
     },
+    kafka: {
+      url: process.env.KAFKA_REST_PROXY_URL || 'http://kafka-rest:8082',
+      apiKey: process.env.KAFKA_REST_PROXY_API_KEY || '',
+    },
   };
 
   readonly tracing = {

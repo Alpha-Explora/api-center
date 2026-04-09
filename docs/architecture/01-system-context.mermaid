@@ -1,0 +1,75 @@
+---
+title: API Center — High-Level System Context
+---
+graph TB
+    subgraph Clients["External Consumers"]
+        Browser["Browser / SPA"]
+        MobileApp["Mobile App"]
+        SDK["TribeClient SDK"]
+        ExtClient["External Partner"]
+    end
+
+    subgraph LB["Load Balancer Layer"]
+        NGINX["NGINX\nRound-Robin LB\nCORS Preflight\nHealth Checks"]
+    end
+
+    subgraph Gateway["API Center Gateway (x3 containers)"]
+        direction TB
+        MW["Middleware Pipeline\nSecurity · Morgan Logger"]
+        Guards["Guards & Interceptors\nCorrelation ID · Rate Limit · JWT Auth"]
+        Router["Route Dispatcher"]
+        PH["Proxy Handler\nLifecycle Gate · Scope Check\nCircuit Breaker · Path Rewrite"]
+    end
+
+    subgraph Tribes["Tribe Services"]
+        T1["payment-service"]
+        T2["logistics-service"]
+        T3["demand-service"]
+        T4["user-service"]
+    end
+
+    subgraph Shared["Shared Platform Services"]
+        S1["email-service"]
+        S2["analytics-service"]
+        S3["notification-service"]
+    end
+
+    subgraph External["External APIs"]
+        E1["Geolocation API"]
+        E2["Geofencing API"]
+    end
+
+    subgraph Infra["Infrastructure"]
+        Redis[("Redis\nRate Limits · Token Store\nRegistry Cache")]
+        Kafka[("Kafka\nAudit Events\nRegistry Events")]
+        Vault["HashiCorp Vault\nSecrets Management"]
+        Jaeger["Jaeger\nDistributed Tracing"]
+        Prometheus["Prometheus\nMetrics Scraping"]
+    end
+
+    Browser --> NGINX
+    MobileApp --> NGINX
+    SDK --> NGINX
+    ExtClient --> NGINX
+    NGINX --> MW
+    MW --> Guards
+    Guards --> Router
+    Router --> PH
+
+    PH -- "/api/v1/tribes/*" --> T1 & T2 & T3 & T4
+    PH -- "/api/v1/shared/*" --> S1 & S2 & S3
+    PH -- "/api/v1/external/*" --> E1 & E2
+
+    Gateway -. "read/write" .-> Redis
+    Gateway -. "publish events" .-> Kafka
+    Gateway -. "fetch secrets" .-> Vault
+    Gateway -. "export spans" .-> Jaeger
+    Prometheus -. "scrape /metrics" .-> Gateway
+
+    style Gateway fill:#1a1a2e,stroke:#e94560,color:#fff
+    style LB fill:#0f3460,stroke:#e94560,color:#fff
+    style Tribes fill:#16213e,stroke:#0f3460,color:#fff
+    style Shared fill:#16213e,stroke:#0f3460,color:#fff
+    style External fill:#1a1a2e,stroke:#533483,color:#fff
+    style Infra fill:#0f3460,stroke:#533483,color:#fff
+    style Clients fill:#162447,stroke:#e94560,color:#fff

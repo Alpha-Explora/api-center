@@ -447,6 +447,10 @@ curl -s -X POST "http://localhost:3000/api/v1/shared/sms-service/send" \
 ### External API Proxy
 
 ```bash
+# List configured external APIs for the current caller token
+curl -s http://localhost:3000/api/v1/external \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
 # Geolocation lookup — requires GEOLOCATION_API_KEY
 # Free tier signup: https://ipgeolocation.io/signup.html
 curl -s "http://localhost:3000/api/v1/external/geolocation/lookup?ip=8.8.8.8" \
@@ -454,9 +458,17 @@ curl -s "http://localhost:3000/api/v1/external/geolocation/lookup?ip=8.8.8.8" \
 
 # The API key is injected server-side — never exposed to the caller
 
-# List configured external APIs (platform admin only)
-curl -s http://localhost:3000/api/v1/external/admin/apis \
-  -H "X-Platform-Admin-Secret: change-me-in-production" | jq .
+# Kafka via APICenter external routing (REST Proxy)
+curl -s "http://localhost:3000/api/v1/external/kafka/v3/clusters" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# Optional: list topics for the first cluster returned
+CLUSTER_ID=$(curl -s "http://localhost:3000/api/v1/external/kafka/v3/clusters" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  | jq -r '.data.data[0].cluster_id')
+
+curl -s "http://localhost:3000/api/v1/external/kafka/v3/clusters/$CLUSTER_ID/topics" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 ```
 
 ---
@@ -685,6 +697,8 @@ GEOLOCATION_API_URL=https://api.ipgeolocation.io   # Free tier available
 GEOLOCATION_API_KEY=<your-key>
 GEOFENCING_API_URL=https://api.geofencing.example.com
 GEOFENCING_API_KEY=<your-key>
+KAFKA_REST_PROXY_URL=http://kafka-rest:8082
+KAFKA_REST_PROXY_API_KEY=<optional-key>
 ```
 
 ---

@@ -318,12 +318,40 @@ import {
 
 External API credentials live **only** in APICenter — tribe services never hold them.
 
+Configured external services:
+
+- `geolocation` (IP geolocation provider)
+- `geofencing` (geofence provider)
+- `kafka` (Kafka REST bridge backed by the internal Kafka broker)
+
 ```bash
 # ipgeolocation.io — free tier: https://ipgeolocation.io/signup.html
 GEOLOCATION_API_KEY=<your-key>
 
 # Replace with your actual geofencing provider
 GEOFENCING_API_KEY=<your-key>
+
+# Kafka REST bridge used by /api/v1/external/kafka/*
+KAFKA_REST_PROXY_URL=http://kafka-rest:8082
+# Optional shared key added as X-APICENTER-KAFKA-KEY
+KAFKA_REST_PROXY_API_KEY=<optional-key>
+```
+
+Tribes consume Kafka through the same SDK call path:
+
+```typescript
+import { TribeClient } from '@apicenter/sdk';
+
+const client = new TribeClient({
+  gatewayUrl: process.env.APICENTER_URL,
+  tribeId: 'orders-service',
+  secret: process.env.ORDERS_SERVICE_SECRET,
+});
+
+await client.authenticate();
+
+// Discover Kafka cluster metadata via APICenter external routing
+const clusters = await client.callExternal('kafka', '/v3/clusters');
 ```
 
 To add a new external API, create a handler in `src/external/apis/` following the pattern in `geolocation.ts`.

@@ -1,0 +1,76 @@
+---
+title: API Center — Service Registry & Discovery
+---
+graph TB
+    subgraph Registration["Service Registration Flow"]
+        SVC["Tribe / Shared Service"]
+        REG["POST /api/v1/registry/register"]
+        MAN["ServiceManifest DTO\nserviceId · name · version\nbaseUrl · serviceType\nexposes · consumes · scopes"]
+        VAL["Validation Pipeline\nclass-validator DTOs"]
+    end
+
+    subgraph Storage["Dual Storage Strategy"]
+        MEM["In-Memory Map\nZero-latency Lookups\nPrimary Read Path"]
+        REDIS[("Redis\nSource of Truth\nPersistent Across Restarts")]
+    end
+
+    subgraph Discovery["Service Discovery"]
+        RES["resolveUpstream(serviceId)\n1. Check in-memory\n2. Fallback to Redis\n3. Cache result"]
+        LIST_T["GET /api/v1/tribes\nList tribe services"]
+        LIST_S["GET /api/v1/shared\nList shared services"]
+    end
+
+    subgraph Lifecycle["Service Lifecycle"]
+        ACT["active\nFully operational"]
+        DEP["deprecated\nRFC 8594 headers injected\nDeprecation + Sunset + Link"]
+        RET["retired\n410 Gone returned\nReplacement hint provided"]
+        DPATCH["PATCH /registry/deprecate"]
+    end
+
+    subgraph Events["Event Publishing"]
+        KF[("Kafka")]
+        EV1["SERVICE_REGISTERED"]
+        EV2["SERVICE_DEPRECATED"]
+        EV3["SERVICE_RETIRED"]
+        INV["Cache Invalidation\nDrop stale proxy instances"]
+    end
+
+    subgraph Health["Health Monitoring"]
+        HM["HealthMonitorService\nBackground Cron"]
+        PING["HTTP GET /health\nPer registered service"]
+        UP["Status: Healthy"]
+        DN["Status: Unhealthy"]
+    end
+
+    SVC -->|"manifest JSON"| REG
+    REG --> MAN
+    MAN --> VAL
+    VAL -->|"valid"| MEM
+    VAL -->|"valid"| REDIS
+
+    MEM --> RES
+    REDIS -.->|"cache miss fallback"| RES
+    RES --> LIST_T
+    RES --> LIST_S
+
+    ACT -->|"PATCH"| DEP
+    DEP -->|"PATCH"| RET
+    DPATCH --> DEP
+
+    VAL -->|"on register"| KF
+    KF --> EV1
+    KF --> EV2
+    KF --> EV3
+    EV2 --> INV
+    EV3 --> INV
+
+    HM --> PING
+    PING -->|"200 OK"| UP
+    PING -->|"Timeout/Error"| DN
+
+    style Registration fill:#1a1a2e,stroke:#e94560,color:#fff
+    style Storage fill:#0f3460,stroke:#e94560,color:#fff
+    style Discovery fill:#16213e,stroke:#0f3460,color:#fff
+    style Lifecycle fill:#162447,stroke:#533483,color:#fff
+    style Events fill:#1a1a2e,stroke:#533483,color:#fff
+    style Health fill:#0f3460,stroke:#533483,color:#fff
