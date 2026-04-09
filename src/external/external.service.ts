@@ -109,6 +109,8 @@ export class ExternalService implements OnModuleInit {
       try {
         const resp = await client.request(axiosCfg);
         const duration = Date.now() - start;
+        const callerTribeId = options.headers?.['X-Tribe-Id'] || 'unknown';
+        const correlationId = options.headers?.['X-Correlation-ID'];
 
         this.kafka
           .publish(TOPICS.EXTERNAL_REQUEST, {
@@ -118,7 +120,10 @@ export class ExternalService implements OnModuleInit {
             status: resp.status,
             duration,
             timestamp: new Date().toISOString(),
-          })
+            tribeId: callerTribeId,
+            correlationId,
+            policyDecision: 'allow',
+          }, callerTribeId)
           .catch((err) => {
             this.logger.warn(
               `Kafka publish failed for ${TOPICS.EXTERNAL_REQUEST}: ${(err as Error).message}`,

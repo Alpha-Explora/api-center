@@ -340,6 +340,13 @@ GEOFENCING_API_KEY=<your-key>
 KAFKA_REST_PROXY_URL=http://kafka-rest:8082
 # Optional shared key added as X-APICENTER-KAFKA-KEY
 KAFKA_REST_PROXY_API_KEY=<optional-key>
+
+# Secure-by-default per-tribe allowlists (comma-separated service IDs)
+# Empty value = deny all for that API
+EXTERNAL_ALLOWLIST_GEOLOCATION=orders-service,shipment-service
+EXTERNAL_ALLOWLIST_GEOTAGGING=orders-service
+EXTERNAL_ALLOWLIST_GEOFENCING=orders-service,shipment-service
+EXTERNAL_ALLOWLIST_KAFKA=orders-service
 ```
 
 Tribes consume Kafka through the same SDK call path:
@@ -358,6 +365,18 @@ await client.authenticate();
 // Discover Kafka cluster metadata via APICenter external routing
 const clusters = await client.callExternal('kafka', '/v3/clusters');
 ```
+
+Required token scopes for external policy enforcement:
+
+- `external:geolocation:read`
+- `external:geotagging:read` / `external:geotagging:write`
+- `external:geofencing:read` / `external:geofencing:write`
+- `external:kafka:read` / `external:kafka:write`
+
+Kafka tenant isolation rule:
+
+- Topic-level Kafka calls are only allowed when topic names start with
+  `tribe.<tribeId>.` or `tribe-<tribeId>.`.
 
 To add a new external API, create a handler in `src/external/apis/` following the pattern in `geolocation.ts`.
 

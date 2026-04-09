@@ -77,6 +77,18 @@ x-api-center-common: &api-center-common
     # Kafka internal address
     KAFKA_BROKERS: kafka:29092
     KAFKA_REST_PROXY_URL: http://kafka-rest:8082
+    # Local deterministic geo stack (mock provider)
+    GEOLOCATION_API_URL: http://geo-provider-mock:8085
+    GEOLOCATION_API_KEY: local-geo-key
+    GEOTAGGING_API_URL: http://geo-provider-mock:8085
+    GEOTAGGING_API_KEY: local-geotag-key
+    GEOFENCING_API_URL: http://geo-provider-mock:8085
+    GEOFENCING_API_KEY: local-geofence-key
+    # Local sandbox allowlists (strict by default, explicit tribes only)
+    EXTERNAL_ALLOWLIST_GEOLOCATION: demand-service,logistics-service
+    EXTERNAL_ALLOWLIST_GEOTAGGING: demand-service,logistics-service
+    EXTERNAL_ALLOWLIST_GEOFENCING: demand-service,logistics-service
+    EXTERNAL_ALLOWLIST_KAFKA: demand-service,logistics-service
     # Vault dev server — replace with AppRole credentials in production
     VAULT_ADDR:     http://vault:8200
     VAULT_TOKEN:    root
@@ -91,6 +103,8 @@ x-api-center-common: &api-center-common
     RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
   depends_on:
     kafka:
+      condition: service_healthy
+    geo-provider-mock:
       condition: service_healthy
     redis-cache:
       condition: service_healthy
@@ -112,6 +126,30 @@ x-api-center-common: &api-center-common
 
 # =============================================================================
 services:
+
+  # ---------------------------------------------------------------------------
+  # Geo Provider Mock — deterministic local geolocation/geofencing/geotagging
+  # ---------------------------------------------------------------------------
+  geo-provider-mock:
+    build:
+      context: ./examples/sandbox/geo-provider-mock
+      dockerfile: Dockerfile
+    container_name: geo-provider-mock
+    expose:
+      - "8085"
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      api-center-network:
+        aliases:
+          - geo-provider-mock
 
   # ---------------------------------------------------------------------------
   # NGINX — Single entrypoint + round-robin load balancer  (checklist §3)

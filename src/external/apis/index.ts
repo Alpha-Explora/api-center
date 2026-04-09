@@ -9,6 +9,7 @@
 import { ConfigService } from '../../config/config.service';
 import { ExternalApiConfigMap } from '../../types';
 import { createGeolocationApi } from './geolocation';
+import { createGeotaggingApi } from './geotagging';
 import { createGeofencingApi } from './geofencing';
 import { createKafkaApi } from './kafka';
 
@@ -19,9 +20,10 @@ import { createKafkaApi } from './kafka';
 export function buildExternalApis(config: ConfigService): ExternalApiConfigMap {
   return {
     geolocation: createGeolocationApi(config),
+    geotagging: createGeotaggingApi(config),
     geofencing: createGeofencingApi(config),
     kafka: createKafkaApi(config),
   };
 }
 
-export { createGeolocationApi, createGeofencingApi, createKafkaApi };
+export { createGeolocationApi, createGeotaggingApi, createGeofencingApi, createKafkaApi };

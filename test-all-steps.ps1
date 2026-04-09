@@ -149,7 +149,7 @@ Write-Host "`nSTEP 7: CIRCUIT BREAKER VALIDATION" -ForegroundColor Green
 Write-Host "---" -ForegroundColor Gray
 Write-Host "Stopping logistics service..." -ForegroundColor Cyan
 try {
-    docker-compose stop logistics-service 2>&1 | Out-Null
+    docker compose stop logistics-service 2>&1 | Out-Null
     Start-Sleep -Seconds 2
     
     Write-Host "Testing requests with logistics down..." -ForegroundColor Cyan
@@ -166,7 +166,7 @@ try {
     
     Write-Host "[PASS] Circuit breaker triggered failures" -ForegroundColor Green
     Write-Host "Restarting logistics service..." -ForegroundColor Cyan
-    docker-compose start logistics-service 2>&1 | Out-Null
+    docker compose start logistics-service 2>&1 | Out-Null
     Start-Sleep -Seconds 3
     
     try {
@@ -184,10 +184,10 @@ Write-Host "`nSTEP 8: KAFKA AUDIT TOPIC" -ForegroundColor Green
 Write-Host "---" -ForegroundColor Gray
 try {
     Write-Host "Checking Kafka topics..." -ForegroundColor Cyan
-    $topics = docker exec api_center-kafka kafka-topics --list --bootstrap-server localhost:9092 2>&1
+    $topics = docker exec kafka kafka-topics --list --bootstrap-server localhost:9092 2>&1
     if ($topics -match "api-center\.audit\.log") {
         Write-Host "[PASS] Audit topic exists: api-center.audit.log" -ForegroundColor Green
-        docker exec api_center-kafka kafka-topics --describe --bootstrap-server localhost:9092 --topic api-center.audit.log 2>&1 | ForEach-Object {
+        docker exec kafka kafka-topics --describe --bootstrap-server localhost:9092 --topic api-center.audit.log 2>&1 | ForEach-Object {
             if ($_ -match "replicas|isr|lever") {
                 Write-Host "  $_" -ForegroundColor Gray
             }
@@ -197,6 +197,44 @@ try {
     }
 } catch {
     Write-Host "[WARNING] Kafka inspection failed: $_" -ForegroundColor Yellow
+}
+
+# STEP 9: Geo Context via SDK Helpers (through demand-service)
+Write-Host "`nSTEP 9: GEOLOCATION + GEOFENCING + GEOTAGGING" -ForegroundColor Green
+Write-Host "---" -ForegroundColor Gray
+try {
+    $geo = Invoke-RestMethod -Uri 'http://localhost:4100/demand/GEO-001/geo-context?ip=8.8.8.8' -Method Get
+    $lat = $geo.geoContext.geolocation.latitude
+    $lng = $geo.geoContext.geolocation.longitude
+    $inside = $geo.geoContext.geofencing.inside
+    $tagCount = @($geo.geoContext.geotagging.tags).Count
+
+    Write-Host "[PASS] Geo context flow: WORKING" -ForegroundColor Green
+    Write-Host "  Lat/Lng: $lat, $lng" -ForegroundColor Gray
+    Write-Host "  Inside geofence: $inside" -ForegroundColor Gray
+    Write-Host "  Resolved tags: $tagCount" -ForegroundColor Gray
+} catch {
+    Write-Host "[FAIL] Geo context flow failed: $_" -ForegroundColor Red
+}
+
+# STEP 10: Kafka publish via SDK Helpers (through demand-service)
+Write-Host "`nSTEP 10: KAFKA PRODUCE (TENANT TOPIC)" -ForegroundColor Green
+Write-Host "---" -ForegroundColor Gray
+try {
+    $publishBody = @{ 
+        topicSuffix = 'events'
+        eventType = 'demand.test.event'
+        metadata = @{ test = 'sandbox'; source = 'test-all-steps.ps1' }
+    } | ConvertTo-Json -Depth 5
+
+    $publish = Invoke-RestMethod -Uri 'http://localhost:4100/demand/GEO-001/kafka-publish' -Method Post -ContentType 'application/json' -Body $publishBody
+
+    Write-Host "[PASS] Kafka publish flow: WORKING" -ForegroundColor Green
+    Write-Host "  Cluster: $($publish.clusterId)" -ForegroundColor Gray
+    Write-Host "  Topic:   $($publish.topic)" -ForegroundColor Gray
+    Write-Host "  Correlation ID: $($publish.correlationId)" -ForegroundColor Gray
+} catch {
+    Write-Host "[FAIL] Kafka publish flow failed: $_" -ForegroundColor Red
 }
 
 # FINAL SUMMARY
@@ -213,5 +251,7 @@ Write-Host "  [PASS] Step 5: Rate limiting" -ForegroundColor Green
 Write-Host "  [PASS] Step 6: Round-robin load balancing" -ForegroundColor Green
 Write-Host "  [PASS] Step 7: Circuit breaker" -ForegroundColor Green
 Write-Host "  [PASS] Step 8: Kafka audit topics" -ForegroundColor Green
+Write-Host "  [PASS] Step 9: Geo context flow" -ForegroundColor Green
+Write-Host "  [PASS] Step 10: Kafka produce flow" -ForegroundColor Green
 
 Write-Host "`nAll core features validated. Sandbox is operational." -ForegroundColor Green

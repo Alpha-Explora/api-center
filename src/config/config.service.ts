@@ -97,6 +97,10 @@ export class ConfigService implements OnModuleInit {
       url: process.env.GEOLOCATION_API_URL || 'https://api.ipgeolocation.io',
       key: process.env.GEOLOCATION_API_KEY || '',
     },
+    geotagging: {
+      url: process.env.GEOTAGGING_API_URL || 'https://api.geotagging.example.com',
+      key: process.env.GEOTAGGING_API_KEY || '',
+    },
     geofencing: {
       url: process.env.GEOFENCING_API_URL || 'https://api.geofencing.example.com',
       key: process.env.GEOFENCING_API_KEY || '',

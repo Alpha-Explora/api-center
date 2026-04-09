@@ -2,7 +2,14 @@
   "serviceId": "demand-service",
   "name": "Demand Service",
   "baseUrl": "http://demand-service.local:4100",
-  "requiredScopes": ["demand:read"],
+  "requiredScopes": [
+    "demand:read",
+    "external:geolocation:read",
+    "external:geotagging:read",
+    "external:geofencing:read",
+    "external:kafka:read",
+    "external:kafka:write"
+  ],
   "exposes": ["GET /demand/:id"],
   "consumes": ["logistics-service"],
   "healthCheck": "/health",

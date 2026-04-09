@@ -11,5 +11,8 @@ export const ExternalRequestEventSchema = z.object({
   status: z.number(),
   duration: z.number(),
   timestamp: z.string(),
+  tribeId: z.string(),
+  correlationId: z.string().optional(),
+  policyDecision: z.enum(['allow', 'deny']).optional(),
 });
 export type ExternalRequestEvent = z.infer<typeof ExternalRequestEventSchema>;

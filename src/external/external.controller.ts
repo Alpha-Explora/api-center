@@ -16,6 +16,7 @@ import { Controller, Get, All, Req, Res, Param, UseGuards } from '@nestjs/common
 import { Request, Response } from 'express';
 import { ExternalService } from './external.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ExternalPolicyGuard } from './guards/external-policy.guard';
 import { LoggerService } from '../shared/logger.service';
 import { AuthenticatedRequest } from '../types';
 
@@ -49,24 +50,25 @@ export class ExternalController {
    * ALL /api/v1/external/:apiName/* — Proxy to external API through circuit breaker
    */
   @All(':apiName/*')
+  @UseGuards(ExternalPolicyGuard)
   async proxyCall(
     @Param('apiName') apiName: string,
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
-    // Strip the /api/v1/external/:apiName prefix to get the downstream path
-    const fullPath = req.originalUrl;
-    const prefixPattern = new RegExp(`^/api/v1/external/${apiName}/?`);
-    const downstreamPath = '/' + fullPath.replace(prefixPattern, '');
+    // Wildcard segment captured by the route ':apiName/*' (query string excluded).
+    const wildcardPath = ((req.params as Record<string, string | undefined>)['0'] ?? '').trim();
+    const downstreamPath = `/${wildcardPath}`.replace(/\/{2,}/g, '/');
+    const normalizedApiName = apiName.toLowerCase();
 
     this.logger.info('External proxy call', {
-      apiName,
+      apiName: normalizedApiName,
       method: req.method,
       path: downstreamPath,
       correlationId: req.correlationId,
     });
 
-    const result = await this.externalService.call(apiName, {
+    const result = await this.externalService.call(normalizedApiName, {
       method: req.method as any,
       path: downstreamPath,
       query: req.query as Record<string, string>,
@@ -81,7 +83,7 @@ export class ExternalController {
       success: true,
       data: result.data,
       meta: {
-        api: apiName,
+        api: normalizedApiName,
         duration: result.duration,
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,

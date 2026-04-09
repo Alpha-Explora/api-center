@@ -238,6 +238,26 @@ export interface TribeClientOptions {
   correlationIdFactory?: () => string;
 }
 
+export interface GeofenceCheckInput {
+  latitude: number;
+  longitude: number;
+  fenceId?: string;
+}
+
+export interface GeotagResolveInput {
+  latitude?: number;
+  longitude?: number;
+  ip?: string;
+  fenceId?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface KafkaProduceRecord {
+  key?: string;
+  value: unknown;
+  headers?: Record<string, string>;
+}
+
 // =============================================================================
 // TribeClient  (checklist §5, §6, §7)
 // =============================================================================
@@ -413,6 +433,82 @@ export class TribeClient {
       method: options?.method ?? 'GET',
       url: `/api/v1/external/${apiName}${path}`,
     });
+  }
+
+  // ── Typed integration helpers ─────────────────────────────────────────────
+
+  /**
+   * Geolocate an IPv4/IPv6 address through APICenter external routing.
+   *
+   * Default path uses `/lookup` for local mock compatibility.
+   * Set `useV3Endpoint=true` when using providers that expose `/v3/ipgeo`.
+   */
+  async geolocateIp<T = unknown>(
+    ip: string,
+    options?: { useV3Endpoint?: boolean },
+  ): Promise<T> {
+    const encodedIp = encodeURIComponent(ip);
+    const basePath = options?.useV3Endpoint ? '/v3/ipgeo' : '/lookup';
+    return this.callExternal<T>('geolocation', `${basePath}?ip=${encodedIp}`);
+  }
+
+  /** Evaluate geofence membership for a coordinate pair. */
+  async geofenceCheck<T = unknown>(payload: GeofenceCheckInput): Promise<T> {
+    return this.callExternal<T>('geofencing', '/v1/geofences/check', {
+      method: 'POST',
+      data: payload,
+    });
+  }
+
+  /** Resolve geospatial tags from coordinates/IP using the geotagging integration. */
+  async geotagResolve<T = unknown>(payload: GeotagResolveInput): Promise<T> {
+    return this.callExternal<T>('geotagging', '/v1/geotags/resolve', {
+      method: 'POST',
+      data: payload,
+    });
+  }
+
+  /** Discover Kafka clusters via APICenter external Kafka routing. */
+  async kafkaListClusters<T = unknown>(): Promise<T> {
+    return this.callExternal<T>('kafka', '/v3/clusters');
+  }
+
+  /** List topics for a specific Kafka cluster. */
+  async kafkaListTopics<T = unknown>(clusterId: string): Promise<T> {
+    return this.callExternal<T>(
+      'kafka',
+      `/v3/clusters/${encodeURIComponent(clusterId)}/topics`,
+    );
+  }
+
+  /**
+   * Build a tenant-scoped Kafka topic name that conforms to APICenter policy.
+   * Pattern: tribe.<tribeId>.<suffix>
+   */
+  static buildTenantTopic(tribeId: string, suffix: string): string {
+    const normalizedTribeId = String(tribeId).toLowerCase().replace(/[^a-z0-9._-]/g, '-');
+    const normalizedSuffix = String(suffix)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '-');
+
+    return `tribe.${normalizedTribeId}.${normalizedSuffix}`;
+  }
+
+  /** Produce records to a tenant-scoped Kafka topic through APICenter. */
+  async kafkaProduceRecords<T = unknown>(
+    clusterId: string,
+    topic: string,
+    records: KafkaProduceRecord[],
+  ): Promise<T> {
+    return this.callExternal<T>(
+      'kafka',
+      `/v3/clusters/${encodeURIComponent(clusterId)}/topics/${encodeURIComponent(topic)}/records`,
+      {
+        method: 'POST',
+        data: { records },
+      },
+    );
   }
 
   // ── Discovery ─────────────────────────────────────────────────────────────
