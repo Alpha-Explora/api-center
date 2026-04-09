@@ -1,7 +1,7 @@
 {
   "serviceId": "demand-service",
   "name": "Demand Service",
-  "baseUrl": "http://demand-service.local:4100",
+  "baseUrl": "http://demand-service:4100",
   "requiredScopes": [
     "demand:read",
     "external:geolocation:read",

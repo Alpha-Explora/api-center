@@ -20,7 +20,7 @@ interface PublishDemandEventBody {
 
 @Controller()
 export class DemandController {
-  constructor(private readonly demand: DemandService) {}
+  private readonly demand = new DemandService();
 
   @Get('health')
   health() {

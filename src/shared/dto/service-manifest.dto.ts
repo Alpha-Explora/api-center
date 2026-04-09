@@ -33,7 +33,7 @@ export class ServiceManifestDto {
   name: string;
 
   @IsString()
-  @IsUrl({}, { message: 'baseUrl must be a valid URL' })
+  @IsUrl({ require_tld: false }, { message: 'baseUrl must be a valid URL' })
   baseUrl: string;
 
   @IsArray()

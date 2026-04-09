@@ -293,6 +293,26 @@ await client.callSharedService('email-service', '/send', {
 
 // External API (credentials stay in APICenter — caller never sees them)
 const geo = await client.callExternal('geolocation', '/lookup?ip=8.8.8.8');
+
+// Typed geo + geofence + geotag helpers
+const geoLookup = await client.geolocateIp('8.8.8.8');
+const fence = await client.geofenceCheck({ latitude: 13.7563, longitude: 100.5018 });
+const tags = await client.geotagResolve({
+  ip: '8.8.8.8',
+  latitude: 13.7563,
+  longitude: 100.5018,
+  context: { shipmentId: 'SMOKE-001' },
+});
+
+// Typed Kafka helpers
+const clusters = await client.kafkaListClusters();
+const tenantTopic = TribeClient.buildTenantTopic('orders-service', 'events');
+await client.kafkaProduceRecords('<cluster-id>', tenantTopic, [
+  {
+    key: 'order-123',
+    value: { eventType: 'order.created', orderId: 'order-123' },
+  },
+]);
 ```
 
 **Error types:**
@@ -326,6 +346,7 @@ External API credentials live **only** in APICenter — tribe services never hol
 Configured external services:
 
 - `geolocation` (IP geolocation provider)
+- `geotagging` (geo-tag enrichment provider)
 - `geofencing` (geofence provider)
 - `kafka` (Kafka REST bridge backed by the internal Kafka broker)
 
@@ -364,7 +385,19 @@ await client.authenticate();
 
 // Discover Kafka cluster metadata via APICenter external routing
 const clusters = await client.callExternal('kafka', '/v3/clusters');
+
+// Or use typed helpers for safer integration
+const typedClusters = await client.kafkaListClusters();
+const topic = TribeClient.buildTenantTopic('orders-service', 'events');
 ```
+
+Local end-to-end sandbox validation:
+
+```powershell
+./test-all-steps.ps1
+```
+
+The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging/Kafka flows.
 
 Required token scopes for external policy enforcement:
 

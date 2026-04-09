@@ -1,7 +1,7 @@
 {
   "serviceId": "logistics-service",
   "name": "Logistics Service",
-  "baseUrl": "http://logistics-service.local:4000",
+  "baseUrl": "http://logistics-service:4000",
   "requiredScopes": ["logistics:read"],
   "exposes": ["GET /shipments/:id"],
   "consumes": [],
