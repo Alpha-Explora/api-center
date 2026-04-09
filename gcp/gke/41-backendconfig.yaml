@@ -1,0 +1,30 @@
+# =============================================================================
+# 41-backendconfig.yaml — GCLB BackendConfig for the api-center Service
+# =============================================================================
+# BackendConfig is a GKE-specific CRD that configures the Google Cloud Load
+# Balancer behind the Ingress in 80-ingress.yaml. We use it to:
+#   • Point GCLB health checks at /api/v1/health/ready (NOT /)
+#   • Set generous timeouts for proxied calls
+#   • (Optional) attach a Cloud Armor policy for WAF / rate-limit
+# =============================================================================
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: api-center-backend
+  namespace: api-center
+spec:
+  timeoutSec: 60
+  connectionDraining:
+    drainingTimeoutSec: 30
+  healthCheck:
+    type: HTTP
+    requestPath: /api/v1/health/ready
+    port: 3000
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+  # Uncomment to attach a Cloud Armor policy (create with `gcloud compute
+  # security-policies create api-center-armor`):
+  # securityPolicy:
+  #   name: api-center-armor

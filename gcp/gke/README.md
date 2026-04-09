@@ -1,0 +1,143 @@
+# APICenter on GKE (Autopilot) with Horizontal Pod Autoscaling
+
+This directory deploys APICenter to **Google Kubernetes Engine (Autopilot)** with native **Horizontal Pod Autoscaling**, Memorystore Redis, Workload Identity, and a Google-managed TLS Ingress.
+
+> Pick **GKE** over [Cloud Run](../cloudrun.yaml) when you need:
+> - Replicas beyond Cloud Run's practical ceiling (~10–100 with cold-start jitter)
+> - VPC-only access to Memorystore / private services
+> - Long-lived connections (gRPC streaming, SSE, WebSockets)
+> - Fine control over rollout strategy, PDBs, topology spread
+
+---
+
+## Architecture
+
+```
+Internet
+   │
+   ▼  HTTPS (443)
+┌────────────────────────────────────────────┐
+│  Google Cloud Load Balancer (GCLB)         │
+│  • Static global IP (api-center-ip)        │
+│  • ManagedCertificate (auto-renewed)       │
+│  • Health check → /api/v1/health/ready     │
+└────────────────────┬───────────────────────┘
+                     │ container-native LB (NEG)
+   ┌─────────────────┼─────────────────┐
+   ▼                 ▼                 ▼
+┌─────────┐      ┌─────────┐      ┌─────────┐
+│ pod 1   │      │ pod 2   │      │ pod N   │   ← HPA scales 3 → 30
+│ (auto)  │      │ (auto)  │      │ (auto)  │      on CPU 70% / mem 80%
+└────┬────┘      └────┬────┘      └────┬────┘
+     └─────────────┬──┴──────────────────┘
+                   ▼
+        ┌──────────────────────┐
+        │ Memorystore Redis    │
+        │ • cache (registry)   │
+        │ • rate-limit         │
+        └──────────────────────┘
+```
+
+All pods are stateless and identical — registry entries, refresh tokens, and rate-limit counters live in Memorystore.
+
+---
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `00-namespace.yaml` | `api-center` namespace |
+| `10-serviceaccount.yaml` | KSA bound to GCP SA via Workload Identity |
+| `20-configmap.yaml` | Non-secret env (Redis URLs, project, secret name, CORS) |
+| `30-deployment.yaml` | Deployment + probes + resource requests (HPA-tuned) |
+| `40-service.yaml` | ClusterIP Service with NEG + BackendConfig annotations |
+| `41-backendconfig.yaml` | GCLB health-check + draining config |
+| `50-hpa.yaml` | HPA: 3–30 replicas, CPU 70% / mem 80%, fast scale-up |
+| `60-pdb.yaml` | PDB `minAvailable: 2` for safe rolling drains |
+| `70-managedcert.yaml` | Google-managed TLS cert |
+| `80-ingress.yaml` | GCE Ingress (HTTPS only, static IP) |
+| `provision.sh` | One-time GCP setup (cluster, Memorystore, Workload Identity, IP) |
+
+---
+
+## Deploy
+
+### 1. Provision GCP resources (one-time)
+
+```bash
+PROJECT_ID=my-project \
+REGION=us-central1 \
+SECRET_NAME=api-center-prod \
+PUBLIC_HOSTNAME=api.example.com \
+./provision.sh
+```
+
+The script prints the values you need to plug into the manifests.
+
+### 2. Fill in placeholders
+
+Every `<PLACEHOLDER>` in the YAML files. Quick search:
+
+```bash
+grep -rn '<[A-Z_]*>' gcp/gke/
+```
+
+You will need to replace:
+- `<PROJECT_ID>` (in `10-serviceaccount.yaml`, `20-configmap.yaml`)
+- `<SECRET_NAME>` (in `20-configmap.yaml`)
+- `<CACHE_REDIS_HOST>` / `<RATELIMIT_REDIS_HOST>` (in `20-configmap.yaml`)
+- `<KAFKA_BROKERS>`, `<ALLOWED_ORIGINS>` (in `20-configmap.yaml`)
+- `<IMAGE>` (in `30-deployment.yaml`)
+- `<PUBLIC_HOSTNAME>` (in `70-managedcert.yaml`, `80-ingress.yaml`)
+
+### 3. Apply
+
+```bash
+gcloud container clusters get-credentials api-center --region=us-central1
+kubectl apply -f gcp/gke/
+```
+
+### 4. Wait for the Ingress + cert
+
+```bash
+kubectl -n api-center get ingress api-center -w
+kubectl -n api-center describe managedcertificate api-center-cert
+```
+
+Cert provisioning takes 10–20 minutes after DNS resolves to the static IP.
+
+---
+
+## Rolling a new image
+
+```bash
+kubectl -n api-center set image deploy/api-center \
+  api-center=us-central1-docker.pkg.dev/$PROJECT/api-center/api-center:vX.Y.Z
+kubectl -n api-center rollout status deploy/api-center
+```
+
+---
+
+## Verify HPA
+
+```bash
+# Check the HPA has metrics (TARGETS column should show real percentages,
+# not <unknown>)
+kubectl -n api-center get hpa api-center
+
+# Drive synthetic load
+hey -z 2m -c 200 https://api.example.com/api/v1/health/live
+
+# Watch it scale
+watch kubectl -n api-center get hpa,pods
+```
+
+Expected: replicas climb past 3 within ~1 minute, settle, then scale back down ~5 minutes after load stops (matches `scaleDown.stabilizationWindowSeconds: 300` in `50-hpa.yaml`).
+
+---
+
+## Notes
+
+- **Kafka and Vault** are out of scope for this manifest set. Use Confluent Cloud (set `KAFKA_BROKERS` accordingly) or deploy a separate StatefulSet. Vault is unnecessary in production — secrets already flow through GCP Secret Manager via `secrets.service.ts`.
+- **Request-rate-based scaling** (e.g. RPS) requires the Cloud Monitoring custom-metrics adapter and an external metric on the GCLB. Left as a `TODO` in `50-hpa.yaml`.
+- **Cloud Armor** can be attached by uncommenting the `securityPolicy` block in `41-backendconfig.yaml`.

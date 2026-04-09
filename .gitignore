@@ -35,3 +35,9 @@ coverage/
 
 # ---- Docker (local volumes) ----
 docker-data/
+
+
+.agents
+.augment
+.claude
+skills-lock.json

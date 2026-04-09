@@ -32,6 +32,33 @@ This guide is for contributors and platform operators who need to run, test, and
    - [Cloud Build Trigger](#cicd-flow-cloud-build)
    - [Cloud Run Deploy Steps](#manual-cloud-run-deploy)
    - [Environment Variables and Secrets](#environment-variable-setup)
+9. [GKE Deployment with Horizontal Pod Autoscaling](#gke-deployment-with-horizontal-pod-autoscaling)
+
+---
+
+## GKE Deployment with Horizontal Pod Autoscaling
+
+For higher scale, VPC-private dependencies, or long-lived connections, deploy to **GKE Autopilot** instead of Cloud Run. Manifests live in [`gcp/gke/`](../../gcp/gke/) and include:
+
+- Deployment + ConfigMap + ClusterIP Service
+- HorizontalPodAutoscaler (3 → 30 pods, CPU 70 % / mem 80 %)
+- PodDisruptionBudget for safe rolling drains
+- GKE Ingress + ManagedCertificate (Google-managed TLS)
+- BackendConfig wiring GCLB health checks to `/api/v1/health/ready`
+- Workload Identity binding so pods read GCP Secret Manager without keys
+- `provision.sh` for one-time cluster + Memorystore + IP setup
+
+**When to pick GKE over Cloud Run:**
+
+| Need | Cloud Run | GKE |
+| --- | --- | --- |
+| ≤ ~10 instances, bursty traffic | ✅ simpler | overkill |
+| > 10 instances or steady high QPS | maxScale ceiling | ✅ HPA to 30+ |
+| Memorystore / VPC-only deps | needs Serverless VPC connector | ✅ native VPC |
+| Long-lived connections (gRPC streaming, SSE) | limited | ✅ |
+| Sub-second cold-start matters | cold starts | ✅ always-on min replicas |
+
+See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough.
 
 ---
 

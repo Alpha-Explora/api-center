@@ -1,0 +1,17 @@
+# =============================================================================
+# 60-pdb.yaml — PodDisruptionBudget for api-center
+# =============================================================================
+# Guarantees at least 2 healthy pods at all times during voluntary disruptions
+# (Autopilot upgrades, node drains, manual `kubectl drain`). Combined with the
+# HPA's minReplicas=3, this means an upgrade can only evict one pod at a time.
+# =============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-center
+  namespace: api-center
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-center

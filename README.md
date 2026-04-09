@@ -3,6 +3,11 @@
 APICenter is the **single, centralized API gateway** for the platform. Every API call — tribe-to-tribe, shared platform services, and external third-party APIs — routes through APICenter. No tribe calls another tribe directly.
 
 > **For platform operators and contributors:** see [docs/developer/README.md](docs/developer/README.md) for local dev setup, testing, CI/CD, and GCP deployment.
+>
+> **Deploying?** Pick one:
+>
+> - [Cloud Run](gcp/cloudrun.yaml) — single Knative Service, simplest path, scale 1–10
+> - [GKE Autopilot + HPA](gcp/gke/README.md) — horizontal pod autoscaling 3–30, Memorystore, GCLB Ingress
 
 ---
 
