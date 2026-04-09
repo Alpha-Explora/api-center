@@ -20,7 +20,44 @@ interface PublishDemandEventBody {
 
 @Controller()
 export class DemandController {
-  private readonly demand = new DemandService();
+  constructor(private readonly demand: DemandService) {}
+
+  private extractStatusCode(error: unknown): number {
+    const typed = error as {
+      statusCode?: unknown;
+      response?: {
+        status?: unknown;
+      };
+    };
+
+    if (typeof typed?.statusCode === 'number') {
+      return typed.statusCode;
+    }
+
+    if (typeof typed?.response?.status === 'number') {
+      return typed.response.status;
+    }
+
+    const message =
+      (error as { message?: string } | undefined)?.message ||
+      'Gateway request failed';
+    const statusMatch = /status\s+(\d{3})/i.exec(message);
+    return statusMatch ? Number(statusMatch[1]) : HttpStatus.BAD_GATEWAY;
+  }
+
+  private throwMappedError(error: unknown): never {
+    const message =
+      (error as { message?: string } | undefined)?.message ||
+      'Gateway request failed';
+
+    throw new HttpException(
+      {
+        message,
+        source: 'demand-service',
+      },
+      this.extractStatusCode(error),
+    );
+  }
 
   @Get('health')
   health() {
@@ -39,19 +76,7 @@ export class DemandController {
     try {
       return await this.demand.fetchShipment(id, correlationId);
     } catch (error) {
-      const message = (error as Error).message || 'Gateway request failed';
-      const statusMatch = message.match(/status\s+(\d{3})/i);
-      const status = statusMatch
-        ? Number(statusMatch[1])
-        : HttpStatus.BAD_GATEWAY;
-
-      throw new HttpException(
-        {
-          message,
-          source: 'demand-service',
-        },
-        status,
-      );
+      this.throwMappedError(error);
     }
   }
 
@@ -64,19 +89,7 @@ export class DemandController {
     try {
       return await this.demand.fetchShipmentWithGeoContext(id, ip, correlationId);
     } catch (error) {
-      const message = (error as Error).message || 'Gateway request failed';
-      const statusMatch = message.match(/status\s+(\d{3})/i);
-      const status = statusMatch
-        ? Number(statusMatch[1])
-        : HttpStatus.BAD_GATEWAY;
-
-      throw new HttpException(
-        {
-          message,
-          source: 'demand-service',
-        },
-        status,
-      );
+      this.throwMappedError(error);
     }
   }
 
@@ -89,19 +102,7 @@ export class DemandController {
     try {
       return await this.demand.publishDemandEvent(id, body, correlationId);
     } catch (error) {
-      const message = (error as Error).message || 'Gateway request failed';
-      const statusMatch = message.match(/status\s+(\d{3})/i);
-      const status = statusMatch
-        ? Number(statusMatch[1])
-        : HttpStatus.BAD_GATEWAY;
-
-      throw new HttpException(
-        {
-          message,
-          source: 'demand-service',
-        },
-        status,
-      );
+      this.throwMappedError(error);
     }
   }
 }

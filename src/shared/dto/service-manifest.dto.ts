@@ -25,26 +25,33 @@ export class ServiceManifestDto {
   @Matches(/^[a-z0-9-]+$/, {
     message: 'serviceId must be lowercase alphanumeric with hyphens only',
   })
-  serviceId: string;
+  serviceId!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'name is required' })
   @MaxLength(128, { message: 'name is too long' })
-  name: string;
+  name!: string;
 
   @IsString()
-  @IsUrl({ require_tld: false }, { message: 'baseUrl must be a valid URL' })
-  baseUrl: string;
+  @IsUrl(
+    {
+      require_tld: false,
+      require_protocol: true,
+      protocols: ['http', 'https'],
+    },
+    { message: 'baseUrl must be a valid URL' },
+  )
+  baseUrl!: string;
 
   @IsArray()
   @ArrayMinSize(1, { message: 'At least one required scope must be defined' })
   @IsString({ each: true })
-  requiredScopes: string[];
+  requiredScopes!: string[];
 
   @IsArray()
   @ArrayMinSize(1, { message: 'At least one exposed route must be defined' })
   @IsString({ each: true })
-  exposes: string[];
+  exposes!: string[];
 
   @IsArray()
   @IsString({ each: true })

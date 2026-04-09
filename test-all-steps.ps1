@@ -138,12 +138,12 @@ for ($attempt = 1; $attempt -le 30; $attempt++) {
 }
 
 if ($successStreak -lt $requiredStreak) {
-    Write-Host "[WARNING] Registry propagation did not fully stabilize before smoke tests" -ForegroundColor Yellow
+    Write-Host "[FAIL] Registry propagation did not fully stabilize before smoke tests" -ForegroundColor Red
     $failedChecks += 'Step 2: Registry propagation did not stabilize'
 }
 
 if (-not $registrationSucceeded) {
-    Write-Host "[WARNING] One or more registrations failed during bootstrap" -ForegroundColor Yellow
+    Write-Host "[FAIL] One or more registrations failed during bootstrap" -ForegroundColor Red
 }
 
 # STEP 3: Smoke Test - Front-door flow
@@ -270,8 +270,13 @@ if ($backendCount -ge 2) {
 Write-Host "`nSTEP 7: CIRCUIT BREAKER VALIDATION" -ForegroundColor Green
 Write-Host "---" -ForegroundColor Gray
 Write-Host "Stopping logistics service..." -ForegroundColor Cyan
+
+$logisticsStopped = $false
+$restartAttempted = $false
+
 try {
     docker compose stop logistics-service 2>&1 | Out-Null
+    $logisticsStopped = $true
     Start-Sleep -Seconds 2
     
     Write-Host "Testing requests with logistics down..." -ForegroundColor Cyan
@@ -310,31 +315,42 @@ try {
             Write-Host "  - $_" -ForegroundColor Red
         }
     }
-
-    Write-Host "Restarting logistics service..." -ForegroundColor Cyan
-    docker compose start logistics-service 2>&1 | Out-Null
-    Start-Sleep -Seconds 2
-
-    $recovered = $false
-    for ($attempt = 1; $attempt -le 10; $attempt++) {
-        try {
-            [void](Test-LogisticsHealth)
-            $recovered = $true
-            break
-        } catch {
-            Start-Sleep -Seconds 2
-        }
-    }
-
-    if ($recovered) {
-        Write-Host "[PASS] Logistics recovered successfully" -ForegroundColor Green
-    } else {
-        Write-Host "[FAIL] Logistics failed to recover after restart" -ForegroundColor Red
-        $failedChecks += 'Step 7: Logistics recovery check failed after restart'
-    }
 } catch {
     Write-Host "[FAIL] Circuit breaker test error: $_" -ForegroundColor Red
     $failedChecks += 'Step 7: Circuit breaker test execution error'
+} finally {
+    if ($logisticsStopped) {
+        Write-Host "Restarting logistics service..." -ForegroundColor Cyan
+        try {
+            docker compose start logistics-service 2>&1 | Out-Null
+            $restartAttempted = $true
+        } catch {
+            Write-Host "[FAIL] Failed to restart logistics service: $_" -ForegroundColor Red
+            $failedChecks += 'Step 7: Logistics restart command failed'
+        }
+
+        if ($restartAttempted) {
+            Start-Sleep -Seconds 2
+
+            $recovered = $false
+            for ($attempt = 1; $attempt -le 10; $attempt++) {
+                try {
+                    [void](Test-LogisticsHealth)
+                    $recovered = $true
+                    break
+                } catch {
+                    Start-Sleep -Seconds 2
+                }
+            }
+
+            if ($recovered) {
+                Write-Host "[PASS] Logistics recovered successfully" -ForegroundColor Green
+            } else {
+                Write-Host "[FAIL] Logistics failed to recover after restart" -ForegroundColor Red
+                $failedChecks += 'Step 7: Logistics recovery check failed after restart'
+            }
+        }
+    }
 }
 
 # STEP 8: Kafka Audit Topic
