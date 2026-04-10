@@ -63,9 +63,11 @@
 # Every change here is automatically applied to all 3 containers.
 # =============================================================================
 x-api-center-common: &api-center-common
+  image: apicenter-gateway:local
   build:
     context: .
     dockerfile: Dockerfile
+    target: runner
   env_file:
     - .env
   environment:

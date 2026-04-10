@@ -8,36 +8,45 @@
 #    (Workload Identity) — no key files needed inside the image
 # =============================================================================
 
-# ---- Stage 1: Build ----
-FROM node:20-alpine AS builder
+# ---- Stage 1: Dependencies ----
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --include=dev --no-audit --no-fund
+
+# ---- Stage 2: Build ----
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Reuse dependencies from the deps stage to avoid reinstalling on source changes
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json* ./
 
 COPY tsconfig.json nest-cli.json ./
 COPY src/ ./src/
-RUN npm run build
+RUN npm run build && \
+    npm prune --omit=dev && \
+    npm cache clean --force
 
-# ---- Stage 2: Production ----
+# ---- Stage 3: Production ----
 FROM node:20-alpine AS runner
 
 RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
+ENV NODE_ENV=production
 
-COPY --from=builder /app/dist ./dist
+COPY --chown=node:node package.json package-lock.json* ./
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/dist ./dist
 
-RUN mkdir -p logs
+RUN mkdir -p /app/logs && chown node:node /app/logs
 
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -S appuser -u 1001 -G appgroup && \
-    chown -R appuser:appgroup /app
-USER appuser
+USER node
 
 # Cloud Run injects PORT at runtime (default 8080)
 ENV PORT=8080

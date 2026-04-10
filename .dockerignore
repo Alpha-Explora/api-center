@@ -46,8 +46,14 @@ CONTRIBUTING.md
 LICENSE
 docs/
 
+# Local sandbox/examples are not needed for gateway image builds
+examples/
+
 # CI/CD config
 .github/
+cloudbuild.yaml
+prometheus.yml
+nginx.conf
 
 # Docker files (prevent recursive builds)
 docker-compose.yml

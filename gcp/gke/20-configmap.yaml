@@ -6,12 +6,12 @@
 # secrets.service.ts via GCP_SECRET_NAME — NOT in this ConfigMap.
 #
 # Replace placeholders before applying:
-#   <PROJECT_ID>            GCP project ID
-#   <SECRET_NAME>           Secret Manager secret name (e.g. api-center-prod)
-#   <CACHE_REDIS_HOST>      Memorystore "api-center-cache" host (10.x.x.x)
-#   <RATELIMIT_REDIS_HOST>  Memorystore "api-center-ratelimit" host
-#   <KAFKA_BROKERS>         Kafka bootstrap (Confluent Cloud or in-cluster)
-#   <ALLOWED_ORIGINS>       comma-separated, e.g. https://app.example.com
+#   api-center-492808            GCP project ID
+#   api-center-prod           Secret Manager secret name (e.g. api-center-prod)
+#   10.34.181.131      Memorystore "api-center-cache" host (10.x.x.x)
+#   10.63.215.147  Memorystore "api-center-ratelimit" host
+#   localhost:9092         Kafka bootstrap (Confluent Cloud or in-cluster)
+#   *       comma-separated, e.g. https://app.example.com
 # =============================================================================
 apiVersion: v1
 kind: ConfigMap
@@ -23,21 +23,21 @@ data:
   PORT: "3000"
 
   # GCP Secret Manager — secrets.service.ts merges this secret into process.env
-  GCP_PROJECT_ID: "<PROJECT_ID>"
-  GCP_SECRET_NAME: "<SECRET_NAME>"
+  GCP_PROJECT_ID: "api-center-492808"
+  GCP_SECRET_NAME: "api-center-prod"
 
   # Shared Redis (Memorystore). Both URLs are required because the gateway
   # is multi-replica and shares registry / token / rate-limit state.
-  REDIS_CACHE_URL: "redis://<CACHE_REDIS_HOST>:6379"
-  REDIS_RATE_LIMIT_URL: "redis://<RATELIMIT_REDIS_HOST>:6379"
+  REDIS_CACHE_URL: "redis://10.34.181.131:6379"
+  REDIS_RATE_LIMIT_URL: "redis://10.63.215.147:6379"
 
   # Kafka event bus
-  KAFKA_BROKERS: "<KAFKA_BROKERS>"
+  KAFKA_BROKERS: "localhost:9092"
   KAFKA_CLIENT_ID: "api-center"
   KAFKA_GROUP_ID: "api-center-group"
 
   # CORS — NGINX is gone in GKE, so the Node app handles preflight directly
-  ALLOWED_ORIGINS: "<ALLOWED_ORIGINS>"
+  ALLOWED_ORIGINS: "*"
 
   # Auth provider — keycloak / google / dev-jwt
   AUTH_PROVIDER: "keycloak"

@@ -10,7 +10,7 @@
 #   gcloud compute addresses describe api-center-ip --global --format='value(address)'
 #
 # Replace before applying:
-#   <PUBLIC_HOSTNAME>   must match the domain in 70-managedcert.yaml
+#   api-center.example.com   must match the domain in 70-managedcert.yaml
 # =============================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -24,7 +24,7 @@ metadata:
     kubernetes.io/ingress.allow-http: "false"
 spec:
   rules:
-    - host: <PUBLIC_HOSTNAME>
+    - host: api-center.example.com
       http:
         paths:
           - path: /
