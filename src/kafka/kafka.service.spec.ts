@@ -108,6 +108,15 @@ describe('KafkaService', () => {
     expect(mockProducer.send).not.toHaveBeenCalled();
   });
 
+  it('should reject token-issued events when required schema fields are missing', async () => {
+    await expect(
+      service.publish(TOPICS.TOKEN_ISSUED, {
+        tribeId: 'svc-alpha',
+        sub: 'svc-alpha',
+      }),
+    ).rejects.toThrow('Kafka schema validation failed');
+  });
+
   it('should publish payload with source metadata and key', async () => {
     await service.publish('custom.topic', { event: 'ok' }, 'tribe-a');
 
@@ -124,6 +133,23 @@ describe('KafkaService', () => {
     const sentPayload = JSON.parse(mockProducer.send.mock.calls[0][0].messages[0].value);
     expect(sentPayload.event).toBe('ok');
     expect(sentPayload._meta.source).toBe('api-center-test');
+    expect(sentPayload._meta.timestamp).toEqual(expect.any(String));
+  });
+
+  it('should publish audit events when payload satisfies audit schema', async () => {
+    await service.publish(TOPICS.AUDIT_LOG, {
+      tribeId: 'svc-alpha',
+      method: 'GET',
+      path: '/api/v1/tribes/svc-alpha',
+      statusCode: 200,
+      durationMs: 15,
+      ip: '127.0.0.1',
+      correlationId: 'corr-1',
+    });
+
+    expect(mockProducer.send).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: TOPICS.AUDIT_LOG }),
+    );
   });
 
   it('should disconnect producer and consumers on module destroy', async () => {
