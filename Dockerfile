@@ -29,7 +29,7 @@ WORKDIR /app
 # Install dependencies first (Docker caches this layer as long as package.json
 # doesn't change, making rebuilds much faster)
 COPY package.json package-lock.json* ./
-RUN npm ci --include=dev --no-audit --no-fund
+RUN npm ci --include=dev --no-fund
 
 # ---- Stage 2: Build ----
 FROM node:20-alpine AS builder

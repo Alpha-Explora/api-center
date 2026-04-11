@@ -58,6 +58,7 @@ describe('AuthController (e2e)', () => {
           provide: KafkaService,
           useValue: {
             publish: jest.fn().mockResolvedValue(undefined),
+            publishNonBlocking: jest.fn(),
           },
         },
         {

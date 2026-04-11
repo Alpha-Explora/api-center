@@ -145,6 +145,27 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Fire-and-forget publish for request-path events. Failures are logged and
+   * intentionally not rethrown so primary request flow remains unaffected.
+   */
+  publishNonBlocking(
+    topic: string,
+    payload: Record<string, unknown>,
+    options?: { key?: string; context?: string; failureLogLevel?: 'debug' | 'warn' },
+  ): void {
+    const { key, context = 'KafkaService', failureLogLevel = 'debug' } = options || {};
+
+    void this.publish(topic, payload, key).catch((err) => {
+      const message = `Kafka publish failed for ${topic} (non-blocking): ${(err as Error).message}`;
+      if (failureLogLevel === 'warn') {
+        this.logger.warn(message, context);
+        return;
+      }
+      this.logger.debug(message, context);
+    });
+  }
+
+  /**
    * Subscribe a handler function to a Kafka topic.
    * Creates a dedicated consumer per topic.
    */

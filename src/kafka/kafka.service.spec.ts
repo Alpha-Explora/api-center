@@ -40,6 +40,8 @@ describe('KafkaService', () => {
   const mockLogger = {
     log: jest.fn(),
     error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
   } as unknown as LoggerService;
 
   let mockProducer: {
@@ -160,5 +162,32 @@ describe('KafkaService', () => {
     expect(mockProducer.disconnect).toHaveBeenCalledTimes(1);
     expect(mockConsumer.disconnect).toHaveBeenCalledTimes(1);
     expect(service.isConnected()).toBe(false);
+  });
+
+  it('should keep request flow non-blocking when publish fails', async () => {
+    jest.spyOn(service, 'publish').mockRejectedValue(new Error('kafka-down'));
+
+    service.publishNonBlocking('custom.topic', { event: 'non-blocking' });
+    await Promise.resolve();
+
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Kafka publish failed for custom.topic'),
+      'KafkaService',
+    );
+  });
+
+  it('should log warn when non-blocking publish is configured with warn level', async () => {
+    jest.spyOn(service, 'publish').mockRejectedValue(new Error('kafka-down'));
+
+    service.publishNonBlocking('custom.topic', { event: 'warn-level' }, {
+      context: 'ExternalService',
+      failureLogLevel: 'warn',
+    });
+    await Promise.resolve();
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Kafka publish failed for custom.topic'),
+      'ExternalService',
+    );
   });
 });

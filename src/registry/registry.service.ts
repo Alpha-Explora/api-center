@@ -166,8 +166,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── Kafka events ──────────────────────────────────────────────────────
-    this.kafka
-      .publish(TOPICS.SERVICE_REGISTERED, {
+    this.kafka.publishNonBlocking(TOPICS.SERVICE_REGISTERED, {
         serviceId: manifest.serviceId,
         name: manifest.name,
         baseUrl: manifest.baseUrl,
@@ -175,27 +174,18 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
         serviceType: entry.serviceType,
         isUpdate: !!existing,
         timestamp: now,
-      })
-      .catch((err) => {
-        this.logger.warn(
-          `Kafka publish failed for ${TOPICS.SERVICE_REGISTERED}: ${(err as Error).message}`,
-          'RegistryService',
-        );
+      }, {
+        context: 'RegistryService',
       });
 
     if (previousVersion && previousVersion !== manifest.version) {
-      this.kafka
-        .publish(TOPICS.SERVICE_VERSION_CHANGED, {
+      this.kafka.publishNonBlocking(TOPICS.SERVICE_VERSION_CHANGED, {
           serviceId: manifest.serviceId,
           previousVersion,
           newVersion: manifest.version,
           timestamp: now,
-        })
-        .catch((err) => {
-          this.logger.warn(
-            `Kafka publish failed for ${TOPICS.SERVICE_VERSION_CHANGED}: ${(err as Error).message}`,
-            'RegistryService',
-          );
+        }, {
+          context: 'RegistryService',
         });
     }
 
@@ -240,16 +230,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
 
-    this.kafka
-      .publish(TOPICS.SERVICE_DEREGISTERED, {
+    this.kafka.publishNonBlocking(TOPICS.SERVICE_DEREGISTERED, {
         serviceId,
         timestamp: new Date().toISOString(),
-      })
-      .catch((err) => {
-        this.logger.warn(
-          `Kafka publish failed for ${TOPICS.SERVICE_DEREGISTERED}: ${(err as Error).message}`,
-          'RegistryService',
-        );
+      }, {
+        context: 'RegistryService',
       });
 
     this.logger.info('Service deregistered', { serviceId });
@@ -296,18 +281,13 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
 
-    this.kafka
-      .publish(TOPICS.SERVICE_DEPRECATED, {
+    this.kafka.publishNonBlocking(TOPICS.SERVICE_DEPRECATED, {
         serviceId,
         sunsetDate: updatedEntry.sunsetDate,
         replacementService: updatedEntry.replacementService,
         timestamp: updatedEntry.updatedAt,
-      })
-      .catch((err) => {
-        this.logger.warn(
-          `Kafka publish failed for ${TOPICS.SERVICE_DEPRECATED}: ${(err as Error).message}`,
-          'RegistryService',
-        );
+      }, {
+        context: 'RegistryService',
       });
 
     this.logger.warn(
@@ -346,16 +326,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
 
-    this.kafka
-      .publish(TOPICS.SERVICE_RETIRED, {
+    this.kafka.publishNonBlocking(TOPICS.SERVICE_RETIRED, {
         serviceId,
         timestamp: updatedEntry.updatedAt,
-      })
-      .catch((err) => {
-        this.logger.warn(
-          `Kafka publish failed for ${TOPICS.SERVICE_RETIRED}: ${(err as Error).message}`,
-          'RegistryService',
-        );
+      }, {
+        context: 'RegistryService',
       });
 
     this.logger.warn(`Service '${serviceId}' retired — no longer routable`, 'RegistryService');

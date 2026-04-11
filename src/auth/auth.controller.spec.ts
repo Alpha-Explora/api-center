@@ -45,6 +45,7 @@ const mockLogger: Partial<LoggerService> = {
 
 const mockKafka: Partial<KafkaService> = {
   publish: jest.fn().mockResolvedValue(undefined),
+  publishNonBlocking: jest.fn(),
 };
 
 const mockGoogleProvider: Partial<GoogleProvider> = {
@@ -153,10 +154,10 @@ describe('AuthController', () => {
 
       await controller.issueToken(dto, fakeReq());
 
-      expect(mockKafka.publish).toHaveBeenCalledTimes(1);
-      const [topic, payload, key] = (mockKafka.publish as jest.Mock).mock.calls[0];
+      expect(mockKafka.publishNonBlocking).toHaveBeenCalledTimes(1);
+      const [topic, payload, options] = (mockKafka.publishNonBlocking as jest.Mock).mock.calls[0];
       expect(topic).toBe('api-center.auth.token-issued');
-      expect(key).toBe('svc-alpha');
+      expect(options.key).toBe('svc-alpha');
       expect(payload.tribeId).toBe('svc-alpha');
       expect(payload.scopes).toEqual(['read']);
       expect(payload.permissions).toEqual(expect.arrayContaining(['tribe:svc-alpha:read']));

@@ -30,6 +30,12 @@ dist/
 *.swp
 *.swo
 
+# Agent and local automation metadata
+.agents/
+.augment/
+.claude/
+skills-lock.json
+
 # OS files
 .DS_Store
 Thumbs.db

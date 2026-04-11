@@ -112,8 +112,7 @@ export class ExternalService implements OnModuleInit {
         const callerTribeId = options.headers?.['X-Tribe-Id'] || 'unknown';
         const correlationId = options.headers?.['X-Correlation-ID'];
 
-        this.kafka
-          .publish(TOPICS.EXTERNAL_REQUEST, {
+        this.kafka.publishNonBlocking(TOPICS.EXTERNAL_REQUEST, {
             api: apiName,
             method: axiosCfg.method,
             path: axiosCfg.url,
@@ -123,12 +122,9 @@ export class ExternalService implements OnModuleInit {
             tribeId: callerTribeId,
             correlationId,
             policyDecision: 'allow',
-          }, callerTribeId)
-          .catch((err) => {
-            this.logger.warn(
-              `Kafka publish failed for ${TOPICS.EXTERNAL_REQUEST}: ${(err as Error).message}`,
-              'ExternalService',
-            );
+          }, {
+            key: callerTribeId,
+            context: 'ExternalService',
           });
 
         return {
@@ -176,32 +172,22 @@ export class ExternalService implements OnModuleInit {
 
         // Publish Kafka events on OPEN and CLOSED transitions
         if (to === CircuitState.OPEN) {
-          this.kafka
-            .publish(TOPICS.GATEWAY_ERROR, {
+          this.kafka.publishNonBlocking(TOPICS.GATEWAY_ERROR, {
               event: 'circuit_breaker_opened',
               apiName: breakerName,
               previousState: from,
               timestamp: new Date().toISOString(),
-            })
-            .catch((err) => {
-              this.logger.warn(
-                `Kafka publish failed for ${TOPICS.GATEWAY_ERROR}: ${(err as Error).message}`,
-                'ExternalService',
-              );
+            }, {
+              context: 'ExternalService',
             });
         } else if (to === CircuitState.CLOSED) {
-          this.kafka
-            .publish(TOPICS.GATEWAY_RESPONSE, {
+          this.kafka.publishNonBlocking(TOPICS.GATEWAY_RESPONSE, {
               event: 'circuit_breaker_closed',
               apiName: breakerName,
               previousState: from,
               timestamp: new Date().toISOString(),
-            })
-            .catch((err) => {
-              this.logger.warn(
-                `Kafka publish failed for ${TOPICS.GATEWAY_RESPONSE}: ${(err as Error).message}`,
-                'ExternalService',
-              );
+            }, {
+              context: 'ExternalService',
             });
         }
       },

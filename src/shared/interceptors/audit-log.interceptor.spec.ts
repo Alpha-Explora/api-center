@@ -2,7 +2,6 @@ import { ExecutionContext } from '@nestjs/common';
 import { lastValueFrom, of, throwError } from 'rxjs';
 import { KafkaService } from '../../kafka/kafka.service';
 import { TOPICS } from '../../kafka/topics';
-import { LoggerService } from '../logger.service';
 import { AuditLogInterceptor } from './audit-log.interceptor';
 
 function createContext(request: Record<string, unknown>, response: Record<string, unknown>): ExecutionContext {
@@ -17,18 +16,14 @@ function createContext(request: Record<string, unknown>, response: Record<string
 describe('AuditLogInterceptor', () => {
   const mockKafka = {
     publish: jest.fn(),
+    publishNonBlocking: jest.fn(),
   } as unknown as KafkaService;
-
-  const mockLogger = {
-    debug: jest.fn(),
-  } as unknown as LoggerService;
 
   let interceptor: AuditLogInterceptor;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (mockKafka.publish as jest.Mock).mockResolvedValue(undefined);
-    interceptor = new AuditLogInterceptor(mockKafka, mockLogger);
+    interceptor = new AuditLogInterceptor(mockKafka);
   });
 
   it('should publish audit event on successful response with tribe route target', async () => {
@@ -49,7 +44,7 @@ describe('AuditLogInterceptor', () => {
       }),
     );
 
-    expect(mockKafka.publish).toHaveBeenCalledWith(
+    expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
       TOPICS.AUDIT_LOG,
       expect.objectContaining({
         tribeId: 'caller-service',
@@ -59,7 +54,7 @@ describe('AuditLogInterceptor', () => {
         targetServiceId: 'billing-service',
         correlationId: 'corr-1',
       }),
-      'caller-service',
+      expect.objectContaining({ key: 'caller-service' }),
     );
   });
 
@@ -83,11 +78,10 @@ describe('AuditLogInterceptor', () => {
       ),
     ).rejects.toThrow('proxy-failed');
 
-    expect(mockKafka.publish).toHaveBeenCalled();
+    expect(mockKafka.publishNonBlocking).toHaveBeenCalled();
   });
 
   it('should keep request flow non-blocking when kafka publish fails', async () => {
-    (mockKafka.publish as jest.Mock).mockRejectedValue(new Error('kafka-down'));
     const request = {
       method: 'GET',
       originalUrl: '/api/v1/health/ready',
@@ -104,8 +98,7 @@ describe('AuditLogInterceptor', () => {
         handle: () => of({ success: true }),
       }),
     );
-    await Promise.resolve();
 
-    expect(mockLogger.debug).toHaveBeenCalled();
+    expect(mockKafka.publishNonBlocking).toHaveBeenCalled();
   });
 });

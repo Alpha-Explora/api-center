@@ -23,10 +23,8 @@ import axios from 'axios';
 import { RegistryService } from './registry.service';
 import { LoggerService } from '../shared/logger.service';
 import { KafkaService } from '../kafka/kafka.service';
+import { ConfigService } from '../config/config.service';
 import { TOPICS } from '../kafka/topics';
-
-/** Timeout for individual upstream health check requests (ms). */
-const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
 @Injectable()
 export class HealthMonitorService implements OnModuleDestroy {
@@ -39,6 +37,7 @@ export class HealthMonitorService implements OnModuleDestroy {
     private readonly registry: RegistryService,
     private readonly logger: LoggerService,
     private readonly kafka: KafkaService,
+    private readonly config: ConfigService,
     @Optional() private readonly vault?: VaultService,
   ) {}
 
@@ -76,7 +75,7 @@ export class HealthMonitorService implements OnModuleDestroy {
           const url = `${svc.baseUrl}${svc.healthCheck}`;
           try {
             const response = await axios.get(url, {
-              timeout: HEALTH_CHECK_TIMEOUT_MS,
+              timeout: this.config.health.checkTimeoutMs,
               validateStatus: (status) => status < 500, // 2xx–4xx = alive
             });
 
@@ -87,7 +86,7 @@ export class HealthMonitorService implements OnModuleDestroy {
                 `Service '${svc.serviceId}' recovered — marked healthy`,
                 { serviceId: svc.serviceId, url, status: response.status },
               );
-              await this.emitHealthChanged(svc.serviceId, true, false, 'Health check succeeded');
+              this.emitHealthChanged(svc.serviceId, true, false, 'Health check succeeded');
             } else {
               // No state change — just touch the timestamp
               this.registry.touchHealthCheck(svc.serviceId);
@@ -102,7 +101,7 @@ export class HealthMonitorService implements OnModuleDestroy {
                 `Service '${svc.serviceId}' is unreachable — marked unhealthy: ${reason}`,
                 'HealthMonitor',
               );
-              await this.emitHealthChanged(svc.serviceId, false, true, reason);
+              this.emitHealthChanged(svc.serviceId, false, true, reason);
             } else {
               this.registry.touchHealthCheck(svc.serviceId);
             }
@@ -249,25 +248,20 @@ export class HealthMonitorService implements OnModuleDestroy {
     }
   }
 
-  private async emitHealthChanged(
+  private emitHealthChanged(
     serviceId: string,
     healthy: boolean,
     previousHealthy: boolean,
     reason: string,
-  ): Promise<void> {
-    try {
-      await this.kafka.publish(TOPICS.SERVICE_HEALTH_CHANGED, {
-        serviceId,
-        healthy,
-        previousHealthy,
-        reason,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (err) {
-      this.logger.warn(
-        `Kafka publish failed for ${TOPICS.SERVICE_HEALTH_CHANGED}: ${(err as Error).message}`,
-        'HealthMonitor',
-      );
-    }
+  ): void {
+    this.kafka.publishNonBlocking(TOPICS.SERVICE_HEALTH_CHANGED, {
+      serviceId,
+      healthy,
+      previousHealthy,
+      reason,
+      timestamp: new Date().toISOString(),
+    }, {
+      context: 'HealthMonitor',
+    });
   }
 }

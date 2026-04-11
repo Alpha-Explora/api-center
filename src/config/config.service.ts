@@ -13,9 +13,7 @@ export class ConfigService implements OnModuleInit {
   readonly nodeEnv: string = process.env.NODE_ENV || 'development';
 
   readonly cors = {
-    origin: process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(',')
-      : ('*' as string | string[]),
+    origin: this.parseAllowedOrigins(),
     credentials: true,
   };
 
@@ -111,6 +109,10 @@ export class ConfigService implements OnModuleInit {
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
   };
 
+  readonly health = {
+    checkTimeoutMs: parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS || '5000', 10),
+  };
+
   readonly external = {
     timeout: 10000,
     geolocation: {
@@ -140,9 +142,7 @@ export class ConfigService implements OnModuleInit {
     serviceName: process.env.OTEL_SERVICE_NAME || 'api-center',
   };
 
-  readonly allowedOrigins: string | string[] = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : '*';
+  readonly allowedOrigins: string | string[] = this.cors.origin;
 
   get isProduction(): boolean {
     return this.nodeEnv === 'production';
@@ -211,6 +211,17 @@ export class ConfigService implements OnModuleInit {
       errors.push('AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=descope, keycloak, or google');
     }
 
+    if (this.isProduction) {
+      const configuredOrigins = Array.isArray(this.cors.origin) ? this.cors.origin : [this.cors.origin];
+      if (configuredOrigins.includes('*')) {
+        errors.push('ALLOWED_ORIGINS must list explicit origins in production; wildcard (*) is not allowed');
+      }
+    }
+
+    if (!Number.isFinite(this.health.checkTimeoutMs) || this.health.checkTimeoutMs < 100) {
+      errors.push('HEALTH_CHECK_TIMEOUT_MS must be a number greater than or equal to 100');
+    }
+
     if (this.vault.devMode && this.isProduction) {
       errors.push('VAULT_DEV_MODE=true must NOT be used in production');
     }
@@ -254,5 +265,19 @@ export class ConfigService implements OnModuleInit {
       .filter(Boolean);
 
     return [...new Set(origins)];
+  }
+
+  private parseAllowedOrigins(): string | string[] {
+    const rawOrigins = process.env.ALLOWED_ORIGINS;
+    if (!rawOrigins || rawOrigins.trim() === '*') {
+      return '*';
+    }
+
+    const parsedOrigins = rawOrigins
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+
+    return parsedOrigins.length > 0 ? parsedOrigins : '*';
   }
 }

@@ -21,6 +21,8 @@ import { LoggerService } from '../../shared/logger.service';
 import { UnauthorizedError } from '../../shared/errors';
 import { AuthenticatedRequest } from '../../types';
 
+const BEARER_PREFIX = 'Bearer ';
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -30,7 +32,10 @@ export class JwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const token = request.headers.authorization?.split(' ')[1];
+    const authorizationHeader = request.headers.authorization;
+    const token = authorizationHeader?.startsWith(BEARER_PREFIX)
+      ? authorizationHeader.slice(BEARER_PREFIX.length)
+      : undefined;
 
     if (!token) {
       throw new UnauthorizedError('Missing authorization token');

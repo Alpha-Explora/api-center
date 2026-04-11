@@ -378,6 +378,10 @@ Internet → GCLB (static IP, HTTPS, ManagedCert)
         → Memorystore Redis (cache + rate-limit, shared across all replicas)
 ```
 
+Local development differs intentionally: `docker-compose.yml` uses a standalone
+`nginx` service with `nginx.conf` as the local entrypoint/load balancer. In GKE,
+there is no nginx pod in the request path; ingress is handled by GCLB + NEG.
+
 Secrets load at startup via `secrets.service.ts` → GCP Secret Manager. No key files in the image.
 The pod KSA `api-center` is Workload Identity-bound to
 `api-center-gke@api-center-492808.iam.gserviceaccount.com`.
@@ -394,3 +398,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-04-11 | pending | Switched GKE runtime auth provider selector to `descope`; added rollback runbook and auth provider state notes | Big-bang Keycloak → Descope migration prep |
 | 2026-04-12 | e1cb9f7 | Added explicit Secret Manager payload update procedure for Descope keys (with Keycloak retention), pre-rollout smoke commands, and auth/refresh verification checks | Make Descope cutover execution deterministic and rollback-safe |
 | 2026-04-12 | pending | Removed hardcoded JWT private key from docker-compose and switched to environment interpolation | Eliminate committed secret material and enforce env-based key management |
+| 2026-04-12 | pending | Tightened Docker build context (`.dockerignore`) and restored default npm audit visibility during root/GCP image dependency install | Reduce build overhead and improve supply-chain visibility without changing runtime behavior |

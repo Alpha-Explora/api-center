@@ -18,6 +18,7 @@ describe('ExternalService', () => {
     } as unknown as LoggerService;
     const kafka = {
       publish: jest.fn().mockResolvedValue(undefined),
+      publishNonBlocking: jest.fn(),
     } as unknown as KafkaService;
     const metrics = {
       setCircuitBreakerState: jest.fn(),

@@ -37,6 +37,7 @@ describe('ConfigService', () => {
     process.env.NODE_ENV = 'production';
     process.env.PLATFORM_ADMIN_SECRET = 'secret';
     process.env.AUTH_PROVIDER = 'invalid-provider';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
 
     const run = () => new ConfigService().onModuleInit();
 
@@ -48,6 +49,7 @@ describe('ConfigService', () => {
     process.env.PLATFORM_ADMIN_SECRET = 'secret';
     process.env.AUTH_PROVIDER = 'google';
     process.env.GOOGLE_ALLOWED_REDIRECT_URIS = '';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
 
     const run = () => new ConfigService().onModuleInit();
 
@@ -59,9 +61,22 @@ describe('ConfigService', () => {
     process.env.PLATFORM_ADMIN_SECRET = 'secret';
     process.env.AUTH_PROVIDER = 'google';
     process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
 
     const run = () => new ConfigService().onModuleInit();
 
     expect(run).not.toThrow();
+  });
+
+  it('should throw in production when ALLOWED_ORIGINS uses wildcard', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PLATFORM_ADMIN_SECRET = 'secret';
+    process.env.AUTH_PROVIDER = 'google';
+    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
+    process.env.ALLOWED_ORIGINS = '*';
+
+    const run = () => new ConfigService().onModuleInit();
+
+    expect(run).toThrow('ALLOWED_ORIGINS must list explicit origins in production');
   });
 });

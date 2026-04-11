@@ -30,6 +30,7 @@ const mockConfig: Partial<ConfigService> = {
 
 const mockKafka: Partial<KafkaService> = {
   publish: jest.fn().mockResolvedValue(undefined),
+  publishNonBlocking: jest.fn(),
 };
 
 const mockMetrics: Partial<MetricsService> = {
@@ -82,9 +83,10 @@ describe('RegistryService', () => {
 
     it('publishes a SERVICE_REGISTERED Kafka event', async () => {
       await service.register(baseManifest());
-      expect(mockKafka.publish).toHaveBeenCalledWith(
+      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
         TOPICS.SERVICE_REGISTERED,
         expect.objectContaining({ serviceId: 'svc-alpha', isUpdate: false }),
+        expect.any(Object),
       );
     });
 
@@ -119,9 +121,10 @@ describe('RegistryService', () => {
       await service.deregister('svc-alpha');
 
       expect(service.get('svc-alpha')).toBeNull();
-      expect(mockKafka.publish).toHaveBeenCalledWith(
+      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
         TOPICS.SERVICE_DEREGISTERED,
         expect.objectContaining({ serviceId: 'svc-alpha' }),
+        expect.any(Object),
       );
     });
 
@@ -154,9 +157,10 @@ describe('RegistryService', () => {
       await service.register(baseManifest());
       await service.deprecate('svc-alpha');
 
-      expect(mockKafka.publish).toHaveBeenCalledWith(
+      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
         TOPICS.SERVICE_DEPRECATED,
         expect.objectContaining({ serviceId: 'svc-alpha' }),
+        expect.any(Object),
       );
     });
 
@@ -182,9 +186,10 @@ describe('RegistryService', () => {
       await service.register(baseManifest());
       await service.retire('svc-alpha');
 
-      expect(mockKafka.publish).toHaveBeenCalledWith(
+      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
         TOPICS.SERVICE_RETIRED,
         expect.objectContaining({ serviceId: 'svc-alpha' }),
+        expect.any(Object),
       );
     });
 
@@ -251,13 +256,14 @@ describe('RegistryService', () => {
       await service.register(baseManifest({ version: '1.0.0' }));
       await service.register(baseManifest({ version: '1.1.0' }));
 
-      expect(mockKafka.publish).toHaveBeenCalledWith(
+      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
         TOPICS.SERVICE_VERSION_CHANGED,
         expect.objectContaining({
           serviceId: 'svc-alpha',
           previousVersion: '1.0.0',
           newVersion: '1.1.0',
         }),
+        expect.any(Object),
       );
     });
 

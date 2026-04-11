@@ -71,8 +71,7 @@ export class AuthController {
 
     this.logger.info('Token issued', { serviceId: tribeId, scopes, correlationId: req.correlationId });
 
-    this.kafka
-      .publish(TOPICS.TOKEN_ISSUED, {
+    this.kafka.publishNonBlocking(TOPICS.TOKEN_ISSUED, {
         tribeId,
         sub: tribeId,
         scopes,
@@ -80,14 +79,10 @@ export class AuthController {
         expiresIn: token.expiresIn,
         correlationId: req.correlationId,
         timestamp: new Date().toISOString(),
-      }, tribeId)
-      .catch((err) =>
-        this.logger.error(
-          `Failed to publish TOKEN_ISSUED: ${(err as Error).message}`,
-          (err as Error).stack,
-          'AuthController',
-        ),
-      );
+      }, {
+        key: tribeId,
+        context: 'AuthController',
+      });
 
     return {
       success: true,
@@ -113,20 +108,14 @@ export class AuthController {
 
     this.logger.info('Token refreshed', { correlationId: req.correlationId });
 
-    this.kafka
-      .publish(TOPICS.TOKEN_REFRESHED, {
+    this.kafka.publishNonBlocking(TOPICS.TOKEN_REFRESHED, {
         sub: 'unknown', // sub extracted inside AuthService; event still useful for audit
         expiresIn: resp.expiresIn,
         correlationId: req.correlationId,
         timestamp: new Date().toISOString(),
-      })
-      .catch((err) =>
-        this.logger.error(
-          `Failed to publish TOKEN_REFRESHED: ${(err as Error).message}`,
-          (err as Error).stack,
-          'AuthController',
-        ),
-      );
+      }, {
+        context: 'AuthController',
+      });
 
     return {
       success: true,
@@ -164,21 +153,15 @@ export class AuthController {
       correlationId: req.correlationId,
     });
 
-    this.kafka
-      .publish(TOPICS.TOKEN_REVOKED, {
+    this.kafka.publishNonBlocking(TOPICS.TOKEN_REVOKED, {
         sub,
         revokedCount,
         reason: dto.revokeAll ? 'session-wide' : 'explicit',
         correlationId: req.correlationId,
         timestamp: new Date().toISOString(),
-      })
-      .catch((err) =>
-        this.logger.error(
-          `Failed to publish TOKEN_REVOKED: ${(err as Error).message}`,
-          (err as Error).stack,
-          'AuthController',
-        ),
-      );
+      }, {
+        context: 'AuthController',
+      });
 
     res.status(HttpStatus.NO_CONTENT).send();
   }
@@ -246,8 +229,7 @@ export class AuthController {
       correlationId: req.correlationId,
     });
 
-    this.kafka
-      .publish(TOPICS.TOKEN_ISSUED, {
+    this.kafka.publishNonBlocking(TOPICS.TOKEN_ISSUED, {
         tribeId: result.userInfo.sub,
         sub: result.userInfo.sub,
         scopes: ['openid', 'email', 'profile'],
@@ -256,8 +238,10 @@ export class AuthController {
         provider: 'google',
         correlationId: req.correlationId,
         timestamp: new Date().toISOString(),
-      }, result.userInfo.sub)
-      .catch(() => undefined);
+      }, {
+        key: result.userInfo.sub,
+        context: 'AuthController',
+      });
 
     return {
       success: true,
