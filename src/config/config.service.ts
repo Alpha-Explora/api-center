@@ -2,13 +2,13 @@
 // src/config/config.service.ts — Centralized application configuration
 // =============================================================================
 
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 @Injectable()
-export class ConfigService implements OnModuleInit {
+export class ConfigService implements OnApplicationBootstrap {
   readonly port: number = parseInt(process.env.PORT || '3000', 10);
   readonly nodeEnv: string = process.env.NODE_ENV || 'development';
 
@@ -95,7 +95,9 @@ export class ConfigService implements OnModuleInit {
     groupId: process.env.KAFKA_GROUP_ID || 'api-center-group',
   };
 
-  readonly platformAdminSecret: string = process.env.PLATFORM_ADMIN_SECRET || '';
+  get platformAdminSecret(): string {
+    return process.env.PLATFORM_ADMIN_SECRET || '';
+  }
 
   readonly redis = {
     rateLimitUrl: process.env.REDIS_RATE_LIMIT_URL || 'redis://localhost:6380',
@@ -148,7 +150,7 @@ export class ConfigService implements OnModuleInit {
     return this.nodeEnv === 'production';
   }
 
-  onModuleInit() {
+  onApplicationBootstrap() {
     const warnings: string[] = [];
     const errors: string[] = [];
 

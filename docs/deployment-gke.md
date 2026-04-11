@@ -18,7 +18,7 @@ c# api-center — GKE Deployment (Living Document)
 | Namespace | `api-center` |
 | Artifact Registry | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center` |
 | Static IP name | `api-center-ip` |
-| Public hostname | `api-center.itsandbox.com` ⚠️ **placeholder — replace before applying** |
+| Public hostname | `api-center.itsandbox.site` |
 | Secret Manager secret | `api-center-prod` |
 | Auth provider | `descope` (`AUTH_PROVIDER=descope` in ConfigMap) |
 | Memorystore cache host | `10.34.181.131:6379` |
@@ -95,7 +95,6 @@ grep -rn 'example.com\|localhost:9092' gcp/gke/
 | `gcp/gke/70-managedcert.yaml` | `api-center.example.com` | Real public hostname |
 | `gcp/gke/80-ingress.yaml` | `api-center.example.com` | Real public hostname |
 | `gcp/gke/20-configmap.yaml` | `KAFKA_BROKERS: localhost:9092` | Confluent Cloud or in-cluster broker address |
-| `gcp/gke/20-configmap.yaml` | `ALLOWED_ORIGINS: "*"` | Comma-separated list of actual allowed origins |
 
 ---
 
@@ -399,3 +398,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-04-12 | e1cb9f7 | Added explicit Secret Manager payload update procedure for Descope keys (with Keycloak retention), pre-rollout smoke commands, and auth/refresh verification checks | Make Descope cutover execution deterministic and rollback-safe |
 | 2026-04-12 | pending | Removed hardcoded JWT private key from docker-compose and switched to environment interpolation | Eliminate committed secret material and enforce env-based key management |
 | 2026-04-12 | pending | Tightened Docker build context (`.dockerignore`) and restored default npm audit visibility during root/GCP image dependency install | Reduce build overhead and improve supply-chain visibility without changing runtime behavior |
+| 2026-04-12 | pending | Set explicit production CORS origin and added required Descope metadata (`DESCOPE_JWKS_URI` and related env) in GKE ConfigMap | Resolve CrashLoop caused by missing Descope JWKS configuration and align production auth bootstrap |

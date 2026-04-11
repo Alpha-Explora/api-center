@@ -39,7 +39,7 @@ describe('ConfigService', () => {
     process.env.AUTH_PROVIDER = 'invalid-provider';
     process.env.ALLOWED_ORIGINS = 'https://app.example.com';
 
-    const run = () => new ConfigService().onModuleInit();
+    const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow('AUTH_PROVIDER must be one of');
   });
@@ -51,7 +51,7 @@ describe('ConfigService', () => {
     process.env.GOOGLE_ALLOWED_REDIRECT_URIS = '';
     process.env.ALLOWED_ORIGINS = 'https://app.example.com';
 
-    const run = () => new ConfigService().onModuleInit();
+    const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow('GOOGLE_ALLOWED_REDIRECT_URIS is not set or invalid');
   });
@@ -63,7 +63,7 @@ describe('ConfigService', () => {
     process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
     process.env.ALLOWED_ORIGINS = 'https://app.example.com';
 
-    const run = () => new ConfigService().onModuleInit();
+    const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).not.toThrow();
   });
@@ -75,7 +75,7 @@ describe('ConfigService', () => {
     process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
     process.env.ALLOWED_ORIGINS = '*';
 
-    const run = () => new ConfigService().onModuleInit();
+    const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow('ALLOWED_ORIGINS must list explicit origins in production');
   });

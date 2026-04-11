@@ -9,7 +9,7 @@
 //   dev-jwt   → DevJwtProvider    — ephemeral RS256 for local dev / CI [default]
 // =============================================================================
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AUTH_PROVIDER } from './auth-provider.interface';
 import { KeycloakProvider } from './providers/keycloak.provider';
 import { DescopeProvider } from './providers/descope.provider';
@@ -43,7 +43,7 @@ const authProviderFactory = {
 };
 
 @Module({
-  imports: [RegistryModule, VaultModule],
+  imports: [forwardRef(() => RegistryModule), VaultModule],
   controllers: [AuthController],
   providers: [
     // Token store — Redis-backed refresh token lifecycle

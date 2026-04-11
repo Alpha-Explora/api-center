@@ -37,10 +37,16 @@ data:
   KAFKA_GROUP_ID: "api-center-group"
 
   # CORS — NGINX is gone in GKE, so the Node app handles preflight directly
-  ALLOWED_ORIGINS: "*"
+  ALLOWED_ORIGINS: "https://api-center.itsandbox.site"
 
   # Auth provider — descope / keycloak / google / dev-jwt
   AUTH_PROVIDER: "descope"
+  DESCOPE_BASE_URL: "https://api.descope.com"
+  DESCOPE_PROJECT_ID: "P3CDYwDpERyUJPEfqnppZM7HLySN"
+  DESCOPE_ISSUER: "https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN"
+  DESCOPE_AUDIENCE: "P3CDYwDpERyUJPEfqnppZM7HLySN"
+  DESCOPE_JWKS_URI: "https://api.descope.com/P3CDYwDpERyUJPEfqnppZM7HLySN/.well-known/jwks.json"
+  DESCOPE_TOKEN_ENDPOINT: "https://api.descope.com/oauth2/v1/apps/token"
 
   # Rate limiting (per replica; counters live in REDIS_RATE_LIMIT_URL)
   RATE_LIMIT_WINDOW_MS: "60000"
