@@ -29,6 +29,9 @@ import { AuthenticatedRequest, ServiceType } from '../types';
 /** Default hard timeout for outgoing proxy requests (ms). */
 const PROXY_TIMEOUT_MS = 30_000;
 
+/** Maximum number of cached proxy middleware instances. */
+const MAX_PROXY_CACHE_SIZE = 200;
+
 /** HTTP status codes that indicate upstream failure for circuit-breaker tracking. */
 const UPSTREAM_FAILURE_CODES = new Set([502, 503, 504]);
 
@@ -55,7 +58,11 @@ export interface ProxyOptions {
   pathPrefix: string;
   /** Outgoing proxy timeout in ms (default: 30 000) */
   proxyTimeoutMs?: number;
+  /** Max number of cached proxy middleware instances (default: 200). */
+  maxProxyCacheSize?: number;
 }
+
+type ProxyMiddleware = ReturnType<typeof createProxyMiddleware<any, any>>;
 
 /**
  * Reusable proxy handler that both TribesController and SharedServicesController
@@ -63,9 +70,10 @@ export interface ProxyOptions {
  * per-service circuit breakers, and cache invalidation.
  */
 export class ProxyHandler {
-  private readonly proxyCache = new Map<string, ReturnType<typeof createProxyMiddleware>>();
+  private readonly proxyCache = new Map<string, ProxyMiddleware>();
   private readonly circuitBreakers = new Map<string, CircuitBreaker>();
   private readonly proxyTimeoutMs: number;
+  private readonly maxProxyCacheSize: number;
   private readonly unsubscribeCacheInvalidation: () => void;
 
   constructor(
@@ -73,6 +81,7 @@ export class ProxyHandler {
     private readonly opts: ProxyOptions,
   ) {
     this.proxyTimeoutMs = opts.proxyTimeoutMs ?? PROXY_TIMEOUT_MS;
+    this.maxProxyCacheSize = opts.maxProxyCacheSize ?? MAX_PROXY_CACHE_SIZE;
 
     // Subscribe to registry re-registration events so stale proxy instances
     // are dropped automatically when a service's baseUrl changes.
@@ -94,7 +103,8 @@ export class ProxyHandler {
    */
   invalidateProxyCache(serviceId: string): void {
     const existed = this.proxyCache.delete(serviceId);
-    if (existed) {
+    const breakerDeleted = this.circuitBreakers.delete(serviceId);
+    if (existed || breakerDeleted) {
       this.deps.logger.info(`Proxy cache invalidated for '${serviceId}'`, {
         serviceId,
         namespace: this.opts.namespace,
@@ -194,6 +204,8 @@ export class ProxyHandler {
     let proxy = this.proxyCache.get(targetServiceId);
 
     if (!proxy) {
+      this.evictOldestProxyEntryIfNeeded();
+
       const proxyOpts: Options = {
         target: upstream,
         changeOrigin: true,
@@ -240,8 +252,9 @@ export class ProxyHandler {
         },
       };
 
-      proxy = createProxyMiddleware(proxyOpts);
-      this.proxyCache.set(targetServiceId, proxy);
+      const createdProxy = createProxyMiddleware(proxyOpts) as ProxyMiddleware;
+      proxy = createdProxy;
+      this.proxyCache.set(targetServiceId, createdProxy);
 
       this.deps.logger.info('Created proxy instance', {
         targetServiceId,
@@ -300,6 +313,25 @@ export class ProxyHandler {
       this.circuitBreakers.set(serviceId, breaker);
     }
     return breaker;
+  }
+
+  private evictOldestProxyEntryIfNeeded(): void {
+    if (this.proxyCache.size < this.maxProxyCacheSize) {
+      return;
+    }
+
+    const oldestServiceId = this.proxyCache.keys().next().value as string | undefined;
+    if (!oldestServiceId) {
+      return;
+    }
+
+    this.proxyCache.delete(oldestServiceId);
+    this.circuitBreakers.delete(oldestServiceId);
+
+    this.deps.logger.warn(
+      `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,
+      'ProxyHandler',
+    );
   }
 
   /** Reject retired services (410) and set RFC 8594 deprecation headers. */

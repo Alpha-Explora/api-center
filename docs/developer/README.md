@@ -12,7 +12,8 @@ This guide is for contributors and platform operators who need to run, test, and
 4. [Testing All Functionality](#testing-all-functionality)
    - [Health & Readiness](#health--readiness)
    - [dev-jwt Auth Flow](#dev-jwt-auth-flow)
-   - [Keycloak Auth Flow](#keycloak-auth-flow)
+  - [Descope Auth Flow](#descope-auth-flow)
+  - [Keycloak Auth Flow](#keycloak-auth-flow)
    - [Google Auth Flow — User (Browser)](#google-auth-flow--user-browser)
    - [Google Auth Flow — M2M (Service Account)](#google-auth-flow--m2m-service-account)
    - [Service Registry](#service-registry)
@@ -238,6 +239,30 @@ curl -s -o /dev/null -w "%{http_code}" \
   -d "{\"refreshToken\": \"$REFRESH_TOKEN\", \"revokeAll\": true}"
 # → 204
 ```
+
+---
+
+### Descope Auth Flow
+
+```bash
+# Configure Descope and restart gateway containers
+export AUTH_PROVIDER=descope
+export DESCOPE_BASE_URL=https://api.descope.com
+export DESCOPE_PROJECT_ID=<project-id>
+export DESCOPE_JWKS_URI="https://api.descope.com/${DESCOPE_PROJECT_ID}/.well-known/jwks.json"
+export DESCOPE_TOKEN_ENDPOINT=https://api.descope.com/oauth2/v1/token
+export DESCOPE_ISSUER="https://api.descope.com/${DESCOPE_PROJECT_ID}"
+export DESCOPE_AUDIENCE=api-center
+export DESCOPE_DEFAULT_CLIENT_SECRET=<m2m-client-secret>
+docker-compose up -d api-center-1 api-center-2 api-center-3
+
+# Issue an APICenter token through gateway auth endpoint
+curl -s -X POST http://localhost:3000/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"tribeId": "api-center", "secret": "<service-secret>"}' | jq .
+```
+
+> Claims mapping policy: `tribeId`, `permissions`, and `scopes` are sourced from Descope custom app claims.
 
 ---
 
@@ -648,7 +673,7 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 
 | Variable | Default | Values |
 |----------|---------|--------|
-| `AUTH_PROVIDER` | `dev-jwt` | `dev-jwt` · `keycloak` · `google` |
+| `AUTH_PROVIDER` | `dev-jwt` | `dev-jwt` · `descope` · `keycloak` · `google` |
 
 ### dev-jwt
 
@@ -682,6 +707,20 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | `KEYCLOAK_DEFAULT_CLIENT_SECRET` | — | Default M2M secret |
 | `KEYCLOAK_CLIENT_SECRET_<SERVICE_ID_UPPER>` | — | Per-service Keycloak client secret |
 | `ENVOY_TRUST_HEADERS` | `false` | Trust Envoy/Ingress pre-verified JWT headers |
+
+### Descope
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESCOPE_BASE_URL` | `https://api.descope.com` | Descope API base URL |
+| `DESCOPE_PROJECT_ID` | — | Descope project ID |
+| `DESCOPE_JWKS_URI` | `<base>/<projectId>/.well-known/jwks.json` | JWKS endpoint override |
+| `DESCOPE_TOKEN_ENDPOINT` | `<base>/oauth2/v1/token` | OAuth token endpoint |
+| `DESCOPE_ISSUER` | — | Expected `iss` claim (required in production) |
+| `DESCOPE_AUDIENCE` | — | Expected `aud` claim (required in production) |
+| `DESCOPE_REFRESH_CLIENT_ID` | `api-center` | Client ID for refresh-token grants |
+| `DESCOPE_DEFAULT_CLIENT_SECRET` | — | Default M2M client secret |
+| `DESCOPE_CLIENT_SECRET_<SERVICE_ID_UPPER>` | — | Per-service Descope client secret override |
 
 ### GCP Secret Manager
 
@@ -733,13 +772,14 @@ KAFKA_REST_PROXY_API_KEY=<optional-key>
 ## Production Hardening Checklist
 
 - [ ] `NODE_ENV=production`
-- [ ] `AUTH_PROVIDER` set to `keycloak` or `google` — **never** `dev-jwt`
+- [ ] `AUTH_PROVIDER` set to `descope`, `keycloak`, or `google` — **never** `dev-jwt`
 - [ ] `PLATFORM_ADMIN_SECRET` — generate with `openssl rand -hex 32`
 - [ ] `ALLOWED_ORIGINS` — explicit whitelist, **not** `*`
 - [ ] **Vault**: `VAULT_DEV_MODE=false`, AppRole credentials (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`)
 - [ ] **Redis**: sentinel or cluster URLs with TLS (`rediss://`)
 - [ ] **Kafka**: internal broker addresses, SASL/TLS enabled
 - [ ] **Keycloak**: set `KEYCLOAK_ISSUER` and `KEYCLOAK_AUDIENCE`
+- [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
 - [ ] **Google**: set `GOOGLE_ALLOWED_DOMAINS` to your Workspace domain(s)
 - [ ] TLS terminated at NGINX or upstream ingress — **never** expose port 3000 directly
 - [ ] Rotate `TRIBE_SECRET_*` secrets regularly

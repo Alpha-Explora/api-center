@@ -1,0 +1,27 @@
+apiVersion: v1
+data:
+  ALLOWED_ORIGINS: '*'
+  AUTH_PROVIDER: "descope"
+  GCP_PROJECT_ID: api-center-492808
+  GCP_SECRET_NAME: api-center-prod
+  KAFKA_BROKERS: localhost:9092
+  KAFKA_CLIENT_ID: api-center
+  KAFKA_GROUP_ID: api-center-group
+  NODE_ENV: production
+  OTEL_SERVICE_NAME: api-center
+  PORT: "3000"
+  RATE_LIMIT_MAX: "100"
+  RATE_LIMIT_WINDOW_MS: "60000"
+  REDIS_CACHE_URL: redis://10.34.181.131:6379
+  REDIS_RATE_LIMIT_URL: redis://10.63.215.147:6379
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"ALLOWED_ORIGINS":"*","AUTH_PROVIDER":"keycloak","GCP_PROJECT_ID":"api-center-492808","GCP_SECRET_NAME":"api-center-prod","KAFKA_BROKERS":"localhost:9092","KAFKA_CLIENT_ID":"api-center","KAFKA_GROUP_ID":"api-center-group","NODE_ENV":"production","OTEL_SERVICE_NAME":"api-center","PORT":"3000","RATE_LIMIT_MAX":"100","RATE_LIMIT_WINDOW_MS":"60000","REDIS_CACHE_URL":"redis://10.34.181.131:6379","REDIS_RATE_LIMIT_URL":"redis://10.63.215.147:6379"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"api-center-config","namespace":"api-center"}}
+  creationTimestamp: "2026-04-11T04:39:36Z"
+  name: api-center-config
+  namespace: api-center
+  resourceVersion: "1775882376483039019"
+  uid: ce60db51-178c-4a31-9dbc-711eeae55807
+

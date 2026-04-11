@@ -7,7 +7,7 @@
 # create api-center-ip --global`.
 #
 # Replace before applying:
-#   api-center.example.com   e.g. api.example.com
+#   api-center.itsandbox.site   e.g. api.itsandbox.site
 # =============================================================================
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
@@ -16,4 +16,4 @@ metadata:
   namespace: api-center
 spec:
   domains:
-    - api-center.example.com
+    - api-center.itsandbox.site

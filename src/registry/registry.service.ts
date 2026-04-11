@@ -123,6 +123,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   async register(manifest: ServiceManifest): Promise<ServiceRegistryEntry> {
     const now = new Date().toISOString();
     const existing = this.services[manifest.serviceId];
+    const previousEntry = existing ? { ...existing } : null;
 
     // ── Version governance ─────────────────────────────────────────────────
     let previousVersion: string | undefined;
@@ -152,7 +153,17 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     // Persist to Redis with a strict timeout — fail the registration if Redis
     // is unavailable so the gateway never silently drifts from its source of truth.
-    await this.persistToRedisStrict(manifest.serviceId, entry);
+    try {
+      await this.persistToRedisStrict(manifest.serviceId, entry);
+    } catch (err) {
+      if (previousEntry) {
+        this.services[manifest.serviceId] = previousEntry;
+      } else {
+        delete this.services[manifest.serviceId];
+      }
+      this.syncMetricsGauge();
+      throw err;
+    }
 
     // ── Kafka events ──────────────────────────────────────────────────────
     this.kafka
@@ -215,11 +226,19 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
     }
 
+    const previousEntry = { ...existing };
+
     delete this.services[serviceId];
     this.syncMetricsGauge();
 
     // Remove from Redis with strict timeout
-    await this.removeFromRedisStrict(serviceId);
+    try {
+      await this.removeFromRedisStrict(serviceId);
+    } catch (err) {
+      this.services[serviceId] = previousEntry;
+      this.syncMetricsGauge();
+      throw err;
+    }
 
     this.kafka
       .publish(TOPICS.SERVICE_DEREGISTERED, {
@@ -244,7 +263,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
    * Mark a service as deprecated. It remains routable but consumers receive
    * sunset warnings in proxy response headers.
    */
-  deprecate(serviceId: string, sunsetDate?: string, replacementService?: string): ServiceRegistryEntry {
+  async deprecate(
+    serviceId: string,
+    sunsetDate?: string,
+    replacementService?: string,
+  ): Promise<ServiceRegistryEntry> {
     const entry = this.services[serviceId];
     if (!entry) {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
@@ -253,24 +276,32 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw new ConflictError(`Service '${serviceId}' is already retired`);
     }
 
-    entry.status = 'deprecated';
-    entry.updatedAt = new Date().toISOString();
-    if (sunsetDate) entry.sunsetDate = sunsetDate;
-    if (replacementService) entry.replacementService = replacementService;
+    const previousEntry = { ...entry };
+    const updatedEntry: ServiceRegistryEntry = {
+      ...entry,
+      status: 'deprecated',
+      updatedAt: new Date().toISOString(),
+      ...(sunsetDate ? { sunsetDate } : {}),
+      ...(replacementService ? { replacementService } : {}),
+    };
 
-    this.persistToRedis(serviceId, entry).catch((err) => {
-      this.logger.warn(
-        `Redis persist failed for deprecated service '${serviceId}': ${(err as Error).message}`,
-        'RegistryService',
-      );
-    });
+    this.services[serviceId] = updatedEntry;
+    this.syncMetricsGauge();
+
+    try {
+      await this.persistToRedisStrict(serviceId, updatedEntry);
+    } catch (err) {
+      this.services[serviceId] = previousEntry;
+      this.syncMetricsGauge();
+      throw err;
+    }
 
     this.kafka
       .publish(TOPICS.SERVICE_DEPRECATED, {
         serviceId,
-        sunsetDate: entry.sunsetDate,
-        replacementService: entry.replacementService,
-        timestamp: entry.updatedAt,
+        sunsetDate: updatedEntry.sunsetDate,
+        replacementService: updatedEntry.replacementService,
+        timestamp: updatedEntry.updatedAt,
       })
       .catch((err) => {
         this.logger.warn(
@@ -284,34 +315,41 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       'RegistryService',
     );
 
-    return entry;
+    return updatedEntry;
   }
 
   /**
    * Retire a service — it will no longer be routable.
    * Consumers calling this service will receive 410 Gone.
    */
-  retire(serviceId: string): ServiceRegistryEntry {
+  async retire(serviceId: string): Promise<ServiceRegistryEntry> {
     const entry = this.services[serviceId];
     if (!entry) {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
     }
 
-    entry.status = 'retired';
-    entry.updatedAt = new Date().toISOString();
+    const previousEntry = { ...entry };
+    const updatedEntry: ServiceRegistryEntry = {
+      ...entry,
+      status: 'retired',
+      updatedAt: new Date().toISOString(),
+    };
 
-    this.persistToRedis(serviceId, entry).catch((err) => {
-      this.logger.warn(
-        `Redis persist failed for retired service '${serviceId}': ${(err as Error).message}`,
-        'RegistryService',
-      );
-    });
+    this.services[serviceId] = updatedEntry;
     this.syncMetricsGauge();
+
+    try {
+      await this.persistToRedisStrict(serviceId, updatedEntry);
+    } catch (err) {
+      this.services[serviceId] = previousEntry;
+      this.syncMetricsGauge();
+      throw err;
+    }
 
     this.kafka
       .publish(TOPICS.SERVICE_RETIRED, {
         serviceId,
-        timestamp: entry.updatedAt,
+        timestamp: updatedEntry.updatedAt,
       })
       .catch((err) => {
         this.logger.warn(
@@ -322,13 +360,13 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.warn(`Service '${serviceId}' retired — no longer routable`, 'RegistryService');
 
-    return entry;
+    return updatedEntry;
   }
 
   /**
    * Transition a proposed service to active.
    */
-  activate(serviceId: string): ServiceRegistryEntry {
+  async activate(serviceId: string): Promise<ServiceRegistryEntry> {
     const entry = this.services[serviceId];
     if (!entry) {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
@@ -339,21 +377,28 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    entry.status = 'active';
-    entry.updatedAt = new Date().toISOString();
-    entry.sunsetDate = undefined;
-    entry.replacementService = undefined;
+    const previousEntry = { ...entry };
+    const updatedEntry: ServiceRegistryEntry = {
+      ...entry,
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+      sunsetDate: undefined,
+      replacementService: undefined,
+    };
 
-    this.persistToRedis(serviceId, entry).catch((err) => {
-      this.logger.warn(
-        `Redis persist failed for activated service '${serviceId}': ${(err as Error).message}`,
-        'RegistryService',
-      );
-    });
+    this.services[serviceId] = updatedEntry;
     this.syncMetricsGauge();
 
+    try {
+      await this.persistToRedisStrict(serviceId, updatedEntry);
+    } catch (err) {
+      this.services[serviceId] = previousEntry;
+      this.syncMetricsGauge();
+      throw err;
+    }
+
     this.logger.info(`Service '${serviceId}' activated`, {});
-    return entry;
+    return updatedEntry;
   }
 
   /**
@@ -625,12 +670,12 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Redis write timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`)),
-        REDIS_WRITE_TIMEOUT_MS,
-      ),
-    );
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(new Error(`Redis write timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`));
+      }, REDIS_WRITE_TIMEOUT_MS);
+    });
 
     try {
       await Promise.race([
@@ -638,12 +683,13 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
         timeout,
       ]);
     } catch (err) {
-      // Roll back the in-memory write so we stay consistent
-      delete this.services[serviceId];
-      this.syncMetricsGauge();
       throw new Error(
         `Registration for '${serviceId}' failed — Redis write error: ${(err as Error).message}`,
       );
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
     }
   }
 
@@ -659,12 +705,12 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Redis delete timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`)),
-        REDIS_WRITE_TIMEOUT_MS,
-      ),
-    );
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(new Error(`Redis delete timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`));
+      }, REDIS_WRITE_TIMEOUT_MS);
+    });
 
     try {
       await Promise.race([
@@ -672,11 +718,13 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
         timeout,
       ]);
     } catch (err) {
-      this.logger.error(
-        `Redis delete failed for '${serviceId}': ${(err as Error).message}`,
-        (err as Error).stack,
-        'RegistryService',
+      throw new Error(
+        `Deregistration for '${serviceId}' failed — Redis delete error: ${(err as Error).message}`,
       );
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
     }
   }
 }

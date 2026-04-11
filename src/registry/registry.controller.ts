@@ -21,8 +21,11 @@ import { ScopedAdminGuard } from '../auth/guards/scoped-admin.guard';
 import { LoggerService } from '../shared/logger.service';
 import { ServiceManifestDto } from '../shared/dto/service-manifest.dto';
 import { DeprecateServiceDto } from '../shared/dto/deprecate-service.dto';
+import { getExternalRequiredScopes } from '../external/guards/external-policy.guard';
 import { NotFoundError } from '../shared/errors';
 import { AuthenticatedRequest, ServiceTier, ServiceType } from '../types';
+
+const PLATFORM_ADMIN_SCOPE = 'platform:admin';
 
 @Controller('registry')
 @UseGuards(ScopedAdminGuard)
@@ -97,6 +100,42 @@ export class RegistryController {
   }
 
   /**
+   * GET /api/v1/registry/scopes
+   * Returns a deduplicated scope catalog for auth-provider provisioning.
+   */
+  @Get('scopes')
+  getScopes() {
+    const serviceScopes = new Set<string>();
+
+    for (const service of Object.values(this.registry.getAll())) {
+      for (const scope of service.requiredScopes ?? []) {
+        serviceScopes.add(scope);
+      }
+    }
+
+    const platformScopes = [PLATFORM_ADMIN_SCOPE];
+    const externalScopes = getExternalRequiredScopes();
+    const dynamicServiceScopes = [...serviceScopes].sort((a, b) => a.localeCompare(b));
+    const allScopes = [...new Set([...platformScopes, ...externalScopes, ...dynamicServiceScopes])].sort(
+      (a, b) => a.localeCompare(b),
+    );
+
+    return {
+      success: true,
+      data: {
+        platformScopes,
+        externalScopes,
+        dynamicServiceScopes,
+        allScopes,
+      },
+      meta: {
+        total: allScopes.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
    * GET /api/v1/registry/services/:serviceId
    */
   @Get('services/:serviceId')
@@ -139,12 +178,12 @@ export class RegistryController {
    * Mark a service as deprecated. Consumers will receive Sunset headers.
    */
   @Patch('services/:serviceId/deprecate')
-  deprecate(
+  async deprecate(
     @Param('serviceId') serviceId: string,
     @Body() dto: DeprecateServiceDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const entry = this.registry.deprecate(
+    const entry = await this.registry.deprecate(
       serviceId,
       dto.sunsetDate,
       dto.replacementService,
@@ -172,9 +211,9 @@ export class RegistryController {
    * Permanently retire a service — it will return 410 Gone to callers.
    */
   @Post('services/:serviceId/retire')
-  retire(@Param('serviceId') serviceId: string, @Req() req: AuthenticatedRequest) {
+  async retire(@Param('serviceId') serviceId: string, @Req() req: AuthenticatedRequest) {
     const consumers = this.registry.getConsumers(serviceId);
-    const entry = this.registry.retire(serviceId);
+    const entry = await this.registry.retire(serviceId);
 
     this.logger.warn(
       `Service '${serviceId}' retired via API — ${consumers.length} consumer(s) affected`,
@@ -196,8 +235,8 @@ export class RegistryController {
    * Re-activate a proposed or deprecated service.
    */
   @Patch('services/:serviceId/activate')
-  activate(@Param('serviceId') serviceId: string, @Req() req: AuthenticatedRequest) {
-    const entry = this.registry.activate(serviceId);
+  async activate(@Param('serviceId') serviceId: string, @Req() req: AuthenticatedRequest) {
+    const entry = await this.registry.activate(serviceId);
 
     this.logger.info(`Service '${serviceId}' activated via API`, {
       correlationId: req.correlationId,

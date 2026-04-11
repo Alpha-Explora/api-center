@@ -4,7 +4,7 @@
 // Dual-mode guard for admin endpoints:
 //   1. LEGACY: Accepts `X-Platform-Secret` header (same as PlatformAdminGuard)
 //   2. NEW:    Accepts a valid JWT with `platform:admin` scope
-//              (validated via the configured AuthProvider — Keycloak or DevJwt)
+//              (validated via the configured AuthProvider — Descope, Keycloak, or DevJwt)
 //
 // Both modes run in parallel — either one succeeds, the request is allowed.
 // This enables a gradual migration: services switch to JWT-based admin auth
@@ -52,7 +52,7 @@ export class ScopedAdminGuard implements CanActivate {
     }
 
     // ── Path 2: JWT with platform:admin scope ──────────────────────────────
-    // Validation is delegated to AuthService → AuthProvider (Keycloak or DevJwt)
+    // Validation is delegated to AuthService → AuthProvider (Descope, Keycloak, or DevJwt)
     const token = request.headers.authorization?.split(' ')[1];
     if (token) {
       try {

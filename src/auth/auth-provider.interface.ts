@@ -5,10 +5,12 @@
 //
 // Two first-class implementations are shipped:
 //   • KeycloakProvider  — production-grade, OIDC/JWKS, enterprise-ready
+//   • DescopeProvider   — production-grade, OIDC/JWKS, enterprise-ready
 //   • DevJwtProvider    — lightweight RS256 issuer for local dev and CI
 //
 // Selecting a provider is done via the AUTH_PROVIDER env var:
 //   AUTH_PROVIDER=keycloak   → KeycloakProvider
+//   AUTH_PROVIDER=descope    → DescopeProvider
 //   AUTH_PROVIDER=dev-jwt    → DevJwtProvider  (default)
 //
 // To add a new provider, implement this interface, register it in AuthModule,

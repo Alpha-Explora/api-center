@@ -2,7 +2,7 @@
 // src/auth/auth.service.ts — Provider-agnostic authentication service
 // =============================================================================
 // Thin orchestration layer that delegates JWT operations to the injected
-// AuthProvider (KeycloakProvider or DevJwtProvider) and manages refresh
+// AuthProvider (DescopeProvider, KeycloakProvider, or DevJwtProvider) and manages refresh
 // token lifecycle via TokenStoreService.
 // =============================================================================
 

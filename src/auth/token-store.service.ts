@@ -31,6 +31,7 @@ export interface RefreshTokenRecord {
 @Injectable()
 export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
   private redis: Redis | null = null;
+  private hasLoggedRedisValidationFallback = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -64,6 +65,10 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
     if (this.redis) {
       await this.redis.quit();
     }
+  }
+
+  isRedisConnected(): boolean {
+    return this.redis?.status === 'ready';
   }
 
   // ---------------------------------------------------------------------------
@@ -114,9 +119,17 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
    */
   async isValid(jti: string): Promise<boolean> {
     if (!this.redis) {
-      // If Redis is unavailable, allow through (best-effort)
-      return true;
+      if (!this.hasLoggedRedisValidationFallback) {
+        this.logger.warn(
+          'TokenStoreService: Redis unavailable during token validity check; failing closed',
+          'TokenStoreService',
+        );
+        this.hasLoggedRedisValidationFallback = true;
+      }
+      return false;
     }
+
+    this.hasLoggedRedisValidationFallback = false;
     const exists = await this.redis.exists(this.refreshKey(jti));
     return exists === 1;
   }

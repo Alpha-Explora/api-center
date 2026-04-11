@@ -1,0 +1,8 @@
+{
+	"DESCOPE_BASE_URL": "https://api.descope.com",
+	"DESCOPE_PROJECT_ID": "P3CDYwDpERyUJPEfqnppZM7HLySN",
+	"DESCOPE_ISSUER": "https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN",
+	"DESCOPE_AUDIENCE": "P3CDYwDpERyUJPEfqnppZM7HLySN",
+	"DESCOPE_TOKEN_ENDPOINT": "https://api.descope.com/oauth2/v1/apps/token",
+	"DESCOPE_DEFAULT_CLIENT_SECRET": "4LCIg5ongz9iVf1ZisZsB2XawAWKalhSa1tC1fmYSTQ"
+}

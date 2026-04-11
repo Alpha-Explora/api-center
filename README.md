@@ -17,8 +17,9 @@ APICenter is the **single, centralized API gateway** for the platform. Every API
 2. [Quick Start — dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
 3. [Auth Providers](#auth-providers)
    - [dev-jwt — Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
-   - [Keycloak — Enterprise OIDC](#2-keycloak--enterprise-oidc)
-   - [Google OAuth2 / OIDC](#3-google-oauth2--oidc)
+  - [Descope — Enterprise OIDC](#2-descope--enterprise-oidc)
+  - [Keycloak — Enterprise OIDC](#3-keycloak--enterprise-oidc)
+  - [Google OAuth2 / OIDC](#4-google-oauth2--oidc)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
 6. [External APIs](#external-apis)
@@ -84,6 +85,7 @@ APICenter ships **three fully functional** auth providers. Select one with `AUTH
 | Value | Use case | External dependency |
 |-------|----------|---------------------|
 | `dev-jwt` | Local dev, CI | None |
+| `descope` | Enterprise OIDC with Descope tenant | Descope project |
 | `keycloak` | Enterprise SSO, on-prem / cloud Keycloak | Keycloak server |
 | `google` | Google Workspace / personal accounts, GCP service accounts | Google Cloud project |
 
@@ -123,7 +125,26 @@ GET http://localhost:3000/api/v1/auth/.well-known/jwks.json
 
 ---
 
-### 2. Keycloak — Enterprise OIDC
+### 2. Descope — Enterprise OIDC
+
+```bash
+AUTH_PROVIDER=descope
+DESCOPE_BASE_URL=https://api.descope.com
+DESCOPE_PROJECT_ID=<your-descope-project-id>
+DESCOPE_JWKS_URI=https://api.descope.com/<project-id>/.well-known/jwks.json
+DESCOPE_TOKEN_ENDPOINT=https://api.descope.com/oauth2/v1/token
+DESCOPE_ISSUER=https://api.descope.com/<project-id>
+DESCOPE_AUDIENCE=api-center
+DESCOPE_DEFAULT_CLIENT_SECRET=<m2m-client-secret>
+```
+
+Per-service secret override follows the same pattern used in Keycloak:
+
+```bash
+DESCOPE_CLIENT_SECRET_PAYMENT_SERVICE=<service-secret>
+```
+
+### 3. Keycloak — Enterprise OIDC
 
 #### Option A — Local Keycloak (dev / CI)
 
@@ -163,7 +184,7 @@ KEYCLOAK_DEFAULT_CLIENT_SECRET=<client-secret>
 
 ---
 
-### 3. Google OAuth2 / OIDC
+### 4. Google OAuth2 / OIDC
 
 Supports two sub-flows running simultaneously:
 

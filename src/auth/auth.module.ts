@@ -5,15 +5,16 @@
 //
 // PROVIDER SELECTION (AUTH_PROVIDER env var):
 //   keycloak  → KeycloakProvider  — production-grade OIDC/JWKS
+//   descope   → DescopeProvider   — production-grade OIDC/JWKS
 //   dev-jwt   → DevJwtProvider    — ephemeral RS256 for local dev / CI [default]
 // =============================================================================
 
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AUTH_PROVIDER } from './auth-provider.interface';
 import { KeycloakProvider } from './providers/keycloak.provider';
+import { DescopeProvider } from './providers/descope.provider';
 import { DevJwtProvider } from './providers/dev-jwt.provider';
 import { GoogleProvider } from './providers/google.provider';
-import { VaultService } from './vault.service';
 import { TokenStoreService } from './token-store.service';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -22,32 +23,34 @@ import { ScopedAdminGuard } from './guards/scoped-admin.guard';
 import { AuthController } from './auth.controller';
 import { RegistryModule } from '../registry/registry.module';
 import { ConfigService } from '../config/config.service';
+import { VaultModule } from './vault.module';
 
 const authProviderFactory = {
   provide: AUTH_PROVIDER,
-  inject: [ConfigService, KeycloakProvider, DevJwtProvider, GoogleProvider],
+  inject: [ConfigService, KeycloakProvider, DescopeProvider, DevJwtProvider, GoogleProvider],
   useFactory: (
     config: ConfigService,
     keycloak: KeycloakProvider,
+    descope: DescopeProvider,
     devJwt: DevJwtProvider,
     google: GoogleProvider,
   ) => {
     if (config.authProvider === 'keycloak') return keycloak;
+    if (config.authProvider === 'descope') return descope;
     if (config.authProvider === 'google') return google;
     return devJwt;
   },
 };
 
 @Module({
-  imports: [forwardRef(() => RegistryModule)],
+  imports: [RegistryModule, VaultModule],
   controllers: [AuthController],
   providers: [
-    // Vault — secret loading + Transit signing (used by providers + AuthService)
-    VaultService,
     // Token store — Redis-backed refresh token lifecycle
     TokenStoreService,
     // Concrete auth providers (all instantiated; factory picks the active one)
     KeycloakProvider,
+    DescopeProvider,
     DevJwtProvider,
     GoogleProvider,
     authProviderFactory,
@@ -58,7 +61,7 @@ const authProviderFactory = {
   ],
   exports: [
     AuthService,
-    VaultService,
+    VaultModule,
     TokenStoreService,
     JwtAuthGuard,
     PlatformAdminGuard,

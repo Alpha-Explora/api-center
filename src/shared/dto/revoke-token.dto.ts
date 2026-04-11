@@ -7,7 +7,7 @@ import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 export class RevokeTokenDto {
   @IsString()
   @IsNotEmpty({ message: 'refreshToken is required' })
-  refreshToken: string;
+  refreshToken!: string;
 
   /**
    * When true, revokes ALL refresh tokens for the subject (session-wide).

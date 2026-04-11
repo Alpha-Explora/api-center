@@ -18,6 +18,7 @@ import {
 import { KafkaService } from '../kafka/kafka.service';
 import { RegistryService } from '../registry/registry.service';
 import { ExternalService } from '../external/external.service';
+import { TokenStoreService } from '../auth/token-store.service';
 
 @Controller('health')
 export class HealthController {
@@ -26,6 +27,7 @@ export class HealthController {
     private readonly kafka: KafkaService,
     private readonly registry: RegistryService,
     private readonly externalService: ExternalService,
+    private readonly tokenStore: TokenStoreService,
   ) {}
 
   /**
@@ -48,6 +50,7 @@ export class HealthController {
     return this.health.check([
       () => this.processCheck(),
       () => this.kafkaCheck(),
+      () => this.redisCheck(),
       () => this.registryCheck(),
       () => this.circuitBreakerCheck(),
     ]);
@@ -83,6 +86,16 @@ export class HealthController {
     } catch {
       return { kafka: { status: 'down' } };
     }
+  }
+
+  private async redisCheck(): Promise<HealthIndicatorResult> {
+    const connected = this.tokenStore.isRedisConnected();
+
+    return {
+      redis: {
+        status: connected ? 'up' : 'down',
+      },
+    };
   }
 
   private async registryCheck(): Promise<HealthIndicatorResult> {

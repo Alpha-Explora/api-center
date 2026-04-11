@@ -26,6 +26,7 @@ import { RevokeTokenDto } from '../shared/dto/revoke-token.dto';
 import { AuthenticatedRequest } from '../types';
 import { GoogleProvider } from './providers/google.provider';
 import { ConfigService } from '../config/config.service';
+import { GoogleCallbackDto } from '../shared/dto/google-callback.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -196,11 +197,11 @@ export class AuthController {
 
   @Get('google')
   initiateGoogleLogin(
-    @Query('redirectUri') redirectUri: string,
+    @Query('redirectUri') redirectUri: string | undefined,
     @Query('state') state: string | undefined,
     @Res() res: Response,
   ): void {
-    const uri = redirectUri || this.config.google.redirectUri;
+    const uri = this.validateRedirectUri(redirectUri);
     const url = this.googleProvider.buildAuthorizationUrl(uri, state);
     res.redirect(url);
   }
@@ -220,7 +221,7 @@ export class AuthController {
 
   @Post('google/callback')
   async googleCallback(
-    @Body() body: { code: string; redirectUri?: string },
+    @Body() body: GoogleCallbackDto,
     @Req() req: AuthenticatedRequest,
   ) {
     const { code, redirectUri } = body;
@@ -228,7 +229,7 @@ export class AuthController {
       throw new UnauthorizedError('Missing authorization code');
     }
 
-    const uri = redirectUri || this.config.google.redirectUri;
+    const uri = this.validateRedirectUri(redirectUri);
     const result = await this.googleProvider.exchangeCode(code, uri);
 
     // Issue an internal APICenter access token wrapping the Google identity
@@ -284,11 +285,37 @@ export class AuthController {
   getJwks() {
     const jwks = this.auth.getJwksJson();
     if (!jwks) {
+      const providerName = this.config.authProvider;
+      const providerJwksUrl =
+        process.env.DESCOPE_JWKS_URI ||
+        process.env.KEYCLOAK_JWKS_URI ||
+        '<PROVIDER_JWKS_URI not set>';
       throw new NotFoundException(
-        'JWKS is not served by this provider. Fetch from your Keycloak server: ' +
-          `${process.env.KEYCLOAK_JWKS_URI || '<KEYCLOAK_JWKS_URI not set>'}`,
+        `JWKS is not served by provider '${providerName}'. Fetch from the provider JWKS URL: ${providerJwksUrl}`,
       );
     }
     return jwks;
+  }
+
+  private validateRedirectUri(redirectUri?: string): string {
+    const resolvedRedirectUri = redirectUri || this.config.google.redirectUri;
+
+    let parsedRedirectUri: URL;
+    try {
+      parsedRedirectUri = new URL(resolvedRedirectUri);
+    } catch {
+      throw new UnauthorizedError('Invalid redirect URI');
+    }
+
+    if (parsedRedirectUri.protocol !== 'http:' && parsedRedirectUri.protocol !== 'https:') {
+      throw new UnauthorizedError('Invalid redirect URI protocol');
+    }
+
+    const isAllowedOrigin = this.config.google.allowedRedirectOrigins.includes(parsedRedirectUri.origin);
+    if (!isAllowedOrigin) {
+      throw new UnauthorizedError('Redirect URI is not allowed');
+    }
+
+    return resolvedRedirectUri;
   }
 }

@@ -39,8 +39,8 @@ data:
   # CORS — NGINX is gone in GKE, so the Node app handles preflight directly
   ALLOWED_ORIGINS: "*"
 
-  # Auth provider — keycloak / google / dev-jwt
-  AUTH_PROVIDER: "keycloak"
+  # Auth provider — descope / keycloak / google / dev-jwt
+  AUTH_PROVIDER: "descope"
 
   # Rate limiting (per replica; counters live in REDIS_RATE_LIMIT_URL)
   RATE_LIMIT_WINDOW_MS: "60000"

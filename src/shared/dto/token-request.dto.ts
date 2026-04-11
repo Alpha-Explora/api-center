@@ -12,9 +12,9 @@ export class TokenRequestDto {
   @IsString()
   @IsNotEmpty({ message: 'tribeId is required' })
   @MaxLength(50, { message: 'tribeId is too long' })
-  tribeId: string;
+  tribeId!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'secret is required' })
-  secret: string;
+  secret!: string;
 }

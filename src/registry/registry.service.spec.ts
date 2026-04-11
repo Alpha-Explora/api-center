@@ -103,7 +103,7 @@ describe('RegistryService', () => {
 
     it('rejects re-registration of a retired service', async () => {
       await service.register(baseManifest());
-      service.retire('svc-alpha');
+      await service.retire('svc-alpha');
 
       await expect(service.register(baseManifest({ version: '2.0.0' }))).rejects.toThrow(ConflictError);
     });
@@ -143,7 +143,7 @@ describe('RegistryService', () => {
   describe('deprecate()', () => {
     it('marks a service as deprecated with optional sunset info', async () => {
       await service.register(baseManifest());
-      const entry = service.deprecate('svc-alpha', '2025-12-31', 'svc-beta');
+      const entry = await service.deprecate('svc-alpha', '2025-12-31', 'svc-beta');
 
       expect(entry.status).toBe('deprecated');
       expect(entry.sunsetDate).toBe('2025-12-31');
@@ -152,7 +152,7 @@ describe('RegistryService', () => {
 
     it('emits a SERVICE_DEPRECATED Kafka event', async () => {
       await service.register(baseManifest());
-      service.deprecate('svc-alpha');
+      await service.deprecate('svc-alpha');
 
       expect(mockKafka.publish).toHaveBeenCalledWith(
         TOPICS.SERVICE_DEPRECATED,
@@ -160,27 +160,27 @@ describe('RegistryService', () => {
       );
     });
 
-    it('throws NotFoundError for unknown service', () => {
-      expect(() => service.deprecate('unknown')).toThrow(NotFoundError);
+    it('throws NotFoundError for unknown service', async () => {
+      await expect(service.deprecate('unknown')).rejects.toThrow(NotFoundError);
     });
 
     it('throws ConflictError when depreciating an already retired service', async () => {
       await service.register(baseManifest());
-      service.retire('svc-alpha');
-      expect(() => service.deprecate('svc-alpha')).toThrow(ConflictError);
+      await service.retire('svc-alpha');
+      await expect(service.deprecate('svc-alpha')).rejects.toThrow(ConflictError);
     });
   });
 
   describe('retire()', () => {
     it('marks a service as retired', async () => {
       await service.register(baseManifest());
-      const entry = service.retire('svc-alpha');
+      const entry = await service.retire('svc-alpha');
       expect(entry.status).toBe('retired');
     });
 
     it('emits a SERVICE_RETIRED Kafka event', async () => {
       await service.register(baseManifest());
-      service.retire('svc-alpha');
+      await service.retire('svc-alpha');
 
       expect(mockKafka.publish).toHaveBeenCalledWith(
         TOPICS.SERVICE_RETIRED,
@@ -188,16 +188,16 @@ describe('RegistryService', () => {
       );
     });
 
-    it('throws NotFoundError for unknown service', () => {
-      expect(() => service.retire('unknown')).toThrow(NotFoundError);
+    it('throws NotFoundError for unknown service', async () => {
+      await expect(service.retire('unknown')).rejects.toThrow(NotFoundError);
     });
   });
 
   describe('activate()', () => {
     it('transitions deprecated → active and clears sunset fields', async () => {
       await service.register(baseManifest());
-      service.deprecate('svc-alpha', '2025-12-31', 'svc-beta');
-      const entry = service.activate('svc-alpha');
+      await service.deprecate('svc-alpha', '2025-12-31', 'svc-beta');
+      const entry = await service.activate('svc-alpha');
 
       expect(entry.status).toBe('active');
       expect(entry.sunsetDate).toBeUndefined();
@@ -206,11 +206,11 @@ describe('RegistryService', () => {
 
     it('throws ConflictError for already-active services', async () => {
       await service.register(baseManifest());
-      expect(() => service.activate('svc-alpha')).toThrow(ConflictError);
+      await expect(service.activate('svc-alpha')).rejects.toThrow(ConflictError);
     });
 
-    it('throws NotFoundError for unknown service', () => {
-      expect(() => service.activate('unknown')).toThrow(NotFoundError);
+    it('throws NotFoundError for unknown service', async () => {
+      await expect(service.activate('unknown')).rejects.toThrow(NotFoundError);
     });
   });
 
@@ -285,13 +285,13 @@ describe('RegistryService', () => {
 
     it('returns true for deprecated services', async () => {
       await service.register(baseManifest());
-      service.deprecate('svc-alpha');
+      await service.deprecate('svc-alpha');
       expect(service.isRoutable('svc-alpha')).toBe(true);
     });
 
     it('returns false for retired services', async () => {
       await service.register(baseManifest());
-      service.retire('svc-alpha');
+      await service.retire('svc-alpha');
       expect(service.isRoutable('svc-alpha')).toBe(false);
     });
 
@@ -344,7 +344,7 @@ describe('RegistryService', () => {
       expect(v2.previousVersion).toBe('1.0.0');
 
       // 3. Deprecate
-      const dep = service.deprecate('svc-alpha', '2025-12-31', 'svc-beta');
+      const dep = await service.deprecate('svc-alpha', '2025-12-31', 'svc-beta');
       expect(dep.status).toBe('deprecated');
       expect(service.isRoutable('svc-alpha')).toBe(true);
 
@@ -353,7 +353,7 @@ describe('RegistryService', () => {
       expect(v3.status).toBe('deprecated');
 
       // 5. Retire
-      const ret = service.retire('svc-alpha');
+      const ret = await service.retire('svc-alpha');
       expect(ret.status).toBe('retired');
       expect(service.isRoutable('svc-alpha')).toBe(false);
 

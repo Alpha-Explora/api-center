@@ -20,9 +20,13 @@ export class ConfigService implements OnModuleInit {
   };
 
   // AUTH_PROVIDER=keycloak  → KeycloakProvider (production)
+  // AUTH_PROVIDER=descope   → DescopeProvider  (production)
   // AUTH_PROVIDER=google    → GoogleProvider   (Google OAuth2 / OIDC)
   // AUTH_PROVIDER=dev-jwt   → DevJwtProvider   (local dev / CI) [default]
   readonly authProvider: string = process.env.AUTH_PROVIDER || 'dev-jwt';
+
+  private readonly descopeBaseUrl = process.env.DESCOPE_BASE_URL || 'https://api.descope.com';
+  private readonly descopeProjectId = process.env.DESCOPE_PROJECT_ID || '';
 
   readonly google = {
     clientId: process.env.GOOGLE_CLIENT_ID ?? '',
@@ -31,6 +35,7 @@ export class ConfigService implements OnModuleInit {
       .split(',')
       .map((d) => d.trim())
       .filter(Boolean),
+    allowedRedirectOrigins: this.parseGoogleAllowedRedirectOrigins(),
     // Redirect URI registered in Google Cloud Console
     redirectUri: process.env.GOOGLE_REDIRECT_URI ?? 'http://localhost:3000/api/v1/auth/google/callback',
   };
@@ -52,6 +57,21 @@ export class ConfigService implements OnModuleInit {
      * gateway is behind a trusted ingress — never direct internet exposure.
      */
     trustEnvoyHeaders: process.env.ENVOY_TRUST_HEADERS === 'true',
+  };
+
+  readonly descope = {
+    baseUrl: this.descopeBaseUrl,
+    projectId: this.descopeProjectId,
+    jwksUri:
+      process.env.DESCOPE_JWKS_URI ||
+      (this.descopeProjectId
+        ? `${this.descopeBaseUrl}/${this.descopeProjectId}/.well-known/jwks.json`
+        : ''),
+    tokenEndpoint: process.env.DESCOPE_TOKEN_ENDPOINT || `${this.descopeBaseUrl}/oauth2/v1/token`,
+    issuer: process.env.DESCOPE_ISSUER || '',
+    audience: process.env.DESCOPE_AUDIENCE || '',
+    refreshClientId: process.env.DESCOPE_REFRESH_CLIENT_ID || 'api-center',
+    defaultClientSecret: process.env.DESCOPE_DEFAULT_CLIENT_SECRET || '',
   };
 
   readonly devJwt = {
@@ -112,7 +132,11 @@ export class ConfigService implements OnModuleInit {
   };
 
   readonly tracing = {
-    jaegerEndpoint: process.env.JAEGER_ENDPOINT || 'http://localhost:14268/api/traces',
+    otlpTracesEndpoint:
+      process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
+      process.env.JAEGER_ENDPOINT ||
+      'http://localhost:4318/v1/traces',
     serviceName: process.env.OTEL_SERVICE_NAME || 'api-center',
   };
 
@@ -132,7 +156,7 @@ export class ConfigService implements OnModuleInit {
       errors.push('PLATFORM_ADMIN_SECRET must be set in production');
     }
 
-    const validProviders = ['keycloak', 'google', 'dev-jwt'];
+    const validProviders = ['keycloak', 'descope', 'google', 'dev-jwt'];
     if (!validProviders.includes(this.authProvider)) {
       errors.push(`AUTH_PROVIDER must be one of: ${validProviders.join(', ')} (got '${this.authProvider}')`);
     }
@@ -148,16 +172,43 @@ export class ConfigService implements OnModuleInit {
       if (this.keycloak.trustEnvoyHeaders) warnings.push('ENVOY_TRUST_HEADERS=true — ensure this gateway is never directly internet-exposed');
     }
 
+    if (this.authProvider === 'descope') {
+      const isLocalhost = (() => {
+        try {
+          return new URL(this.descope.baseUrl).hostname === 'localhost';
+        } catch {
+          return false;
+        }
+      })();
+
+      if (!this.descope.jwksUri) errors.push('DESCOPE_JWKS_URI (or DESCOPE_PROJECT_ID) must be set for AUTH_PROVIDER=descope');
+      if (!this.descope.tokenEndpoint) errors.push('DESCOPE_TOKEN_ENDPOINT must be set for AUTH_PROVIDER=descope');
+      if (isLocalhost && this.isProduction) errors.push('DESCOPE_BASE_URL must be set to a production Descope URL');
+      if (!this.descope.issuer && this.isProduction) errors.push('DESCOPE_ISSUER must be set in production for token issuer validation');
+      if (!this.descope.audience && this.isProduction) errors.push('DESCOPE_AUDIENCE must be set in production for token audience validation');
+      if (!this.descope.defaultClientSecret && this.isProduction) {
+        warnings.push('DESCOPE_DEFAULT_CLIENT_SECRET is not set — ensure DESCOPE_CLIENT_SECRET_<SERVICE_ID> is configured for each service');
+      }
+    }
+
     if (this.authProvider === 'google') {
       if (!this.google.clientId) warnings.push('GOOGLE_CLIENT_ID is not set — Google auth will fail');
       if (!this.google.clientSecret) warnings.push('GOOGLE_CLIENT_SECRET is not set — Google auth will fail');
       if (this.google.allowedDomains.length === 0 && this.isProduction) {
         warnings.push('GOOGLE_ALLOWED_DOMAINS is not set in production — any Google account can authenticate');
       }
+      if (this.google.allowedRedirectOrigins.length === 0) {
+        const msg = 'GOOGLE_ALLOWED_REDIRECT_URIS is not set or invalid — Google redirect URIs cannot be validated';
+        if (this.isProduction) {
+          errors.push(msg);
+        } else {
+          warnings.push(msg);
+        }
+      }
     }
 
     if (this.authProvider === 'dev-jwt' && this.isProduction) {
-      errors.push('AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=keycloak');
+      errors.push('AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=descope, keycloak, or google');
     }
 
     if (this.vault.devMode && this.isProduction) {
@@ -184,5 +235,24 @@ export class ConfigService implements OnModuleInit {
       console.error(msg);
       throw new Error(msg);
     }
+  }
+
+  private parseGoogleAllowedRedirectOrigins(): string[] {
+    const configuredUris = (process.env.GOOGLE_ALLOWED_REDIRECT_URIS ?? '')
+      .split(',')
+      .map((uri) => uri.trim())
+      .filter(Boolean);
+
+    const origins = configuredUris
+      .map((uri) => {
+        try {
+          return new URL(uri).origin;
+        } catch {
+          return '';
+        }
+      })
+      .filter(Boolean);
+
+    return [...new Set(origins)];
   }
 }

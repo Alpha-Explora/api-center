@@ -137,6 +137,24 @@ const EXTERNAL_API_POLICIES: Record<string, ExternalApiPolicy> = {
   },
 };
 
+export function getExternalRequiredScopes(): string[] {
+  const scopes = new Set<string>();
+
+  for (const policy of Object.values(EXTERNAL_API_POLICIES)) {
+    for (const scope of policy.requiredScopes) {
+      scopes.add(scope);
+    }
+
+    for (const rule of policy.rules) {
+      for (const scope of rule.requiredScopes) {
+        scopes.add(scope);
+      }
+    }
+  }
+
+  return [...scopes].sort();
+}
+
 @Injectable()
 export class ExternalPolicyGuard implements CanActivate {
   constructor(

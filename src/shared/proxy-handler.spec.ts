@@ -200,6 +200,16 @@ describe('ProxyHandler', () => {
         expect.anything(),
       );
     });
+
+    it('removes matching circuit breaker when invalidating a service', async () => {
+      await handler.proxyRequest('user-svc', fakeReq(), fakeRes());
+
+      expect((handler as any).circuitBreakers.has('user-svc')).toBe(true);
+
+      handler.invalidateProxyCache('user-svc');
+
+      expect((handler as any).circuitBreakers.has('user-svc')).toBe(false);
+    });
   });
 
   // =========================================================================
@@ -454,6 +464,37 @@ describe('ProxyHandler', () => {
 
       expect((handler as any).proxyCache.size).toBe(0);
       expect((handler as any).circuitBreakers.size).toBe(0);
+    });
+  });
+
+  describe('bounded cache eviction', () => {
+    it('evicts the oldest cached proxy when cache size limit is reached', async () => {
+      const boundedHandler = new ProxyHandler(deps, {
+        ...defaultOpts,
+        maxProxyCacheSize: 1,
+      });
+
+      (deps.registry.get as jest.Mock).mockImplementation((serviceId: string) => ({
+        serviceId,
+        serviceType: 'tribe',
+        status: 'active',
+        requiredScopes: [],
+        consumes: [],
+      }));
+      (deps.registry.resolveUpstream as jest.Mock).mockImplementation((serviceId: string) => `http://${serviceId}.local`);
+
+      await boundedHandler.proxyRequest('svc-a', fakeReq(), fakeRes());
+      await boundedHandler.proxyRequest('svc-b', fakeReq(), fakeRes());
+
+      expect((boundedHandler as any).proxyCache.has('svc-a')).toBe(false);
+      expect((boundedHandler as any).proxyCache.has('svc-b')).toBe(true);
+      expect((boundedHandler as any).circuitBreakers.has('svc-a')).toBe(false);
+      expect(deps.logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Proxy cache size limit reached'),
+        'ProxyHandler',
+      );
+
+      boundedHandler.destroy();
     });
   });
 });

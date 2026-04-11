@@ -18,8 +18,9 @@ c# api-center — GKE Deployment (Living Document)
 | Namespace | `api-center` |
 | Artifact Registry | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center` |
 | Static IP name | `api-center-ip` |
-| Public hostname | `api-center.example.com` ⚠️ **placeholder — replace before applying** |
+| Public hostname | `api-center.itsandbox.com` ⚠️ **placeholder — replace before applying** |
 | Secret Manager secret | `api-center-prod` |
+| Auth provider | `descope` (`AUTH_PROVIDER=descope` in ConfigMap) |
 | Memorystore cache host | `10.34.181.131:6379` |
 | Memorystore rate-limit host | `10.63.215.147:6379` |
 | Kafka brokers | `localhost:9092` ⚠️ **placeholder — replace with Confluent Cloud broker** |
@@ -30,10 +31,10 @@ c# api-center — GKE Deployment (Living Document)
 
 | Field | Value |
 |---|---|
-| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:latest` |
-| Built from | _(not yet deployed — update this after first push)_ |
-| Last deployed | _(not yet deployed)_ |
-| Deployed by | _(not yet deployed)_ |
+| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:e1cb9f7` |
+| Built from | `e1cb9f7` (2026-04-12) |
+| Last deployed | _(pending rollout)_ |
+| Deployed by | _(pending rollout)_ |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
@@ -141,7 +142,115 @@ grep -rn 'example.com\|localhost:9092' gcp/gke/
 
 Replace every placeholder in `gcp/gke/*.yaml` (see **Known Placeholders** above).
 
-### 3. Build & push image
+### 2A. Update Secret Manager payload (Descope + rollback-safe Keycloak)
+
+Export current payload, add Descope keys, and keep existing `KEYCLOAK_*` keys for rollback.
+
+```bash
+gcloud secrets versions access latest --secret=api-center-prod > /tmp/api-center-prod.current.json
+cp /tmp/api-center-prod.current.json /tmp/api-center-prod.next.json
+
+# Edit /tmp/api-center-prod.next.json and ensure it contains at least:
+# DESCOPE_BASE_URL=https://api.descope.com
+# DESCOPE_PROJECT_ID=P3CDYwDpERyUJPEfqnppZM7HLySN
+# DESCOPE_ISSUER=https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN
+# DESCOPE_AUDIENCE=<token aud claim; start with project id if needed>
+# DESCOPE_TOKEN_ENDPOINT=https://api.descope.com/oauth2/v1/apps/token
+# DESCOPE_DEFAULT_CLIENT_SECRET=<Descope Client Secret (rotate before use)>
+# Optional overrides: DESCOPE_CLIENT_SECRET_<SERVICE_ID_UPPER>
+# Keep existing KEYCLOAK_* keys during stabilization.
+
+gcloud secrets versions add api-center-prod --data-file=/tmp/api-center-prod.next.json
+gcloud secrets versions list api-center-prod --limit=5
+```
+
+Minimal payload shape for the auth switch:
+
+```json
+{
+        "DESCOPE_BASE_URL": "https://api.descope.com",
+        "DESCOPE_PROJECT_ID": "P3CDYwDpERyUJPEfqnppZM7HLySN",
+        "DESCOPE_ISSUER": "https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN",
+        "DESCOPE_AUDIENCE": "P3CDYwDpERyUJPEfqnppZM7HLySN",
+        "DESCOPE_TOKEN_ENDPOINT": "https://api.descope.com/oauth2/v1/apps/token",
+        "DESCOPE_DEFAULT_CLIENT_SECRET": "<m2m-client-secret>",
+        "DESCOPE_CLIENT_SECRET_BILLING_SERVICE": "<optional-service-secret>",
+        "KEYCLOAK_BASE_URL": "<keep-existing>",
+        "KEYCLOAK_REALM": "<keep-existing>",
+        "KEYCLOAK_JWKS_URI": "<keep-existing>",
+        "KEYCLOAK_TOKEN_ENDPOINT": "<keep-existing>",
+        "KEYCLOAK_ISSUER": "<keep-existing>",
+        "KEYCLOAK_AUDIENCE": "<keep-existing>",
+        "KEYCLOAK_DEFAULT_CLIENT_SECRET": "<keep-existing>"
+}
+```
+
+### 2B. Confirm runtime selector
+
+`gcp/gke/20-configmap.yaml` is already set to `AUTH_PROVIDER: "descope"`.
+
+```bash
+kubectl -n api-center get configmap api-center-config -o jsonpath='{.data.AUTH_PROVIDER}{"\n"}'
+# Expected: descope
+```
+
+### 3. Run smoke tests before rollout
+
+```bash
+# Inputs for smoke runs
+export PUBLIC_HOSTNAME=<real-hostname>
+export DESCOPE_SMOKE_CLIENT_ID=<descope-client-id-with-platform-admin>
+export DESCOPE_SMOKE_CLIENT_SECRET=<descope-client-secret>
+export GATEWAY_TRIBE_ID=<registered-service-id>
+export GATEWAY_TRIBE_SECRET=<registered-service-secret>
+
+# A) Direct Descope client-credentials token request
+DESCOPE_TOKEN=$(
+        curl -sS -X POST "https://api.descope.com/oauth2/v1/apps/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                --data-urlencode "grant_type=client_credentials" \
+                --data-urlencode "client_id=${DESCOPE_SMOKE_CLIENT_ID}" \
+                --data-urlencode "client_secret=${DESCOPE_SMOKE_CLIENT_SECRET}" \
+                --data-urlencode "scope=openid platform:admin" \
+        | jq -r '.access_token // empty'
+)
+test -n "$DESCOPE_TOKEN"
+
+# Optional: verify aud claim and align DESCOPE_AUDIENCE if needed
+echo "$DESCOPE_TOKEN" | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq '.aud'
+
+# B) Gateway token flow via /api/v1/auth/token
+GATEWAY_RESPONSE=$(curl -sS -X POST "https://${PUBLIC_HOSTNAME}/api/v1/auth/token" \
+        -H "Content-Type: application/json" \
+        -d "{\"tribeId\":\"${GATEWAY_TRIBE_ID}\",\"secret\":\"${GATEWAY_TRIBE_SECRET}\"}")
+echo "$GATEWAY_RESPONSE" | jq .
+GATEWAY_ACCESS_TOKEN=$(echo "$GATEWAY_RESPONSE" | jq -r '.data.accessToken // empty')
+GATEWAY_REFRESH_TOKEN=$(echo "$GATEWAY_RESPONSE" | jq -r '.data.refreshToken // empty')
+test -n "$GATEWAY_ACCESS_TOKEN"
+
+# C) Guard check: admin route must accept token carrying platform:admin
+curl -si "https://${PUBLIC_HOSTNAME}/api/v1/registry/scopes" \
+        -H "Authorization: Bearer ${DESCOPE_TOKEN}" \
+        | head -n 1
+# Expected: HTTP/2 200
+
+# Optional negative control: non-admin token should be denied
+curl -si "https://${PUBLIC_HOSTNAME}/api/v1/registry/scopes" \
+        -H "Authorization: Bearer ${GATEWAY_ACCESS_TOKEN}" \
+        | head -n 1
+# Expected: HTTP/2 401 or 403
+
+# D) Refresh endpoint behavior
+if [ -n "$GATEWAY_REFRESH_TOKEN" ]; then
+        curl -sS -X POST "https://${PUBLIC_HOSTNAME}/api/v1/auth/token/refresh" \
+                -H "Content-Type: application/json" \
+                -d "{\"refreshToken\":\"${GATEWAY_REFRESH_TOKEN}\"}" | jq .
+else
+        echo "No refresh token returned for this flow (expected for some client_credentials configurations)."
+fi
+```
+
+### 4. Build & push image
 
 ```bash
 IMAGE="us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:$(git rev-parse --short HEAD)"
@@ -156,7 +265,7 @@ docker push "$IMAGE"
 echo "Pushed: $IMAGE"
 ```
 
-### 4. Apply manifests
+### 5. Apply manifests
 
 **First deploy:**
 
@@ -172,13 +281,40 @@ kubectl -n api-center set image deploy/api-center api-center="$IMAGE"
 kubectl -n api-center rollout status deploy/api-center --timeout=5m
 ```
 
-### 5. Verify
+### 6. Verify
 
 See **Verification Checklist** below.
 
-### 6. Post-deploy: update this doc
+### 7. Post-deploy: update this doc
 
 Update the **Current Image** table, append a **Change Log** entry, commit.
+
+### 8. Rollback (auth provider switch)
+
+If Descope auth fails after rollout, revert immediately with the last known-good image and Keycloak config values.
+
+```bash
+# 1) Revert workload to previous ReplicaSet
+kubectl -n api-center rollout undo deploy/api-center
+kubectl -n api-center rollout status deploy/api-center --timeout=5m
+
+# 2) Restore auth provider selector if needed
+kubectl -n api-center edit configmap api-center-config
+# Set AUTH_PROVIDER back to "keycloak"
+
+# 3) Restore previous Secret Manager version in api-center-prod
+# Keep prior KEYCLOAK_* values available until Descope stabilizes.
+
+# 4) Restart deployment to consume restored env
+kubectl -n api-center rollout restart deploy/api-center
+kubectl -n api-center rollout status deploy/api-center --timeout=5m
+```
+
+Rollback readiness checklist:
+
+- Record previous image tag/digest before each rollout.
+- Record the previous Secret Manager version number before editing auth values.
+- Keep `KEYCLOAK_*` and `DESCOPE_*` payload keys side-by-side during stabilization.
 
 ---
 
@@ -216,6 +352,17 @@ watch kubectl -n api-center get hpa,pods
 # 7. Scale-down after load stops (wait ~5 min)
 kubectl -n api-center get hpa api-center
 # Expected: replicas return to 3 (scaleDown.stabilizationWindowSeconds=300)
+
+# 8. Guarded route check with platform:admin token
+curl -si https://<real-hostname>/api/v1/registry/scopes \
+        -H "Authorization: Bearer <descope-token-with-platform-admin>" | head -n 1
+# Expected: HTTP/2 200
+
+# 9. Refresh endpoint behavior check
+curl -sS -X POST https://<real-hostname>/api/v1/auth/token/refresh \
+        -H "Content-Type: application/json" \
+        -d '{"refreshToken":"<refresh-token-if-issued>"}' | jq .
+# Expected: success response OR explicit auth error if no refresh token was issued for that grant
 ```
 
 ---
@@ -244,3 +391,6 @@ The pod KSA `api-center` is Workload Identity-bound to
 | Date | Commit | Change | Reason |
 |---|---|---|---|
 | 2026-04-10 | initial | Created living deployment doc; GKE manifests (`00`–`80`), `provision.sh`, `README.md` authored | Initial GKE deployment setup with HPA |
+| 2026-04-11 | pending | Switched GKE runtime auth provider selector to `descope`; added rollback runbook and auth provider state notes | Big-bang Keycloak → Descope migration prep |
+| 2026-04-12 | e1cb9f7 | Added explicit Secret Manager payload update procedure for Descope keys (with Keycloak retention), pre-rollout smoke commands, and auth/refresh verification checks | Make Descope cutover execution deterministic and rollback-safe |
+| 2026-04-12 | pending | Removed hardcoded JWT private key from docker-compose and switched to environment interpolation | Eliminate committed secret material and enforce env-based key management |

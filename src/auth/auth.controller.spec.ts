@@ -218,7 +218,7 @@ describe('AuthController', () => {
       expect(result).toEqual(mockJwks);
     });
 
-    it('throws NotFoundException when provider does not serve JWKS (KeycloakProvider)', () => {
+    it('throws NotFoundException when provider does not serve in-process JWKS', () => {
       (mockAuth.getJwksJson as jest.Mock).mockReturnValue(null);
 
       expect(() => controller.getJwks()).toThrow();
