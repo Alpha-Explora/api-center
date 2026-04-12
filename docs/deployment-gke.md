@@ -1,4 +1,4 @@
-c# api-center — GKE Deployment (Living Document)
+# api-center — GKE Deployment (Living Document)
 
 > **This file is the living state record for the GKE deployment.**
 > `gcp/gke/README.md` is the stable how-to. This file tracks what is actually running,
@@ -23,7 +23,7 @@ c# api-center — GKE Deployment (Living Document)
 | Auth provider | `descope` (`AUTH_PROVIDER=descope` in ConfigMap) |
 | Memorystore cache host | `10.34.181.131:6379` |
 | Memorystore rate-limit host | `10.63.215.147:6379` |
-| Kafka brokers | `localhost:9092` ⚠️ **placeholder — replace with Confluent Cloud broker** |
+| Kafka brokers | `api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092` |
 
 ---
 
@@ -87,14 +87,14 @@ All probes hit `src/health/` endpoints. Do not change probe paths without updati
 Replace these before applying to a new environment.
 
 ```bash
-grep -rn 'example.com\|localhost:9092' gcp/gke/
+grep -rn 'example.com\|example.internal' gcp/gke/
 ```
 
 | File | Placeholder | Replace with |
 |---|---|---|
 | `gcp/gke/70-managedcert.yaml` | `api-center.example.com` | Real public hostname |
 | `gcp/gke/80-ingress.yaml` | `api-center.example.com` | Real public hostname |
-| `gcp/gke/20-configmap.yaml` | `KAFKA_BROKERS: localhost:9092` | Confluent Cloud or in-cluster broker address |
+| `gcp/gke/kafka/dr/10-mirrormaker2.yaml` | `dr-kafka-bootstrap.example.internal:9092` | DR cluster bootstrap endpoint |
 
 ---
 
@@ -132,11 +132,20 @@ The script prints Memorystore IPs, static IP, and image registry path. Update th
 
 Point your DNS A record for `<real-hostname>` at the static IP the script prints.
 
+### 1A. Install Strimzi operator
+
+```bash
+./gcp/gke/kafka/21-install-strimzi.sh
+kubectl -n strimzi-operator get pods
+```
+
+Install this once per cluster before applying Kafka custom resources.
+
 ### 2. Fill placeholders
 
 ```bash
 # Verify no unresolved placeholders remain
-grep -rn 'example.com\|localhost:9092' gcp/gke/
+grep -rn 'example.com\|example.internal' gcp/gke/
 ```
 
 Replace every placeholder in `gcp/gke/*.yaml` (see **Known Placeholders** above).
@@ -191,6 +200,42 @@ Minimal payload shape for the auth switch:
 ```bash
 kubectl -n api-center get configmap api-center-config -o jsonpath='{.data.AUTH_PROVIDER}{"\n"}'
 # Expected: descope
+```
+
+### 2C. Configure Kafka client credentials in Secret Manager
+
+The APICenter deployment now uses in-cluster Kafka with TLS + SCRAM.
+`gcp/gke/20-configmap.yaml` already enables:
+
+- `KAFKA_SSL_ENABLED=true`
+- `KAFKA_SSL_REJECT_UNAUTHORIZED=true`
+- `KAFKA_SASL_MECHANISM=scram-sha-512`
+
+Set these keys in Secret Manager payload as part of the same rollout:
+
+- `KAFKA_SASL_USERNAME=api-center`
+- `KAFKA_SASL_PASSWORD=<from KafkaUser secret>`
+- `KAFKA_SSL_CA_PEM=<from api-center-kafka-cluster-ca-cert:ca.crt>`
+
+Fetch the CA cert value:
+
+```bash
+kubectl -n kafka get secret api-center-kafka-cluster-ca-cert \
+        -o jsonpath='{.data.ca\.crt}' | base64 -d
+```
+
+Fetch the generated password after Kafka bootstrap:
+
+```bash
+kubectl -n kafka get secret api-center -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+Then update `api-center-prod` and roll the deployment.
+
+Optional automation (recommended on Windows):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\sync-kafka-secretmanager.ps1 -SecretName api-center-prod
 ```
 
 ### 3. Run smoke tests before rollout
@@ -270,8 +315,68 @@ echo "Pushed: $IMAGE"
 
 ```bash
 kubectl apply -f gcp/gke/
+kubectl apply -k gcp/gke/kafka
 kubectl -n api-center rollout status deploy/api-center --timeout=5m
 ```
+
+Preferred (single workflow):
+
+```bash
+bash gcp/gke/deploy-kafka-stack.sh --with-observability
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -WithObservability
+```
+
+Use `--with-dr` only after DR placeholders and credentials are configured.
+
+Post-deploy verification helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\verify-kafka-stack.ps1 -CheckObservability
+```
+
+End-to-end rollout helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability
+```
+
+Dry-run planning mode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -DryRun
+```
+
+Optional packs:
+
+```bash
+kubectl apply -k gcp/gke/kafka/observability
+kubectl apply -k gcp/gke/kafka/dr
+```
+
+Kafka config smoke check helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-config.ps1 -SecretName api-center-prod
+```
+
+Kafka runtime topic smoke check helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-topic.ps1
+```
+
+Full rollout with runtime topic smoke verification:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability -CheckKafkaTopicSmoke
+```
+
+For DR incident execution, follow `docs/kafka-dr-runbook.md`.
 
 **Subsequent image updates only:**
 
@@ -309,6 +414,12 @@ kubectl -n api-center rollout restart deploy/api-center
 kubectl -n api-center rollout status deploy/api-center --timeout=5m
 ```
 
+Kafka secret rollback helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\rollback-kafka-secretmanager.ps1 -RollbackVersion <version>
+```
+
 Rollback readiness checklist:
 
 - Record previous image tag/digest before each rollout.
@@ -324,6 +435,9 @@ Run after every deploy to confirm HPA, TLS, and traffic are healthy.
 ```bash
 # 1. All resources present
 kubectl -n api-center get deploy,svc,hpa,pdb,ingress,managedcertificate
+
+# 1A. Kafka resources present
+kubectl -n kafka get kafkas,kafkanodepools,kafkausers,kafkatopics
 
 # 2. HPA has real metrics (not <unknown>)
 kubectl -n api-center get hpa api-center
@@ -375,6 +489,7 @@ Internet → GCLB (static IP, HTTPS, ManagedCert)
         → NEG (container-native LB)
         → api-center pods (3–30, scaled by HPA on CPU 70% / mem 80%)
         → Memorystore Redis (cache + rate-limit, shared across all replicas)
+        → Kafka (Strimzi + KRaft in `kafka` namespace)
 ```
 
 Local development differs intentionally: `docker-compose.yml` uses a standalone
@@ -399,3 +514,11 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-04-12 | pending | Removed hardcoded JWT private key from docker-compose and switched to environment interpolation | Eliminate committed secret material and enforce env-based key management |
 | 2026-04-12 | pending | Tightened Docker build context (`.dockerignore`) and restored default npm audit visibility during root/GCP image dependency install | Reduce build overhead and improve supply-chain visibility without changing runtime behavior |
 | 2026-04-12 | pending | Set explicit production CORS origin and added required Descope metadata (`DESCOPE_JWKS_URI` and related env) in GKE ConfigMap | Resolve CrashLoop caused by missing Descope JWKS configuration and align production auth bootstrap |
+| 2026-04-12 | pending | Added self-hosted Kafka deployment pack under `gcp/gke/kafka` (Strimzi KRaft cluster, node pools, user ACLs, topic bootstrap), switched runtime Kafka broker to in-cluster bootstrap, and documented Kafka credential handoff | Implement production baseline for self-hosted Kafka in GKE and remove localhost broker dependency |
+| 2026-04-12 | pending | Hardened Kafka TLS verification path with `KAFKA_SSL_CA_PEM`, enabled strict TLS verification in ConfigMap, and added optional DR (`kafka/dr`) + observability (`kafka/observability`) packs | Complete next implementation phase for secure Kafka transport, disaster recovery replication, and monitoring readiness |
+| 2026-04-12 | pending | Added consolidated deployment script (`gcp/gke/deploy-kafka-stack.sh`) with readiness gates and optional DR/observability toggles, plus DR failover runbook (`docs/kafka-dr-runbook.md`) | Standardize day-2 operations and reduce rollout/failover execution variance |
+| 2026-04-12 | pending | Added Windows-native deployment workflow (`gcp/gke/deploy-kafka-stack.ps1`) and documented PowerShell invocation across GKE/Kafka docs | Support operator environments without bash while preserving the same deployment safeguards |
+| 2026-04-12 | pending | Added Secret Manager Kafka sync helper (`gcp/gke/sync-kafka-secretmanager.ps1`) and post-deploy verifier (`gcp/gke/verify-kafka-stack.ps1`) with runbook integration | Reduce manual error in credential rollout and standardize readiness verification across operators |
+| 2026-04-12 | pending | Added orchestration helper (`gcp/gke/run-kafka-rollout.ps1`) and rollback helper (`gcp/gke/rollback-kafka-secretmanager.ps1`) for end-to-end rollout and deterministic secret rollback | Improve operational safety by codifying full forward/rollback execution paths |
+| 2026-04-12 | pending | Added rollout dry-run mode and Kafka config smoke-check helper (`gcp/gke/smoke-kafka-config.ps1`) to validate Secret Manager and in-cluster credential/CA alignment | Increase preflight confidence and detect Kafka auth/cert drift before runtime failures |
+| 2026-04-12 | pending | Added dedicated Kafka smoke topic (`api-center.smoke.runtime`) and runtime produce/consume probe (`gcp/gke/smoke-kafka-topic.ps1`) with verify/orchestration integration | Provide direct runtime validation of broker auth/TLS/topic path beyond static config checks |

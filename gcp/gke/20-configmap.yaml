@@ -10,7 +10,7 @@
 #   api-center-prod           Secret Manager secret name (e.g. api-center-prod)
 #   10.34.181.131      Memorystore "api-center-cache" host (10.x.x.x)
 #   10.63.215.147  Memorystore "api-center-ratelimit" host
-#   localhost:9092         Kafka bootstrap (Confluent Cloud or in-cluster)
+#   api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092   Kafka bootstrap
 #   *       comma-separated, e.g. https://app.example.com
 # =============================================================================
 apiVersion: v1
@@ -32,7 +32,10 @@ data:
   REDIS_RATE_LIMIT_URL: "redis://10.63.215.147:6379"
 
   # Kafka event bus
-  KAFKA_BROKERS: "localhost:9092"
+  KAFKA_BROKERS: "api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  KAFKA_SSL_ENABLED: "true"
+  KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
+  KAFKA_SASL_MECHANISM: "scram-sha-512"
   KAFKA_CLIENT_ID: "api-center"
   KAFKA_GROUP_ID: "api-center-group"
 

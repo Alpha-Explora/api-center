@@ -68,13 +68,79 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly logger: LoggerService,
   ) {
-    this.kafka = new Kafka({
+    this.kafka = this.createKafkaClient();
+
+    this.producer = this.kafka.producer();
+  }
+
+  private createKafkaClient(): Kafka {
+    const kafkaConfig: {
+      clientId: string;
+      brokers: string[];
+      logLevel: number;
+      ssl?:
+        | boolean
+        | {
+            rejectUnauthorized: boolean;
+            ca?: string[];
+          };
+      sasl?:
+        | { mechanism: 'plain'; username: string; password: string }
+        | { mechanism: 'scram-sha-256'; username: string; password: string }
+        | { mechanism: 'scram-sha-512'; username: string; password: string };
+    } = {
       clientId: this.config.kafka.clientId,
       brokers: this.config.kafka.brokers,
       logLevel: logLevel.WARN,
-    });
+    };
 
-    this.producer = this.kafka.producer();
+    if (this.config.kafka.sslEnabled) {
+      if (this.config.kafka.sslCaPem) {
+        kafkaConfig.ssl = {
+          rejectUnauthorized: this.config.kafka.sslRejectUnauthorized,
+          ca: [this.config.kafka.sslCaPem],
+        };
+      } else {
+        kafkaConfig.ssl = this.config.kafka.sslRejectUnauthorized
+          ? true
+          : { rejectUnauthorized: false };
+      }
+    }
+
+    if (
+      this.config.kafka.saslMechanism &&
+      this.config.kafka.saslUsername &&
+      this.config.kafka.saslPassword
+    ) {
+      const saslUsername = this.config.kafka.saslUsername;
+      const saslPassword = this.config.kafka.saslPassword;
+
+      if (this.config.kafka.saslMechanism === 'plain') {
+        kafkaConfig.sasl = {
+          mechanism: 'plain',
+          username: saslUsername,
+          password: saslPassword,
+        };
+      }
+
+      if (this.config.kafka.saslMechanism === 'scram-sha-256') {
+        kafkaConfig.sasl = {
+          mechanism: 'scram-sha-256',
+          username: saslUsername,
+          password: saslPassword,
+        };
+      }
+
+      if (this.config.kafka.saslMechanism === 'scram-sha-512') {
+        kafkaConfig.sasl = {
+          mechanism: 'scram-sha-512',
+          username: saslUsername,
+          password: saslPassword,
+        };
+      }
+    }
+
+    return new Kafka(kafkaConfig);
   }
 
   /** NestJS lifecycle: connect Kafka producer when the module initializes */

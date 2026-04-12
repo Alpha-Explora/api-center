@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: api-center-kafka-alert-rules
+  namespace: kafka
+  labels:
+    role: alert-rules
+    app.kubernetes.io/name: api-center-kafka
+spec:
+  groups:
+    - name: api-center.kafka.health
+      rules:
+        - alert: KafkaBrokerCountLow
+          expr: kafka_brokers < 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Kafka broker count is below quorum target
+            description: Broker count is {{ $value }}, expected at least 3.
+
+        - alert: KafkaUnderReplicatedPartitions
+          expr: sum(kafka_topic_partition_under_replicated_partition) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Kafka has under-replicated partitions
+            description: Under-replicated partitions detected for more than 5 minutes.
+
+        - alert: KafkaConsumerLagHigh
+          expr: sum(kafka_consumergroup_lag{consumergroup=~"api-center-.*"}) > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: APICenter consumer lag is high
+            description: Consumer lag exceeded 10k messages for APICenter groups.
+
+        - alert: KafkaNoRecentConsumerCommits
+          expr: sum(increase(kafka_consumergroup_current_offset{consumergroup=~"api-center-.*"}[15m])) == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: No APICenter consumer offset progress
+            description: No offset movement detected in APICenter consumer groups for 15 minutes.

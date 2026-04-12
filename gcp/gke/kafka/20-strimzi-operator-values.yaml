@@ -1,0 +1,3 @@
+watchAnyNamespace: false
+watchNamespaces:
+  - kafka

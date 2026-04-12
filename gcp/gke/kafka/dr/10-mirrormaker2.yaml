@@ -1,0 +1,74 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaMirrorMaker2
+metadata:
+  name: api-center-kafka-dr
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: api-center-kafka-dr
+spec:
+  version: 3.8.0
+  replicas: 2
+  connectCluster: target
+  clusters:
+    - alias: source
+      bootstrapServers: api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+      tls:
+        trustedCertificates:
+          - secretName: api-center-kafka-cluster-ca-cert
+            certificate: ca.crt
+      authentication:
+        type: scram-sha-512
+        username: mirrormaker2-source
+        passwordSecret:
+          secretName: mirrormaker2-source-credentials
+          password: password
+      config:
+        config.storage.replication.factor: 3
+        offset.storage.replication.factor: 3
+        status.storage.replication.factor: 3
+    - alias: target
+      bootstrapServers: dr-kafka-bootstrap.example.internal:9092
+      tls:
+        trustedCertificates:
+          - secretName: dr-kafka-cluster-ca-cert
+            certificate: ca.crt
+      authentication:
+        type: scram-sha-512
+        username: mirrormaker2-target
+        passwordSecret:
+          secretName: mirrormaker2-target-credentials
+          password: password
+      config:
+        config.storage.replication.factor: 3
+        offset.storage.replication.factor: 3
+        status.storage.replication.factor: 3
+  mirrors:
+    - sourceCluster: source
+      targetCluster: target
+      sourceConnector:
+        tasksMax: 4
+        config:
+          replication.factor: 3
+          offset-syncs.topic.replication.factor: 3
+          sync.topic.acls.enabled: true
+          sync.topic.configs.enabled: true
+          refresh.topics.enabled: true
+          refresh.topics.interval.seconds: 60
+          replication.policy.class: org.apache.kafka.connect.mirror.IdentityReplicationPolicy
+      checkpointConnector:
+        tasksMax: 2
+        config:
+          checkpoints.topic.replication.factor: 3
+          emit.checkpoints.enabled: true
+          emit.checkpoints.interval.seconds: 30
+          sync.group.offsets.enabled: true
+          refresh.groups.enabled: true
+          refresh.groups.interval.seconds: 60
+      heartbeatConnector:
+        tasksMax: 1
+        config:
+          heartbeats.topic.replication.factor: 3
+          emit.heartbeats.enabled: true
+          emit.heartbeats.interval.seconds: 5
+      topicsPattern: "api-center\\..*"
+      groupsPattern: "api-center-.*"

@@ -91,8 +91,17 @@ export class ConfigService implements OnApplicationBootstrap {
 
   readonly kafka = {
     clientId: process.env.KAFKA_CLIENT_ID || 'api-center',
-    brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+    brokers: (process.env.KAFKA_BROKERS || 'localhost:9092')
+      .split(',')
+      .map((broker) => broker.trim())
+      .filter(Boolean),
     groupId: process.env.KAFKA_GROUP_ID || 'api-center-group',
+    sslEnabled: process.env.KAFKA_SSL_ENABLED === 'true',
+    sslRejectUnauthorized: process.env.KAFKA_SSL_REJECT_UNAUTHORIZED !== 'false',
+    sslCaPem: process.env.KAFKA_SSL_CA_PEM || '',
+    saslMechanism: process.env.KAFKA_SASL_MECHANISM || '',
+    saslUsername: process.env.KAFKA_SASL_USERNAME || '',
+    saslPassword: process.env.KAFKA_SASL_PASSWORD || '',
   };
 
   get platformAdminSecret(): string {
@@ -234,6 +243,35 @@ export class ConfigService implements OnApplicationBootstrap {
 
     if (this.isProduction && this.kafka.brokers.includes('localhost:9092')) {
       warnings.push('KAFKA_BROKERS still points to localhost in production');
+    }
+
+    const validKafkaSaslMechanisms = ['plain', 'scram-sha-256', 'scram-sha-512'];
+    if (this.kafka.saslMechanism && !validKafkaSaslMechanisms.includes(this.kafka.saslMechanism)) {
+      errors.push(
+        `KAFKA_SASL_MECHANISM must be one of: ${validKafkaSaslMechanisms.join(', ')} (got '${this.kafka.saslMechanism}')`,
+      );
+    }
+
+    if (this.kafka.saslMechanism && (!this.kafka.saslUsername || !this.kafka.saslPassword)) {
+      const message =
+        'KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD must be set when KAFKA_SASL_MECHANISM is configured';
+      if (this.isProduction) {
+        errors.push(message);
+      } else {
+        warnings.push(message);
+      }
+    }
+
+    if (this.isProduction && !this.kafka.sslEnabled) {
+      warnings.push('KAFKA_SSL_ENABLED is false in production — TLS is strongly recommended');
+    }
+
+    if (this.isProduction && this.kafka.sslEnabled && !this.kafka.sslRejectUnauthorized) {
+      warnings.push('KAFKA_SSL_REJECT_UNAUTHORIZED=false disables broker certificate verification in production');
+    }
+
+    if (this.isProduction && this.kafka.sslEnabled && this.kafka.sslRejectUnauthorized && !this.kafka.sslCaPem) {
+      warnings.push('KAFKA_SSL_CA_PEM is not set while TLS verification is enabled — self-signed broker certificates may fail verification');
     }
 
     if (this.isProduction) {

@@ -57,6 +57,14 @@ All pods are stateless and identical — registry entries, refresh tokens, and r
 | `70-managedcert.yaml` | Google-managed TLS cert |
 | `80-ingress.yaml` | GCE Ingress (HTTPS only, static IP) |
 | `provision.sh` | One-time GCP setup (cluster, Memorystore, Workload Identity, IP) |
+| `kafka/*` | Self-hosted Kafka manifests (Strimzi + KRaft) |
+| `deploy-kafka-stack.sh` / `deploy-kafka-stack.ps1` | End-to-end stack deployment workflow |
+| `run-kafka-rollout.ps1` | Orchestrated sync + deploy + restart + verify workflow |
+| `sync-kafka-secretmanager.ps1` | Sync Kafka auth + CA cert values into Secret Manager |
+| `rollback-kafka-secretmanager.ps1` | Restore a prior Secret Manager version and restart API |
+| `smoke-kafka-config.ps1` | Validate Secret Manager and in-cluster Kafka credential/CA alignment |
+| `smoke-kafka-topic.ps1` | Runtime Kafka produce/consume probe against smoke topic |
+| `verify-kafka-stack.ps1` | Post-deploy verification for API/Kafka/optional packs |
 
 ---
 
@@ -80,21 +88,92 @@ Every `<PLACEHOLDER>` in the YAML files. Quick search:
 
 ```bash
 grep -rn '<[A-Z_]*>' gcp/gke/
+grep -rn 'example.internal' gcp/gke/kafka/dr/
 ```
 
 You will need to replace:
 - `<PROJECT_ID>` (in `10-serviceaccount.yaml`, `20-configmap.yaml`)
 - `<SECRET_NAME>` (in `20-configmap.yaml`)
 - `<CACHE_REDIS_HOST>` / `<RATELIMIT_REDIS_HOST>` (in `20-configmap.yaml`)
-- `<KAFKA_BROKERS>`, `<ALLOWED_ORIGINS>` (in `20-configmap.yaml`)
+- `<ALLOWED_ORIGINS>` (in `20-configmap.yaml`)
 - `<IMAGE>` (in `30-deployment.yaml`)
 - `<PUBLIC_HOSTNAME>` (in `70-managedcert.yaml`, `80-ingress.yaml`)
+- DR bootstrap placeholder (in `gcp/gke/kafka/dr/10-mirrormaker2.yaml`)
+
+Add these secrets to Secret Manager payload before rollout:
+- `KAFKA_SASL_USERNAME`
+- `KAFKA_SASL_PASSWORD`
+- `KAFKA_SSL_CA_PEM` (from `api-center-kafka-cluster-ca-cert`)
 
 ### 3. Apply
 
 ```bash
 gcloud container clusters get-credentials api-center --region=us-central1
+./gcp/gke/kafka/21-install-strimzi.sh
 kubectl apply -f gcp/gke/
+kubectl apply -k gcp/gke/kafka
+```
+
+Or run the consolidated deployment workflow:
+
+```bash
+bash gcp/gke/deploy-kafka-stack.sh --with-observability
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -WithObservability
+```
+
+Add `--with-dr` after DR placeholders and credentials are configured.
+
+Sync Kafka credentials and CA cert into Secret Manager:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\sync-kafka-secretmanager.ps1 -SecretName api-center-prod
+```
+
+Run post-deploy verification:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\verify-kafka-stack.ps1 -CheckObservability
+```
+
+Run Kafka runtime topic smoke probe:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-topic.ps1
+```
+
+Single-command rollout (sync + deploy + restart + verify):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability
+```
+
+Include runtime topic smoke probe in rollout verification:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability -CheckKafkaTopicSmoke
+```
+
+Dry-run rollout planning (no mutations):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -DryRun
+```
+
+Rollback Kafka secret payload to a previous version:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\rollback-kafka-secretmanager.ps1 -RollbackVersion <version>
+```
+
+Kafka config smoke checks:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-config.ps1 -SecretName api-center-prod
 ```
 
 ### 4. Wait for the Ingress + cert
@@ -138,6 +217,8 @@ Expected: replicas climb past 3 within ~1 minute, settle, then scale back down ~
 
 ## Notes
 
-- **Kafka and Vault** are out of scope for this manifest set. Use Confluent Cloud (set `KAFKA_BROKERS` accordingly) or deploy a separate StatefulSet. Vault is unnecessary in production — secrets already flow through GCP Secret Manager via `secrets.service.ts`.
+- **Kafka is included** under `gcp/gke/kafka/` using Strimzi in KRaft mode. Deploy it after the base manifests. Vault is unnecessary in production — secrets already flow through GCP Secret Manager via `secrets.service.ts`.
+- Optional DR and observability packs are available under `gcp/gke/kafka/dr/` and `gcp/gke/kafka/observability/`.
+- DR failover runbook: `docs/kafka-dr-runbook.md`.
 - **Request-rate-based scaling** (e.g. RPS) requires the Cloud Monitoring custom-metrics adapter and an external metric on the GCLB. Left as a `TODO` in `50-hpa.yaml`.
 - **Cloud Armor** can be attached by uncommenting the `securityPolicy` block in `41-backendconfig.yaml`.

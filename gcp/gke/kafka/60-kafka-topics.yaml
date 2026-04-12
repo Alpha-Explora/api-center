@@ -1,0 +1,254 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-gateway-request
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.gateway.request
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-gateway-response
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.gateway.response
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-gateway-error
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.gateway.error
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-audit-log
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.audit.log
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-auth-token-issued
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.auth.token-issued
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-auth-token-refreshed
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.auth.token-refreshed
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-auth-token-revoked
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.auth.token-revoked
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-registry-service-registered
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.registry.service-registered
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-registry-service-deregistered
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.registry.service-deregistered
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-registry-service-deprecated
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.registry.service-deprecated
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-registry-service-retired
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.registry.service-retired
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-registry-service-version-changed
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.registry.service-version-changed
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-registry-service-health-changed
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.registry.service-health-changed
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-tribe-request
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.tribe.request
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-tribe-response
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.tribe.response
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-external-request
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.external.request
+  partitions: 12
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: api-center-smoke-runtime
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: api-center-kafka
+spec:
+  topicName: api-center.smoke.runtime
+  partitions: 1
+  replicas: 3
+  config:
+    min.insync.replicas: 2
+    retention.ms: 86400000

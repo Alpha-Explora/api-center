@@ -79,4 +79,32 @@ describe('ConfigService', () => {
 
     expect(run).toThrow('ALLOWED_ORIGINS must list explicit origins in production');
   });
+
+  it('should throw in production when Kafka SASL is configured without credentials', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PLATFORM_ADMIN_SECRET = 'secret';
+    process.env.AUTH_PROVIDER = 'google';
+    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
+    process.env.KAFKA_SASL_MECHANISM = 'scram-sha-512';
+    process.env.KAFKA_SASL_USERNAME = '';
+    process.env.KAFKA_SASL_PASSWORD = '';
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow('KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD must be set');
+  });
+
+  it('should throw when Kafka SASL mechanism is invalid', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PLATFORM_ADMIN_SECRET = 'secret';
+    process.env.AUTH_PROVIDER = 'google';
+    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
+    process.env.KAFKA_SASL_MECHANISM = 'unsupported';
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow('KAFKA_SASL_MECHANISM must be one of');
+  });
 });
