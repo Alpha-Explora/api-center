@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-gateway-request
@@ -8,12 +8,12 @@ metadata:
 spec:
   topicName: api-center.gateway.request
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-gateway-response
@@ -23,12 +23,12 @@ metadata:
 spec:
   topicName: api-center.gateway.response
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-gateway-error
@@ -38,12 +38,12 @@ metadata:
 spec:
   topicName: api-center.gateway.error
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-audit-log
@@ -53,12 +53,12 @@ metadata:
 spec:
   topicName: api-center.audit.log
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-auth-token-issued
@@ -68,12 +68,12 @@ metadata:
 spec:
   topicName: api-center.auth.token-issued
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-auth-token-refreshed
@@ -83,12 +83,12 @@ metadata:
 spec:
   topicName: api-center.auth.token-refreshed
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-auth-token-revoked
@@ -98,12 +98,12 @@ metadata:
 spec:
   topicName: api-center.auth.token-revoked
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-registry-service-registered
@@ -113,12 +113,12 @@ metadata:
 spec:
   topicName: api-center.registry.service-registered
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-registry-service-deregistered
@@ -128,12 +128,12 @@ metadata:
 spec:
   topicName: api-center.registry.service-deregistered
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-registry-service-deprecated
@@ -143,12 +143,12 @@ metadata:
 spec:
   topicName: api-center.registry.service-deprecated
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-registry-service-retired
@@ -158,12 +158,12 @@ metadata:
 spec:
   topicName: api-center.registry.service-retired
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-registry-service-version-changed
@@ -173,12 +173,12 @@ metadata:
 spec:
   topicName: api-center.registry.service-version-changed
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-registry-service-health-changed
@@ -188,12 +188,12 @@ metadata:
 spec:
   topicName: api-center.registry.service-health-changed
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 2592000000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-tribe-request
@@ -203,12 +203,12 @@ metadata:
 spec:
   topicName: api-center.tribe.request
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-tribe-response
@@ -218,12 +218,12 @@ metadata:
 spec:
   topicName: api-center.tribe.response
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-external-request
@@ -233,12 +233,12 @@ metadata:
 spec:
   topicName: api-center.external.request
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 604800000
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: api-center-smoke-runtime
@@ -248,7 +248,7 @@ metadata:
 spec:
   topicName: api-center.smoke.runtime
   partitions: 1
-  replicas: 3
+  replicas: 1
   config:
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     retention.ms: 86400000

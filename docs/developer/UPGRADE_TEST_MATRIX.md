@@ -37,12 +37,12 @@ Legend:
 | U-KAF-001 | Unit | Kafka governance | N | P0 | `src/kafka/kafka.service.ts` | `publish()` rejects invalid schema payloads | Throws with schema validation error |
 | U-KAF-002 | Unit | Kafka governance | N | P0 | `src/kafka/kafka.service.ts` | Valid publish injects `_meta.timestamp` and `_meta.source` | Produced message always contains `_meta` envelope |
 | U-KAF-003 | Unit | Kafka governance | N | P0 | `src/kafka/topics.ts` + `src/kafka/kafka.service.ts` | Topic-to-schema coverage check for non-reserved topics | Every active topic has schema binding or explicit waiver |
-| U-SDK-001 | Unit | SDK typed methods | N | P0 | `src/sdk/TribeClient.ts` | `wrapAxiosError()` maps 401/403/404/429/502/503/504 | Correct typed error class per status |
-| U-SDK-002 | Unit | SDK typed methods | N | P0 | `src/sdk/TribeClient.ts` | Retry only on retryable statuses/codes; bounded attempts | Non-retryable errors fail fast; max retries honored |
-| U-SDK-003 | Unit | SDK typed methods | N | P1 | `src/sdk/TribeClient.ts` | `ensureAuth()` refreshes at 30s pre-expiry boundary | Refresh path triggered at boundary, authenticate fallback works |
-| U-SDK-004 | Unit | SDK typed methods | N | P0 | `src/sdk/TribeClient.ts` | Envelope unwrapping of `{ success, data, meta }` | Caller gets payload `data` not wrapper |
-| U-SDK-005 | Unit | SDK typed methods | N | P1 | `src/sdk/TribeClient.ts` (type-level) | Generic return typing (`callExternal<T>`, `callService<T>`) | `tsc --noEmit` type assertions pass for typed usage |
-| I-EXT-001 | Integration | Geolocation route | N | P0 | External route + service | `GET /api/v1/external/geolocation/*` path rewrite and upstream call | Correct downstream path and 2xx response envelope |
+| U-SDK-001 | Unit | SDK typed methods | N | P0 | `../api-shared-services/src/TribeClient.ts` | `wrapAxiosError()` maps 401/403/404/429/502/503/504 | Correct typed error class per status |
+| U-SDK-002 | Unit | SDK typed methods | N | P0 | `../api-shared-services/src/TribeClient.ts` | Retry only on retryable statuses/codes; bounded attempts | Non-retryable errors fail fast; max retries honored |
+| U-SDK-003 | Unit | SDK typed methods | N | P1 | `../api-shared-services/src/TribeClient.ts` | `ensureAuth()` refreshes at 30s pre-expiry boundary | Refresh path triggered at boundary, authenticate fallback works |
+| U-SDK-004 | Unit | SDK typed methods | N | P0 | `../api-shared-services/src/TribeClient.ts` | Envelope unwrapping of `{ success, data, meta }` | Caller gets payload `data` not wrapper |
+| U-SDK-005 | Unit | SDK typed methods | N | P1 | `../api-shared-services/src/TribeClient.ts` (type-level) | Generic return typing (`callExternal<T>`, `callService<T>`) | `tsc --noEmit` type assertions pass for typed usage |
+| I-EXT-001 | Integration | Geolocation route | N | P0 | External route + service | `POST /api/v1/external/geolocation/geolocation/v1/geolocate` path rewrite and upstream call | Correct downstream path and 2xx response envelope |
 | I-EXT-002 | Integration | Geofencing route | N | P0 | External route + service | `GET /api/v1/external/geofencing/*` with auth header propagation | Upstream receives expected auth header and correlation headers |
 | I-EXT-003 | Integration | Geotagging route | N | P0 | External route + service | `GET /api/v1/external/geotagging/*` works once added | Route discovers new API and proxies successfully |
 | I-EXT-004 | Integration | External Kafka route | N | P0 | External route + kafka-rest | `GET /api/v1/external/kafka/v3/clusters` via gateway | Returns clusters through gateway envelope |
@@ -60,7 +60,7 @@ Legend:
 | E2E-005 | E2E | External Kafka governance | E+N | P0 | kafka-rest via gateway | Cluster discovery + topic publish/read through external kafka route | Kafka external route remains functional post-upgrade |
 | E2E-006 | E2E | Rate limiting | E+N | P1 | Gateway + Redis rate limiter | Burst requests eventually return 429 | Limit enforced consistently |
 | E2E-007 | E2E | Circuit breaker | E+N | P0 | Gateway + external/downstream outage | Breaker opens on repeated failures and recovers after upstream return | Correct fail-fast then recovery behavior |
-| E2E-008 | E2E | SDK typed methods | N | P0 | `src/sdk/TribeClient.ts` in sandbox consumer | `callService`, `callSharedService`, `callExternal` succeed with typed usage | Runtime and type-level SDK behavior both pass |
+| E2E-008 | E2E | SDK typed methods | N | P0 | `../api-shared-services/src/TribeClient.ts` in sandbox consumer | `callService`, `callSharedService`, `callExternal` succeed with typed usage | Runtime and type-level SDK behavior both pass |
 
 ## 3. Local docker validation sequence (upgrade runbook)
 
@@ -89,7 +89,7 @@ Run from repo root:
    - Add focused suites for this upgrade (example):
      - `npm test -- src/external`
      - `npm test -- src/kafka`
-     - `npm test -- src/sdk`
+    - `npm --prefix ../api-shared-services test` (or equivalent SDK repo test command)
 
 5. Functional docker validation scripts
    - `pwsh ./test-sandbox.ps1`

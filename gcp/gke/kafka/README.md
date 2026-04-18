@@ -8,7 +8,7 @@ Kafka cluster in GKE for APICenter.
 - Kafka namespace (`kafka`)
 - Namespace-level ingress policy for APICenter pods to Kafka brokers
 - Strimzi-managed Kafka in KRaft mode (no ZooKeeper)
-- 3 controller nodes + 3 broker nodes via `KafkaNodePool`
+- 1 combined controller+broker node via `KafkaNodePool` (quota-safe baseline)
 - TLS + SCRAM-SHA-512 internal listener
 - Kafka user (`api-center`) with least-privilege ACLs
 - Baseline APICenter topics
@@ -81,7 +81,9 @@ kubectl -n kafka get kafkatopics
 
 ## Notes
 
-- Storage sizes and resource requests are conservative defaults. Tune after load tests.
+- This baseline is tuned to fit constrained GKE quotas. For high availability,
+  scale out with separate controller/broker pools once CPU/memory/disk quotas
+  are increased.
 - For stricter isolation, place Kafka in a dedicated GKE cluster and use VPC peering.
 - For DR, deploy a second cluster and replicate critical topics with MirrorMaker 2.
 

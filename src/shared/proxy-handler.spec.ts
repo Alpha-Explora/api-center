@@ -51,6 +51,7 @@ function createMockDeps(): ProxyHandlerDeps {
     } as unknown as LoggerService,
     metrics: {
       recordProxyRequest: jest.fn(),
+      recordServiceDiscoverySnapshot: jest.fn(),
     } as unknown as MetricsService,
   };
 }
@@ -439,6 +440,39 @@ describe('ProxyHandler', () => {
       expect(result[0].deprecated).toBe(true);
       expect(result[0].sunsetDate).toBe('2025-12-31');
       expect(result[0].replacementService).toBe('new-svc');
+    });
+
+    it('filters out non-consumable services for non-admin callers', () => {
+      (deps.registry.getByType as jest.Mock).mockReturnValue([
+        { serviceId: 'visible-svc', name: 'Visible', status: 'active', exposes: [], requiredScopes: [], serviceType: 'tribe' },
+        { serviceId: 'hidden-svc', name: 'Hidden', status: 'active', exposes: [], requiredScopes: [], serviceType: 'tribe' },
+      ]);
+      (deps.registry.canConsume as jest.Mock).mockImplementation(
+        (sourceServiceId: string, targetServiceId: string) =>
+          sourceServiceId === 'svc-alpha' && targetServiceId === 'visible-svc',
+      );
+
+      const result = handler.listServices('svc-alpha');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].serviceId).toBe('visible-svc');
+      expect(result[0].canAccess).toBe(true);
+    });
+
+    it('allows admin discovery requests to include non-consumable services', () => {
+      (deps.registry.getByType as jest.Mock).mockReturnValue([
+        { serviceId: 'visible-svc', name: 'Visible', status: 'active', exposes: [], requiredScopes: [], serviceType: 'tribe' },
+        { serviceId: 'hidden-svc', name: 'Hidden', status: 'active', exposes: [], requiredScopes: [], serviceType: 'tribe' },
+      ]);
+      (deps.registry.canConsume as jest.Mock).mockImplementation(
+        (sourceServiceId: string, targetServiceId: string) =>
+          sourceServiceId === 'svc-alpha' && targetServiceId === 'visible-svc',
+      );
+
+      const result = handler.listServices('svc-alpha', true);
+
+      expect(result).toHaveLength(2);
+      expect(result.find((svc) => svc.serviceId === 'hidden-svc')?.canAccess).toBe(false);
     });
   });
 

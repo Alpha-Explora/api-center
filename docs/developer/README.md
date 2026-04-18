@@ -34,6 +34,8 @@ This guide is for contributors and platform operators who need to run, test, and
    - [Cloud Run Deploy Steps](#manual-cloud-run-deploy)
    - [Environment Variables and Secrets](#environment-variable-setup)
 9. [GKE Deployment with Horizontal Pod Autoscaling](#gke-deployment-with-horizontal-pod-autoscaling)
+10. [Tribe Onboarding and Bootstrap Transition](#tribe-onboarding-and-bootstrap-transition)
+11. [Shared Service Team Workflow](#shared-service-team-workflow)
 
 ---
 
@@ -60,6 +62,28 @@ For higher scale, VPC-private dependencies, or long-lived connections, deploy to
 | Sub-second cold-start matters | cold starts | ✅ always-on min replicas |
 
 See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough.
+
+---
+
+## Tribe Onboarding and Bootstrap Transition
+
+Use [tribe-onboarding.md](./tribe-onboarding.md) for the registration contract,
+startup checklist, and migration plan from manifest bootstrap mode to real
+tribe self-registration.
+
+---
+
+## Shared Service Team Workflow
+
+Use [shared-service-team-workflow.md](./shared-service-team-workflow.md) for
+cross-team ownership boundaries between AP Center, shared SDK delivery, and
+shared service runtime implementation teams.
+
+Shared contract snapshot and CI guard:
+
+- [docs/contracts/shared-service-contract.json](../contracts/shared-service-contract.json)
+- `npm run check:contracts`
+- [implementation-plan.md](./implementation-plan.md)
 
 ---
 
@@ -429,7 +453,7 @@ curl -s http://localhost:3000/api/v1/registry/services/payment-service | jq .
 # Register from an example manifest file
 curl -s -X POST http://localhost:3000/api/v1/registry/register \
   -H "Content-Type: application/json" \
-  -d @examples/payment-manifest.json | jq .
+  -d @../api-shared-services/shared-services/manifests/payment-manifest.json | jq .
 
 # Deprecate a service (requires platform admin secret)
 curl -s -X PATCH \
@@ -479,16 +503,16 @@ curl -s "http://localhost:3000/api/v1/tribes/user-service/users" \
 # Register a shared service (email, SMS, payments platform, etc.)
 curl -s -X POST http://localhost:3000/api/v1/registry/register \
   -H "Content-Type: application/json" \
-  -d @examples/email-manifest.json | jq .
+  -d @../api-shared-services/shared-services/manifests/email-manifest.json | jq .
 
 # Call a shared service
-curl -s -X POST "http://localhost:3000/api/v1/shared/email-service/send" \
+curl -s -X POST "http://localhost:3000/api/v1/shared/email/send" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"to": "user@example.com", "template": "welcome"}' | jq .
 
 # SMS shared service
-curl -s -X POST "http://localhost:3000/api/v1/shared/sms-service/send" \
+curl -s -X POST "http://localhost:3000/api/v1/shared/sms/send" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"to": "+1234567890", "message": "Your code is 123456"}' | jq .
@@ -503,10 +527,11 @@ curl -s -X POST "http://localhost:3000/api/v1/shared/sms-service/send" \
 curl -s http://localhost:3000/api/v1/external \
   -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
-# Geolocation lookup — requires GEOLOCATION_API_KEY
-# Free tier signup: https://ipgeolocation.io/signup.html
-curl -s "http://localhost:3000/api/v1/external/geolocation/lookup?ip=8.8.8.8" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+# Google Geolocation lookup — requires GEOLOCATION_API_KEY
+curl -s -X POST "http://localhost:3000/api/v1/external/geolocation/geolocation/v1/geolocate" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"considerIp": true}' | jq .
 
 # The API key is injected server-side — never exposed to the caller
 
@@ -759,7 +784,7 @@ TRIBE_SECRET_EMAIL_SERVICE=<sha256hash>
 ### External APIs
 
 ```bash
-GEOLOCATION_API_URL=https://api.ipgeolocation.io   # Free tier available
+GEOLOCATION_API_URL=https://www.googleapis.com
 GEOLOCATION_API_KEY=<your-key>
 GEOFENCING_API_URL=https://api.geofencing.example.com
 GEOFENCING_API_KEY=<your-key>

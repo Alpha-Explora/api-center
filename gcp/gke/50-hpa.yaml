@@ -1,14 +1,14 @@
 # =============================================================================
 # 50-hpa.yaml — HorizontalPodAutoscaler for api-center
 # =============================================================================
-# Scales the api-center Deployment between 3 and 30 replicas based on CPU
+# Scales the api-center Deployment between 3 and 6 replicas based on CPU
 # and memory utilization measured against the container `requests` set in
 # 30-deployment.yaml. Autopilot ships metrics-server, so no extra install.
 #
 # Sizing:
 #   minReplicas: 3   matches PDB.minAvailable=2 with one slot of headroom
-#   maxReplicas: 30  Autopilot will provision nodes on demand; raise if you
-#                    have a real traffic study showing higher peaks
+#   maxReplicas: 6   Current quota-safe ceiling for this cluster. Raise after
+#                    CPU/memory/SSD quota increases are approved.
 #
 # Behavior:
 #   scaleUp     fast (30s window) so traffic spikes are absorbed quickly
@@ -30,7 +30,7 @@ spec:
     kind: Deployment
     name: api-center
   minReplicas: 3
-  maxReplicas: 30
+  maxReplicas: 6
   metrics:
     - type: Resource
       resource:

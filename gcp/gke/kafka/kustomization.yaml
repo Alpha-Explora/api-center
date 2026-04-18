@@ -3,8 +3,7 @@ kind: Kustomization
 resources:
   - 00-namespace.yaml
   - 10-networkpolicy-allow-api-center.yaml
-  - 30-kafka-nodepool-controllers.yaml
-  - 31-kafka-nodepool-brokers.yaml
+  - 30-kafka-nodepool-combined.yaml
   - 40-kafka-cluster.yaml
   - 50-kafka-user-api-center.yaml
   - 60-kafka-topics.yaml

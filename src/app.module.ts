@@ -25,9 +25,9 @@
 //        ExternalModule   — proxy third-party API calls
 //
 //  §5 / §6  SDK
-//        The SDK (src/sdk/TribeClient.ts) is the standard client tribes
-//        use to call this gateway. It is versioned, published as
-//        @apicenter/sdk, and wraps every namespace this module exposes.
+//        The shared SDK lives in the dedicated api-shared-services repository.
+//        Tribes consume @apicenter/sdk from the private registry, and it wraps
+//        every namespace this module exposes.
 //
 //  §7  TRIBE CONSUMPTION
 //        All tribe requests arrive via the SDK → NGINX → TribesModule.
@@ -52,6 +52,7 @@ import { ConfigModule }          from './config/config.module';
 import { ConfigService }         from './config/config.service';
 import { SharedModule }          from './shared/shared.module';
 import { KafkaModule }           from './kafka/kafka.module';
+import { KafkaGovernanceModule } from './kafka-governance/kafka-governance.module';
 import { AuthModule }            from './auth/auth.module';
 import { RegistryModule }        from './registry/registry.module';
 import { TribesModule }          from './tribes/tribes.module';
@@ -91,6 +92,7 @@ import { TribeThrottlerGuard }   from './shared/guards/tribe-throttler.guard';
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     KafkaModule,    // Audit events, auth events, registry lifecycle events
+    KafkaGovernanceModule, // Governed tenant Kafka publish/catalog endpoints
     AuthModule,     // JWT providers + Vault + TokenStore — guards every proxy
 
     // ── 6. Service registry ───────────────────────────────────────────────────

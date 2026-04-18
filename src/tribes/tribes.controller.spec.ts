@@ -9,7 +9,9 @@ describe('TribesController', () => {
     onCacheInvalidation: jest.fn().mockReturnValue(() => undefined),
   } as unknown as RegistryService;
 
-  const mockAuth = {} as AuthService;
+  const mockAuth = {
+    mergeCallerScopes: jest.fn().mockReturnValue([]),
+  } as unknown as AuthService;
   const mockLogger = {} as LoggerService;
   const mockMetrics = {} as MetricsService;
 
@@ -51,6 +53,20 @@ describe('TribesController', () => {
         correlationId: 'corr-tribe-1',
       }),
     );
+    expect(handler.listServices).toHaveBeenCalledWith('caller-service', false);
+  });
+
+  it('should include non-consumable tribe services for platform admins', () => {
+    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue(['platform:admin']);
+    handler.listServices.mockReturnValue([{ serviceId: 'internal-tribe' }]);
+
+    controller.listServices({
+      tribeId: 'caller-service',
+      user: { scopes: ['platform:admin'] },
+      correlationId: 'corr-tribe-3',
+    } as any);
+
+    expect(handler.listServices).toHaveBeenCalledWith('caller-service', true);
   });
 
   it('should delegate proxy requests to the shared proxy handler', async () => {

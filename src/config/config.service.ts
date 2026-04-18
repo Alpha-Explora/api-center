@@ -7,6 +7,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const DEFAULT_REGISTRY_BOOTSTRAP_MANIFESTS = [
+  'examples/logistics-manifest.json',
+  'examples/demand-manifest.json',
+];
+
 @Injectable()
 export class ConfigService implements OnApplicationBootstrap {
   readonly port: number = parseInt(process.env.PORT || '3000', 10);
@@ -115,6 +120,12 @@ export class ConfigService implements OnApplicationBootstrap {
     sessionTtlSeconds: parseInt(process.env.REDIS_SESSION_TTL_SECONDS || '86400', 10),
   };
 
+  readonly registryBootstrap = {
+    enabled: process.env.REGISTRY_BOOTSTRAP_ENABLED === 'true',
+    allowInProduction: process.env.REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION === 'true',
+    manifestPaths: this.parseRegistryBootstrapManifestPaths(),
+  };
+
   readonly rateLimit = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
@@ -127,7 +138,7 @@ export class ConfigService implements OnApplicationBootstrap {
   readonly external = {
     timeout: 10000,
     geolocation: {
-      url: process.env.GEOLOCATION_API_URL || 'https://api.ipgeolocation.io',
+      url: process.env.GEOLOCATION_API_URL || 'https://www.googleapis.com',
       key: process.env.GEOLOCATION_API_KEY || '',
     },
     geotagging: {
@@ -229,6 +240,28 @@ export class ConfigService implements OnApplicationBootstrap {
       }
     }
 
+    if (this.registryBootstrap.enabled && this.registryBootstrap.manifestPaths.length === 0) {
+      errors.push('REGISTRY_BOOTSTRAP_MANIFESTS must include at least one manifest path when REGISTRY_BOOTSTRAP_ENABLED=true');
+    }
+
+    if (
+      this.registryBootstrap.enabled &&
+      this.isProduction &&
+      !this.registryBootstrap.allowInProduction
+    ) {
+      errors.push(
+        'REGISTRY_BOOTSTRAP_ENABLED=true is blocked in production unless REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true',
+      );
+    }
+
+    if (
+      this.registryBootstrap.enabled &&
+      !this.isProduction &&
+      this.registryBootstrap.allowInProduction
+    ) {
+      warnings.push('REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true is set in non-production; this override is unnecessary');
+    }
+
     if (!Number.isFinite(this.health.checkTimeoutMs) || this.health.checkTimeoutMs < 100) {
       errors.push('HEALTH_CHECK_TIMEOUT_MS must be a number greater than or equal to 100');
     }
@@ -319,5 +352,19 @@ export class ConfigService implements OnApplicationBootstrap {
       .filter(Boolean);
 
     return parsedOrigins.length > 0 ? parsedOrigins : '*';
+  }
+
+  private parseRegistryBootstrapManifestPaths(): string[] {
+    const rawManifestPaths = process.env.REGISTRY_BOOTSTRAP_MANIFESTS;
+    if (!rawManifestPaths || rawManifestPaths.trim().length === 0) {
+      return [...DEFAULT_REGISTRY_BOOTSTRAP_MANIFESTS];
+    }
+
+    const parsed = rawManifestPaths
+      .split(',')
+      .map((manifestPath) => manifestPath.trim())
+      .filter(Boolean);
+
+    return [...new Set(parsed)];
   }
 }

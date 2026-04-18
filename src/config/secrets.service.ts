@@ -16,80 +16,18 @@
 // is unaffected — it just sees process.env with secrets already populated.
 // =============================================================================
 
-import { Injectable, OnModuleInit } from "@nestjs/common";
-import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
-import { LoggerService } from "../shared/logger.service";
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { LoggerService } from '../shared/logger.service';
+import { loadGcpSecretsIntoEnv } from './gcp-secret-loader';
 
 @Injectable()
 export class SecretsService implements OnModuleInit {
   constructor(private readonly logger: LoggerService) {}
 
   async onModuleInit() {
-    const secretName = process.env.GCP_SECRET_NAME;
-    const projectId =
-      process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
-    const version = process.env.GCP_SECRET_VERSION || "latest";
-
-    if (!secretName) {
-      this.logger.info(
-        "GCP_SECRET_NAME not set — using process.env for secrets (local dev mode)",
-        {},
-      );
-      return;
-    }
-
-    if (!projectId) {
-      this.logger.warn(
-        "GCP_SECRET_NAME is set but GCP_PROJECT_ID / GOOGLE_CLOUD_PROJECT is missing — skipping GCP Secret Manager",
-        "SecretsService",
-      );
-      return;
-    }
-
-    try {
-      const resourceName = `projects/${projectId}/secrets/${secretName}/versions/${version}`;
-      this.logger.info(
-        `Loading secrets from GCP Secret Manager: ${resourceName}`,
-        {},
-      );
-
-      const client = new SecretManagerServiceClient();
-      const [response] = await client.accessSecretVersion({
-        name: resourceName,
-      });
-
-      const payload = response.payload?.data;
-      if (!payload) {
-        this.logger.warn(
-          `GCP secret '${secretName}' returned empty payload — falling back to process.env`,
-          "SecretsService",
-        );
-        return;
-      }
-
-      const raw = Buffer.isBuffer(payload)
-        ? payload.toString("utf8")
-        : String(payload);
-      const secrets: Record<string, string> = JSON.parse(raw);
-      let count = 0;
-
-      for (const [key, value] of Object.entries(secrets)) {
-        // Only set if not already overridden by an explicit env var
-        if (!process.env[key]) {
-          process.env[key] = value;
-          count++;
-        }
-      }
-
-      this.logger.info(
-        `Loaded ${count} secret(s) from GCP Secret Manager (${Object.keys(secrets).length} total, ${Object.keys(secrets).length - count} skipped as already set)`,
-        {},
-      );
-    } catch (err) {
-      this.logger.warn(
-        `GCP Secret Manager unavailable — falling back to process.env: ${(err as Error).message}`,
-        "SecretsService",
-      );
-    }
+    await loadGcpSecretsIntoEnv({
+      info: (message: string) => this.logger.info(message, {}),
+      warn: (message: string) => this.logger.warn(message, 'SecretsService'),
+    });
   }
 }

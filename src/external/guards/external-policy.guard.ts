@@ -47,10 +47,10 @@ const EXTERNAL_API_POLICIES: Record<string, ExternalApiPolicy> = {
     requiredScopes: ['external:geolocation:read'],
     rules: [
       {
-        methods: ['GET', 'HEAD'],
-        path: SAFE_EXTERNAL_PATH_RE,
+        methods: ['POST'],
+        path: /^\/geolocation\/v1\/geolocate$/,
         requiredScopes: [],
-        policyLabel: 'geolocation.read',
+        policyLabel: 'geolocation.locate',
       },
     ],
   },

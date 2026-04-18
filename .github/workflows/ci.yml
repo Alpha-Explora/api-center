@@ -54,6 +54,12 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Enforce gateway and SDK boundaries
+        run: npm run check:boundaries
+
+      - name: Enforce gateway and SDK contract compatibility
+        run: npm run check:contracts
+
       - name: TypeScript type check
         run: npx tsc --noEmit
 

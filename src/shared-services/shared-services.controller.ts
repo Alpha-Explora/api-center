@@ -32,6 +32,7 @@ import { AuthenticatedRequest } from '../types';
 @UseGuards(JwtAuthGuard)
 export class SharedServicesController implements OnModuleDestroy {
   private readonly handler: ProxyHandler;
+  private readonly auth: AuthService;
 
   constructor(
     registry: RegistryService,
@@ -39,6 +40,7 @@ export class SharedServicesController implements OnModuleDestroy {
     logger: LoggerService,
     metrics: MetricsService,
   ) {
+    this.auth = auth;
     this.handler = new ProxyHandler(
       { registry, auth, logger, metrics },
       { namespace: 'shared', pathPrefix: '/api/v1/shared' },
@@ -53,7 +55,9 @@ export class SharedServicesController implements OnModuleDestroy {
   @Get()
   listSharedServices(@Req() req: AuthenticatedRequest) {
     const tribeId = req.tribeId;
-    const services = this.handler.listServices(tribeId);
+    const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
+    const includeNonConsumable = callerScopes.includes('platform:admin');
+    const services = this.handler.listServices(tribeId, includeNonConsumable);
 
     return {
       success: true,

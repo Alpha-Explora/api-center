@@ -54,4 +54,53 @@ describe('MetricsService', () => {
       expect(metric.values[0].value).toBe(0);
     });
   });
+
+  describe('recordRegistryBootstrapSeed()', () => {
+    it('increments bootstrap outcome metric labels', async () => {
+      service.recordRegistryBootstrapSeed('loaded', 'examples/logistics-manifest.json', 'tribe', 'active');
+
+      const metric = await service.registryBootstrapOperationsTotal.get();
+      const value = metric.values.find(
+        (entry) =>
+          entry.labels.outcome === 'loaded' &&
+          entry.labels.seed_source === 'examples/logistics-manifest.json' &&
+          entry.labels.service_type === 'tribe' &&
+          entry.labels.lifecycle_status === 'active',
+      );
+
+      expect(value?.value).toBe(1);
+    });
+  });
+
+  describe('recordServiceDiscoverySnapshot()', () => {
+    it('increments discovery request metrics for lifecycle statuses', async () => {
+      service.recordServiceDiscoverySnapshot('tribe', 'authenticated', ['active', 'active', 'deprecated']);
+
+      const metric = await service.registryDiscoveryRequestsTotal.get();
+      const value = metric.values.find(
+        (entry) =>
+          entry.labels.namespace === 'tribe' &&
+          entry.labels.caller_type === 'authenticated' &&
+          entry.labels.lifecycle_status === 'active',
+      );
+
+      expect(value?.value).toBe(2);
+    });
+  });
+
+  describe('recordKafkaGovernanceOperation()', () => {
+    it('increments governance operation counters by action and outcome', async () => {
+      service.recordKafkaGovernanceOperation('publish', 'success');
+      service.recordKafkaGovernanceOperation('publish', 'success');
+
+      const metric = await service.kafkaGovernanceOperationsTotal.get();
+      const value = metric.values.find(
+        (entry) =>
+          entry.labels.operation === 'publish' &&
+          entry.labels.outcome === 'success',
+      );
+
+      expect(value?.value).toBe(2);
+    });
+  });
 });

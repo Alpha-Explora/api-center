@@ -52,7 +52,7 @@
 #
 # TRIBE SDK (checklist §5, §6, §7):
 #   Tribes interact with this stack via the shared SDK only.
-#   See src/sdk/TribeClient.ts and @apicenter/sdk package.
+#   See the api-shared-services repository and @apicenter/sdk package.
 #   SDK gateway URL in development: http://localhost:3000
 # =============================================================================
 

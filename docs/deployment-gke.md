@@ -24,6 +24,7 @@
 | Memorystore cache host | `10.34.181.131:6379` |
 | Memorystore rate-limit host | `10.63.215.147:6379` |
 | Kafka brokers | `api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092` |
+| Kafka topology | `combined` nodepool (1 controller+broker, 10Gi `standard`) |
 
 ---
 
@@ -31,10 +32,10 @@
 
 | Field | Value |
 |---|---|
-| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:e1cb9f7` |
-| Built from | `e1cb9f7` (2026-04-12) |
-| Last deployed | _(pending rollout)_ |
-| Deployed by | _(pending rollout)_ |
+| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:prod-20260418151800` |
+| Built from | local production hardening patchset (2026-04-18) |
+| Last deployed | `2026-04-18` |
+| Deployed by | Copilot-assisted operator rollout |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
@@ -47,7 +48,7 @@ Source of truth: `gcp/gke/50-hpa.yaml`. This section is the "why these numbers" 
 | Parameter | Value | Rationale |
 |---|---|---|
 | Min replicas | 3 | Matches `PDB.minAvailable=2` with one slot of headroom for rolling drains |
-| Max replicas | 30 | Autopilot provisions nodes on demand; raise if traffic studies show higher peaks |
+| Max replicas | 6 | Quota-safe cap for current cluster; raise after approved CPU/memory/SSD quota increase |
 | CPU target | 70% | Leaves headroom for bursts before a scale-up triggers |
 | Memory target | 80% | Memory is less spiky than CPU; 80% avoids OOM while not wasting capacity |
 | Scale-up window | 30 s | Fast absorption of traffic spikes |
@@ -496,7 +497,8 @@ Local development differs intentionally: `docker-compose.yml` uses a standalone
 `nginx` service with `nginx.conf` as the local entrypoint/load balancer. In GKE,
 there is no nginx pod in the request path; ingress is handled by GCLB + NEG.
 
-Secrets load at startup via `secrets.service.ts` → GCP Secret Manager. No key files in the image.
+Secrets now preload before Nest boot via `src/config/gcp-secret-loader.ts` and are rechecked by `secrets.service.ts`.
+This guarantees auth and Kafka config read Secret Manager values during provider initialization.
 The pod KSA `api-center` is Workload Identity-bound to
 `api-center-gke@api-center-492808.iam.gserviceaccount.com`.
 
@@ -518,7 +520,13 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-04-12 | pending | Hardened Kafka TLS verification path with `KAFKA_SSL_CA_PEM`, enabled strict TLS verification in ConfigMap, and added optional DR (`kafka/dr`) + observability (`kafka/observability`) packs | Complete next implementation phase for secure Kafka transport, disaster recovery replication, and monitoring readiness |
 | 2026-04-12 | pending | Added consolidated deployment script (`gcp/gke/deploy-kafka-stack.sh`) with readiness gates and optional DR/observability toggles, plus DR failover runbook (`docs/kafka-dr-runbook.md`) | Standardize day-2 operations and reduce rollout/failover execution variance |
 | 2026-04-12 | pending | Added Windows-native deployment workflow (`gcp/gke/deploy-kafka-stack.ps1`) and documented PowerShell invocation across GKE/Kafka docs | Support operator environments without bash while preserving the same deployment safeguards |
+| 2026-04-17 | pending | Extended CI workflow with `check:contracts` gate for AP Center/SDK compatibility snapshot validation | Prevent drift between gateway contract surface and shared SDK wrapper commitments before deploy |
+| 2026-04-17 | pending | Added CI boundary enforcement step (`npm run check:boundaries`) in `.github/workflows/ci.yml` | Prevent gateway/SDK boundary drift and block local SDK source reintroduction before merge |
+| 2026-04-17 | pending | Updated local compose documentation to reference external SDK ownership (`api-shared-services`) and moved SDK publishing responsibility out of gateway package metadata | Complete repository split between gateway runtime and shared SDK while keeping deployment behavior unchanged |
 | 2026-04-12 | pending | Added Secret Manager Kafka sync helper (`gcp/gke/sync-kafka-secretmanager.ps1`) and post-deploy verifier (`gcp/gke/verify-kafka-stack.ps1`) with runbook integration | Reduce manual error in credential rollout and standardize readiness verification across operators |
 | 2026-04-12 | pending | Added orchestration helper (`gcp/gke/run-kafka-rollout.ps1`) and rollback helper (`gcp/gke/rollback-kafka-secretmanager.ps1`) for end-to-end rollout and deterministic secret rollback | Improve operational safety by codifying full forward/rollback execution paths |
 | 2026-04-12 | pending | Added rollout dry-run mode and Kafka config smoke-check helper (`gcp/gke/smoke-kafka-config.ps1`) to validate Secret Manager and in-cluster credential/CA alignment | Increase preflight confidence and detect Kafka auth/cert drift before runtime failures |
 | 2026-04-12 | pending | Added dedicated Kafka smoke topic (`api-center.smoke.runtime`) and runtime produce/consume probe (`gcp/gke/smoke-kafka-topic.ps1`) with verify/orchestration integration | Provide direct runtime validation of broker auth/TLS/topic path beyond static config checks |
+| 2026-04-18 | pending | Migrated Kafka manifests to Strimzi `v1` + Kafka `4.1.1`, switched to constrained combined nodepool (`standard` 10Gi), reduced topic replication to 1, fixed Secret Manager sync script argument/BOM handling, and added pre-bootstrap GCP secret load in app startup | Remove version/quotas rollout blockers and ensure secure auth/Kafka config is available before module construction |
+| 2026-04-18 | pending | Re-enabled secure Kafka listener (`9092`, TLS + SCRAM), rolled APICenter to immutable image `prod-20260418151800`, and validated `health/ready` with Kafka status `up` | Restore production security posture after bootstrap-mode emergency workaround and complete hardened rollout |
+| 2026-04-18 | pending | Reduced HPA max replicas from 30 to 6 in `gcp/gke/50-hpa.yaml` for current cluster quota envelope | Prevent futile autoscaler scale-up attempts until node CPU/memory/SSD quotas are increased |

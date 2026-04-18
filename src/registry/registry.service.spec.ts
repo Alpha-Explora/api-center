@@ -35,6 +35,7 @@ const mockKafka: Partial<KafkaService> = {
 
 const mockMetrics: Partial<MetricsService> = {
   setRegistryServicesCount: jest.fn(),
+  setRegistryServicesCountByStatus: jest.fn(),
 };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────

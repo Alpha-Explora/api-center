@@ -107,4 +107,33 @@ describe('ConfigService', () => {
 
     expect(run).toThrow('KAFKA_SASL_MECHANISM must be one of');
   });
+
+  it('should throw in production when registry bootstrap is enabled without explicit override', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PLATFORM_ADMIN_SECRET = 'secret';
+    process.env.AUTH_PROVIDER = 'google';
+    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
+    process.env.REGISTRY_BOOTSTRAP_ENABLED = 'true';
+    process.env.REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION = 'false';
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow('REGISTRY_BOOTSTRAP_ENABLED=true is blocked in production');
+  });
+
+  it('should not throw in production when registry bootstrap override is explicitly enabled', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PLATFORM_ADMIN_SECRET = 'secret';
+    process.env.AUTH_PROVIDER = 'google';
+    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = 'https://app.example.com/auth/callback';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
+    process.env.REGISTRY_BOOTSTRAP_ENABLED = 'true';
+    process.env.REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION = 'true';
+    process.env.REGISTRY_BOOTSTRAP_MANIFESTS = 'examples/logistics-manifest.json';
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).not.toThrow();
+  });
 });

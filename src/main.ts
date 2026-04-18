@@ -47,16 +47,23 @@ initTracing();
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { LoggerService } from './shared/logger.service';
 import { ConfigService } from './config/config.service';
+import { loadGcpSecretsIntoEnv } from './config/gcp-secret-loader';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
 import { CorrelationIdInterceptor } from './shared/interceptors/correlation-id.interceptor';
 import { AuditLogInterceptor } from './shared/interceptors/audit-log.interceptor';
 import { MetricsInterceptor } from './metrics/metrics.interceptor';
 
 async function bootstrap() {
+  await loadGcpSecretsIntoEnv({
+    info: (message: string) => console.log(`[Bootstrap] ${message}`),
+    warn: (message: string) => console.warn(`[Bootstrap] ${message}`),
+  });
+
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
   const logger = app.get(LoggerService);
@@ -129,6 +136,23 @@ async function bootstrap() {
   // All routes are prefixed /api/v1/ — version bumps get a new prefix.
   app.setGlobalPrefix('api/v1');
 
+  const isSwaggerEnabled = process.env.ENABLE_SWAGGER === 'true';
+  if (isSwaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('APICenter Gateway API')
+      .setDescription('Centralized gateway API for tribe, shared-service, and external integrations')
+      .setVersion('1.0.0')
+      .addBearerAuth()
+      .build();
+
+    const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig, {
+      deepScanRoutes: true,
+    });
+    SwaggerModule.setup('api/docs', app, swaggerDoc, {
+      jsonDocumentUrl: 'api/docs-json',
+    });
+  }
+
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   // On SIGTERM/SIGINT, NestJS calls onModuleDestroy() on all modules before
   // the process exits — allowing Kafka, Redis, and proxy connections to close.
@@ -141,6 +165,7 @@ async function bootstrap() {
   logger.log(`  environment        |  ${config.nodeEnv}`,           'Bootstrap');
   logger.log(`  auth provider      |  ${config.authProvider}`,      'Bootstrap');
   logger.log(`  CORS origins       |  ${JSON.stringify(config.cors.origin)}`, 'Bootstrap');
+  logger.log(`  swagger enabled    |  ${isSwaggerEnabled}`,          'Bootstrap');
   logger.log(`  stateless          |  Redis shared state enabled`,  'Bootstrap');
   logger.log(`  flow               |  consumer → NGINX → container → upstream`, 'Bootstrap');
   logger.log(`────────────────────────────────────────────────────`, 'Bootstrap');

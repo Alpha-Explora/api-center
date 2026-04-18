@@ -556,6 +556,22 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       (s) => s.status === 'active' || s.status === 'deprecated',
     ).length;
     this.metrics.setRegistryServicesCount(activeCount);
+
+    const statusCounts = {
+      proposed: 0,
+      active: 0,
+      deprecated: 0,
+      retired: 0,
+    };
+
+    for (const service of Object.values(this.services)) {
+      statusCounts[service.status] += 1;
+    }
+
+    this.metrics.setRegistryServicesCountByStatus('proposed', statusCounts.proposed);
+    this.metrics.setRegistryServicesCountByStatus('active', statusCounts.active);
+    this.metrics.setRegistryServicesCountByStatus('deprecated', statusCounts.deprecated);
+    this.metrics.setRegistryServicesCountByStatus('retired', statusCounts.retired);
   }
 
   // -------------------------------------------------------------------------

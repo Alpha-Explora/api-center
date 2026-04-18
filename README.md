@@ -256,6 +256,10 @@ GOOGLE_SA_KEY_USER_SERVICE=<base64-encoded-json>
 
 Services register themselves at startup:
 
+Shared platform service artifacts (service code and registration manifests) are owned in the sibling repository:
+
+- `../api-shared-services/shared-services/`
+
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/registry/register \
   -H "Content-Type: application/json" \
@@ -273,6 +277,27 @@ curl -s -X POST http://localhost:3000/api/v1/registry/register \
 
 After registration the service is immediately routable at `/api/v1/tribes/payment-service/*`.
 
+### Bootstrap mode when tribe services are not available yet
+
+If real tribe services are not ready, the gateway can preload manifests at startup:
+
+```bash
+REGISTRY_BOOTSTRAP_ENABLED=true
+REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=false
+REGISTRY_BOOTSTRAP_MANIFESTS=examples/logistics-manifest.json,examples/demand-manifest.json
+```
+
+Behavior:
+
+- Gateway loads listed manifest files during application bootstrap.
+- Registered entries become immediately discoverable via `/api/v1/tribes` and `/api/v1/shared`.
+- Duplicate `serviceId` values are skipped deterministically with startup warnings.
+- In production, bootstrap is blocked unless `REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true` is explicitly set.
+- This mode is intended for local/staging bootstrap and should be disabled once tribes self-register.
+
+For migration from bootstrap manifests to real tribe startup registration, use the onboarding runbook:
+[docs/developer/tribe-onboarding.md](docs/developer/tribe-onboarding.md).
+
 **Per-service secret** (so the service can authenticate with the gateway):
 ```bash
 # Generate and hash — gateway stores SHA-256, never plaintext
@@ -287,6 +312,20 @@ TRIBE_SECRET_PAYMENT_SERVICE=<sha256-hash>
 ## SDK Usage
 
 Every tribe **must** use the shared SDK. Direct HTTP to the gateway is not permitted.
+
+SDK source of truth now lives in the dedicated `api-shared-services` repository. The gateway repository is runtime-only and no longer publishes SDK artifacts.
+
+Tribe repositories must install this SDK from the private registry. Configure `.npmrc` in each tribe repo before installing:
+
+```ini
+@apicenter:registry=${NPM_REGISTRY_URL}
+//${NPM_REGISTRY_HOST}/:_authToken=${NPM_TOKEN}
+always-auth=true
+```
+
+Reference template:
+
+- `../api-shared-services/.npmrc.example`
 
 ```bash
 npm install @apicenter/sdk
@@ -312,11 +351,36 @@ await client.callSharedService('email-service', '/send', {
   data: { to: 'user@example.com', template: 'welcome' },
 });
 
-// External API (credentials stay in APICenter — caller never sees them)
-const geo = await client.callExternal('geolocation', '/lookup?ip=8.8.8.8');
+// Draft payment wrapper (shared service)
+const checkout = await client.paymentCreateCheckoutSession({
+  referenceId: 'order-123',
+  successUrl: 'https://app.example.com/payment/success',
+  cancelUrl: 'https://app.example.com/payment/cancel',
+  lineItems: [
+    {
+      name: 'Starter Plan',
+      quantity: 1,
+      amount: { value: 99900, currency: 'PHP' },
+    },
+  ],
+});
 
-// Typed geo + geofence + geotag helpers
-const geoLookup = await client.geolocateIp('8.8.8.8');
+const checkoutStatus = await client.paymentGetCheckoutSession(checkout.checkoutId);
+
+await client.paymentCreateRefund('pay_123', {
+  amount: { value: 5000, currency: 'PHP' },
+  reason: 'customer_request',
+});
+
+// External API (credentials stay in APICenter — caller never sees them)
+const geo = await client.callExternal('geolocation', '/geolocation/v1/geolocate', {
+  method: 'POST',
+  data: {
+    considerIp: true,
+  },
+});
+
+// Typed geofence + geotag helpers
 const fence = await client.geofenceCheck({ latitude: 13.7563, longitude: 100.5018 });
 const tags = await client.geotagResolve({
   ip: '8.8.8.8',
@@ -366,13 +430,15 @@ External API credentials live **only** in APICenter — tribe services never hol
 
 Configured external services:
 
-- `geolocation` (IP geolocation provider)
+- `geolocation` (Google Geolocation API)
 - `geotagging` (geo-tag enrichment provider)
 - `geofencing` (geofence provider)
 - `kafka` (Kafka REST bridge backed by the internal Kafka broker)
 
 ```bash
-# ipgeolocation.io — free tier: https://ipgeolocation.io/signup.html
+# Google Geolocation API (Maps Platform)
+# Default route proxied by APICenter: POST /geolocation/v1/geolocate
+# Base URL defaults to https://www.googleapis.com
 GEOLOCATION_API_KEY=<your-key>
 
 # Replace with your actual geofencing provider
@@ -417,6 +483,18 @@ Local end-to-end sandbox validation:
 ```powershell
 ./test-all-steps.ps1
 ```
+
+## OpenAPI Contract Artifact
+
+APICenter now generates an OpenAPI schema for non-Node consumers and generated client workflows.
+
+```bash
+npm run openapi:generate
+```
+
+Generated artifact location:
+
+- `docs/openapi/openapi.json`
 
 The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging/Kafka flows.
 

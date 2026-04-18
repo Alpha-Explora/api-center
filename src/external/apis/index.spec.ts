@@ -45,9 +45,11 @@ describe('external api builders', () => {
     expect(api).toEqual(
       expect.objectContaining({
         name: 'geolocation',
+        displayName: 'Google Geolocation API',
         authType: 'apiKey',
-        authHeader: 'apiKey',
+        authHeader: 'X-Goog-Api-Key',
         authValue: 'geo-key',
+        healthEndpoint: '/geolocation/v1/geolocate',
         timeout: 10_000,
       }),
     );

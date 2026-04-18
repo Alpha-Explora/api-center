@@ -39,8 +39,8 @@ describe('ExternalPolicyGuard', () => {
 
     const result = guard.canActivate(
       createContext({
-        method: 'GET',
-        params: { apiName: 'geolocation', 0: 'v1/lookup' },
+        method: 'POST',
+        params: { apiName: 'geolocation', 0: 'geolocation/v1/geolocate' },
         user: { tribeId: 'tribe-a' },
       }),
     );
@@ -54,7 +54,7 @@ describe('ExternalPolicyGuard', () => {
     expect(() =>
       guard.canActivate(
         createContext({
-          method: 'GET',
+          method: 'POST',
           params: { apiName: 'unknown-api', 0: 'v1/anything' },
           user: { tribeId: 'tribe-a' },
         }),
@@ -69,8 +69,8 @@ describe('ExternalPolicyGuard', () => {
     expect(() =>
       guard.canActivate(
         createContext({
-          method: 'GET',
-          params: { apiName: 'geolocation', 0: 'v1/lookup' },
+          method: 'POST',
+          params: { apiName: 'geolocation', 0: 'geolocation/v1/geolocate' },
           user: {},
         }),
       ),
@@ -84,8 +84,8 @@ describe('ExternalPolicyGuard', () => {
     expect(() =>
       guard.canActivate(
         createContext({
-          method: 'GET',
-          params: { apiName: 'geolocation', 0: 'v1/lookup' },
+          method: 'POST',
+          params: { apiName: 'geolocation', 0: 'geolocation/v1/geolocate' },
           user: { tribeId: 'tribe-a' },
         }),
       ),
@@ -98,8 +98,8 @@ describe('ExternalPolicyGuard', () => {
 
     const result = guard.canActivate(
       createContext({
-        method: 'GET',
-        params: { apiName: 'geolocation', 0: 'v1/lookup' },
+        method: 'POST',
+        params: { apiName: 'geolocation', 0: 'geolocation/v1/geolocate' },
         user: { tribeId: 'tribe-a' },
       }),
     );

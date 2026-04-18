@@ -2,7 +2,7 @@
   "name": "@apicenter/gateway",
   "version": "1.0.0",
   "description": "APICenter — single centralized API gateway. 3-container HA deployment behind NGINX round-robin load balancer. All tribe-to-tribe and external API traffic routes through here.",
-  "main": "./dist/sdk/TribeClient.js",
+  "main": "./dist/main.js",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main",
@@ -16,15 +16,15 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./tests/jest-e2e.json",
     "typecheck": "tsc --noEmit",
+    "check:boundaries": "node scripts/check-boundaries.js",
+    "check:contracts": "node scripts/check-contract-compatibility.js",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f nginx api-center-1 api-center-2 api-center-3",
     "vault:init": "docker exec -it vault vault secrets enable -path=secret kv-v2 && docker exec -it vault vault secrets enable transit && docker exec -it vault vault write -f transit/keys/api-center-signing type=rsa-2048 && echo Vault initialized",
     "vault:put-keys": "docker exec -it vault vault kv put secret/api-center/dev jwt_private_key=\"$(openssl genrsa 2048)\" jwt_public_key=\"$(openssl rsa -pubout 2>/dev/null)\"",
-    "build:sdk": "nest build && echo SDK built to dist/sdk/TribeClient.js",
     "docker:scale-check": "docker-compose ps",
-    "sdk:publish": "npm run build:sdk && npm publish --access public",
-    "sdk:pack": "npm run build:sdk && npm pack",
+    "openapi:generate": "ts-node src/openapi/generate-openapi.ts",
     "format": "prettier --write \"src/**/*.ts\""
   },
   "dependencies": {
@@ -33,6 +33,7 @@
     "@nestjs/core": "^10.4.0",
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/schedule": "^6.1.1",
+    "@nestjs/swagger": "^8.1.0",
     "@nestjs/terminus": "^10.2.0",
     "@nestjs/throttler": "^6.2.0",
     "@opentelemetry/api": "^1.9.0",
@@ -54,6 +55,7 @@
     "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.14.0",
     "zod": "^3.23.0"
   },
@@ -100,14 +102,5 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  },
-  "exports": {
-    ".": "./dist/sdk/TribeClient.js",
-    "./sdk": "./dist/sdk/TribeClient.js"
-  },
-  "types": "./dist/sdk/TribeClient.d.ts",
-  "files": [
-    "dist/sdk",
-    "README.md"
-  ]
+  }
 }

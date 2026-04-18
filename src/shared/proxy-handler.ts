@@ -115,27 +115,40 @@ export class ProxyHandler {
   /**
    * List services visible to a caller, filtered by this handler's namespace.
    */
-  listServices(tribeId: string | undefined) {
+  listServices(
+    tribeId: string | undefined,
+    includeNonConsumable = false,
+  ) {
     const services = this.deps.registry.getByType(this.opts.namespace);
 
-    return services
+    const visibleServices = services
       .filter((svc) => svc.status !== 'retired')
       .map((svc) => ({
+        canAccess: tribeId
+          ? this.deps.registry.canConsume(tribeId, svc.serviceId)
+          : false,
         serviceId: svc.serviceId,
         name: svc.name,
         status: svc.status,
         version: svc.version,
         exposes: svc.exposes,
+        requiredScopes: svc.requiredScopes,
         serviceType: svc.serviceType ?? 'tribe',
-        canAccess: tribeId
-          ? this.deps.registry.canConsume(tribeId, svc.serviceId)
-          : false,
         ...(svc.status === 'deprecated' && {
           deprecated: true,
           sunsetDate: svc.sunsetDate,
           replacementService: svc.replacementService,
         }),
-      }));
+      }))
+      .filter((svc) => includeNonConsumable || svc.canAccess);
+
+    this.deps.metrics.recordServiceDiscoverySnapshot(
+      this.opts.namespace,
+      tribeId ? 'authenticated' : 'anonymous',
+      visibleServices.map((service) => service.status),
+    );
+
+    return visibleServices;
   }
 
   /**

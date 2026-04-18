@@ -35,6 +35,7 @@ import { AuthenticatedRequest } from '../types';
 @UseGuards(JwtAuthGuard)
 export class TribesController implements OnModuleDestroy {
   private readonly handler: ProxyHandler;
+  private readonly auth: AuthService;
 
   constructor(
     registry: RegistryService,
@@ -42,6 +43,7 @@ export class TribesController implements OnModuleDestroy {
     logger: LoggerService,
     metrics: MetricsService,
   ) {
+    this.auth = auth;
     this.handler = new ProxyHandler(
       { registry, auth, logger, metrics },
       { namespace: 'tribe', pathPrefix: '/api/v1/tribes' },
@@ -56,7 +58,9 @@ export class TribesController implements OnModuleDestroy {
   @Get()
   listServices(@Req() req: AuthenticatedRequest) {
     const tribeId = req.tribeId;
-    const services = this.handler.listServices(tribeId);
+    const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
+    const includeNonConsumable = callerScopes.includes('platform:admin');
+    const services = this.handler.listServices(tribeId, includeNonConsumable);
 
     return {
       success: true,

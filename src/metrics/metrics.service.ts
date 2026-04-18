@@ -13,6 +13,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Counter, Histogram, Gauge } from 'prom-client';
 
+type LifecycleStatusLabel = 'proposed' | 'active' | 'deprecated' | 'retired';
+
 @Injectable()
 export class MetricsService implements OnModuleInit {
   // ---- HTTP Metrics ----
@@ -24,6 +26,10 @@ export class MetricsService implements OnModuleInit {
 
   // ---- Registry Metrics ----
   readonly registryServicesTotal: Gauge;
+  readonly registryServicesByStatusTotal: Gauge;
+  readonly registryBootstrapOperationsTotal: Counter;
+  readonly registryDiscoveryRequestsTotal: Counter;
+  readonly kafkaGovernanceOperationsTotal: Counter;
 
   // ---- Showback / Usage Metrics ----
   readonly proxyRequestsTotal: Counter;
@@ -59,6 +65,30 @@ export class MetricsService implements OnModuleInit {
       help: 'Total number of registered services in the registry',
     });
 
+    this.registryServicesByStatusTotal = new Gauge({
+      name: 'registry_services_by_status_total',
+      help: 'Total number of registered services grouped by lifecycle status',
+      labelNames: ['status'] as const,
+    });
+
+    this.registryBootstrapOperationsTotal = new Counter({
+      name: 'registry_bootstrap_operations_total',
+      help: 'Registry bootstrap outcomes grouped by seed source and service labels',
+      labelNames: ['outcome', 'seed_source', 'service_type', 'lifecycle_status'] as const,
+    });
+
+    this.registryDiscoveryRequestsTotal = new Counter({
+      name: 'registry_discovery_requests_total',
+      help: 'Total service discovery requests grouped by namespace and caller type',
+      labelNames: ['namespace', 'caller_type', 'lifecycle_status'] as const,
+    });
+
+    this.kafkaGovernanceOperationsTotal = new Counter({
+      name: 'kafka_governance_operations_total',
+      help: 'Kafka governance endpoint operations grouped by action and outcome',
+      labelNames: ['operation', 'outcome'] as const,
+    });
+
     this.proxyRequestsTotal = new Counter({
       name: 'proxy_requests_total',
       help: 'Total proxy requests for showback attribution (shared + tribe)',
@@ -80,6 +110,10 @@ export class MetricsService implements OnModuleInit {
   onModuleInit() {
     // Initialize all circuit breaker gauges to 0 (CLOSED)
     this.registryServicesTotal.set(0);
+    this.registryServicesByStatusTotal.set({ status: 'proposed' }, 0);
+    this.registryServicesByStatusTotal.set({ status: 'active' }, 0);
+    this.registryServicesByStatusTotal.set({ status: 'deprecated' }, 0);
+    this.registryServicesByStatusTotal.set({ status: 'retired' }, 0);
   }
 
   /**
@@ -107,6 +141,78 @@ export class MetricsService implements OnModuleInit {
    */
   setRegistryServicesCount(count: number) {
     this.registryServicesTotal.set(count);
+  }
+
+  setRegistryServicesCountByStatus(status: LifecycleStatusLabel, count: number) {
+    this.registryServicesByStatusTotal.set({ status }, count);
+  }
+
+  recordRegistryBootstrapSeed(
+    outcome: 'loaded' | 'skipped' | 'failed',
+    seedSource: string,
+    serviceType: 'shared' | 'tribe',
+    lifecycleStatus: LifecycleStatusLabel,
+  ) {
+    this.registryBootstrapOperationsTotal.inc({
+      outcome,
+      seed_source: seedSource,
+      service_type: serviceType,
+      lifecycle_status: lifecycleStatus,
+    });
+  }
+
+  recordServiceDiscoverySnapshot(
+    namespace: 'shared' | 'tribe',
+    callerType: 'authenticated' | 'anonymous',
+    lifecycleStatuses: LifecycleStatusLabel[],
+  ) {
+    const statusCounts = {
+      proposed: 0,
+      active: 0,
+      deprecated: 0,
+      retired: 0,
+    };
+
+    for (const status of lifecycleStatuses) {
+      statusCounts[status] += 1;
+    }
+
+    this.registryDiscoveryRequestsTotal.inc({
+      namespace,
+      caller_type: callerType,
+      lifecycle_status: 'all',
+    });
+
+    this.registryDiscoveryRequestsTotal.inc({
+      namespace,
+      caller_type: callerType,
+      lifecycle_status: 'proposed',
+    }, statusCounts.proposed);
+
+    this.registryDiscoveryRequestsTotal.inc({
+      namespace,
+      caller_type: callerType,
+      lifecycle_status: 'active',
+    }, statusCounts.active);
+
+    this.registryDiscoveryRequestsTotal.inc({
+      namespace,
+      caller_type: callerType,
+      lifecycle_status: 'deprecated',
+    }, statusCounts.deprecated);
+
+    this.registryDiscoveryRequestsTotal.inc({
+      namespace,
+      caller_type: callerType,
+      lifecycle_status: 'retired',
+    }, statusCounts.retired);
+  }
+
+  recordKafkaGovernanceOperation(
+    operation: 'publish' | 'catalog' | 'schemas',
+    outcome: 'success' | 'failure',
+  ) {
+    this.kafkaGovernanceOperationsTotal.inc({ operation, outcome });
   }
 
   /**

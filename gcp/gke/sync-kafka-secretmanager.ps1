@@ -54,7 +54,8 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($kafkaCaBase64)) {
 $kafkaCaPem = Decode-Base64 -Value $kafkaCaBase64
 
 Write-Host "Fetching current Secret Manager payload: $SecretName"
-$currentPayloadJson = (& gcloud @("secrets", "versions", "access", "latest", "--secret=$SecretName") @projectArgs) | Out-String
+$accessArgs = @("secrets", "versions", "access", "latest", "--secret=$SecretName") + $projectArgs
+$currentPayloadJson = (& gcloud @accessArgs) | Out-String
 if ($LASTEXITCODE -ne 0) {
   throw "Failed to read current secret payload for $SecretName"
 }
@@ -85,7 +86,7 @@ if ($DryRun) {
 
 $tempFile = [System.IO.Path]::GetTempFileName()
 try {
-  Set-Content -Path $tempFile -Value $updatedPayloadJson -Encoding UTF8
+  [System.IO.File]::WriteAllText($tempFile, $updatedPayloadJson, [System.Text.UTF8Encoding]::new($false))
 
   Write-Host "Writing updated payload as a new secret version"
   Invoke-GCloud -Arguments (@("secrets", "versions", "add", $SecretName, "--data-file=$tempFile") + $projectArgs)

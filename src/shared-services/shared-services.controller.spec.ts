@@ -9,7 +9,9 @@ describe('SharedServicesController', () => {
     onCacheInvalidation: jest.fn().mockReturnValue(() => undefined),
   } as unknown as RegistryService;
 
-  const mockAuth = {} as AuthService;
+  const mockAuth = {
+    mergeCallerScopes: jest.fn().mockReturnValue([]),
+  } as unknown as AuthService;
   const mockLogger = {} as LoggerService;
   const mockMetrics = {} as MetricsService;
 
@@ -60,6 +62,19 @@ describe('SharedServicesController', () => {
     await controller.proxy('payment-service', req, res);
 
     expect(handler.proxyRequest).toHaveBeenCalledWith('payment-service', req, res);
+  });
+
+  it('should include non-consumable services for platform admins', () => {
+    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue(['platform:admin']);
+    handler.listServices.mockReturnValue([{ serviceId: 'internal-shared' }]);
+
+    controller.listSharedServices({
+      tribeId: 'caller-service',
+      user: { scopes: ['platform:admin'] },
+      correlationId: 'corr-shared-3',
+    } as any);
+
+    expect(handler.listServices).toHaveBeenCalledWith('caller-service', true);
   });
 
   it('should release handler resources during module destroy', () => {
