@@ -14,14 +14,14 @@
 // Apply per-route:       @UseGuards(JwtAuthGuard) on a method
 // =============================================================================
 
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Request } from 'express';
-import { AuthService } from '../auth.service';
-import { LoggerService } from '../../shared/logger.service';
-import { UnauthorizedError } from '../../shared/errors';
-import { AuthenticatedRequest } from '../../types';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Request } from "express";
+import { AuthService } from "../auth.service";
+import { LoggerService } from "../../shared/logger.service";
+import { UnauthorizedError } from "../../shared/errors";
+import { AuthenticatedRequest } from "../../types";
 
-const BEARER_PREFIX = 'Bearer ';
+const BEARER_PREFIX = "Bearer ";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -38,7 +38,7 @@ export class JwtAuthGuard implements CanActivate {
       : undefined;
 
     if (!token) {
-      throw new UnauthorizedError('Missing authorization token');
+      throw new UnauthorizedError("Missing authorization token");
     }
 
     try {
@@ -52,9 +52,9 @@ export class JwtAuthGuard implements CanActivate {
     } catch (_err) {
       this.logger.warn(
         `Token validation failed from ${request.ip} on ${request.path}`,
-        'JwtAuthGuard',
+        "JwtAuthGuard",
       );
-      throw new UnauthorizedError('Invalid or expired token');
+      throw new UnauthorizedError("Invalid or expired token");
     }
   }
 }

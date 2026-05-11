@@ -12,11 +12,11 @@
 // Falls back to a simple in-memory Map if Redis is unavailable.
 // =============================================================================
 
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ThrottlerStorage } from '@nestjs/throttler';
-import Redis from 'ioredis';
-import { ConfigService } from '../config/config.service';
-import { LoggerService } from './logger.service';
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { ThrottlerStorage } from "@nestjs/throttler";
+import Redis from "ioredis";
+import { ConfigService } from "../config/config.service";
+import { LoggerService } from "./logger.service";
 
 interface ThrottlerStorageRecord {
   totalHits: number;
@@ -26,10 +26,15 @@ interface ThrottlerStorageRecord {
 }
 
 @Injectable()
-export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleInit, OnModuleDestroy {
+export class RedisThrottlerStorage
+  implements ThrottlerStorage, OnModuleInit, OnModuleDestroy
+{
   private redis: Redis | null = null;
   /** Fallback in-memory store when Redis is unavailable */
-  private readonly memoryStore = new Map<string, { hits: number; expiresAt: number; blockedUntil: number }>();
+  private readonly memoryStore = new Map<
+    string,
+    { hits: number; expiresAt: number; blockedUntil: number }
+  >();
 
   constructor(
     private readonly config: ConfigService,
@@ -46,11 +51,14 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleInit, On
       });
 
       await this.redis.connect();
-      this.logger.log('Throttler connected to Redis (rate-limit)', 'RedisThrottlerStorage');
+      this.logger.log(
+        "Throttler connected to Redis (rate-limit)",
+        "RedisThrottlerStorage",
+      );
     } catch (err) {
       this.logger.warn(
         `Throttler Redis unavailable — falling back to in-memory storage: ${(err as Error).message}`,
-        'RedisThrottlerStorage',
+        "RedisThrottlerStorage",
       );
       this.redis = null;
     }
@@ -109,7 +117,7 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleInit, On
     // Block if limit exceeded
     if (hits > limit && blockDuration > 0) {
       const blockSec = Math.ceil(blockDuration / 1000);
-      await this.redis!.setex(blockKey, blockSec, '1');
+      await this.redis!.setex(blockKey, blockSec, "1");
       return {
         totalHits: hits,
         timeToExpire: remainingTtl * 1000,
@@ -152,7 +160,11 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleInit, On
       };
     }
 
-    const entry = this.memoryStore.get(key) || { hits: 0, expiresAt: now + ttl, blockedUntil: 0 };
+    const entry = this.memoryStore.get(key) || {
+      hits: 0,
+      expiresAt: now + ttl,
+      blockedUntil: 0,
+    };
     entry.hits++;
 
     if (entry.hits > limit && blockDuration > 0) {

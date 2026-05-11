@@ -8,14 +8,14 @@
 //  POST /api/v1/admin/circuit-breakers/:apiName/reset — Reset a specific breaker
 // =============================================================================
 
-import { Controller, Get, Post, Param, UseGuards, Req } from '@nestjs/common';
-import { ScopedAdminGuard } from '../auth/guards/scoped-admin.guard';
-import { ExternalService } from './external.service';
-import { LoggerService } from '../shared/logger.service';
-import { NotFoundError } from '../shared/errors';
-import { AuthenticatedRequest } from '../types';
+import { Controller, Get, Post, Param, UseGuards, Req } from "@nestjs/common";
+import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
+import { ExternalService } from "./external.service";
+import { LoggerService } from "../shared/logger.service";
+import { NotFoundError } from "../shared/errors";
+import { AuthenticatedRequest } from "../types";
 
-@Controller('admin/circuit-breakers')
+@Controller("admin/circuit-breakers")
 @UseGuards(ScopedAdminGuard)
 export class AdminCircuitBreakerController {
   constructor(
@@ -42,9 +42,9 @@ export class AdminCircuitBreakerController {
   /**
    * POST /api/v1/admin/circuit-breakers/:apiName/reset — Reset a breaker to CLOSED
    */
-  @Post(':apiName/reset')
+  @Post(":apiName/reset")
   resetBreaker(
-    @Param('apiName') apiName: string,
+    @Param("apiName") apiName: string,
     @Req() req: AuthenticatedRequest,
   ) {
     const breaker = this.externalService.getBreaker(apiName);

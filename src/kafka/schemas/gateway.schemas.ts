@@ -2,7 +2,7 @@
 // src/kafka/schemas/gateway.schemas.ts — Gateway event schemas
 // =============================================================================
 
-import { z } from 'zod';
+import { z } from "zod";
 
 export const GatewayRequestEventSchema = z.object({
   method: z.string(),

@@ -1,10 +1,10 @@
-import { KafkaService } from './kafka.service';
-import { ConfigService } from '../config/config.service';
-import { LoggerService } from '../shared/logger.service';
-import { TOPICS } from './topics';
-import { MetricsService } from '../metrics/metrics.service';
+import { KafkaService } from "./kafka.service";
+import { ConfigService } from "../config/config.service";
+import { LoggerService } from "../shared/logger.service";
+import { TOPICS } from "./topics";
+import { MetricsService } from "../metrics/metrics.service";
 
-jest.mock('kafkajs', () => ({
+jest.mock("kafkajs", () => ({
   Kafka: jest.fn().mockImplementation(() => ({
     producer: (() => {
       const producer = {
@@ -29,18 +29,18 @@ jest.mock('kafkajs', () => ({
   },
 }));
 
-describe('KafkaService', () => {
+describe("KafkaService", () => {
   const mockConfig = {
     kafka: {
-      clientId: 'api-center-test',
-      brokers: ['pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092'],
-      groupId: 'api-center-group',
+      clientId: "api-center-test",
+      brokers: ["pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092"],
+      groupId: "api-center-group",
       sslEnabled: false,
       sslRejectUnauthorized: true,
-      sslCaPem: '',
-      saslMechanism: '',
-      saslUsername: '',
-      saslPassword: '',
+      sslCaPem: "",
+      saslMechanism: "",
+      saslUsername: "",
+      saslPassword: "",
     },
   } as unknown as ConfigService;
 
@@ -71,14 +71,18 @@ describe('KafkaService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    const kafkaModule = jest.requireMock('kafkajs') as {
+    const kafkaModule = jest.requireMock("kafkajs") as {
       Kafka: jest.Mock;
     };
 
     service = new KafkaService(mockConfig, mockLogger, mockMetrics);
 
     const kafkaInstance = kafkaModule.Kafka.mock.results[0].value as {
-      producer: () => { connect: jest.Mock; send: jest.Mock; disconnect: jest.Mock };
+      producer: () => {
+        connect: jest.Mock;
+        send: jest.Mock;
+        disconnect: jest.Mock;
+      };
       consumer: () => {
         connect: jest.Mock;
         subscribe: jest.Mock;
@@ -99,7 +103,7 @@ describe('KafkaService', () => {
     mockConsumer.disconnect.mockResolvedValue(undefined);
   });
 
-  it('should mark producer as connected after successful module init', async () => {
+  it("should mark producer as connected after successful module init", async () => {
     await service.onModuleInit();
 
     expect(service.isConnected()).toBe(true);
@@ -107,8 +111,8 @@ describe('KafkaService', () => {
     expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(true);
   });
 
-  it('should keep producer disconnected when module init connect fails', async () => {
-    mockProducer.connect.mockRejectedValue(new Error('connect-failed'));
+  it("should keep producer disconnected when module init connect fails", async () => {
+    mockProducer.connect.mockRejectedValue(new Error("connect-failed"));
 
     await service.onModuleInit();
 
@@ -117,8 +121,8 @@ describe('KafkaService', () => {
     expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(false);
   });
 
-  it('should configure Kafka client with TLS and SASL when enabled', () => {
-    const kafkaModule = jest.requireMock('kafkajs') as {
+  it("should configure Kafka client with TLS and SASL when enabled", () => {
+    const kafkaModule = jest.requireMock("kafkajs") as {
       Kafka: jest.Mock;
     };
 
@@ -126,15 +130,15 @@ describe('KafkaService', () => {
 
     const secureConfig = {
       kafka: {
-        clientId: 'api-center-test',
-        brokers: ['pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092'],
-        groupId: 'api-center-group',
+        clientId: "api-center-test",
+        brokers: ["pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092"],
+        groupId: "api-center-group",
         sslEnabled: true,
         sslRejectUnauthorized: true,
-        sslCaPem: '',
-        saslMechanism: 'plain',
-        saslUsername: 'confluent-key',
-        saslPassword: 'secret',
+        sslCaPem: "",
+        saslMechanism: "plain",
+        saslUsername: "confluent-key",
+        saslPassword: "secret",
       },
     } as unknown as ConfigService;
 
@@ -144,16 +148,16 @@ describe('KafkaService', () => {
       expect.objectContaining({
         ssl: true,
         sasl: {
-          mechanism: 'plain',
-          username: 'confluent-key',
-          password: 'secret',
+          mechanism: "plain",
+          username: "confluent-key",
+          password: "secret",
         },
       }),
     );
   });
 
-  it('should configure Kafka client with CA bundle when provided', () => {
-    const kafkaModule = jest.requireMock('kafkajs') as {
+  it("should configure Kafka client with CA bundle when provided", () => {
+    const kafkaModule = jest.requireMock("kafkajs") as {
       Kafka: jest.Mock;
     };
 
@@ -161,15 +165,15 @@ describe('KafkaService', () => {
 
     const secureConfig = {
       kafka: {
-        clientId: 'api-center-test',
-        brokers: ['pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092'],
-        groupId: 'api-center-group',
+        clientId: "api-center-test",
+        brokers: ["pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092"],
+        groupId: "api-center-group",
         sslEnabled: true,
         sslRejectUnauthorized: true,
-        sslCaPem: '-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----',
-        saslMechanism: 'plain',
-        saslUsername: 'confluent-key',
-        saslPassword: 'secret',
+        sslCaPem: "-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----",
+        saslMechanism: "plain",
+        saslUsername: "confluent-key",
+        saslPassword: "secret",
       },
     } as unknown as ConfigService;
 
@@ -179,58 +183,66 @@ describe('KafkaService', () => {
       expect.objectContaining({
         ssl: {
           rejectUnauthorized: true,
-          ca: ['-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----'],
+          ca: ["-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----"],
         },
       }),
     );
   });
 
-  it('should reject publish when payload fails topic schema validation', async () => {
+  it("should reject publish when payload fails topic schema validation", async () => {
     await expect(service.publish(TOPICS.GATEWAY_REQUEST, {})).rejects.toThrow(
-      'Kafka schema validation failed',
+      "Kafka schema validation failed",
     );
     expect(mockProducer.send).not.toHaveBeenCalled();
-    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(TOPICS.GATEWAY_REQUEST, 'failure');
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(
+      TOPICS.GATEWAY_REQUEST,
+      "failure",
+    );
   });
 
-  it('should reject token-issued events when required schema fields are missing', async () => {
+  it("should reject token-issued events when required schema fields are missing", async () => {
     await expect(
       service.publish(TOPICS.TOKEN_ISSUED, {
-        tribeId: 'svc-alpha',
-        sub: 'svc-alpha',
+        tribeId: "svc-alpha",
+        sub: "svc-alpha",
       }),
-    ).rejects.toThrow('Kafka schema validation failed');
+    ).rejects.toThrow("Kafka schema validation failed");
   });
 
-  it('should publish payload with source metadata and key', async () => {
-    await service.publish('custom.topic', { event: 'ok' }, 'tribe-a');
+  it("should publish payload with source metadata and key", async () => {
+    await service.publish("custom.topic", { event: "ok" }, "tribe-a");
 
     expect(mockProducer.send).toHaveBeenCalledWith({
-      topic: 'custom.topic',
+      topic: "custom.topic",
       messages: [
         {
-          key: 'tribe-a',
+          key: "tribe-a",
           value: expect.any(String),
         },
       ],
     });
 
-    const sentPayload = JSON.parse(mockProducer.send.mock.calls[0][0].messages[0].value);
-    expect(sentPayload.event).toBe('ok');
-    expect(sentPayload._meta.source).toBe('api-center-test');
+    const sentPayload = JSON.parse(
+      mockProducer.send.mock.calls[0][0].messages[0].value,
+    );
+    expect(sentPayload.event).toBe("ok");
+    expect(sentPayload._meta.source).toBe("api-center-test");
     expect(sentPayload._meta.timestamp).toEqual(expect.any(String));
-    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith('custom.topic', 'success');
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(
+      "custom.topic",
+      "success",
+    );
   });
 
-  it('should publish audit events when payload satisfies audit schema', async () => {
+  it("should publish audit events when payload satisfies audit schema", async () => {
     await service.publish(TOPICS.AUDIT_LOG, {
-      tribeId: 'svc-alpha',
-      method: 'GET',
-      path: '/api/v1/tribes/svc-alpha',
+      tribeId: "svc-alpha",
+      method: "GET",
+      path: "/api/v1/tribes/svc-alpha",
       statusCode: 200,
       durationMs: 15,
-      ip: '127.0.0.1',
-      correlationId: 'corr-1',
+      ip: "127.0.0.1",
+      correlationId: "corr-1",
     });
 
     expect(mockProducer.send).toHaveBeenCalledWith(
@@ -238,8 +250,8 @@ describe('KafkaService', () => {
     );
   });
 
-  it('should disconnect producer and consumers on module destroy', async () => {
-    (service as any).consumers.set('topic-a', mockConsumer);
+  it("should disconnect producer and consumers on module destroy", async () => {
+    (service as any).consumers.set("topic-a", mockConsumer);
 
     await service.onModuleDestroy();
 
@@ -249,33 +261,40 @@ describe('KafkaService', () => {
     expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(false);
   });
 
-  it('should keep request flow non-blocking when publish fails', async () => {
-    mockProducer.send.mockRejectedValue(new Error('kafka-down'));
+  it("should keep request flow non-blocking when publish fails", async () => {
+    mockProducer.send.mockRejectedValue(new Error("kafka-down"));
 
-    service.publishNonBlocking('custom.topic', { event: 'non-blocking' });
+    service.publishNonBlocking("custom.topic", { event: "non-blocking" });
     await Promise.resolve();
     await Promise.resolve();
 
     expect(mockLogger.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Kafka publish failed for custom.topic'),
-      'KafkaService',
+      expect.stringContaining("Kafka publish failed for custom.topic"),
+      "KafkaService",
     );
-    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith('custom.topic', 'failure');
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(
+      "custom.topic",
+      "failure",
+    );
   });
 
-  it('should log warn when non-blocking publish is configured with warn level', async () => {
-    mockProducer.send.mockRejectedValue(new Error('kafka-down'));
+  it("should log warn when non-blocking publish is configured with warn level", async () => {
+    mockProducer.send.mockRejectedValue(new Error("kafka-down"));
 
-    service.publishNonBlocking('custom.topic', { event: 'warn-level' }, {
-      context: 'ExternalService',
-      failureLogLevel: 'warn',
-    });
+    service.publishNonBlocking(
+      "custom.topic",
+      { event: "warn-level" },
+      {
+        context: "ExternalService",
+        failureLogLevel: "warn",
+      },
+    );
     await Promise.resolve();
     await Promise.resolve();
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Kafka publish failed for custom.topic'),
-      'ExternalService',
+      expect.stringContaining("Kafka publish failed for custom.topic"),
+      "ExternalService",
     );
   });
 });

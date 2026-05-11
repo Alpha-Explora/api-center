@@ -44,27 +44,27 @@
 //        to every route registered in this module tree.
 // =============================================================================
 
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerModule } from "@nestjs/throttler";
 
-import { ConfigModule }          from './config/config.module';
-import { ConfigService }         from './config/config.service';
-import { SharedModule }          from './shared/shared.module';
-import { KafkaModule }           from './kafka/kafka.module';
-import { KafkaGovernanceModule } from './kafka-governance/kafka-governance.module';
-import { AuthModule }            from './auth/auth.module';
-import { RegistryModule }        from './registry/registry.module';
-import { TribesModule }          from './tribes/tribes.module';
-import { ExternalModule }        from './external/external.module';
-import { SharedServicesModule }  from './shared-services/shared-services.module';
-import { HealthModule }          from './health/health.module';
-import { MetricsModule }         from './metrics/metrics.module';
+import { ConfigModule } from "./config/config.module";
+import { ConfigService } from "./config/config.service";
+import { SharedModule } from "./shared/shared.module";
+import { KafkaModule } from "./kafka/kafka.module";
+import { KafkaGovernanceModule } from "./kafka-governance/kafka-governance.module";
+import { AuthModule } from "./auth/auth.module";
+import { RegistryModule } from "./registry/registry.module";
+import { TribesModule } from "./tribes/tribes.module";
+import { ExternalModule } from "./external/external.module";
+import { SharedServicesModule } from "./shared-services/shared-services.module";
+import { HealthModule } from "./health/health.module";
+import { MetricsModule } from "./metrics/metrics.module";
 
-import { SecurityMiddleware }    from './shared/middleware/security.middleware';
-import { MorganMiddleware }      from './shared/middleware/morgan.middleware';
-import { RedisThrottlerStorage } from './shared/redis-throttler-storage';
-import { TribeThrottlerGuard }   from './shared/guards/tribe-throttler.guard';
+import { SecurityMiddleware } from "./shared/middleware/security.middleware";
+import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
+import { RedisThrottlerStorage } from "./shared/redis-throttler-storage";
+import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
 
 @Module({
   imports: [
@@ -76,24 +76,26 @@ import { TribeThrottlerGuard }   from './shared/guards/tribe-throttler.guard';
     // across the entire gateway fleet — not just per-container.
     // ALLOWED_ORIGINS / rate-limit window / max are driven by env vars.
     ThrottlerModule.forRootAsync({
-      imports:    [ConfigModule, SharedModule],
-      inject:     [ConfigService, RedisThrottlerStorage],
+      imports: [ConfigModule, SharedModule],
+      inject: [ConfigService, RedisThrottlerStorage],
       useFactory: (config: ConfigService, storage: RedisThrottlerStorage) => ({
-        throttlers: [{ ttl: config.rateLimit.windowMs, limit: config.rateLimit.max }],
+        throttlers: [
+          { ttl: config.rateLimit.windowMs, limit: config.rateLimit.max },
+        ],
         storage,
       }),
     }),
 
     // ── 3. Shared utilities — @Global, available everywhere without re-import ─
-    SharedModule,   // LoggerService, AllExceptionsFilter, interceptors, middleware
+    SharedModule, // LoggerService, AllExceptionsFilter, interceptors, middleware
 
     // ── 4. Observability ──────────────────────────────────────────────────────
-    MetricsModule,  // Prometheus counters / histograms / gauges
+    MetricsModule, // Prometheus counters / histograms / gauges
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
-    KafkaModule,    // Audit events, auth events, registry lifecycle events
+    KafkaModule, // Audit events, auth events, registry lifecycle events
     KafkaGovernanceModule, // Governed tenant Kafka publish/catalog endpoints
-    AuthModule,     // JWT providers + Vault + TokenStore — guards every proxy
+    AuthModule, // JWT providers + Vault + TokenStore — guards every proxy
 
     // ── 6. Service registry ───────────────────────────────────────────────────
     // The registry is the source of truth for which services exist and where
@@ -139,8 +141,6 @@ export class AppModule implements NestModule {
   // SecurityMiddleware strips sensitive response headers and enforces payload limits.
   // MorganMiddleware logs incoming HTTP requests to the Winston stream.
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(SecurityMiddleware, MorganMiddleware)
-      .forRoutes('*');
+    consumer.apply(SecurityMiddleware, MorganMiddleware).forRoutes("*");
   }
 }

@@ -6,18 +6,18 @@
 // against these DTOs before the controller method runs.
 // =============================================================================
 
-import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, MaxLength } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class TokenRequestDto {
-  @ApiProperty({ example: 'payment-service', maxLength: 50 })
+  @ApiProperty({ example: "payment-service", maxLength: 50 })
   @IsString()
-  @IsNotEmpty({ message: 'tribeId is required' })
-  @MaxLength(50, { message: 'tribeId is too long' })
+  @IsNotEmpty({ message: "tribeId is required" })
+  @MaxLength(50, { message: "tribeId is too long" })
   tribeId!: string;
 
-  @ApiProperty({ example: 'super-secret-value' })
+  @ApiProperty({ example: "super-secret-value" })
   @IsString()
-  @IsNotEmpty({ message: 'secret is required' })
+  @IsNotEmpty({ message: "secret is required" })
   secret!: string;
 }

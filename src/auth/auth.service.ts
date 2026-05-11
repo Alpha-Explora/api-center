@@ -6,13 +6,18 @@
 // token lifecycle via TokenStoreService.
 // =============================================================================
 
-import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { AUTH_PROVIDER, AuthProvider, IssuedToken, JwtClaims } from './auth-provider.interface';
-import { TokenStoreService, RefreshTokenRecord } from './token-store.service';
-import { LoggerService } from '../shared/logger.service';
-import { ForbiddenError, UnauthorizedError } from '../shared/errors';
-import { AuthenticatedRequest } from '../types';
+import { Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import {
+  AUTH_PROVIDER,
+  AuthProvider,
+  IssuedToken,
+  JwtClaims,
+} from "./auth-provider.interface";
+import { TokenStoreService, RefreshTokenRecord } from "./token-store.service";
+import { LoggerService } from "../shared/logger.service";
+import { ForbiddenError, UnauthorizedError } from "../shared/errors";
+import { AuthenticatedRequest } from "../types";
 
 @Injectable()
 export class AuthService {
@@ -42,7 +47,11 @@ export class AuthService {
     permissions: string[] = [],
     scopes: string[] = [],
   ): Promise<IssuedToken> {
-    const issued = await this.provider.issueToken(serviceId, permissions, scopes);
+    const issued = await this.provider.issueToken(
+      serviceId,
+      permissions,
+      scopes,
+    );
 
     // Persist the refresh token in Redis for revocation support
     if (issued.refreshToken) {
@@ -66,7 +75,7 @@ export class AuthService {
     let sub: string | undefined;
     try {
       const claims = await this.provider.validateToken(refreshToken);
-      jti = claims['jti'] as string | undefined;
+      jti = claims["jti"] as string | undefined;
       sub = claims.sub;
     } catch {
       // For Keycloak refresh tokens (opaque), we cannot pre-validate here;
@@ -77,7 +86,9 @@ export class AuthService {
     if (jti) {
       const valid = await this.tokenStore.isValid(jti);
       if (!valid) {
-        throw new UnauthorizedError('Refresh token has been revoked or expired');
+        throw new UnauthorizedError(
+          "Refresh token has been revoked or expired",
+        );
       }
     }
 
@@ -104,21 +115,26 @@ export class AuthService {
    *
    * @returns number of tokens revoked
    */
-  async revokeToken(refreshToken: string, revokeAll = false): Promise<{ revokedCount: number; sub: string }> {
+  async revokeToken(
+    refreshToken: string,
+    revokeAll = false,
+  ): Promise<{ revokedCount: number; sub: string }> {
     // Parse the refresh token to extract jti + sub
     let jti: string | undefined;
     let sub: string | undefined;
 
     try {
       const claims = await this.provider.validateToken(refreshToken);
-      jti = claims['jti'] as string | undefined;
+      jti = claims["jti"] as string | undefined;
       sub = claims.sub;
     } catch {
       // Token may already be expired — attempt lookup by raw value
     }
 
     if (!sub && !jti) {
-      throw new UnauthorizedError('Cannot parse refresh token — it may already be expired or invalid');
+      throw new UnauthorizedError(
+        "Cannot parse refresh token — it may already be expired or invalid",
+      );
     }
 
     let revokedCount = 0;
@@ -131,18 +147,21 @@ export class AuthService {
     }
 
     this.logger.log(
-      `Revoked ${revokedCount} token(s) for sub=${sub ?? 'unknown'} (revokeAll=${revokeAll})`,
-      'AuthService',
+      `Revoked ${revokedCount} token(s) for sub=${sub ?? "unknown"} (revokeAll=${revokeAll})`,
+      "AuthService",
     );
 
-    return { revokedCount, sub: sub ?? 'unknown' };
+    return { revokedCount, sub: sub ?? "unknown" };
   }
 
   // ---------------------------------------------------------------------------
   // Authorisation helpers
   // ---------------------------------------------------------------------------
 
-  async authorize(req: AuthenticatedRequest, requiredPermission: string): Promise<void> {
+  async authorize(
+    req: AuthenticatedRequest,
+    requiredPermission: string,
+  ): Promise<void> {
     const permissions = this.mergeCallerScopes(req.user ?? {});
     if (!permissions.includes(requiredPermission)) {
       throw new ForbiddenError(`Missing permission: '${requiredPermission}'`);
@@ -150,10 +169,7 @@ export class AuthService {
   }
 
   mergeCallerScopes(claims: Partial<JwtClaims>): string[] {
-    return [
-      ...(claims.scopes ?? []),
-      ...(claims.permissions ?? []),
-    ];
+    return [...(claims.scopes ?? []), ...(claims.permissions ?? [])];
   }
 
   checkScopes(req: AuthenticatedRequest, requiredScopes: string[]): string[] {
@@ -197,7 +213,7 @@ export class AuthService {
     await this.tokenStore.store(record).catch((err) => {
       this.logger.warn(
         `Failed to persist refresh token for sub=${sub}: ${(err as Error).message}`,
-        'AuthService',
+        "AuthService",
       );
     });
   }

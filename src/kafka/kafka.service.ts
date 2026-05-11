@@ -9,13 +9,18 @@
 // automatically — no manual bootstrap/graceful-shutdown code needed.
 // =============================================================================
 
-import { Injectable, OnModuleInit, OnModuleDestroy, Optional } from '@nestjs/common';
-import { Kafka, logLevel, Producer, Consumer } from 'kafkajs';
-import { ZodSchema } from 'zod';
-import { ConfigService } from '../config/config.service';
-import { LoggerService } from '../shared/logger.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { TOPICS } from './topics';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Optional,
+} from "@nestjs/common";
+import { Kafka, logLevel, Producer, Consumer } from "kafkajs";
+import { ZodSchema } from "zod";
+import { ConfigService } from "../config/config.service";
+import { LoggerService } from "../shared/logger.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { TOPICS } from "./topics";
 import {
   GatewayRequestEventSchema,
   GatewayResponseEventSchema,
@@ -33,7 +38,7 @@ import {
   TokenIssuedEventSchema,
   TokenRefreshedEventSchema,
   TokenRevokedEventSchema,
-} from './schemas';
+} from "./schemas";
 
 /**
  * Maps each Kafka topic to its Zod validation schema.
@@ -87,9 +92,9 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
             ca?: string[];
           };
       sasl?:
-        | { mechanism: 'plain'; username: string; password: string }
-        | { mechanism: 'scram-sha-256'; username: string; password: string }
-        | { mechanism: 'scram-sha-512'; username: string; password: string };
+        | { mechanism: "plain"; username: string; password: string }
+        | { mechanism: "scram-sha-256"; username: string; password: string }
+        | { mechanism: "scram-sha-512"; username: string; password: string };
     } = {
       clientId: this.config.kafka.clientId,
       brokers: this.config.kafka.brokers,
@@ -117,25 +122,25 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       const saslUsername = this.config.kafka.saslUsername;
       const saslPassword = this.config.kafka.saslPassword;
 
-      if (this.config.kafka.saslMechanism === 'plain') {
+      if (this.config.kafka.saslMechanism === "plain") {
         kafkaConfig.sasl = {
-          mechanism: 'plain',
+          mechanism: "plain",
           username: saslUsername,
           password: saslPassword,
         };
       }
 
-      if (this.config.kafka.saslMechanism === 'scram-sha-256') {
+      if (this.config.kafka.saslMechanism === "scram-sha-256") {
         kafkaConfig.sasl = {
-          mechanism: 'scram-sha-256',
+          mechanism: "scram-sha-256",
           username: saslUsername,
           password: saslPassword,
         };
       }
 
-      if (this.config.kafka.saslMechanism === 'scram-sha-512') {
+      if (this.config.kafka.saslMechanism === "scram-sha-512") {
         kafkaConfig.sasl = {
-          mechanism: 'scram-sha-512',
+          mechanism: "scram-sha-512",
           username: saslUsername,
           password: saslPassword,
         };
@@ -151,13 +156,13 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       await this.producer.connect();
       this.connected = true;
       this.metrics?.setKafkaProducerConnected(true);
-      this.logger.log('Kafka producer connected', 'KafkaService');
+      this.logger.log("Kafka producer connected", "KafkaService");
     } catch (err) {
       this.metrics?.setKafkaProducerConnected(false);
       this.logger.error(
         `Kafka producer failed to connect: ${(err as Error).message}`,
         (err as Error).stack,
-        'KafkaService',
+        "KafkaService",
       );
     }
   }
@@ -170,7 +175,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     for (const consumer of this.consumers.values()) {
       await consumer.disconnect();
     }
-    this.logger.log('Kafka disconnected', 'KafkaService');
+    this.logger.log("Kafka disconnected", "KafkaService");
   }
 
   /** Check if the producer is currently connected */
@@ -186,7 +191,11 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
    * @param key     - Optional partition key (e.g. tribeId) for ordering
    * @throws Error if payload fails Zod validation
    */
-  async publish(topic: string, payload: Record<string, unknown>, key?: string): Promise<void> {
+  async publish(
+    topic: string,
+    payload: Record<string, unknown>,
+    key?: string,
+  ): Promise<void> {
     try {
       // ---- Schema validation ----
       const schema = TOPIC_SCHEMAS[topic];
@@ -194,7 +203,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         const result = schema.safeParse(payload);
         if (!result.success) {
           const errorMsg = `Kafka schema validation failed for topic '${topic}': ${result.error.message}`;
-          this.logger.error(errorMsg, undefined, 'KafkaService');
+          this.logger.error(errorMsg, undefined, "KafkaService");
           throw new Error(errorMsg);
         }
       }
@@ -214,9 +223,9 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
           },
         ],
       });
-      this.metrics?.recordKafkaPublish(topic, 'success');
+      this.metrics?.recordKafkaPublish(topic, "success");
     } catch (err) {
-      this.metrics?.recordKafkaPublish(topic, 'failure');
+      this.metrics?.recordKafkaPublish(topic, "failure");
       throw err;
     }
   }
@@ -228,13 +237,21 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   publishNonBlocking(
     topic: string,
     payload: Record<string, unknown>,
-    options?: { key?: string; context?: string; failureLogLevel?: 'debug' | 'warn' },
+    options?: {
+      key?: string;
+      context?: string;
+      failureLogLevel?: "debug" | "warn";
+    },
   ): void {
-    const { key, context = 'KafkaService', failureLogLevel = 'debug' } = options || {};
+    const {
+      key,
+      context = "KafkaService",
+      failureLogLevel = "debug",
+    } = options || {};
 
     void this.publish(topic, payload, key).catch((err) => {
       const message = `Kafka publish failed for ${topic} (non-blocking): ${(err as Error).message}`;
-      if (failureLogLevel === 'warn') {
+      if (failureLogLevel === "warn") {
         this.logger.warn(message, context);
         return;
       }
@@ -260,19 +277,19 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     await consumer.run({
       eachMessage: async ({ message }) => {
         try {
-          const parsed = JSON.parse(message.value?.toString() || '{}');
+          const parsed = JSON.parse(message.value?.toString() || "{}");
           await handler(parsed);
         } catch (err) {
           this.logger.error(
             `Kafka message processing error on ${topic}: ${(err as Error).message}`,
             (err as Error).stack,
-            'KafkaService',
+            "KafkaService",
           );
         }
       },
     });
 
     this.consumers.set(topic, consumer);
-    this.logger.log(`Kafka subscribed to topic: ${topic}`, 'KafkaService');
+    this.logger.log(`Kafka subscribed to topic: ${topic}`, "KafkaService");
   }
 }

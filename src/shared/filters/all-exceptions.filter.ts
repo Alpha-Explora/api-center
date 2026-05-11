@@ -20,12 +20,12 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
-import { AppError } from '../errors';
-import { LoggerService } from '../logger.service';
-import { ConfigService } from '../../config/config.service';
-import { AuthenticatedRequest } from '../../types';
+} from "@nestjs/common";
+import { Request, Response } from "express";
+import { AppError } from "../errors";
+import { LoggerService } from "../logger.service";
+import { ConfigService } from "../../config/config.service";
+import { AuthenticatedRequest } from "../../types";
 
 @Injectable()
 @Catch()
@@ -47,22 +47,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const exceptionResponse = exception.getResponse();
 
       // Handle class-validator errors from ValidationPipe
-      if (typeof exceptionResponse === 'object' && 'message' in (exceptionResponse as Record<string, unknown>)) {
+      if (
+        typeof exceptionResponse === "object" &&
+        "message" in (exceptionResponse as Record<string, unknown>)
+      ) {
         const resp = exceptionResponse as Record<string, unknown>;
-        const messages = Array.isArray(resp.message) ? resp.message : [resp.message];
+        const messages = Array.isArray(resp.message)
+          ? resp.message
+          : [resp.message];
 
         // AppError subclasses have a `code` property
-        const code = exception instanceof AppError
-          ? exception.code
-          : (resp.error as string || 'HTTP_ERROR');
+        const code =
+          exception instanceof AppError
+            ? exception.code
+            : (resp.error as string) || "HTTP_ERROR";
 
-        this.logger.warn(`HTTP ${status}: ${messages.join(', ')}`, 'ExceptionFilter');
+        this.logger.warn(
+          `HTTP ${status}: ${messages.join(", ")}`,
+          "ExceptionFilter",
+        );
 
         response.status(status).json({
           success: false,
           error: {
             code,
-            message: messages.length === 1 ? messages[0] : 'Validation failed',
+            message: messages.length === 1 ? messages[0] : "Validation failed",
             ...(messages.length > 1 && { details: messages }),
           },
           meta: { timestamp: new Date().toISOString(), correlationId },
@@ -73,7 +82,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       response.status(status).json({
         success: false,
         error: {
-          code: 'HTTP_ERROR',
+          code: "HTTP_ERROR",
           message: exception.message,
         },
         meta: { timestamp: new Date().toISOString(), correlationId },
@@ -84,18 +93,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // --- Unexpected errors (bugs) ---
     const err = exception as Error;
     this.logger.error(
-      `Unexpected error: ${err?.message || 'Unknown error'}`,
+      `Unexpected error: ${err?.message || "Unknown error"}`,
       err?.stack,
-      'ExceptionFilter',
+      "ExceptionFilter",
     );
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: "INTERNAL_ERROR",
         message: this.config.isProduction
-          ? 'An unexpected error occurred'
-          : err?.message || 'Internal server error',
+          ? "An unexpected error occurred"
+          : err?.message || "Internal server error",
         ...(!this.config.isProduction && { stack: err?.stack }),
       },
       meta: { timestamp: new Date().toISOString(), correlationId },

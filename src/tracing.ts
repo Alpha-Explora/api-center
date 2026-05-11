@@ -10,14 +10,14 @@
 // as a custom span attribute on every request.
 // =============================================================================
 
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 
 // Set diagnostic logger in development
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.WARN);
 }
 
@@ -39,9 +39,9 @@ export function initTracing(opts?: {
     process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
     process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
     process.env.JAEGER_ENDPOINT ||
-    'http://localhost:4318/v1/traces';
+    "http://localhost:4318/v1/traces";
   const serviceName =
-    opts?.serviceName || process.env.OTEL_SERVICE_NAME || 'api-center';
+    opts?.serviceName || process.env.OTEL_SERVICE_NAME || "api-center";
 
   const traceExporter = new OTLPTraceExporter({
     url: otlpTracesEndpoint,
@@ -53,7 +53,7 @@ export function initTracing(opts?: {
     instrumentations: [
       getNodeAutoInstrumentations({
         // Disable fs instrumentation to reduce noise
-        '@opentelemetry/instrumentation-fs': { enabled: false },
+        "@opentelemetry/instrumentation-fs": { enabled: false },
       }),
     ],
   });
@@ -64,7 +64,7 @@ export function initTracing(opts?: {
   );
 
   // Graceful shutdown
-  process.on('SIGTERM', () => {
+  process.on("SIGTERM", () => {
     sdk?.shutdown().catch(console.error);
   });
 }

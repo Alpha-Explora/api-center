@@ -26,11 +26,15 @@
 //   • Emit audit events to Kafka on validation failure / token issuance
 // =============================================================================
 
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
-import axios from 'axios';
-import { AuthProvider, IssuedToken, JwtClaims } from '../auth-provider.interface';
-import { ConfigService } from '../../config/config.service';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import axios from "axios";
+import {
+  AuthProvider,
+  IssuedToken,
+  JwtClaims,
+} from "../auth-provider.interface";
+import { ConfigService } from "../../config/config.service";
 
 @Injectable()
 export class KeycloakProvider implements AuthProvider, OnModuleInit {
@@ -57,7 +61,7 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
     const jwksUri = this.config.keycloak.jwksUri;
     if (!jwksUri) {
       this.logger.warn(
-        'KEYCLOAK_JWKS_URI is not set — Keycloak token validation will fail',
+        "KEYCLOAK_JWKS_URI is not set — Keycloak token validation will fail",
       );
       return;
     }
@@ -77,28 +81,37 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
    */
   async validateToken(token: string): Promise<JwtClaims> {
     if (!this.jwks) {
-      throw new Error('KeycloakProvider not initialised — KEYCLOAK_JWKS_URI missing');
+      throw new Error(
+        "KeycloakProvider not initialised — KEYCLOAK_JWKS_URI missing",
+      );
     }
 
     const { payload } = await jwtVerify(token, this.jwks, {
       // Only enforce issuer when explicitly configured
-      ...(this.config.keycloak.issuer ? { issuer: this.config.keycloak.issuer } : {}),
+      ...(this.config.keycloak.issuer
+        ? { issuer: this.config.keycloak.issuer }
+        : {}),
       // Optionally enforce audience (recommended in production)
-      ...(this.config.keycloak.audience ? { audience: this.config.keycloak.audience } : {}),
+      ...(this.config.keycloak.audience
+        ? { audience: this.config.keycloak.audience }
+        : {}),
     });
 
     // Map Keycloak's resource_access / realm_access claims to a flat permissions array
     const realmRoles: string[] =
-      (payload['realm_access'] as { roles?: string[] })?.roles ?? [];
+      (payload["realm_access"] as { roles?: string[] })?.roles ?? [];
     const resourceRoles: string[] = Object.values(
-      (payload['resource_access'] as Record<string, { roles?: string[] }>) ?? {},
+      (payload["resource_access"] as Record<string, { roles?: string[] }>) ??
+        {},
     ).flatMap((ra) => ra.roles ?? []);
 
     return {
-      sub: payload.sub ?? '',
-      tribeId: payload['tribeId'] as string | undefined,
+      sub: payload.sub ?? "",
+      tribeId: payload["tribeId"] as string | undefined,
       permissions: [...realmRoles, ...resourceRoles],
-      scopes: ((payload['scope'] as string | undefined) ?? '').split(' ').filter(Boolean),
+      scopes: ((payload["scope"] as string | undefined) ?? "")
+        .split(" ")
+        .filter(Boolean),
       exp: payload.exp,
       ...payload,
     };
@@ -120,8 +133,10 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
     // Build the client secret env-var name following the same naming convention
     // used for tribe secrets: KEYCLOAK_CLIENT_SECRET_{SERVICE_ID_UPPER}
     // Non-alphanumeric characters are replaced with underscores for valid env-var names.
-    const clientSecretEnvKey = `KEYCLOAK_CLIENT_SECRET_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
-    const clientSecret = process.env[clientSecretEnvKey] ?? this.config.keycloak.defaultClientSecret;
+    const clientSecretEnvKey = `KEYCLOAK_CLIENT_SECRET_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+    const clientSecret =
+      process.env[clientSecretEnvKey] ??
+      this.config.keycloak.defaultClientSecret;
 
     if (!clientSecret) {
       throw new Error(
@@ -135,10 +150,10 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
       `${this.config.keycloak.baseUrl}/realms/${realm}/protocol/openid-connect/token`;
 
     // Request scopes include the declared service scopes
-    const scopeString = ['openid', ...scopes].join(' ');
+    const scopeString = ["openid", ...scopes].join(" ");
 
     const params = new URLSearchParams({
-      grant_type: 'client_credentials',
+      grant_type: "client_credentials",
       client_id: serviceId,
       client_secret: clientSecret,
       scope: scopeString,
@@ -149,7 +164,7 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
       refresh_token?: string;
       expires_in: number;
     }>(endpoint, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: 10_000,
     });
 
@@ -175,9 +190,9 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
       `${this.config.keycloak.baseUrl}/realms/${realm}/protocol/openid-connect/token`;
 
     const params = new URLSearchParams({
-      grant_type: 'refresh_token',
+      grant_type: "refresh_token",
       refresh_token: refreshToken,
-      client_id: refreshClientId || 'api-center',
+      client_id: refreshClientId || "api-center",
       ...(defaultClientSecret ? { client_secret: defaultClientSecret } : {}),
     });
 
@@ -186,7 +201,7 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
       refresh_token?: string;
       expires_in: number;
     }>(endpoint, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: 10_000,
     });
 

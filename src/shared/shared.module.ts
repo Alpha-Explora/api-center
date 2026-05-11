@@ -5,14 +5,14 @@
 // feature modules via NestJS dependency injection.
 // =============================================================================
 
-import { Global, Module } from '@nestjs/common';
-import { LoggerService } from './logger.service';
-import { AllExceptionsFilter } from './filters/all-exceptions.filter';
-import { CorrelationIdInterceptor } from './interceptors/correlation-id.interceptor';
-import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
-import { SecurityMiddleware } from './middleware/security.middleware';
-import { MorganMiddleware } from './middleware/morgan.middleware';
-import { RedisThrottlerStorage } from './redis-throttler-storage';
+import { Global, Module } from "@nestjs/common";
+import { LoggerService } from "./logger.service";
+import { AllExceptionsFilter } from "./filters/all-exceptions.filter";
+import { CorrelationIdInterceptor } from "./interceptors/correlation-id.interceptor";
+import { AuditLogInterceptor } from "./interceptors/audit-log.interceptor";
+import { SecurityMiddleware } from "./middleware/security.middleware";
+import { MorganMiddleware } from "./middleware/morgan.middleware";
+import { RedisThrottlerStorage } from "./redis-throttler-storage";
 
 @Global()
 @Module({

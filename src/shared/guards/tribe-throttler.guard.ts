@@ -10,8 +10,8 @@
 //  2. Client IP          (anonymous / unauthenticated fallback)
 // =============================================================================
 
-import { Injectable } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { Injectable } from "@nestjs/common";
+import { ThrottlerGuard } from "@nestjs/throttler";
 
 @Injectable()
 export class TribeThrottlerGuard extends ThrottlerGuard {
@@ -25,6 +25,6 @@ export class TribeThrottlerGuard extends ThrottlerGuard {
     if (user?.tribeId) return String(user.tribeId);
 
     // 2. Fallback to IP for unauthenticated or anonymous callers
-    return req.ip ?? req.connection?.remoteAddress ?? 'unknown';
+    return req.ip ?? req.connection?.remoteAddress ?? "unknown";
   }
 }

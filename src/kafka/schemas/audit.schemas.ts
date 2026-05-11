@@ -2,7 +2,7 @@
 // src/kafka/schemas/audit.schemas.ts — Audit log event schema
 // =============================================================================
 
-import { z } from 'zod';
+import { z } from "zod";
 
 export const AuditLogEventSchema = z.object({
   tribeId: z.string(),

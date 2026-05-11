@@ -12,23 +12,27 @@
 // On registration/deregistration, both memory and Redis are updated.
 // =============================================================================
 
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import crypto from 'node:crypto';
-import Redis from 'ioredis';
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import crypto from "node:crypto";
+import Redis from "ioredis";
 import {
   ServiceManifest,
   ServiceRegistryEntry,
   ServiceRegistryMap,
   ServiceType,
-} from '../types';
-import { LoggerService } from '../shared/logger.service';
-import { ConfigService } from '../config/config.service';
-import { KafkaService } from '../kafka/kafka.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { NotFoundError, ConflictError, ValidationError } from '../shared/errors';
-import { TOPICS } from '../kafka/topics';
+} from "../types";
+import { LoggerService } from "../shared/logger.service";
+import { ConfigService } from "../config/config.service";
+import { KafkaService } from "../kafka/kafka.service";
+import { MetricsService } from "../metrics/metrics.service";
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+} from "../shared/errors";
+import { TOPICS } from "../kafka/topics";
 
-const REDIS_REGISTRY_KEY = 'api-center:registry:services';
+const REDIS_REGISTRY_KEY = "api-center:registry:services";
 
 /** Default timeout for critical Redis writes (ms). */
 const REDIS_WRITE_TIMEOUT_MS = 2_000;
@@ -37,7 +41,9 @@ const REDIS_WRITE_TIMEOUT_MS = 2_000;
 export class RegistryService implements OnModuleInit, OnModuleDestroy {
   private readonly services: ServiceRegistryMap = {};
   private redis: Redis | null = null;
-  private readonly cacheInvalidationListeners = new Set<(serviceId: string) => void>();
+  private readonly cacheInvalidationListeners = new Set<
+    (serviceId: string) => void
+  >();
 
   constructor(
     private readonly logger: LoggerService,
@@ -59,14 +65,14 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       });
 
       await this.redis.connect();
-      this.logger.info('Registry connected to Redis (cache)', {});
+      this.logger.info("Registry connected to Redis (cache)", {});
 
       // Hydrate in-memory map from Redis on boot
       await this.loadFromRedis();
     } catch (err) {
       this.logger.warn(
         `Registry Redis unavailable — running in memory-only mode: ${(err as Error).message}`,
-        'RegistryService',
+        "RegistryService",
       );
       this.redis = null;
     }
@@ -75,7 +81,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.redis) {
       await this.redis.quit();
-      this.logger.info('Registry Redis connection closed', {});
+      this.logger.info("Registry Redis connection closed", {});
     }
   }
 
@@ -102,7 +108,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       } catch (err) {
         this.logger.warn(
           `Cache invalidation listener error for '${serviceId}': ${(err as Error).message}`,
-          'RegistryService',
+          "RegistryService",
         );
       }
     }
@@ -133,7 +139,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── Block registration if service is retired ───────────────────────────
-    if (existing?.status === 'retired') {
+    if (existing?.status === "retired") {
       throw new ConflictError(
         `Service '${manifest.serviceId}' is retired and cannot be re-registered`,
       );
@@ -141,10 +147,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     const entry: ServiceRegistryEntry = {
       ...manifest,
-      serviceType: manifest.serviceType || 'tribe',
+      serviceType: manifest.serviceType || "tribe",
       registeredAt: existing?.registeredAt || now,
       updatedAt: now,
-      status: existing?.status === 'deprecated' ? 'deprecated' : 'active',
+      status: existing?.status === "deprecated" ? "deprecated" : "active",
       ...(previousVersion && { previousVersion }),
     };
 
@@ -166,7 +172,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── Kafka events ──────────────────────────────────────────────────────
-    this.kafka.publishNonBlocking(TOPICS.SERVICE_REGISTERED, {
+    this.kafka.publishNonBlocking(
+      TOPICS.SERVICE_REGISTERED,
+      {
         serviceId: manifest.serviceId,
         name: manifest.name,
         baseUrl: manifest.baseUrl,
@@ -174,22 +182,28 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
         serviceType: entry.serviceType,
         isUpdate: !!existing,
         timestamp: now,
-      }, {
-        context: 'RegistryService',
-      });
+      },
+      {
+        context: "RegistryService",
+      },
+    );
 
     if (previousVersion && previousVersion !== manifest.version) {
-      this.kafka.publishNonBlocking(TOPICS.SERVICE_VERSION_CHANGED, {
+      this.kafka.publishNonBlocking(
+        TOPICS.SERVICE_VERSION_CHANGED,
+        {
           serviceId: manifest.serviceId,
           previousVersion,
           newVersion: manifest.version,
           timestamp: now,
-        }, {
-          context: 'RegistryService',
-        });
+        },
+        {
+          context: "RegistryService",
+        },
+      );
     }
 
-    this.logger.info('Service registered', {
+    this.logger.info("Service registered", {
       serviceId: manifest.serviceId,
       name: manifest.name,
       baseUrl: manifest.baseUrl,
@@ -230,14 +244,18 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
 
-    this.kafka.publishNonBlocking(TOPICS.SERVICE_DEREGISTERED, {
+    this.kafka.publishNonBlocking(
+      TOPICS.SERVICE_DEREGISTERED,
+      {
         serviceId,
         timestamp: new Date().toISOString(),
-      }, {
-        context: 'RegistryService',
-      });
+      },
+      {
+        context: "RegistryService",
+      },
+    );
 
-    this.logger.info('Service deregistered', { serviceId });
+    this.logger.info("Service deregistered", { serviceId });
   }
 
   // -------------------------------------------------------------------------
@@ -257,14 +275,14 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     if (!entry) {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
     }
-    if (entry.status === 'retired') {
+    if (entry.status === "retired") {
       throw new ConflictError(`Service '${serviceId}' is already retired`);
     }
 
     const previousEntry = { ...entry };
     const updatedEntry: ServiceRegistryEntry = {
       ...entry,
-      status: 'deprecated',
+      status: "deprecated",
       updatedAt: new Date().toISOString(),
       ...(sunsetDate ? { sunsetDate } : {}),
       ...(replacementService ? { replacementService } : {}),
@@ -281,18 +299,22 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
 
-    this.kafka.publishNonBlocking(TOPICS.SERVICE_DEPRECATED, {
+    this.kafka.publishNonBlocking(
+      TOPICS.SERVICE_DEPRECATED,
+      {
         serviceId,
         sunsetDate: updatedEntry.sunsetDate,
         replacementService: updatedEntry.replacementService,
         timestamp: updatedEntry.updatedAt,
-      }, {
-        context: 'RegistryService',
-      });
+      },
+      {
+        context: "RegistryService",
+      },
+    );
 
     this.logger.warn(
-      `Service '${serviceId}' deprecated (sunset: ${sunsetDate || 'unset'}, replacement: ${replacementService || 'none'})`,
-      'RegistryService',
+      `Service '${serviceId}' deprecated (sunset: ${sunsetDate || "unset"}, replacement: ${replacementService || "none"})`,
+      "RegistryService",
     );
 
     return updatedEntry;
@@ -311,7 +333,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const previousEntry = { ...entry };
     const updatedEntry: ServiceRegistryEntry = {
       ...entry,
-      status: 'retired',
+      status: "retired",
       updatedAt: new Date().toISOString(),
     };
 
@@ -326,14 +348,21 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
 
-    this.kafka.publishNonBlocking(TOPICS.SERVICE_RETIRED, {
+    this.kafka.publishNonBlocking(
+      TOPICS.SERVICE_RETIRED,
+      {
         serviceId,
         timestamp: updatedEntry.updatedAt,
-      }, {
-        context: 'RegistryService',
-      });
+      },
+      {
+        context: "RegistryService",
+      },
+    );
 
-    this.logger.warn(`Service '${serviceId}' retired — no longer routable`, 'RegistryService');
+    this.logger.warn(
+      `Service '${serviceId}' retired — no longer routable`,
+      "RegistryService",
+    );
 
     return updatedEntry;
   }
@@ -346,7 +375,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     if (!entry) {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
     }
-    if (entry.status !== 'proposed' && entry.status !== 'deprecated') {
+    if (entry.status !== "proposed" && entry.status !== "deprecated") {
       throw new ConflictError(
         `Service '${serviceId}' is '${entry.status}' and cannot be activated`,
       );
@@ -355,7 +384,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const previousEntry = { ...entry };
     const updatedEntry: ServiceRegistryEntry = {
       ...entry,
-      status: 'active',
+      status: "active",
       updatedAt: new Date().toISOString(),
       sunsetDate: undefined,
       replacementService: undefined,
@@ -384,7 +413,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const entry = this.services[serviceId];
     if (!entry) return false;
     if (entry.healthy === false) return false;
-    return entry.status === 'active' || entry.status === 'deprecated';
+    return entry.status === "active" || entry.status === "deprecated";
   }
 
   /**
@@ -414,7 +443,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
    */
   getByType(type: ServiceType): ServiceRegistryEntry[] {
     return Object.values(this.services).filter(
-      (svc) => (svc.serviceType ?? 'tribe') === type,
+      (svc) => (svc.serviceType ?? "tribe") === type,
     );
   }
 
@@ -453,11 +482,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // -------------------------------------------------------------------------
 
   async validateSecret(serviceId: string, secret: string): Promise<boolean> {
-    const envKey = `TRIBE_SECRET_${serviceId.toUpperCase().replaceAll('-', '_')}`;
+    const envKey = `TRIBE_SECRET_${serviceId.toUpperCase().replaceAll("-", "_")}`;
     const expected = process.env[envKey];
     if (!expected) return false;
 
-    const hash = crypto.createHash('sha256').update(secret).digest('hex');
+    const hash = crypto.createHash("sha256").update(secret).digest("hex");
     if (hash.length !== expected.length) return false;
     return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(expected));
   }
@@ -485,7 +514,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     this.persistToRedis(serviceId, entry).catch((err) => {
       this.logger.warn(
         `Redis persist failed for health update '${serviceId}': ${(err as Error).message}`,
-        'RegistryService',
+        "RegistryService",
       );
     });
 
@@ -512,7 +541,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       this.register(manifest).catch((err) => {
         this.logger.warn(
           `Seed failed for '${manifest.serviceId}': ${(err as Error).message}`,
-          'RegistryService',
+          "RegistryService",
         );
       });
     }
@@ -527,11 +556,18 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
    * Validate that a version upgrade follows semver rules.
    * Prevents major-version downgrades without explicit re-registration.
    */
-  private validateVersionUpgrade(currentVersion: string, newVersion: string): void {
+  private validateVersionUpgrade(
+    currentVersion: string,
+    newVersion: string,
+  ): void {
     const parseSemver = (v: string) => {
       const match = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
       if (!match) return null;
-      return { major: Number.parseInt(match[1]), minor: Number.parseInt(match[2]), patch: Number.parseInt(match[3]) };
+      return {
+        major: Number.parseInt(match[1]),
+        minor: Number.parseInt(match[2]),
+        patch: Number.parseInt(match[3]),
+      };
     };
 
     const current = parseSemver(currentVersion);
@@ -542,7 +578,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     if (next.major < current.major) {
       throw new ValidationError(
         `Version downgrade from ${currentVersion} to ${newVersion} is not allowed. ` +
-        `Deregister the service first if you need to roll back a major version.`,
+          `Deregister the service first if you need to roll back a major version.`,
       );
     }
   }
@@ -553,7 +589,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
   private syncMetricsGauge(): void {
     const activeCount = Object.values(this.services).filter(
-      (s) => s.status === 'active' || s.status === 'deprecated',
+      (s) => s.status === "active" || s.status === "deprecated",
     ).length;
     this.metrics.setRegistryServicesCount(activeCount);
 
@@ -568,10 +604,22 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       statusCounts[service.status] += 1;
     }
 
-    this.metrics.setRegistryServicesCountByStatus('proposed', statusCounts.proposed);
-    this.metrics.setRegistryServicesCountByStatus('active', statusCounts.active);
-    this.metrics.setRegistryServicesCountByStatus('deprecated', statusCounts.deprecated);
-    this.metrics.setRegistryServicesCountByStatus('retired', statusCounts.retired);
+    this.metrics.setRegistryServicesCountByStatus(
+      "proposed",
+      statusCounts.proposed,
+    );
+    this.metrics.setRegistryServicesCountByStatus(
+      "active",
+      statusCounts.active,
+    );
+    this.metrics.setRegistryServicesCountByStatus(
+      "deprecated",
+      statusCounts.deprecated,
+    );
+    this.metrics.setRegistryServicesCountByStatus(
+      "retired",
+      statusCounts.retired,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -596,7 +644,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       } catch (err) {
         this.logger.warn(
           `Failed to parse Redis registry entry for '${serviceId}': ${(err as Error).message}`,
-          'RegistryService',
+          "RegistryService",
         );
       }
     }
@@ -610,7 +658,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
    * Return the raw Redis hash entries for drift comparison.
    * Returns `null` when Redis is unavailable.
    */
-  async getRedisEntries(): Promise<Record<string, ServiceRegistryEntry> | null> {
+  async getRedisEntries(): Promise<Record<
+    string,
+    ServiceRegistryEntry
+  > | null> {
     if (!this.redis) return null;
 
     const raw = await this.redis.hgetall(REDIS_REGISTRY_KEY);
@@ -622,7 +673,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       } catch {
         this.logger.warn(
           `Failed to parse Redis entry for '${serviceId}' during drift check`,
-          'RegistryService',
+          "RegistryService",
         );
       }
     }
@@ -632,7 +683,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   /**
    * Persist a single service entry to Redis.
    */
-  private async persistToRedis(serviceId: string, entry: ServiceRegistryEntry): Promise<void> {
+  private async persistToRedis(
+    serviceId: string,
+    entry: ServiceRegistryEntry,
+  ): Promise<void> {
     if (!this.redis) return;
     await this.redis.hset(REDIS_REGISTRY_KEY, serviceId, JSON.stringify(entry));
   }
@@ -656,7 +710,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     if (!this.redis) {
       this.logger.warn(
         `Redis unavailable — registration for '${serviceId}' persisted in-memory only`,
-        'RegistryService',
+        "RegistryService",
       );
       return;
     }
@@ -664,7 +718,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     let timeoutHandle: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        reject(new Error(`Redis write timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`));
+        reject(
+          new Error(`Redis write timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`),
+        );
       }, REDIS_WRITE_TIMEOUT_MS);
     });
 
@@ -691,7 +747,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     if (!this.redis) {
       this.logger.warn(
         `Redis unavailable — deregistration for '${serviceId}' applied in-memory only`,
-        'RegistryService',
+        "RegistryService",
       );
       return;
     }
@@ -699,7 +755,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     let timeoutHandle: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        reject(new Error(`Redis delete timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`));
+        reject(
+          new Error(`Redis delete timed out after ${REDIS_WRITE_TIMEOUT_MS}ms`),
+        );
       }, REDIS_WRITE_TIMEOUT_MS);
     });
 

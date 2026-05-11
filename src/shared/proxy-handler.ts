@@ -11,20 +11,20 @@
 //  - Cache invalidation: stale proxy instances are dropped on re-registration.
 // =============================================================================
 
-import { Response } from 'express';
-import { createProxyMiddleware, Options } from 'http-proxy-middleware';
-import { RegistryService } from '../registry/registry.service';
-import { AuthService } from '../auth/auth.service';
-import { LoggerService } from '../shared/logger.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { CircuitBreaker } from '../shared/circuit-breaker';
+import { Response } from "express";
+import { createProxyMiddleware, Options } from "http-proxy-middleware";
+import { RegistryService } from "../registry/registry.service";
+import { AuthService } from "../auth/auth.service";
+import { LoggerService } from "../shared/logger.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { CircuitBreaker } from "../shared/circuit-breaker";
 import {
   ForbiddenError,
   NotFoundError,
   BadGatewayError,
   ServiceUnavailableError,
-} from '../shared/errors';
-import { AuthenticatedRequest, ServiceType } from '../types';
+} from "../shared/errors";
+import { AuthenticatedRequest, ServiceType } from "../types";
 
 /** Default hard timeout for outgoing proxy requests (ms). */
 const PROXY_TIMEOUT_MS = 30_000;
@@ -39,7 +39,7 @@ const UPSTREAM_FAILURE_CODES = new Set([502, 503, 504]);
 export class GoneError extends NotFoundError {
   constructor(message: string) {
     super(message);
-    Object.defineProperty(this, 'status', { value: 410 });
+    Object.defineProperty(this, "status", { value: 410 });
   }
 }
 
@@ -115,14 +115,11 @@ export class ProxyHandler {
   /**
    * List services visible to a caller, filtered by this handler's namespace.
    */
-  listServices(
-    tribeId: string | undefined,
-    includeNonConsumable = false,
-  ) {
+  listServices(tribeId: string | undefined, includeNonConsumable = false) {
     const services = this.deps.registry.getByType(this.opts.namespace);
 
     const visibleServices = services
-      .filter((svc) => svc.status !== 'retired')
+      .filter((svc) => svc.status !== "retired")
       .map((svc) => ({
         canAccess: tribeId
           ? this.deps.registry.canConsume(tribeId, svc.serviceId)
@@ -133,8 +130,8 @@ export class ProxyHandler {
         version: svc.version,
         exposes: svc.exposes,
         requiredScopes: svc.requiredScopes,
-        serviceType: svc.serviceType ?? 'tribe',
-        ...(svc.status === 'deprecated' && {
+        serviceType: svc.serviceType ?? "tribe",
+        ...(svc.status === "deprecated" && {
           deprecated: true,
           sunsetDate: svc.sunsetDate,
           replacementService: svc.replacementService,
@@ -144,7 +141,7 @@ export class ProxyHandler {
 
     this.deps.metrics.recordServiceDiscoverySnapshot(
       this.opts.namespace,
-      tribeId ? 'authenticated' : 'anonymous',
+      tribeId ? "authenticated" : "anonymous",
       visibleServices.map((service) => service.status),
     );
 
@@ -164,7 +161,7 @@ export class ProxyHandler {
     const correlationId = req.correlationId;
 
     // ── 1. Resolve upstream ────────────────────────────────────────────────
-    const upstream = this.deps.registry.resolveUpstream(targetServiceId, '');
+    const upstream = this.deps.registry.resolveUpstream(targetServiceId, "");
     if (!upstream) {
       throw new NotFoundError(
         `Service '${targetServiceId}' not found or inactive`,
@@ -173,9 +170,9 @@ export class ProxyHandler {
 
     // ── 1b. Validate namespace ─────────────────────────────────────────────
     const targetEntry = this.deps.registry.get(targetServiceId);
-    const targetType = targetEntry?.serviceType ?? 'tribe';
+    const targetType = targetEntry?.serviceType ?? "tribe";
     if (targetType !== this.opts.namespace) {
-      const correctPrefix = targetType === 'shared' ? '/shared/' : '/tribes/';
+      const correctPrefix = targetType === "shared" ? "/shared/" : "/tribes/";
       throw new NotFoundError(
         `Service '${targetServiceId}' is a ${targetType} service. Use ${correctPrefix}${targetServiceId} instead.`,
       );
@@ -191,12 +188,13 @@ export class ProxyHandler {
       );
     }
 
-    const requiredScopes = this.deps.registry.getRequiredScopes(targetServiceId);
+    const requiredScopes =
+      this.deps.registry.getRequiredScopes(targetServiceId);
     if (requiredScopes.length > 0 && req.user) {
       const missingScopes = this.deps.auth.checkScopes(req, requiredScopes);
       if (missingScopes.length > 0) {
         throw new ForbiddenError(
-          `Insufficient scopes for '${targetServiceId}'. Missing: ${missingScopes.join(', ')}`,
+          `Insufficient scopes for '${targetServiceId}'. Missing: ${missingScopes.join(", ")}`,
         );
       }
     }
@@ -206,7 +204,7 @@ export class ProxyHandler {
     if (!breaker.tryAcquire()) {
       this.deps.logger.warn(
         `Circuit breaker OPEN for '${targetServiceId}' — rejecting request`,
-        'ProxyHandler',
+        "ProxyHandler",
       );
       throw new ServiceUnavailableError(
         `Upstream '${targetServiceId}' is temporarily unavailable (circuit breaker open)`,
@@ -225,21 +223,21 @@ export class ProxyHandler {
         proxyTimeout: this.proxyTimeoutMs,
         timeout: this.proxyTimeoutMs,
         pathRewrite: {
-          [`^${this.opts.pathPrefix}/${targetServiceId}`]: '',
+          [`^${this.opts.pathPrefix}/${targetServiceId}`]: "",
         },
         on: {
           proxyReq: (proxyReq, _req) => {
             const authReq = _req as unknown as AuthenticatedRequest;
-            proxyReq.setHeader('X-Tribe-Id', authReq.tribeId || '');
-            proxyReq.setHeader('X-Correlation-ID', authReq.correlationId || '');
-            proxyReq.setHeader('X-Forwarded-By', 'apicenter-gateway');
+            proxyReq.setHeader("X-Tribe-Id", authReq.tribeId || "");
+            proxyReq.setHeader("X-Correlation-ID", authReq.correlationId || "");
+            proxyReq.setHeader("X-Forwarded-By", "apicenter-gateway");
 
             // NestJS body-parser consumes req stream before the proxy sees it.
             // Re-stream the parsed body so the upstream actually receives it.
             if (authReq.body && Object.keys(authReq.body).length > 0) {
               const bodyData = JSON.stringify(authReq.body);
-              proxyReq.setHeader('Content-Type', 'application/json');
-              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+              proxyReq.setHeader("Content-Type", "application/json");
+              proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
               proxyReq.write(bodyData);
             }
           },
@@ -251,7 +249,7 @@ export class ProxyHandler {
                 cb.recordFailure();
                 this.deps.logger.warn(
                   `Upstream '${targetServiceId}' returned ${status} — circuit-breaker failure recorded`,
-                  'ProxyHandler',
+                  "ProxyHandler",
                 );
               } else {
                 cb.recordSuccess();
@@ -278,7 +276,7 @@ export class ProxyHandler {
       proxy = createdProxy;
       this.proxyCache.set(targetServiceId, createdProxy);
 
-      this.deps.logger.info('Created proxy instance', {
+      this.deps.logger.info("Created proxy instance", {
         targetServiceId,
         upstream,
         namespace: this.opts.namespace,
@@ -290,7 +288,7 @@ export class ProxyHandler {
     // ── 5. Forward the request ─────────────────────────────────────────────
     const proxyStart = Date.now();
 
-    res.on('finish', () => {
+    res.on("finish", () => {
       const durationSec = (Date.now() - proxyStart) / 1000;
       this.deps.metrics.recordProxyRequest(
         this.opts.namespace,
@@ -342,7 +340,9 @@ export class ProxyHandler {
       return;
     }
 
-    const oldestServiceId = this.proxyCache.keys().next().value as string | undefined;
+    const oldestServiceId = this.proxyCache.keys().next().value as
+      | string
+      | undefined;
     if (!oldestServiceId) {
       return;
     }
@@ -352,37 +352,40 @@ export class ProxyHandler {
 
     this.deps.logger.warn(
       `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,
-      'ProxyHandler',
+      "ProxyHandler",
     );
   }
 
   /** Reject retired services (410) and set RFC 8594 deprecation headers. */
   private enforceLifecycleGate(
-    entry: {
-      status?: string;
-      sunsetDate?: string;
-      replacementService?: string;
-    } | null | undefined,
+    entry:
+      | {
+          status?: string;
+          sunsetDate?: string;
+          replacementService?: string;
+        }
+      | null
+      | undefined,
     serviceId: string,
     res: Response,
   ): void {
-    if (entry?.status === 'retired') {
+    if (entry?.status === "retired") {
       throw new GoneError(
         `Service '${serviceId}' has been retired` +
           (entry.replacementService
             ? `. Migrate to '${entry.replacementService}'`
-            : ''),
+            : ""),
       );
     }
-    if (entry?.status === 'deprecated') {
-      res.setHeader('Deprecation', 'true');
+    if (entry?.status === "deprecated") {
+      res.setHeader("Deprecation", "true");
       if (entry.sunsetDate) {
-        res.setHeader('Sunset', new Date(entry.sunsetDate).toUTCString());
+        res.setHeader("Sunset", new Date(entry.sunsetDate).toUTCString());
       }
       if (entry.replacementService) {
-        const nsPrefix = this.opts.namespace === 'shared' ? 'shared' : 'tribes';
+        const nsPrefix = this.opts.namespace === "shared" ? "shared" : "tribes";
         res.setHeader(
-          'Link',
+          "Link",
           `</api/v1/${nsPrefix}/${entry.replacementService}>; rel="successor-version"`,
         );
       }

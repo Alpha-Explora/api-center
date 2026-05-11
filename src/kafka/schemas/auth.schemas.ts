@@ -2,7 +2,7 @@
 // src/kafka/schemas/auth.schemas.ts — Auth lifecycle event Zod schemas
 // =============================================================================
 
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * TOKEN_ISSUED — emitted after successful M2M token issuance.
@@ -41,7 +41,7 @@ export const TokenRevokedEventSchema = z.object({
   sub: z.string(),
   jti: z.string().optional(),
   revokedCount: z.number().default(1),
-  reason: z.enum(['explicit', 'session-wide', 'expiry']).default('explicit'),
+  reason: z.enum(["explicit", "session-wide", "expiry"]).default("explicit"),
   correlationId: z.string().optional(),
   timestamp: z.string(),
 });

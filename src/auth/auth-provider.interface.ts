@@ -70,7 +70,11 @@ export interface AuthProvider {
    * @param permissions — permission strings to embed
    * @param scopes      — service scopes to embed
    */
-  issueToken(serviceId: string, permissions: string[], scopes: string[]): Promise<IssuedToken>;
+  issueToken(
+    serviceId: string,
+    permissions: string[],
+    scopes: string[],
+  ): Promise<IssuedToken>;
 
   /**
    * Exchange a refresh token for a new access token.
@@ -88,4 +92,4 @@ export interface AuthProvider {
 }
 
 /** NestJS injection token for the active AuthProvider */
-export const AUTH_PROVIDER = 'AUTH_PROVIDER';
+export const AUTH_PROVIDER = "AUTH_PROVIDER";

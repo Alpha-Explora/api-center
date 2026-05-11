@@ -1,6 +1,6 @@
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 
-export const GCP_SECRETS_LOADED_FLAG = 'APICENTER_GCP_SECRETS_LOADED';
+export const GCP_SECRETS_LOADED_FLAG = "APICENTER_GCP_SECRETS_LOADED";
 
 type SecretLoadLogger = {
   info: (message: string) => void;
@@ -24,21 +24,24 @@ function normalizeJsonPayload(raw: string): string {
 export async function loadGcpSecretsIntoEnv(
   logger: SecretLoadLogger = consoleLogger,
 ): Promise<SecretLoadResult> {
-  if (process.env[GCP_SECRETS_LOADED_FLAG] === 'true') {
+  if (process.env[GCP_SECRETS_LOADED_FLAG] === "true") {
     return { loaded: 0, total: 0 };
   }
 
   const secretName = process.env.GCP_SECRET_NAME;
-  const projectId = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
-  const version = process.env.GCP_SECRET_VERSION || 'latest';
+  const projectId =
+    process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
+  const version = process.env.GCP_SECRET_VERSION || "latest";
 
   if (!secretName) {
-    logger.info('GCP_SECRET_NAME not set - using process.env values only');
+    logger.info("GCP_SECRET_NAME not set - using process.env values only");
     return { loaded: 0, total: 0 };
   }
 
   if (!projectId) {
-    logger.warn('GCP secret loading skipped - set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT');
+    logger.warn(
+      "GCP secret loading skipped - set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT",
+    );
     return { loaded: 0, total: 0 };
   }
 
@@ -55,7 +58,9 @@ export async function loadGcpSecretsIntoEnv(
       return { loaded: 0, total: 0 };
     }
 
-    const raw = Buffer.isBuffer(payload) ? payload.toString('utf8') : String(payload);
+    const raw = Buffer.isBuffer(payload)
+      ? payload.toString("utf8")
+      : String(payload);
     const normalized = normalizeJsonPayload(raw);
     const secrets = JSON.parse(normalized) as Record<string, string>;
 
@@ -67,14 +72,16 @@ export async function loadGcpSecretsIntoEnv(
       }
     }
 
-    process.env[GCP_SECRETS_LOADED_FLAG] = 'true';
+    process.env[GCP_SECRETS_LOADED_FLAG] = "true";
     logger.info(
       `Loaded ${loaded} secret(s) from GCP Secret Manager (${Object.keys(secrets).length} total, ${Object.keys(secrets).length - loaded} already set)`,
     );
 
     return { loaded, total: Object.keys(secrets).length };
   } catch (error) {
-    logger.warn(`GCP Secret Manager unavailable - using process.env only: ${(error as Error).message}`);
+    logger.warn(
+      `GCP Secret Manager unavailable - using process.env only: ${(error as Error).message}`,
+    );
     return { loaded: 0, total: 0 };
   }
 }

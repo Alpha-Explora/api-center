@@ -2,7 +2,7 @@
 // src/kafka/schemas/registry.schemas.ts — Service registry event schemas
 // =============================================================================
 
-import { z } from 'zod';
+import { z } from "zod";
 
 export const RegistryServiceRegisteredEventSchema = z.object({
   serviceId: z.string(),
@@ -10,17 +10,21 @@ export const RegistryServiceRegisteredEventSchema = z.object({
   baseUrl: z.string(),
   exposes: z.array(z.string()),
   /** Routing namespace added at registration — 'shared' or 'tribe' */
-  serviceType: z.enum(['shared', 'tribe']).optional(),
+  serviceType: z.enum(["shared", "tribe"]).optional(),
   isUpdate: z.boolean().optional(),
   timestamp: z.string().optional(),
 });
-export type RegistryServiceRegisteredEvent = z.infer<typeof RegistryServiceRegisteredEventSchema>;
+export type RegistryServiceRegisteredEvent = z.infer<
+  typeof RegistryServiceRegisteredEventSchema
+>;
 
 export const RegistryServiceDeregisteredEventSchema = z.object({
   serviceId: z.string(),
   timestamp: z.string().optional(),
 });
-export type RegistryServiceDeregisteredEvent = z.infer<typeof RegistryServiceDeregisteredEventSchema>;
+export type RegistryServiceDeregisteredEvent = z.infer<
+  typeof RegistryServiceDeregisteredEventSchema
+>;
 
 export const RegistryServiceDeprecatedEventSchema = z.object({
   serviceId: z.string(),
@@ -28,13 +32,17 @@ export const RegistryServiceDeprecatedEventSchema = z.object({
   replacementService: z.string().optional(),
   timestamp: z.string().optional(),
 });
-export type RegistryServiceDeprecatedEvent = z.infer<typeof RegistryServiceDeprecatedEventSchema>;
+export type RegistryServiceDeprecatedEvent = z.infer<
+  typeof RegistryServiceDeprecatedEventSchema
+>;
 
 export const RegistryServiceRetiredEventSchema = z.object({
   serviceId: z.string(),
   timestamp: z.string().optional(),
 });
-export type RegistryServiceRetiredEvent = z.infer<typeof RegistryServiceRetiredEventSchema>;
+export type RegistryServiceRetiredEvent = z.infer<
+  typeof RegistryServiceRetiredEventSchema
+>;
 
 export const RegistryServiceVersionChangedEventSchema = z.object({
   serviceId: z.string(),
@@ -42,7 +50,9 @@ export const RegistryServiceVersionChangedEventSchema = z.object({
   newVersion: z.string(),
   timestamp: z.string().optional(),
 });
-export type RegistryServiceVersionChangedEvent = z.infer<typeof RegistryServiceVersionChangedEventSchema>;
+export type RegistryServiceVersionChangedEvent = z.infer<
+  typeof RegistryServiceVersionChangedEventSchema
+>;
 
 export const RegistryServiceHealthChangedEventSchema = z.object({
   serviceId: z.string(),
@@ -51,4 +61,6 @@ export const RegistryServiceHealthChangedEventSchema = z.object({
   reason: z.string().optional(),
   timestamp: z.string().optional(),
 });
-export type RegistryServiceHealthChangedEvent = z.infer<typeof RegistryServiceHealthChangedEventSchema>;
+export type RegistryServiceHealthChangedEvent = z.infer<
+  typeof RegistryServiceHealthChangedEventSchema
+>;

@@ -12,16 +12,24 @@
 //  ALL /api/v1/external/:apiName/* — Proxy call through circuit breaker
 // =============================================================================
 
-import { Controller, Get, All, Req, Res, Param, UseGuards } from '@nestjs/common';
-import { Request, Response } from 'express';
-import { ExternalService } from './external.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ExternalPolicyGuard } from './guards/external-policy.guard';
-import { LoggerService } from '../shared/logger.service';
-import { AuthenticatedRequest } from '../types';
-import { normalizeHttpMethod } from './http-method';
+import {
+  Controller,
+  Get,
+  All,
+  Req,
+  Res,
+  Param,
+  UseGuards,
+} from "@nestjs/common";
+import { Response } from "express";
+import { ExternalService } from "./external.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { ExternalPolicyGuard } from "./guards/external-policy.guard";
+import { LoggerService } from "../shared/logger.service";
+import { AuthenticatedRequest } from "../types";
+import { normalizeHttpMethod } from "./http-method";
 
-@Controller('external')
+@Controller("external")
 @UseGuards(JwtAuthGuard)
 export class ExternalController {
   constructor(
@@ -50,20 +58,22 @@ export class ExternalController {
   /**
    * ALL /api/v1/external/:apiName/* — Proxy to external API through circuit breaker
    */
-  @All(':apiName/*')
+  @All(":apiName/*")
   @UseGuards(ExternalPolicyGuard)
   async proxyCall(
-    @Param('apiName') apiName: string,
+    @Param("apiName") apiName: string,
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     // Wildcard segment captured by the route ':apiName/*' (query string excluded).
-    const wildcardPath = ((req.params as Record<string, string | undefined>)['0'] ?? '').trim();
-    const downstreamPath = `/${wildcardPath}`.replace(/\/{2,}/g, '/');
+    const wildcardPath = (
+      (req.params as Record<string, string | undefined>)["0"] ?? ""
+    ).trim();
+    const downstreamPath = `/${wildcardPath}`.replace(/\/{2,}/g, "/");
     const normalizedApiName = apiName.toLowerCase();
     const method = normalizeHttpMethod(req.method);
 
-    this.logger.info('External proxy call', {
+    this.logger.info("External proxy call", {
       apiName: normalizedApiName,
       method,
       path: downstreamPath,
@@ -76,8 +86,8 @@ export class ExternalController {
       query: req.query as Record<string, string>,
       body: req.body,
       headers: {
-        'X-Correlation-ID': req.correlationId || '',
-        'X-Tribe-Id': req.tribeId || '',
+        "X-Correlation-ID": req.correlationId || "",
+        "X-Tribe-Id": req.tribeId || "",
       },
     });
 

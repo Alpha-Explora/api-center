@@ -1,9 +1,12 @@
-import { ExecutionContext } from '@nestjs/common';
-import { lastValueFrom, of, throwError } from 'rxjs';
-import { MetricsService } from './metrics.service';
-import { MetricsInterceptor } from './metrics.interceptor';
+import { ExecutionContext } from "@nestjs/common";
+import { lastValueFrom, of, throwError } from "rxjs";
+import { MetricsService } from "./metrics.service";
+import { MetricsInterceptor } from "./metrics.interceptor";
 
-function createContext(request: Record<string, unknown>, response: Record<string, unknown>): ExecutionContext {
+function createContext(
+  request: Record<string, unknown>,
+  response: Record<string, unknown>,
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => request,
@@ -12,7 +15,7 @@ function createContext(request: Record<string, unknown>, response: Record<string
   } as unknown as ExecutionContext;
 }
 
-describe('MetricsInterceptor', () => {
+describe("MetricsInterceptor", () => {
   const mockMetrics = {
     recordHttpRequest: jest.fn(),
   } as unknown as MetricsService;
@@ -24,11 +27,11 @@ describe('MetricsInterceptor', () => {
     interceptor = new MetricsInterceptor(mockMetrics);
   });
 
-  it('should record request metrics using normalized route path on success', async () => {
+  it("should record request metrics using normalized route path on success", async () => {
     const request = {
-      method: 'GET',
-      route: { path: '/api/v1/tribes/:targetServiceId/*' },
-      path: '/api/v1/tribes/billing-service/invoices',
+      method: "GET",
+      route: { path: "/api/v1/tribes/:targetServiceId/*" },
+      path: "/api/v1/tribes/billing-service/invoices",
     };
     const response = {
       statusCode: 200,
@@ -41,17 +44,17 @@ describe('MetricsInterceptor', () => {
     );
 
     expect(mockMetrics.recordHttpRequest).toHaveBeenCalledWith(
-      'GET',
-      '/api/v1/tribes/:targetServiceId/*',
+      "GET",
+      "/api/v1/tribes/:targetServiceId/*",
       200,
       expect.any(Number),
     );
   });
 
-  it('should record error metrics with fallback status code when response status is missing', async () => {
+  it("should record error metrics with fallback status code when response status is missing", async () => {
     const request = {
-      method: 'POST',
-      path: '/api/v1/external/kafka/publish',
+      method: "POST",
+      path: "/api/v1/external/kafka/publish",
     };
     const response = {
       statusCode: undefined,
@@ -60,14 +63,14 @@ describe('MetricsInterceptor', () => {
     await expect(
       lastValueFrom(
         interceptor.intercept(createContext(request, response), {
-          handle: () => throwError(() => new Error('request-failed')),
+          handle: () => throwError(() => new Error("request-failed")),
         }),
       ),
-    ).rejects.toThrow('request-failed');
+    ).rejects.toThrow("request-failed");
 
     expect(mockMetrics.recordHttpRequest).toHaveBeenCalledWith(
-      'POST',
-      '/api/v1/external/kafka/publish',
+      "POST",
+      "/api/v1/external/kafka/publish",
       500,
       expect.any(Number),
     );

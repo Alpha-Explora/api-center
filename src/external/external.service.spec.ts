@@ -1,11 +1,11 @@
-import { ExternalService } from './external.service';
-import { ConfigService } from '../config/config.service';
-import { LoggerService } from '../shared/logger.service';
-import { KafkaService } from '../kafka/kafka.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { NotFoundError, ServiceUnavailableError } from '../shared/errors';
+import { ExternalService } from "./external.service";
+import { ConfigService } from "../config/config.service";
+import { LoggerService } from "../shared/logger.service";
+import { KafkaService } from "../kafka/kafka.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { NotFoundError, ServiceUnavailableError } from "../shared/errors";
 
-describe('ExternalService', () => {
+describe("ExternalService", () => {
   let service: ExternalService;
   const originalEnv = process.env;
   const logger = {
@@ -22,12 +22,8 @@ describe('ExternalService', () => {
     setCircuitBreakerState: jest.fn(),
   } as unknown as MetricsService;
 
-  const createService = () => new ExternalService(
-    new ConfigService(),
-    logger,
-    kafka,
-    metrics,
-  );
+  const createService = () =>
+    new ExternalService(new ConfigService(), logger, kafka, metrics);
 
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -39,34 +35,40 @@ describe('ExternalService', () => {
     process.env = originalEnv;
   });
 
-  it('should throw not found when requested API is not configured', async () => {
+  it("should throw not found when requested API is not configured", async () => {
     (service as any).apis = {};
 
     await expect(
-      service.call('unknown-api', { method: 'GET' }),
+      service.call("unknown-api", { method: "GET" }),
     ).rejects.toThrow(NotFoundError);
   });
 
-  it('should throw unavailable when API is configured but client is not initialized', async () => {
+  it("should throw unavailable when API is configured but client is not initialized", async () => {
     (service as any).apis = {
       geo: {
-        displayName: 'Geo API',
-        baseUrl: 'https://geo.example.com',
+        displayName: "Geo API",
+        baseUrl: "https://geo.example.com",
         timeout: 5000,
-        authType: 'none',
-        authHeader: 'Authorization',
+        authType: "none",
+        authHeader: "Authorization",
       },
     };
 
-    await expect(
-      service.call('geo', { method: 'GET' }),
-    ).rejects.toThrow(ServiceUnavailableError);
+    await expect(service.call("geo", { method: "GET" })).rejects.toThrow(
+      ServiceUnavailableError,
+    );
   });
 
-  it('should return breaker stats for every registered breaker', () => {
+  it("should return breaker stats for every registered breaker", () => {
     (service as any).breakers = new Map([
-      ['geo', { getStats: () => ({ name: 'geo', state: 'CLOSED', failureCount: 0 }) }],
-      ['risk', { getStats: () => ({ name: 'risk', state: 'OPEN', failureCount: 3 }) }],
+      [
+        "geo",
+        { getStats: () => ({ name: "geo", state: "CLOSED", failureCount: 0 }) },
+      ],
+      [
+        "risk",
+        { getStats: () => ({ name: "risk", state: "OPEN", failureCount: 3 }) },
+      ],
     ]);
 
     const stats = service.getAllBreakerStats();
@@ -74,10 +76,10 @@ describe('ExternalService', () => {
     expect(stats).toHaveLength(2);
   });
 
-  it('should not expose legacy Kafka REST in the external API catalogue', () => {
+  it("should not expose legacy Kafka REST in the external API catalogue", () => {
     service = createService();
     service.onModuleInit();
 
-    expect(service.listApis().map((api) => api.name)).not.toContain('kafka');
+    expect(service.listApis().map((api) => api.name)).not.toContain("kafka");
   });
 });

@@ -9,8 +9,8 @@
 // However, these interfaces remain useful for internal typing.
 // =============================================================================
 
-import { Request } from 'express';
-import { JwtClaims } from '../auth/auth-provider.interface';
+import { Request } from "express";
+import { JwtClaims } from "../auth/auth-provider.interface";
 
 // ---------------------------------------------------------------------------
 // Express request extensions (used inside NestJS's Express adapter)
@@ -49,17 +49,17 @@ export interface TokenResponse {
 // ---------------------------------------------------------------------------
 
 /** Service tier determines SLA expectations and priority in the platform */
-export type ServiceTier = 'critical' | 'standard' | 'experimental';
+export type ServiceTier = "critical" | "standard" | "experimental";
 
 /** Lifecycle status for governed service management */
 export type ServiceLifecycleStatus =
-  | 'proposed'      // Submitted but not yet approved for traffic
-  | 'active'        // Live and serving traffic
-  | 'deprecated'    // Still live but consumers should migrate
-  | 'retired';      // No longer routable — kept for audit history
+  | "proposed" // Submitted but not yet approved for traffic
+  | "active" // Live and serving traffic
+  | "deprecated" // Still live but consumers should migrate
+  | "retired"; // No longer routable — kept for audit history
 
 /** Routing namespace: shared = platform service, tribe = tribe backend */
-export type ServiceType = 'shared' | 'tribe';
+export type ServiceType = "shared" | "tribe";
 
 /**
  * A service manifest is what a tribe/service sends when registering
@@ -134,7 +134,12 @@ export interface TribeConfigMap {
 // External API types
 // ---------------------------------------------------------------------------
 
-export type ExternalAuthType = 'bearer' | 'api-key' | 'basic' | 'apiKey' | 'none';
+export type ExternalAuthType =
+  | "bearer"
+  | "api-key"
+  | "basic"
+  | "apiKey"
+  | "none";
 
 export interface ExternalApiConfig {
   name: string;
@@ -153,7 +158,14 @@ export interface ExternalApiConfigMap {
   [apiName: string]: ExternalApiConfig;
 }
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+export type HttpMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "HEAD"
+  | "OPTIONS";
 
 export interface ExternalCallOptions {
   method?: HttpMethod;

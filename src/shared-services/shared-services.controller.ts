@@ -18,17 +18,17 @@ import {
   Param,
   UseGuards,
   OnModuleDestroy,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { RegistryService } from '../registry/registry.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AuthService } from '../auth/auth.service';
-import { LoggerService } from '../shared/logger.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { ProxyHandler } from '../shared/proxy-handler';
-import { AuthenticatedRequest } from '../types';
+} from "@nestjs/common";
+import { Response } from "express";
+import { RegistryService } from "../registry/registry.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { AuthService } from "../auth/auth.service";
+import { LoggerService } from "../shared/logger.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { ProxyHandler } from "../shared/proxy-handler";
+import { AuthenticatedRequest } from "../types";
 
-@Controller('shared')
+@Controller("shared")
 @UseGuards(JwtAuthGuard)
 export class SharedServicesController implements OnModuleDestroy {
   private readonly handler: ProxyHandler;
@@ -43,7 +43,7 @@ export class SharedServicesController implements OnModuleDestroy {
     this.auth = auth;
     this.handler = new ProxyHandler(
       { registry, auth, logger, metrics },
-      { namespace: 'shared', pathPrefix: '/api/v1/shared' },
+      { namespace: "shared", pathPrefix: "/api/v1/shared" },
     );
   }
 
@@ -56,7 +56,7 @@ export class SharedServicesController implements OnModuleDestroy {
   listSharedServices(@Req() req: AuthenticatedRequest) {
     const tribeId = req.tribeId;
     const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
-    const includeNonConsumable = callerScopes.includes('platform:admin');
+    const includeNonConsumable = callerScopes.includes("platform:admin");
     const services = this.handler.listServices(tribeId, includeNonConsumable);
 
     return {
@@ -65,7 +65,7 @@ export class SharedServicesController implements OnModuleDestroy {
       meta: {
         total: services.length,
         tribeId,
-        namespace: 'shared',
+        namespace: "shared",
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
       },
@@ -73,13 +73,12 @@ export class SharedServicesController implements OnModuleDestroy {
   }
 
   // ─── Dynamic Proxy to shared services ────────────────────────────────────────
-  @All(':serviceId/*')
+  @All(":serviceId/*")
   async proxy(
-    @Param('serviceId') serviceId: string,
+    @Param("serviceId") serviceId: string,
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     await this.handler.proxyRequest(serviceId, req, res);
   }
 }
-

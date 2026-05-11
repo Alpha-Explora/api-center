@@ -12,10 +12,10 @@
 // storage is independent of key management.
 // =============================================================================
 
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import Redis from 'ioredis';
-import { LoggerService } from '../shared/logger.service';
-import { ConfigService } from '../config/config.service';
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import Redis from "ioredis";
+import { LoggerService } from "../shared/logger.service";
+import { ConfigService } from "../config/config.service";
 
 /** Stored refresh token payload */
 export interface RefreshTokenRecord {
@@ -51,11 +51,14 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
       });
 
       await this.redis.connect();
-      this.logger.log('TokenStoreService: Connected to Redis (cache)', 'TokenStoreService');
+      this.logger.log(
+        "TokenStoreService: Connected to Redis (cache)",
+        "TokenStoreService",
+      );
     } catch (err) {
       this.logger.warn(
         `TokenStoreService: Redis unavailable — refresh token persistence disabled: ${(err as Error).message}`,
-        'TokenStoreService',
+        "TokenStoreService",
       );
       this.redis = null;
     }
@@ -68,7 +71,7 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
   }
 
   isRedisConnected(): boolean {
-    return this.redis?.status === 'ready';
+    return this.redis?.status === "ready";
   }
 
   // ---------------------------------------------------------------------------
@@ -93,7 +96,7 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.debug(
       `TokenStoreService: Stored refresh token jti=${record.jti} sub=${record.sub} ttl=${ttlSeconds}s`,
-      'TokenStoreService',
+      "TokenStoreService",
     );
   }
 
@@ -121,8 +124,8 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
     if (!this.redis) {
       if (!this.hasLoggedRedisValidationFallback) {
         this.logger.warn(
-          'TokenStoreService: Redis unavailable during token validity check; failing closed',
-          'TokenStoreService',
+          "TokenStoreService: Redis unavailable during token validity check; failing closed",
+          "TokenStoreService",
         );
         this.hasLoggedRedisValidationFallback = true;
       }
@@ -153,7 +156,7 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
       await this.removeFromSession(record.sub, jti);
       this.logger.log(
         `TokenStoreService: Revoked refresh token jti=${jti} sub=${record.sub}`,
-        'TokenStoreService',
+        "TokenStoreService",
       );
       return true;
     }
@@ -183,7 +186,7 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(
       `TokenStoreService: Revoked ${jtiList.length} refresh token(s) for sub=${sub}`,
-      'TokenStoreService',
+      "TokenStoreService",
     );
 
     return jtiList.length;
@@ -201,7 +204,11 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
   // Session index helpers (private)
   // ---------------------------------------------------------------------------
 
-  private async addToSession(sub: string, jti: string, tokenTtlSeconds: number): Promise<void> {
+  private async addToSession(
+    sub: string,
+    jti: string,
+    tokenTtlSeconds: number,
+  ): Promise<void> {
     if (!this.redis) return;
     const sessionKey = this.sessionKey(sub);
     const sessionTtl = this.config.redis.sessionTtlSeconds;
@@ -210,7 +217,10 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
     // Refresh the session TTL to at least the token TTL
     const currentTtl = await this.redis.ttl(sessionKey);
     if (currentTtl < tokenTtlSeconds) {
-      await this.redis.expire(sessionKey, Math.max(sessionTtl, tokenTtlSeconds));
+      await this.redis.expire(
+        sessionKey,
+        Math.max(sessionTtl, tokenTtlSeconds),
+      );
     }
   }
 

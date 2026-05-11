@@ -14,10 +14,10 @@
 // to process.env so local development works without any Vault setup.
 // =============================================================================
 
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
-import { LoggerService } from '../shared/logger.service';
-import { ConfigService } from '../config/config.service';
+import { Injectable, OnModuleInit } from "@nestjs/common";
+import axios, { AxiosInstance } from "axios";
+import { LoggerService } from "../shared/logger.service";
+import { ConfigService } from "../config/config.service";
 
 @Injectable()
 export class VaultService implements OnModuleInit {
@@ -42,21 +42,24 @@ export class VaultService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     if (this.config.vault.devMode) {
       this.logger.warn(
-        'VaultService: VAULT_DEV_MODE=true — using root token, no unsealing required. DO NOT use in production.',
-        'VaultService',
+        "VaultService: VAULT_DEV_MODE=true — using root token, no unsealing required. DO NOT use in production.",
+        "VaultService",
       );
       // Vault dev server uses "root" as the default root token
-      this.vaultToken = this.config.vault.token || 'root';
+      this.vaultToken = this.config.vault.token || "root";
       this.available = true;
       await this.loadSecrets();
       return;
     }
 
-    if (!this.config.vault.token && (!this.config.vault.roleId || !this.config.vault.secretId)) {
+    if (
+      !this.config.vault.token &&
+      (!this.config.vault.roleId || !this.config.vault.secretId)
+    ) {
       this.logger.warn(
-        'VaultService: No Vault credentials configured (VAULT_TOKEN or VAULT_ROLE_ID+VAULT_SECRET_ID). ' +
-          'Skipping Vault — using process.env for secrets.',
-        'VaultService',
+        "VaultService: No Vault credentials configured (VAULT_TOKEN or VAULT_ROLE_ID+VAULT_SECRET_ID). " +
+          "Skipping Vault — using process.env for secrets.",
+        "VaultService",
       );
       return;
     }
@@ -68,7 +71,7 @@ export class VaultService implements OnModuleInit {
     } catch (err) {
       this.logger.warn(
         `VaultService: Authentication failed — falling back to process.env: ${(err as Error).message}`,
-        'VaultService',
+        "VaultService",
       );
     }
   }
@@ -86,23 +89,28 @@ export class VaultService implements OnModuleInit {
 
     if (roleId && secretId) {
       // AppRole authentication — recommended for production
-      const response = await this.client.post<{ auth: { client_token: string } }>(
-        '/v1/auth/approle/login',
-        { role_id: roleId, secret_id: secretId },
-      );
+      const response = await this.client.post<{
+        auth: { client_token: string };
+      }>("/v1/auth/approle/login", { role_id: roleId, secret_id: secretId });
       this.vaultToken = response.data.auth.client_token;
-      this.logger.log('VaultService: Authenticated via AppRole', 'VaultService');
+      this.logger.log(
+        "VaultService: Authenticated via AppRole",
+        "VaultService",
+      );
       return;
     }
 
     if (token) {
       // Static token — acceptable for dev/staging, not ideal for production
       this.vaultToken = token;
-      this.logger.log('VaultService: Authenticated via static token', 'VaultService');
+      this.logger.log(
+        "VaultService: Authenticated via static token",
+        "VaultService",
+      );
       return;
     }
 
-    throw new Error('No valid Vault credentials found');
+    throw new Error("No valid Vault credentials found");
   }
 
   // ---------------------------------------------------------------------------
@@ -119,8 +127,8 @@ export class VaultService implements OnModuleInit {
     const path = this.config.vault.secretPath;
     if (!path) {
       this.logger.warn(
-        'VaultService: VAULT_SECRET_PATH not set — skipping secret load',
-        'VaultService',
+        "VaultService: VAULT_SECRET_PATH not set — skipping secret load",
+        "VaultService",
       );
       return;
     }
@@ -128,8 +136,10 @@ export class VaultService implements OnModuleInit {
     try {
       // KV v2 path format: /v1/{mount}/data/{path}
       const kvPath = this.buildKvPath(path);
-      const response = await this.client.get<{ data: { data: Record<string, string> } }>(kvPath, {
-        headers: { 'X-Vault-Token': this.vaultToken },
+      const response = await this.client.get<{
+        data: { data: Record<string, string> };
+      }>(kvPath, {
+        headers: { "X-Vault-Token": this.vaultToken },
       });
 
       const secrets = response.data?.data?.data ?? {};
@@ -144,12 +154,12 @@ export class VaultService implements OnModuleInit {
 
       this.logger.log(
         `VaultService: Loaded ${loaded} secret(s) from ${path} (${Object.keys(secrets).length} total, ${Object.keys(secrets).length - loaded} skipped as already set)`,
-        'VaultService',
+        "VaultService",
       );
     } catch (err) {
       this.logger.warn(
         `VaultService: Failed to load secrets from '${path}': ${(err as Error).message}`,
-        'VaultService',
+        "VaultService",
       );
     }
   }
@@ -163,8 +173,10 @@ export class VaultService implements OnModuleInit {
 
     try {
       const kvPath = this.buildKvPath(path);
-      const response = await this.client.get<{ data: { data: Record<string, string> } }>(kvPath, {
-        headers: { 'X-Vault-Token': this.vaultToken },
+      const response = await this.client.get<{
+        data: { data: Record<string, string> };
+      }>(kvPath, {
+        headers: { "X-Vault-Token": this.vaultToken },
       });
       return response.data?.data?.data?.[key] ?? null;
     } catch {
@@ -185,25 +197,29 @@ export class VaultService implements OnModuleInit {
    */
   async sign(input: string | Buffer): Promise<string> {
     if (!this.available || !this.vaultToken) {
-      throw new Error('VaultService: Vault is not available for signing operations');
+      throw new Error(
+        "VaultService: Vault is not available for signing operations",
+      );
     }
 
     const keyName = this.config.vault.transitKey;
     if (!keyName) {
-      throw new Error('VaultService: VAULT_TRANSIT_KEY is not configured');
+      throw new Error("VaultService: VAULT_TRANSIT_KEY is not configured");
     }
 
-    const inputStr = Buffer.isBuffer(input) ? input.toString('base64') : Buffer.from(input).toString('base64');
+    const inputStr = Buffer.isBuffer(input)
+      ? input.toString("base64")
+      : Buffer.from(input).toString("base64");
 
     const response = await this.client.post<{ data: { signature: string } }>(
       `/v1/transit/sign/${keyName}`,
-      { input: inputStr, prehashed: false, hash_algorithm: 'sha2-256' },
-      { headers: { 'X-Vault-Token': this.vaultToken } },
+      { input: inputStr, prehashed: false, hash_algorithm: "sha2-256" },
+      { headers: { "X-Vault-Token": this.vaultToken } },
     );
 
     // Vault returns "vault:v1:<base64_sig>" — strip the prefix
     const raw = response.data.data.signature;
-    return raw.replace(/^vault:v\d+:/, '');
+    return raw.replace(/^vault:v\d+:/, "");
   }
 
   /**
@@ -218,13 +234,19 @@ export class VaultService implements OnModuleInit {
     const keyName = this.config.vault.transitKey;
     if (!keyName) return false;
 
-    const inputStr = Buffer.isBuffer(input) ? input.toString('base64') : Buffer.from(input).toString('base64');
+    const inputStr = Buffer.isBuffer(input)
+      ? input.toString("base64")
+      : Buffer.from(input).toString("base64");
 
     try {
       const response = await this.client.post<{ data: { valid: boolean } }>(
         `/v1/transit/verify/${keyName}`,
-        { input: inputStr, signature: `vault:v1:${signature}`, hash_algorithm: 'sha2-256' },
-        { headers: { 'X-Vault-Token': this.vaultToken } },
+        {
+          input: inputStr,
+          signature: `vault:v1:${signature}`,
+          hash_algorithm: "sha2-256",
+        },
+        { headers: { "X-Vault-Token": this.vaultToken } },
       );
       return response.data.data.valid === true;
     } catch {
@@ -249,12 +271,14 @@ export class VaultService implements OnModuleInit {
       const response = await this.client.get<{
         data: { keys: Record<string, { public_key: string }> };
       }>(`/v1/transit/keys/${keyName}`, {
-        headers: { 'X-Vault-Token': this.vaultToken },
+        headers: { "X-Vault-Token": this.vaultToken },
       });
 
       // Get the latest key version
       const keys = response.data.data.keys;
-      const latestVersion = Object.keys(keys).sort((a, b) => Number(b) - Number(a))[0];
+      const latestVersion = Object.keys(keys).sort(
+        (a, b) => Number(b) - Number(a),
+      )[0];
       return keys[latestVersion]?.public_key ?? null;
     } catch {
       return null;
@@ -271,19 +295,20 @@ export class VaultService implements OnModuleInit {
    * Called every 30 minutes by the cron job in HealthMonitorService.
    */
   async renewToken(): Promise<void> {
-    if (!this.available || !this.vaultToken || this.config.vault.devMode) return;
+    if (!this.available || !this.vaultToken || this.config.vault.devMode)
+      return;
 
     try {
       await this.client.post(
-        '/v1/auth/token/renew-self',
+        "/v1/auth/token/renew-self",
         {},
-        { headers: { 'X-Vault-Token': this.vaultToken } },
+        { headers: { "X-Vault-Token": this.vaultToken } },
       );
-      this.logger.log('VaultService: Token renewed', 'VaultService');
+      this.logger.log("VaultService: Token renewed", "VaultService");
     } catch (err) {
       this.logger.warn(
         `VaultService: Token renewal failed — attempting re-authentication: ${(err as Error).message}`,
-        'VaultService',
+        "VaultService",
       );
       // Re-authenticate if renewal fails (token may have expired)
       try {
@@ -292,7 +317,7 @@ export class VaultService implements OnModuleInit {
         this.logger.error(
           `VaultService: Re-authentication failed: ${(authErr as Error).message}`,
           (authErr as Error).stack,
-          'VaultService',
+          "VaultService",
         );
         this.available = false;
       }
@@ -314,9 +339,9 @@ export class VaultService implements OnModuleInit {
   private buildKvPath(logicalPath: string): string {
     // logicalPath format: "{mount}/{secret-path}"
     // API format: /v1/{mount}/data/{secret-path}
-    const parts = logicalPath.replace(/^\//, '').split('/');
+    const parts = logicalPath.replace(/^\//, "").split("/");
     const mount = parts[0];
-    const secretPath = parts.slice(1).join('/');
+    const secretPath = parts.slice(1).join("/");
     return `/v1/${mount}/data/${secretPath}`;
   }
 }

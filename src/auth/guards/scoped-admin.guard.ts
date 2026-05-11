@@ -17,15 +17,15 @@
 // REPLACES: Descope-specific ScopedAdminGuard (validates via AuthService now)
 // =============================================================================
 
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Request } from 'express';
-import { ConfigService } from '../../config/config.service';
-import { AuthService } from '../auth.service';
-import { LoggerService } from '../../shared/logger.service';
-import { UnauthorizedError } from '../../shared/errors';
-import { AuthenticatedRequest } from '../../types';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Request } from "express";
+import { ConfigService } from "../../config/config.service";
+import { AuthService } from "../auth.service";
+import { LoggerService } from "../../shared/logger.service";
+import { UnauthorizedError } from "../../shared/errors";
+import { AuthenticatedRequest } from "../../types";
 
-const ADMIN_SCOPE = 'platform:admin';
+const ADMIN_SCOPE = "platform:admin";
 
 @Injectable()
 export class ScopedAdminGuard implements CanActivate {
@@ -39,12 +39,15 @@ export class ScopedAdminGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
 
     // ── Path 1: Legacy shared-secret (deprecated) ──────────────────────────
-    const secret = request.headers['x-platform-secret'] as string | undefined;
+    const secret = request.headers["x-platform-secret"] as string | undefined;
     if (secret) {
-      if (this.config.platformAdminSecret && secret === this.config.platformAdminSecret) {
+      if (
+        this.config.platformAdminSecret &&
+        secret === this.config.platformAdminSecret
+      ) {
         this.logger.debug(
           `Admin access via X-Platform-Secret from ${request.ip} (deprecated path)`,
-          'ScopedAdminGuard',
+          "ScopedAdminGuard",
         );
         return true;
       }
@@ -53,7 +56,7 @@ export class ScopedAdminGuard implements CanActivate {
 
     // ── Path 2: JWT with platform:admin scope ──────────────────────────────
     // Validation is delegated to AuthService → AuthProvider (Descope, Keycloak, or DevJwt)
-    const token = request.headers.authorization?.split(' ')[1];
+    const token = request.headers.authorization?.split(" ")[1];
     if (token) {
       try {
         const claims = await this.auth.validateToken(token);
@@ -66,27 +69,26 @@ export class ScopedAdminGuard implements CanActivate {
           (request as AuthenticatedRequest).tribeId = claims.tribeId;
           this.logger.debug(
             `Admin access via JWT scope '${ADMIN_SCOPE}' from ${request.ip}`,
-            'ScopedAdminGuard',
+            "ScopedAdminGuard",
           );
           return true;
         }
 
         this.logger.warn(
           `JWT valid but missing '${ADMIN_SCOPE}' scope from ${request.ip} on ${request.path}`,
-          'ScopedAdminGuard',
+          "ScopedAdminGuard",
         );
       } catch {
         this.logger.warn(
           `Admin JWT validation failed from ${request.ip} on ${request.path}`,
-          'ScopedAdminGuard',
+          "ScopedAdminGuard",
         );
       }
     }
 
     // ── Neither path succeeded ─────────────────────────────────────────────
     throw new UnauthorizedError(
-      'Admin access requires a valid X-Platform-Secret header or a JWT with platform:admin scope',
+      "Admin access requires a valid X-Platform-Secret header or a JWT with platform:admin scope",
     );
   }
 }
-

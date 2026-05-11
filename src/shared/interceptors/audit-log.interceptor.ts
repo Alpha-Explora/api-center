@@ -14,13 +14,13 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
-import { Request, Response } from 'express';
-import { KafkaService } from '../../kafka/kafka.service';
-import { TOPICS } from '../../kafka/topics';
-import { AuthenticatedRequest } from '../../types';
-import { isHealthCheckPath } from '../health-path';
+} from "@nestjs/common";
+import { Observable, tap } from "rxjs";
+import { Request, Response } from "express";
+import { KafkaService } from "../../kafka/kafka.service";
+import { TOPICS } from "../../kafka/topics";
+import { AuthenticatedRequest } from "../../types";
+import { isHealthCheckPath } from "../health-path";
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
@@ -47,22 +47,27 @@ export class AuditLogInterceptor implements NestInterceptor {
     const authReq = request as AuthenticatedRequest;
 
     // Extract the target service from tribe proxy URLs  /api/v1/tribes/:targetServiceId/*
-    const pathParts = request.originalUrl.split('/');
-    const tribesIdx = pathParts.indexOf('tribes');
-    const targetServiceId = tribesIdx >= 0 ? pathParts[tribesIdx + 1] : undefined;
+    const pathParts = request.originalUrl.split("/");
+    const tribesIdx = pathParts.indexOf("tribes");
+    const targetServiceId =
+      tribesIdx >= 0 ? pathParts[tribesIdx + 1] : undefined;
 
-    this.kafka.publishNonBlocking(TOPICS.AUDIT_LOG, {
-        tribeId: authReq.tribeId || 'anonymous',
+    this.kafka.publishNonBlocking(
+      TOPICS.AUDIT_LOG,
+      {
+        tribeId: authReq.tribeId || "anonymous",
         method: request.method,
         path: request.originalUrl,
         statusCode: response.statusCode,
         durationMs: Date.now() - start,
-        ip: request.ip || 'unknown',
+        ip: request.ip || "unknown",
         correlationId: authReq.correlationId,
         ...(targetServiceId && { targetServiceId }),
-      }, {
+      },
+      {
         key: authReq.tribeId,
-        context: 'AuditLogInterceptor',
-      });
+        context: "AuditLogInterceptor",
+      },
+    );
   }
 }

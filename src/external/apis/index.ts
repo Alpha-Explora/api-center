@@ -6,11 +6,11 @@
 // via the service registry and routed through /api/v1/shared/*.
 // =============================================================================
 
-import { ConfigService } from '../../config/config.service';
-import { ExternalApiConfigMap } from '../../types';
-import { createGeolocationApi } from './geolocation';
-import { createGeotaggingApi } from './geotagging';
-import { createGeofencingApi } from './geofencing';
+import { ConfigService } from "../../config/config.service";
+import { ExternalApiConfigMap } from "../../types";
+import { createGeolocationApi } from "./geolocation";
+import { createGeotaggingApi } from "./geotagging";
+import { createGeofencingApi } from "./geofencing";
 
 /**
  * Build the external API config map from centralised ConfigService.

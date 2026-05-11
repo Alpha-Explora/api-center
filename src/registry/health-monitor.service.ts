@@ -16,15 +16,15 @@
 //     memory from Redis and log a warning so operators can investigate.
 // =============================================================================
 
-import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
-import { VaultService } from '../auth/vault.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import axios from 'axios';
-import { RegistryService } from './registry.service';
-import { LoggerService } from '../shared/logger.service';
-import { KafkaService } from '../kafka/kafka.service';
-import { ConfigService } from '../config/config.service';
-import { TOPICS } from '../kafka/topics';
+import { Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
+import { VaultService } from "../auth/vault.service";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import axios from "axios";
+import { RegistryService } from "./registry.service";
+import { LoggerService } from "../shared/logger.service";
+import { KafkaService } from "../kafka/kafka.service";
+import { ConfigService } from "../config/config.service";
+import { TOPICS } from "../kafka/topics";
 
 @Injectable()
 export class HealthMonitorService implements OnModuleDestroy {
@@ -63,8 +63,8 @@ export class HealthMonitorService implements OnModuleDestroy {
       const checkable = entries.filter(
         (svc) =>
           svc.healthCheck &&
-          svc.status !== 'retired' &&
-          svc.status !== 'proposed',
+          svc.status !== "retired" &&
+          svc.status !== "proposed",
       );
 
       if (checkable.length === 0) return;
@@ -86,20 +86,25 @@ export class HealthMonitorService implements OnModuleDestroy {
                 `Service '${svc.serviceId}' recovered — marked healthy`,
                 { serviceId: svc.serviceId, url, status: response.status },
               );
-              this.emitHealthChanged(svc.serviceId, true, false, 'Health check succeeded');
+              this.emitHealthChanged(
+                svc.serviceId,
+                true,
+                false,
+                "Health check succeeded",
+              );
             } else {
               // No state change — just touch the timestamp
               this.registry.touchHealthCheck(svc.serviceId);
             }
           } catch (err) {
-            const reason = (err as Error).message || 'Unknown error';
+            const reason = (err as Error).message || "Unknown error";
 
             // Mark unhealthy
             const changed = this.registry.setHealthStatus(svc.serviceId, false);
             if (changed) {
               this.logger.warn(
                 `Service '${svc.serviceId}' is unreachable — marked unhealthy: ${reason}`,
-                'HealthMonitor',
+                "HealthMonitor",
               );
               this.emitHealthChanged(svc.serviceId, false, true, reason);
             } else {
@@ -110,11 +115,11 @@ export class HealthMonitorService implements OnModuleDestroy {
       );
 
       // Log any unexpected promise rejections (should not happen, but belt & suspenders)
-      const failures = results.filter((r) => r.status === 'rejected');
+      const failures = results.filter((r) => r.status === "rejected");
       if (failures.length > 0) {
         this.logger.warn(
           `${failures.length} health check(s) threw unexpected errors`,
-          'HealthMonitor',
+          "HealthMonitor",
         );
       }
     } finally {
@@ -136,9 +141,7 @@ export class HealthMonitorService implements OnModuleDestroy {
 
       // Redis unavailable — nothing to reconcile against
       if (redisEntries === null) {
-        this.logger.debug(
-          'Redis unavailable — skipping drift reconciliation',
-        );
+        this.logger.debug("Redis unavailable — skipping drift reconciliation");
         return;
       }
 
@@ -171,7 +174,7 @@ export class HealthMonitorService implements OnModuleDestroy {
         diverged.length > 0;
 
       if (!hasDrift) {
-        this.logger.debug('Redis drift check passed — no discrepancies');
+        this.logger.debug("Redis drift check passed — no discrepancies");
         return;
       }
 
@@ -182,25 +185,25 @@ export class HealthMonitorService implements OnModuleDestroy {
           `missingInRedis=${missingInRedis.length}, ` +
           `diverged=${diverged.length}. ` +
           `Resyncing local memory from Redis.`,
-        'HealthMonitor',
+        "HealthMonitor",
       );
 
       if (missingInMemory.length > 0) {
         this.logger.warn(
-          `Services in Redis but missing locally: ${missingInMemory.join(', ')}`,
-          'HealthMonitor',
+          `Services in Redis but missing locally: ${missingInMemory.join(", ")}`,
+          "HealthMonitor",
         );
       }
       if (missingInRedis.length > 0) {
         this.logger.warn(
-          `Services in memory but missing from Redis: ${missingInRedis.join(', ')}`,
-          'HealthMonitor',
+          `Services in memory but missing from Redis: ${missingInRedis.join(", ")}`,
+          "HealthMonitor",
         );
       }
       if (diverged.length > 0) {
         this.logger.warn(
-          `Services with diverged state: ${diverged.join(', ')}`,
-          'HealthMonitor',
+          `Services with diverged state: ${diverged.join(", ")}`,
+          "HealthMonitor",
         );
       }
 
@@ -208,14 +211,14 @@ export class HealthMonitorService implements OnModuleDestroy {
       await this.registry.loadFromRedis();
 
       this.logger.info(
-        'Registry resynced from Redis after drift detection',
+        "Registry resynced from Redis after drift detection",
         {},
       );
     } catch (err) {
       this.logger.error(
         `Redis drift reconciliation failed: ${(err as Error).message}`,
         (err as Error).stack,
-        'HealthMonitor',
+        "HealthMonitor",
       );
     } finally {
       this.reconciliationRunning = false;
@@ -235,9 +238,9 @@ export class HealthMonitorService implements OnModuleDestroy {
       return value.map((item) => this.normalizeForFingerprint(item));
     }
 
-    if (value && typeof value === 'object') {
+    if (value && typeof value === "object") {
       return Object.keys(value as Record<string, unknown>)
-        .filter((key) => key !== 'lastHealthCheckAt')
+        .filter((key) => key !== "lastHealthCheckAt")
         .sort()
         .reduce<Record<string, unknown>>((normalized, key) => {
           normalized[key] = this.normalizeForFingerprint(
@@ -258,7 +261,7 @@ export class HealthMonitorService implements OnModuleDestroy {
   // requiring a restart.
   // =========================================================================
 
-  @Cron('0 */30 * * * *')
+  @Cron("0 */30 * * * *")
   async handleVaultTokenRenewal(): Promise<void> {
     if (!this.vault) return;
     try {
@@ -267,7 +270,7 @@ export class HealthMonitorService implements OnModuleDestroy {
       this.logger.error(
         `Vault token renewal failed: ${(err as Error).message}`,
         (err as Error).stack,
-        'HealthMonitor',
+        "HealthMonitor",
       );
     }
   }
@@ -278,14 +281,18 @@ export class HealthMonitorService implements OnModuleDestroy {
     previousHealthy: boolean,
     reason: string,
   ): void {
-    this.kafka.publishNonBlocking(TOPICS.SERVICE_HEALTH_CHANGED, {
-      serviceId,
-      healthy,
-      previousHealthy,
-      reason,
-      timestamp: new Date().toISOString(),
-    }, {
-      context: 'HealthMonitor',
-    });
+    this.kafka.publishNonBlocking(
+      TOPICS.SERVICE_HEALTH_CHANGED,
+      {
+        serviceId,
+        healthy,
+        previousHealthy,
+        reason,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        context: "HealthMonitor",
+      },
+    );
   }
 }

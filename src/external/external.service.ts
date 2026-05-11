@@ -9,17 +9,25 @@
 // per-API. Lifecycle hooks handle init/cleanup.
 // =============================================================================
 
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import { ConfigService } from '../config/config.service';
-import { LoggerService } from '../shared/logger.service';
-import { KafkaService } from '../kafka/kafka.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { CircuitBreaker, CircuitState } from '../shared/circuit-breaker';
-import { BadGatewayError, NotFoundError, ServiceUnavailableError } from '../shared/errors';
-import { ExternalApiConfig, ExternalApiConfigMap, ExternalCallOptions } from '../types';
-import { buildExternalApis } from './apis';
-import { TOPICS } from '../kafka/topics';
+import { Injectable, OnModuleInit } from "@nestjs/common";
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
+import { ConfigService } from "../config/config.service";
+import { LoggerService } from "../shared/logger.service";
+import { KafkaService } from "../kafka/kafka.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { CircuitBreaker, CircuitState } from "../shared/circuit-breaker";
+import {
+  BadGatewayError,
+  NotFoundError,
+  ServiceUnavailableError,
+} from "../shared/errors";
+import {
+  ExternalApiConfig,
+  ExternalApiConfigMap,
+  ExternalCallOptions,
+} from "../types";
+import { buildExternalApis } from "./apis";
+import { TOPICS } from "../kafka/topics";
 
 @Injectable()
 export class ExternalService implements OnModuleInit {
@@ -41,7 +49,9 @@ export class ExternalService implements OnModuleInit {
     for (const [name, cfg] of Object.entries(this.apis)) {
       this.initClient(name, cfg);
     }
-    this.logger.info(`ExternalService: initialised ${this.clients.size} API client(s)`);
+    this.logger.info(
+      `ExternalService: initialised ${this.clients.size} API client(s)`,
+    );
   }
 
   // ─── API Catalogue ───────────────────────────────────────────────────────────
@@ -52,7 +62,7 @@ export class ExternalService implements OnModuleInit {
       baseUrl: cfg.baseUrl,
       authType: cfg.authType,
       timeout: cfg.timeout,
-      circuitBreakerState: this.breakers.get(key)?.getState() ?? 'unknown',
+      circuitBreakerState: this.breakers.get(key)?.getState() ?? "unknown",
     }));
   }
 
@@ -73,7 +83,10 @@ export class ExternalService implements OnModuleInit {
   }
 
   // ─── Proxied call ────────────────────────────────────────────────────────────
-  async call(apiName: string, options: ExternalCallOptions): Promise<{
+  async call(
+    apiName: string,
+    options: ExternalCallOptions,
+  ): Promise<{
     status: number;
     headers: Record<string, unknown>;
     data: unknown;
@@ -86,20 +99,22 @@ export class ExternalService implements OnModuleInit {
 
     const client = this.clients.get(apiName);
     if (!client) {
-      throw new ServiceUnavailableError(`Client for '${apiName}' is not initialised`);
+      throw new ServiceUnavailableError(
+        `Client for '${apiName}' is not initialised`,
+      );
     }
 
     const breaker = this.breakers.get(apiName)!;
 
     return breaker.execute(async () => {
       const axiosCfg: AxiosRequestConfig = {
-        method: options.method || 'GET',
-        url: options.path || '/',
+        method: options.method || "GET",
+        url: options.path || "/",
         params: options.query,
         data: options.body,
         headers: {
           ...options.headers,
-          'X-Forwarded-By': 'apicenter-gateway',
+          "X-Forwarded-By": "apicenter-gateway",
         },
         timeout: options.timeout || cfg.timeout,
       };
@@ -109,10 +124,12 @@ export class ExternalService implements OnModuleInit {
       try {
         const resp = await client.request(axiosCfg);
         const duration = Date.now() - start;
-        const callerTribeId = options.headers?.['X-Tribe-Id'] || 'unknown';
-        const correlationId = options.headers?.['X-Correlation-ID'];
+        const callerTribeId = options.headers?.["X-Tribe-Id"] || "unknown";
+        const correlationId = options.headers?.["X-Correlation-ID"];
 
-        this.kafka.publishNonBlocking(TOPICS.EXTERNAL_REQUEST, {
+        this.kafka.publishNonBlocking(
+          TOPICS.EXTERNAL_REQUEST,
+          {
             api: apiName,
             method: axiosCfg.method,
             path: axiosCfg.url,
@@ -121,11 +138,13 @@ export class ExternalService implements OnModuleInit {
             timestamp: new Date().toISOString(),
             tribeId: callerTribeId,
             correlationId,
-            policyDecision: 'allow',
-          }, {
+            policyDecision: "allow",
+          },
+          {
             key: callerTribeId,
-            context: 'ExternalService',
-          });
+            context: "ExternalService",
+          },
+        );
 
         return {
           status: resp.status,
@@ -135,22 +154,27 @@ export class ExternalService implements OnModuleInit {
         };
       } catch (error: any) {
         const duration = Date.now() - start;
-        this.logger.error(`External call to ${apiName} failed (${duration}ms): ${error.message}`);
-        throw new BadGatewayError(`External API '${apiName}' returned an error: ${error.message}`);
+        this.logger.error(
+          `External call to ${apiName} failed (${duration}ms): ${error.message}`,
+        );
+        throw new BadGatewayError(
+          `External API '${apiName}' returned an error: ${error.message}`,
+        );
       }
     });
   }
 
   // ─── Private ─────────────────────────────────────────────────────────────────
   private initClient(name: string, cfg: ExternalApiConfig) {
-    const headers: Record<string, string> = { 'User-Agent': 'APICenter/1.0' };
+    const headers: Record<string, string> = { "User-Agent": "APICenter/1.0" };
 
     if (cfg.authValue && cfg.authHeader) {
-      if (cfg.authType === 'bearer') {
+      if (cfg.authType === "bearer") {
         headers[cfg.authHeader] = `Bearer ${cfg.authValue}`;
-      } else if (cfg.authType === 'basic') {
-        headers[cfg.authHeader] = `Basic ${Buffer.from(cfg.authValue).toString('base64')}`;
-      } else if (cfg.authType === 'apiKey') {
+      } else if (cfg.authType === "basic") {
+        headers[cfg.authHeader] =
+          `Basic ${Buffer.from(cfg.authValue).toString("base64")}`;
+      } else if (cfg.authType === "apiKey") {
         headers[cfg.authHeader] = cfg.authValue;
       }
     }
@@ -172,28 +196,38 @@ export class ExternalService implements OnModuleInit {
 
         // Publish Kafka events on OPEN and CLOSED transitions
         if (to === CircuitState.OPEN) {
-          this.kafka.publishNonBlocking(TOPICS.GATEWAY_ERROR, {
-              event: 'circuit_breaker_opened',
+          this.kafka.publishNonBlocking(
+            TOPICS.GATEWAY_ERROR,
+            {
+              event: "circuit_breaker_opened",
               apiName: breakerName,
               previousState: from,
               timestamp: new Date().toISOString(),
-            }, {
-              context: 'ExternalService',
-            });
+            },
+            {
+              context: "ExternalService",
+            },
+          );
         } else if (to === CircuitState.CLOSED) {
-          this.kafka.publishNonBlocking(TOPICS.GATEWAY_RESPONSE, {
-              event: 'circuit_breaker_closed',
+          this.kafka.publishNonBlocking(
+            TOPICS.GATEWAY_RESPONSE,
+            {
+              event: "circuit_breaker_closed",
               apiName: breakerName,
               previousState: from,
               timestamp: new Date().toISOString(),
-            }, {
-              context: 'ExternalService',
-            });
+            },
+            {
+              context: "ExternalService",
+            },
+          );
         }
       },
     });
     this.breakers.set(name, breaker);
 
-    this.logger.debug(`ExternalService: registered client for '${name}' -> ${cfg.baseUrl}`);
+    this.logger.debug(
+      `ExternalService: registered client for '${name}' -> ${cfg.baseUrl}`,
+    );
   }
 }

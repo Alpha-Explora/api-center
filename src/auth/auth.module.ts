@@ -9,25 +9,31 @@
 //   dev-jwt   → DevJwtProvider    — ephemeral RS256 for local dev / CI [default]
 // =============================================================================
 
-import { Module, forwardRef } from '@nestjs/common';
-import { AUTH_PROVIDER } from './auth-provider.interface';
-import { KeycloakProvider } from './providers/keycloak.provider';
-import { DescopeProvider } from './providers/descope.provider';
-import { DevJwtProvider } from './providers/dev-jwt.provider';
-import { GoogleProvider } from './providers/google.provider';
-import { TokenStoreService } from './token-store.service';
-import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { PlatformAdminGuard } from './guards/platform-admin.guard';
-import { ScopedAdminGuard } from './guards/scoped-admin.guard';
-import { AuthController } from './auth.controller';
-import { RegistryModule } from '../registry/registry.module';
-import { ConfigService } from '../config/config.service';
-import { VaultModule } from './vault.module';
+import { Module, forwardRef } from "@nestjs/common";
+import { AUTH_PROVIDER } from "./auth-provider.interface";
+import { KeycloakProvider } from "./providers/keycloak.provider";
+import { DescopeProvider } from "./providers/descope.provider";
+import { DevJwtProvider } from "./providers/dev-jwt.provider";
+import { GoogleProvider } from "./providers/google.provider";
+import { TokenStoreService } from "./token-store.service";
+import { AuthService } from "./auth.service";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { PlatformAdminGuard } from "./guards/platform-admin.guard";
+import { ScopedAdminGuard } from "./guards/scoped-admin.guard";
+import { AuthController } from "./auth.controller";
+import { RegistryModule } from "../registry/registry.module";
+import { ConfigService } from "../config/config.service";
+import { VaultModule } from "./vault.module";
 
 const authProviderFactory = {
   provide: AUTH_PROVIDER,
-  inject: [ConfigService, KeycloakProvider, DescopeProvider, DevJwtProvider, GoogleProvider],
+  inject: [
+    ConfigService,
+    KeycloakProvider,
+    DescopeProvider,
+    DevJwtProvider,
+    GoogleProvider,
+  ],
   useFactory: (
     config: ConfigService,
     keycloak: KeycloakProvider,
@@ -35,9 +41,9 @@ const authProviderFactory = {
     devJwt: DevJwtProvider,
     google: GoogleProvider,
   ) => {
-    if (config.authProvider === 'keycloak') return keycloak;
-    if (config.authProvider === 'descope') return descope;
-    if (config.authProvider === 'google') return google;
+    if (config.authProvider === "keycloak") return keycloak;
+    if (config.authProvider === "descope") return descope;
+    if (config.authProvider === "google") return google;
     return devJwt;
   },
 };

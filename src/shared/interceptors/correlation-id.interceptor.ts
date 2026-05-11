@@ -19,12 +19,12 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { Request, Response } from 'express';
-import crypto from 'node:crypto';
-import { trace } from '@opentelemetry/api';
-import { AuthenticatedRequest } from '../../types';
+} from "@nestjs/common";
+import { Observable } from "rxjs";
+import { Request, Response } from "express";
+import crypto from "node:crypto";
+import { trace } from "@opentelemetry/api";
+import { AuthenticatedRequest } from "../../types";
 
 @Injectable()
 export class CorrelationIdInterceptor implements NestInterceptor {
@@ -33,19 +33,20 @@ export class CorrelationIdInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse<Response>();
 
     // Use existing header or generate a new UUID
-    const id = (request.headers['x-correlation-id'] as string) || crypto.randomUUID();
+    const id =
+      (request.headers["x-correlation-id"] as string) || crypto.randomUUID();
 
     // Attach to request for downstream use
     (request as AuthenticatedRequest).correlationId = id;
 
     // Set on response so the caller can correlate
-    response.setHeader('X-Correlation-ID', id);
+    response.setHeader("X-Correlation-ID", id);
 
     // Attach correlation ID to the active OpenTelemetry span
     const activeSpan = trace.getActiveSpan();
     if (activeSpan) {
-      activeSpan.setAttribute('correlation.id', id);
-      activeSpan.setAttribute('http.route', request.path);
+      activeSpan.setAttribute("correlation.id", id);
+      activeSpan.setAttribute("http.route", request.path);
     }
 
     return next.handle();

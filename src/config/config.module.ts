@@ -6,8 +6,8 @@
 // module, so ConfigService constructors read already-populated process.env.
 // =============================================================================
 
-import { Global, Module } from '@nestjs/common';
-import { ConfigService } from './config.service';
+import { Global, Module } from "@nestjs/common";
+import { ConfigService } from "./config.service";
 
 @Global()
 @Module({

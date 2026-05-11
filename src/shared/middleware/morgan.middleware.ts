@@ -4,22 +4,24 @@
 // NestJS middleware that logs every HTTP request using Morgan + Winston.
 // =============================================================================
 
-import { Injectable, NestMiddleware } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
-import morgan from 'morgan';
-import { LoggerService } from '../logger.service';
-import { isHealthCheckPath } from '../health-path';
+import { Injectable, NestMiddleware } from "@nestjs/common";
+import { Request, Response, NextFunction } from "express";
+import morgan from "morgan";
+import { LoggerService } from "../logger.service";
+import { isHealthCheckPath } from "../health-path";
 
 @Injectable()
 export class MorganMiddleware implements NestMiddleware {
   private readonly morganHandler: ReturnType<typeof morgan>;
 
   constructor(private readonly logger: LoggerService) {
-    this.morganHandler = morgan('combined', {
+    this.morganHandler = morgan("combined", {
       stream: this.logger.morganStream,
       skip: (req) => {
         const expressRequest = req as Request;
-        return isHealthCheckPath(expressRequest.originalUrl || expressRequest.url);
+        return isHealthCheckPath(
+          expressRequest.originalUrl || expressRequest.url,
+        );
       },
     });
   }

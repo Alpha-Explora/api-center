@@ -1,15 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { z } from 'zod';
+import { Injectable } from "@nestjs/common";
+import { z } from "zod";
 
-import { KafkaService } from '../kafka/kafka.service';
-import { LoggerService } from '../shared/logger.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { ForbiddenError, ValidationError } from '../shared/errors';
-import { KafkaPublishMessageDto } from './dto/kafka-publish-message.dto';
+import { KafkaService } from "../kafka/kafka.service";
+import { LoggerService } from "../shared/logger.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { ForbiddenError, ValidationError } from "../shared/errors";
+import { KafkaPublishMessageDto } from "./dto/kafka-publish-message.dto";
 
-const RESERVED_TOPIC_PREFIXES = ['api-center.', '__'];
-const TOPIC_PREFIX_TEMPLATE = 'tribe.<tribe-id>.';
-const GOVERNED_SCHEMA_VERSION = '1.0.0';
+const RESERVED_TOPIC_PREFIXES = ["api-center.", "__"];
+const TOPIC_PREFIX_TEMPLATE = "tribe.<tribe-id>.";
+const GOVERNED_SCHEMA_VERSION = "1.0.0";
 
 const GovernedKafkaPayloadSchema = z.object({
   eventType: z.string().min(1),
@@ -29,7 +29,7 @@ export class KafkaGovernanceService {
     const normalizedTribeId = this.normalizeTribeId(tribeId);
     const tenantTopicPrefix = this.toTenantTopicPrefix(normalizedTribeId);
 
-    this.metrics.recordKafkaGovernanceOperation('catalog', 'success');
+    this.metrics.recordKafkaGovernanceOperation("catalog", "success");
 
     return {
       tenantTopicPrefix,
@@ -40,26 +40,26 @@ export class KafkaGovernanceService {
       ],
       blockedTopicPrefixes: [...RESERVED_TOPIC_PREFIXES],
       requiredScopes: {
-        read: ['external:kafka:read'],
-        publish: ['external:kafka:write'],
+        read: ["external:kafka:read"],
+        publish: ["external:kafka:write"],
       },
       schemaContract: {
         version: GOVERNED_SCHEMA_VERSION,
-        requiredFields: ['eventType', 'payload'],
+        requiredFields: ["eventType", "payload"],
       },
     };
   }
 
   getSchemaCatalog() {
-    this.metrics.recordKafkaGovernanceOperation('schemas', 'success');
+    this.metrics.recordKafkaGovernanceOperation("schemas", "success");
 
     return {
       version: GOVERNED_SCHEMA_VERSION,
       schemas: [
         {
-          eventType: 'string',
-          payload: 'object',
-          metadata: 'record<string,string> (optional)',
+          eventType: "string",
+          payload: "object",
+          metadata: "record<string,string> (optional)",
         },
       ],
       topicPattern: TOPIC_PREFIX_TEMPLATE,
@@ -82,7 +82,7 @@ export class KafkaGovernanceService {
     });
 
     if (!parseResult.success) {
-      this.metrics.recordKafkaGovernanceOperation('publish', 'failure');
+      this.metrics.recordKafkaGovernanceOperation("publish", "failure");
       throw new ValidationError(
         `Kafka governance payload validation failed: ${parseResult.error.message}`,
       );
@@ -101,8 +101,8 @@ export class KafkaGovernanceService {
       dto.key ?? normalizedTribeId,
     );
 
-    this.metrics.recordKafkaGovernanceOperation('publish', 'success');
-    this.logger.info('Kafka governed publish accepted', {
+    this.metrics.recordKafkaGovernanceOperation("publish", "success");
+    this.logger.info("Kafka governed publish accepted", {
       tribeId,
       topic: dto.topic,
       eventType: dto.eventType,
@@ -116,7 +116,10 @@ export class KafkaGovernanceService {
     };
   }
 
-  private assertTopicIsTenantScoped(topic: string, normalizedTribeId: string): void {
+  private assertTopicIsTenantScoped(
+    topic: string,
+    normalizedTribeId: string,
+  ): void {
     for (const blockedPrefix of RESERVED_TOPIC_PREFIXES) {
       if (topic.startsWith(blockedPrefix)) {
         throw new ForbiddenError(
@@ -138,7 +141,9 @@ export class KafkaGovernanceService {
   }
 
   private normalizeTribeId(tribeId: string): string {
-    return String(tribeId).toLowerCase().replaceAll(/[^a-z0-9._-]/g, '-');
+    return String(tribeId)
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9._-]/g, "-");
   }
 
   private toTenantTopicPrefix(normalizedTribeId: string): string {

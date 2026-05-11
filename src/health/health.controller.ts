@@ -8,19 +8,19 @@
 //  GET /api/v1/health/ready — Readiness probe  (checks Kafka connectivity)
 // =============================================================================
 
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get } from "@nestjs/common";
 import {
   HealthCheck,
   HealthCheckService,
   HealthCheckResult,
   HealthIndicatorResult,
-} from '@nestjs/terminus';
-import { KafkaService } from '../kafka/kafka.service';
-import { RegistryService } from '../registry/registry.service';
-import { ExternalService } from '../external/external.service';
-import { TokenStoreService } from '../auth/token-store.service';
+} from "@nestjs/terminus";
+import { KafkaService } from "../kafka/kafka.service";
+import { RegistryService } from "../registry/registry.service";
+import { ExternalService } from "../external/external.service";
+import { TokenStoreService } from "../auth/token-store.service";
 
-@Controller('health')
+@Controller("health")
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
@@ -33,18 +33,16 @@ export class HealthController {
   /**
    * GET /api/v1/health/live — Liveness probe
    */
-  @Get('live')
+  @Get("live")
   @HealthCheck()
   liveness(): Promise<HealthCheckResult> {
-    return this.health.check([
-      () => this.processCheck(),
-    ]);
+    return this.health.check([() => this.processCheck()]);
   }
 
   /**
    * GET /api/v1/health/ready — Readiness probe
    */
-  @Get('ready')
+  @Get("ready")
   @HealthCheck()
   readiness(): Promise<HealthCheckResult> {
     return this.health.check([
@@ -63,7 +61,7 @@ export class HealthController {
 
     return {
       process: {
-        status: 'up',
+        status: "up",
         uptime: Math.floor(uptime),
         memory: {
           rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
@@ -80,11 +78,11 @@ export class HealthController {
       const connected = this.kafka.isConnected();
       return {
         kafka: {
-          status: connected ? 'up' : 'down',
+          status: connected ? "up" : "down",
         },
       };
     } catch {
-      return { kafka: { status: 'down' } };
+      return { kafka: { status: "down" } };
     }
   }
 
@@ -93,7 +91,7 @@ export class HealthController {
 
     return {
       redis: {
-        status: connected ? 'up' : 'down',
+        status: connected ? "up" : "down",
       },
     };
   }
@@ -101,7 +99,7 @@ export class HealthController {
   private async registryCheck(): Promise<HealthIndicatorResult> {
     return {
       registry: {
-        status: 'up',
+        status: "up",
         registeredServices: this.registry.count(),
       },
     };
@@ -109,11 +107,11 @@ export class HealthController {
 
   private async circuitBreakerCheck(): Promise<HealthIndicatorResult> {
     const stats = this.externalService.getAllBreakerStats();
-    const openBreakers = stats.filter((s) => s.state === 'OPEN');
+    const openBreakers = stats.filter((s) => s.state === "OPEN");
 
     return {
       circuitBreakers: {
-        status: openBreakers.length > 0 ? 'down' : 'up',
+        status: openBreakers.length > 0 ? "down" : "up",
         total: stats.length,
         open: openBreakers.length,
         breakers: stats.map((s) => ({

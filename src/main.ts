@@ -42,21 +42,21 @@
 // =============================================================================
 
 // OTel MUST be initialized first — patches http/express before any require
-import { initTracing } from './tracing';
+import { initTracing } from "./tracing";
 initTracing();
 
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import helmet from 'helmet';
-import { AppModule } from './app.module';
-import { LoggerService } from './shared/logger.service';
-import { ConfigService } from './config/config.service';
-import { loadGcpSecretsIntoEnv } from './config/gcp-secret-loader';
-import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
-import { CorrelationIdInterceptor } from './shared/interceptors/correlation-id.interceptor';
-import { AuditLogInterceptor } from './shared/interceptors/audit-log.interceptor';
-import { MetricsInterceptor } from './metrics/metrics.interceptor';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import helmet from "helmet";
+import { AppModule } from "./app.module";
+import { LoggerService } from "./shared/logger.service";
+import { ConfigService } from "./config/config.service";
+import { loadGcpSecretsIntoEnv } from "./config/gcp-secret-loader";
+import { AllExceptionsFilter } from "./shared/filters/all-exceptions.filter";
+import { CorrelationIdInterceptor } from "./shared/interceptors/correlation-id.interceptor";
+import { AuditLogInterceptor } from "./shared/interceptors/audit-log.interceptor";
+import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 
 async function bootstrap() {
   await loadGcpSecretsIntoEnv({
@@ -74,7 +74,7 @@ async function bootstrap() {
   app.use(
     helmet({
       // Allow cross-origin resource loading (CDN assets, tribe frontends)
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
       // CSP not set here — each tribe's frontend should set its own policy
       contentSecurityPolicy: false,
     }),
@@ -89,32 +89,32 @@ async function bootstrap() {
   //   ALLOWED_ORIGINS=*                            → dev / permissive
   //   ALLOWED_ORIGINS=https://app.acme.com,https://admin.acme.com  → prod
   app.enableCors({
-    origin: config.cors.origin,           // driven by ALLOWED_ORIGINS env var
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    origin: config.cors.origin, // driven by ALLOWED_ORIGINS env var
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Correlation-ID',
-      'X-Platform-Secret',
-      'X-Tribe-Id',
+      "Content-Type",
+      "Authorization",
+      "X-Correlation-ID",
+      "X-Platform-Secret",
+      "X-Tribe-Id",
     ],
     exposedHeaders: [
-      'X-Correlation-ID',   // trace requests across services
-      'Deprecation',        // RFC 8594 — service lifecycle signal
-      'Sunset',             // RFC 8594 — deadline for migration
-      'Link',               // points to replacement service
-      'Retry-After',        // rate-limit backoff
+      "X-Correlation-ID", // trace requests across services
+      "Deprecation", // RFC 8594 — service lifecycle signal
+      "Sunset", // RFC 8594 — deadline for migration
+      "Link", // points to replacement service
+      "Retry-After", // rate-limit backoff
     ],
-    credentials: true,    // allow Authorization header from browsers
-    maxAge: 86_400,       // cache preflight for 24 h — reduces OPTIONS volume
+    credentials: true, // allow Authorization header from browsers
+    maxAge: 86_400, // cache preflight for 24 h — reduces OPTIONS volume
   });
 
   // ── Request validation ────────────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,              // strip unknown properties from DTOs
-      forbidNonWhitelisted: true,   // reject requests with unknown properties
-      transform: true,              // auto-coerce strings to numbers/booleans
+      whitelist: true, // strip unknown properties from DTOs
+      forbidNonWhitelisted: true, // reject requests with unknown properties
+      transform: true, // auto-coerce strings to numbers/booleans
     }),
   );
 
@@ -134,22 +134,24 @@ async function bootstrap() {
 
   // ── API versioning ────────────────────────────────────────────────────────
   // All routes are prefixed /api/v1/ — version bumps get a new prefix.
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix("api/v1");
 
-  const isSwaggerEnabled = process.env.ENABLE_SWAGGER === 'true';
+  const isSwaggerEnabled = process.env.ENABLE_SWAGGER === "true";
   if (isSwaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('APICenter Gateway API')
-      .setDescription('Centralized gateway API for tribe, shared-service, and external integrations')
-      .setVersion('1.0.0')
+      .setTitle("APICenter Gateway API")
+      .setDescription(
+        "Centralized gateway API for tribe, shared-service, and external integrations",
+      )
+      .setVersion("1.0.0")
       .addBearerAuth()
       .build();
 
     const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig, {
       deepScanRoutes: true,
     });
-    SwaggerModule.setup('api/docs', app, swaggerDoc, {
-      jsonDocumentUrl: 'api/docs-json',
+    SwaggerModule.setup("api/docs", app, swaggerDoc, {
+      jsonDocumentUrl: "api/docs-json",
     });
   }
 
@@ -160,15 +162,27 @@ async function bootstrap() {
 
   await app.listen(config.port);
 
-  logger.log(`────────────────────────────────────────────────────`, 'Bootstrap');
-  logger.log(`  APICenter gateway  |  port: ${config.port}`,        'Bootstrap');
-  logger.log(`  environment        |  ${config.nodeEnv}`,           'Bootstrap');
-  logger.log(`  auth provider      |  ${config.authProvider}`,      'Bootstrap');
-  logger.log(`  CORS origins       |  ${JSON.stringify(config.cors.origin)}`, 'Bootstrap');
-  logger.log(`  swagger enabled    |  ${isSwaggerEnabled}`,          'Bootstrap');
-  logger.log(`  stateless          |  Redis shared state enabled`,  'Bootstrap');
-  logger.log(`  flow               |  consumer → NGINX → container → upstream`, 'Bootstrap');
-  logger.log(`────────────────────────────────────────────────────`, 'Bootstrap');
+  logger.log(
+    `────────────────────────────────────────────────────`,
+    "Bootstrap",
+  );
+  logger.log(`  APICenter gateway  |  port: ${config.port}`, "Bootstrap");
+  logger.log(`  environment        |  ${config.nodeEnv}`, "Bootstrap");
+  logger.log(`  auth provider      |  ${config.authProvider}`, "Bootstrap");
+  logger.log(
+    `  CORS origins       |  ${JSON.stringify(config.cors.origin)}`,
+    "Bootstrap",
+  );
+  logger.log(`  swagger enabled    |  ${isSwaggerEnabled}`, "Bootstrap");
+  logger.log(`  stateless          |  Redis shared state enabled`, "Bootstrap");
+  logger.log(
+    `  flow               |  consumer → NGINX → container → upstream`,
+    "Bootstrap",
+  );
+  logger.log(
+    `────────────────────────────────────────────────────`,
+    "Bootstrap",
+  );
 }
 
 bootstrap();

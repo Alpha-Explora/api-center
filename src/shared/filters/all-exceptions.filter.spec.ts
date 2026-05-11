@@ -1,10 +1,13 @@
-import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
-import { AllExceptionsFilter } from './all-exceptions.filter';
-import { LoggerService } from '../logger.service';
-import { ConfigService } from '../../config/config.service';
-import { UnauthorizedError } from '../errors';
+import { ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
+import { AllExceptionsFilter } from "./all-exceptions.filter";
+import { LoggerService } from "../logger.service";
+import { ConfigService } from "../../config/config.service";
+import { UnauthorizedError } from "../errors";
 
-function createHost(request: Record<string, unknown>, response: Record<string, unknown>): ArgumentsHost {
+function createHost(
+  request: Record<string, unknown>,
+  response: Record<string, unknown>,
+): ArgumentsHost {
   return {
     switchToHttp: () => ({
       getRequest: () => request,
@@ -13,7 +16,7 @@ function createHost(request: Record<string, unknown>, response: Record<string, u
   } as unknown as ArgumentsHost;
 }
 
-describe('AllExceptionsFilter', () => {
+describe("AllExceptionsFilter", () => {
   const mockLogger = {
     warn: jest.fn(),
     error: jest.fn(),
@@ -23,33 +26,46 @@ describe('AllExceptionsFilter', () => {
     jest.clearAllMocks();
   });
 
-  it('should map AppError responses with domain code and correlation id', () => {
-    const filter = new AllExceptionsFilter(mockLogger, { isProduction: false } as ConfigService);
+  it("should map AppError responses with domain code and correlation id", () => {
+    const filter = new AllExceptionsFilter(mockLogger, {
+      isProduction: false,
+    } as ConfigService);
     const json = jest.fn();
     const status = jest.fn().mockReturnValue({ json });
     const response = { status };
-    const request = { correlationId: 'corr-1' };
+    const request = { correlationId: "corr-1" };
 
-    filter.catch(new UnauthorizedError('Token required'), createHost(request, response));
+    filter.catch(
+      new UnauthorizedError("Token required"),
+      createHost(request, response),
+    );
 
     expect(status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: expect.objectContaining({ code: 'UNAUTHORIZED', message: 'Token required' }),
-        meta: expect.objectContaining({ correlationId: 'corr-1' }),
+        error: expect.objectContaining({
+          code: "UNAUTHORIZED",
+          message: "Token required",
+        }),
+        meta: expect.objectContaining({ correlationId: "corr-1" }),
       }),
     );
   });
 
-  it('should map validation-style HttpException arrays into standard details payload', () => {
-    const filter = new AllExceptionsFilter(mockLogger, { isProduction: false } as ConfigService);
+  it("should map validation-style HttpException arrays into standard details payload", () => {
+    const filter = new AllExceptionsFilter(mockLogger, {
+      isProduction: false,
+    } as ConfigService);
     const json = jest.fn();
     const status = jest.fn().mockReturnValue({ json });
     const response = { status };
-    const request = { correlationId: 'corr-2' };
+    const request = { correlationId: "corr-2" };
     const exception = new HttpException(
-      { message: ['field a required', 'field b invalid'], error: 'Bad Request' },
+      {
+        message: ["field a required", "field b invalid"],
+        error: "Bad Request",
+      },
       HttpStatus.BAD_REQUEST,
     );
 
@@ -58,42 +74,57 @@ describe('AllExceptionsFilter', () => {
     expect(status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
-        error: expect.objectContaining({ message: 'Validation failed', details: ['field a required', 'field b invalid'] }),
+        error: expect.objectContaining({
+          message: "Validation failed",
+          details: ["field a required", "field b invalid"],
+        }),
       }),
     );
   });
 
-  it('should hide internal error details in production mode', () => {
-    const filter = new AllExceptionsFilter(mockLogger, { isProduction: true } as ConfigService);
+  it("should hide internal error details in production mode", () => {
+    const filter = new AllExceptionsFilter(mockLogger, {
+      isProduction: true,
+    } as ConfigService);
     const json = jest.fn();
     const status = jest.fn().mockReturnValue({ json });
     const response = { status };
-    const request = { correlationId: 'corr-3' };
+    const request = { correlationId: "corr-3" };
 
-    filter.catch(new Error('sensitive-stack-detail'), createHost(request, response));
+    filter.catch(
+      new Error("sensitive-stack-detail"),
+      createHost(request, response),
+    );
 
     expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
-        error: expect.objectContaining({ message: 'An unexpected error occurred' }),
+        error: expect.objectContaining({
+          message: "An unexpected error occurred",
+        }),
       }),
     );
   });
 
-  it('should include stack details in non-production mode', () => {
-    const filter = new AllExceptionsFilter(mockLogger, { isProduction: false } as ConfigService);
+  it("should include stack details in non-production mode", () => {
+    const filter = new AllExceptionsFilter(mockLogger, {
+      isProduction: false,
+    } as ConfigService);
     const json = jest.fn();
     const status = jest.fn().mockReturnValue({ json });
     const response = { status };
-    const request = { correlationId: 'corr-4' };
-    const error = new Error('debug-visible-message');
+    const request = { correlationId: "corr-4" };
+    const error = new Error("debug-visible-message");
 
     filter.catch(error, createHost(request, response));
 
     expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
-        error: expect.objectContaining({ message: 'debug-visible-message', stack: expect.any(String) }),
+        error: expect.objectContaining({
+          message: "debug-visible-message",
+          stack: expect.any(String),
+        }),
       }),
     );
   });

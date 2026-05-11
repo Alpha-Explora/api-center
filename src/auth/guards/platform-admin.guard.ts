@@ -7,11 +7,11 @@
 // REPLACES: Express requirePlatformAdmin middleware
 // =============================================================================
 
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Request } from 'express';
-import { ConfigService } from '../../config/config.service';
-import { LoggerService } from '../../shared/logger.service';
-import { UnauthorizedError } from '../../shared/errors';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Request } from "express";
+import { ConfigService } from "../../config/config.service";
+import { LoggerService } from "../../shared/logger.service";
+import { UnauthorizedError } from "../../shared/errors";
 
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
@@ -22,23 +22,25 @@ export class PlatformAdminGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    const secret = request.headers['x-platform-secret'] as string;
+    const secret = request.headers["x-platform-secret"] as string;
 
     if (!this.config.platformAdminSecret) {
       this.logger.error(
-        'PLATFORM_ADMIN_SECRET is not configured — registry endpoints are disabled',
+        "PLATFORM_ADMIN_SECRET is not configured — registry endpoints are disabled",
         undefined,
-        'PlatformAdminGuard',
+        "PlatformAdminGuard",
       );
-      throw new UnauthorizedError('Registry management is not configured');
+      throw new UnauthorizedError("Registry management is not configured");
     }
 
     if (!secret || secret !== this.config.platformAdminSecret) {
       this.logger.warn(
         `Invalid platform admin secret from ${request.ip} on ${request.path}`,
-        'PlatformAdminGuard',
+        "PlatformAdminGuard",
       );
-      throw new UnauthorizedError('Invalid or missing X-Platform-Secret header');
+      throw new UnauthorizedError(
+        "Invalid or missing X-Platform-Secret header",
+      );
     }
 
     return true;

@@ -13,12 +13,12 @@
 //    events and Prometheus gauge updates).
 // =============================================================================
 
-import { LoggerService } from './logger.service';
+import { LoggerService } from "./logger.service";
 
 export enum CircuitState {
-  CLOSED = 'CLOSED',
-  OPEN = 'OPEN',
-  HALF_OPEN = 'HALF_OPEN',
+  CLOSED = "CLOSED",
+  OPEN = "OPEN",
+  HALF_OPEN = "HALF_OPEN",
 }
 
 export type CircuitStateChangeHandler = (
@@ -46,7 +46,11 @@ export class CircuitBreaker {
   private readonly logger: LoggerService;
   private readonly onStateChange?: CircuitStateChangeHandler;
 
-  constructor(name: string, logger: LoggerService, options: CircuitBreakerOptions = {}) {
+  constructor(
+    name: string,
+    logger: LoggerService,
+    options: CircuitBreakerOptions = {},
+  ) {
     this.name = name;
     this.logger = logger;
     this.failureThreshold = options.failureThreshold ?? 5;
@@ -73,7 +77,10 @@ export class CircuitBreaker {
     this.failureCount = 0;
     this.successCount = 0;
     this.lastFailureTime = 0;
-    this.logger.log(`Circuit breaker [${this.name}] manually RESET to CLOSED`, 'CircuitBreaker');
+    this.logger.log(
+      `Circuit breaker [${this.name}] manually RESET to CLOSED`,
+      "CircuitBreaker",
+    );
     if (previous !== CircuitState.CLOSED && this.onStateChange) {
       this.onStateChange(this.name, previous, CircuitState.CLOSED);
     }
@@ -85,12 +92,17 @@ export class CircuitBreaker {
         const previous = this.state;
         this.state = CircuitState.HALF_OPEN;
         this.successCount = 0;
-        this.logger.log(`Circuit breaker [${this.name}] transitioning to HALF_OPEN`, 'CircuitBreaker');
+        this.logger.log(
+          `Circuit breaker [${this.name}] transitioning to HALF_OPEN`,
+          "CircuitBreaker",
+        );
         if (this.onStateChange) {
           this.onStateChange(this.name, previous, CircuitState.HALF_OPEN);
         }
       } else {
-        throw new Error(`Circuit breaker [${this.name}] is OPEN — request rejected`);
+        throw new Error(
+          `Circuit breaker [${this.name}] is OPEN — request rejected`,
+        );
       }
     }
 
@@ -121,7 +133,7 @@ export class CircuitBreaker {
         this.successCount = 0;
         this.logger.log(
           `Circuit breaker [${this.name}] transitioning to HALF_OPEN`,
-          'CircuitBreaker',
+          "CircuitBreaker",
         );
         if (this.onStateChange) {
           this.onStateChange(this.name, previous, CircuitState.HALF_OPEN);
@@ -151,7 +163,10 @@ export class CircuitBreaker {
         this.state = CircuitState.CLOSED;
         this.failureCount = 0;
         this.successCount = 0;
-        this.logger.log(`Circuit breaker [${this.name}] CLOSED (recovered)`, 'CircuitBreaker');
+        this.logger.log(
+          `Circuit breaker [${this.name}] CLOSED (recovered)`,
+          "CircuitBreaker",
+        );
         if (this.onStateChange) {
           this.onStateChange(this.name, previous, CircuitState.CLOSED);
         }
@@ -168,14 +183,18 @@ export class CircuitBreaker {
     if (this.state === CircuitState.HALF_OPEN) {
       const previous = this.state;
       this.state = CircuitState.OPEN;
-      this.logger.warn(`Circuit breaker [${this.name}] re-OPENED from HALF_OPEN`);
+      this.logger.warn(
+        `Circuit breaker [${this.name}] re-OPENED from HALF_OPEN`,
+      );
       if (this.onStateChange) {
         this.onStateChange(this.name, previous, CircuitState.OPEN);
       }
     } else if (this.failureCount >= this.failureThreshold) {
       const previous = this.state;
       this.state = CircuitState.OPEN;
-      this.logger.warn(`Circuit breaker [${this.name}] OPENED after ${this.failureCount} failures`);
+      this.logger.warn(
+        `Circuit breaker [${this.name}] OPENED after ${this.failureCount} failures`,
+      );
       if (this.onStateChange) {
         this.onStateChange(this.name, previous, CircuitState.OPEN);
       }

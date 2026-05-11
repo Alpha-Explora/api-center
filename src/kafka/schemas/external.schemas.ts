@@ -2,7 +2,7 @@
 // src/kafka/schemas/external.schemas.ts — External API event schemas
 // =============================================================================
 
-import { z } from 'zod';
+import { z } from "zod";
 
 export const ExternalRequestEventSchema = z.object({
   api: z.string(),
@@ -13,6 +13,6 @@ export const ExternalRequestEventSchema = z.object({
   timestamp: z.string(),
   tribeId: z.string(),
   correlationId: z.string().optional(),
-  policyDecision: z.enum(['allow', 'deny']).optional(),
+  policyDecision: z.enum(["allow", "deny"]).optional(),
 });
 export type ExternalRequestEvent = z.infer<typeof ExternalRequestEventSchema>;

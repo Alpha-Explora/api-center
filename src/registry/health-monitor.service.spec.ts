@@ -1,29 +1,31 @@
-import { HealthMonitorService } from './health-monitor.service';
-import { ServiceRegistryEntry } from '../types';
+import { HealthMonitorService } from "./health-monitor.service";
+import { ServiceRegistryEntry } from "../types";
 
 const baseEntry: ServiceRegistryEntry = {
-  serviceId: 'payment-service',
-  name: 'Payment Service',
-  baseUrl: 'http://payment-v1',
-  requiredScopes: ['shared:payment:charge'],
-  exposes: ['/payments'],
+  serviceId: "payment-service",
+  name: "Payment Service",
+  baseUrl: "http://payment-v1",
+  requiredScopes: ["shared:payment:charge"],
+  exposes: ["/payments"],
   consumes: [],
-  serviceType: 'shared',
-  registeredAt: '2026-05-11T00:00:00.000Z',
-  updatedAt: '2026-05-11T00:00:00.000Z',
-  status: 'active',
+  serviceType: "shared",
+  registeredAt: "2026-05-11T00:00:00.000Z",
+  updatedAt: "2026-05-11T00:00:00.000Z",
+  status: "active",
 };
 
-describe('HealthMonitorService Redis drift reconciliation', () => {
-  it('reloads from Redis when entry content diverges with the same updatedAt', async () => {
+describe("HealthMonitorService Redis drift reconciliation", () => {
+  it("reloads from Redis when entry content diverges with the same updatedAt", async () => {
     const redisEntry: ServiceRegistryEntry = {
       ...baseEntry,
-      baseUrl: 'http://payment-v2',
-      exposes: ['/payments', '/refunds'],
+      baseUrl: "http://payment-v2",
+      exposes: ["/payments", "/refunds"],
     };
 
     const registry = {
-      getRedisEntries: jest.fn().mockResolvedValue({ [baseEntry.serviceId]: redisEntry }),
+      getRedisEntries: jest
+        .fn()
+        .mockResolvedValue({ [baseEntry.serviceId]: redisEntry }),
       getAll: jest.fn().mockReturnValue({ [baseEntry.serviceId]: baseEntry }),
       loadFromRedis: jest.fn().mockResolvedValue(undefined),
     };
@@ -46,8 +48,8 @@ describe('HealthMonitorService Redis drift reconciliation', () => {
 
     expect(registry.loadFromRedis).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('diverged=1'),
-      'HealthMonitor',
+      expect.stringContaining("diverged=1"),
+      "HealthMonitor",
     );
   });
 });

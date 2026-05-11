@@ -16,73 +16,75 @@ import {
   IsIn,
   IsDateString,
   Matches,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+} from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class ServiceManifestDto {
-  @ApiProperty({ example: 'payment-service' })
+  @ApiProperty({ example: "payment-service" })
   @IsString()
-  @IsNotEmpty({ message: 'serviceId is required' })
-  @MaxLength(64, { message: 'serviceId is too long' })
+  @IsNotEmpty({ message: "serviceId is required" })
+  @MaxLength(64, { message: "serviceId is too long" })
   @Matches(/^[a-z0-9-]+$/, {
-    message: 'serviceId must be lowercase alphanumeric with hyphens only',
+    message: "serviceId must be lowercase alphanumeric with hyphens only",
   })
   serviceId!: string;
 
-  @ApiProperty({ example: 'Payment Service' })
+  @ApiProperty({ example: "Payment Service" })
   @IsString()
-  @IsNotEmpty({ message: 'name is required' })
-  @MaxLength(128, { message: 'name is too long' })
+  @IsNotEmpty({ message: "name is required" })
+  @MaxLength(128, { message: "name is too long" })
   name!: string;
 
-  @ApiProperty({ example: 'http://payment-service:4001' })
+  @ApiProperty({ example: "http://payment-service:4001" })
   @IsString()
   @IsUrl(
     {
       require_tld: false,
       require_protocol: true,
-      protocols: ['http', 'https'],
+      protocols: ["http", "https"],
     },
-    { message: 'baseUrl must be a valid URL' },
+    { message: "baseUrl must be a valid URL" },
   )
   baseUrl!: string;
 
-  @ApiProperty({ example: ['payments:read', 'payments:write'] })
+  @ApiProperty({ example: ["payments:read", "payments:write"] })
   @IsArray()
-  @ArrayMinSize(1, { message: 'At least one required scope must be defined' })
+  @ArrayMinSize(1, { message: "At least one required scope must be defined" })
   @IsString({ each: true })
   requiredScopes!: string[];
 
-  @ApiProperty({ example: ['/payments', '/payments/:id'] })
+  @ApiProperty({ example: ["/payments", "/payments/:id"] })
   @IsArray()
-  @ArrayMinSize(1, { message: 'At least one exposed route must be defined' })
+  @ArrayMinSize(1, { message: "At least one exposed route must be defined" })
   @IsString({ each: true })
   exposes!: string[];
 
-  @ApiPropertyOptional({ example: ['user-service', 'email-service'] })
+  @ApiPropertyOptional({ example: ["user-service", "email-service"] })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   consumes?: string[] = [];
 
-  @ApiPropertyOptional({ example: '/health' })
+  @ApiPropertyOptional({ example: "/health" })
   @IsString()
   @IsOptional()
   healthCheck?: string;
 
-  @ApiPropertyOptional({ example: '1.0.0' })
+  @ApiPropertyOptional({ example: "1.0.0" })
   @IsString()
   @IsOptional()
-  @Matches(/^\d+\.\d+\.\d+/, { message: 'version must follow semver (e.g. 1.0.0)' })
+  @Matches(/^\d+\.\d+\.\d+/, {
+    message: "version must follow semver (e.g. 1.0.0)",
+  })
   version?: string;
 
-  @ApiPropertyOptional({ example: 'Handles all payment operations' })
+  @ApiPropertyOptional({ example: "Handles all payment operations" })
   @IsString()
-  @MaxLength(500, { message: 'description is too long' })
+  @MaxLength(500, { message: "description is too long" })
   @IsOptional()
   description?: string;
 
-  @ApiPropertyOptional({ example: ['finance', 'pci'] })
+  @ApiPropertyOptional({ example: ["finance", "pci"] })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -90,52 +92,59 @@ export class ServiceManifestDto {
 
   // ── Governance fields ──────────────────────────────────────────────────────
 
-  @ApiPropertyOptional({ example: 'Finance Tribe' })
+  @ApiPropertyOptional({ example: "Finance Tribe" })
   @IsString()
   @MaxLength(128)
   @IsOptional()
   ownerTeam?: string;
 
-  @ApiPropertyOptional({ example: 'finance-platform@example.com' })
+  @ApiPropertyOptional({ example: "finance-platform@example.com" })
   @IsString()
-  @MaxLength(256, { message: 'contact is too long' })
+  @MaxLength(256, { message: "contact is too long" })
   @IsOptional()
   contact?: string;
 
-  @ApiPropertyOptional({ example: 'critical', enum: ['critical', 'standard', 'experimental'] })
+  @ApiPropertyOptional({
+    example: "critical",
+    enum: ["critical", "standard", "experimental"],
+  })
   @IsString()
-  @IsIn(['critical', 'standard', 'experimental'], {
-    message: 'serviceTier must be critical, standard, or experimental',
+  @IsIn(["critical", "standard", "experimental"], {
+    message: "serviceTier must be critical, standard, or experimental",
   })
   @IsOptional()
   serviceTier?: string;
 
-  @ApiPropertyOptional({ example: 'FIN-001' })
+  @ApiPropertyOptional({ example: "FIN-001" })
   @IsString()
   @MaxLength(64)
   @IsOptional()
   costCenter?: string;
 
-  @ApiPropertyOptional({ example: '2026-12-31T00:00:00.000Z' })
-  @IsDateString({}, { message: 'sunsetDate must be a valid ISO-8601 date' })
+  @ApiPropertyOptional({ example: "2026-12-31T00:00:00.000Z" })
+  @IsDateString({}, { message: "sunsetDate must be a valid ISO-8601 date" })
   @IsOptional()
   sunsetDate?: string;
 
-  @ApiPropertyOptional({ example: 'payment-service-v2' })
+  @ApiPropertyOptional({ example: "payment-service-v2" })
   @IsString()
   @Matches(/^[a-z0-9-]+$/, {
-    message: 'replacementService must be a valid serviceId',
+    message: "replacementService must be a valid serviceId",
   })
   @IsOptional()
   replacementService?: string;
 
   // ── Routing namespace ──────────────────────────────────────────────────────
 
-  @ApiPropertyOptional({ example: 'tribe', enum: ['shared', 'tribe'], default: 'tribe' })
+  @ApiPropertyOptional({
+    example: "tribe",
+    enum: ["shared", "tribe"],
+    default: "tribe",
+  })
   @IsString()
-  @IsIn(['shared', 'tribe'], {
-    message: 'serviceType must be either shared or tribe',
+  @IsIn(["shared", "tribe"], {
+    message: "serviceType must be either shared or tribe",
   })
   @IsOptional()
-  serviceType?: string = 'tribe';
+  serviceType?: string = "tribe";
 }

@@ -6,17 +6,17 @@
 // application-level metrics (HTTP request counts, circuit breaker states, etc.)
 // =============================================================================
 
-import { Global, Module } from '@nestjs/common';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus';
-import { MetricsService } from './metrics.service';
-import { MetricsInterceptor } from './metrics.interceptor';
+import { Global, Module } from "@nestjs/common";
+import { PrometheusModule } from "@willsoto/nestjs-prometheus";
+import { MetricsService } from "./metrics.service";
+import { MetricsInterceptor } from "./metrics.interceptor";
 
 @Global()
 @Module({
   imports: [
     PrometheusModule.register({
       // Exposes GET /metrics (no /api/v1 prefix — Prometheus scrapes root)
-      path: '/metrics',
+      path: "/metrics",
       defaultMetrics: {
         enabled: true,
       },

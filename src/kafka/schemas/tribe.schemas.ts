@@ -2,7 +2,7 @@
 // src/kafka/schemas/tribe.schemas.ts — Tribe inter-service event schemas
 // =============================================================================
 
-import { z } from 'zod';
+import { z } from "zod";
 
 export const TribeRequestEventSchema = z.object({
   sourceTribeId: z.string(),
@@ -10,7 +10,7 @@ export const TribeRequestEventSchema = z.object({
   method: z.string(),
   path: z.string(),
   /** Routing namespace — 'shared' or 'tribe'. Added when namespace routing was introduced. */
-  namespace: z.enum(['shared', 'tribe']).optional(),
+  namespace: z.enum(["shared", "tribe"]).optional(),
   correlationId: z.string().optional(),
   timestamp: z.string().optional(),
 });
@@ -24,7 +24,7 @@ export const TribeResponseEventSchema = z.object({
   statusCode: z.number(),
   durationMs: z.number(),
   /** Routing namespace — 'shared' or 'tribe'. Added when namespace routing was introduced. */
-  namespace: z.enum(['shared', 'tribe']).optional(),
+  namespace: z.enum(["shared", "tribe"]).optional(),
   correlationId: z.string().optional(),
   timestamp: z.string().optional(),
 });

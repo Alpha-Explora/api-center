@@ -21,17 +21,17 @@ import {
   Param,
   UseGuards,
   OnModuleDestroy,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { RegistryService } from '../registry/registry.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AuthService } from '../auth/auth.service';
-import { LoggerService } from '../shared/logger.service';
-import { MetricsService } from '../metrics/metrics.service';
-import { ProxyHandler } from '../shared/proxy-handler';
-import { AuthenticatedRequest } from '../types';
+} from "@nestjs/common";
+import { Response } from "express";
+import { RegistryService } from "../registry/registry.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { AuthService } from "../auth/auth.service";
+import { LoggerService } from "../shared/logger.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { ProxyHandler } from "../shared/proxy-handler";
+import { AuthenticatedRequest } from "../types";
 
-@Controller('tribes')
+@Controller("tribes")
 @UseGuards(JwtAuthGuard)
 export class TribesController implements OnModuleDestroy {
   private readonly handler: ProxyHandler;
@@ -46,7 +46,7 @@ export class TribesController implements OnModuleDestroy {
     this.auth = auth;
     this.handler = new ProxyHandler(
       { registry, auth, logger, metrics },
-      { namespace: 'tribe', pathPrefix: '/api/v1/tribes' },
+      { namespace: "tribe", pathPrefix: "/api/v1/tribes" },
     );
   }
 
@@ -59,7 +59,7 @@ export class TribesController implements OnModuleDestroy {
   listServices(@Req() req: AuthenticatedRequest) {
     const tribeId = req.tribeId;
     const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
-    const includeNonConsumable = callerScopes.includes('platform:admin');
+    const includeNonConsumable = callerScopes.includes("platform:admin");
     const services = this.handler.listServices(tribeId, includeNonConsumable);
 
     return {
@@ -68,7 +68,7 @@ export class TribesController implements OnModuleDestroy {
       meta: {
         total: services.length,
         tribeId,
-        namespace: 'tribe',
+        namespace: "tribe",
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
       },
@@ -76,13 +76,12 @@ export class TribesController implements OnModuleDestroy {
   }
 
   // ─── Dynamic Proxy ───────────────────────────────────────────────────────────
-  @All(':targetServiceId/*')
+  @All(":targetServiceId/*")
   async proxy(
-    @Param('targetServiceId') targetServiceId: string,
+    @Param("targetServiceId") targetServiceId: string,
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     await this.handler.proxyRequest(targetServiceId, req, res);
   }
 }
-

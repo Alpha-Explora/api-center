@@ -47,17 +47,21 @@
 //
 // =============================================================================
 
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { createRemoteJWKSet, jwtVerify, SignJWT, importPKCS8 } from 'jose';
-import axios from 'axios';
-import { AuthProvider, IssuedToken, JwtClaims } from '../auth-provider.interface';
-import { ConfigService } from '../../config/config.service';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { createRemoteJWKSet, jwtVerify, SignJWT, importPKCS8 } from "jose";
+import axios from "axios";
+import {
+  AuthProvider,
+  IssuedToken,
+  JwtClaims,
+} from "../auth-provider.interface";
+import { ConfigService } from "../../config/config.service";
 
 // Google's OIDC discovery / JWKS endpoints (stable, documented)
-const GOOGLE_JWKS_URI = 'https://www.googleapis.com/oauth2/v3/certs';
-const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
-const GOOGLE_ISSUER_ACCOUNTS = 'accounts.google.com';
-const GOOGLE_ISSUER_HTTPS = 'https://accounts.google.com';
+const GOOGLE_JWKS_URI = "https://www.googleapis.com/oauth2/v3/certs";
+const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+const GOOGLE_ISSUER_ACCOUNTS = "accounts.google.com";
+const GOOGLE_ISSUER_HTTPS = "https://accounts.google.com";
 
 // Internal token TTL when wrapping a Google token
 const INTERNAL_TOKEN_TTL_SECONDS = 3_600;
@@ -100,10 +104,10 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
   private readonly allowedDomains: string[];
 
   constructor(private readonly config: ConfigService) {
-    this.clientId = process.env.GOOGLE_CLIENT_ID ?? '';
-    this.clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? '';
-    this.allowedDomains = (process.env.GOOGLE_ALLOWED_DOMAINS ?? '')
-      .split(',')
+    this.clientId = process.env.GOOGLE_CLIENT_ID ?? "";
+    this.clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
+    this.allowedDomains = (process.env.GOOGLE_ALLOWED_DOMAINS ?? "")
+      .split(",")
       .map((d) => d.trim())
       .filter(Boolean);
   }
@@ -114,10 +118,14 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
 
   onModuleInit(): void {
     if (!this.clientId) {
-      this.logger.warn('GOOGLE_CLIENT_ID is not set — Google auth will not work');
+      this.logger.warn(
+        "GOOGLE_CLIENT_ID is not set — Google auth will not work",
+      );
     }
     if (!this.clientSecret) {
-      this.logger.warn('GOOGLE_CLIENT_SECRET is not set — Google auth will not work');
+      this.logger.warn(
+        "GOOGLE_CLIENT_SECRET is not set — Google auth will not work",
+      );
     }
 
     // Initialise the JWKS key store for id_token verification
@@ -125,10 +133,12 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
 
     if (this.allowedDomains.length > 0) {
       this.logger.log(
-        `GoogleProvider ready — allowed domains: ${this.allowedDomains.join(', ')}`,
+        `GoogleProvider ready — allowed domains: ${this.allowedDomains.join(", ")}`,
       );
     } else {
-      this.logger.log('GoogleProvider ready — all Google domains allowed (no domain restriction)');
+      this.logger.log(
+        "GoogleProvider ready — all Google domains allowed (no domain restriction)",
+      );
     }
   }
 
@@ -144,7 +154,9 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
    */
   async validateToken(token: string): Promise<JwtClaims> {
     if (!this.jwks) {
-      throw new Error('GoogleProvider not initialised — GOOGLE_CLIENT_ID missing');
+      throw new Error(
+        "GoogleProvider not initialised — GOOGLE_CLIENT_ID missing",
+      );
     }
 
     const { payload } = await jwtVerify(token, this.jwks, {
@@ -153,30 +165,31 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
       audience: this.clientId || undefined,
     });
 
-    const userInfo = payload as unknown as GoogleUserInfo & Record<string, unknown>;
+    const userInfo = payload as unknown as GoogleUserInfo &
+      Record<string, unknown>;
 
     // Enforce hosted-domain restriction if configured
     if (this.allowedDomains.length > 0) {
-      const hd = userInfo.hd ?? '';
+      const hd = userInfo.hd ?? "";
       if (!this.allowedDomains.includes(hd)) {
         throw new Error(
-          `Google account domain '${hd || 'personal'}' is not in the allowed list: ` +
-            this.allowedDomains.join(', '),
+          `Google account domain '${hd || "personal"}' is not in the allowed list: ` +
+            this.allowedDomains.join(", "),
         );
       }
     }
 
     return {
-      sub: payload.sub ?? '',
+      sub: payload.sub ?? "",
       email: userInfo.email,
       name: userInfo.name,
       picture: userInfo.picture,
       hd: userInfo.hd,
       tribeId: undefined, // Google user tokens don't carry a tribeId
       permissions: [],
-      scopes: ['openid', 'email', 'profile'],
+      scopes: ["openid", "email", "profile"],
       exp: payload.exp,
-      provider: 'google',
+      provider: "google",
       ...payload,
     };
   }
@@ -211,21 +224,24 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
     if (!saKey) {
       throw new Error(
         `No Google Service Account key found for service '${serviceId}'. ` +
-          `Set GOOGLE_SA_KEY_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, '_')} ` +
+          `Set GOOGLE_SA_KEY_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, "_")} ` +
           `to base64-encoded service-account.json.`,
       );
     }
 
     // Build the signed JWT assertion for the SA grant
     const now = Math.floor(Date.now() / 1000);
-    const scope = scopes.length > 0 ? scopes.join(' ') : 'https://www.googleapis.com/auth/cloud-platform';
+    const scope =
+      scopes.length > 0
+        ? scopes.join(" ")
+        : "https://www.googleapis.com/auth/cloud-platform";
 
-    const privateKey = await importPKCS8(saKey.private_key, 'RS256');
+    const privateKey = await importPKCS8(saKey.private_key, "RS256");
 
     const assertion = await new SignJWT({
       scope,
     })
-      .setProtectedHeader({ alg: 'RS256', kid: saKey.private_key_id })
+      .setProtectedHeader({ alg: "RS256", kid: saKey.private_key_id })
       .setIssuer(saKey.client_email)
       .setSubject(saKey.client_email)
       .setAudience(saKey.token_uri || GOOGLE_TOKEN_ENDPOINT)
@@ -235,7 +251,7 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
 
     // Exchange assertion for an access token
     const params = new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     });
 
@@ -244,11 +260,13 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
       expires_in: number;
       token_type: string;
     }>(saKey.token_uri || GOOGLE_TOKEN_ENDPOINT, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: 10_000,
     });
 
-    this.logger.log(`M2M token issued for service '${serviceId}' via Google SA`);
+    this.logger.log(
+      `M2M token issued for service '${serviceId}' via Google SA`,
+    );
 
     return {
       accessToken: response.data.access_token,
@@ -268,7 +286,7 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
    */
   async refreshToken(refreshToken: string): Promise<IssuedToken> {
     const params = new URLSearchParams({
-      grant_type: 'refresh_token',
+      grant_type: "refresh_token",
       refresh_token: refreshToken,
       client_id: this.clientId,
       client_secret: this.clientSecret,
@@ -279,7 +297,7 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
       refresh_token?: string;
       expires_in: number;
     }>(GOOGLE_TOKEN_ENDPOINT, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: 10_000,
     });
 
@@ -327,7 +345,7 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
       client_id: this.clientId,
       client_secret: this.clientSecret,
       redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
+      grant_type: "authorization_code",
     });
 
     const response = await axios.post<{
@@ -336,7 +354,7 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
       id_token: string;
       expires_in: number;
     }>(GOOGLE_TOKEN_ENDPOINT, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: 10_000,
     });
 
@@ -344,7 +362,7 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
 
     // Fetch userinfo from Google
     const userInfoRes = await axios.get<GoogleUserInfo>(
-      'https://www.googleapis.com/oauth2/v3/userinfo',
+      "https://www.googleapis.com/oauth2/v3/userinfo",
       {
         headers: { Authorization: `Bearer ${access_token}` },
         timeout: 10_000,
@@ -353,11 +371,11 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
 
     // Enforce domain restriction on userinfo result
     if (this.allowedDomains.length > 0) {
-      const hd = userInfoRes.data.hd ?? '';
+      const hd = userInfoRes.data.hd ?? "";
       if (!this.allowedDomains.includes(hd)) {
         throw new Error(
-          `Google account domain '${hd || 'personal'}' is not allowed. ` +
-            `Permitted: ${this.allowedDomains.join(', ')}`,
+          `Google account domain '${hd || "personal"}' is not allowed. ` +
+            `Permitted: ${this.allowedDomains.join(", ")}`,
         );
       }
     }
@@ -378,12 +396,14 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: 'openid email profile',
-      access_type: 'offline',   // request refresh_token
-      prompt: 'consent',         // always show consent → ensures refresh_token
+      response_type: "code",
+      scope: "openid email profile",
+      access_type: "offline", // request refresh_token
+      prompt: "consent", // always show consent → ensures refresh_token
       ...(state ? { state } : {}),
-      ...(this.allowedDomains.length === 1 ? { hd: this.allowedDomains[0] } : {}),
+      ...(this.allowedDomains.length === 1
+        ? { hd: this.allowedDomains[0] }
+        : {}),
     });
 
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -394,14 +414,14 @@ export class GoogleProvider implements AuthProvider, OnModuleInit {
   // ---------------------------------------------------------------------------
 
   private loadServiceAccountKey(serviceId: string): ServiceAccountKey | null {
-    const envKey = `GOOGLE_SA_KEY_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+    const envKey = `GOOGLE_SA_KEY_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
     const encoded = process.env[envKey];
     if (!encoded) return null;
 
     try {
-      const json = Buffer.from(encoded, 'base64').toString('utf-8');
+      const json = Buffer.from(encoded, "base64").toString("utf-8");
       const parsed = JSON.parse(json) as ServiceAccountKey;
-      if (parsed.type !== 'service_account') {
+      if (parsed.type !== "service_account") {
         throw new Error(`Expected type=service_account, got ${parsed.type}`);
       }
       return parsed;

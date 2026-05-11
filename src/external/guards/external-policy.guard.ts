@@ -9,13 +9,13 @@
 //  3. Method/path allowlist matching (default deny)
 // =============================================================================
 
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { AuthService } from '../../auth/auth.service';
-import { LoggerService } from '../../shared/logger.service';
-import { ForbiddenError } from '../../shared/errors';
-import { AuthenticatedRequest } from '../../types';
+import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { AuthService } from "../../auth/auth.service";
+import { LoggerService } from "../../shared/logger.service";
+import { ForbiddenError } from "../../shared/errors";
+import { AuthenticatedRequest } from "../../types";
 
-type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type HttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 type ExternalPolicyRequest = AuthenticatedRequest & {
   method: string;
@@ -41,63 +41,63 @@ const SAFE_EXTERNAL_PATH_RE =
 
 const EXTERNAL_API_POLICIES: Record<string, ExternalApiPolicy> = {
   geolocation: {
-    allowlistEnv: 'EXTERNAL_ALLOWLIST_GEOLOCATION',
-    requiredScopes: ['external:geolocation:read'],
+    allowlistEnv: "EXTERNAL_ALLOWLIST_GEOLOCATION",
+    requiredScopes: ["external:geolocation:read"],
     rules: [
       {
-        methods: ['POST'],
+        methods: ["POST"],
         path: /^\/geolocation\/v1\/geolocate$/,
         requiredScopes: [],
-        policyLabel: 'geolocation.locate',
+        policyLabel: "geolocation.locate",
       },
     ],
   },
   // Reserved policy for onboarding a dedicated geotagging provider.
   geotagging: {
-    allowlistEnv: 'EXTERNAL_ALLOWLIST_GEOTAGGING',
-    requiredScopes: ['external:geotagging:read'],
+    allowlistEnv: "EXTERNAL_ALLOWLIST_GEOTAGGING",
+    requiredScopes: ["external:geotagging:read"],
     rules: [
       {
-        methods: ['GET', 'HEAD'],
+        methods: ["GET", "HEAD"],
         path: /^\/v1\/geotags(?:\/[A-Za-z0-9._:-]+)?$/,
         requiredScopes: [],
-        policyLabel: 'geotagging.read',
+        policyLabel: "geotagging.read",
       },
       {
-        methods: ['POST'],
+        methods: ["POST"],
         path: /^\/v1\/geotags\/resolve$/,
         requiredScopes: [],
-        policyLabel: 'geotagging.resolve',
+        policyLabel: "geotagging.resolve",
       },
       {
-        methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+        methods: ["POST", "PUT", "PATCH", "DELETE"],
         path: /^\/v1\/geotags(?:\/[A-Za-z0-9._:-]+)?$/,
-        requiredScopes: ['external:geotagging:write'],
-        policyLabel: 'geotagging.write',
+        requiredScopes: ["external:geotagging:write"],
+        policyLabel: "geotagging.write",
       },
     ],
   },
   geofencing: {
-    allowlistEnv: 'EXTERNAL_ALLOWLIST_GEOFENCING',
-    requiredScopes: ['external:geofencing:read'],
+    allowlistEnv: "EXTERNAL_ALLOWLIST_GEOFENCING",
+    requiredScopes: ["external:geofencing:read"],
     rules: [
       {
-        methods: ['GET', 'HEAD'],
+        methods: ["GET", "HEAD"],
         path: /^\/v1\/geofences(?:\/[A-Za-z0-9._:-]+)?(?:\/events)?$/,
         requiredScopes: [],
-        policyLabel: 'geofencing.read',
+        policyLabel: "geofencing.read",
       },
       {
-        methods: ['POST'],
+        methods: ["POST"],
         path: /^\/v1\/geofences\/check$/,
         requiredScopes: [],
-        policyLabel: 'geofencing.check',
+        policyLabel: "geofencing.check",
       },
       {
-        methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+        methods: ["POST", "PUT", "PATCH", "DELETE"],
         path: /^\/v1\/geofences(?:\/[A-Za-z0-9._:-]+)?(?:\/events)?$/,
-        requiredScopes: ['external:geofencing:write'],
-        policyLabel: 'geofencing.write',
+        requiredScopes: ["external:geofencing:write"],
+        policyLabel: "geofencing.write",
       },
     ],
   },
@@ -131,30 +131,36 @@ export class ExternalPolicyGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<ExternalPolicyRequest>();
 
-    const apiName = String(request.params?.apiName ?? '').toLowerCase();
+    const apiName = String(request.params?.apiName ?? "").toLowerCase();
     if (!apiName) {
       return true;
     }
 
     const callerScopes = this.auth.mergeCallerScopes(request.user ?? {});
-    if (callerScopes.includes('platform:admin')) {
+    if (callerScopes.includes("platform:admin")) {
       return true;
     }
 
     const policy = EXTERNAL_API_POLICIES[apiName];
     if (!policy) {
-      return this.deny(`External API '${apiName}' is not allowed by policy`, request);
+      return this.deny(
+        `External API '${apiName}' is not allowed by policy`,
+        request,
+      );
     }
 
     const tribeId = request.user?.tribeId ?? request.tribeId;
     if (!tribeId) {
-      return this.deny('External API access requires a token with a tribeId claim', request);
+      return this.deny(
+        "External API access requires a token with a tribeId claim",
+        request,
+      );
     }
 
     this.assertTribeAllowed(apiName, tribeId, policy.allowlistEnv, request);
 
     const method = this.normaliseMethod(request.method);
-    const downstreamPath = this.normaliseDownstreamPath(request.params?.['0']);
+    const downstreamPath = this.normaliseDownstreamPath(request.params?.["0"]);
 
     const matchingRule = policy.rules.find(
       (rule) => rule.methods.includes(method) && rule.path.test(downstreamPath),
@@ -167,18 +173,23 @@ export class ExternalPolicyGuard implements CanActivate {
       );
     }
 
-    const requiredScopes = [...policy.requiredScopes, ...matchingRule.requiredScopes];
-    const missingScopes = requiredScopes.filter((scope) => !callerScopes.includes(scope));
+    const requiredScopes = [
+      ...policy.requiredScopes,
+      ...matchingRule.requiredScopes,
+    ];
+    const missingScopes = requiredScopes.filter(
+      (scope) => !callerScopes.includes(scope),
+    );
     if (missingScopes.length > 0) {
       return this.deny(
-        `External API access denied. Missing scopes: ${missingScopes.join(', ')}`,
+        `External API access denied. Missing scopes: ${missingScopes.join(", ")}`,
         request,
       );
     }
 
     this.logger.debug(
-      `External policy allow api=${apiName} tribe=${tribeId} method=${method} path=${downstreamPath} policy=${matchingRule.policyLabel} correlationId=${request.correlationId ?? 'n/a'}`,
-      'ExternalPolicyGuard',
+      `External policy allow api=${apiName} tribe=${tribeId} method=${method} path=${downstreamPath} policy=${matchingRule.policyLabel} correlationId=${request.correlationId ?? "n/a"}`,
+      "ExternalPolicyGuard",
     );
 
     return true;
@@ -192,32 +203,38 @@ export class ExternalPolicyGuard implements CanActivate {
   ): void {
     const allowlist = this.resolveAllowlist(envVar);
 
-    if (allowlist === '*') {
+    if (allowlist === "*") {
       return;
     }
 
     if (allowlist.size === 0) {
-      this.deny(`External API '${apiName}' has no configured allowlist (${envVar})`, request);
+      this.deny(
+        `External API '${apiName}' has no configured allowlist (${envVar})`,
+        request,
+      );
     }
 
     if (!allowlist.has(tribeId)) {
-      this.deny(`Tribe '${tribeId}' is not allowlisted for external API '${apiName}'`, request);
+      this.deny(
+        `Tribe '${tribeId}' is not allowlisted for external API '${apiName}'`,
+        request,
+      );
     }
   }
 
-  private resolveAllowlist(envVar: string): Set<string> | '*' {
+  private resolveAllowlist(envVar: string): Set<string> | "*" {
     const raw = process.env[envVar];
     if (!raw) {
       return new Set<string>();
     }
 
     const entries = raw
-      .split(',')
+      .split(",")
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-    if (entries.includes('*')) {
-      return '*';
+    if (entries.includes("*")) {
+      return "*";
     }
 
     return new Set(entries);
@@ -225,40 +242,51 @@ export class ExternalPolicyGuard implements CanActivate {
 
   private normaliseMethod(method: string): HttpMethod {
     const normalized = method.toUpperCase();
-    const supported: HttpMethod[] = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
+    const supported: HttpMethod[] = [
+      "GET",
+      "HEAD",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+    ];
 
     if (!supported.includes(normalized as HttpMethod)) {
-      throw new ForbiddenError(`Method '${method}' is not allowed for external APIs`);
+      throw new ForbiddenError(
+        `Method '${method}' is not allowed for external APIs`,
+      );
     }
 
     return normalized as HttpMethod;
   }
 
   private normaliseDownstreamPath(rawPath: string | undefined): string {
-    const raw = (rawPath ?? '').trim();
-    const normalized = `/${raw}`.replace(/\/{2,}/g, '/');
+    const raw = (rawPath ?? "").trim();
+    const normalized = `/${raw}`.replace(/\/{2,}/g, "/");
 
     if (
-      normalized.includes('..') ||
-      normalized.includes('\\') ||
+      normalized.includes("..") ||
+      normalized.includes("\\") ||
       /%2e/i.test(normalized) ||
       /%5c/i.test(normalized)
     ) {
-      throw new ForbiddenError('Path traversal sequences are not allowed for external API routing');
+      throw new ForbiddenError(
+        "Path traversal sequences are not allowed for external API routing",
+      );
     }
 
     return normalized;
   }
 
   private deny(message: string, request: ExternalPolicyRequest): never {
-    const apiName = String(request.params?.apiName ?? 'unknown').toLowerCase();
-    const wildcardPath = (request.params?.['0'] ?? '').trim();
-    const attemptedPath = `/${wildcardPath}`.replace(/\/{2,}/g, '/');
-    const tribeId = request.user?.tribeId ?? request.tribeId ?? 'unknown';
+    const apiName = String(request.params?.apiName ?? "unknown").toLowerCase();
+    const wildcardPath = (request.params?.["0"] ?? "").trim();
+    const attemptedPath = `/${wildcardPath}`.replace(/\/{2,}/g, "/");
+    const tribeId = request.user?.tribeId ?? request.tribeId ?? "unknown";
 
     this.logger.warn(
-      `External policy deny api=${apiName} tribe=${tribeId} method=${request.method} path=${attemptedPath} reason=${message} correlationId=${request.correlationId ?? 'n/a'}`,
-      'ExternalPolicyGuard',
+      `External policy deny api=${apiName} tribe=${tribeId} method=${request.method} path=${attemptedPath} reason=${message} correlationId=${request.correlationId ?? "n/a"}`,
+      "ExternalPolicyGuard",
     );
 
     throw new ForbiddenError(message);

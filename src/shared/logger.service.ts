@@ -10,19 +10,19 @@
 //  - Timestamps, correlation IDs, and service names on every log line
 // =============================================================================
 
-import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
-import winston from 'winston';
-import { ConfigService } from '../config/config.service';
+import { Injectable, LoggerService as NestLoggerService } from "@nestjs/common";
+import winston from "winston";
+import { ConfigService } from "../config/config.service";
 
 // ---------------------------------------------------------------------------
 // Custom format: adds service name and environment to every log entry
 // ---------------------------------------------------------------------------
 const buildBaseFormat = (environment: string) =>
   winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
     winston.format.errors({ stack: true }),
     winston.format((info) => {
-      info.service = 'api-center';
+      info.service = "api-center";
       info.environment = environment;
       return info;
     })(),
@@ -33,7 +33,8 @@ const buildDevFormat = (environment: string) =>
     buildBaseFormat(environment),
     winston.format.colorize(),
     winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
-      const metaStr = Object.keys(meta).length > 1 ? ` ${JSON.stringify(meta)}` : '';
+      const metaStr =
+        Object.keys(meta).length > 1 ? ` ${JSON.stringify(meta)}` : "";
       return `${timestamp} [${service}] ${level}: ${message}${metaStr}`;
     }),
   );
@@ -50,9 +51,11 @@ export class LoggerService implements NestLoggerService {
     const environment = this.config.nodeEnv;
 
     this.winstonLogger = winston.createLogger({
-      level: isProduction ? 'info' : 'debug',
-      format: isProduction ? buildProdFormat(environment) : buildDevFormat(environment),
-      defaultMeta: { service: 'api-center' },
+      level: isProduction ? "info" : "debug",
+      format: isProduction
+        ? buildProdFormat(environment)
+        : buildDevFormat(environment),
+      defaultMeta: { service: "api-center" },
       transports: [new winston.transports.Console()],
       exitOnError: false,
     });
@@ -92,7 +95,7 @@ export class LoggerService implements NestLoggerService {
   get morganStream() {
     return {
       write: (msg: string) => {
-        this.winstonLogger.info(msg.trim(), { component: 'http' });
+        this.winstonLogger.info(msg.trim(), { component: "http" });
       },
     };
   }
