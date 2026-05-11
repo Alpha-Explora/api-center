@@ -41,7 +41,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
 
 # Copy source and compile TypeScript (NestJS uses nest build)
-COPY tsconfig.json nest-cli.json ./
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY src/ ./src/
 RUN npm run build && \
     npm prune --omit=dev && \
