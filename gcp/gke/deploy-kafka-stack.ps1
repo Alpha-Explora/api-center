@@ -1,11 +1,18 @@
 param(
   [switch]$WithObservability,
   [switch]$WithDr,
+  [switch]$AllowSelfHostedKafka,
   [string]$KafkaTimeout = "20m",
   [string]$ApiTimeout = "10m"
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $AllowSelfHostedKafka) {
+  Write-Host "Self-hosted Kafka rollout is disabled. Use Confluent Cloud for production Kafka."
+  Write-Host "Re-run with -AllowSelfHostedKafka only for approved fallback use."
+  exit 1
+}
 
 function Assert-Command {
   param([string]$Name)

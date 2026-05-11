@@ -1,0 +1,28 @@
+# Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.local-kafka.yml --profile local-kafka up -d
+#
+# This override keeps the default compose stack Kafka-free while making the
+# explicit local Kafka fallback wait for the local broker before APICenter starts.
+
+x-api-center-local-kafka-depends: &api-center-local-kafka-depends
+  depends_on:
+    kafka:
+      condition: service_healthy
+    geo-provider-mock:
+      condition: service_healthy
+    redis-cache:
+      condition: service_healthy
+    redis-rate-limit:
+      condition: service_healthy
+    vault:
+      condition: service_healthy
+
+services:
+  api-center-1:
+    <<: *api-center-local-kafka-depends
+
+  api-center-2:
+    <<: *api-center-local-kafka-depends
+
+  api-center-3:
+    <<: *api-center-local-kafka-depends

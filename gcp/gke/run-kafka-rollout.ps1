@@ -7,6 +7,7 @@ param(
   [string]$ApiTimeout = "10m",
   [string]$Hostname = "",
   [switch]$CheckKafkaTopicSmoke,
+  [switch]$AllowSelfHostedKafka,
   [switch]$SkipSecretSync,
   [switch]$SkipDeploy,
   [switch]$SkipApiRestart,
@@ -15,6 +16,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $AllowSelfHostedKafka) {
+  Write-Host "Self-hosted Kafka rollout is disabled. Use Confluent Cloud for production Kafka."
+  Write-Host "Re-run with -AllowSelfHostedKafka only for approved fallback use."
+  if ($DryRun) {
+    exit 0
+  }
+  exit 1
+}
 
 function Assert-Command {
   param([string]$Name)
@@ -77,6 +87,8 @@ if (-not $SkipDeploy) {
   if ($WithDr) {
     $deployArgs += "-WithDr"
   }
+
+  $deployArgs += "-AllowSelfHostedKafka"
 
   & powershell @deployArgs
   if ($LASTEXITCODE -ne 0) {

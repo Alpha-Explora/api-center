@@ -1,7 +1,9 @@
 # Self-Hosted Kafka on GKE (Strimzi + KRaft)
 
-This folder contains the production baseline manifests for running a self-hosted
-Kafka cluster in GKE for APICenter.
+> Current production direction: Confluent Cloud. These self-hosted Kafka manifests are retained only as historical or emergency fallback assets.
+
+This folder contains fallback manifests for running a self-hosted Kafka cluster
+in GKE for APICenter when Confluent Cloud is unavailable or explicitly rejected.
 
 ## What this deploys
 
@@ -28,9 +30,10 @@ kubectl -n strimzi-operator get pods
 
 The operator is configured to watch only the `kafka` namespace.
 
-## Deploy Kafka resources
+## Deploy Kafka resources manually
 
 ```bash
+# Fallback-only manual path. Prefer the guarded rollout scripts below.
 kubectl apply -k gcp/gke/kafka
 kubectl -n kafka get kafkas,kafkanodepools,kafkausers,kafkatopics
 ```
@@ -95,26 +98,28 @@ kubectl -n kafka get kafkatopics
 
 ## One-command deployment
 
+These commands are fallback-only and require an explicit self-hosted Kafka allow flag.
+
 ```bash
-bash gcp/gke/deploy-kafka-stack.sh --with-observability
+bash gcp/gke/deploy-kafka-stack.sh --allow-self-hosted-kafka --with-observability
 ```
 
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -WithObservability
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -AllowSelfHostedKafka -WithObservability
 ```
 
 To include DR resources as part of deployment:
 
 ```bash
-bash gcp/gke/deploy-kafka-stack.sh --with-observability --with-dr
+bash gcp/gke/deploy-kafka-stack.sh --allow-self-hosted-kafka --with-observability --with-dr
 ```
 
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -WithObservability -WithDr
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -AllowSelfHostedKafka -WithObservability -WithDr
 ```
 
 Post-deploy verification:
@@ -126,7 +131,7 @@ powershell -ExecutionPolicy Bypass -File .\gcp\gke\verify-kafka-stack.ps1 -Check
 Full rollout orchestration:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -AllowSelfHostedKafka -WithObservability
 ```
 
 Dry-run orchestration (no cluster or secret writes):
@@ -156,5 +161,5 @@ powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-topic.ps1
 Include runtime topic smoke in full rollout:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability -CheckKafkaTopicSmoke
+powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -AllowSelfHostedKafka -WithObservability -CheckKafkaTopicSmoke
 ```

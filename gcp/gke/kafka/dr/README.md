@@ -1,5 +1,7 @@
 # Kafka DR Replication (MirrorMaker2)
 
+> Current production direction: Confluent Cloud. These self-hosted Kafka manifests are retained only as historical or emergency fallback assets.
+
 This folder provides a baseline Strimzi `KafkaMirrorMaker2` deployment to replicate
 APICenter topics from the primary in-cluster Kafka to a DR Kafka cluster.
 
@@ -25,9 +27,10 @@ kubectl -n kafka create secret generic mirrormaker2-target-credentials \
   --from-literal=password='<TARGET_PASSWORD>'
 ```
 
-## Deploy
+## Deploy Manually
 
 ```bash
+# Fallback-only manual path. Prefer the guarded rollout scripts from gcp/gke/kafka/README.md.
 kubectl apply -k gcp/gke/kafka/dr
 kubectl -n kafka get kafkamirrormaker2
 ```

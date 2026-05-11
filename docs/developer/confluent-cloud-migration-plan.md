@@ -279,13 +279,14 @@ Expected: PASS.
 
 **Files:**
 - Modify: `C:\Codes\apic\api-center\docker-compose.yml`
+- Create: `C:\Codes\apic\api-center\docker-compose.local-kafka.yml`
 - Modify: `C:\Codes\apic\api-center\gcp\gke\kafka\README.md`
 - Modify: `C:\Codes\apic\api-center\gcp\gke\kafka\dr\README.md`
 - Modify: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.ps1`
 - Modify: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.sh`
 - Modify: `C:\Codes\apic\api-center\gcp\gke\run-kafka-rollout.ps1`
 
-- [ ] **Step 3.1: Put local Kafka services behind a profile**
+- [x] **Step 3.1: Put local Kafka services behind a profile**
 
 Add this to `kafka`, `schema-registry`, `kafka-rest`, and `kafka-ui` services:
 
@@ -296,7 +297,13 @@ profiles:
 
 Remove the hard APICenter dependency on `kafka` for the default compose path.
 
-- [ ] **Step 3.2: Add fallback banners**
+Create `docker-compose.local-kafka.yml` to restore Kafka health dependencies only when the explicit local fallback is used:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.local-kafka.yml --profile local-kafka up -d
+```
+
+- [x] **Step 3.2: Add fallback banners**
 
 At the top of `gcp/gke/kafka/README.md` and `gcp/gke/kafka/dr/README.md`, add:
 
@@ -304,7 +311,7 @@ At the top of `gcp/gke/kafka/README.md` and `gcp/gke/kafka/dr/README.md`, add:
 > Current production direction: Confluent Cloud. These self-hosted Kafka manifests are retained only as historical or emergency fallback assets.
 ```
 
-- [ ] **Step 3.3: Guard self-hosted rollout scripts**
+- [x] **Step 3.3: Guard self-hosted rollout scripts**
 
 Make `deploy-kafka-stack.ps1`, `deploy-kafka-stack.sh`, and `run-kafka-rollout.ps1` require an explicit `AllowSelfHostedKafka` or `--allow-self-hosted-kafka` flag before applying self-hosted Kafka resources.
 
@@ -314,7 +321,7 @@ Expected default message:
 Self-hosted Kafka rollout is disabled. Use Confluent Cloud for production Kafka.
 ```
 
-- [ ] **Step 3.4: Verify script guard**
+- [x] **Step 3.4: Verify script guard**
 
 Run:
 

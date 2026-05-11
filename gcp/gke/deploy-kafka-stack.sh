@@ -3,6 +3,7 @@ set -euo pipefail
 
 WITH_OBSERVABILITY=false
 WITH_DR=false
+ALLOW_SELF_HOSTED_KAFKA=false
 KAFKA_WAIT_TIMEOUT="${KAFKA_WAIT_TIMEOUT:-20m}"
 API_WAIT_TIMEOUT="${API_WAIT_TIMEOUT:-10m}"
 
@@ -13,6 +14,8 @@ Usage: ./gcp/gke/deploy-kafka-stack.sh [options]
 Options:
   --with-observability   Apply Kafka observability pack
   --with-dr              Apply Kafka DR MirrorMaker2 pack
+  --allow-self-hosted-kafka
+                        Explicitly allow self-hosted Kafka rollout
   --kafka-timeout <dur>  Kafka readiness wait timeout (default: 20m)
   --api-timeout <dur>    API rollout timeout (default: 10m)
   --help                 Show this help
@@ -31,6 +34,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-dr)
       WITH_DR=true
+      shift
+      ;;
+    --allow-self-hosted-kafka)
+      ALLOW_SELF_HOSTED_KAFKA=true
       shift
       ;;
     --kafka-timeout)
@@ -52,6 +59,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$ALLOW_SELF_HOSTED_KAFKA" != "true" ]]; then
+  echo "Self-hosted Kafka rollout is disabled. Use Confluent Cloud for production Kafka." >&2
+  echo "Re-run with --allow-self-hosted-kafka only for approved fallback use." >&2
+  exit 1
+fi
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

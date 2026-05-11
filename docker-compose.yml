@@ -44,6 +44,9 @@
 # HOW TO RUN:
 #   docker-compose up -d
 #
+# Local Kafka fallback:
+#   docker compose -f docker-compose.yml -f docker-compose.local-kafka.yml --profile local-kafka up -d
+#
 # HOW TO ADD A 4th CONTAINER (checklist §8 — horizontal scaling):
 #   1. Add to this file (copy api-center-3 block, rename to api-center-4)
 #   2. Add  server api-center-4:3000 max_fails=3 fail_timeout=20s;
@@ -109,8 +112,6 @@ x-api-center-common: &api-center-common
     # artificially throttled by a hard-coded sandbox override.
     RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
   depends_on:
-    kafka:
-      condition: service_healthy
     geo-provider-mock:
       condition: service_healthy
     redis-cache:
@@ -343,6 +344,8 @@ services:
   #   api-center.gateway.*             circuit-breaker state changes
   # ---------------------------------------------------------------------------
   kafka:
+    profiles:
+      - local-kafka
     image: confluentinc/cp-kafka:7.7.0
     container_name: kafka
     ports:
@@ -375,6 +378,8 @@ services:
   # Schema Registry — required by Confluent Kafka REST Proxy
   # ---------------------------------------------------------------------------
   schema-registry:
+    profiles:
+      - local-kafka
     image: confluentinc/cp-schema-registry:7.7.0
     container_name: schema-registry
     environment:
@@ -397,6 +402,8 @@ services:
   # Kafka REST Proxy — consumed by tribes through /api/v1/external/kafka/*
   # ---------------------------------------------------------------------------
   kafka-rest:
+    profiles:
+      - local-kafka
     image: confluentinc/cp-kafka-rest:7.7.0
     container_name: kafka-rest
     environment:
@@ -449,6 +456,8 @@ services:
   # Kafka UI — Browse topics / messages
   # ---------------------------------------------------------------------------
   kafka-ui:
+    profiles:
+      - local-kafka
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
