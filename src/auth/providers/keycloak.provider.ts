@@ -21,7 +21,7 @@
 // PRODUCTION HARDENING:
 //   • Run Keycloak behind an Envoy/Nginx ingress that strips or re-validates JWTs
 //   • Use Vault (or cloud KMS/HSM) for client-secret storage — load them into
-//     process.env via SecretsService at boot time
+//     process.env before Nest bootstrap
 //   • Enable Redis-backed refresh-token storage for state management
 //   • Emit audit events to Kafka on validation failure / token issuance
 // =============================================================================

@@ -8,6 +8,7 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import morgan from 'morgan';
 import { LoggerService } from '../logger.service';
+import { isHealthCheckPath } from '../health-path';
 
 @Injectable()
 export class MorganMiddleware implements NestMiddleware {
@@ -16,6 +17,10 @@ export class MorganMiddleware implements NestMiddleware {
   constructor(private readonly logger: LoggerService) {
     this.morganHandler = morgan('combined', {
       stream: this.logger.morganStream,
+      skip: (req) => {
+        const expressRequest = req as Request;
+        return isHealthCheckPath(expressRequest.originalUrl || expressRequest.url);
+      },
     });
   }
 

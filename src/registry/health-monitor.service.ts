@@ -153,12 +153,13 @@ export class HealthMonitorService implements OnModuleDestroy {
       // Keys present in memory but missing from Redis
       const missingInRedis = [...memoryKeys].filter((k) => !redisKeys.has(k));
 
-      // Check for data divergence (same key, different updatedAt — simple heuristic)
+      // Check for data divergence (same key, different entry fingerprint)
       const diverged: string[] = [];
       for (const key of redisKeys) {
         if (
           memoryKeys.has(key) &&
-          redisEntries[key].updatedAt !== memoryEntries[key].updatedAt
+          this.registryEntryFingerprint(redisEntries[key]) !==
+            this.registryEntryFingerprint(memoryEntries[key])
         ) {
           diverged.push(key);
         }
@@ -225,6 +226,29 @@ export class HealthMonitorService implements OnModuleDestroy {
   // Private helpers
   // =========================================================================
 
+  private registryEntryFingerprint(entry: unknown): string {
+    return JSON.stringify(this.normalizeForFingerprint(entry));
+  }
+
+  private normalizeForFingerprint(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.normalizeForFingerprint(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.keys(value as Record<string, unknown>)
+        .filter((key) => key !== 'lastHealthCheckAt')
+        .sort()
+        .reduce<Record<string, unknown>>((normalized, key) => {
+          normalized[key] = this.normalizeForFingerprint(
+            (value as Record<string, unknown>)[key],
+          );
+          return normalized;
+        }, {});
+    }
+
+    return value;
+  }
 
   // =========================================================================
   // CRON 3 — Vault token renewal (every 30 minutes)

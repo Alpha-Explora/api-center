@@ -14,6 +14,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Counter, Histogram, Gauge } from 'prom-client';
 
 type LifecycleStatusLabel = 'proposed' | 'active' | 'deprecated' | 'retired';
+type KafkaPublishOutcome = 'success' | 'failure';
 
 @Injectable()
 export class MetricsService implements OnModuleInit {
@@ -30,6 +31,8 @@ export class MetricsService implements OnModuleInit {
   readonly registryBootstrapOperationsTotal: Counter;
   readonly registryDiscoveryRequestsTotal: Counter;
   readonly kafkaGovernanceOperationsTotal: Counter;
+  readonly kafkaPublishOperationsTotal: Counter;
+  readonly kafkaProducerConnected: Gauge;
 
   // ---- Showback / Usage Metrics ----
   readonly proxyRequestsTotal: Counter;
@@ -89,6 +92,17 @@ export class MetricsService implements OnModuleInit {
       labelNames: ['operation', 'outcome'] as const,
     });
 
+    this.kafkaPublishOperationsTotal = new Counter({
+      name: 'kafka_publish_operations_total',
+      help: 'Kafka publish attempts grouped by topic and outcome',
+      labelNames: ['topic', 'outcome'] as const,
+    });
+
+    this.kafkaProducerConnected = new Gauge({
+      name: 'kafka_producer_connected',
+      help: 'Kafka producer connection state: 1=connected, 0=disconnected',
+    });
+
     this.proxyRequestsTotal = new Counter({
       name: 'proxy_requests_total',
       help: 'Total proxy requests for showback attribution (shared + tribe)',
@@ -114,6 +128,7 @@ export class MetricsService implements OnModuleInit {
     this.registryServicesByStatusTotal.set({ status: 'active' }, 0);
     this.registryServicesByStatusTotal.set({ status: 'deprecated' }, 0);
     this.registryServicesByStatusTotal.set({ status: 'retired' }, 0);
+    this.kafkaProducerConnected.set(0);
   }
 
   /**
@@ -213,6 +228,14 @@ export class MetricsService implements OnModuleInit {
     outcome: 'success' | 'failure',
   ) {
     this.kafkaGovernanceOperationsTotal.inc({ operation, outcome });
+  }
+
+  recordKafkaPublish(topic: string, outcome: KafkaPublishOutcome) {
+    this.kafkaPublishOperationsTotal.inc({ topic, outcome });
+  }
+
+  setKafkaProducerConnected(connected: boolean) {
+    this.kafkaProducerConnected.set(connected ? 1 : 0);
   }
 
   /**

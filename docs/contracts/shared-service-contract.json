@@ -8,6 +8,12 @@
         "paymentCreateCheckoutSession",
         "paymentGetCheckoutSession",
         "paymentCreateRefund"
+      ],
+      "endpoints": [
+        "/checkout/sessions",
+        "/checkout/sessions/:id",
+        "/payments/:id/refunds",
+        "/webhooks"
       ]
     },
     {
@@ -16,6 +22,11 @@
       "wrappers": [
         "emailSend",
         "emailGetStatus"
+      ],
+      "endpoints": [
+        "/send",
+        "/templates",
+        "/status"
       ]
     },
     {
@@ -24,6 +35,11 @@
       "wrappers": [
         "smsSend",
         "smsGetStatus"
+      ],
+      "endpoints": [
+        "/send",
+        "/status",
+        "/templates"
       ]
     },
     {
@@ -34,6 +50,13 @@
         "gauthExchangeCode",
         "gauthRefreshToken",
         "gauthLogout"
+      ],
+      "endpoints": [
+        "/oauth/authorize",
+        "/oauth/token",
+        "/oauth/token/refresh",
+        "/oauth/logout",
+        "/health"
       ]
     },
     {
@@ -43,6 +66,11 @@
         "otpGenerate",
         "otpVerify",
         "otpStatus"
+      ],
+      "endpoints": [
+        "/generate",
+        "/verify",
+        "/status"
       ]
     }
   ],

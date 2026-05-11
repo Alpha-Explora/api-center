@@ -81,7 +81,7 @@ describe('AuditLogInterceptor', () => {
     expect(mockKafka.publishNonBlocking).toHaveBeenCalled();
   });
 
-  it('should keep request flow non-blocking when kafka publish fails', async () => {
+  it('should skip audit events for health checks', async () => {
     const request = {
       method: 'GET',
       originalUrl: '/api/v1/health/ready',
@@ -99,6 +99,6 @@ describe('AuditLogInterceptor', () => {
       }),
     );
 
-    expect(mockKafka.publishNonBlocking).toHaveBeenCalled();
+    expect(mockKafka.publishNonBlocking).not.toHaveBeenCalled();
   });
 });

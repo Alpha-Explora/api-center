@@ -9,11 +9,12 @@
 // automatically — no manual bootstrap/graceful-shutdown code needed.
 // =============================================================================
 
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Kafka, logLevel, Producer, Consumer } from 'kafkajs';
 import { ZodSchema } from 'zod';
 import { ConfigService } from '../config/config.service';
 import { LoggerService } from '../shared/logger.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { TOPICS } from './topics';
 import {
   GatewayRequestEventSchema,
@@ -67,6 +68,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly config: ConfigService,
     private readonly logger: LoggerService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {
     this.kafka = this.createKafkaClient();
 
@@ -148,8 +150,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.producer.connect();
       this.connected = true;
+      this.metrics?.setKafkaProducerConnected(true);
       this.logger.log('Kafka producer connected', 'KafkaService');
     } catch (err) {
+      this.metrics?.setKafkaProducerConnected(false);
       this.logger.error(
         `Kafka producer failed to connect: ${(err as Error).message}`,
         (err as Error).stack,
@@ -162,6 +166,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     await this.producer.disconnect();
     this.connected = false;
+    this.metrics?.setKafkaProducerConnected(false);
     for (const consumer of this.consumers.values()) {
       await consumer.disconnect();
     }
@@ -182,32 +187,38 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
    * @throws Error if payload fails Zod validation
    */
   async publish(topic: string, payload: Record<string, unknown>, key?: string): Promise<void> {
-    // ---- Schema validation ----
-    const schema = TOPIC_SCHEMAS[topic];
-    if (schema) {
-      const result = schema.safeParse(payload);
-      if (!result.success) {
-        const errorMsg = `Kafka schema validation failed for topic '${topic}': ${result.error.message}`;
-        this.logger.error(errorMsg, undefined, 'KafkaService');
-        throw new Error(errorMsg);
+    try {
+      // ---- Schema validation ----
+      const schema = TOPIC_SCHEMAS[topic];
+      if (schema) {
+        const result = schema.safeParse(payload);
+        if (!result.success) {
+          const errorMsg = `Kafka schema validation failed for topic '${topic}': ${result.error.message}`;
+          this.logger.error(errorMsg, undefined, 'KafkaService');
+          throw new Error(errorMsg);
+        }
       }
-    }
 
-    await this.producer.send({
-      topic,
-      messages: [
-        {
-          key: key ? String(key) : undefined,
-          value: JSON.stringify({
-            ...payload,
-            _meta: {
-              timestamp: new Date().toISOString(),
-              source: this.config.kafka.clientId,
-            },
-          }),
-        },
-      ],
-    });
+      await this.producer.send({
+        topic,
+        messages: [
+          {
+            key: key ? String(key) : undefined,
+            value: JSON.stringify({
+              ...payload,
+              _meta: {
+                timestamp: new Date().toISOString(),
+                source: this.config.kafka.clientId,
+              },
+            }),
+          },
+        ],
+      });
+      this.metrics?.recordKafkaPublish(topic, 'success');
+    } catch (err) {
+      this.metrics?.recordKafkaPublish(topic, 'failure');
+      throw err;
+    }
   }
 
   /**

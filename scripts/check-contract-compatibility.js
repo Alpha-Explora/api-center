@@ -23,10 +23,10 @@ function assertFileExists(relativePath) {
   const absolutePath = path.join(repoRoot, relativePath);
   if (!fs.existsSync(absolutePath)) {
     violations.push(`Missing required file: ${relativePath}`);
-    return false;
+    return null;
   }
 
-  return true;
+  return absolutePath;
 }
 
 function collectManifestDriftViolations() {
@@ -92,6 +92,22 @@ function runContractChecks() {
   const sharedControllerSource = readText(sharedControllerPath);
   if (!sharedControllerSource.includes("@Controller('shared')")) {
     violations.push("Shared services controller is missing @Controller('shared').");
+  }
+
+  for (const service of contract.sharedServices || []) {
+    const manifestPath = assertFileExists(service.manifest);
+    if (!manifestPath) {
+      continue;
+    }
+
+    const manifest = readJson(manifestPath);
+    const expectedEndpoints = manifest.exposes || [];
+    const contractEndpoints = service.endpoints || [];
+    if (JSON.stringify(contractEndpoints) !== JSON.stringify(expectedEndpoints)) {
+      violations.push(
+        `Shared service '${service.serviceId}' endpoints do not match manifest exposes list.`,
+      );
+    }
   }
 
   const kafkaControllerSource = readText(kafkaControllerPath);

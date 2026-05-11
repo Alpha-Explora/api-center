@@ -668,6 +668,13 @@ Initial phase: PROVISIONING
 Created at: 2026-05-10T18:26:17Z UTC
 ```
 
+For API Center `KAFKA_BROKERS`, strip the Confluent UI protocol prefix and store
+only the host and port:
+
+```text
+KAFKA_BROKERS=pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092
+```
+
 The old cluster remains:
 
 ```text

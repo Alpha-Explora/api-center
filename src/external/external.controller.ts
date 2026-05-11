@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ExternalPolicyGuard } from './guards/external-policy.guard';
 import { LoggerService } from '../shared/logger.service';
 import { AuthenticatedRequest } from '../types';
+import { normalizeHttpMethod } from './http-method';
 
 @Controller('external')
 @UseGuards(JwtAuthGuard)
@@ -60,16 +61,17 @@ export class ExternalController {
     const wildcardPath = ((req.params as Record<string, string | undefined>)['0'] ?? '').trim();
     const downstreamPath = `/${wildcardPath}`.replace(/\/{2,}/g, '/');
     const normalizedApiName = apiName.toLowerCase();
+    const method = normalizeHttpMethod(req.method);
 
     this.logger.info('External proxy call', {
       apiName: normalizedApiName,
-      method: req.method,
+      method,
       path: downstreamPath,
       correlationId: req.correlationId,
     });
 
     const result = await this.externalService.call(normalizedApiName, {
-      method: req.method as any,
+      method,
       path: downstreamPath,
       query: req.query as Record<string, string>,
       body: req.body,

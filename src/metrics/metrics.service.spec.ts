@@ -103,4 +103,38 @@ describe('MetricsService', () => {
       expect(value?.value).toBe(2);
     });
   });
+
+  describe('recordKafkaPublish()', () => {
+    it('increments publish outcome counters by topic and outcome', async () => {
+      service.recordKafkaPublish('api-center.audit.log', 'success');
+      service.recordKafkaPublish('api-center.audit.log', 'failure');
+      service.recordKafkaPublish('api-center.audit.log', 'failure');
+
+      const metric = await service.kafkaPublishOperationsTotal.get();
+      const failure = metric.values.find(
+        (entry) =>
+          entry.labels.topic === 'api-center.audit.log' &&
+          entry.labels.outcome === 'failure',
+      );
+
+      expect(failure?.value).toBe(2);
+    });
+  });
+
+  describe('setKafkaProducerConnected()', () => {
+    it('sets producer connection gauge to 1 when connected', async () => {
+      service.setKafkaProducerConnected(true);
+
+      const metric = await service.kafkaProducerConnected.get();
+      expect(metric.values[0].value).toBe(1);
+    });
+
+    it('sets producer connection gauge to 0 when disconnected', async () => {
+      service.setKafkaProducerConnected(true);
+      service.setKafkaProducerConnected(false);
+
+      const metric = await service.kafkaProducerConnected.get();
+      expect(metric.values[0].value).toBe(0);
+    });
+  });
 });

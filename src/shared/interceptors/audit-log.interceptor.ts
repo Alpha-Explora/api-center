@@ -20,6 +20,7 @@ import { Request, Response } from 'express';
 import { KafkaService } from '../../kafka/kafka.service';
 import { TOPICS } from '../../kafka/topics';
 import { AuthenticatedRequest } from '../../types';
+import { isHealthCheckPath } from '../health-path';
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
@@ -29,6 +30,10 @@ export class AuditLogInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
     const start = Date.now();
+
+    if (isHealthCheckPath(request.originalUrl || request.url || request.path)) {
+      return next.handle();
+    }
 
     return next.handle().pipe(
       tap({

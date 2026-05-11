@@ -2,6 +2,7 @@ import { KafkaService } from './kafka.service';
 import { ConfigService } from '../config/config.service';
 import { LoggerService } from '../shared/logger.service';
 import { TOPICS } from './topics';
+import { MetricsService } from '../metrics/metrics.service';
 
 jest.mock('kafkajs', () => ({
   Kafka: jest.fn().mockImplementation(() => ({
@@ -50,6 +51,11 @@ describe('KafkaService', () => {
     debug: jest.fn(),
   } as unknown as LoggerService;
 
+  const mockMetrics = {
+    recordKafkaPublish: jest.fn(),
+    setKafkaProducerConnected: jest.fn(),
+  } as unknown as MetricsService;
+
   let mockProducer: {
     connect: jest.Mock;
     send: jest.Mock;
@@ -69,7 +75,7 @@ describe('KafkaService', () => {
       Kafka: jest.Mock;
     };
 
-    service = new KafkaService(mockConfig, mockLogger);
+    service = new KafkaService(mockConfig, mockLogger, mockMetrics);
 
     const kafkaInstance = kafkaModule.Kafka.mock.results[0].value as {
       producer: () => { connect: jest.Mock; send: jest.Mock; disconnect: jest.Mock };
@@ -98,6 +104,7 @@ describe('KafkaService', () => {
 
     expect(service.isConnected()).toBe(true);
     expect(mockProducer.connect).toHaveBeenCalledTimes(1);
+    expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(true);
   });
 
   it('should keep producer disconnected when module init connect fails', async () => {
@@ -107,6 +114,7 @@ describe('KafkaService', () => {
 
     expect(service.isConnected()).toBe(false);
     expect(mockLogger.error).toHaveBeenCalled();
+    expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(false);
   });
 
   it('should configure Kafka client with TLS and SASL when enabled', () => {
@@ -130,7 +138,7 @@ describe('KafkaService', () => {
       },
     } as unknown as ConfigService;
 
-    new KafkaService(secureConfig, mockLogger);
+    new KafkaService(secureConfig, mockLogger, mockMetrics);
 
     expect(kafkaModule.Kafka).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -165,7 +173,7 @@ describe('KafkaService', () => {
       },
     } as unknown as ConfigService;
 
-    new KafkaService(secureConfig, mockLogger);
+    new KafkaService(secureConfig, mockLogger, mockMetrics);
 
     expect(kafkaModule.Kafka).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -182,6 +190,7 @@ describe('KafkaService', () => {
       'Kafka schema validation failed',
     );
     expect(mockProducer.send).not.toHaveBeenCalled();
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(TOPICS.GATEWAY_REQUEST, 'failure');
   });
 
   it('should reject token-issued events when required schema fields are missing', async () => {
@@ -210,6 +219,7 @@ describe('KafkaService', () => {
     expect(sentPayload.event).toBe('ok');
     expect(sentPayload._meta.source).toBe('api-center-test');
     expect(sentPayload._meta.timestamp).toEqual(expect.any(String));
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith('custom.topic', 'success');
   });
 
   it('should publish audit events when payload satisfies audit schema', async () => {
@@ -236,27 +246,31 @@ describe('KafkaService', () => {
     expect(mockProducer.disconnect).toHaveBeenCalledTimes(1);
     expect(mockConsumer.disconnect).toHaveBeenCalledTimes(1);
     expect(service.isConnected()).toBe(false);
+    expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(false);
   });
 
   it('should keep request flow non-blocking when publish fails', async () => {
-    jest.spyOn(service, 'publish').mockRejectedValue(new Error('kafka-down'));
+    mockProducer.send.mockRejectedValue(new Error('kafka-down'));
 
     service.publishNonBlocking('custom.topic', { event: 'non-blocking' });
+    await Promise.resolve();
     await Promise.resolve();
 
     expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.stringContaining('Kafka publish failed for custom.topic'),
       'KafkaService',
     );
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith('custom.topic', 'failure');
   });
 
   it('should log warn when non-blocking publish is configured with warn level', async () => {
-    jest.spyOn(service, 'publish').mockRejectedValue(new Error('kafka-down'));
+    mockProducer.send.mockRejectedValue(new Error('kafka-down'));
 
     service.publishNonBlocking('custom.topic', { event: 'warn-level' }, {
       context: 'ExternalService',
       failureLogLevel: 'warn',
     });
+    await Promise.resolve();
     await Promise.resolve();
 
     expect(mockLogger.warn).toHaveBeenCalledWith(

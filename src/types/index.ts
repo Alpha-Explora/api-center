@@ -153,8 +153,10 @@ export interface ExternalApiConfigMap {
   [apiName: string]: ExternalApiConfig;
 }
 
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+
 export interface ExternalCallOptions {
-  method?: string;
+  method?: HttpMethod;
   path?: string;
   query?: Record<string, string>;
   body?: unknown;

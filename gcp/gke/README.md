@@ -52,8 +52,8 @@ All pods are stateless and identical — registry entries, refresh tokens, and r
 | `30-deployment.yaml` | Deployment + probes + resource requests (HPA-tuned) |
 | `40-service.yaml` | ClusterIP Service with NEG + BackendConfig annotations |
 | `41-backendconfig.yaml` | GCLB health-check + draining config |
-| `50-hpa.yaml` | HPA: 3–30 replicas, CPU 70% / mem 80%, fast scale-up |
-| `60-pdb.yaml` | PDB `minAvailable: 2` for safe rolling drains |
+| `50-hpa.yaml` | HPA: 2-3 replicas, CPU 70% / mem 80%, fast scale-up |
+| `60-pdb.yaml` | PDB `minAvailable: 1` for the current low-credit profile |
 | `70-managedcert.yaml` | Google-managed TLS cert |
 | `80-ingress.yaml` | GCE Ingress (HTTPS only, static IP) |
 | `provision.sh` | One-time GCP setup (cluster, Memorystore, Workload Identity, IP) |
@@ -94,6 +94,22 @@ Add these secrets to Secret Manager payload before rollout:
 - `KAFKA_SASL_USERNAME`
 - `KAFKA_SASL_PASSWORD`
 
+For Confluent Cloud, the Kafka portion of `api-center-prod` must look like:
+
+```json
+{
+  "KAFKA_BROKERS": "pkc-xxxxx.<region>.<provider>.confluent.cloud:9092",
+  "KAFKA_SASL_MECHANISM": "plain",
+  "KAFKA_SASL_USERNAME": "<confluent-kafka-api-key>",
+  "KAFKA_SASL_PASSWORD": "<confluent-kafka-api-secret>",
+  "KAFKA_SSL_ENABLED": "true",
+  "KAFKA_SSL_REJECT_UNAUTHORIZED": "true"
+}
+```
+
+Do not include `KAFKA_SSL_CA_PEM`, protocol prefixes such as `SASL_SSL://`, or old
+in-cluster brokers ending in `.svc.cluster.local:9092`.
+
 ### 3. Apply
 
 ```bash
@@ -116,6 +132,15 @@ kubectl -n api-center get pods
 ```
 
 Kafka records are verified in Confluent Cloud, not through in-cluster Kafka tools.
+
+Cost optimization guidance lives in:
+
+```text
+docs/developer/gke-cost-optimization-plan.md
+```
+
+For the current Autopilot cluster, optimize pod requests and HPA settings rather
+than trying to edit node pools directly.
 
 ### 4. Wait for the Ingress + cert
 
@@ -152,12 +177,13 @@ hey -z 2m -c 200 https://api.example.com/api/v1/health/live
 watch kubectl -n api-center get hpa,pods
 ```
 
-Expected: replicas climb past 3 within ~1 minute, settle, then scale back down ~5 minutes after load stops (matches `scaleDown.stabilizationWindowSeconds: 300` in `50-hpa.yaml`).
+Expected: replicas climb past 2 within ~1 minute, settle, then scale back down ~5 minutes after load stops (matches `scaleDown.stabilizationWindowSeconds: 300` in `50-hpa.yaml`).
 
 ---
 
 ## Notes
 
 - Kafka uses Confluent Cloud. Store broker and SASL credentials in GCP Secret Manager before rollout.
+- The active low-credit profile uses HPA min `2`, max `3`, and PDB `minAvailable: 1`. This saves idle spend while keeping one spare pod.
 - **Request-rate-based scaling** (e.g. RPS) requires the Cloud Monitoring custom-metrics adapter and an external metric on the GCLB. Left as a `TODO` in `50-hpa.yaml`.
 - **Cloud Armor** can be attached by uncommenting the `securityPolicy` block in `41-backendconfig.yaml`.

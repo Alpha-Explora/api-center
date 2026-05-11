@@ -47,8 +47,8 @@ Source of truth: `gcp/gke/50-hpa.yaml`. This section is the "why these numbers" 
 
 | Parameter | Value | Rationale |
 |---|---|---|
-| Min replicas | 3 | Matches `PDB.minAvailable=2` with one slot of headroom for rolling drains |
-| Max replicas | 6 | Quota-safe cap for current cluster; raise after approved CPU/memory/SSD quota increase |
+| Min replicas | 2 | Cost-saving profile with one spare pod for single-pod failure |
+| Max replicas | 3 | Burst headroom while keeping idle pod spend low |
 | CPU target | 70% | Leaves headroom for bursts before a scale-up triggers |
 | Memory target | 80% | Memory is less spiky than CPU; 80% avoids OOM while not wasting capacity |
 | Scale-up window | 30 s | Fast absorption of traffic spikes |
@@ -60,7 +60,7 @@ Source of truth: `gcp/gke/50-hpa.yaml`. This section is the "why these numbers" 
 
 | Resource | Request | Limit |
 |---|---|---|
-| CPU | 250m | 1000m |
+| CPU | 150m | 1000m |
 | Memory | 256Mi | 512Mi |
 
 **Future:** The `TODO` in `50-hpa.yaml` notes switching to request-rate-based scaling via
@@ -195,8 +195,8 @@ kubectl -n api-center get configmap api-center-config -o jsonpath='{.data.AUTH_P
 
 ### 2C. Configure Kafka client credentials in Secret Manager
 
-The APICenter deployment now uses in-cluster Kafka with TLS + SCRAM.
-`gcp/gke/20-configmap.yaml` already enables:
+The APICenter deployment uses Confluent Cloud Kafka. `gcp/gke/20-configmap.yaml`
+already enables:
 
 - `KAFKA_SSL_ENABLED=true`
 - `KAFKA_SSL_REJECT_UNAUTHORIZED=true`
@@ -208,7 +208,30 @@ Set these keys in Secret Manager payload as part of the same rollout:
 - `KAFKA_SASL_USERNAME=<confluent-api-key>`
 - `KAFKA_SASL_PASSWORD=<confluent-api-secret>`
 
-Then update `api-center-prod` and roll the deployment.
+Do not include:
+
+- `KAFKA_SSL_CA_PEM`
+- protocol prefixes such as `SASL_SSL://`
+- old self-managed brokers such as `api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092`
+
+Then update `api-center-prod` and validate the payload shape before rolling the deployment:
+
+```powershell
+$tmp = Join-Path $env:TEMP ('api-center-prod-verify-' + [guid]::NewGuid().ToString() + '.json')
+gcloud.cmd secrets versions access latest --secret=api-center-prod --project api-center-492808 |
+  Set-Content -LiteralPath $tmp -Encoding UTF8
+$json = Get-Content -Raw -LiteralPath $tmp | ConvertFrom-Json
+Remove-Item -LiteralPath $tmp -Force
+$brokers = [string]$json.KAFKA_BROKERS
+@(
+  [pscustomobject]@{ Check = 'Broker looks Confluent'; Pass = ($brokers -match '\.confluent\.cloud:9092') }
+  [pscustomobject]@{ Check = 'Broker not self-managed'; Pass = ($brokers -notmatch 'localhost|api-center-kafka|\.svc\.cluster\.local|kafka:9092') }
+  [pscustomobject]@{ Check = 'SASL mechanism plain'; Pass = ([string]$json.KAFKA_SASL_MECHANISM -eq 'plain') }
+  [pscustomobject]@{ Check = 'SSL enabled'; Pass = ([string]$json.KAFKA_SSL_ENABLED -eq 'true') }
+  [pscustomobject]@{ Check = 'SSL verification enabled'; Pass = ([string]$json.KAFKA_SSL_REJECT_UNAUTHORIZED -eq 'true') }
+  [pscustomobject]@{ Check = 'Custom CA removed'; Pass = ($json.PSObject.Properties.Name -notcontains 'KAFKA_SSL_CA_PEM') }
+) | Format-Table -AutoSize
+```
 
 ### 3. Run smoke tests before rollout
 
@@ -300,6 +323,26 @@ kubectl -n api-center logs deploy/api-center --tail=100
 Kafka runtime verification is done in Confluent Cloud. Check that `api-center.audit.log`
 receives records after traffic and that the S3 sink exports them.
 
+### 5A. Cost optimization guardrails
+
+See `docs/developer/gke-cost-optimization-plan.md` before changing resource
+requests, HPA min/max replicas, or the PDB.
+
+Current cost-saving profile:
+
+- API Center CPU request is `150m`
+- memory request stays `256Mi`
+- HPA min replicas is `2`
+- HPA max replicas is `3`
+- PDB `minAvailable` is `1`
+- production logs write to stdout only
+- Morgan and Kafka audit skip health-check probe traffic
+
+This keeps the same functionality and preserves one spare pod, but it is still
+less resilient than the previous three-pod profile. If production-style
+availability is needed again, restore HPA min `3`, max `6`, and PDB
+`minAvailable: 2`.
+
 **Subsequent image updates only:**
 
 ```bash
@@ -310,6 +353,33 @@ kubectl -n api-center rollout status deploy/api-center --timeout=5m
 ### 6. Verify
 
 See **Verification Checklist** below.
+
+For the repeatable smoke script, set these variables without printing their
+values:
+
+```bash
+export APICENTER_URL=https://api-center.itsandbox.site
+export APICENTER_TRIBE_ID=<registered-service-id>
+export APICENTER_TRIBE_SECRET=<registered-service-secret>
+export APICENTER_PLATFORM_ADMIN_TOKEN=<token-with-platform-admin>
+# or:
+export APICENTER_PLATFORM_ADMIN_SECRET=<platform-admin-secret>
+
+# Optional governed Kafka smoke:
+export APICENTER_KAFKA_SMOKE_TOPIC=<allowed-tenant-topic>
+```
+
+Validate inputs only:
+
+```bash
+npm run smoke:gke:check-config
+```
+
+Run the smoke:
+
+```bash
+npm run smoke:gke
+```
 
 ### 7. Post-deploy: update this doc
 
@@ -376,11 +446,11 @@ hey -z 2m -c 200 https://<real-hostname>/api/v1/health/live
 
 # Watch in a separate terminal:
 watch kubectl -n api-center get hpa,pods
-# Expected: replicas climb above 3 within ~1 min
+# Expected: replicas climb above 2 within ~1 min
 
 # 7. Scale-down after load stops (wait ~5 min)
 kubectl -n api-center get hpa api-center
-# Expected: replicas return to 3 (scaleDown.stabilizationWindowSeconds=300)
+# Expected: replicas return to 2 (scaleDown.stabilizationWindowSeconds=300)
 
 # 8. Guarded route check with platform:admin token
 curl -si https://<real-hostname>/api/v1/registry/scopes \
@@ -403,7 +473,7 @@ See `gcp/gke/README.md` for the full architecture diagram. Summary:
 ```
 Internet → GCLB (static IP, HTTPS, ManagedCert)
         → NEG (container-native LB)
-        → api-center pods (3–30, scaled by HPA on CPU 70% / mem 80%)
+        → api-center pods (2-3, scaled by HPA on CPU 70% / mem 80%)
         → Memorystore Redis (cache + rate-limit, shared across all replicas)
         → Confluent Cloud Kafka
 ```
@@ -435,4 +505,7 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-04-17 | pending | Added CI boundary enforcement step (`npm run check:boundaries`) in `.github/workflows/ci.yml` | Prevent gateway/SDK boundary drift and block local SDK source reintroduction before merge |
 | 2026-04-17 | pending | Updated local compose documentation to reference external SDK ownership (`api-shared-services`) and moved SDK publishing responsibility out of gateway package metadata | Complete repository split between gateway runtime and shared SDK while keeping deployment behavior unchanged |
 | 2026-05-11 | pending | Removed self-hosted Kafka manifests/scripts and aligned GKE docs to Confluent Cloud | Make Confluent Cloud the only Kafka runtime path |
+| 2026-05-11 | pending | Added Confluent Secret Manager validation and GKE cost optimization guardrails | Prevent rollout with non-Confluent broker values and document first safe Autopilot cost lever |
+| 2026-05-11 | pending | Switched API Center to low-credit HPA profile: 2-3 pods, PDB minAvailable 1, CPU request 150m | Reduce idle Autopilot workload spend while keeping one spare pod |
+| 2026-05-11 | pending | Disabled in-container production file logs and skipped health probes from Morgan/audit streams | Reduce recurring Cloud Logging, Kafka, Confluent connector, and S3 noise without changing API behavior |
 | 2026-04-18 | pending | Reduced HPA max replicas from 30 to 6 in `gcp/gke/50-hpa.yaml` for current cluster quota envelope | Prevent futile autoscaler scale-up attempts until node CPU/memory/SSD quotas are increased |

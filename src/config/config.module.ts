@@ -1,18 +1,17 @@
 // =============================================================================
 // src/config/config.module.ts — Configuration module
 // =============================================================================
-// Provides the ConfigService and SecretsService as global singletons.
-// SecretsService runs first (OnModuleInit) to load GCP Secret Manager secrets
-// into process.env before ConfigService reads them.
+// Provides ConfigService as a global singleton.
+// GCP Secret Manager payloads are loaded in main.ts before Nest creates this
+// module, so ConfigService constructors read already-populated process.env.
 // =============================================================================
 
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from './config.service';
-import { SecretsService } from './secrets.service';
 
 @Global()
 @Module({
-  providers: [SecretsService, ConfigService],
-  exports: [ConfigService, SecretsService],
+  providers: [ConfigService],
+  exports: [ConfigService],
 })
 export class ConfigModule {}

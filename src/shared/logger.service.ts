@@ -53,24 +53,7 @@ export class LoggerService implements NestLoggerService {
       level: isProduction ? 'info' : 'debug',
       format: isProduction ? buildProdFormat(environment) : buildDevFormat(environment),
       defaultMeta: { service: 'api-center' },
-      transports: [
-        new winston.transports.Console(),
-        ...(isProduction
-          ? [
-              new winston.transports.File({
-                filename: 'logs/combined.log',
-                maxsize: 10 * 1024 * 1024,
-                maxFiles: 5,
-              }),
-              new winston.transports.File({
-                filename: 'logs/error.log',
-                level: 'error',
-                maxsize: 10 * 1024 * 1024,
-                maxFiles: 5,
-              }),
-            ]
-          : []),
-      ],
+      transports: [new winston.transports.Console()],
       exitOnError: false,
     });
   }

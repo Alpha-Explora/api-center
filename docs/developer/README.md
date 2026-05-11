@@ -44,8 +44,8 @@ This guide is for contributors and platform operators who need to run, test, and
 For higher scale, VPC-private dependencies, or long-lived connections, deploy to **GKE Autopilot** instead of Cloud Run. Manifests live in [`gcp/gke/`](../../gcp/gke/) and include:
 
 - Deployment + ConfigMap + ClusterIP Service
-- HorizontalPodAutoscaler (3 → 30 pods, CPU 70 % / mem 80 %)
-- PodDisruptionBudget for safe rolling drains
+- HorizontalPodAutoscaler (2 to 3 pods, CPU 70% / mem 80%)
+- PodDisruptionBudget `minAvailable: 1` for the current low-credit profile
 - GKE Ingress + ManagedCertificate (Google-managed TLS)
 - BackendConfig wiring GCLB health checks to `/api/v1/health/ready`
 - Workload Identity binding so pods read GCP Secret Manager without keys
@@ -56,12 +56,17 @@ For higher scale, VPC-private dependencies, or long-lived connections, deploy to
 | Need | Cloud Run | GKE |
 | --- | --- | --- |
 | ≤ ~10 instances, bursty traffic | ✅ simpler | overkill |
-| > 10 instances or steady high QPS | maxScale ceiling | ✅ HPA to 30+ |
+| > 10 instances or steady high QPS | maxScale ceiling | HPA, quota, and max replicas under operator control |
 | Memorystore / VPC-only deps | needs Serverless VPC connector | ✅ native VPC |
 | Long-lived connections (gRPC streaming, SSE) | limited | ✅ |
 | Sub-second cold-start matters | cold starts | ✅ always-on min replicas |
 
-See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough.
+See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough
+and [`gke-cost-optimization-plan.md`](./gke-cost-optimization-plan.md) before changing
+requests, HPA limits, or the PDB.
+Use [`reliability-hardening-plan.md`](./reliability-hardening-plan.md) for the
+implemented reliability phases, deploy smoke checks, and remaining Confluent
+Secret Manager prerequisite.
 
 ---
 
