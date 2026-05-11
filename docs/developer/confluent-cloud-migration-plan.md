@@ -221,7 +221,7 @@ Because `.env.example` now documents Confluent SASL/SSL as the deployment path, 
 - Modify: `C:\Codes\apic\api-center\src\config\config.service.ts`
 - Modify: `C:\Codes\apic\api-center\src\config\config.service.spec.ts`
 
-- [ ] **Step 2.1: Add config tests**
+- [x] **Step 2.1: Add config tests**
 
 Add tests for:
 
@@ -239,7 +239,7 @@ Run:
 npm run test -- src/config/config.service.spec.ts
 ```
 
-- [ ] **Step 2.2: Implement production Kafka validation**
+- [x] **Step 2.2: Implement production Kafka validation**
 
 Add production validation:
 
@@ -260,7 +260,7 @@ if (this.isProduction) {
 }
 ```
 
-- [ ] **Step 2.3: Verify**
+- [x] **Step 2.3: Verify**
 
 Run:
 

@@ -274,15 +274,38 @@ export class ConfigService implements OnApplicationBootstrap {
       warnings.push('No Vault credentials configured — secrets read from process.env only. Set VAULT_ROLE_ID+VAULT_SECRET_ID for production.');
     }
 
-    if (this.isProduction && this.kafka.brokers.includes('localhost:9092')) {
-      warnings.push('KAFKA_BROKERS still points to localhost in production');
-    }
-
     const validKafkaSaslMechanisms = ['plain', 'scram-sha-256', 'scram-sha-512'];
     if (this.kafka.saslMechanism && !validKafkaSaslMechanisms.includes(this.kafka.saslMechanism)) {
       errors.push(
         `KAFKA_SASL_MECHANISM must be one of: ${validKafkaSaslMechanisms.join(', ')} (got '${this.kafka.saslMechanism}')`,
       );
+    }
+
+    if (this.isProduction) {
+      const hasLocalOrSelfManagedBroker = this.kafka.brokers.some((broker) => {
+        const normalizedBroker = broker.toLowerCase();
+        return (
+          normalizedBroker.includes('localhost') ||
+          normalizedBroker.includes('kafka:') ||
+          normalizedBroker.includes('api-center-kafka') ||
+          normalizedBroker.includes('.svc.cluster.local')
+        );
+      });
+      const allBrokersAreConfluentCloud = this.kafka.brokers.every((broker) =>
+        /^[a-z0-9-]+(\.[a-z0-9-]+)*\.confluent\.cloud:9092$/i.test(broker),
+      );
+
+      if (hasLocalOrSelfManagedBroker || !allBrokersAreConfluentCloud) {
+        errors.push('KAFKA_BROKERS must point to Confluent Cloud in production');
+      }
+
+      if (!this.kafka.sslEnabled) {
+        errors.push('KAFKA_SSL_ENABLED=true is required for Confluent Cloud');
+      }
+
+      if (this.kafka.saslMechanism !== 'plain') {
+        errors.push('KAFKA_SASL_MECHANISM=plain is required for Confluent Cloud');
+      }
     }
 
     if (this.kafka.saslMechanism && (!this.kafka.saslUsername || !this.kafka.saslPassword)) {
