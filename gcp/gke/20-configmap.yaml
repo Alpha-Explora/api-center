@@ -10,7 +10,7 @@
 #   api-center-prod           Secret Manager secret name (e.g. api-center-prod)
 #   10.34.181.131      Memorystore "api-center-cache" host (10.x.x.x)
 #   10.63.215.147  Memorystore "api-center-ratelimit" host
-#   api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092   Kafka bootstrap
+#   KAFKA_BROKERS / KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD live in Secret Manager
 #   *       comma-separated, e.g. https://app.example.com
 # =============================================================================
 apiVersion: v1
@@ -31,11 +31,11 @@ data:
   REDIS_CACHE_URL: "redis://10.34.181.131:6379"
   REDIS_RATE_LIMIT_URL: "redis://10.63.215.147:6379"
 
-  # Kafka event bus
-  KAFKA_BROKERS: "api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  # Kafka event bus. Active production path is Confluent Cloud; bootstrap and
+  # SASL credentials are secrets loaded from GCP Secret Manager.
   KAFKA_SSL_ENABLED: "true"
   KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
-  KAFKA_SASL_MECHANISM: "scram-sha-512"
+  KAFKA_SASL_MECHANISM: "plain"
   KAFKA_CLIENT_ID: "api-center"
   KAFKA_GROUP_ID: "api-center-group"
 

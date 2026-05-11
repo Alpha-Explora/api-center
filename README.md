@@ -389,15 +389,15 @@ const tags = await client.geotagResolve({
   context: { shipmentId: 'SMOKE-001' },
 });
 
-// Typed Kafka helpers
-const clusters = await client.kafkaListClusters();
+// Governed Kafka helpers backed by APICenter and Confluent Cloud
+const kafkaGovernance = await client.kafkaGetGovernanceCatalog();
 const tenantTopic = TribeClient.buildTenantTopic('orders-service', 'events');
-await client.kafkaProduceRecords('<cluster-id>', tenantTopic, [
-  {
-    key: 'order-123',
-    value: { eventType: 'order.created', orderId: 'order-123' },
-  },
-]);
+await client.kafkaPublish({
+  topic: tenantTopic,
+  key: 'order-123',
+  eventType: 'order.created',
+  payload: { orderId: 'order-123' },
+});
 ```
 
 **Error types:**
@@ -433,7 +433,8 @@ Configured external services:
 - `geolocation` (Google Geolocation API)
 - `geotagging` (geo-tag enrichment provider)
 - `geofencing` (geofence provider)
-- `kafka` (Kafka REST bridge backed by the internal Kafka broker)
+
+Kafka is no longer a normal external API for new tribe integrations. New Kafka event publishing goes through governed SDK helpers and the API Center producer connection to Confluent Cloud. The `/api/v1/external/kafka/*` REST bridge is legacy/local fallback only.
 
 ```bash
 # Google Geolocation API (Maps Platform)
@@ -444,20 +445,27 @@ GEOLOCATION_API_KEY=<your-key>
 # Replace with your actual geofencing provider
 GEOFENCING_API_KEY=<your-key>
 
-# Kafka REST bridge used by /api/v1/external/kafka/*
-KAFKA_REST_PROXY_URL=http://kafka-rest:8082
-# Optional shared key added as X-APICENTER-KAFKA-KEY
-KAFKA_REST_PROXY_API_KEY=<optional-key>
+# Confluent Cloud producer used by governed Kafka publishing
+KAFKA_BROKERS=<confluent-bootstrap-server>:9092
+KAFKA_SSL_ENABLED=true
+KAFKA_SASL_MECHANISM=plain
+KAFKA_SASL_USERNAME=<confluent-api-key>
+KAFKA_SASL_PASSWORD=<confluent-api-secret>
+
+# Legacy/local Kafka REST bridge used by /api/v1/external/kafka/*
+# KAFKA_REST_PROXY_URL=http://kafka-rest:8082
+# KAFKA_REST_PROXY_API_KEY=<optional-key>
 
 # Secure-by-default per-tribe allowlists (comma-separated service IDs)
 # Empty value = deny all for that API
 EXTERNAL_ALLOWLIST_GEOLOCATION=orders-service,shipment-service
 EXTERNAL_ALLOWLIST_GEOTAGGING=orders-service
 EXTERNAL_ALLOWLIST_GEOFENCING=orders-service,shipment-service
-EXTERNAL_ALLOWLIST_KAFKA=orders-service
+# Legacy/local REST bridge allowlist only
+EXTERNAL_ALLOWLIST_KAFKA=
 ```
 
-Tribes consume Kafka through the same SDK call path:
+Tribes publish Kafka events through the governed SDK path:
 
 ```typescript
 import { TribeClient } from '@apicenter/sdk';
@@ -470,12 +478,14 @@ const client = new TribeClient({
 
 await client.authenticate();
 
-// Discover Kafka cluster metadata via APICenter external routing
-const clusters = await client.callExternal('kafka', '/v3/clusters');
-
-// Or use typed helpers for safer integration
-const typedClusters = await client.kafkaListClusters();
+const governance = await client.kafkaGetGovernanceCatalog();
 const topic = TribeClient.buildTenantTopic('orders-service', 'events');
+await client.kafkaPublish({
+  topic,
+  key: 'order-123',
+  eventType: 'order.created',
+  payload: { orderId: 'order-123' },
+});
 ```
 
 Local end-to-end sandbox validation:
@@ -496,7 +506,7 @@ Generated artifact location:
 
 - `docs/openapi/openapi.json`
 
-The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging/Kafka flows.
+The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging flows. Kafka REST bridge checks are legacy/local fallback only; Confluent validation should use governed Kafka publish and S3 sink verification.
 
 Required token scopes for external policy enforcement:
 

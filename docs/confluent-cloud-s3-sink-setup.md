@@ -21,9 +21,39 @@ GCP API Gateway / API Center shared services
 
 Confluent Cloud is not in the synchronous proxy path for tribe-to-tribe calls. API Center still handles live service routing through the registry and proxy layer. Confluent is the asynchronous event/data backbone.
 
+## Current Active Target
+
+Use this Confluent target for API Center producer credentials and S3 sink validation:
+
+```text
+Environment: api-ingestion
+Cluster display name: api-center-gcp-dev-main
+Cluster ID: lkc-850n9q
+Cloud/provider: AWS
+Region: ap-southeast-2
+Kafka bootstrap endpoint: pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092
+S3 sink connector: api-center-s3-sink
+S3 bucket: api-center-raw-data
+Connector state captured during setup: RUNNING
+```
+
+The earlier `api-center-gcp-dev` / `lkc-vgdkm5` cluster in `ap-southeast-3` is historical. Do not point new API Center deployments at it.
+
+## User Setup After Repo Fix
+
+1. Create or choose a dedicated API Center producer service account/API key scoped to `lkc-850n9q`.
+2. Grant producer permissions to `api-center.*` and required `tribe.*` topics.
+3. Store `KAFKA_BROKERS`, `KAFKA_SASL_USERNAME`, and `KAFKA_SASL_PASSWORD` in the deployment secret store, not in Git.
+4. Redeploy API Center with Confluent SASL/SSL enabled.
+5. Send a real API Center event and verify it appears in Confluent.
+6. Verify the S3 sink exports records to `s3://api-center-raw-data/topics/...`.
+7. Retire the old `ap-southeast-3` cluster only after API Center and S3 export validation pass.
+
 ## Completed Setup
 
-### 1. Confluent Environment and Cluster
+### 1. Historical Initial Confluent Environment and Cluster
+
+This was the first cluster created during setup and is now superseded by the active target above.
 
 Created Confluent Cloud environment:
 
@@ -470,21 +500,21 @@ If the connector still fails after S3 permissions were added:
 5. Confirm the Confluent cluster region and S3 bucket region meet the S3 Sink connector requirement.
 ```
 
-Known region facts from setup:
+Historical region facts from the first, now-superseded `ap-southeast-3` setup:
 
 ```text
 Confluent cluster region captured earlier: ap-southeast-3
 S3 bucket region confirmed in AWS: ap-southeast-2
 ```
 
-If Confluent requires the S3 bucket to be in the same region as the cluster, fix by choosing one of:
+At that time, the possible fixes were:
 
 ```text
 Option A: Create a new S3 bucket in ap-southeast-3 and update the connector to that bucket/region.
 Option B: Recreate the Confluent cluster in ap-southeast-2 and recreate the topics/connector there.
 ```
 
-Before recreating anything, open the connector `Logs` tab and capture the detailed error line.
+Option B was chosen and completed. The active cluster is now `lkc-850n9q` in `ap-southeast-2`; do not follow Option A for new setup.
 
 User note:
 
@@ -584,7 +614,7 @@ kafka.region: ap-southeast-3
 kafka.endpoint: pkc-oz2po.ap-southeast-3.aws.confluent.cloud:9092
 ```
 
-Updated diagnosis:
+Historical diagnosis before the `ap-southeast-2` replacement cluster was created:
 
 ```text
 The Confluent provider integration and connector IAM settings are present.
@@ -594,13 +624,13 @@ The remaining confirmed mismatch is region: Confluent cluster ap-southeast-3 vs 
 
 Confluent documentation states that the fully managed Amazon S3 Sink connector is designed for resources in the same cloud provider and region as the Confluent cluster, and cross-region/cross-cloud use requires Confluent Support enablement.
 
-Recommended fix:
+Historical recommendation at that point, not the current active path:
 
 ```text
 Create a new S3 bucket in ap-southeast-3, update ConfluentS3SinkRole permissions for that bucket, then update/recreate the connector with s3.region=ap-southeast-3 and the new bucket name.
 ```
 
-Alternative fix chosen for consideration:
+Alternative fix that became the active path:
 
 ```text
 Keep the existing S3 bucket in Sydney ap-southeast-2 and create a new Confluent Cloud cluster in AWS ap-southeast-2 instead.
@@ -617,7 +647,7 @@ Implications:
 6. The old ap-southeast-3 cluster can be deleted after validation to avoid duplicate cost.
 ```
 
-Recommended new cluster name:
+Historical candidate new cluster name:
 
 ```text
 api-center-aws-sydney-dev

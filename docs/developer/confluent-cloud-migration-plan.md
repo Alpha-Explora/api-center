@@ -54,7 +54,7 @@ From `docs/confluent-cloud-s3-sink-setup.md`:
 - Modify: `C:\Codes\apic\api-center\docs\kafka-plan.md`
 - Modify: `C:\Codes\apic\api-center\docs\kafka-dr-runbook.md`
 
-- [ ] **Step 0.1: Keep this file as the single active plan**
+- [x] **Step 0.1: Keep this file as the single active plan**
 
 Verify only this file contains the active Confluent implementation plan:
 
@@ -68,7 +68,7 @@ Expected after cleanup:
 docs\developer\confluent-cloud-migration-plan.md
 ```
 
-- [ ] **Step 0.2: Mark self-hosted Kafka docs historical**
+- [x] **Step 0.2: Mark self-hosted Kafka docs historical**
 
 Add this banner to the top of `docs/kafka-plan.md`:
 
@@ -82,7 +82,7 @@ Add this banner to the top of `docs/kafka-dr-runbook.md`:
 > Current production direction: Confluent Cloud plus Confluent-managed S3 Sink. The MirrorMaker/self-hosted Kafka DR runbook below is historical fallback context. Use `docs/developer/confluent-cloud-migration-plan.md` as the active implementation plan.
 ```
 
-- [ ] **Step 0.3: Verify no duplicate active plan remains**
+- [x] **Step 0.3: Verify no duplicate active plan remains**
 
 Run:
 
@@ -102,16 +102,18 @@ Expected: this file is the active plan; old self-hosted docs point here.
 - Modify: `C:\Codes\apic\api-center\.env.example`
 - Modify: `C:\Codes\apic\api-center\gcp\gke\20-configmap.yaml`
 - Modify: `C:\Codes\apic\api-center\api-center-config.live.yaml`
+- Modify: `C:\Codes\apic\api-center\docker-compose.yml`
+- Modify: `C:\Codes\apic\api-center\.gitignore`
 - Modify: `C:\Codes\apic\api-center\docs\confluent-cloud-s3-sink-setup.md`
 - Modify: `C:\Codes\apic\api-center\README.md`
 - Modify: `C:\Codes\apic\api-center\docs\developer\README.md`
+- Modify: `C:\Codes\apic\api-shared-services\README.md`
 
-- [ ] **Step 1.1: Update `.env.example` Kafka section**
+- [x] **Step 1.1: Update `.env.example` Kafka section**
 
 Use Confluent-safe placeholders as the active path:
 
 ```env
-KAFKA_PROVIDER=confluent
 KAFKA_BROKERS=<confluent-bootstrap-server>:9092
 KAFKA_CLIENT_ID=api-center
 KAFKA_GROUP_ID=api-center-group
@@ -120,14 +122,12 @@ KAFKA_SSL_REJECT_UNAUTHORIZED=true
 KAFKA_SASL_MECHANISM=plain
 KAFKA_SASL_USERNAME=<confluent-api-key>
 KAFKA_SASL_PASSWORD=<confluent-api-secret>
-KAFKA_READINESS_REQUIRED=false
 ```
 
 Keep localhost Kafka only as a commented local fallback:
 
 ```env
 # Local offline fallback only:
-# KAFKA_PROVIDER=local
 # KAFKA_BROKERS=localhost:9092
 # KAFKA_SSL_ENABLED=false
 # KAFKA_SASL_MECHANISM=
@@ -135,39 +135,35 @@ Keep localhost Kafka only as a commented local fallback:
 # KAFKA_SASL_PASSWORD=
 ```
 
-- [ ] **Step 1.2: Update GKE ConfigMap**
+- [x] **Step 1.2: Update GKE ConfigMap**
 
 In `gcp/gke/20-configmap.yaml`, keep only non-secret Confluent values:
 
 ```yaml
-KAFKA_PROVIDER: "confluent"
 KAFKA_CLIENT_ID: "api-center"
 KAFKA_GROUP_ID: "api-center-group"
 KAFKA_SSL_ENABLED: "true"
 KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
 KAFKA_SASL_MECHANISM: "plain"
-KAFKA_READINESS_REQUIRED: "false"
 ```
 
 Do not commit `KAFKA_SASL_USERNAME` or `KAFKA_SASL_PASSWORD`. Store them in GCP Secret Manager during Phase 5.
 
-- [ ] **Step 1.3: Clean live config**
+- [x] **Step 1.3: Clean live config**
 
 Remove `KAFKA_BROKERS: localhost:9092` from `api-center-config.live.yaml`.
 
 Use:
 
 ```yaml
-KAFKA_PROVIDER: confluent
 KAFKA_CLIENT_ID: api-center
 KAFKA_GROUP_ID: api-center-group
 KAFKA_SSL_ENABLED: "true"
 KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
 KAFKA_SASL_MECHANISM: plain
-KAFKA_READINESS_REQUIRED: "false"
 ```
 
-- [ ] **Step 1.4: Add active target and user setup checklist**
+- [x] **Step 1.4: Add active target and user setup checklist**
 
 In `docs/confluent-cloud-s3-sink-setup.md`, add near the top:
 
@@ -193,7 +189,7 @@ In `docs/confluent-cloud-s3-sink-setup.md`, add near the top:
 8. Confirm S3 receives exported objects.
 ```
 
-- [ ] **Step 1.5: Verify config references**
+- [x] **Step 1.5: Verify config references**
 
 Run:
 
@@ -202,6 +198,18 @@ Select-String -Path .env.example,gcp\gke\20-configmap.yaml,api-center-config.liv
 ```
 
 Expected: matches appear only in local fallback or historical comments.
+
+- [x] **Step 1.6: Update SDK-facing Kafka documentation**
+
+In `api-center/README.md` and `api-shared-services/README.md`, document `kafkaGetGovernanceCatalog()` and `kafkaPublish()` as the preferred Confluent Cloud path. Keep direct Kafka REST helpers documented only as legacy/local fallback APIs.
+
+- [x] **Step 1.7: Keep local-only Confluent credentials out of Git**
+
+Ignore `.codex/` local agent configuration files and keep Confluent credentials in local secret stores only. The local `.codex` env files were redacted in this workspace and now point to the active `lkc-850n9q` target with placeholder credentials.
+
+- [x] **Step 1.8: Preserve docker-compose local Kafka behavior**
+
+Because `.env.example` now documents Confluent SASL/SSL as the deployment path, `docker-compose.yml` explicitly overrides Kafka SSL/SASL values back to local plaintext Kafka for the sandbox stack.
 
 ---
 
@@ -218,10 +226,10 @@ Expected: matches appear only in local fallback or historical comments.
 Add tests for:
 
 ```text
-production + KAFKA_PROVIDER=confluent + localhost broker => fatal config error
-production + KAFKA_PROVIDER=confluent + api-center-kafka broker => fatal config error
-production + KAFKA_PROVIDER=confluent + missing SASL username/password => fatal config error
-production + KAFKA_PROVIDER=confluent + SSL disabled => fatal config error
+production + localhost broker => fatal config error
+production + api-center-kafka broker => fatal config error
+production + missing SASL username/password => fatal config error
+production + SSL disabled => fatal config error
 production + valid Confluent config => no Kafka config error
 ```
 
@@ -231,18 +239,12 @@ Run:
 npm run test -- src/config/config.service.spec.ts
 ```
 
-- [ ] **Step 2.2: Implement provider validation**
-
-Add `provider` to `this.kafka`:
-
-```ts
-provider: process.env.KAFKA_PROVIDER || 'confluent',
-```
+- [ ] **Step 2.2: Implement production Kafka validation**
 
 Add production validation:
 
 ```ts
-if (this.isProduction && this.kafka.provider === 'confluent') {
+if (this.isProduction) {
   if (this.kafka.brokers.some((broker) => broker.includes('localhost') || broker.includes('kafka:') || broker.includes('api-center-kafka'))) {
     errors.push('KAFKA_BROKERS must point to Confluent Cloud in production');
   }
@@ -452,7 +454,6 @@ Do not commit these values.
 Create `scripts/verify-confluent-config.js` to check env shape without printing secrets:
 
 ```text
-KAFKA_PROVIDER=confluent
 KAFKA_BROKERS contains .confluent.cloud:9092
 KAFKA_SSL_ENABLED=true
 KAFKA_SASL_MECHANISM=plain

@@ -104,7 +104,8 @@ npm install
 # Copy env
 cp .env.example .env
 
-# Start everything (NGINX + 3 API containers + Redis + Kafka + Vault + observability)
+# Start the local sandbox (NGINX + 3 API containers + Redis + Vault + observability).
+# The compose Kafka/Kafka UI services are local fallback only; production uses Confluent Cloud.
 docker-compose up -d
 
 # Watch container health (~30–60 s for all to become healthy)
@@ -142,7 +143,7 @@ npm run dev           # nest start --watch (connects to docker-compose infra)
 |---------|------|-----|---------|
 | **NGINX** | **3000** | `http://localhost:3000` | **Consumer entrypoint — use this** |
 | Vault UI | 8200 | `http://localhost:8200/ui` | Secrets (Token: `root`) |
-| Kafka UI | 8080 | `http://localhost:8080` | Browse Kafka topics & messages |
+| Kafka UI | 8080 | `http://localhost:8080` | Local fallback Kafka only; production uses Confluent Cloud |
 | Prometheus | 9090 | `http://localhost:9090` | Metrics |
 | Grafana | 3001 | `http://localhost:3001` | Dashboards (admin / admin) |
 | Jaeger | 16686 | `http://localhost:16686` | Distributed tracing |
@@ -200,6 +201,7 @@ curl -s http://localhost:3000/api/v1/health/live | jq .
 
 # Readiness — can the process serve traffic? (checks Redis, Kafka)
 curl -s http://localhost:3000/api/v1/health/ready | jq .
+# Kafka readiness is currently always enforced; configure Confluent or the local fallback before using /ready.
 # → { "status": "ok", "details": { ... } }
 
 # NGINX health (bypasses NestJS entirely)
@@ -535,17 +537,9 @@ curl -s -X POST "http://localhost:3000/api/v1/external/geolocation/geolocation/v
 
 # The API key is injected server-side — never exposed to the caller
 
-# Kafka via APICenter external routing (REST Proxy)
-curl -s "http://localhost:3000/api/v1/external/kafka/v3/clusters" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
-
-# Optional: list topics for the first cluster returned
-CLUSTER_ID=$(curl -s "http://localhost:3000/api/v1/external/kafka/v3/clusters" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  | jq -r '.data.data[0].cluster_id')
-
-curl -s "http://localhost:3000/api/v1/external/kafka/v3/clusters/$CLUSTER_ID/topics" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+# Kafka REST Proxy routes are legacy/local fallback only.
+# New Kafka event publishing uses APICenter's governed Kafka routes and
+# the server-side Confluent Cloud producer configuration.
 ```
 
 ---
@@ -658,6 +652,7 @@ open http://localhost:16686
 
 ```bash
 open http://localhost:8080
+# Local fallback cluster only. Production audit records go to Confluent Cloud.
 # Cluster: api-center-local → Topics
 
 # Key topics to inspect:
@@ -762,7 +757,10 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | `REDIS_CACHE_URL` | `redis://localhost:6381` | Registry + token store |
 | `REDIS_RATE_LIMIT_URL` | `redis://localhost:6380` | Rate-limit counters |
 | `REDIS_TOKEN_TTL_SECONDS` | `3600` | Token TTL in Redis |
-| `KAFKA_BROKERS` | `localhost:9092` | Comma-separated broker list |
+| `KAFKA_BROKERS` | `<confluent-bootstrap-server>:9092` | Confluent bootstrap server; store real value in Secret Manager for deployed envs |
+| `KAFKA_SSL_ENABLED` | `true` | Required for Confluent Cloud |
+| `KAFKA_SASL_MECHANISM` | `plain` | Required for Confluent Cloud API keys |
+| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | unset | Confluent API key/secret from Secret Manager |
 | `VAULT_ADDR` | `http://localhost:8200` | Vault server |
 | `VAULT_TOKEN` | — | Root/dev token (dev only) |
 | `VAULT_ROLE_ID` / `VAULT_SECRET_ID` | — | AppRole credentials (production) |
@@ -788,8 +786,15 @@ GEOLOCATION_API_URL=https://www.googleapis.com
 GEOLOCATION_API_KEY=<your-key>
 GEOFENCING_API_URL=https://api.geofencing.example.com
 GEOFENCING_API_KEY=<your-key>
-KAFKA_REST_PROXY_URL=http://kafka-rest:8082
-KAFKA_REST_PROXY_API_KEY=<optional-key>
+KAFKA_BROKERS=<confluent-bootstrap-server>:9092
+KAFKA_SSL_ENABLED=true
+KAFKA_SASL_MECHANISM=plain
+KAFKA_SASL_USERNAME=<confluent-api-key>
+KAFKA_SASL_PASSWORD=<confluent-api-secret>
+
+# Legacy/local fallback only:
+# KAFKA_REST_PROXY_URL=http://kafka-rest:8082
+# KAFKA_REST_PROXY_API_KEY=<optional-key>
 ```
 
 ---
@@ -802,7 +807,7 @@ KAFKA_REST_PROXY_API_KEY=<optional-key>
 - [ ] `ALLOWED_ORIGINS` — explicit whitelist, **not** `*`
 - [ ] **Vault**: `VAULT_DEV_MODE=false`, AppRole credentials (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`)
 - [ ] **Redis**: sentinel or cluster URLs with TLS (`rediss://`)
-- [ ] **Kafka**: internal broker addresses, SASL/TLS enabled
+- [ ] **Kafka**: Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
 - [ ] **Keycloak**: set `KEYCLOAK_ISSUER` and `KEYCLOAK_AUDIENCE`
 - [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
 - [ ] **Google**: set `GOOGLE_ALLOWED_DOMAINS` to your Workspace domain(s)
@@ -919,7 +924,9 @@ cat > /tmp/api-center-secrets.json <<'EOF'
   "JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----\n...",
   "REDIS_CACHE_URL": "redis://10.x.x.x:6379",
   "REDIS_RATE_LIMIT_URL": "redis://10.x.x.x:6380",
-  "KAFKA_BROKERS": "broker1:9092,broker2:9092",
+  "KAFKA_BROKERS": "pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092",
+  "KAFKA_SASL_USERNAME": "<confluent-api-key>",
+  "KAFKA_SASL_PASSWORD": "<confluent-api-secret>",
   "TRIBE_SECRET_USER_SERVICE": "<sha256hash>",
   "TRIBE_SECRET_PAYMENT_SERVICE": "<sha256hash>"
 }
@@ -1021,6 +1028,7 @@ Set non-sensitive env vars directly on the Cloud Run service. Sensitive values g
 | `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` | Secret Manager JSON |
 | `REDIS_CACHE_URL` | Secret Manager JSON |
 | `KAFKA_BROKERS` | Secret Manager JSON |
+| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | Secret Manager JSON |
 | `TRIBE_SECRET_*` | Secret Manager JSON |
 
 ```bash
