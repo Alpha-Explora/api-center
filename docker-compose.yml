@@ -28,8 +28,6 @@
 #   ┌─────────────────────────────────────────────────────────────────┐
 #   │  redis-cache      :6381  — service registry + token store       │
 #   │  redis-rate-limit :6380  — distributed rate-limit counters      │
-#   │  kafka            :9092  — event bus (audit, auth, registry)    │
-#   │  kafka-rest       :8082  — HTTP bridge for tribe Kafka access   │
 #   │  vault            :8200  — secrets + Transit signing (dev mode) │
 #   └─────────────────────────────────────────────────────────────────┘
 #
@@ -38,14 +36,10 @@
 #   │  prometheus   :9090  — metrics scraping                         │
 #   │  grafana      :3001  — dashboards                               │
 #   │  jaeger       :16686 — distributed tracing UI                   │
-#   │  kafka-ui     :8080  — browse topics / messages                 │
 #   └─────────────────────────────────────────────────────────────────┘
 #
 # HOW TO RUN:
 #   docker-compose up -d
-#
-# Local Kafka fallback:
-#   docker compose -f docker-compose.yml -f docker-compose.local-kafka.yml --profile local-kafka up -d
 #
 # HOW TO ADD A 4th CONTAINER (checklist §8 — horizontal scaling):
 #   1. Add to this file (copy api-center-3 block, rename to api-center-4)
@@ -79,14 +73,6 @@ x-api-center-common: &api-center-common
     # Redis URLs point to container names (Docker internal network)
     REDIS_CACHE_URL:      redis://redis-cache:6379
     REDIS_RATE_LIMIT_URL: redis://redis-rate-limit:6379
-    # Kafka internal address
-    KAFKA_BROKERS: kafka:29092
-    KAFKA_SSL_ENABLED: "false"
-    KAFKA_SASL_MECHANISM: ""
-    KAFKA_SASL_USERNAME: ""
-    KAFKA_SASL_PASSWORD: ""
-    KAFKA_EXTERNAL_REST_ENABLED: "true"
-    KAFKA_REST_PROXY_URL: http://kafka-rest:8082
     # Local deterministic geo stack (mock provider)
     GEOLOCATION_API_URL: http://geo-provider-mock:8085
     GEOLOCATION_API_KEY: local-geo-key
@@ -98,7 +84,6 @@ x-api-center-common: &api-center-common
     EXTERNAL_ALLOWLIST_GEOLOCATION: "*"
     EXTERNAL_ALLOWLIST_GEOTAGGING: "*"
     EXTERNAL_ALLOWLIST_GEOFENCING: "*"
-    EXTERNAL_ALLOWLIST_KAFKA: "*"
     # Vault dev server — replace with AppRole credentials in production
     VAULT_ADDR:     http://vault:8200
     VAULT_TOKEN:    root
@@ -334,99 +319,6 @@ services:
       - api-center-network
 
   # ---------------------------------------------------------------------------
-  # Kafka (KRaft — no Zookeeper)  — Event bus
-  # ---------------------------------------------------------------------------
-  # Topics produced by APICenter:
-  #   api-center.audit.log             every proxied request
-  #   api-center.auth.token-issued     M2M token issued
-  #   api-center.auth.token-refreshed  token refreshed
-  #   api-center.auth.token-revoked    token revoked
-  #   api-center.registry.*            service lifecycle events
-  #   api-center.gateway.*             circuit-breaker state changes
-  # ---------------------------------------------------------------------------
-  kafka:
-    profiles:
-      - local-kafka
-    image: confluentinc/cp-kafka:7.7.0
-    container_name: kafka
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENERS:              PLAINTEXT://kafka:29092,CONTROLLER://kafka:9093,PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS:   PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
-    healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout:  20s
-      retries:  10
-      start_period: 60s
-    networks:
-      - api-center-network
-
-  # ---------------------------------------------------------------------------
-  # Schema Registry — required by Confluent Kafka REST Proxy
-  # ---------------------------------------------------------------------------
-  schema-registry:
-    profiles:
-      - local-kafka
-    image: confluentinc/cp-schema-registry:7.7.0
-    container_name: schema-registry
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
-    depends_on:
-      kafka:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/subjects"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - api-center-network
-
-  # ---------------------------------------------------------------------------
-  # Kafka REST Proxy — consumed by tribes through /api/v1/external/kafka/*
-  # ---------------------------------------------------------------------------
-  kafka-rest:
-    profiles:
-      - local-kafka
-    image: confluentinc/cp-kafka-rest:7.7.0
-    container_name: kafka-rest
-    environment:
-      KAFKA_REST_HOST_NAME: kafka-rest
-      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
-      KAFKA_REST_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
-      KAFKA_REST_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-    depends_on:
-      kafka:
-        condition: service_healthy
-      schema-registry:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/v3/clusters"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks:
-      - api-center-network
-
-  # ---------------------------------------------------------------------------
   # Vault — Secrets + Transit signing (dev mode for local development)
   # ---------------------------------------------------------------------------
   # In production: use a properly unsealed HA Vault cluster with AppRole auth.
@@ -450,24 +342,6 @@ services:
       timeout:  5s
       retries:  3
       start_period: 5s
-    networks:
-      - api-center-network
-
-  # ---------------------------------------------------------------------------
-  # Kafka UI — Browse topics / messages
-  # ---------------------------------------------------------------------------
-  kafka-ui:
-    profiles:
-      - local-kafka
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: api-center-local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-    depends_on:
-      - kafka
     networks:
       - api-center-network
 
@@ -651,7 +525,6 @@ networks:
     # All containers on this internal network.
     # Only the following ports are exposed to the host:
     #   :3000  NGINX (consumer entrypoint)
-    #   :8080  Kafka UI
     #   :8200  Vault UI (dev)
     #   :9090  Prometheus
     #   :3001  Grafana

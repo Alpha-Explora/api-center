@@ -29,7 +29,6 @@ describe('ExternalPolicyGuard', () => {
     delete process.env.EXTERNAL_ALLOWLIST_GEOLOCATION;
     delete process.env.EXTERNAL_ALLOWLIST_GEOFENCING;
     delete process.env.EXTERNAL_ALLOWLIST_GEOTAGGING;
-    delete process.env.EXTERNAL_ALLOWLIST_KAFKA;
 
     guard = new ExternalPolicyGuard(mockAuth, mockLogger);
   });
@@ -107,12 +106,11 @@ describe('ExternalPolicyGuard', () => {
     expect(result).toBe(true);
   });
 
-  it('should deny kafka topic access outside tribe tenant boundary', () => {
+  it('should deny legacy Kafka REST external API requests', () => {
     (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue([
       'external:kafka:read',
       'external:kafka:write',
     ]);
-    process.env.EXTERNAL_ALLOWLIST_KAFKA = 'tribe-a';
 
     expect(() =>
       guard.canActivate(
@@ -121,25 +119,6 @@ describe('ExternalPolicyGuard', () => {
           params: {
             apiName: 'kafka',
             0: 'v3/clusters/cluster-1/topics/tribe.tribe-b.orders/records',
-          },
-          user: { tribeId: 'tribe-a' },
-        }),
-      ),
-    ).toThrow(ForbiddenError);
-  });
-
-  it('should still require explicit kafka allowlist when legacy Kafka REST is enabled', () => {
-    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue(['external:kafka:read']);
-    process.env.KAFKA_EXTERNAL_REST_ENABLED = 'true';
-    delete process.env.EXTERNAL_ALLOWLIST_KAFKA;
-
-    expect(() =>
-      guard.canActivate(
-        createContext({
-          method: 'GET',
-          params: {
-            apiName: 'kafka',
-            0: 'v3/clusters',
           },
           user: { tribeId: 'tribe-a' },
         }),

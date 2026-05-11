@@ -96,7 +96,7 @@ export class ConfigService implements OnApplicationBootstrap {
 
   readonly kafka = {
     clientId: process.env.KAFKA_CLIENT_ID || 'api-center',
-    brokers: (process.env.KAFKA_BROKERS || 'localhost:9092')
+    brokers: (process.env.KAFKA_BROKERS || '')
       .split(',')
       .map((broker) => broker.trim())
       .filter(Boolean),
@@ -148,11 +148,6 @@ export class ConfigService implements OnApplicationBootstrap {
     geofencing: {
       url: process.env.GEOFENCING_API_URL || 'https://api.geofencing.example.com',
       key: process.env.GEOFENCING_API_KEY || '',
-    },
-    kafka: {
-      enabled: process.env.KAFKA_EXTERNAL_REST_ENABLED === 'true',
-      url: process.env.KAFKA_REST_PROXY_URL || 'http://kafka-rest:8082',
-      apiKey: process.env.KAFKA_REST_PROXY_API_KEY || '',
     },
   };
 
@@ -296,7 +291,9 @@ export class ConfigService implements OnApplicationBootstrap {
         /^[a-z0-9-]+(\.[a-z0-9-]+)*\.confluent\.cloud:9092$/i.test(broker),
       );
 
-      if (hasLocalOrSelfManagedBroker || !allBrokersAreConfluentCloud) {
+      if (this.kafka.brokers.length === 0) {
+        errors.push('KAFKA_BROKERS must be set for Confluent Cloud in production');
+      } else if (hasLocalOrSelfManagedBroker || !allBrokersAreConfluentCloud) {
         errors.push('KAFKA_BROKERS must point to Confluent Cloud in production');
       }
 

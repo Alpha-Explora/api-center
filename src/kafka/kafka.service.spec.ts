@@ -32,7 +32,7 @@ describe('KafkaService', () => {
   const mockConfig = {
     kafka: {
       clientId: 'api-center-test',
-      brokers: ['localhost:9092'],
+      brokers: ['pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092'],
       groupId: 'api-center-group',
       sslEnabled: false,
       sslRejectUnauthorized: true,
@@ -119,13 +119,13 @@ describe('KafkaService', () => {
     const secureConfig = {
       kafka: {
         clientId: 'api-center-test',
-        brokers: ['kafka-bootstrap.kafka.svc.cluster.local:9092'],
+        brokers: ['pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092'],
         groupId: 'api-center-group',
         sslEnabled: true,
         sslRejectUnauthorized: true,
         sslCaPem: '',
-        saslMechanism: 'scram-sha-512',
-        saslUsername: 'api-center',
+        saslMechanism: 'plain',
+        saslUsername: 'confluent-key',
         saslPassword: 'secret',
       },
     } as unknown as ConfigService;
@@ -136,8 +136,8 @@ describe('KafkaService', () => {
       expect.objectContaining({
         ssl: true,
         sasl: {
-          mechanism: 'scram-sha-512',
-          username: 'api-center',
+          mechanism: 'plain',
+          username: 'confluent-key',
           password: 'secret',
         },
       }),
@@ -154,13 +154,13 @@ describe('KafkaService', () => {
     const secureConfig = {
       kafka: {
         clientId: 'api-center-test',
-        brokers: ['kafka-bootstrap.kafka.svc.cluster.local:9092'],
+        brokers: ['pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092'],
         groupId: 'api-center-group',
         sslEnabled: true,
         sslRejectUnauthorized: true,
         sslCaPem: '-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----',
-        saslMechanism: 'scram-sha-512',
-        saslUsername: 'api-center',
+        saslMechanism: 'plain',
+        saslUsername: 'confluent-key',
         saslPassword: 'secret',
       },
     } as unknown as ConfigService;

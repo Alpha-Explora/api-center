@@ -108,8 +108,6 @@ Expected: log lines indicating breaker opened after repeated failures.
 
 ## 8) Kafka audit topic check (success + failure)
 
-```powershell
-docker exec -i kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic api-center.audit.log --from-beginning --timeout-ms 15000
-```
+Kafka audit records are written to Confluent Cloud. Use the Confluent Cloud console or CLI to inspect `api-center.audit.log` after running the sandbox traffic.
 
 Expected: audit messages for successful and failed requests, including status codes and paths.

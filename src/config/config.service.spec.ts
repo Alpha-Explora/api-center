@@ -133,6 +133,15 @@ describe('ConfigService', () => {
     expect(run).toThrow('KAFKA_BROKERS must point to Confluent Cloud in production');
   });
 
+  it('should throw in production when Kafka broker is missing', () => {
+    setValidProductionEnv();
+    process.env.KAFKA_BROKERS = '';
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow('KAFKA_BROKERS must be set for Confluent Cloud in production');
+  });
+
   it('should throw in production when Kafka broker points to a self-managed cluster', () => {
     setValidProductionEnv();
     process.env.KAFKA_BROKERS = 'api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092';

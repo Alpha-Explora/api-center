@@ -16,8 +16,8 @@ This is the active plan. It consolidates and supersedes:
 
 - `docs/developer/confluent-cloud-repo-fix-plan.md`
 - Earlier broad content in `docs/developer/confluent-cloud-migration-plan.md`
-- Self-hosted operational direction in `docs/kafka-plan.md`
-- Self-hosted DR direction in `docs/kafka-dr-runbook.md`
+- Removed self-hosted operational direction from `docs/kafka-plan.md`
+- Removed self-hosted DR direction from `docs/kafka-dr-runbook.md`
 
 Keep `docs/confluent-cloud-s3-sink-setup.md` as the operational runbook for the actual Confluent/S3 setup state.
 
@@ -25,10 +25,10 @@ Keep `docs/confluent-cloud-s3-sink-setup.md` as the operational runbook for the 
 
 - `src/kafka/kafka.service.ts` already supports Confluent-compatible KafkaJS config through `KAFKA_BROKERS`, `KAFKA_SSL_ENABLED`, `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, and `KAFKA_SASL_PASSWORD`.
 - `src/kafka/topics.ts`, `src/kafka/schemas/*`, audit publishing, registry events, and `src/kafka-governance/*` should stay.
-- `docker-compose.yml` still makes local Kafka, Schema Registry, Kafka REST Proxy, and Kafka UI look like the normal stack.
-- `gcp/gke/kafka/*`, `docs/kafka-plan.md`, and `docs/kafka-dr-runbook.md` still describe self-managed Kafka/Strimzi/MirrorMaker.
+- `docker-compose.yml` must not include local Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
+- `gcp/gke/kafka/*`, `docs/kafka-plan.md`, and `docs/kafka-dr-runbook.md` are removed so self-managed Kafka is not available as a fallback path.
 - `gcp/gke/20-configmap.yaml` and `api-center-config.live.yaml` still contain self-managed or localhost Kafka values.
-- `api-shared-services/src/TribeClient.ts` exposes both direct Kafka REST helpers and governed APICenter Kafka helpers.
+- `api-shared-services/src/TribeClient.ts` exposes governed APICenter Kafka helpers only; direct Kafka REST helpers are removed.
 
 ## Current Confluent Target
 
@@ -46,13 +46,13 @@ From `docs/confluent-cloud-s3-sink-setup.md`:
 
 ## Phase 0: Plan Cleanup and Guardrails
 
-**Purpose:** Make the docs unambiguous before any runtime change.
+**Purpose:** Make the docs unambiguous before any runtime change and remove self-managed fallback plans.
 
 **Files:**
 - Modify: `C:\Codes\apic\api-center\docs\developer\confluent-cloud-migration-plan.md`
 - Delete: `C:\Codes\apic\api-center\docs\developer\confluent-cloud-repo-fix-plan.md`
-- Modify: `C:\Codes\apic\api-center\docs\kafka-plan.md`
-- Modify: `C:\Codes\apic\api-center\docs\kafka-dr-runbook.md`
+- Delete: `C:\Codes\apic\api-center\docs\kafka-plan.md`
+- Delete: `C:\Codes\apic\api-center\docs\kafka-dr-runbook.md`
 
 - [x] **Step 0.1: Keep this file as the single active plan**
 
@@ -68,19 +68,9 @@ Expected after cleanup:
 docs\developer\confluent-cloud-migration-plan.md
 ```
 
-- [x] **Step 0.2: Mark self-hosted Kafka docs historical**
+- [x] **Step 0.2: Delete self-hosted Kafka docs**
 
-Add this banner to the top of `docs/kafka-plan.md`:
-
-```md
-> Current production direction: Confluent Cloud. The self-hosted Strimzi/GKE Kafka plan below is historical fallback context. Use `docs/developer/confluent-cloud-migration-plan.md` as the active implementation plan.
-```
-
-Add this banner to the top of `docs/kafka-dr-runbook.md`:
-
-```md
-> Current production direction: Confluent Cloud plus Confluent-managed S3 Sink. The MirrorMaker/self-hosted Kafka DR runbook below is historical fallback context. Use `docs/developer/confluent-cloud-migration-plan.md` as the active implementation plan.
-```
+Remove `docs/kafka-plan.md` and `docs/kafka-dr-runbook.md`. The active path is Confluent Cloud plus the Confluent-managed S3 Sink.
 
 - [x] **Step 0.3: Verify no duplicate active plan remains**
 
@@ -90,7 +80,7 @@ Run:
 Select-String -Path docs\developer\*.md,docs\*.md -Pattern 'active implementation plan|Current production direction: Confluent Cloud'
 ```
 
-Expected: this file is the active plan; old self-hosted docs point here.
+Expected: this file is the active plan; old self-hosted docs are not present.
 
 ---
 
@@ -124,16 +114,7 @@ KAFKA_SASL_USERNAME=<confluent-api-key>
 KAFKA_SASL_PASSWORD=<confluent-api-secret>
 ```
 
-Keep localhost Kafka only as a commented local fallback:
-
-```env
-# Local offline fallback only:
-# KAFKA_BROKERS=localhost:9092
-# KAFKA_SSL_ENABLED=false
-# KAFKA_SASL_MECHANISM=
-# KAFKA_SASL_USERNAME=
-# KAFKA_SASL_PASSWORD=
-```
+Do not include localhost or self-managed Kafka examples.
 
 - [x] **Step 1.2: Update GKE ConfigMap**
 
@@ -197,19 +178,19 @@ Run:
 Select-String -Path .env.example,gcp\gke\20-configmap.yaml,api-center-config.live.yaml -Pattern 'localhost:9092|kafka:29092|api-center-kafka-kafka-bootstrap'
 ```
 
-Expected: matches appear only in local fallback or historical comments.
+Expected: no matches.
 
 - [x] **Step 1.6: Update SDK-facing Kafka documentation**
 
-In `api-center/README.md` and `api-shared-services/README.md`, document `kafkaGetGovernanceCatalog()` and `kafkaPublish()` as the preferred Confluent Cloud path. Keep direct Kafka REST helpers documented only as legacy/local fallback APIs.
+In `api-center/README.md` and `api-shared-services/README.md`, document `kafkaGetGovernanceCatalog()` and `kafkaPublish()` as the Confluent Cloud path. Direct Kafka REST helpers are removed.
 
 - [x] **Step 1.7: Keep local-only Confluent credentials out of Git**
 
 Ignore `.codex/` local agent configuration files and keep Confluent credentials in local secret stores only. The local `.codex` env files were redacted in this workspace and now point to the active `lkc-850n9q` target with placeholder credentials.
 
-- [x] **Step 1.8: Preserve docker-compose local Kafka behavior**
+- [x] **Step 1.8: Remove docker-compose local Kafka behavior**
 
-Because `.env.example` now documents Confluent SASL/SSL as the deployment path, `docker-compose.yml` explicitly overrides Kafka SSL/SASL values back to local plaintext Kafka for the sandbox stack.
+Because `.env.example` now documents Confluent SASL/SSL as the deployment path, `docker-compose.yml` no longer starts Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
 
 ---
 
@@ -273,96 +254,66 @@ Expected: PASS.
 
 ---
 
-## Phase 3: Quarantine Self-Managed Kafka Infrastructure
+## Phase 3: Remove Self-Managed Kafka Infrastructure
 
-**Purpose:** Keep self-hosted Kafka only as explicit local/historical fallback.
+**Purpose:** Delete self-hosted Kafka paths so Confluent Cloud is the only Kafka runtime target in this repo.
 
 **Files:**
 - Modify: `C:\Codes\apic\api-center\docker-compose.yml`
-- Create: `C:\Codes\apic\api-center\docker-compose.local-kafka.yml`
-- Modify: `C:\Codes\apic\api-center\gcp\gke\kafka\README.md`
-- Modify: `C:\Codes\apic\api-center\gcp\gke\kafka\dr\README.md`
-- Modify: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.ps1`
-- Modify: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.sh`
-- Modify: `C:\Codes\apic\api-center\gcp\gke\run-kafka-rollout.ps1`
+- Delete: `C:\Codes\apic\api-center\docker-compose.local-kafka.yml`
+- Delete: `C:\Codes\apic\api-center\gcp\gke\kafka\*`
+- Delete: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.ps1`
+- Delete: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.sh`
+- Delete: `C:\Codes\apic\api-center\gcp\gke\run-kafka-rollout.ps1`
 
-- [x] **Step 3.1: Put local Kafka services behind a profile**
+- [x] **Step 3.1: Remove local Kafka services**
 
-Add this to `kafka`, `schema-registry`, `kafka-rest`, and `kafka-ui` services:
+Delete the `kafka`, `schema-registry`, `kafka-rest`, and `kafka-ui` compose services. Remove the local Kafka override file.
 
-```yaml
-profiles:
-  - local-kafka
-```
+- [x] **Step 3.2: Delete self-hosted Kafka manifests**
 
-Remove the hard APICenter dependency on `kafka` for the default compose path.
+Remove `gcp/gke/kafka/*`, including Strimzi, KafkaTopic, observability, and MirrorMaker assets.
 
-Create `docker-compose.local-kafka.yml` to restore Kafka health dependencies only when the explicit local fallback is used:
+- [x] **Step 3.3: Delete self-hosted rollout scripts**
 
-```powershell
-docker compose -f docker-compose.yml -f docker-compose.local-kafka.yml --profile local-kafka up -d
-```
+Remove `deploy-kafka-stack.*`, `run-kafka-rollout.ps1`, `verify-kafka-stack.ps1`, `sync-kafka-secretmanager.ps1`, `rollback-kafka-secretmanager.ps1`, and Kafka smoke scripts.
 
-- [x] **Step 3.2: Add fallback banners**
-
-At the top of `gcp/gke/kafka/README.md` and `gcp/gke/kafka/dr/README.md`, add:
-
-```md
-> Current production direction: Confluent Cloud. These self-hosted Kafka manifests are retained only as historical or emergency fallback assets.
-```
-
-- [x] **Step 3.3: Guard self-hosted rollout scripts**
-
-Make `deploy-kafka-stack.ps1`, `deploy-kafka-stack.sh`, and `run-kafka-rollout.ps1` require an explicit `AllowSelfHostedKafka` or `--allow-self-hosted-kafka` flag before applying self-hosted Kafka resources.
-
-Expected default message:
-
-```text
-Self-hosted Kafka rollout is disabled. Use Confluent Cloud for production Kafka.
-```
-
-- [x] **Step 3.4: Verify script guard**
+- [x] **Step 3.4: Verify no self-hosted Kafka path remains**
 
 Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -DryRun
+rg -n "local-kafka|kafka-rest|api-center-kafka|Strimzi|MirrorMaker|KAFKA_EXTERNAL_REST|KAFKA_REST_PROXY" -S .
 ```
 
-Expected: it does not apply self-hosted Kafka unless the explicit allow flag is present.
+Expected: no active runtime or setup references remain.
 
 ---
 
 ## Phase 4: API and SDK Surface Alignment
 
-**Purpose:** Make governed Kafka publishing the primary tribe-facing path.
+**Purpose:** Make governed Kafka publishing the only tribe-facing Kafka path.
 
 **Files:**
 - Modify: `C:\Codes\apic\api-center\src\external\apis\index.ts`
-- Modify: `C:\Codes\apic\api-center\src\external\apis\kafka.ts`
+- Delete: `C:\Codes\apic\api-center\src\external\apis\kafka.ts`
 - Modify: `C:\Codes\apic\api-center\src\external\external.service.spec.ts`
 - Modify: `C:\Codes\apic\api-center\src\external\guards\external-policy.guard.spec.ts`
 - Modify: `C:\Codes\apic\api-shared-services\README.md`
 - Modify: `C:\Codes\apic\api-shared-services\src\TribeClient.ts`
 - Modify: `C:\Codes\apic\api-shared-services\tests\TribeClient.test.ts`
 
-- [x] **Step 4.1: Disable legacy external Kafka REST by default**
+- [x] **Step 4.1: Remove legacy external Kafka REST**
 
-Add:
-
-```env
-KAFKA_EXTERNAL_REST_ENABLED=false
-```
-
-Change external API construction so `kafka` is registered only when this variable is true.
+Delete the Kafka external API config, remove the external Kafka policy, and remove all `KAFKA_EXTERNAL_REST_*` / `KAFKA_REST_PROXY_*` env surface.
 
 - [x] **Step 4.2: Add API Center tests**
 
 Add tests that verify:
 
 ```text
-KAFKA_EXTERNAL_REST_ENABLED=false => external API catalogue excludes kafka
-KAFKA_EXTERNAL_REST_ENABLED=true => external API catalogue includes kafka
+external API catalogue excludes kafka
+/api/v1/external/kafka/* is denied by policy
 ```
 
 Run:
@@ -371,25 +322,16 @@ Run:
 npm run test -- src/external/external.service.spec.ts src/external/guards/external-policy.guard.spec.ts
 ```
 
-- [x] **Step 4.3: Mark SDK direct Kafka REST helpers as legacy**
+- [x] **Step 4.3: Remove SDK direct Kafka REST helpers**
 
-Add this comment above `kafkaListClusters`, `kafkaListTopics`, and `kafkaProduceRecords`:
-
-```ts
-/**
- * Legacy direct Kafka REST bridge helper.
- * Prefer kafkaGetGovernanceCatalog() and kafkaPublish() for new tribe integrations.
- */
-```
-
-Add to `api-shared-services/README.md`:
+Remove `kafkaListClusters`, `kafkaListTopics`, and `kafkaProduceRecords`. Add to `api-shared-services/README.md`:
 
 ```md
 ### Kafka with Confluent Cloud
 
-For new tribe integrations, prefer `kafkaGetGovernanceCatalog()` and `kafkaPublish()`. These call APICenter's governed Kafka API, and APICenter publishes to the configured Confluent Cloud cluster.
+Use `kafkaGetGovernanceCatalog()` and `kafkaPublish()`. These call APICenter's governed Kafka API, and APICenter publishes to the configured Confluent Cloud cluster.
 
-The direct Kafka REST helpers (`kafkaListClusters`, `kafkaListTopics`, `kafkaProduceRecords`) are legacy compatibility helpers for `/api/v1/external/kafka/*`.
+Direct Kafka REST helpers are not exposed by the SDK.
 ```
 
 - [x] **Step 4.4: Verify SDK**
@@ -522,7 +464,7 @@ Note: S3 export may not appear immediately because current connector settings us
 
 ---
 
-## Phase 7: Retire Old Paths
+## Phase 7: Retire Old Confluent Cluster
 
 **Purpose:** Remove cost and confusion only after live validation.
 
@@ -545,30 +487,18 @@ Only after approval, retire/delete:
 old cluster lkc-vgdkm5 in ap-southeast-3
 ```
 
-- [ ] **Step 7.3: Decide whether to delete self-hosted Kafka manifests**
-
-If self-hosted fallback is no longer needed, remove:
-
-```text
-gcp/gke/kafka/*
-gcp/gke/deploy-kafka-stack.*
-gcp/gke/run-kafka-rollout.ps1 Kafka-only paths
-```
-
-If fallback is still desired, keep banners and explicit allow flags.
-
 ---
 
 ## Acceptance Criteria
 
 - [ ] This file is the only active Confluent implementation plan.
-- [ ] Old Kafka plan/runbook are marked historical/fallback and point here.
+- [ ] Old Kafka plan/runbook are deleted.
 - [ ] Production-facing config no longer points to `localhost:9092`, `kafka:29092`, or `api-center-kafka-kafka-bootstrap`.
 - [ ] Real secrets are not committed.
 - [ ] `src/kafka/*` and `src/kafka-governance/*` remain intact.
 - [ ] `/api/v1/kafka/governance` and `/api/v1/kafka/publish` remain the preferred SDK path.
-- [ ] Legacy `/api/v1/external/kafka/*` is disabled by default or explicitly marked legacy.
-- [ ] Self-hosted Kafka rollout requires an explicit fallback flag.
+- [ ] Legacy `/api/v1/external/kafka/*` is removed.
+- [ ] Self-hosted Kafka rollout files are deleted.
 - [ ] User setup steps are documented in the Confluent runbook.
 - [ ] API Center produces real records to `lkc-850n9q`.
 - [ ] Confluent S3 sink exports records to `api-center-raw-data`.

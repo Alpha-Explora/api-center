@@ -44,17 +44,11 @@ Render provides an internal Redis URL in the format `redis://...`.
 **Option B — Upstash Redis (free tier, external)**
 Create two databases at https://upstash.com → copy the `REDIS_URL` for each.
 
-### 2. Kafka (optional)
+### 2. Kafka
 
-api-center tolerates a missing or empty Kafka configuration and degrades gracefully
-(audit log events are dropped, all other features remain functional).
-
-If you want Kafka:
-- Upstash Kafka: https://upstash.com/kafka → copy the bootstrap server URL.
-  Set `KAFKA_BROKERS` to `<host>:<port>` and leave `KAFKA_REST_PROXY_URL` empty
-  unless you need the REST proxy.
-
-If you do not want Kafka, set `KAFKA_BROKERS` to an empty string `""`.
+Kafka is Confluent Cloud. Set `KAFKA_BROKERS`, `KAFKA_SSL_ENABLED=true`,
+`KAFKA_SSL_REJECT_UNAUTHORIZED=true`, `KAFKA_SASL_MECHANISM=plain`,
+`KAFKA_SASL_USERNAME`, and `KAFKA_SASL_PASSWORD`.
 
 ### 3. Vault (optional)
 
@@ -175,8 +169,12 @@ You should see all five shared services listed with `status: registered`.
 | `PLATFORM_ADMIN_SECRET` | yes | Shared secret used by all platform services to register. Use a long random string. |
 | `REDIS_CACHE_URL` | yes | Redis URL for service registry and token store |
 | `REDIS_RATE_LIMIT_URL` | yes | Redis URL for rate-limit counters (can be the same Redis instance as a different DB number, e.g. `redis://host:6379/1`) |
-| `KAFKA_BROKERS` | no | Kafka bootstrap server(s). Set to `""` to disable Kafka. |
-| `KAFKA_REST_PROXY_URL` | no | Kafka REST proxy URL. Leave empty if not using REST proxy. |
+| `KAFKA_BROKERS` | yes | Confluent Cloud bootstrap server(s). |
+| `KAFKA_SSL_ENABLED` | yes | Must be `true` for Confluent Cloud. |
+| `KAFKA_SSL_REJECT_UNAUTHORIZED` | yes | Must be `true` unless using a controlled certificate override. |
+| `KAFKA_SASL_MECHANISM` | yes | Must be `plain` for Confluent Cloud. |
+| `KAFKA_SASL_USERNAME` | yes | Confluent API key. |
+| `KAFKA_SASL_PASSWORD` | yes | Confluent API secret. |
 | `VAULT_ADDR` | no | Vault server address. Leave empty to disable Vault. |
 | `VAULT_TOKEN` | no | Vault root or AppRole token. |
 | `VAULT_DEV_MODE` | no | Set to `false` in production. |
@@ -189,7 +187,6 @@ You should see all five shared services listed with `status: registered`.
 | `EXTERNAL_ALLOWLIST_GEOLOCATION` | no | Comma-separated tribe IDs or `*` for all. |
 | `EXTERNAL_ALLOWLIST_GEOTAGGING` | no | Comma-separated tribe IDs or `*` for all. |
 | `EXTERNAL_ALLOWLIST_GEOFENCING` | no | Comma-separated tribe IDs or `*` for all. |
-| `EXTERNAL_ALLOWLIST_KAFKA` | no | Comma-separated tribe IDs or `*` for all. |
 | `TRIBE_SECRET_<TRIBE_ID>` | yes (per tribe) | sha256 hash of the tribe's raw secret. See Tribe Onboarding below. |
 
 ### payment-service

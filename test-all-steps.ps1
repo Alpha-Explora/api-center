@@ -357,22 +357,14 @@ try {
 Write-Host "`nSTEP 8: KAFKA AUDIT TOPIC" -ForegroundColor Green
 Write-Host "---" -ForegroundColor Gray
 try {
-    Write-Host "Checking Kafka topics..." -ForegroundColor Cyan
-    $topics = docker exec kafka kafka-topics --list --bootstrap-server localhost:9092 2>&1
-    if ($topics -match "api-center\.audit\.log") {
-        Write-Host "[PASS] Audit topic exists: api-center.audit.log" -ForegroundColor Green
-        docker exec kafka kafka-topics --describe --bootstrap-server localhost:9092 --topic api-center.audit.log 2>&1 | ForEach-Object {
-            if ($_ -match "replicas|isr|lever") {
-                Write-Host "  $_" -ForegroundColor Gray
-            }
-        }
-    } else {
-        Write-Host "[INFO] Available topics: $topics" -ForegroundColor Yellow
-        $failedChecks += 'Step 8: Kafka audit topic not found'
+    Write-Host "Generating audit traffic for Confluent Cloud verification..." -ForegroundColor Cyan
+    1..3 | ForEach-Object {
+        Invoke-RestMethod -Uri 'http://localhost:3000/api/v1/health/live' -Method Get | Out-Null
     }
+    Write-Host "[INFO] Inspect api-center.audit.log in Confluent Cloud for the generated records." -ForegroundColor Yellow
 } catch {
-    Write-Host "[WARNING] Kafka inspection failed: $_" -ForegroundColor Yellow
-    $failedChecks += 'Step 8: Kafka audit topic inspection failed'
+    Write-Host "[WARNING] Audit traffic generation failed: $_" -ForegroundColor Yellow
+    $failedChecks += 'Step 8: Audit traffic generation failed'
 }
 
 # STEP 9: Geo Context via SDK Helpers (through demand-service)

@@ -258,38 +258,13 @@ $step7 = Test-Step "Step 7: Circuit Breaker (CLOSED -> OPEN)" {
 # ── Step 8: Kafka Audit Log Check ─────────────────────────────────────────────
 $step8 = Test-Step "Step 8: Kafka Audit Log (api-center.audit.log)" {
     Write-Host "  Generating audit events..." -ForegroundColor Gray
-    # First, make some requests to generate audit logs
     1..3 | ForEach-Object {
         try {
             Invoke-RestMethod -Uri "$GatewayUrl/api/v1/health/live" -Method Get | Out-Null
         } catch {}
     }
-    
-    Write-Host "  Consuming audit log messages (5 second timeout)..." -ForegroundColor Gray
-    # Use a shorter timeout and handle the expected timeout error
-    $auditOutput = docker exec -i kafka timeout 5 kafka-console-consumer `
-        --bootstrap-server kafka:29092 `
-        --topic api-center.audit.log `
-        --from-beginning 2>&1
-    
-    # Filter out error messages and Kafka status messages
-    $auditMessages = $auditOutput | Where-Object { 
-        $_ -notmatch "ERROR|Error processing message|terminating consumer|Processed.*messages" 
-    } | Select-Object -Last 20
 
-    if ($auditMessages.Count -gt 0) {
-        Write-Host "  OK - $($auditMessages.Count) audit messages found" -ForegroundColor Green
-        Write-Host "    Sample message:" -ForegroundColor Gray
-        $firstMsg = $auditMessages | Select-Object -First 1
-        if ($firstMsg -and $firstMsg.Length -gt 100) {
-            Write-Host "      $($firstMsg.Substring(0, 100))..." -ForegroundColor Gray
-        } else {
-            Write-Host "      $firstMsg" -ForegroundColor Gray
-        }
-    } else {
-        Write-Host "  Note: No audit messages found" -ForegroundColor Yellow
-        Write-Host "    (Audit logging may be configured differently)" -ForegroundColor Gray
-    }
+    Write-Host "  Inspect api-center.audit.log in Confluent Cloud for generated records." -ForegroundColor Yellow
 }
 
 # ── Summary ──────────────────────────────────────────────────────────────────

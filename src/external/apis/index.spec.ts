@@ -4,7 +4,6 @@ import {
   createGeolocationApi,
   createGeotaggingApi,
   createGeofencingApi,
-  createKafkaApi,
 } from './index';
 
 describe('external api builders', () => {
@@ -22,21 +21,16 @@ describe('external api builders', () => {
         url: 'https://fence.example.com',
         key: 'fence-key',
       },
-      kafka: {
-        url: 'https://kafka.example.com',
-        apiKey: 'kafka-key',
-      },
     },
   } as unknown as ConfigService;
 
   it('should build all external api configs from ConfigService', () => {
     const apis = buildExternalApis(config);
 
-    expect(Object.keys(apis).sort()).toEqual(['geofencing', 'geolocation', 'geotagging', 'kafka']);
+    expect(Object.keys(apis).sort()).toEqual(['geofencing', 'geolocation', 'geotagging']);
     expect(apis.geolocation.baseUrl).toBe('https://geo.example.com');
     expect(apis.geotagging.baseUrl).toBe('https://tag.example.com');
     expect(apis.geofencing.baseUrl).toBe('https://fence.example.com');
-    expect(apis.kafka.baseUrl).toBe('https://kafka.example.com');
   });
 
   it('should create geolocation api config with api-key auth contract', () => {
@@ -45,7 +39,7 @@ describe('external api builders', () => {
     expect(api).toEqual(
       expect.objectContaining({
         name: 'geolocation',
-        displayName: 'Google Geolocation API',
+        displayName: 'Geolocation API',
         authType: 'apiKey',
         authHeader: 'X-Goog-Api-Key',
         authValue: 'geo-key',
@@ -81,17 +75,4 @@ describe('external api builders', () => {
     );
   });
 
-  it('should create kafka api config with expected route and auth details', () => {
-    const api = createKafkaApi(config);
-
-    expect(api).toEqual(
-      expect.objectContaining({
-        name: 'kafka',
-        authType: 'apiKey',
-        authHeader: 'X-APICENTER-KAFKA-KEY',
-        authValue: 'kafka-key',
-        healthEndpoint: '/v3/clusters',
-      }),
-    );
-  });
 });

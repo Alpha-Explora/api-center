@@ -105,7 +105,7 @@ npm install
 cp .env.example .env
 
 # Start the local sandbox (NGINX + 3 API containers + Redis + Vault + observability).
-# The compose Kafka/Kafka UI services are local fallback only; production uses Confluent Cloud.
+# Configure Confluent Cloud Kafka settings in .env before using readiness/publish checks.
 docker-compose up -d
 
 # Watch container health (~30–60 s for all to become healthy)
@@ -143,7 +143,6 @@ npm run dev           # nest start --watch (connects to docker-compose infra)
 |---------|------|-----|---------|
 | **NGINX** | **3000** | `http://localhost:3000` | **Consumer entrypoint — use this** |
 | Vault UI | 8200 | `http://localhost:8200/ui` | Secrets (Token: `root`) |
-| Kafka UI | 8080 | `http://localhost:8080` | Local fallback Kafka only; production uses Confluent Cloud |
 | Prometheus | 9090 | `http://localhost:9090` | Metrics |
 | Grafana | 3001 | `http://localhost:3001` | Dashboards (admin / admin) |
 | Jaeger | 16686 | `http://localhost:16686` | Distributed tracing |
@@ -201,7 +200,7 @@ curl -s http://localhost:3000/api/v1/health/live | jq .
 
 # Readiness — can the process serve traffic? (checks Redis, Kafka)
 curl -s http://localhost:3000/api/v1/health/ready | jq .
-# Kafka readiness is currently always enforced; configure Confluent or the local fallback before using /ready.
+# Kafka readiness is currently always enforced; configure Confluent before using /ready.
 # → { "status": "ok", "details": { ... } }
 
 # NGINX health (bypasses NestJS entirely)
@@ -537,8 +536,7 @@ curl -s -X POST "http://localhost:3000/api/v1/external/geolocation/geolocation/v
 
 # The API key is injected server-side — never exposed to the caller
 
-# Kafka REST Proxy routes are legacy/local fallback only.
-# New Kafka event publishing uses APICenter's governed Kafka routes and
+# Kafka event publishing uses APICenter's governed Kafka routes and
 # the server-side Confluent Cloud producer configuration.
 ```
 
@@ -651,9 +649,8 @@ open http://localhost:16686
 #### Kafka audit trail
 
 ```bash
-open http://localhost:8080
-# Local fallback cluster only. Production audit records go to Confluent Cloud.
-# Cluster: api-center-local → Topics
+# Production audit records go to Confluent Cloud.
+# Use the Confluent Cloud console or CLI to inspect topics.
 
 # Key topics to inspect:
 # api-center.audit.log            — every proxied request
@@ -791,11 +788,6 @@ KAFKA_SSL_ENABLED=true
 KAFKA_SASL_MECHANISM=plain
 KAFKA_SASL_USERNAME=<confluent-api-key>
 KAFKA_SASL_PASSWORD=<confluent-api-secret>
-
-# Legacy/local fallback only:
-KAFKA_EXTERNAL_REST_ENABLED=false
-# KAFKA_REST_PROXY_URL=http://kafka-rest:8082
-# KAFKA_REST_PROXY_API_KEY=<optional-key>
 ```
 
 ---

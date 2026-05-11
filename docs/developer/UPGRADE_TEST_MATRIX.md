@@ -2,7 +2,7 @@
 
 Date: 2026-04-09
 Owner: VP Quality
-Scope: Upgrade validation for geolocation, geotagging, geofencing, external Kafka governance, and SDK typed methods.
+Scope: Upgrade validation for geolocation, geotagging, geofencing, governed Kafka publishing, and SDK typed methods.
 
 ## 1. Scope and baseline
 
@@ -11,7 +11,7 @@ Scope: Upgrade validation for geolocation, geotagging, geofencing, external Kafk
   - Shared: `/api/v1/shared/:serviceId/*`
   - External: `/api/v1/external/:apiName/*`
 - External API configs currently present in source:
-  - `geolocation`, `geofencing`, `kafka`
+  - `geolocation`, `geotagging`, `geofencing`
 - Geotagging status:
   - Not currently implemented in `src/external/apis/`.
   - This matrix includes upgrade-required geotagging tests that become mandatory once `geotagging` is added.
@@ -30,7 +30,7 @@ Legend:
 | U-EXT-001 | Unit | Geolocation | N | P0 | `src/external/apis/geolocation.ts` | `createGeolocationApi` maps URL/key/auth header/timeouts/rate limits | Config object matches contract exactly; no missing auth header/value |
 | U-EXT-002 | Unit | Geofencing | N | P0 | `src/external/apis/geofencing.ts` | `createGeofencingApi` uses bearer auth and `/health` endpoint | Auth header is `Authorization` with bearer semantics |
 | U-EXT-003 | Unit | Geotagging | N | P0 | `src/external/apis/geotagging.ts` (upgrade add) | New geotagging config added and exported | `buildExternalApis` returns `geotagging` entry |
-| U-EXT-004 | Unit | External registry | N | P0 | `src/external/apis/index.ts` | Builder includes all required APIs (`geolocation`,`geotagging`,`geofencing`,`kafka`) | Missing API key throws CI test failure |
+| U-EXT-004 | Unit | External registry | N | P0 | `src/external/apis/index.ts` | Builder includes all required APIs (`geolocation`,`geotagging`,`geofencing`) and excludes legacy Kafka REST | Missing API key throws CI test failure; Kafka is not in the external catalogue |
 | U-EXT-005 | Unit | External proxy | N | P0 | `src/external/external.service.ts` | Auth header generation for `bearer`, `apiKey`, `basic` | Outbound headers are correct and deterministic |
 | U-EXT-006 | Unit | External proxy | N | P0 | `src/external/external.service.ts` | Successful call publishes `TOPICS.EXTERNAL_REQUEST` | Publish payload validates schema and includes duration/timestamp |
 | U-EXT-007 | Unit | External proxy | N | P0 | `src/external/external.service.ts` | Upstream failure maps to `BadGatewayError` | Error is wrapped consistently; no raw Axios leak |
@@ -45,7 +45,7 @@ Legend:
 | I-EXT-001 | Integration | Geolocation route | N | P0 | External route + service | `POST /api/v1/external/geolocation/geolocation/v1/geolocate` path rewrite and upstream call | Correct downstream path and 2xx response envelope |
 | I-EXT-002 | Integration | Geofencing route | N | P0 | External route + service | `GET /api/v1/external/geofencing/*` with auth header propagation | Upstream receives expected auth header and correlation headers |
 | I-EXT-003 | Integration | Geotagging route | N | P0 | External route + service | `GET /api/v1/external/geotagging/*` works once added | Route discovers new API and proxies successfully |
-| I-EXT-004 | Integration | External Kafka route | N | P0 | External route + kafka-rest | `GET /api/v1/external/kafka/v3/clusters` via gateway | Returns clusters through gateway envelope |
+| I-EXT-004 | Integration | External Kafka route removal | N | P0 | External route policy | `GET /api/v1/external/kafka/v3/clusters` via gateway | Request is denied because direct Kafka REST is removed |
 | I-KAF-001 | Integration | Kafka governance | N | P0 | Kafka producer + schemas | Invalid event payload rejected, valid payload accepted | Validation and publish behavior is deterministic |
 | I-KAF-002 | Integration | Kafka governance | N | P0 | External breaker + Kafka | Circuit breaker state transitions emit gateway events | OPEN and CLOSED transitions are published |
 | I-KAF-003 | Integration | Kafka governance | N | P1 | Audit path | Proxied calls emit audit events to `api-center.audit.log` | Audit topic receives structured events |
@@ -57,7 +57,7 @@ Legend:
 | E2E-002 | E2E | Tribe flow regression | E+N | P0 | Sandbox demand/logistics | Front-door tribe flow succeeds repeatedly | No 5xx under nominal load |
 | E2E-003 | E2E | Shared flow regression | N | P0 | Shared namespace route | End-to-end call through `/api/v1/shared/:serviceId/*` | Shared service routing and auth verified |
 | E2E-004 | E2E | External geo suite | N | P0 | Geolocation/geotagging/geofencing | End-to-end external calls return expected payload shapes | All three routes proxy with expected auth and envelope |
-| E2E-005 | E2E | External Kafka governance | E+N | P0 | kafka-rest via gateway | Cluster discovery + topic publish/read through external kafka route | Kafka external route remains functional post-upgrade |
+| E2E-005 | E2E | Governed Kafka publishing | E+N | P0 | APICenter Kafka governance route | Catalog fetch and publish through `/api/v1/kafka/*` | Governed route remains functional post-upgrade |
 | E2E-006 | E2E | Rate limiting | E+N | P1 | Gateway + Redis rate limiter | Burst requests eventually return 429 | Limit enforced consistently |
 | E2E-007 | E2E | Circuit breaker | E+N | P0 | Gateway + external/downstream outage | Breaker opens on repeated failures and recovers after upstream return | Correct fail-fast then recovery behavior |
 | E2E-008 | E2E | SDK typed methods | N | P0 | `../api-shared-services/src/TribeClient.ts` in sandbox consumer | `callService`, `callSharedService`, `callExternal` succeed with typed usage | Runtime and type-level SDK behavior both pass |
@@ -96,9 +96,10 @@ Run from repo root:
    - `pwsh ./test-registry-devjwt.ps1`
    - `pwsh ./test-all-steps.ps1`
 
-6. External Kafka governance spot checks
-   - `docker exec kafka kafka-topics --list --bootstrap-server localhost:9092`
-   - `docker exec -i kafka timeout 5 kafka-console-consumer --bootstrap-server kafka:29092 --topic api-center.audit.log --from-beginning`
+6. Governed Kafka spot checks
+   - Fetch `/api/v1/kafka/governance` with an authenticated tribe token.
+   - Publish a test event through `/api/v1/kafka/publish`.
+   - Confirm the target Confluent topic receives the record.
 
 7. Shutdown after validation
    - `docker compose down`
@@ -107,7 +108,7 @@ Run from repo root:
 
 ### Gate G0: Baseline environment
 - PASS:
-  - All core containers healthy (`nginx`, `api-center-1..3`, `redis-cache`, `redis-rate-limit`, `kafka`, `kafka-rest`).
+  - All core containers healthy (`nginx`, `api-center-1..3`, `redis-cache`, `redis-rate-limit`).
 - FAIL:
   - Any core container unhealthy or flapping.
 
@@ -126,7 +127,7 @@ Run from repo root:
 
 ### Gate G3: Integration contracts
 - PASS:
-  - All P0 integration tests pass for external geo/geotagging/geofencing/kafka and governance checks.
+  - All P0 integration tests pass for external geo/geotagging/geofencing and governed Kafka checks.
   - Namespace/lifecycle regression tests pass (`tribe`, `shared`, `external`).
 - FAIL:
   - Any route contract drift, missing headers, or schema-governance regression.

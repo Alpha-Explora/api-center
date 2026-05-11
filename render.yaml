@@ -65,11 +65,18 @@ services:
       - key: REDIS_RATE_LIMIT_URL
         sync: false
 
-      # Kafka — set to empty string "" to disable Kafka gracefully (api-center tolerates no Kafka)
-      # For real Kafka use Upstash Kafka: kafka://<host>:<port>
+      # Kafka — Confluent Cloud producer settings
       - key: KAFKA_BROKERS
         sync: false
-      - key: KAFKA_REST_PROXY_URL
+      - key: KAFKA_SSL_ENABLED
+        value: "true"
+      - key: KAFKA_SSL_REJECT_UNAUTHORIZED
+        value: "true"
+      - key: KAFKA_SASL_MECHANISM
+        value: "plain"
+      - key: KAFKA_SASL_USERNAME
+        sync: false
+      - key: KAFKA_SASL_PASSWORD
         sync: false
 
       # Vault — set VAULT_DEV_MODE=false and provide real AppRole creds in production
@@ -100,8 +107,6 @@ services:
       - key: EXTERNAL_ALLOWLIST_GEOTAGGING
         value: "*"
       - key: EXTERNAL_ALLOWLIST_GEOFENCING
-        value: "*"
-      - key: EXTERNAL_ALLOWLIST_KAFKA
         value: "*"
 
       # Tribe secrets — add one entry per registered tribe (sha256 hash of raw secret)

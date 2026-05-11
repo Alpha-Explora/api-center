@@ -7,7 +7,6 @@
 //  1. Per-API + per-operation scopes
 //  2. Per-tribe allowlists (EXTERNAL_ALLOWLIST_* env vars)
 //  3. Method/path allowlist matching (default deny)
-//  4. Kafka topic tenancy isolation (prevents cross-tribe topic access)
 // =============================================================================
 
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
@@ -28,7 +27,6 @@ interface ExternalPathRule {
   methods: readonly HttpMethod[];
   path: RegExp;
   requiredScopes: readonly string[];
-  kafkaTopicScoped?: boolean;
   policyLabel: string;
 }
 
@@ -100,38 +98,6 @@ const EXTERNAL_API_POLICIES: Record<string, ExternalApiPolicy> = {
         path: /^\/v1\/geofences(?:\/[A-Za-z0-9._:-]+)?(?:\/events)?$/,
         requiredScopes: ['external:geofencing:write'],
         policyLabel: 'geofencing.write',
-      },
-    ],
-  },
-  kafka: {
-    allowlistEnv: 'EXTERNAL_ALLOWLIST_KAFKA',
-    requiredScopes: ['external:kafka:read'],
-    rules: [
-      {
-        methods: ['GET'],
-        path: /^\/v3\/clusters$/,
-        requiredScopes: [],
-        policyLabel: 'kafka.cluster.list',
-      },
-      {
-        methods: ['GET'],
-        path: /^\/v3\/clusters\/[^/]+\/topics$/,
-        requiredScopes: [],
-        policyLabel: 'kafka.topic.list',
-      },
-      {
-        methods: ['GET'],
-        path: /^\/v3\/clusters\/[^/]+\/topics\/[^/]+$/,
-        requiredScopes: [],
-        kafkaTopicScoped: true,
-        policyLabel: 'kafka.topic.read',
-      },
-      {
-        methods: ['POST'],
-        path: /^\/v3\/clusters\/[^/]+\/topics\/[^/]+\/records$/,
-        requiredScopes: ['external:kafka:write'],
-        kafkaTopicScoped: true,
-        policyLabel: 'kafka.topic.write',
       },
     ],
   },
@@ -210,10 +176,6 @@ export class ExternalPolicyGuard implements CanActivate {
       );
     }
 
-    if (matchingRule.kafkaTopicScoped) {
-      this.enforceKafkaTopicTenancy(downstreamPath, tribeId, request);
-    }
-
     this.logger.debug(
       `External policy allow api=${apiName} tribe=${tribeId} method=${method} path=${downstreamPath} policy=${matchingRule.policyLabel} correlationId=${request.correlationId ?? 'n/a'}`,
       'ExternalPolicyGuard',
@@ -286,41 +248,6 @@ export class ExternalPolicyGuard implements CanActivate {
     }
 
     return normalized;
-  }
-
-  private enforceKafkaTopicTenancy(
-    path: string,
-    tribeId: string,
-    request: ExternalPolicyRequest,
-  ): void {
-    const match = /^\/v3\/clusters\/[^/]+\/topics\/([^/]+)(?:\/records)?$/.exec(path);
-    if (!match) {
-      return;
-    }
-
-    let topic = match[1];
-    try {
-      topic = decodeURIComponent(topic);
-    } catch {
-      // Keep the raw token if decoding fails.
-    }
-
-    if (topic.startsWith('__')) {
-      this.deny('Kafka internal topics are not accessible via external routing', request);
-    }
-
-    const normalizedTribeId = tribeId.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
-    const allowedPrefixes = [
-      `tribe.${normalizedTribeId}.`,
-      `tribe-${normalizedTribeId}.`,
-    ];
-
-    if (!allowedPrefixes.some((prefix) => topic.startsWith(prefix))) {
-      this.deny(
-        `Kafka topic '${topic}' is outside tenant boundary for tribe '${tribeId}'`,
-        request,
-      );
-    }
   }
 
   private deny(message: string, request: ExternalPolicyRequest): never {

@@ -74,19 +74,10 @@ describe('ExternalService', () => {
     expect(stats).toHaveLength(2);
   });
 
-  it('should exclude legacy Kafka REST from the external API catalogue by default', () => {
-    delete process.env.KAFKA_EXTERNAL_REST_ENABLED;
+  it('should not expose legacy Kafka REST in the external API catalogue', () => {
     service = createService();
     service.onModuleInit();
 
     expect(service.listApis().map((api) => api.name)).not.toContain('kafka');
-  });
-
-  it('should include legacy Kafka REST in the external API catalogue when explicitly enabled', () => {
-    process.env.KAFKA_EXTERNAL_REST_ENABLED = 'true';
-    service = createService();
-    service.onModuleInit();
-
-    expect(service.listApis().map((api) => api.name)).toContain('kafka');
   });
 });

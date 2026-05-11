@@ -434,7 +434,7 @@ Configured external services:
 - `geotagging` (geo-tag enrichment provider)
 - `geofencing` (geofence provider)
 
-Kafka is no longer a normal external API for new tribe integrations. New Kafka event publishing goes through governed SDK helpers and the API Center producer connection to Confluent Cloud. The `/api/v1/external/kafka/*` REST bridge is legacy/local fallback only.
+Kafka is not exposed through `/api/v1/external/*`. Tribe event publishing goes through governed SDK helpers and the API Center producer connection to Confluent Cloud.
 
 ```bash
 # Google Geolocation API (Maps Platform)
@@ -452,18 +452,11 @@ KAFKA_SASL_MECHANISM=plain
 KAFKA_SASL_USERNAME=<confluent-api-key>
 KAFKA_SASL_PASSWORD=<confluent-api-secret>
 
-# Legacy/local Kafka REST bridge used by /api/v1/external/kafka/*
-KAFKA_EXTERNAL_REST_ENABLED=false
-# KAFKA_REST_PROXY_URL=http://kafka-rest:8082
-# KAFKA_REST_PROXY_API_KEY=<optional-key>
-
 # Secure-by-default per-tribe allowlists (comma-separated service IDs)
 # Empty value = deny all for that API
 EXTERNAL_ALLOWLIST_GEOLOCATION=orders-service,shipment-service
 EXTERNAL_ALLOWLIST_GEOTAGGING=orders-service
 EXTERNAL_ALLOWLIST_GEOFENCING=orders-service,shipment-service
-# Legacy/local REST bridge allowlist only
-EXTERNAL_ALLOWLIST_KAFKA=
 ```
 
 Tribes publish Kafka events through the governed SDK path:
@@ -507,7 +500,7 @@ Generated artifact location:
 
 - `docs/openapi/openapi.json`
 
-The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging flows. Kafka REST bridge checks are legacy/local fallback only; Confluent validation should use governed Kafka publish and S3 sink verification.
+The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging flows. Confluent validation should use governed Kafka publish and S3 sink verification.
 
 Required token scopes for external policy enforcement:
 
@@ -518,8 +511,8 @@ Required token scopes for external policy enforcement:
 
 Kafka tenant isolation rule:
 
-- Topic-level Kafka calls are only allowed when topic names start with
-  `tribe.<tribeId>.` or `tribe-<tribeId>.`.
+- Governed Kafka publish calls only accept topics that start with
+  `tribe.<tribeId>.` for the authenticated tribe.
 
 To add a new external API, create a handler in `src/external/apis/` following the pattern in `geolocation.ts`.
 
