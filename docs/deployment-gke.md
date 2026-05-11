@@ -32,10 +32,10 @@
 
 | Field | Value |
 |---|---|
-| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:prod-20260418151800` |
-| Built from | local production hardening patchset (2026-04-18) |
-| Last deployed | `2026-04-18` |
-| Deployed by | Copilot-assisted operator rollout |
+| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:512702a` |
+| Built from | `512702a` (`main`) |
+| Last deployed | `2026-05-11` |
+| Deployed by | Codex-assisted operator rollout |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
@@ -508,4 +508,5 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-11 | pending | Added Confluent Secret Manager validation and GKE cost optimization guardrails | Prevent rollout with non-Confluent broker values and document first safe Autopilot cost lever |
 | 2026-05-11 | pending | Switched API Center to low-credit HPA profile: 2-3 pods, PDB minAvailable 1, CPU request 150m | Reduce idle Autopilot workload spend while keeping one spare pod |
 | 2026-05-11 | pending | Disabled in-container production file logs and skipped health probes from Morgan/audit streams | Reduce recurring Cloud Logging, Kafka, Confluent connector, and S3 noise without changing API behavior |
+| 2026-05-11 | 512702a | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:512702a`; applied corrected ConfigMap, 2-3 HPA, PDB minAvailable 1, and CPU request 150m | Roll out Confluent/GKE reliability changes and restore the intended low-credit GKE profile |
 | 2026-04-18 | pending | Reduced HPA max replicas from 30 to 6 in `gcp/gke/50-hpa.yaml` for current cluster quota envelope | Prevent futile autoscaler scale-up attempts until node CPU/memory/SSD quotas are increased |
