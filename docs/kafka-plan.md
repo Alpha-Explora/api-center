@@ -1,5 +1,7 @@
 # Kafka on GKE: Full Implementation Plan
 
+> Current production direction: Confluent Cloud. The self-hosted Strimzi/GKE Kafka plan below is historical fallback context. Use `docs/developer/confluent-cloud-migration-plan.md` as the active implementation plan.
+
 ## 1. Purpose and Outcome
 
 This document defines a production-ready plan to run a self-hosted Apache Kafka cluster on Google Kubernetes Engine (GKE) for APICenter workloads.

@@ -1,5 +1,7 @@
 # Kafka DR Failover Runbook
 
+> Current production direction: Confluent Cloud plus Confluent-managed S3 Sink. The MirrorMaker/self-hosted Kafka DR runbook below is historical fallback context. Use `docs/developer/confluent-cloud-migration-plan.md` as the active implementation plan.
+
 This runbook defines controlled failover from the primary Kafka cluster in GKE
 to the DR Kafka cluster replicated by MirrorMaker2.
 
