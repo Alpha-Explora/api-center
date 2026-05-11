@@ -233,6 +233,15 @@ export class ProxyHandler {
             proxyReq.setHeader('X-Tribe-Id', authReq.tribeId || '');
             proxyReq.setHeader('X-Correlation-ID', authReq.correlationId || '');
             proxyReq.setHeader('X-Forwarded-By', 'apicenter-gateway');
+
+            // NestJS body-parser consumes req stream before the proxy sees it.
+            // Re-stream the parsed body so the upstream actually receives it.
+            if (authReq.body && Object.keys(authReq.body).length > 0) {
+              const bodyData = JSON.stringify(authReq.body);
+              proxyReq.setHeader('Content-Type', 'application/json');
+              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+              proxyReq.write(bodyData);
+            }
           },
           proxyRes: (proxyRes) => {
             const status = proxyRes.statusCode ?? 0;

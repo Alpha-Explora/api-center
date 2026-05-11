@@ -1,0 +1,281 @@
+# =============================================================================
+# render.yaml — APICenter Platform Blueprint
+# =============================================================================
+#
+# WHAT THIS FILE DOES
+#   Defines all six platform services as Render web services.
+#   Render reads this file when you connect your repo via Blueprint.
+#
+# DEPLOYMENT ORDER (IMPORTANT)
+#   1. Deploy api-center FIRST and wait for it to reach "Live" status.
+#   2. Set API_CENTER_URL on every shared service to the api-center
+#      Render URL (e.g. https://api-center-xxxx.onrender.com).
+#   3. Deploy the five shared services — they self-register on startup.
+#
+# SECRETS (sync: false)
+#   Every variable marked sync: false must be filled in the Render dashboard:
+#   Dashboard → Service → Environment → Add Secret
+#   They are intentionally NOT stored in this file.
+#
+# ENV GROUP
+#   api-center-shared group must be created in:
+#   Dashboard → Env Groups → New Group → name: api-center-shared
+#   Add PLATFORM_ADMIN_SECRET and API_CENTER_URL once; all shared services
+#   inherit them automatically.
+#
+# TRIBE SECRETS
+#   api-center reads TRIBE_SECRET_<TRIBE_ID> at startup (hashed with sha256).
+#   Add one entry per tribe:
+#     key: TRIBE_SECRET_DEMAND_SERVICE   value: <sha256 of tribe secret>
+#     key: TRIBE_SECRET_LOGISTICS_SERVICE value: <sha256 of tribe secret>
+#   Tribe IDs are uppercase with underscores matching the registered serviceId.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # api-center — NestJS API Gateway (the hub all shared services register to)
+  # ---------------------------------------------------------------------------
+  - name: api-center
+    type: web
+    env: node
+    region: singapore
+    plan: free
+    rootDir: api-center
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/main.js
+    healthCheckPath: /api/v1/health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # JWT signing keypair — paste RSA PEM strings (with literal \n or multiline)
+      - key: JWT_PRIVATE_KEY
+        sync: false
+      - key: JWT_PUBLIC_KEY
+        sync: false
+
+      # Platform admin secret — must match PLATFORM_ADMIN_SECRET on all shared services
+      - key: PLATFORM_ADMIN_SECRET
+        sync: false
+
+      # Redis — use Render Redis add-on URLs or Upstash Redis REST URLs
+      - key: REDIS_CACHE_URL
+        sync: false
+      - key: REDIS_RATE_LIMIT_URL
+        sync: false
+
+      # Kafka — set to empty string "" to disable Kafka gracefully (api-center tolerates no Kafka)
+      # For real Kafka use Upstash Kafka: kafka://<host>:<port>
+      - key: KAFKA_BROKERS
+        sync: false
+      - key: KAFKA_REST_PROXY_URL
+        sync: false
+
+      # Vault — set VAULT_DEV_MODE=false and provide real AppRole creds in production
+      - key: VAULT_ADDR
+        sync: false
+      - key: VAULT_TOKEN
+        sync: false
+      - key: VAULT_DEV_MODE
+        value: "false"
+
+      # Geo provider — set to an external geo API URL or leave empty to disable geo routes
+      - key: GEOLOCATION_API_URL
+        sync: false
+      - key: GEOLOCATION_API_KEY
+        sync: false
+      - key: GEOTAGGING_API_URL
+        sync: false
+      - key: GEOTAGGING_API_KEY
+        sync: false
+      - key: GEOFENCING_API_URL
+        sync: false
+      - key: GEOFENCING_API_KEY
+        sync: false
+
+      # Tribe allow-lists — "*" allows all registered tribes; or comma-separate tribe IDs
+      - key: EXTERNAL_ALLOWLIST_GEOLOCATION
+        value: "*"
+      - key: EXTERNAL_ALLOWLIST_GEOTAGGING
+        value: "*"
+      - key: EXTERNAL_ALLOWLIST_GEOFENCING
+        value: "*"
+      - key: EXTERNAL_ALLOWLIST_KAFKA
+        value: "*"
+
+      # Tribe secrets — add one entry per registered tribe (sha256 hash of raw secret)
+      # Pattern: TRIBE_SECRET_<TRIBE_ID_UPPERCASE_UNDERSCORES>
+      # Example entries — replace with your actual tribe IDs and hashed secrets:
+      - key: TRIBE_SECRET_DEMAND_SERVICE
+        sync: false
+      - key: TRIBE_SECRET_LOGISTICS_SERVICE
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # payment-service — PayMongo payments gateway
+  # ---------------------------------------------------------------------------
+  - name: payment-service
+    type: web
+    env: node
+    region: singapore
+    plan: free
+    rootDir: api-shared/shared-services
+    buildCommand: cd paymongo && npm ci --omit=dev
+    startCommand: node paymongo/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "4010"
+      - key: NODE_ENV
+        value: production
+      - key: PAYMENT_PROVIDER_NAME
+        value: paymongo
+
+      # PayMongo live secret key — sk_live_... from PayMongo dashboard
+      - key: PAYMONGO_SECRET_KEY
+        sync: false
+
+      # Shared across all platform services — create an env group named api-center-shared
+      # with these two keys, then reference the group here instead of duplicating them.
+      - key: API_CENTER_URL
+        sync: false
+      - key: PLATFORM_ADMIN_SECRET
+        sync: false
+
+      # Set to this service's own Render URL after first deploy
+      # e.g. https://payment-service-xxxx.onrender.com
+      - key: SERVICE_BASE_URL
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # email-service — Resend-backed email gateway
+  # ---------------------------------------------------------------------------
+  - name: email-service
+    type: web
+    env: node
+    region: singapore
+    plan: free
+    rootDir: api-shared/shared-services
+    buildCommand: cd email-gateway && npm ci --omit=dev
+    startCommand: node email-gateway/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "4012"
+      - key: NODE_ENV
+        value: production
+
+      # Resend API key — re_... from resend.com dashboard
+      - key: RESEND_API_KEY
+        sync: false
+
+      # From address must be from a verified Resend domain
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+
+      - key: API_CENTER_URL
+        sync: false
+      - key: PLATFORM_ADMIN_SECRET
+        sync: false
+
+      # Set to this service's own Render URL after first deploy
+      # e.g. https://email-service-xxxx.onrender.com
+      - key: SERVICE_BASE_URL
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # sms-service — Mock SMS gateway (no real carrier integration)
+  # ---------------------------------------------------------------------------
+  - name: sms-service
+    type: web
+    env: node
+    region: singapore
+    plan: free
+    rootDir: api-shared/shared-services
+    buildCommand: cd sms-gateway && npm ci --omit=dev
+    startCommand: node sms-gateway/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "4011"
+      - key: NODE_ENV
+        value: production
+
+      - key: API_CENTER_URL
+        sync: false
+      - key: PLATFORM_ADMIN_SECRET
+        sync: false
+
+      # Set to this service's own Render URL after first deploy
+      # e.g. https://sms-service-xxxx.onrender.com
+      - key: SERVICE_BASE_URL
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # gauth-service — Google OAuth gateway
+  # ---------------------------------------------------------------------------
+  - name: gauth-service
+    type: web
+    env: node
+    region: singapore
+    plan: free
+    rootDir: api-shared/shared-services
+    buildCommand: cd gauth-gateway && npm ci --omit=dev
+    startCommand: node gauth-gateway/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "4013"
+      - key: NODE_ENV
+        value: production
+
+      # Google OAuth credentials — from Google Cloud Console → APIs & Services → Credentials
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # MUST match exactly the Authorized Redirect URI registered in Google Cloud Console.
+      # After first deploy set to: https://gauth-service-xxxx.onrender.com/oauth/callback
+      # (Replace xxxx with your Render service slug)
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+
+      - key: API_CENTER_URL
+        sync: false
+      - key: PLATFORM_ADMIN_SECRET
+        sync: false
+
+      # Set to this service's own Render URL after first deploy
+      # e.g. https://gauth-service-xxxx.onrender.com
+      - key: SERVICE_BASE_URL
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # otp-service — OTP generation and verification gateway
+  # ---------------------------------------------------------------------------
+  - name: otp-service
+    type: web
+    env: node
+    region: singapore
+    plan: free
+    rootDir: api-shared/shared-services
+    buildCommand: cd otp-gateway && npm ci --omit=dev
+    startCommand: node otp-gateway/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "4014"
+      - key: NODE_ENV
+        value: production
+
+      - key: API_CENTER_URL
+        sync: false
+      - key: PLATFORM_ADMIN_SECRET
+        sync: false
+
+      # Set to this service's own Render URL after first deploy
+      # e.g. https://otp-service-xxxx.onrender.com
+      - key: SERVICE_BASE_URL
+        sync: false

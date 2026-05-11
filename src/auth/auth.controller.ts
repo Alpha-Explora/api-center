@@ -57,14 +57,28 @@ export class AuthController {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    // Build scopes: own + consumable targets' scopes
+    // Scopes granted per external API name when listed in a tribe's consumes array.
+    // External APIs are not in the registry, so we use a static map here.
+    const EXTERNAL_API_SCOPE_MAP: Record<string, string[]> = {
+      geolocation: ['external:geolocation:read'],
+      geotagging:  ['external:geotagging:read', 'external:geotagging:write'],
+      geofencing:  ['external:geofencing:read', 'external:geofencing:write'],
+      kafka:       ['external:kafka:read', 'external:kafka:write'],
+    };
+
+    // Build scopes: own + consumable targets' scopes + external API scopes
     const ownScopes = service.requiredScopes || [];
     const consumableScopes: string[] = [];
+    const externalApiScopes: string[] = [];
     for (const targetId of service.consumes) {
       const target = this.registry.get(targetId);
-      if (target) consumableScopes.push(...target.requiredScopes);
+      if (target) {
+        consumableScopes.push(...target.requiredScopes);
+      } else if (EXTERNAL_API_SCOPE_MAP[targetId]) {
+        externalApiScopes.push(...EXTERNAL_API_SCOPE_MAP[targetId]);
+      }
     }
-    const scopes = [...new Set([...ownScopes, ...consumableScopes])];
+    const scopes = [...new Set([...ownScopes, ...consumableScopes, ...externalApiScopes])];
     const permissions = [`tribe:${tribeId}:read`, `tribe:${tribeId}:write`, 'external:read'];
 
     const token = await this.auth.issueToken(tribeId, permissions, scopes);

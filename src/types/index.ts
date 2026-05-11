@@ -134,15 +134,15 @@ export interface TribeConfigMap {
 // External API types
 // ---------------------------------------------------------------------------
 
-export type ExternalAuthType = 'bearer' | 'api-key' | 'basic' | 'apiKey';
+export type ExternalAuthType = 'bearer' | 'api-key' | 'basic' | 'apiKey' | 'none';
 
 export interface ExternalApiConfig {
   name: string;
   displayName: string;
   baseUrl: string;
   authType: ExternalAuthType;
-  authHeader: string;
-  authValue: string;
+  authHeader?: string;
+  authValue?: string;
   timeout: number;
   rateLimit?: { windowMs: number; max: number };
   healthEndpoint?: string;

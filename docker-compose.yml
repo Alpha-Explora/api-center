@@ -86,20 +86,21 @@ x-api-center-common: &api-center-common
     GEOTAGGING_API_KEY: local-geotag-key
     GEOFENCING_API_URL: http://geo-provider-mock:8085
     GEOFENCING_API_KEY: local-geofence-key
-    # Local sandbox allowlists (strict by default, explicit tribes only)
-    EXTERNAL_ALLOWLIST_GEOLOCATION: demand-service,logistics-service
-    EXTERNAL_ALLOWLIST_GEOTAGGING: demand-service,logistics-service
-    EXTERNAL_ALLOWLIST_GEOFENCING: demand-service,logistics-service
-    EXTERNAL_ALLOWLIST_KAFKA: demand-service,logistics-service
+    # Local sandbox allowlists — wildcard allows all registered tribes
+    EXTERNAL_ALLOWLIST_GEOLOCATION: "*"
+    EXTERNAL_ALLOWLIST_GEOTAGGING: "*"
+    EXTERNAL_ALLOWLIST_GEOFENCING: "*"
+    EXTERNAL_ALLOWLIST_KAFKA: "*"
     # Vault dev server — replace with AppRole credentials in production
     VAULT_ADDR:     http://vault:8200
     VAULT_TOKEN:    root
     VAULT_DEV_MODE: "true"
     JWT_PRIVATE_KEY: "${JWT_PRIVATE_KEY}"
-    JWT_PUBLIC_KEY: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArfxjfv1S0YyKx0I2aQFJ\n1teOUUB6PPPXXF4gblGCFZHiXXlS/5yW8+6r1tID+Uu5OfhdOuKWJTLlYXRiXsuk\nJB1/Bdj1ylIiR1FmvnKbQUUxFmdpPw+wVScoiyEN8dKJpQ3vd+X4V4chHNQ5z9uX\nbYF2KAXdCzB2ZM4dWabyG48tx6ec/IzIViiZoQO8TDWDnl8bulZ7Ad8J9q+BnlNm\n70GcsjJJAVmxfLRg8HUFS+eBqCfJbF3pOF9GIQBw2czeQnnCepU6M7e6y1SWrOBq\nqWVrpAcMeQhzvSg6a/KPm8+n+V+RSEKFOg/9favSJjN+w1TAWENxhmVdhV8oPJ/t\nMQIDAQAB\n-----END PUBLIC KEY-----\n"
-    # Sandbox tribe credentials (sha256 hashes of plain secrets)
-    TRIBE_SECRET_DEMAND_SERVICE: e99f6fea0e844a542cdb95958b3fc4873ada91a767110c4326548b86ec06ba62
-    TRIBE_SECRET_LOGISTICS_SERVICE: 13de2a19b4db8307fe57172f188ca0fcfd5793fda98dbc2b84447510ba9b138a
+    JWT_PUBLIC_KEY: "${JWT_PUBLIC_KEY}"
+    # Sandbox tribe credentials — set in .env (sha256 of your local secret)
+    # Generate: printf '%s' 'your-secret' | sha256sum
+    TRIBE_SECRET_DEMAND_SERVICE: "${TRIBE_SECRET_DEMAND_SERVICE}"
+    TRIBE_SECRET_LOGISTICS_SERVICE: "${TRIBE_SECRET_LOGISTICS_SERVICE}"
     # Use .env RATE_LIMIT_MAX (default 100) so round-robin tests are not
     # artificially throttled by a hard-coded sandbox override.
     RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
@@ -253,7 +254,7 @@ services:
       PORT: "4100"
       APICENTER_URL: http://nginx
       DEMAND_TRIBE_ID: demand-service
-      DEMAND_TRIBE_SECRET: demand-secret
+      DEMAND_TRIBE_SECRET: "${DEMAND_TRIBE_SECRET:-sandbox-change-me}"
     ports:
       - "4100:4100"
     depends_on:
@@ -487,8 +488,8 @@ services:
     ports:
       - "3001:3000"
     environment:
-      GF_SECURITY_ADMIN_USER:     admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER:     "${GF_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GF_ADMIN_PASSWORD:-local-change-in-prod}"
       GF_SERVER_ROOT_URL: http://localhost:3001
     volumes:
       - grafana-data:/var/lib/grafana
@@ -509,6 +510,123 @@ services:
       - "4318:4318"     # OTLP HTTP
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # Payment Service — PayMongo shared gateway
+  # ---------------------------------------------------------------------------
+  payment-service:
+    build:
+      context: ../api-shared/shared-services
+      dockerfile: paymongo/Dockerfile
+    container_name: payment-service
+    ports:
+      - "4010:4010"
+    environment:
+      PORT: "4010"
+      SERVICE_BASE_URL: "http://payment-service:4010"
+      API_CENTER_URL: "http://api-center-1:3000"
+      PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      PAYMONGO_SECRET_KEY: "${PAYMONGO_SECRET_KEY:-}"
+      PAYMENT_PROVIDER_NAME: "paymongo"
+      NODE_ENV: "development"
+    depends_on:
+      - api-center-1
+    restart: unless-stopped
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # Email Service — Resend-backed email gateway
+  # ---------------------------------------------------------------------------
+  email-service:
+    build:
+      context: ../api-shared/shared-services
+      dockerfile: email-gateway/Dockerfile
+    container_name: email-service
+    ports:
+      - "4012:4012"
+    environment:
+      PORT: "4012"
+      SERVICE_BASE_URL: "http://email-service:4012"
+      API_CENTER_URL: "http://api-center-1:3000"
+      PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      RESEND_API_KEY: "${RESEND_API_KEY:-}"
+      EMAIL_FROM_ADDRESS: "${EMAIL_FROM_ADDRESS:-noreply@example.com}"
+      NODE_ENV: "development"
+    depends_on:
+      - api-center-1
+    restart: unless-stopped
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # Google Auth Service — Google OAuth gateway
+  # ---------------------------------------------------------------------------
+  gauth-service:
+    build:
+      context: ../api-shared/shared-services
+      dockerfile: gauth-gateway/Dockerfile
+    container_name: gauth-service
+    ports:
+      - "4013:4013"
+    environment:
+      PORT: "4013"
+      SERVICE_BASE_URL: "http://gauth-service:4013"
+      API_CENTER_URL: "http://api-center-1:3000"
+      PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-}"
+      NODE_ENV: "development"
+    depends_on:
+      - api-center-1
+    restart: unless-stopped
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # SMS Service — mock SMS gateway
+  # ---------------------------------------------------------------------------
+  sms-service:
+    build:
+      context: ../api-shared/shared-services
+      dockerfile: sms-gateway/Dockerfile
+    container_name: sms-service
+    ports:
+      - "4011:4011"
+    environment:
+      PORT: "4011"
+      SERVICE_BASE_URL: "http://sms-service:4011"
+      API_CENTER_URL: "http://api-center-1:3000"
+      PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      NODE_ENV: "development"
+    depends_on:
+      - api-center-1
+    restart: unless-stopped
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # OTP Service — OTP generation and verification gateway
+  # ---------------------------------------------------------------------------
+  otp-service:
+    build:
+      context: ../api-shared/shared-services
+      dockerfile: otp-gateway/Dockerfile
+    container_name: otp-service
+    ports:
+      - "4014:4014"
+    environment:
+      PORT: "4014"
+      SERVICE_BASE_URL: "http://otp-service:4014"
+      API_CENTER_URL: "http://api-center-1:3000"
+      PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      NODE_ENV: "development"
+    depends_on:
+      - api-center-1
+    restart: unless-stopped
     networks:
       - api-center-network
 

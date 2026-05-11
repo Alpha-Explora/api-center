@@ -145,7 +145,7 @@ export class ExternalService implements OnModuleInit {
   private initClient(name: string, cfg: ExternalApiConfig) {
     const headers: Record<string, string> = { 'User-Agent': 'APICenter/1.0' };
 
-    if (cfg.authValue) {
+    if (cfg.authValue && cfg.authHeader) {
       if (cfg.authType === 'bearer') {
         headers[cfg.authHeader] = `Bearer ${cfg.authValue}`;
       } else if (cfg.authType === 'basic') {
