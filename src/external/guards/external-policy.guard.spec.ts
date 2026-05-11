@@ -127,4 +127,23 @@ describe('ExternalPolicyGuard', () => {
       ),
     ).toThrow(ForbiddenError);
   });
+
+  it('should still require explicit kafka allowlist when legacy Kafka REST is enabled', () => {
+    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue(['external:kafka:read']);
+    process.env.KAFKA_EXTERNAL_REST_ENABLED = 'true';
+    delete process.env.EXTERNAL_ALLOWLIST_KAFKA;
+
+    expect(() =>
+      guard.canActivate(
+        createContext({
+          method: 'GET',
+          params: {
+            apiName: 'kafka',
+            0: 'v3/clusters',
+          },
+          user: { tribeId: 'tribe-a' },
+        }),
+      ),
+    ).toThrow(ForbiddenError);
+  });
 });

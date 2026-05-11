@@ -18,12 +18,17 @@ import { createKafkaApi } from './kafka';
  * Called once during ExternalService.onModuleInit().
  */
 export function buildExternalApis(config: ConfigService): ExternalApiConfigMap {
-  return {
+  const apis: ExternalApiConfigMap = {
     geolocation: createGeolocationApi(config),
     geotagging: createGeotaggingApi(config),
     geofencing: createGeofencingApi(config),
-    kafka: createKafkaApi(config),
   };
+
+  if (config.external.kafka.enabled) {
+    apis.kafka = createKafkaApi(config);
+  }
+
+  return apis;
 }
 
 export { createGeolocationApi, createGeotaggingApi, createGeofencingApi, createKafkaApi };

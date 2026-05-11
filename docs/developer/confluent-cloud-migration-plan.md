@@ -346,7 +346,7 @@ Expected: it does not apply self-hosted Kafka unless the explicit allow flag is 
 - Modify: `C:\Codes\apic\api-shared-services\src\TribeClient.ts`
 - Modify: `C:\Codes\apic\api-shared-services\tests\TribeClient.test.ts`
 
-- [ ] **Step 4.1: Disable legacy external Kafka REST by default**
+- [x] **Step 4.1: Disable legacy external Kafka REST by default**
 
 Add:
 
@@ -356,7 +356,7 @@ KAFKA_EXTERNAL_REST_ENABLED=false
 
 Change external API construction so `kafka` is registered only when this variable is true.
 
-- [ ] **Step 4.2: Add API Center tests**
+- [x] **Step 4.2: Add API Center tests**
 
 Add tests that verify:
 
@@ -371,7 +371,7 @@ Run:
 npm run test -- src/external/external.service.spec.ts src/external/guards/external-policy.guard.spec.ts
 ```
 
-- [ ] **Step 4.3: Mark SDK direct Kafka REST helpers as legacy**
+- [x] **Step 4.3: Mark SDK direct Kafka REST helpers as legacy**
 
 Add this comment above `kafkaListClusters`, `kafkaListTopics`, and `kafkaProduceRecords`:
 
@@ -392,7 +392,7 @@ For new tribe integrations, prefer `kafkaGetGovernanceCatalog()` and `kafkaPubli
 The direct Kafka REST helpers (`kafkaListClusters`, `kafkaListTopics`, `kafkaProduceRecords`) are legacy compatibility helpers for `/api/v1/external/kafka/*`.
 ```
 
-- [ ] **Step 4.4: Verify SDK**
+- [x] **Step 4.4: Verify SDK**
 
 Run in `C:\Codes\apic\api-shared-services`:
 

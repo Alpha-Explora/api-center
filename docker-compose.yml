@@ -85,6 +85,7 @@ x-api-center-common: &api-center-common
     KAFKA_SASL_MECHANISM: ""
     KAFKA_SASL_USERNAME: ""
     KAFKA_SASL_PASSWORD: ""
+    KAFKA_EXTERNAL_REST_ENABLED: "true"
     KAFKA_REST_PROXY_URL: http://kafka-rest:8082
     # Local deterministic geo stack (mock provider)
     GEOLOCATION_API_URL: http://geo-provider-mock:8085

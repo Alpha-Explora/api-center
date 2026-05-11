@@ -7,24 +7,36 @@ import { NotFoundError, ServiceUnavailableError } from '../shared/errors';
 
 describe('ExternalService', () => {
   let service: ExternalService;
+  const originalEnv = process.env;
+  const logger = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  } as unknown as LoggerService;
+  const kafka = {
+    publish: jest.fn().mockResolvedValue(undefined),
+    publishNonBlocking: jest.fn(),
+  } as unknown as KafkaService;
+  const metrics = {
+    setCircuitBreakerState: jest.fn(),
+  } as unknown as MetricsService;
+
+  const createService = () => new ExternalService(
+    new ConfigService(),
+    logger,
+    kafka,
+    metrics,
+  );
 
   beforeEach(() => {
-    const config = {} as ConfigService;
-    const logger = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-    } as unknown as LoggerService;
-    const kafka = {
-      publish: jest.fn().mockResolvedValue(undefined),
-      publishNonBlocking: jest.fn(),
-    } as unknown as KafkaService;
-    const metrics = {
-      setCircuitBreakerState: jest.fn(),
-    } as unknown as MetricsService;
+    process.env = { ...originalEnv };
+    jest.clearAllMocks();
+    service = createService();
+  });
 
-    service = new ExternalService(config, logger, kafka, metrics);
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   it('should throw not found when requested API is not configured', async () => {
@@ -60,5 +72,21 @@ describe('ExternalService', () => {
     const stats = service.getAllBreakerStats();
 
     expect(stats).toHaveLength(2);
+  });
+
+  it('should exclude legacy Kafka REST from the external API catalogue by default', () => {
+    delete process.env.KAFKA_EXTERNAL_REST_ENABLED;
+    service = createService();
+    service.onModuleInit();
+
+    expect(service.listApis().map((api) => api.name)).not.toContain('kafka');
+  });
+
+  it('should include legacy Kafka REST in the external API catalogue when explicitly enabled', () => {
+    process.env.KAFKA_EXTERNAL_REST_ENABLED = 'true';
+    service = createService();
+    service.onModuleInit();
+
+    expect(service.listApis().map((api) => api.name)).toContain('kafka');
   });
 });

@@ -150,6 +150,7 @@ export class ConfigService implements OnApplicationBootstrap {
       key: process.env.GEOFENCING_API_KEY || '',
     },
     kafka: {
+      enabled: process.env.KAFKA_EXTERNAL_REST_ENABLED === 'true',
       url: process.env.KAFKA_REST_PROXY_URL || 'http://kafka-rest:8082',
       apiKey: process.env.KAFKA_REST_PROXY_API_KEY || '',
     },

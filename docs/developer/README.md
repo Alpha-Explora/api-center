@@ -793,6 +793,7 @@ KAFKA_SASL_USERNAME=<confluent-api-key>
 KAFKA_SASL_PASSWORD=<confluent-api-secret>
 
 # Legacy/local fallback only:
+KAFKA_EXTERNAL_REST_ENABLED=false
 # KAFKA_REST_PROXY_URL=http://kafka-rest:8082
 # KAFKA_REST_PROXY_API_KEY=<optional-key>
 ```
