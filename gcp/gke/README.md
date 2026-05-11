@@ -101,67 +101,21 @@ gcloud container clusters get-credentials api-center --region=us-central1
 kubectl apply -f gcp/gke/
 ```
 
-Or run the consolidated deployment workflow:
+Restart the deployment after updating the Secret Manager payload:
 
 ```bash
-bash gcp/gke/deploy-kafka-stack.sh --with-observability
+kubectl -n api-center rollout restart deploy/api-center
+kubectl -n api-center rollout status deploy/api-center --timeout=10m
 ```
 
-Windows PowerShell:
+Verify API Center is reading Confluent credentials:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\deploy-kafka-stack.ps1 -WithObservability
+```bash
+kubectl -n api-center logs deploy/api-center --tail=100
+kubectl -n api-center get pods
 ```
 
-Add `--with-dr` after DR placeholders and credentials are configured.
-
-Sync Kafka credentials and CA cert into Secret Manager:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\sync-kafka-secretmanager.ps1 -SecretName api-center-prod
-```
-
-Run post-deploy verification:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\verify-kafka-stack.ps1 -CheckObservability
-```
-
-Run Kafka runtime topic smoke probe:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-topic.ps1
-```
-
-Single-command rollout (sync + deploy + restart + verify):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability
-```
-
-Include runtime topic smoke probe in rollout verification:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability -CheckKafkaTopicSmoke
-```
-
-Dry-run rollout planning (no mutations):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -DryRun
-```
-
-Rollback Kafka secret payload to a previous version:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\rollback-kafka-secretmanager.ps1 -RollbackVersion <version>
-```
-
-Kafka config smoke checks:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-config.ps1 -SecretName api-center-prod
-```
+Kafka records are verified in Confluent Cloud, not through in-cluster Kafka tools.
 
 ### 4. Wait for the Ingress + cert
 

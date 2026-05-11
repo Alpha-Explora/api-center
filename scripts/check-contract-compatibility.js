@@ -112,10 +112,9 @@ function runContractChecks() {
     violations.push("Kafka governance controller is missing @Get('schemas') endpoint.");
   }
 
-  const externalPolicySource = readText(externalPolicyPath);
   for (const scope of contract.kafkaGovernance?.requiredScopes || []) {
-    if (!externalPolicySource.includes(scope)) {
-      violations.push(`External policy guard is missing required Kafka scope: ${scope}`);
+    if (!kafkaControllerSource.includes(scope)) {
+      violations.push(`Kafka governance controller is missing required Kafka scope: ${scope}`);
     }
   }
 

@@ -27,7 +27,7 @@ Keep `docs/confluent-cloud-s3-sink-setup.md` as the operational runbook for the 
 - `src/kafka/topics.ts`, `src/kafka/schemas/*`, audit publishing, registry events, and `src/kafka-governance/*` should stay.
 - `docker-compose.yml` must not include local Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
 - `gcp/gke/kafka/*`, `docs/kafka-plan.md`, and `docs/kafka-dr-runbook.md` are removed so self-managed Kafka is not available as a fallback path.
-- `gcp/gke/20-configmap.yaml` and `api-center-config.live.yaml` still contain self-managed or localhost Kafka values.
+- `gcp/gke/20-configmap.yaml` and `api-center-config.live.yaml` keep only non-secret Confluent runtime settings; brokers and credentials belong in Secret Manager.
 - `api-shared-services/src/TribeClient.ts` exposes governed APICenter Kafka helpers only; direct Kafka REST helpers are removed.
 
 ## Current Confluent Target

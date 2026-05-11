@@ -208,17 +208,7 @@ Set these keys in Secret Manager payload as part of the same rollout:
 - `KAFKA_SASL_USERNAME=<confluent-api-key>`
 - `KAFKA_SASL_PASSWORD=<confluent-api-secret>`
 
-```bash
-kubectl -n kafka get secret api-center -o jsonpath='{.data.password}' | base64 -d; echo
-```
-
 Then update `api-center-prod` and roll the deployment.
-
-Optional automation (recommended on Windows):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\sync-kafka-secretmanager.ps1 -SecretName api-center-prod
-```
 
 ### 3. Run smoke tests before rollout
 
@@ -307,19 +297,8 @@ kubectl -n api-center get pods
 kubectl -n api-center logs deploy/api-center --tail=100
 ```
 
-Kafka runtime topic smoke check helper:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\smoke-kafka-topic.ps1
-```
-
-Full rollout with runtime topic smoke verification:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\run-kafka-rollout.ps1 -WithObservability -CheckKafkaTopicSmoke
-```
-
-For DR incident execution, follow `docs/kafka-dr-runbook.md`.
+Kafka runtime verification is done in Confluent Cloud. Check that `api-center.audit.log`
+receives records after traffic and that the S3 sink exports them.
 
 **Subsequent image updates only:**
 
@@ -355,12 +334,6 @@ kubectl -n api-center edit configmap api-center-config
 # 4) Restart deployment to consume restored env
 kubectl -n api-center rollout restart deploy/api-center
 kubectl -n api-center rollout status deploy/api-center --timeout=5m
-```
-
-Kafka secret rollback helper:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\gcp\gke\rollback-kafka-secretmanager.ps1 -RollbackVersion <version>
 ```
 
 Rollback readiness checklist:

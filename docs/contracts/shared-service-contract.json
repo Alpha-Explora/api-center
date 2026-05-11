@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-17",
+  "version": "2026-05-11",
   "sharedServices": [
     {
       "serviceId": "payment",
@@ -24,6 +24,25 @@
       "wrappers": [
         "smsSend",
         "smsGetStatus"
+      ]
+    },
+    {
+      "serviceId": "gauth",
+      "manifest": "../api-shared-services/shared-services/manifests/gauth-manifest.json",
+      "wrappers": [
+        "gauthGetAuthorizationUrl",
+        "gauthExchangeCode",
+        "gauthRefreshToken",
+        "gauthLogout"
+      ]
+    },
+    {
+      "serviceId": "otp",
+      "manifest": "../api-shared-services/shared-services/manifests/otp-manifest.json",
+      "wrappers": [
+        "otpGenerate",
+        "otpVerify",
+        "otpStatus"
       ]
     }
   ],

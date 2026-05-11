@@ -41,8 +41,6 @@ describe('RegistryController', () => {
           'external:geotagging:write',
           'external:geofencing:read',
           'external:geofencing:write',
-          'external:kafka:read',
-          'external:kafka:write',
         ]),
       );
       expect(response.data.dynamicServiceScopes).toEqual([
@@ -53,7 +51,7 @@ describe('RegistryController', () => {
       expect(response.data.allScopes).toEqual(
         expect.arrayContaining([
           'platform:admin',
-          'external:kafka:write',
+          'external:geolocation:read',
           'billing:write',
         ]),
       );
