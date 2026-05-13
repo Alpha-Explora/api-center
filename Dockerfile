@@ -11,9 +11,10 @@
 #  - Faster deploys (smaller images push/pull faster)
 #  - Smaller attack surface (fewer packages = fewer vulnerabilities)
 #
-# WHY ALPINE:
-#  - Alpine Linux is ~5MB vs ~100MB for full Ubuntu
-#  - Minimal packages = fewer CVEs to patch
+# WHY DEBIAN SLIM:
+#  - Keeps the image smaller than full Debian while avoiding Alpine package-index issues
+#  - Uses glibc, which is a safer default for native Node dependencies
+#  - Avoids OS package installation during builds for simpler Cloud Build reliability
 #
 # SECURITY:
 #  - Runs as non-root user (appuser) — even if exploited, attacker has limited access
@@ -22,7 +23,7 @@
 # =============================================================================
 
 # ---- Stage 1: Dependencies ----
-FROM node:20-alpine AS deps
+FROM node:24-bookworm-slim AS deps
 
 WORKDIR /app
 
@@ -32,7 +33,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --include=dev --no-fund
 
 # ---- Stage 2: Build ----
-FROM node:20-alpine AS builder
+FROM node:24-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -48,11 +49,7 @@ RUN npm run build && \
     npm cache clean --force
 
 # ---- Stage 3: Production ----
-FROM node:20-alpine AS runner
-
-# Security: install dumb-init for proper signal handling in containers
-# Node.js doesn't handle signals well as PID 1 — dumb-init fixes this
-RUN apk add --no-cache dumb-init
+FROM node:24-bookworm-slim AS runner
 
 WORKDIR /app
 
@@ -72,7 +69,4 @@ USER node
 # Expose the application port
 EXPOSE 3000
 
-# Use dumb-init as PID 1 to properly forward signals (SIGTERM, SIGINT)
-# This enables NestJS enableShutdownHooks() to work correctly inside Docker
-ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/main.js"]
