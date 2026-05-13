@@ -13,8 +13,8 @@ const GOVERNED_SCHEMA_VERSION = "1.0.0";
 
 const GovernedKafkaPayloadSchema = z.object({
   eventType: z.string().min(1),
-  payload: z.record(z.unknown()),
-  metadata: z.record(z.string()).optional(),
+  payload: z.record(z.string(), z.unknown()),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 @Injectable()

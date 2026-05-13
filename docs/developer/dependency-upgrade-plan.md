@@ -212,6 +212,8 @@ git commit -m "chore: upgrade opentelemetry dependencies"
 
 **Purpose:** Upgrade remaining runtime dependencies that affect request behavior but are not framework migrations.
 
+**Implementation note:** `http-proxy-middleware@4` is not a low-surface upgrade for the current API Center runtime. Version 4 is ESM-only and declares Node `^22.15.0 || ^24.0.0 || >=26.0.0`, while API Center currently compiles CommonJS and the Docker images use Node 20. Keep `http-proxy-middleware@3` until a separate Node 22/ESM migration is planned and tested.
+
 **Files:**
 
 - Modify: `C:\Codes\apic\api-center\package.json`
@@ -232,6 +234,15 @@ npm run test:e2e -- --runInBand
 
 ```powershell
 npm install http-proxy-middleware@^4.0.0
+npm run typecheck
+npm test -- --runInBand
+npm run test:e2e -- --runInBand
+```
+
+If this fails with ESM parsing or Node engine issues, restore the compatible v3 line and defer this upgrade:
+
+```powershell
+npm install http-proxy-middleware@^3.0.5
 npm run typecheck
 npm test -- --runInBand
 npm run test:e2e -- --runInBand
