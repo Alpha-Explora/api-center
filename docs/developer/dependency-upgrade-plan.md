@@ -35,11 +35,11 @@ npm audit
 
 Post-upgrade status:
 
-- API Center runtime, observability, and toolchain packages have been upgraded through NestJS 11, OpenTelemetry `0.217.x`, Jest 30, TypeScript 6, ESLint 10, Zod 4, Helmet 8, `class-validator` 0.15, and Dotenv 17.
-- API Center and shared services now require Node `>=24 <25`.
-- API Center production images use `node:24-bookworm-slim` to avoid Alpine package-index issues and native dependency surprises.
-- Standalone shared-service gateway images use `node:24-alpine3.22`; their locks have been refreshed with Express 5 and Resend 6 where applicable.
-- The only intentional API Center major left is `http-proxy-middleware@4`, which requires a separate CommonJS-to-ESM compatibility migration.
+- API Center runtime, observability, and toolchain packages have been upgraded through NestJS 11, OpenTelemetry `0.217.x`, Jest 30, TypeScript 6, ESLint 10, Zod 4, Helmet 8, `class-validator` 0.15, Dotenv 17, and `http-proxy-middleware` 4.
+- API Center and shared services now require Node `>=26 <27`.
+- API Center production images use `node:26-bookworm-slim` to avoid Alpine package-index issues and native dependency surprises.
+- Standalone shared-service gateway images use `node:26-alpine3.22`; their locks have been refreshed with Express 5 and Resend 6 where applicable.
+- API Center still compiles CommonJS, so ESM-only packages such as `http-proxy-middleware` are loaded through a native dynamic import bridge instead of static CommonJS `require()`.
 
 Do not use `npm audit fix --force` as a bulk operation. Apply major upgrades intentionally, one phase at a time.
 
@@ -214,7 +214,7 @@ git commit -m "chore: upgrade opentelemetry dependencies"
 
 **Purpose:** Upgrade remaining runtime dependencies that affect request behavior but are not framework migrations.
 
-**Implementation note:** `http-proxy-middleware@4` is not a low-surface upgrade for the current API Center module format. Version 4 is ESM-only. Node 24 satisfies its runtime engine, but API Center still compiles CommonJS and Jest currently executes CommonJS transforms. Keep `http-proxy-middleware@3` until a separate ESM compatibility migration is planned and tested.
+**Implementation note:** `http-proxy-middleware@4` is ESM-only. API Center still compiles CommonJS, so `ProxyHandler` avoids a static import and loads the package through a native dynamic import bridge. Tests inject the proxy factory directly to avoid Jest's CommonJS mock path trying to load the ESM package.
 
 **Files:**
 
@@ -236,15 +236,6 @@ npm run test:e2e -- --runInBand
 
 ```powershell
 npm install http-proxy-middleware@^4.0.0
-npm run typecheck
-npm test -- --runInBand
-npm run test:e2e -- --runInBand
-```
-
-If this fails with ESM parsing or Node engine issues, restore the compatible v3 line and defer this upgrade:
-
-```powershell
-npm install http-proxy-middleware@^3.0.5
 npm run typecheck
 npm test -- --runInBand
 npm run test:e2e -- --runInBand
@@ -421,23 +412,23 @@ Expected: HTTP 200.
 
 ---
 
-## Phase 7: Node 24 Runtime Alignment
+## Phase 7: Node 26 Runtime Alignment
 
-**Purpose:** Move local package contracts and production container images from Node 20/18-era compatibility to Node 24 LTS.
+**Purpose:** Move local package contracts and production container images from Node 20/18-era compatibility to Node 26 Current.
 
 **Completed implementation:**
 
-- API Center `package.json` engine set to `>=24 <25`.
-- Shared-services root `package.json` and standalone gateway package engines set to `>=24 <25`.
-- API Center root and GCP Dockerfiles moved to `node:24-bookworm-slim`.
+- API Center `package.json` engine set to `>=26 <27`.
+- Shared-services root `package.json` and standalone gateway package engines set to `>=26 <27`.
+- API Center root and GCP Dockerfiles moved to `node:26-bookworm-slim`.
 - API Center image build no longer installs OS packages during build; this removes the previous `dumb-init` package-manager dependency.
-- API Center Cloud Build node step moved to `node:24-bookworm-slim`.
-- Shared-service gateway Dockerfiles moved to `node:24-alpine3.22`.
+- API Center Cloud Build node step moved to `node:26-bookworm-slim`.
+- Shared-service gateway Dockerfiles moved to `node:26-alpine3.22`.
 - Standalone shared-service gateway locks refreshed with current compatible runtime dependencies.
 
 **Why API Center uses Debian slim instead of Alpine:**
 
-`node:24-alpine` currently resolves to Alpine 3.23 locally, and `apk add dumb-init` failed with an Alpine package index format error. `node:24-alpine3.22` avoided that for simple shared-service images, but API Center does not need OS package installation at all. Using `node:24-bookworm-slim` with no extra package install gives the API Center image a more predictable build path and a glibc runtime.
+The previous `node:24-alpine` image resolved to Alpine 3.23 locally, and `apk add dumb-init` failed with an Alpine package index format error. Alpine 3.22 avoided that for simple shared-service images, but API Center does not need OS package installation at all. Using `node:26-bookworm-slim` with no extra package install gives the API Center image a more predictable build path and a glibc runtime.
 
 **Verification run:**
 
@@ -451,8 +442,8 @@ npm run test:e2e -- --runInBand
 npm run build
 npm audit --omit=dev
 npm outdated
-docker build -t apicenter-gateway-gcp:node24-check -f docker/Dockerfile.gcp .
-docker build -t apicenter-gateway:node24-check -f Dockerfile .
+docker build -t apicenter-gateway-gcp:node26-check -f docker/Dockerfile.gcp .
+docker build -t apicenter-gateway:node26-check -f Dockerfile .
 
 cd C:\Codes\apic\api-shared-services
 npm run ci
@@ -460,15 +451,15 @@ npm audit
 npm outdated
 
 cd C:\Codes\apic\api-shared-services\shared-services
-docker build -t apicenter-geo-gateway:node24-check -f geo-gateway/Dockerfile .
-docker build -t apicenter-email-gateway:node24-check -f email-gateway/Dockerfile .
-docker build -t apicenter-gauth-gateway:node24-check -f gauth-gateway/Dockerfile .
-docker build -t apicenter-paymongo-gateway:node24-check -f paymongo/Dockerfile .
-docker build -t apicenter-sms-gateway:node24-check -f sms-gateway/Dockerfile .
-docker build -t apicenter-otp-gateway:node24-check -f otp-gateway/Dockerfile .
+docker build -t apicenter-geo-gateway:node26-check -f geo-gateway/Dockerfile .
+docker build -t apicenter-email-gateway:node26-check -f email-gateway/Dockerfile .
+docker build -t apicenter-gauth-gateway:node26-check -f gauth-gateway/Dockerfile .
+docker build -t apicenter-paymongo-gateway:node26-check -f paymongo/Dockerfile .
+docker build -t apicenter-sms-gateway:node26-check -f sms-gateway/Dockerfile .
+docker build -t apicenter-otp-gateway:node26-check -f otp-gateway/Dockerfile .
 ```
 
-Expected: all checks pass. `npm outdated` in API Center should only report `http-proxy-middleware@4`.
+Expected: all checks pass. `npm outdated` should not report any remaining package upgrades.
 
 ---
 
@@ -483,5 +474,6 @@ Expected: all checks pass. `npm outdated` in API Center should only report `http
 7. `chore: upgrade api center toolchain majors`
 8. `chore: upgrade shared services toolchain majors`
 9. `chore: align runtimes with node 24`
+10. `chore: align runtimes with node 26`
 
 Keep each commit independently revertible. Do not combine runtime upgrades with formatting-only changes.

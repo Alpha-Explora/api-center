@@ -30,7 +30,7 @@ steps:
   # ---------------------------------------------------------------------------
   # 1. Install dependencies and run tests
   # ---------------------------------------------------------------------------
-  - name: node:24-bookworm-slim
+  - name: node:26-bookworm-slim
     id: test
     entrypoint: sh
     args:

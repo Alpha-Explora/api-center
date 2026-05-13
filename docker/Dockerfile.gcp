@@ -9,7 +9,7 @@
 # =============================================================================
 
 # ---- Stage 1: Dependencies ----
-FROM node:24-bookworm-slim AS deps
+FROM node:26-bookworm-slim AS deps
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --include=dev --no-fund
 
 # ---- Stage 2: Build ----
-FROM node:24-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ RUN npm run build && \
     npm cache clean --force
 
 # ---- Stage 3: Production ----
-FROM node:24-bookworm-slim AS runner
+FROM node:26-bookworm-slim AS runner
 
 WORKDIR /app
 

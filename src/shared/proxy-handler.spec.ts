@@ -11,6 +11,7 @@ import {
   ProxyHandlerDeps,
   ProxyOptions,
   GoneError,
+  setCreateProxyMiddlewareForTesting,
 } from "./proxy-handler";
 import { RegistryService } from "../registry/registry.service";
 import { AuthService } from "../auth/auth.service";
@@ -25,10 +26,7 @@ import { AuthenticatedRequest } from "../types";
 
 // ---- Mock http-proxy-middleware ----
 const mockProxyMiddleware = jest.fn((_req: any, _res: any, _next: any) => {});
-jest.mock("http-proxy-middleware", () => ({
-  createProxyMiddleware: jest.fn(() => mockProxyMiddleware),
-}));
-import { createProxyMiddleware } from "http-proxy-middleware";
+const mockCreateProxyMiddleware = jest.fn(() => mockProxyMiddleware);
 
 // ---- Mock factory helpers ----
 
@@ -96,12 +94,14 @@ describe("ProxyHandler", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    setCreateProxyMiddlewareForTesting(mockCreateProxyMiddleware as any);
     deps = createMockDeps();
     handler = new ProxyHandler(deps, defaultOpts);
   });
 
   afterEach(() => {
     handler.destroy();
+    setCreateProxyMiddlewareForTesting(undefined);
   });
 
   // =========================================================================
@@ -127,7 +127,7 @@ describe("ProxyHandler", () => {
 
       await handler.proxyRequest("user-svc", req, res);
 
-      expect(createProxyMiddleware).toHaveBeenCalledTimes(1);
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(1);
       expect(mockProxyMiddleware).toHaveBeenCalledWith(
         req,
         res,
@@ -143,7 +143,7 @@ describe("ProxyHandler", () => {
       await handler.proxyRequest("user-svc", req, fakeRes());
 
       // createProxyMiddleware should only be called once (cached)
-      expect(createProxyMiddleware).toHaveBeenCalledTimes(1);
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(1);
       // but the actual proxy function is invoked twice
       expect(mockProxyMiddleware).toHaveBeenCalledTimes(2);
     });
@@ -163,7 +163,7 @@ describe("ProxyHandler", () => {
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
       await handler.proxyRequest("other-svc", fakeReq(), fakeRes());
 
-      expect(createProxyMiddleware).toHaveBeenCalledTimes(2);
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -186,13 +186,13 @@ describe("ProxyHandler", () => {
 
     it("drops cached instance so a new one is created on next request", async () => {
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
-      expect(createProxyMiddleware).toHaveBeenCalledTimes(1);
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(1);
 
       handler.invalidateProxyCache("user-svc");
 
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
       // Should have created a *new* proxy after invalidation
-      expect(createProxyMiddleware).toHaveBeenCalledTimes(2);
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(2);
     });
 
     it("logs when an existing proxy is invalidated", () => {

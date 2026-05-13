@@ -12,7 +12,8 @@
 // =============================================================================
 
 import { Response } from "express";
-import { createProxyMiddleware, Options } from "http-proxy-middleware";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Options, RequestHandler } from "http-proxy-middleware";
 import { RegistryService } from "../registry/registry.service";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
@@ -62,7 +63,40 @@ export interface ProxyOptions {
   maxProxyCacheSize?: number;
 }
 
-type ProxyMiddleware = ReturnType<typeof createProxyMiddleware<any, any>>;
+type ProxyMiddleware = RequestHandler<IncomingMessage, ServerResponse>;
+type CreateProxyMiddleware = (
+  options: Options<IncomingMessage, ServerResponse>,
+) => ProxyMiddleware;
+
+let cachedCreateProxyMiddleware: CreateProxyMiddleware | undefined;
+let testCreateProxyMiddleware: CreateProxyMiddleware | undefined;
+
+export function setCreateProxyMiddlewareForTesting(
+  factory: CreateProxyMiddleware | undefined,
+): void {
+  testCreateProxyMiddleware = factory;
+  cachedCreateProxyMiddleware = undefined;
+}
+
+async function loadCreateProxyMiddleware(): Promise<CreateProxyMiddleware> {
+  if (testCreateProxyMiddleware) {
+    return testCreateProxyMiddleware;
+  }
+  if (cachedCreateProxyMiddleware) {
+    return cachedCreateProxyMiddleware;
+  }
+
+  // http-proxy-middleware v4 is ESM-only. TypeScript rewrites dynamic import
+  // to require() in CommonJS output, so keep native import() via Function.
+  const nativeImport = new Function(
+    "specifier",
+    "return import(specifier)",
+  ) as (specifier: string) => Promise<typeof import("http-proxy-middleware")>;
+  const mod = await nativeImport("http-proxy-middleware");
+  cachedCreateProxyMiddleware =
+    mod.createProxyMiddleware as CreateProxyMiddleware;
+  return cachedCreateProxyMiddleware;
+}
 
 /**
  * Reusable proxy handler that both TribesController and SharedServicesController
@@ -272,6 +306,7 @@ export class ProxyHandler {
         },
       };
 
+      const createProxyMiddleware = await loadCreateProxyMiddleware();
       const createdProxy = createProxyMiddleware(proxyOpts) as ProxyMiddleware;
       proxy = createdProxy;
       this.proxyCache.set(targetServiceId, createdProxy);
@@ -301,7 +336,7 @@ export class ProxyHandler {
     });
 
     try {
-      (proxy as any)(req, res, (err?: Error) => {
+      await proxy(req, res as unknown as ServerResponse, (err?: Error) => {
         if (err) {
           this.deps.logger.error(
             `Proxy callback error [${targetServiceId}]: ${err.message}`,
