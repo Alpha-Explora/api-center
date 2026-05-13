@@ -10,6 +10,7 @@
 #   api-center-prod           Secret Manager secret name (e.g. api-center-prod)
 #   10.34.181.131      Memorystore "api-center-cache" host (10.x.x.x)
 #   KAFKA_BROKERS / KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD live in Secret Manager
+#   JWT_PRIVATE_KEY / JWT_PUBLIC_KEY live in Secret Manager
 #   *       comma-separated, e.g. https://app.example.com
 # =============================================================================
 apiVersion: v1
@@ -43,7 +44,11 @@ data:
   ALLOWED_ORIGINS: "https://api-center.itsandbox.site"
 
   # Auth provider — descope / keycloak / google / dev-jwt
-  AUTH_PROVIDER: "descope"
+  AUTH_PROVIDER: "composite"
+  INTERNAL_JWT_ISSUER: "https://api-center.itsandbox.site"
+  INTERNAL_JWT_AUDIENCE: "api-center"
+  INTERNAL_JWT_ACCESS_TTL_SECONDS: "3600"
+  INTERNAL_JWT_REFRESH_TTL_SECONDS: "86400"
   DESCOPE_BASE_URL: "https://api.descope.com"
   DESCOPE_PROJECT_ID: "P3CDYwDpERyUJPEfqnppZM7HLySN"
   DESCOPE_ISSUER: "https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN"

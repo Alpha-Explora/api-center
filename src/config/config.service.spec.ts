@@ -53,6 +53,33 @@ describe("ConfigService", () => {
     expect(run).toThrow("AUTH_PROVIDER must be one of");
   });
 
+  it("should allow composite auth provider with persistent JWT keys", () => {
+    setValidProductionEnv();
+    process.env.AUTH_PROVIDER = "composite";
+    process.env.JWT_PRIVATE_KEY = "private-key";
+    process.env.JWT_PUBLIC_KEY = "public-key";
+
+    const config = new ConfigService();
+    const run = () => config.onApplicationBootstrap();
+
+    expect(run).not.toThrow();
+    expect(config.authProvider).toBe("composite");
+    expect(config.internalJwt.issuer).toBeDefined();
+  });
+
+  it("should require persistent JWT keys for production internal auth", () => {
+    setValidProductionEnv();
+    process.env.AUTH_PROVIDER = "internal-jwt";
+    delete process.env.JWT_PRIVATE_KEY;
+    delete process.env.JWT_PUBLIC_KEY;
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow(
+      "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must be set for production internal JWT auth",
+    );
+  });
+
   it("should throw in production when ALLOWED_ORIGINS uses wildcard", () => {
     setValidProductionEnv();
     process.env.ALLOWED_ORIGINS = "*";

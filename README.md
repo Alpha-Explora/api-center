@@ -128,6 +128,23 @@ GET http://localhost:3000/api/v1/auth/.well-known/jwks.json
 ### 2. Descope â€” Enterprise OIDC
 
 ```bash
+AUTH_PROVIDER=composite
+INTERNAL_JWT_ISSUER=https://api-center.itsandbox.site
+INTERNAL_JWT_AUDIENCE=api-center
+INTERNAL_JWT_ACCESS_TTL_SECONDS=3600
+INTERNAL_JWT_REFRESH_TTL_SECONDS=86400
+JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
+JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
+```
+
+Use `composite` first in production. API Center issues tribe M2M tokens itself
+and validates Descope tokens as a fallback for human/admin flows. New tribes only
+need `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` in Secret Manager; they do not need
+one Descope app per tribe.
+
+Legacy Descope-only M2M mode:
+
+```bash
 AUTH_PROVIDER=descope
 DESCOPE_BASE_URL=https://api.descope.com
 DESCOPE_PROJECT_ID=<your-descope-project-id>

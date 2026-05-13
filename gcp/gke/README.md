@@ -93,6 +93,14 @@ Add these secrets to Secret Manager payload before rollout:
 - `KAFKA_BROKERS`
 - `KAFKA_SASL_USERNAME`
 - `KAFKA_SASL_PASSWORD`
+- `JWT_PRIVATE_KEY`
+- `JWT_PUBLIC_KEY`
+- `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>`
+
+`20-configmap.yaml` sets `AUTH_PROVIDER=composite`. In this mode API Center
+issues tribe machine-to-machine JWTs itself and still validates Descope tokens as
+a migration fallback. Do not add per-tribe Descope client secrets unless you
+intentionally change the provider back to `descope`.
 
 For Confluent Cloud, the Kafka portion of `api-center-prod` must look like:
 

@@ -20,7 +20,7 @@
 | Static IP name | `api-center-ip` |
 | Public hostname | `api-center.itsandbox.site` |
 | Secret Manager secret | `api-center-prod` |
-| Auth provider | `descope` (`AUTH_PROVIDER=descope` in ConfigMap) |
+| Auth provider | `composite` (`AUTH_PROVIDER=composite` in ConfigMap): API Center-issued tribe JWTs with Descope validation fallback |
 | Memorystore cache host | `10.34.181.131:6379` |
 | Memorystore rate-limit host | `10.34.181.131:6379` (shared low-traffic Redis) |
 | Kafka brokers | Confluent Cloud bootstrap endpoint from Secret Manager |
@@ -141,56 +141,55 @@ grep -rn 'example.com\|example.internal' gcp/gke/
 
 Replace every placeholder in `gcp/gke/*.yaml` (see **Known Placeholders** above).
 
-### 2A. Update Secret Manager payload (Descope + rollback-safe Keycloak)
+### 2A. Update Secret Manager payload (internal tribe JWT + Descope fallback)
 
-Export current payload, add Descope keys, and keep existing `KEYCLOAK_*` keys for rollback.
+Export current payload, add the API Center internal JWT keys, and keep Descope
+project metadata for human/admin-token validation during the composite rollout.
 
 ```bash
 gcloud secrets versions access latest --secret=api-center-prod > /tmp/api-center-prod.current.json
 cp /tmp/api-center-prod.current.json /tmp/api-center-prod.next.json
 
 # Edit /tmp/api-center-prod.next.json and ensure it contains at least:
+# JWT_PRIVATE_KEY=<persistent RS256 private key PEM with escaped newlines>
+# JWT_PUBLIC_KEY=<matching RS256 public key PEM with escaped newlines>
+# TRIBE_SECRET_<SERVICE_ID_UPPER>=<sha256 of plaintext tribe secret>
 # DESCOPE_BASE_URL=https://api.descope.com
 # DESCOPE_PROJECT_ID=P3CDYwDpERyUJPEfqnppZM7HLySN
 # DESCOPE_ISSUER=https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN
 # DESCOPE_AUDIENCE=<token aud claim; start with project id if needed>
-# DESCOPE_TOKEN_ENDPOINT=https://api.descope.com/oauth2/v1/apps/token
-# DESCOPE_DEFAULT_CLIENT_SECRET=<Descope Client Secret (rotate before use)>
-# Optional overrides: DESCOPE_CLIENT_SECRET_<SERVICE_ID_UPPER>
-# Keep existing KEYCLOAK_* keys during stabilization.
+# DESCOPE_JWKS_URI=https://api.descope.com/P3CDYwDpERyUJPEfqnppZM7HLySN/.well-known/jwks.json
 
 gcloud secrets versions add api-center-prod --data-file=/tmp/api-center-prod.next.json
 gcloud secrets versions list api-center-prod --limit=5
 ```
 
-Minimal payload shape for the auth switch:
+Minimal payload shape for the auth switch. Non-secret values such as
+`AUTH_PROVIDER`, issuer, audience, and TTLs are set in `gcp/gke/20-configmap.yaml`;
+include them here only if you intentionally run without that ConfigMap.
 
 ```json
 {
+        "JWT_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----",
+        "JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----",
+        "TRIBE_SECRET_SMOKE_TRIBE": "<sha256-hash>",
         "DESCOPE_BASE_URL": "https://api.descope.com",
         "DESCOPE_PROJECT_ID": "P3CDYwDpERyUJPEfqnppZM7HLySN",
         "DESCOPE_ISSUER": "https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN",
         "DESCOPE_AUDIENCE": "P3CDYwDpERyUJPEfqnppZM7HLySN",
-        "DESCOPE_TOKEN_ENDPOINT": "https://api.descope.com/oauth2/v1/apps/token",
-        "DESCOPE_DEFAULT_CLIENT_SECRET": "<m2m-client-secret>",
-        "DESCOPE_CLIENT_SECRET_BILLING_SERVICE": "<optional-service-secret>",
-        "KEYCLOAK_BASE_URL": "<keep-existing>",
-        "KEYCLOAK_REALM": "<keep-existing>",
-        "KEYCLOAK_JWKS_URI": "<keep-existing>",
-        "KEYCLOAK_TOKEN_ENDPOINT": "<keep-existing>",
-        "KEYCLOAK_ISSUER": "<keep-existing>",
-        "KEYCLOAK_AUDIENCE": "<keep-existing>",
-        "KEYCLOAK_DEFAULT_CLIENT_SECRET": "<keep-existing>"
+        "DESCOPE_JWKS_URI": "https://api.descope.com/P3CDYwDpERyUJPEfqnppZM7HLySN/.well-known/jwks.json"
 }
 ```
 
 ### 2B. Confirm runtime selector
 
-`gcp/gke/20-configmap.yaml` is already set to `AUTH_PROVIDER: "descope"`.
+`gcp/gke/20-configmap.yaml` should be set to `AUTH_PROVIDER: "composite"`.
+Composite mode issues API Center internal JWTs for tribes and validates internal
+JWTs first, then Descope tokens as a migration fallback.
 
 ```bash
 kubectl -n api-center get configmap api-center-config -o jsonpath='{.data.AUTH_PROVIDER}{"\n"}'
-# Expected: descope
+# Expected: composite
 ```
 
 ### 2C. Configure Kafka client credentials in Secret Manager
@@ -238,27 +237,12 @@ $brokers = [string]$json.KAFKA_BROKERS
 ```bash
 # Inputs for smoke runs
 export PUBLIC_HOSTNAME=<real-hostname>
-export DESCOPE_SMOKE_CLIENT_ID=<descope-client-id-with-platform-admin>
-export DESCOPE_SMOKE_CLIENT_SECRET=<descope-client-secret>
 export GATEWAY_TRIBE_ID=<registered-service-id>
 export GATEWAY_TRIBE_SECRET=<registered-service-secret>
 
-# A) Direct Descope client-credentials token request
-DESCOPE_TOKEN=$(
-        curl -sS -X POST "https://api.descope.com/oauth2/v1/apps/token" \
-                -H "Content-Type: application/x-www-form-urlencoded" \
-                --data-urlencode "grant_type=client_credentials" \
-                --data-urlencode "client_id=${DESCOPE_SMOKE_CLIENT_ID}" \
-                --data-urlencode "client_secret=${DESCOPE_SMOKE_CLIENT_SECRET}" \
-                --data-urlencode "scope=openid platform:admin" \
-        | jq -r '.access_token // empty'
-)
-test -n "$DESCOPE_TOKEN"
-
-# Optional: verify aud claim and align DESCOPE_AUDIENCE if needed
-echo "$DESCOPE_TOKEN" | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq '.aud'
-
-# B) Gateway token flow via /api/v1/auth/token
+# A) Gateway token flow via /api/v1/auth/token.
+# This should be issued by API Center internal JWT mode and should not call
+# Descope /oauth2/v1/apps/token.
 GATEWAY_RESPONSE=$(curl -sS -X POST "https://${PUBLIC_HOSTNAME}/api/v1/auth/token" \
         -H "Content-Type: application/json" \
         -d "{\"tribeId\":\"${GATEWAY_TRIBE_ID}\",\"secret\":\"${GATEWAY_TRIBE_SECRET}\"}")
@@ -267,26 +251,24 @@ GATEWAY_ACCESS_TOKEN=$(echo "$GATEWAY_RESPONSE" | jq -r '.data.accessToken // em
 GATEWAY_REFRESH_TOKEN=$(echo "$GATEWAY_RESPONSE" | jq -r '.data.refreshToken // empty')
 test -n "$GATEWAY_ACCESS_TOKEN"
 
-# C) Guard check: admin route must accept token carrying platform:admin
-curl -si "https://${PUBLIC_HOSTNAME}/api/v1/registry/scopes" \
-        -H "Authorization: Bearer ${DESCOPE_TOKEN}" \
-        | head -n 1
-# Expected: HTTP/2 200
-
-# Optional negative control: non-admin token should be denied
+# B) Optional negative control: non-admin tribe token should be denied on admin routes.
 curl -si "https://${PUBLIC_HOSTNAME}/api/v1/registry/scopes" \
         -H "Authorization: Bearer ${GATEWAY_ACCESS_TOKEN}" \
         | head -n 1
 # Expected: HTTP/2 401 or 403
 
-# D) Refresh endpoint behavior
+# C) Refresh endpoint behavior
 if [ -n "$GATEWAY_REFRESH_TOKEN" ]; then
         curl -sS -X POST "https://${PUBLIC_HOSTNAME}/api/v1/auth/token/refresh" \
                 -H "Content-Type: application/json" \
                 -d "{\"refreshToken\":\"${GATEWAY_REFRESH_TOKEN}\"}" | jq .
 else
-        echo "No refresh token returned for this flow (expected for some client_credentials configurations)."
+        echo "No refresh token returned; check internal JWT provider configuration."
 fi
+
+# D) JWKS for API Center-signed tokens
+curl -sS "https://${PUBLIC_HOSTNAME}/api/v1/auth/.well-known/jwks.json" | jq .
+# Expected: keys[0].kid == "api-center-internal-1"
 ```
 
 ### 4. Build & push image
@@ -387,7 +369,8 @@ Update the **Current Image** table, append a **Change Log** entry, commit.
 
 ### 8. Rollback (auth provider switch)
 
-If Descope auth fails after rollout, revert immediately with the last known-good image and Keycloak config values.
+If internal tribe-token auth fails after rollout, revert immediately with the
+last known-good image and the previous auth provider selector.
 
 ```bash
 # 1) Revert workload to previous ReplicaSet
@@ -396,10 +379,10 @@ kubectl -n api-center rollout status deploy/api-center --timeout=5m
 
 # 2) Restore auth provider selector if needed
 kubectl -n api-center edit configmap api-center-config
-# Set AUTH_PROVIDER back to "keycloak"
+# Set AUTH_PROVIDER back to "descope" only if you need the old Descope M2M path.
 
 # 3) Restore previous Secret Manager version in api-center-prod
-# Keep prior KEYCLOAK_* values available until Descope stabilizes.
+# Keep JWT_PRIVATE_KEY/JWT_PUBLIC_KEY available until composite mode stabilizes.
 
 # 4) Restart deployment to consume restored env
 kubectl -n api-center rollout restart deploy/api-center
@@ -454,7 +437,7 @@ kubectl -n api-center get hpa api-center
 
 # 8. Guarded route check with platform:admin token
 curl -si https://<real-hostname>/api/v1/registry/scopes \
-        -H "Authorization: Bearer <descope-token-with-platform-admin>" | head -n 1
+        -H "Authorization: Bearer <platform-admin-token>" | head -n 1
 # Expected: HTTP/2 200
 
 # 9. Refresh endpoint behavior check

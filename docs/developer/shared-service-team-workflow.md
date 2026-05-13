@@ -133,9 +133,15 @@ Before a tribe integration is considered ready, verify:
 - The tribe manifest includes the shared service ID in `consumes`.
 - The SDK method maps to a route listed in the shared-service manifest and contract snapshot.
 
-## Descope Responsibility
+## Auth Provider Responsibility
 
-- AP Center remains the source of truth for token verification and scope enforcement.
+- AP Center remains the source of truth for tribe token issuance, token verification,
+  registry-derived scopes, and scope enforcement.
+- In `AUTH_PROVIDER=composite` or `AUTH_PROVIDER=internal-jwt`, tribes do not need
+  a Descope app for API Center machine-to-machine access. AP Center validates
+  `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` and signs an internal JWT.
+- Descope remains for human/user identity and management-console login flows, not
+  for one OAuth client per tribe.
 - Shared service runtime can trust AP Center forwarded identity headers and does not need to duplicate AP Center authorization policy.
 
 ## Non-breaking Contract Rule

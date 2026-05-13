@@ -25,6 +25,8 @@ export class ConfigService implements OnApplicationBootstrap {
   // AUTH_PROVIDER=keycloak  → KeycloakProvider (production)
   // AUTH_PROVIDER=descope   → DescopeProvider  (production)
   // AUTH_PROVIDER=dev-jwt   → DevJwtProvider   (local dev / CI) [default]
+  // AUTH_PROVIDER=internal-jwt uses API Center signed M2M JWTs.
+  // AUTH_PROVIDER=composite issues internal JWTs and validates internal + Descope tokens.
   readonly authProvider: string = process.env.AUTH_PROVIDER || "dev-jwt";
 
   private readonly descopeBaseUrl =
@@ -74,6 +76,21 @@ export class ConfigService implements OnApplicationBootstrap {
       process.env.DEV_JWT_REFRESH_TTL_MULTIPLIER || "24",
       10,
     ),
+  };
+
+  readonly internalJwt = {
+    issuer: process.env.INTERNAL_JWT_ISSUER || "api-center",
+    audience: process.env.INTERNAL_JWT_AUDIENCE || "api-center",
+    accessTtlSeconds: parseInt(
+      process.env.INTERNAL_JWT_ACCESS_TTL_SECONDS || "3600",
+      10,
+    ),
+    refreshTtlSeconds: parseInt(
+      process.env.INTERNAL_JWT_REFRESH_TTL_SECONDS || "86400",
+      10,
+    ),
+    privateKey: process.env.JWT_PRIVATE_KEY || "",
+    publicKey: process.env.JWT_PUBLIC_KEY || "",
   };
 
   // HashiCorp Vault — KV v2 secret loading + Transit signing
@@ -163,7 +180,13 @@ export class ConfigService implements OnApplicationBootstrap {
       errors.push("PLATFORM_ADMIN_SECRET must be set in production");
     }
 
-    const validProviders = ["keycloak", "descope", "dev-jwt"];
+    const validProviders = [
+      "keycloak",
+      "descope",
+      "dev-jwt",
+      "internal-jwt",
+      "composite",
+    ];
     if (!validProviders.includes(this.authProvider)) {
       errors.push(
         `AUTH_PROVIDER must be one of: ${validProviders.join(", ")} (got '${this.authProvider}')`,
@@ -231,6 +254,16 @@ export class ConfigService implements OnApplicationBootstrap {
     if (this.authProvider === "dev-jwt" && this.isProduction) {
       errors.push(
         "AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=descope or keycloak",
+      );
+    }
+
+    if (
+      ["internal-jwt", "composite"].includes(this.authProvider) &&
+      this.isProduction &&
+      (!this.internalJwt.privateKey || !this.internalJwt.publicKey)
+    ) {
+      errors.push(
+        "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must be set for production internal JWT auth",
       );
     }
 

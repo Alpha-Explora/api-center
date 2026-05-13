@@ -111,10 +111,15 @@ ConfigMap values.
 {
   "NODE_ENV": "production",
   "PLATFORM_ADMIN_SECRET": "<long-random-shared-registration-secret>",
+  "AUTH_PROVIDER": "composite",
+  "INTERNAL_JWT_ISSUER": "https://api-center.itsandbox.site",
+  "INTERNAL_JWT_AUDIENCE": "api-center",
+  "INTERNAL_JWT_ACCESS_TTL_SECONDS": "3600",
+  "INTERNAL_JWT_REFRESH_TTL_SECONDS": "86400",
+  "JWT_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----",
+  "JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----",
   "DESCOPE_BASE_URL": "https://api.descope.com",
   "DESCOPE_PROJECT_ID": "<descope-project-id>",
-  "DESCOPE_TOKEN_ENDPOINT": "https://api.descope.com/oauth2/v1/apps/token",
-  "DESCOPE_DEFAULT_CLIENT_SECRET": "<descope-app-secret>",
   "DESCOPE_AUDIENCE": "<descope-project-id>",
   "DESCOPE_ISSUER": "https://api.descope.com/v1/apps/<descope-project-id>",
   "REDIS_CACHE_URL": "redis://<api-center-cache-private-ip>:6379",
@@ -128,6 +133,12 @@ ConfigMap values.
   "TRIBE_SECRET_<SERVICE_ID>": "<sha256-of-tribe-secret>"
 }
 ```
+
+`AUTH_PROVIDER=composite` is the recommended production mode. API Center issues
+tribe machine-to-machine tokens itself using the `JWT_PRIVATE_KEY` /
+`JWT_PUBLIC_KEY` pair, while still accepting Descope tokens for human/admin
+flows during migration. Do not create one Descope app per tribe for API Center
+M2M auth unless you intentionally switch back to `AUTH_PROVIDER=descope`.
 
 `KAFKA_SASL_USERNAME` and `KAFKA_SASL_PASSWORD` are the Confluent Cloud Kafka cluster API key and secret. They are not the old self-managed cluster user/password and not the Confluent Cloud management API key unless that key was explicitly created with Kafka cluster scope.
 
@@ -343,6 +354,8 @@ Before a tribe uses shared services:
 
 - Tribe has a stable `serviceId`.
 - `TRIBE_SECRET_<SERVICE_ID>` exists in `api-center-prod` as a SHA-256 hash.
+- API Center has a persistent internal JWT key pair in `JWT_PRIVATE_KEY` and
+  `JWT_PUBLIC_KEY`; do not use generated in-memory keys in production.
 - Tribe manifest is registered with correct `consumes`.
 - Shared-service manifests are registered and healthy.
 - Tribe installs `@implementsprint/sdk` from the private registry.

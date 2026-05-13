@@ -5,13 +5,16 @@
 //
 // Two first-class implementations are shipped:
 //   • KeycloakProvider  — production-grade, OIDC/JWKS, enterprise-ready
-//   • DescopeProvider   — production-grade, OIDC/JWKS, enterprise-ready
-//   • DevJwtProvider    — lightweight RS256 issuer for local dev and CI
+//   • DescopeProvider      — production-grade, OIDC/JWKS, enterprise-ready
+//   • InternalJwtProvider  — API Center signed M2M tokens
+//   • DevJwtProvider       — lightweight RS256 issuer for local dev and CI
 //
 // Selecting a provider is done via the AUTH_PROVIDER env var:
 //   AUTH_PROVIDER=keycloak   → KeycloakProvider
-//   AUTH_PROVIDER=descope    → DescopeProvider
-//   AUTH_PROVIDER=dev-jwt    → DevJwtProvider  (default)
+//   AUTH_PROVIDER=descope       → DescopeProvider
+//   AUTH_PROVIDER=internal-jwt  → InternalJwtProvider
+//   AUTH_PROVIDER=composite     → issue internal JWTs, validate internal + Descope
+//   AUTH_PROVIDER=dev-jwt       → DevJwtProvider  (default)
 //
 // To add a new provider, implement this interface, register it in AuthModule,
 // and handle the selector in the providerFactory.
@@ -41,6 +44,8 @@ export interface IssuedToken {
   refreshToken: string | null;
   /** Seconds until the access token expires */
   expiresIn: number;
+  /** Seconds until the refresh token expires, when known */
+  refreshExpiresIn?: number;
 }
 
 /**

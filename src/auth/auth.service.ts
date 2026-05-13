@@ -2,7 +2,8 @@
 // src/auth/auth.service.ts — Provider-agnostic authentication service
 // =============================================================================
 // Thin orchestration layer that delegates JWT operations to the injected
-// AuthProvider (DescopeProvider, KeycloakProvider, or DevJwtProvider) and manages refresh
+// AuthProvider (DescopeProvider, InternalJwtProvider, KeycloakProvider, or
+// DevJwtProvider) and manages refresh
 // token lifecycle via TokenStoreService.
 // =============================================================================
 
@@ -197,15 +198,26 @@ export class AuthService {
   ): Promise<void> {
     if (!issued.refreshToken) return;
 
-    const jti = randomUUID();
+    let jti: string = randomUUID();
+    try {
+      const claims = await this.provider.validateToken(issued.refreshToken);
+      if (typeof claims.jti === "string" && claims.jti.trim().length > 0) {
+        jti = claims.jti;
+      }
+    } catch {
+      // Some providers return opaque refresh tokens. Keep a generated record ID
+      // for best-effort storage without blocking issuance.
+    }
+
     const now = Math.floor(Date.now() / 1000);
+    const refreshExpiresIn = issued.refreshExpiresIn ?? issued.expiresIn * 24;
 
     const record: RefreshTokenRecord = {
       jti,
       sub,
       tribeId: sub,
       issuedAt: now,
-      expiresAt: now + issued.expiresIn * 24, // refresh lives longer than access
+      expiresAt: now + refreshExpiresIn,
       scopes,
       permissions,
     };

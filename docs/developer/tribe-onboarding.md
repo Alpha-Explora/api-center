@@ -33,12 +33,35 @@ Validation notes:
 
 ## Tribe Startup Checklist
 
-1. Add hashed startup secret in gateway env:
+1. Add hashed startup secret in API Center Secret Manager:
    - `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>=<sha256>`
 2. Ensure tribe requests an access token from `/api/v1/auth/token`.
 3. Register service manifest at startup.
 4. Verify discovery visibility through `/api/v1/tribes` or `/api/v1/shared`.
 5. Verify health endpoint path and readiness behavior.
+
+## Token Issuance Model
+
+New tribes do not need a Descope app for API Center machine-to-machine access.
+API Center validates the plaintext tribe secret against
+`TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>`, derives scopes from the registry, and
+issues an API Center-signed internal JWT.
+
+The tribe sends the plaintext secret only to:
+
+```text
+POST /api/v1/auth/token
+```
+
+Secret Manager stores only the SHA-256 hash:
+
+```text
+TRIBE_SECRET_ORDERS_SERVICE=<sha256 hash of plaintext tribe secret>
+```
+
+Descope remains for human/user identity and future management-console login. Do
+not create one Descope OAuth or Inbound App per tribe unless the deployment is
+explicitly switched back to `AUTH_PROVIDER=descope`.
 
 ## Transition Plan: Bootstrap to Self-Registration
 

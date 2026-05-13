@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { AuthService } from "./auth.service";
 import {
   AuthProvider,
@@ -8,6 +7,7 @@ import {
 import { TokenStoreService } from "./token-store.service";
 import { LoggerService } from "../shared/logger.service";
 import { ForbiddenError, UnauthorizedError } from "../shared/errors";
+import { AuthenticatedRequest } from "../types";
 
 jest.mock("node:crypto", () => ({
   randomUUID: jest.fn(() => "uuid-fixed"),
@@ -118,7 +118,9 @@ describe("AuthService", () => {
   });
 
   it("should throw when caller lacks required permission", async () => {
-    const req = { user: { scopes: ["scope:read"], permissions: [] } } as any;
+    const req = {
+      user: { scopes: ["scope:read"], permissions: [] },
+    } as unknown as AuthenticatedRequest;
 
     await expect(service.authorize(req, "perm:admin")).rejects.toThrow(
       ForbiddenError,

@@ -12,7 +12,8 @@ This guide is for contributors and platform operators who need to run, test, and
 4. [Testing All Functionality](#testing-all-functionality)
    - [Health & Readiness](#health--readiness)
    - [dev-jwt Auth Flow](#dev-jwt-auth-flow)
-  - [Descope Auth Flow](#descope-auth-flow)
+  - [Internal Tribe Token Flow](#internal-tribe-token-flow)
+  - [Descope Validation Fallback](#descope-validation-fallback)
   - [Keycloak Auth Flow](#keycloak-auth-flow)
    - [Service Registry](#service-registry)
    - [Tribe-to-Tribe Calls](#tribe-to-tribe-calls)
@@ -270,18 +271,18 @@ curl -s -o /dev/null -w "%{http_code}" \
 
 ---
 
-### Descope Auth Flow
+### Internal Tribe Token Flow
 
 ```bash
-# Configure Descope and restart gateway containers
-export AUTH_PROVIDER=descope
-export DESCOPE_BASE_URL=https://api.descope.com
-export DESCOPE_PROJECT_ID=<project-id>
-export DESCOPE_JWKS_URI="https://api.descope.com/${DESCOPE_PROJECT_ID}/.well-known/jwks.json"
-export DESCOPE_TOKEN_ENDPOINT=https://api.descope.com/oauth2/v1/token
-export DESCOPE_ISSUER="https://api.descope.com/${DESCOPE_PROJECT_ID}"
-export DESCOPE_AUDIENCE=api-center
-export DESCOPE_DEFAULT_CLIENT_SECRET=<m2m-client-secret>
+# Configure API Center internal M2M tokens and restart gateway containers.
+# Use composite in production if Descope token validation fallback is still needed.
+export AUTH_PROVIDER=composite
+export INTERNAL_JWT_ISSUER=https://api-center.itsandbox.site
+export INTERNAL_JWT_AUDIENCE=api-center
+export INTERNAL_JWT_ACCESS_TTL_SECONDS=3600
+export INTERNAL_JWT_REFRESH_TTL_SECONDS=86400
+export JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
+export JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
 docker-compose up -d api-center-1 api-center-2 api-center-3
 
 # Issue an APICenter token through gateway auth endpoint
@@ -290,7 +291,18 @@ curl -s -X POST http://localhost:3000/api/v1/auth/token \
   -d '{"tribeId": "api-center", "secret": "<service-secret>"}' | jq .
 ```
 
-> Claims mapping policy: `tribeId`, `permissions`, and `scopes` are sourced from Descope custom app claims.
+API Center validates the plaintext service secret against
+`TRIBE_SECRET_<SERVICE_ID_UPPER>` and signs an internal JWT with registry-derived
+`tribeId`, `permissions`, and `scopes`. New tribes do not need a Descope app for
+machine-to-machine access.
+
+### Descope Validation Fallback
+
+`AUTH_PROVIDER=composite` still validates Descope-issued tokens after internal
+JWT validation fails. Keep `DESCOPE_PROJECT_ID`, `DESCOPE_ISSUER`,
+`DESCOPE_AUDIENCE`, and `DESCOPE_JWKS_URI` configured if human/admin auth still
+uses Descope. Per-tribe `DESCOPE_CLIENT_SECRET_<SERVICE_ID>` keys are only
+needed if you intentionally switch back to `AUTH_PROVIDER=descope`.
 
 ---
 
@@ -629,6 +641,11 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 |----------|---------|--------|
 | `AUTH_PROVIDER` | `dev-jwt` | `dev-jwt` Â· `descope` Â· `keycloak` |
 
+Production tribe-token mode should use `composite` first, then optionally
+`internal-jwt` after Descope validation fallback is no longer needed. Supported
+provider values are `dev-jwt`, `internal-jwt`, `composite`, `descope`, and
+`keycloak`.
+
 ### dev-jwt
 
 | Variable | Default | Description |
@@ -638,6 +655,17 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | `DEV_JWT_REFRESH_TTL_MULTIPLIER` | `24` | Refresh TTL = access TTL Ã— this |
 | `JWT_PRIVATE_KEY` | â€” | PEM private key (optional, for persistence) |
 | `JWT_PUBLIC_KEY` | â€” | PEM public key (required when `JWT_PRIVATE_KEY` is set) |
+
+### internal-jwt / composite
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INTERNAL_JWT_ISSUER` | `api-center` | JWT `iss` claim for API Center-issued tribe tokens |
+| `INTERNAL_JWT_AUDIENCE` | `api-center` | JWT `aud` claim for API Center-issued tribe tokens |
+| `INTERNAL_JWT_ACCESS_TTL_SECONDS` | `3600` | Access token TTL |
+| `INTERNAL_JWT_REFRESH_TTL_SECONDS` | `86400` | Refresh token TTL |
+| `JWT_PRIVATE_KEY` | — | Persistent RS256 private key, required in production |
+| `JWT_PUBLIC_KEY` | — | Matching RS256 public key, required in production |
 
 ### Keycloak
 
@@ -665,6 +693,10 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | `DESCOPE_REFRESH_CLIENT_ID` | `api-center` | Client ID for refresh-token grants |
 | `DESCOPE_DEFAULT_CLIENT_SECRET` | â€” | Default M2M client secret |
 | `DESCOPE_CLIENT_SECRET_<SERVICE_ID_UPPER>` | â€” | Per-service Descope client secret override |
+
+In `AUTH_PROVIDER=composite`, Descope settings are used for validation fallback
+only. New tribe M2M tokens are issued by API Center and do not need
+`DESCOPE_DEFAULT_CLIENT_SECRET` or per-service Descope client secrets.
 
 ### GCP Secret Manager
 

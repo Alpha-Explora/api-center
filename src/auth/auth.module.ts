@@ -14,6 +14,8 @@ import { AUTH_PROVIDER } from "./auth-provider.interface";
 import { KeycloakProvider } from "./providers/keycloak.provider";
 import { DescopeProvider } from "./providers/descope.provider";
 import { DevJwtProvider } from "./providers/dev-jwt.provider";
+import { InternalJwtProvider } from "./providers/internal-jwt.provider";
+import { CompositeAuthProvider } from "./providers/composite-auth.provider";
 import { TokenStoreService } from "./token-store.service";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -26,15 +28,26 @@ import { VaultModule } from "./vault.module";
 
 const authProviderFactory = {
   provide: AUTH_PROVIDER,
-  inject: [ConfigService, KeycloakProvider, DescopeProvider, DevJwtProvider],
+  inject: [
+    ConfigService,
+    KeycloakProvider,
+    DescopeProvider,
+    DevJwtProvider,
+    InternalJwtProvider,
+    CompositeAuthProvider,
+  ],
   useFactory: (
     config: ConfigService,
     keycloak: KeycloakProvider,
     descope: DescopeProvider,
     devJwt: DevJwtProvider,
+    internalJwt: InternalJwtProvider,
+    composite: CompositeAuthProvider,
   ) => {
     if (config.authProvider === "keycloak") return keycloak;
     if (config.authProvider === "descope") return descope;
+    if (config.authProvider === "internal-jwt") return internalJwt;
+    if (config.authProvider === "composite") return composite;
     return devJwt;
   },
 };
@@ -49,6 +62,8 @@ const authProviderFactory = {
     KeycloakProvider,
     DescopeProvider,
     DevJwtProvider,
+    InternalJwtProvider,
+    CompositeAuthProvider,
     authProviderFactory,
     AuthService,
     JwtAuthGuard,

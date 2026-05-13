@@ -5,7 +5,7 @@
 //   POST /api/v1/auth/token                    — issue a scoped M2M token
 //   POST /api/v1/auth/token/refresh            — refresh an expiring token
 //   POST /api/v1/auth/token/revoke             — revoke a refresh token (Redis + Kafka)
-//   GET  /api/v1/auth/.well-known/jwks.json    — JWKS document (DevJwtProvider only)
+//   GET  /api/v1/auth/.well-known/jwks.json    — JWKS document for local issuers
 // =============================================================================
 
 import {
@@ -217,7 +217,7 @@ export class AuthController {
   }
 
   // ---------------------------------------------------------------------------
-  // GET /api/v1/auth/.well-known/jwks.json — JWKS (DevJwtProvider only)
+  // GET /api/v1/auth/.well-known/jwks.json — JWKS for API Center-signed tokens
   // ---------------------------------------------------------------------------
 
   @Get(".well-known/jwks.json")
