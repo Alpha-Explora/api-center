@@ -256,8 +256,8 @@ SDK source of truth now lives in the dedicated `api-shared-services` repository.
 Tribe repositories must install this SDK from the private registry. Configure `.npmrc` in each tribe repo before installing:
 
 ```ini
-@apicenter:registry=${NPM_REGISTRY_URL}
-//${NPM_REGISTRY_HOST}/:_authToken=${NPM_TOKEN}
+@implementsprint:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 always-auth=true
 ```
 
@@ -266,11 +266,11 @@ Reference template:
 - `../api-shared-services/.npmrc.example`
 
 ```bash
-npm install @apicenter/sdk
+npm install @implementsprint/sdk
 ```
 
 ```typescript
-import { TribeClient } from '@apicenter/sdk';
+import { TribeClient } from '@implementsprint/sdk';
 
 const client = new TribeClient({
   gatewayUrl: process.env.APICENTER_URL,   // http://localhost:3000 (dev)
@@ -342,7 +342,7 @@ import {
   GatewayTimeoutError,    // 504 â€” upstream too slow
   ServiceUnavailableError,// 503 â€” circuit breaker open
   NetworkError,           // no response from gateway
-} from '@apicenter/sdk';
+} from '@implementsprint/sdk';
 ```
 
 **Optional constructor options:**
@@ -378,7 +378,7 @@ KAFKA_SASL_PASSWORD=<confluent-api-secret>
 Tribes publish Kafka events through the governed SDK path:
 
 ```typescript
-import { TribeClient } from '@apicenter/sdk';
+import { TribeClient } from '@implementsprint/sdk';
 
 const client = new TribeClient({
   gatewayUrl: process.env.APICENTER_URL,

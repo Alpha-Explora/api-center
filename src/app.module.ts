@@ -26,7 +26,7 @@
 //
 //  §5 / §6  SDK
 //        The shared SDK lives in the dedicated api-shared-services repository.
-//        Tribes consume @apicenter/sdk from the private registry, and it wraps
+//        Tribes consume @implementsprint/sdk from the private registry, and it wraps
 //        every namespace this module exposes.
 //
 //  §7  TRIBE CONSUMPTION

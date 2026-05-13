@@ -7,9 +7,9 @@ This is the operator guide for the current APICenter deployment model.
 | Repo | Owns |
 | --- | --- |
 | `api-center` | Gateway runtime, auth, registry, proxying, policy checks, rate limits, readiness, metrics, and Confluent publishing. |
-| `api-shared-services` | `@apicenter/sdk`, shared-service manifests, shared-service runtimes, provider integrations, and SDK contract checks. |
+| `api-shared-services` | `@implementsprint/sdk`, shared-service manifests, shared-service runtimes, provider integrations, and SDK contract checks. |
 
-Tribes install `@apicenter/sdk` from the private registry. The SDK calls APICenter only. It does not call PayMongo, Resend, Google, or Confluent directly.
+Tribes install `@implementsprint/sdk` from the private registry. The SDK calls APICenter only. It does not call PayMongo, Resend, Google, or Confluent directly.
 
 ## Runtime Architecture
 
@@ -17,7 +17,7 @@ Synchronous calls:
 
 ```text
 tribe service
-  -> @apicenter/sdk
+  -> @implementsprint/sdk
   -> APICenter gateway
   -> registry, scope, consumes, and policy checks
   -> /api/v1/tribes/:serviceId/* or /api/v1/shared/:serviceId/*
@@ -340,7 +340,7 @@ Before a tribe uses shared services:
 - `TRIBE_SECRET_<SERVICE_ID>` exists in `api-center-prod` as a SHA-256 hash.
 - Tribe manifest is registered with correct `consumes`.
 - Shared-service manifests are registered and healthy.
-- Tribe installs `@apicenter/sdk` from the private registry.
+- Tribe installs `@implementsprint/sdk` from the private registry.
 - Tribe calls wrappers instead of provider APIs directly.
 - Provider credentials are only in shared-service secrets.
 - Confluent publishing uses `kafkaPublish()` and governed topic names.

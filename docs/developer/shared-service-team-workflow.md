@@ -26,7 +26,7 @@ Shared service calls always enter through AP Center. A tribe should not call the
 
 ```text
 tribe service
-  -> @apicenter/sdk
+  -> @implementsprint/sdk
   -> AP Center /api/v1/shared/:serviceId/*
   -> registry lookup and policy checks
   -> shared service baseUrl from registry
@@ -116,7 +116,7 @@ The shared-service runtime is responsible for provider behavior behind the stabl
 
 ## SDK Consumption Rules
 
-Tribe services consume shared services through `@apicenter/sdk`, which is released from `api-shared-services`.
+Tribe services consume shared services through `@implementsprint/sdk`, which is released from `api-shared-services`.
 
 The SDK wraps gateway routes only. It does not bypass AP Center policy and it does not contain AP Center auth-provider internals. Typical flow:
 
