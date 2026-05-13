@@ -1,6 +1,7 @@
 import { RegistryController } from "./registry.controller";
 import { RegistryService } from "./registry.service";
 import { LoggerService } from "../shared/logger.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
 
 describe("RegistryController", () => {
   const mockRegistry = {
@@ -11,12 +12,19 @@ describe("RegistryController", () => {
     info: jest.fn(),
     warn: jest.fn(),
   } as unknown as LoggerService;
+  const mockAuditEvents = {
+    record: jest.fn().mockResolvedValue(undefined),
+  } as unknown as AuditEventsService;
 
   let controller: RegistryController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new RegistryController(mockRegistry, mockLogger);
+    controller = new RegistryController(
+      mockRegistry,
+      mockLogger,
+      mockAuditEvents,
+    );
   });
 
   describe("getScopes", () => {

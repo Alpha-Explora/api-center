@@ -1,17 +1,36 @@
 import { AnalyticsController } from "./analytics.controller";
+import { AuditEventsService } from "./audit-events.service";
+import { GatewayTrafficService } from "./gateway-traffic.service";
 import { SharedServiceUsageService } from "./shared-service-usage.service";
+import { RegistryService } from "../registry/registry.service";
 import { ValidationError } from "../shared/errors";
 
 describe("AnalyticsController", () => {
   const usage = {
     listUsage: jest.fn(),
   } as unknown as SharedServiceUsageService;
+  const gatewayTraffic = {
+    getSummary: jest.fn(),
+  } as unknown as GatewayTrafficService;
+  const auditEvents = {
+    list: jest.fn(),
+  } as unknown as AuditEventsService;
+  const registry = {
+    getAll: jest.fn().mockReturnValue({}),
+    get: jest.fn(),
+    getConsumers: jest.fn().mockReturnValue([]),
+  } as unknown as RegistryService;
 
   let controller: AnalyticsController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new AnalyticsController(usage);
+    controller = new AnalyticsController(
+      usage,
+      gatewayTraffic,
+      auditEvents,
+      registry,
+    );
   });
 
   it("returns shared-service usage rows for the requested window", async () => {
@@ -52,5 +71,51 @@ describe("AnalyticsController", () => {
     await expect(
       controller.getSharedServiceUsage("12h", {} as any),
     ).rejects.toThrow(ValidationError);
+  });
+
+  it("returns gateway traffic summary", async () => {
+    (gatewayTraffic.getSummary as jest.Mock).mockResolvedValue({
+      window: "24h",
+      totalProxyRequests: 1,
+      tribeToTribeRequests: 0,
+      tribeToSharedRequests: 1,
+      status4xx: 0,
+      status5xx: 0,
+      kafkaPublishFailures: 0,
+      readinessFailures: 0,
+      avgLatencyMs: 50,
+      p95LatencyMs: 50,
+    });
+
+    const result = await controller.getGatewayTraffic("24h", {} as any);
+
+    expect(result.success).toBe(true);
+    expect(gatewayTraffic.getSummary).toHaveBeenCalledWith("24h");
+  });
+
+  it("returns audit events", async () => {
+    (auditEvents.list as jest.Mock).mockResolvedValue([
+      {
+        id: "evt-1",
+        type: "shared_service.call",
+        severity: "info",
+        message: "called",
+        timestamp: "2026-05-14T00:00:00.000Z",
+      },
+    ]);
+
+    const result = await controller.getAuditEvents(
+      "10",
+      "payment",
+      undefined,
+      {} as any,
+    );
+
+    expect(result.success).toBe(true);
+    expect(auditEvents.list).toHaveBeenCalledWith({
+      limit: 10,
+      serviceId: "payment",
+      type: undefined,
+    });
   });
 });

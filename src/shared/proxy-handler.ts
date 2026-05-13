@@ -18,6 +18,8 @@ import { RegistryService } from "../registry/registry.service";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { CircuitBreaker } from "../shared/circuit-breaker";
 import {
@@ -51,6 +53,8 @@ export interface ProxyHandlerDeps {
   auth: AuthService;
   logger: LoggerService;
   metrics: MetricsService;
+  auditEvents?: AuditEventsService;
+  gatewayTraffic?: GatewayTrafficService;
   sharedServiceUsage?: SharedServiceUsageService;
 }
 
@@ -336,6 +340,13 @@ export class ProxyHandler {
         res.statusCode,
         durationSec,
       );
+      this.recordGatewayTraffic(
+        tribeId,
+        targetServiceId,
+        req,
+        res.statusCode,
+        latencyMs,
+      );
       this.recordSharedServiceUsage(
         tribeId,
         targetServiceId,
@@ -426,6 +437,59 @@ export class ProxyHandler {
       .catch((err) => {
         this.deps.logger.warn(
           `Failed to record shared-service usage for '${targetServiceId}': ${(err as Error).message}`,
+          "ProxyHandler",
+        );
+      });
+  }
+
+  private recordGatewayTraffic(
+    tribeId: string,
+    targetServiceId: string,
+    req: AuthenticatedRequest,
+    statusCode: number,
+    latencyMs: number,
+  ): void {
+    this.deps.gatewayTraffic
+      ?.recordProxyRequest({
+        namespace: this.opts.namespace,
+        sourceTribe: tribeId,
+        targetService: targetServiceId,
+        method: req.method,
+        statusCode,
+        latencyMs,
+        timestamp: new Date(),
+      })
+      .catch((err) => {
+        this.deps.logger.warn(
+          `Failed to record gateway traffic for '${targetServiceId}': ${(err as Error).message}`,
+          "ProxyHandler",
+        );
+      });
+
+    this.deps.auditEvents
+      ?.record({
+        type:
+          this.opts.namespace === "shared"
+            ? "shared_service.call"
+            : "tribe_service.call",
+        severity:
+          statusCode >= 500 ? "error" : statusCode >= 400 ? "warning" : "info",
+        serviceId: targetServiceId,
+        tribeServiceId: tribeId,
+        ...(this.opts.namespace === "shared" && {
+          sharedServiceId: targetServiceId,
+        }),
+        message: `${tribeId} called ${targetServiceId} via ${this.opts.namespace} proxy`,
+        payload: {
+          route: req.originalUrl ?? req.url ?? "",
+          method: req.method,
+          statusCode,
+          latencyMs,
+        },
+      })
+      .catch((err) => {
+        this.deps.logger.warn(
+          `Failed to record audit event for '${targetServiceId}': ${(err as Error).message}`,
           "ProxyHandler",
         );
       });

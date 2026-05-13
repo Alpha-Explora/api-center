@@ -56,6 +56,12 @@ function createMockDeps(): ProxyHandlerDeps {
       recordProxyRequest: jest.fn(),
       recordServiceDiscoverySnapshot: jest.fn(),
     } as unknown as MetricsService,
+    auditEvents: {
+      record: jest.fn().mockResolvedValue(undefined),
+    } as any,
+    gatewayTraffic: {
+      recordProxyRequest: jest.fn().mockResolvedValue(undefined),
+    } as any,
     sharedServiceUsage: {
       record: jest.fn().mockResolvedValue(undefined),
     } as any,
@@ -665,6 +671,21 @@ describe("ProxyHandler", () => {
           method: "POST",
           status: 200,
           ok: true,
+        }),
+      );
+      expect(deps.gatewayTraffic?.recordProxyRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          namespace: "shared",
+          sourceTribe: "campusone",
+          targetService: "paymongo",
+          statusCode: 200,
+        }),
+      );
+      expect(deps.auditEvents?.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "shared_service.call",
+          tribeServiceId: "campusone",
+          sharedServiceId: "paymongo",
         }),
       );
     });

@@ -61,6 +61,10 @@ APICenter routes:
 | `/api/v1/shared/:serviceId/*` | Shared platform services proxy path. |
 | `/api/v1/kafka/*` | Governed Kafka catalog and publish path backed by Confluent Cloud. |
 | `/api/v1/analytics/shared-service-usage` | Protected admin JSON endpoint for shared-service runtime call counts by tribe and shared service. |
+| `/api/v1/analytics/gateway-traffic` | Protected admin JSON endpoint for gateway traffic, error, Kafka publish-failure, readiness-failure, and latency counters. |
+| `/api/v1/analytics/provider-usage` | Protected admin JSON endpoint that groups shared-service runtime calls by provider-facing shared service. |
+| `/api/v1/analytics/alerts` | Protected admin JSON endpoint for read-only operational alerts derived from registry metadata and runtime counters. |
+| `/api/v1/analytics/audit/events` | Protected admin JSON endpoint for recent registry, proxy, Kafka, and readiness audit events. |
 | `/api/v1/health/*` and `/api/v1/metrics` | Runtime health, readiness, and metrics. |
 
 Shared services:

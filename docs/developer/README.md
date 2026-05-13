@@ -530,6 +530,18 @@ admin secret or a JWT that has `platform:admin`.
 ```bash
 curl -s "http://localhost:3000/api/v1/analytics/shared-service-usage?window=24h" \
   -H "X-Platform-Secret: $PLATFORM_ADMIN_SECRET" | jq .
+
+curl -s "http://localhost:3000/api/v1/analytics/gateway-traffic?window=24h" \
+  -H "X-Platform-Secret: $PLATFORM_ADMIN_SECRET" | jq .
+
+curl -s "http://localhost:3000/api/v1/analytics/provider-usage?window=24h" \
+  -H "X-Platform-Secret: $PLATFORM_ADMIN_SECRET" | jq .
+
+curl -s "http://localhost:3000/api/v1/analytics/alerts?window=1h" \
+  -H "X-Platform-Secret: $PLATFORM_ADMIN_SECRET" | jq .
+
+curl -s "http://localhost:3000/api/v1/analytics/audit/events?limit=100" \
+  -H "X-Platform-Secret: $PLATFORM_ADMIN_SECRET" | jq .
 ```
 
 `shared-service-usage` is backed by hourly Redis buckets with an in-memory
@@ -537,6 +549,14 @@ fallback for local/dev. It records completed `/api/v1/shared/:serviceId/*`
 proxy responses and returns per-tribe/per-shared-service totals, failures,
 error rate, average latency, and last-used timestamp for `1h`, `24h`, `7d`,
 or `30d` windows.
+
+`gateway-traffic` uses the same bounded bucket model for proxy volume, 4xx/5xx
+responses, Kafka publish failures, readiness failures, and latency signals.
+`provider-usage` groups shared-service runtime calls by provider-facing shared
+service for the management cost view. `alerts` derives read-only operational
+alerts from runtime counters and registry metadata. `audit/events` keeps a
+bounded recent-event list for registry lifecycle actions, proxied calls, Kafka
+publish failures, and readiness failures.
 
 #### Grafana dashboards
 

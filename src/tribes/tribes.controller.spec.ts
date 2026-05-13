@@ -3,6 +3,8 @@ import { RegistryService } from "../registry/registry.service";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 
 describe("TribesController", () => {
   const mockRegistry = {
@@ -14,6 +16,8 @@ describe("TribesController", () => {
   } as unknown as AuthService;
   const mockLogger = {} as LoggerService;
   const mockMetrics = {} as MetricsService;
+  const mockAuditEvents = {} as AuditEventsService;
+  const mockGatewayTraffic = {} as GatewayTrafficService;
 
   let controller: TribesController;
   let handler: {
@@ -29,6 +33,8 @@ describe("TribesController", () => {
       mockAuth,
       mockLogger,
       mockMetrics,
+      mockAuditEvents,
+      mockGatewayTraffic,
     );
 
     handler = {

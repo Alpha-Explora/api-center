@@ -27,6 +27,7 @@ import {
   Req,
 } from "@nestjs/common";
 import { RegistryService } from "./registry.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { LoggerService } from "../shared/logger.service";
 import { ServiceManifestDto } from "../shared/dto/service-manifest.dto";
@@ -43,6 +44,7 @@ export class RegistryController {
   constructor(
     private readonly registry: RegistryService,
     private readonly logger: LoggerService,
+    private readonly auditEvents: AuditEventsService,
   ) {}
 
   /**
@@ -65,6 +67,7 @@ export class RegistryController {
       serviceId: entry.serviceId,
       correlationId: req.correlationId,
     });
+    this.recordAudit("service.registered", entry.serviceId, req.correlationId);
 
     return {
       success: true,
@@ -185,6 +188,7 @@ export class RegistryController {
       serviceId,
       correlationId: req.correlationId,
     });
+    this.recordAudit("service.deregistered", serviceId, req.correlationId);
 
     return {
       success: true,
@@ -224,6 +228,12 @@ export class RegistryController {
       "RegistryController",
     );
 
+    this.recordAudit("service.deprecated", serviceId, req.correlationId, {
+      consumers,
+      sunsetDate: dto.sunsetDate,
+      replacementService: dto.replacementService,
+    });
+
     return {
       success: true,
       data: {
@@ -254,6 +264,10 @@ export class RegistryController {
       "RegistryController",
     );
 
+    this.recordAudit("service.retired", serviceId, req.correlationId, {
+      consumers,
+    });
+
     return {
       success: true,
       data: {
@@ -281,6 +295,8 @@ export class RegistryController {
     this.logger.info(`Service '${serviceId}' activated via API`, {
       correlationId: req.correlationId,
     });
+
+    this.recordAudit("service.activated", serviceId, req.correlationId);
 
     return {
       success: true,
@@ -310,5 +326,25 @@ export class RegistryController {
       data: { serviceId, consumers },
       meta: { total: consumers.length, timestamp: new Date().toISOString() },
     };
+  }
+
+  private recordAudit(
+    type: string,
+    serviceId: string,
+    correlationId?: string,
+    payload?: Record<string, unknown>,
+  ): void {
+    this.auditEvents
+      .record({
+        type,
+        serviceId,
+        severity: "info",
+        message: `${type} for ${serviceId}`,
+        payload: {
+          correlationId,
+          ...payload,
+        },
+      })
+      .catch(() => undefined);
   }
 }

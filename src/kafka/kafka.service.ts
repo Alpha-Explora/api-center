@@ -18,6 +18,8 @@ import {
 import { Kafka, logLevel, Producer, Consumer } from "kafkajs";
 import { ZodSchema } from "zod";
 import { ConfigService } from "../config/config.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
 import { TOPICS } from "./topics";
@@ -74,6 +76,8 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly logger: LoggerService,
     @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly gatewayTraffic?: GatewayTrafficService,
+    @Optional() private readonly auditEvents?: AuditEventsService,
   ) {
     this.kafka = this.createKafkaClient();
 
@@ -226,6 +230,20 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       this.metrics?.recordKafkaPublish(topic, "success");
     } catch (err) {
       this.metrics?.recordKafkaPublish(topic, "failure");
+      this.gatewayTraffic
+        ?.recordKafkaPublishFailure(topic)
+        .catch(() => undefined);
+      this.auditEvents
+        ?.record({
+          type: "kafka.publish_failed",
+          severity: "error",
+          message: `Kafka publish failed for ${topic}`,
+          payload: {
+            topic,
+            error: (err as Error).message,
+          },
+        })
+        .catch(() => undefined);
       throw err;
     }
   }

@@ -28,6 +28,8 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { ProxyHandler } from "../shared/proxy-handler";
 import { AuthenticatedRequest } from "../types";
 
@@ -42,10 +44,12 @@ export class TribesController implements OnModuleDestroy {
     auth: AuthService,
     logger: LoggerService,
     metrics: MetricsService,
+    auditEvents: AuditEventsService,
+    gatewayTraffic: GatewayTrafficService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
-      { registry, auth, logger, metrics },
+      { registry, auth, logger, metrics, auditEvents, gatewayTraffic },
       { namespace: "tribe", pathPrefix: "/api/v1/tribes" },
     );
   }

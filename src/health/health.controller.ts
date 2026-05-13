@@ -16,6 +16,8 @@ import {
   HealthIndicatorResult,
 } from "@nestjs/terminus";
 import { KafkaService } from "../kafka/kafka.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { RegistryService } from "../registry/registry.service";
 import { ExternalService } from "../external/external.service";
 import { TokenStoreService } from "../auth/token-store.service";
@@ -28,6 +30,8 @@ export class HealthController {
     private readonly registry: RegistryService,
     private readonly externalService: ExternalService,
     private readonly tokenStore: TokenStoreService,
+    private readonly gatewayTraffic: GatewayTrafficService,
+    private readonly auditEvents: AuditEventsService,
   ) {}
 
   /**
@@ -76,18 +80,21 @@ export class HealthController {
   private async kafkaCheck(): Promise<HealthIndicatorResult> {
     try {
       const connected = this.kafka.isConnected();
+      if (!connected) this.recordReadinessFailure("kafka");
       return {
         kafka: {
           status: connected ? "up" : "down",
         },
       };
     } catch {
+      this.recordReadinessFailure("kafka");
       return { kafka: { status: "down" } };
     }
   }
 
   private async redisCheck(): Promise<HealthIndicatorResult> {
     const connected = this.tokenStore.isRedisConnected();
+    if (!connected) this.recordReadinessFailure("redis");
 
     return {
       redis: {
@@ -108,6 +115,7 @@ export class HealthController {
   private async circuitBreakerCheck(): Promise<HealthIndicatorResult> {
     const stats = this.externalService.getAllBreakerStats();
     const openBreakers = stats.filter((s) => s.state === "OPEN");
+    if (openBreakers.length > 0) this.recordReadinessFailure("circuitBreakers");
 
     return {
       circuitBreakers: {
@@ -121,5 +129,17 @@ export class HealthController {
         })),
       },
     };
+  }
+
+  private recordReadinessFailure(check: string): void {
+    this.gatewayTraffic.recordReadinessFailure(check).catch(() => undefined);
+    this.auditEvents
+      .record({
+        type: "readiness.failed",
+        severity: "warning",
+        message: `Readiness check failed: ${check}`,
+        payload: { check },
+      })
+      .catch(() => undefined);
   }
 }

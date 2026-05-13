@@ -4,6 +4,8 @@ import { KafkaService } from "../kafka/kafka.service";
 import { RegistryService } from "../registry/registry.service";
 import { ExternalService } from "../external/external.service";
 import { TokenStoreService } from "../auth/token-store.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 
 type IndicatorFn = () => Promise<Record<string, unknown>>;
 
@@ -45,6 +47,12 @@ describe("HealthController", () => {
     tokenStore = {
       isRedisConnected: jest.fn().mockReturnValue(true),
     } as unknown as TokenStoreService;
+    const gatewayTraffic = {
+      recordReadinessFailure: jest.fn().mockResolvedValue(undefined),
+    } as unknown as GatewayTrafficService;
+    const auditEvents = {
+      record: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuditEventsService;
 
     controller = new HealthController(
       health,
@@ -52,6 +60,8 @@ describe("HealthController", () => {
       registry,
       externalService,
       tokenStore,
+      gatewayTraffic,
+      auditEvents,
     );
   });
 

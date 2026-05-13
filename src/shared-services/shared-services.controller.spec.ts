@@ -3,6 +3,8 @@ import { RegistryService } from "../registry/registry.service";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 
 describe("SharedServicesController", () => {
@@ -15,6 +17,8 @@ describe("SharedServicesController", () => {
   } as unknown as AuthService;
   const mockLogger = {} as LoggerService;
   const mockMetrics = {} as MetricsService;
+  const mockAuditEvents = {} as AuditEventsService;
+  const mockGatewayTraffic = {} as GatewayTrafficService;
   const mockSharedServiceUsage = {} as SharedServiceUsageService;
 
   let controller: SharedServicesController;
@@ -31,6 +35,8 @@ describe("SharedServicesController", () => {
       mockAuth,
       mockLogger,
       mockMetrics,
+      mockAuditEvents,
+      mockGatewayTraffic,
       mockSharedServiceUsage,
     );
 
