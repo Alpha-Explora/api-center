@@ -15,7 +15,7 @@ data:
   RATE_LIMIT_MAX: "100"
   RATE_LIMIT_WINDOW_MS: "60000"
   REDIS_CACHE_URL: redis://10.34.181.131:6379
-  REDIS_RATE_LIMIT_URL: redis://10.63.215.147:6379
+  REDIS_RATE_LIMIT_URL: redis://10.34.181.131:6379
 kind: ConfigMap
 metadata:
   creationTimestamp: "2026-04-11T04:39:36Z"

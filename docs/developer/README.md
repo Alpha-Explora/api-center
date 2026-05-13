@@ -59,9 +59,10 @@ For higher scale, VPC-private dependencies, or long-lived connections, deploy to
 | Long-lived connections (gRPC streaming, SSE) | limited | âœ… |
 | Sub-second cold-start matters | cold starts | âœ… always-on min replicas |
 
-See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough
-and [`gke-cost-optimization-plan.md`](./gke-cost-optimization-plan.md) before changing
-requests, HPA limits, or the PDB.
+See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough,
+[`gke-cost-optimization-plan.md`](./gke-cost-optimization-plan.md) before changing
+requests, HPA limits, or the PDB, and [`../production-costing.md`](../production-costing.md)
+for the current production and maintenance cost model.
 Use [`reliability-hardening-plan.md`](./reliability-hardening-plan.md) for the
 implemented reliability phases, deploy smoke checks, and remaining Confluent
 Secret Manager prerequisite.

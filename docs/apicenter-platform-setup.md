@@ -43,6 +43,7 @@ Confluent Cloud is not in the synchronous proxy path for tribe-to-tribe calls. I
 | GKE cluster | `api-center` in `us-central1`; runs APICenter pods. |
 | GKE namespace | `api-center`. |
 | APICenter HPA | Current low-credit target is min 2 pods, max 3 pods. |
+| Shared-service HPAs | `payment`, `sms`, `email`, `gauth`, `otp`, and `geo` run as internal `ClusterIP` services with HPA min 1, max 3. |
 | Secret Manager | `api-center-prod` for gateway secrets. Use `api-shared-services-prod` for shared-service provider secrets. |
 | Memorystore Redis | Registry/token cache, rate-limit counters, and shared-service OTP/SMS state. Current low-traffic target uses one 1 GiB Basic instance, `api-center-cache` at `10.34.181.131:6379`; verify the endpoint in GCP before pasting. |
 | Confluent Cloud | Managed Kafka cluster and connector runtime. Use Kafka cluster API keys for `KAFKA_SASL_USERNAME` and `KAFKA_SASL_PASSWORD`. |
@@ -63,14 +64,14 @@ APICenter routes:
 
 Shared services:
 
-| Service ID | Runtime | Provider / function |
-| --- | --- | --- |
-| `payment` | `api-shared-services/shared-services/paymongo` | PayMongo checkout, payment lookup, refunds, and webhooks. |
-| `email` | `api-shared-services/shared-services/email-gateway` | Resend email sending. |
-| `sms` | `api-shared-services/shared-services/sms-gateway` | SMS gateway contract. Current implementation is platform-owned and can be wired to a carrier later. |
-| `gauth` | `api-shared-services/shared-services/gauth-gateway` | Google OAuth authorization URL, code exchange, refresh, and logout. |
-| `otp` | `api-shared-services/shared-services/otp-gateway` | OTP generation, verification, and status. |
-| `geo` | `api-shared-services/shared-services/geo-gateway` | Google Maps geocoding/reverse geocoding and local geofence checks. |
+| Service ID | Runtime | Internal service URL | Provider / function |
+| --- | --- | --- | --- |
+| `payment` | `api-shared-services/shared-services/paymongo` | `http://payment-service:4010` | PayMongo checkout, payment lookup, refunds, and webhooks. |
+| `email` | `api-shared-services/shared-services/email-gateway` | `http://email-service:4012` | Resend email sending. |
+| `sms` | `api-shared-services/shared-services/sms-gateway` | `http://sms-service:4011` | SMS gateway contract. Current implementation is platform-owned and can be wired to a carrier later. |
+| `gauth` | `api-shared-services/shared-services/gauth-gateway` | `http://gauth-service:4013` | Google OAuth authorization URL, code exchange, refresh, and logout. |
+| `otp` | `api-shared-services/shared-services/otp-gateway` | `http://otp-service:4014` | OTP generation, verification, and status. |
+| `geo` | `api-shared-services/shared-services/geo-gateway` | `http://geo-service:4015` | Google Maps geocoding/reverse geocoding and local geofence checks. |
 
 ## SDK Wrappers Tribes Should Use
 
@@ -285,12 +286,24 @@ Use a separate rate-limit Redis only when traffic is high enough that counter ch
 
 1. Update `api-center-prod`.
 2. Update `api-shared-services-prod`.
-3. Restart or redeploy APICenter so it reads the new Secret Manager version.
-4. Deploy or restart shared-service runtimes so they read provider secrets.
-5. Confirm shared services self-register through `PLATFORM_ADMIN_SECRET`.
-6. Register tribe manifests with `consumes` entries for the shared services they need.
-7. Issue a tribe token and smoke test one route per shared service.
-8. Verify Confluent publishing and S3 sink delivery.
+3. Restart or redeploy APICenter only when its own secret changed.
+4. In `api-shared-services`, run `scripts/sync-gke-secret.ps1` to copy
+   `api-shared-services-prod` into the Kubernetes secret of the same name.
+5. Apply `api-shared-services/gcp/gke/00-shared-services.yaml`.
+6. Confirm shared services self-register through `PLATFORM_ADMIN_SECRET`.
+7. Register tribe manifests with `consumes` entries for the shared services they need.
+8. Issue a tribe token and smoke test one route per shared service.
+9. Verify Confluent publishing and S3 sink delivery.
+
+Current deployed shared-service image tag:
+
+```text
+c090386
+```
+
+After changing only shared-service provider secrets, run the secret sync and
+restart only the affected shared-service deployment. Existing pods do not reload
+environment variables automatically.
 
 ## Smoke Checks
 
