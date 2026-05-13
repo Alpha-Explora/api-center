@@ -53,6 +53,10 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
+    if (this.config.authProvider !== "dev-jwt") {
+      return;
+    }
+
     // Priority 1: Vault Transit key (sign in Vault, verify locally)
     if (this.vault?.isAvailable && this.config.vault.transitKey) {
       const pubKeyPem = await this.vault.getPublicKey();

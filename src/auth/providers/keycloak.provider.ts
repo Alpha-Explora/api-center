@@ -58,6 +58,10 @@ export class KeycloakProvider implements AuthProvider, OnModuleInit {
    * Any misconfiguration (missing KEYCLOAK_JWKS_URI) is detected early.
    */
   onModuleInit(): void {
+    if (this.config.authProvider !== "keycloak") {
+      return;
+    }
+
     const jwksUri = this.config.keycloak.jwksUri;
     if (!jwksUri) {
       this.logger.warn(
