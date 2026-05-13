@@ -18,6 +18,7 @@ import { RegistryService } from "../registry/registry.service";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { CircuitBreaker } from "../shared/circuit-breaker";
 import {
   ForbiddenError,
@@ -50,6 +51,7 @@ export interface ProxyHandlerDeps {
   auth: AuthService;
   logger: LoggerService;
   metrics: MetricsService;
+  sharedServiceUsage?: SharedServiceUsageService;
 }
 
 export interface ProxyOptions {
@@ -324,7 +326,8 @@ export class ProxyHandler {
     const proxyStart = Date.now();
 
     res.on("finish", () => {
-      const durationSec = (Date.now() - proxyStart) / 1000;
+      const latencyMs = Date.now() - proxyStart;
+      const durationSec = latencyMs / 1000;
       this.deps.metrics.recordProxyRequest(
         this.opts.namespace,
         tribeId,
@@ -332,6 +335,13 @@ export class ProxyHandler {
         req.method,
         res.statusCode,
         durationSec,
+      );
+      this.recordSharedServiceUsage(
+        tribeId,
+        targetServiceId,
+        req,
+        res.statusCode,
+        latencyMs,
       );
     });
 
@@ -389,6 +399,36 @@ export class ProxyHandler {
       `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,
       "ProxyHandler",
     );
+  }
+
+  private recordSharedServiceUsage(
+    tribeId: string,
+    targetServiceId: string,
+    req: AuthenticatedRequest,
+    statusCode: number,
+    latencyMs: number,
+  ): void {
+    if (this.opts.namespace !== "shared" || !this.deps.sharedServiceUsage) {
+      return;
+    }
+
+    this.deps.sharedServiceUsage
+      .record({
+        tribeServiceId: tribeId,
+        sharedServiceId: targetServiceId,
+        route: req.originalUrl ?? req.url ?? "",
+        method: req.method,
+        status: statusCode,
+        ok: statusCode < 400,
+        latencyMs,
+        timestamp: new Date(),
+      })
+      .catch((err) => {
+        this.deps.logger.warn(
+          `Failed to record shared-service usage for '${targetServiceId}': ${(err as Error).message}`,
+          "ProxyHandler",
+        );
+      });
   }
 
   /** Reject retired services (410) and set RFC 8594 deprecation headers. */

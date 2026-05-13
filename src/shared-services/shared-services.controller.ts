@@ -25,6 +25,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { AuthService } from "../auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { ProxyHandler } from "../shared/proxy-handler";
 import { AuthenticatedRequest } from "../types";
 
@@ -39,10 +40,11 @@ export class SharedServicesController implements OnModuleDestroy {
     auth: AuthService,
     logger: LoggerService,
     metrics: MetricsService,
+    sharedServiceUsage: SharedServiceUsageService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
-      { registry, auth, logger, metrics },
+      { registry, auth, logger, metrics, sharedServiceUsage },
       { namespace: "shared", pathPrefix: "/api/v1/shared" },
     );
   }

@@ -60,6 +60,7 @@ APICenter routes:
 | `/api/v1/tribes/:serviceId/*` | Synchronous tribe-to-tribe proxy path. |
 | `/api/v1/shared/:serviceId/*` | Shared platform services proxy path. |
 | `/api/v1/kafka/*` | Governed Kafka catalog and publish path backed by Confluent Cloud. |
+| `/api/v1/analytics/shared-service-usage` | Protected admin JSON endpoint for shared-service runtime call counts by tribe and shared service. |
 | `/api/v1/health/*` and `/api/v1/metrics` | Runtime health, readiness, and metrics. |
 
 Shared services:

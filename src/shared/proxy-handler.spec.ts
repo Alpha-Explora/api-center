@@ -56,6 +56,9 @@ function createMockDeps(): ProxyHandlerDeps {
       recordProxyRequest: jest.fn(),
       recordServiceDiscoverySnapshot: jest.fn(),
     } as unknown as MetricsService,
+    sharedServiceUsage: {
+      record: jest.fn().mockResolvedValue(undefined),
+    } as any,
   };
 }
 
@@ -81,6 +84,19 @@ function fakeRes() {
     statusCode: 200,
     setHeader: jest.fn(),
     on: jest.fn(),
+  } as any;
+}
+
+function fakeResWithFinish(statusCode = 200) {
+  const finishHandlers: Array<() => void> = [];
+
+  return {
+    statusCode,
+    setHeader: jest.fn(),
+    on: jest.fn((event: string, handler: () => void) => {
+      if (event === "finish") finishHandlers.push(handler);
+    }),
+    finishHandlers,
   } as any;
 }
 
@@ -609,6 +625,65 @@ describe("ProxyHandler", () => {
       );
 
       boundedHandler.destroy();
+    });
+  });
+
+  describe("shared-service runtime usage recording", () => {
+    beforeEach(() => {
+      handler = new ProxyHandler(deps, {
+        namespace: "shared",
+        pathPrefix: "/api/v1/shared",
+      });
+      (deps.registry.resolveUpstream as jest.Mock).mockReturnValue(
+        "http://localhost:3001",
+      );
+      (deps.registry.get as jest.Mock).mockReturnValue({
+        serviceId: "paymongo",
+        serviceType: "shared",
+        status: "active",
+        requiredScopes: [],
+        consumes: [],
+      });
+    });
+
+    it("records successful shared-service proxy usage", async () => {
+      const req = fakeReq({
+        tribeId: "campusone",
+        method: "POST",
+        originalUrl: "/api/v1/shared/paymongo/payments",
+      });
+      const res = fakeResWithFinish(200);
+
+      await handler.proxyRequest("paymongo", req, res);
+      res.finishHandlers.forEach((handler: () => void) => handler());
+
+      expect(deps.sharedServiceUsage?.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tribeServiceId: "campusone",
+          sharedServiceId: "paymongo",
+          route: "/api/v1/shared/paymongo/payments",
+          method: "POST",
+          status: 200,
+          ok: true,
+        }),
+      );
+    });
+
+    it("records failed shared-service proxy usage", async () => {
+      const req = fakeReq({ tribeId: "campusone" });
+      const res = fakeResWithFinish(502);
+
+      await handler.proxyRequest("paymongo", req, res);
+      res.finishHandlers.forEach((handler: () => void) => handler());
+
+      expect(deps.sharedServiceUsage?.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tribeServiceId: "campusone",
+          sharedServiceId: "paymongo",
+          status: 502,
+          ok: false,
+        }),
+      );
     });
   });
 });

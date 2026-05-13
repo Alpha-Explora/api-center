@@ -521,6 +521,23 @@ open http://localhost:9090
 # api_center_active_requests
 ```
 
+#### Management JSON analytics
+
+API Center also exposes protected JSON analytics for the local management
+console. These endpoints are not public user APIs; call them with a platform
+admin secret or a JWT that has `platform:admin`.
+
+```bash
+curl -s "http://localhost:3000/api/v1/analytics/shared-service-usage?window=24h" \
+  -H "X-Platform-Secret: $PLATFORM_ADMIN_SECRET" | jq .
+```
+
+`shared-service-usage` is backed by hourly Redis buckets with an in-memory
+fallback for local/dev. It records completed `/api/v1/shared/:serviceId/*`
+proxy responses and returns per-tribe/per-shared-service totals, failures,
+error rate, average latency, and last-used timestamp for `1h`, `24h`, `7d`,
+or `30d` windows.
+
 #### Grafana dashboards
 
 ```bash
