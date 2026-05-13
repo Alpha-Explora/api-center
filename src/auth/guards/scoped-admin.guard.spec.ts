@@ -3,7 +3,7 @@
 // =============================================================================
 // Tests are provider-agnostic — they mock AuthService, not Descope directly.
 // This ensures the guard works identically regardless of whether the active
-// provider is KeycloakProvider or DevJwtProvider.
+// provider is DescopeProvider, InternalJwtProvider, or DevJwtProvider.
 // =============================================================================
 
 import { ExecutionContext } from "@nestjs/common";

@@ -22,7 +22,6 @@ export class ConfigService implements OnApplicationBootstrap {
     credentials: true,
   };
 
-  // AUTH_PROVIDER=keycloak  → KeycloakProvider (production)
   // AUTH_PROVIDER=descope   → DescopeProvider  (production)
   // AUTH_PROVIDER=dev-jwt   → DevJwtProvider   (local dev / CI) [default]
   // AUTH_PROVIDER=internal-jwt uses API Center signed M2M JWTs.
@@ -32,25 +31,6 @@ export class ConfigService implements OnApplicationBootstrap {
   private readonly descopeBaseUrl =
     process.env.DESCOPE_BASE_URL || "https://api.descope.com";
   private readonly descopeProjectId = process.env.DESCOPE_PROJECT_ID || "";
-
-  readonly keycloak = {
-    baseUrl: process.env.KEYCLOAK_BASE_URL || "http://localhost:8080",
-    realm: process.env.KEYCLOAK_REALM || "api-center",
-    jwksUri:
-      process.env.KEYCLOAK_JWKS_URI ||
-      `${process.env.KEYCLOAK_BASE_URL || "http://localhost:8080"}/realms/${process.env.KEYCLOAK_REALM || "api-center"}/protocol/openid-connect/certs`,
-    tokenEndpoint: process.env.KEYCLOAK_TOKEN_ENDPOINT || "",
-    issuer: process.env.KEYCLOAK_ISSUER || "",
-    audience: process.env.KEYCLOAK_AUDIENCE || "",
-    refreshClientId: process.env.KEYCLOAK_REFRESH_CLIENT_ID || "api-center",
-    defaultClientSecret: process.env.KEYCLOAK_DEFAULT_CLIENT_SECRET || "",
-    /**
-     * When true, trust X-Forwarded-User / X-Forwarded-Roles injected by
-     * Envoy/Ingress after edge JWT pre-verification. ONLY enable when the
-     * gateway is behind a trusted ingress — never direct internet exposure.
-     */
-    trustEnvoyHeaders: process.env.ENVOY_TRUST_HEADERS === "true",
-  };
 
   readonly descope = {
     baseUrl: this.descopeBaseUrl,
@@ -180,41 +160,11 @@ export class ConfigService implements OnApplicationBootstrap {
       errors.push("PLATFORM_ADMIN_SECRET must be set in production");
     }
 
-    const validProviders = [
-      "keycloak",
-      "descope",
-      "dev-jwt",
-      "internal-jwt",
-      "composite",
-    ];
+    const validProviders = ["descope", "dev-jwt", "internal-jwt", "composite"];
     if (!validProviders.includes(this.authProvider)) {
       errors.push(
         `AUTH_PROVIDER must be one of: ${validProviders.join(", ")} (got '${this.authProvider}')`,
       );
-    }
-
-    if (this.authProvider === "keycloak") {
-      const isLocalhost = (() => {
-        try {
-          return new URL(this.keycloak.baseUrl).hostname === "localhost";
-        } catch {
-          return false;
-        }
-      })();
-      if (isLocalhost && this.isProduction)
-        errors.push(
-          "KEYCLOAK_BASE_URL must be set to a production Keycloak URL",
-        );
-      if (isLocalhost && !this.isProduction)
-        warnings.push("KEYCLOAK_BASE_URL still points to localhost");
-      if (!this.keycloak.issuer && this.isProduction)
-        warnings.push(
-          "KEYCLOAK_ISSUER is not set — token issuer validation is disabled",
-        );
-      if (this.keycloak.trustEnvoyHeaders)
-        warnings.push(
-          "ENVOY_TRUST_HEADERS=true — ensure this gateway is never directly internet-exposed",
-        );
     }
 
     if (this.authProvider === "descope") {
@@ -253,7 +203,7 @@ export class ConfigService implements OnApplicationBootstrap {
 
     if (this.authProvider === "dev-jwt" && this.isProduction) {
       errors.push(
-        "AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=descope or keycloak",
+        "AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=composite or internal-jwt",
       );
     }
 

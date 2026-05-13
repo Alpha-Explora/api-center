@@ -1,17 +1,17 @@
 // =============================================================================
-// src/auth/auth.module.ts — Authentication module
+// src/auth/auth.module.ts - Authentication module
 // =============================================================================
 // Wires the pluggable AuthProvider, VaultService, and TokenStoreService.
 //
 // PROVIDER SELECTION (AUTH_PROVIDER env var):
-//   keycloak  → KeycloakProvider  — production-grade OIDC/JWKS
-//   descope   → DescopeProvider   — production-grade OIDC/JWKS
-//   dev-jwt   → DevJwtProvider    — ephemeral RS256 for local dev / CI [default]
+//   descope      -> DescopeProvider      - OIDC/JWKS validation and legacy M2M
+//   internal-jwt -> InternalJwtProvider  - API Center-signed tribe M2M JWTs
+//   composite    -> Internal JWT issuer + Descope validation fallback
+//   dev-jwt      -> DevJwtProvider       - local dev / CI [default]
 // =============================================================================
 
 import { Module, forwardRef } from "@nestjs/common";
 import { AUTH_PROVIDER } from "./auth-provider.interface";
-import { KeycloakProvider } from "./providers/keycloak.provider";
 import { DescopeProvider } from "./providers/descope.provider";
 import { DevJwtProvider } from "./providers/dev-jwt.provider";
 import { InternalJwtProvider } from "./providers/internal-jwt.provider";
@@ -30,7 +30,6 @@ const authProviderFactory = {
   provide: AUTH_PROVIDER,
   inject: [
     ConfigService,
-    KeycloakProvider,
     DescopeProvider,
     DevJwtProvider,
     InternalJwtProvider,
@@ -38,13 +37,11 @@ const authProviderFactory = {
   ],
   useFactory: (
     config: ConfigService,
-    keycloak: KeycloakProvider,
     descope: DescopeProvider,
     devJwt: DevJwtProvider,
     internalJwt: InternalJwtProvider,
     composite: CompositeAuthProvider,
   ) => {
-    if (config.authProvider === "keycloak") return keycloak;
     if (config.authProvider === "descope") return descope;
     if (config.authProvider === "internal-jwt") return internalJwt;
     if (config.authProvider === "composite") return composite;
@@ -56,10 +53,7 @@ const authProviderFactory = {
   imports: [forwardRef(() => RegistryModule), VaultModule],
   controllers: [AuthController],
   providers: [
-    // Token store — Redis-backed refresh token lifecycle
     TokenStoreService,
-    // Concrete auth providers (all instantiated; factory picks the active one)
-    KeycloakProvider,
     DescopeProvider,
     DevJwtProvider,
     InternalJwtProvider,

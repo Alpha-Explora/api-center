@@ -2,7 +2,7 @@
 // src/auth/auth.service.ts — Provider-agnostic authentication service
 // =============================================================================
 // Thin orchestration layer that delegates JWT operations to the injected
-// AuthProvider (DescopeProvider, InternalJwtProvider, KeycloakProvider, or
+// AuthProvider (DescopeProvider, InternalJwtProvider, CompositeAuthProvider, or
 // DevJwtProvider) and manages refresh
 // token lifecycle via TokenStoreService.
 // =============================================================================
@@ -79,8 +79,8 @@ export class AuthService {
       jti = claims["jti"] as string | undefined;
       sub = claims.sub;
     } catch {
-      // For Keycloak refresh tokens (opaque), we cannot pre-validate here;
-      // Keycloak's token endpoint will reject invalid tokens itself.
+      // Provider-backed opaque refresh tokens cannot be pre-validated here;
+      // the selected provider's token endpoint will reject invalid tokens.
     }
 
     // If we have a JTI, verify the token hasn't been revoked in Redis

@@ -1,23 +1,26 @@
 ---
-title: API Center — Auth & Security Architecture
+title: API Center - Auth & Security Architecture
 ---
 graph TB
     subgraph AuthEntry["Authentication Entry Points"]
         TP["POST /auth/token\nIssue Access + Refresh"]
         TR["POST /auth/token/refresh\nSilent Token Refresh"]
         TV["POST /auth/token/revoke\nRevoke Sessions"]
+        JWKS["GET /.well-known/jwks.json\nAPI Center Public Keys"]
     end
 
     subgraph ProviderSwitch["Auth Provider Selection (config-driven)"]
         AS["AuthService\nProvider-Agnostic Orchestrator"]
-        DevJWT["DevJwtProvider\nRS256 Self-Issued\nDev / CI Environment"]
-        KC["KeycloakProvider\nOIDC Relay\nStaging / Production"]
+        DevJWT["DevJwtProvider\nRS256 Self-Issued\nDev / CI"]
+        InternalJWT["InternalJwtProvider\nAPI Center-Signed\nTribe M2M JWTs"]
+        Descope["DescopeProvider\nOIDC/JWKS Validation\nHuman/Admin Fallback"]
+        Composite["CompositeAuthProvider\nIssue Internal\nValidate Internal then Descope"]
     end
 
     subgraph TokenLifecycle["Token Lifecycle Management"]
         TS["TokenStoreService\nRedis-Backed"]
         RD[("Redis\nKey: jti\nTTL: refreshToken expiry")]
-        VL["VaultService\nSigning Key Rotation"]
+        VL["VaultService\nOptional Secret Loading"]
         HV["HashiCorp Vault"]
     end
 
@@ -44,9 +47,14 @@ graph TB
     TP --> AS
     TR --> AS
     TV --> AS
+    JWKS --> AS
 
     AS -->|"AUTH_PROVIDER=dev-jwt"| DevJWT
-    AS -->|"AUTH_PROVIDER=keycloak"| KC
+    AS -->|"AUTH_PROVIDER=internal-jwt"| InternalJWT
+    AS -->|"AUTH_PROVIDER=descope"| Descope
+    AS -->|"AUTH_PROVIDER=composite"| Composite
+    Composite --> InternalJWT
+    Composite --> Descope
 
     AS --> TS
     TS --> RD

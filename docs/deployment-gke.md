@@ -393,7 +393,7 @@ Rollback readiness checklist:
 
 - Record previous image tag/digest before each rollout.
 - Record the previous Secret Manager version number before editing auth values.
-- Keep `KEYCLOAK_*` and `DESCOPE_*` payload keys side-by-side during stabilization.
+- Keep `DESCOPE_*` only if human/admin token validation still uses Descope.
 
 ---
 
@@ -479,8 +479,8 @@ The pod KSA `api-center` is Workload Identity-bound to
 | Date | Commit | Change | Reason |
 |---|---|---|---|
 | 2026-04-10 | initial | Created living deployment doc; GKE manifests (`00`–`80`), `provision.sh`, `README.md` authored | Initial GKE deployment setup with HPA |
-| 2026-04-11 | pending | Switched GKE runtime auth provider selector to `descope`; added rollback runbook and auth provider state notes | Big-bang Keycloak → Descope migration prep |
-| 2026-04-12 | e1cb9f7 | Added explicit Secret Manager payload update procedure for Descope keys (with Keycloak retention), pre-rollout smoke commands, and auth/refresh verification checks | Make Descope cutover execution deterministic and rollback-safe |
+| 2026-04-11 | pending | Switched GKE runtime auth provider selector to `descope`; added rollback runbook and auth provider state notes | Legacy IdP to Descope migration prep |
+| 2026-04-12 | e1cb9f7 | Added explicit Secret Manager payload update procedure for Descope keys, pre-rollout smoke commands, and auth/refresh verification checks | Make Descope cutover execution deterministic and rollback-safe |
 | 2026-04-12 | pending | Removed hardcoded JWT private key from docker-compose and switched to environment interpolation | Eliminate committed secret material and enforce env-based key management |
 | 2026-04-12 | pending | Tightened Docker build context (`.dockerignore`) and restored default npm audit visibility during root/GCP image dependency install | Reduce build overhead and improve supply-chain visibility without changing runtime behavior |
 | 2026-04-12 | pending | Set explicit production CORS origin and added required Descope metadata (`DESCOPE_JWKS_URI` and related env) in GKE ConfigMap | Resolve CrashLoop caused by missing Descope JWKS configuration and align production auth bootstrap |
@@ -491,7 +491,7 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-11 | pending | Added Confluent Secret Manager validation and GKE cost optimization guardrails | Prevent rollout with non-Confluent broker values and document first safe Autopilot cost lever |
 | 2026-05-11 | pending | Switched API Center to low-credit HPA profile: 2-3 pods, PDB minAvailable 1, CPU request 150m | Reduce idle Autopilot workload spend while keeping one spare pod |
 | 2026-05-11 | pending | Disabled in-container production file logs and skipped health probes from Morgan/audit streams | Reduce recurring Cloud Logging, Kafka, Confluent connector, and S3 noise without changing API behavior |
-| 2026-05-14 | 96d2fd7 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:96d2fd7`; enabled composite auth with API Center-issued tribe JWTs, Descope validation fallback, JWKS exposure, and inactive-provider initialization guards | Roll out long-term tribe token automation without initializing unused Keycloak/dev-jwt providers |
+| 2026-05-14 | 96d2fd7 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:96d2fd7`; enabled composite auth with API Center-issued tribe JWTs, Descope validation fallback, JWKS exposure, and inactive-provider initialization guards | Roll out long-term tribe token automation without initializing unused providers |
 | 2026-05-14 | 8a15338 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:8a15338`; added protected analytics endpoints for shared-service usage, gateway traffic, provider usage, alerts, and audit events | Roll out management-console observability runtime |
 | 2026-05-13 | 9dab869 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:9dab869`; removed legacy API Center Google auth, migrated wildcard routes to Nest 11 named wildcards, and raised the response listener budget | Clear post-upgrade runtime warnings while keeping Google auth in shared services |
 | 2026-05-13 | 5c55833 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:5c55833`; kept Node 24 LTS runtime target with the proxy v4 ESM bridge | Roll out the dependency upgrade on the production LTS runtime |

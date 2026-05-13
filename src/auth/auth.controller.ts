@@ -226,9 +226,7 @@ export class AuthController {
     if (!jwks) {
       const providerName = this.config.authProvider;
       const providerJwksUrl =
-        process.env.DESCOPE_JWKS_URI ||
-        process.env.KEYCLOAK_JWKS_URI ||
-        "<PROVIDER_JWKS_URI not set>";
+        process.env.DESCOPE_JWKS_URI || "<PROVIDER_JWKS_URI not set>";
       throw new NotFoundException(
         `JWKS is not served by provider '${providerName}'. Fetch from the provider JWKS URL: ${providerJwksUrl}`,
       );

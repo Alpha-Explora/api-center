@@ -14,7 +14,6 @@ This guide is for contributors and platform operators who need to run, test, and
    - [dev-jwt Auth Flow](#dev-jwt-auth-flow)
   - [Internal Tribe Token Flow](#internal-tribe-token-flow)
   - [Descope Validation Fallback](#descope-validation-fallback)
-  - [Keycloak Auth Flow](#keycloak-auth-flow)
    - [Service Registry](#service-registry)
    - [Tribe-to-Tribe Calls](#tribe-to-tribe-calls)
    - [Shared Services](#shared-services)
@@ -244,7 +243,7 @@ echo $RESPONSE | jq .
 export ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.data.accessToken')
 export REFRESH_TOKEN=$(echo $RESPONSE | jq -r '.data.refreshToken')
 
-# 4. Inspect the JWKS (dev-jwt only â€” not available with Keycloak or Google)
+# 4. Inspect the JWKS (available with dev-jwt, internal-jwt, and composite)
 curl -s http://localhost:3000/api/v1/auth/.well-known/jwks.json | jq .
 
 # 5. Refresh the token
@@ -306,27 +305,16 @@ needed if you intentionally switch back to `AUTH_PROVIDER=descope`.
 
 ---
 
-### Keycloak Auth Flow
 
 ```bash
-# Start Keycloak alongside the gateway
-docker-compose --profile keycloak up -d
 
-# Wait for Keycloak (~30 s)
 until curl -sf http://localhost:8080/health/ready > /dev/null; do
-  echo "Waiting for Keycloak..."; sleep 3
 done
-echo "Keycloak ready"
 
 # Update .env and restart gateway containers
 # (or export inline for a quick test)
-export AUTH_PROVIDER=keycloak
-export KEYCLOAK_BASE_URL=http://localhost:8080
-export KEYCLOAK_REALM=api-center
-export KEYCLOAK_DEFAULT_CLIENT_SECRET=dev-secret
 docker-compose up -d api-center-1 api-center-2 api-center-3
 
-# Get a token directly from Keycloak (M2M client credentials)
 KC_RESPONSE=$(curl -s -X POST \
   "http://localhost:8080/realms/api-center/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -335,7 +323,6 @@ echo $KC_RESPONSE | jq .
 
 export KC_TOKEN=$(echo $KC_RESPONSE | jq -r '.access_token')
 
-# Use the Keycloak token against the gateway
 curl -s http://localhost:3000/api/v1/registry/services \
   -H "Authorization: Bearer $KC_TOKEN" | jq .
 
@@ -639,12 +626,11 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 
 | Variable | Default | Values |
 |----------|---------|--------|
-| `AUTH_PROVIDER` | `dev-jwt` | `dev-jwt` Â· `descope` Â· `keycloak` |
 
 Production tribe-token mode should use `composite` first, then optionally
 `internal-jwt` after Descope validation fallback is no longer needed. Supported
 provider values are `dev-jwt`, `internal-jwt`, `composite`, `descope`, and
-`keycloak`.
+`descope`.
 
 ### dev-jwt
 
@@ -666,19 +652,6 @@ provider values are `dev-jwt`, `internal-jwt`, `composite`, `descope`, and
 | `INTERNAL_JWT_REFRESH_TTL_SECONDS` | `86400` | Refresh token TTL |
 | `JWT_PRIVATE_KEY` | — | Persistent RS256 private key, required in production |
 | `JWT_PUBLIC_KEY` | — | Matching RS256 public key, required in production |
-
-### Keycloak
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KEYCLOAK_BASE_URL` | `http://localhost:8080` | Keycloak server URL |
-| `KEYCLOAK_REALM` | `api-center` | Realm name |
-| `KEYCLOAK_JWKS_URI` | auto-derived | Override for non-standard deployments |
-| `KEYCLOAK_ISSUER` | â€” | Expected `iss` claim â€” recommended in production |
-| `KEYCLOAK_AUDIENCE` | â€” | Expected `aud` claim â€” recommended in production |
-| `KEYCLOAK_DEFAULT_CLIENT_SECRET` | â€” | Default M2M secret |
-| `KEYCLOAK_CLIENT_SECRET_<SERVICE_ID_UPPER>` | â€” | Per-service Keycloak client secret |
-| `ENVOY_TRUST_HEADERS` | `false` | Trust Envoy/Ingress pre-verified JWT headers |
 
 ### Descope
 
@@ -750,13 +723,11 @@ KAFKA_SASL_PASSWORD=<confluent-api-secret>
 ## Production Hardening Checklist
 
 - [ ] `NODE_ENV=production`
-- [ ] `AUTH_PROVIDER` set to `descope` or `keycloak` â€” **never** `dev-jwt`
 - [ ] `PLATFORM_ADMIN_SECRET` â€” generate with `openssl rand -hex 32`
 - [ ] `ALLOWED_ORIGINS` â€” explicit whitelist, **not** `*`
 - [ ] **Vault**: `VAULT_DEV_MODE=false`, AppRole credentials (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`)
 - [ ] **Redis**: sentinel or cluster URLs with TLS (`rediss://`)
 - [ ] **Kafka**: Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
-- [ ] **Keycloak**: set `KEYCLOAK_ISSUER` and `KEYCLOAK_AUDIENCE`
 - [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
 - [ ] TLS terminated at NGINX or upstream ingress â€” **never** expose port 3000 directly
 - [ ] Rotate `TRIBE_SECRET_*` secrets regularly

@@ -53,6 +53,15 @@ describe("ConfigService", () => {
     expect(run).toThrow("AUTH_PROVIDER must be one of");
   });
 
+  it("should reject the removed legacy OIDC provider", () => {
+    setValidProductionEnv();
+    process.env.AUTH_PROVIDER = ["key", "cloak"].join("");
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow("AUTH_PROVIDER must be one of");
+  });
+
   it("should allow composite auth provider with persistent JWT keys", () => {
     setValidProductionEnv();
     process.env.AUTH_PROVIDER = "composite";

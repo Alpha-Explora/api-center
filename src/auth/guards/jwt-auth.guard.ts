@@ -2,7 +2,7 @@
 // src/auth/guards/jwt-auth.guard.ts — Provider-agnostic JWT authentication guard
 // =============================================================================
 // NestJS guard that validates an incoming Bearer JWT using the AuthService,
-// which in turn delegates to the configured AuthProvider (Descope, Keycloak, or DevJwt).
+// which in turn delegates to the configured AuthProvider.
 //
 // REPLACES: src/auth/guards/descope-auth.guard.ts (Descope-specific guard)
 //
@@ -42,7 +42,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      // Delegate JWT validation to the active AuthProvider (Descope / Keycloak / DevJwt)
+      // Delegate JWT validation to the active AuthProvider.
       const claims = await this.auth.validateToken(token);
 
       // Attach normalised claims so controllers and downstream guards can read them

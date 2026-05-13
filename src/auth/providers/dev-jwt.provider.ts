@@ -10,7 +10,7 @@
 //   3. JWT_PRIVATE_KEY env var — PEM key from environment (simplest local setup).
 //   4. Ephemeral in-memory key pair — generated at startup (default; lost on restart).
 //
-// DO NOT use this provider in production — use KeycloakProvider instead.
+// DO NOT use this provider in production. Use composite or internal-jwt.
 // =============================================================================
 
 import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
@@ -131,7 +131,7 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
       "DevJwtProvider: Using ephemeral in-memory RS256 key pair. " +
         "All tokens will be invalidated on restart. " +
         "For persistent keys, set JWT_PRIVATE_KEY/JWT_PUBLIC_KEY or configure Vault. " +
-        "DO NOT use in production — use KeycloakProvider instead.",
+        "DO NOT use in production. Use composite or internal-jwt.",
     );
   }
 

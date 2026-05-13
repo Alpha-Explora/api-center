@@ -19,8 +19,7 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 2. [Quick Start â€” dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
 3. [Auth Providers](#auth-providers)
    - [dev-jwt â€” Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
-  - [Descope â€” Enterprise OIDC](#2-descope--enterprise-oidc)
-  - [Keycloak â€” Enterprise OIDC](#3-keycloak--enterprise-oidc)
+  - [Internal Tribe JWT + Descope Fallback](#2-internal-tribe-jwt--descope-fallback)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
 6. [Shared Geo and Governed Kafka](#shared-geo-and-governed-kafka)
@@ -81,17 +80,18 @@ docker-compose ps   # all services should show "healthy"
 
 ## Auth Providers
 
-APICenter ships **two production auth providers** plus a local/CI issuer. Select one with `AUTH_PROVIDER`.
+APICenter uses API Center-signed tribe JWTs for production machine-to-machine auth, Descope validation for human/admin tokens, and a local/CI issuer. Select one with `AUTH_PROVIDER`.
 
 | Value | Use case | External dependency |
 |-------|----------|---------------------|
 | `dev-jwt` | Local dev, CI | None |
-| `descope` | Enterprise OIDC with Descope tenant | Descope project |
-| `keycloak` | Enterprise SSO, on-prem / cloud Keycloak | Keycloak server |
+| `internal-jwt` | API Center-issued tribe M2M tokens only | Persistent API Center JWT key pair |
+| `composite` | Production default: issue internal tribe JWTs, validate internal + Descope tokens | API Center JWT key pair; Descope only for human/admin token validation |
+| `descope` | Legacy Descope-only M2M mode | Descope project |
 
 ---
 
-### 1. dev-jwt â€” Local Dev & CI (default)
+### 1. dev-jwt - Local Dev & CI (default)
 
 Self-contained RS256 JWT issuer. No external IdP required.
 
@@ -106,9 +106,10 @@ AUTH_PROVIDER=dev-jwt
 | 1 | Vault Transit engine | `VAULT_TRANSIT_KEY=<key-name>` |
 | 2 | PEM loaded from Vault KV | Vault KV at `VAULT_SECRET_PATH` with `jwt_private_key` |
 | 3 | PEM from env vars | `JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY` |
-| 4 | Ephemeral in-memory (default) | â€” tokens lost on restart |
+| 4 | Ephemeral in-memory (default) | tokens lost on restart |
 
 **Generate a stable local key pair:**
+
 ```bash
 openssl genrsa 2048 > private.pem
 openssl rsa -in private.pem -pubout > public.pem
@@ -118,14 +119,15 @@ JWT_PRIVATE_KEY="$(awk 'NF{printf "%s\\n",$0}' private.pem)"
 JWT_PUBLIC_KEY="$(awk 'NF{printf "%s\\n",$0}' public.pem)"
 ```
 
-**JWKS endpoint (dev-jwt only):**
-```
+**JWKS endpoint:**
+
+```text
 GET http://localhost:3000/api/v1/auth/.well-known/jwks.json
 ```
 
 ---
 
-### 2. Descope â€” Enterprise OIDC
+### 2. Internal Tribe JWT + Descope Fallback
 
 ```bash
 AUTH_PROVIDER=composite
@@ -137,10 +139,7 @@ JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
 JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
 ```
 
-Use `composite` first in production. API Center issues tribe M2M tokens itself
-and validates Descope tokens as a fallback for human/admin flows. New tribes only
-need `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` in Secret Manager; they do not need
-one Descope app per tribe.
+Use `composite` first in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes only need `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` in Secret Manager; they do not need one Descope app per tribe.
 
 Legacy Descope-only M2M mode:
 
@@ -155,49 +154,11 @@ DESCOPE_AUDIENCE=api-center
 DESCOPE_DEFAULT_CLIENT_SECRET=<m2m-client-secret>
 ```
 
-Per-service secret override follows the same pattern used in Keycloak:
+Per-service secret overrides are only for legacy Descope-only M2M mode:
 
 ```bash
 DESCOPE_CLIENT_SECRET_PAYMENT_SERVICE=<service-secret>
 ```
-
-### 3. Keycloak â€” Enterprise OIDC
-
-#### Option A â€” Local Keycloak (dev / CI)
-
-```bash
-docker-compose --profile keycloak up -d
-```
-
-Add to `.env`:
-```bash
-AUTH_PROVIDER=keycloak
-KEYCLOAK_BASE_URL=http://localhost:8080
-KEYCLOAK_REALM=api-center
-KEYCLOAK_DEFAULT_CLIENT_SECRET=dev-secret
-```
-
-The `keycloak` profile auto-imports `keycloak/realm-api-center.json`, which creates the `api-center` client with secret `dev-secret`.
-
-#### Option B â€” Org / Production Keycloak
-
-```bash
-AUTH_PROVIDER=keycloak
-KEYCLOAK_BASE_URL=https://<your-keycloak-host>
-KEYCLOAK_REALM=<your-realm>
-KEYCLOAK_JWKS_URI=https://<your-keycloak-host>/realms/<realm>/protocol/openid-connect/certs
-KEYCLOAK_ISSUER=https://<your-keycloak-host>/realms/<realm>
-KEYCLOAK_AUDIENCE=api-center
-KEYCLOAK_DEFAULT_CLIENT_SECRET=<client-secret>
-```
-
-#### Creating a tribe client in Keycloak Admin UI
-
-1. Log in â†’ select your realm â†’ **Clients â†’ Create client**
-2. Client type: **OpenID Connect**, Client ID: `<service-id>` (e.g. `payment-service`)
-3. Enable **Client authentication** â†’ Save
-4. **Credentials** tab â†’ copy the secret
-5. Set in `.env`: `KEYCLOAK_CLIENT_SECRET_PAYMENT_SERVICE=<secret>`
 
 ---
 

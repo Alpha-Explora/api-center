@@ -43,7 +43,7 @@ data:
   # CORS — NGINX is gone in GKE, so the Node app handles preflight directly
   ALLOWED_ORIGINS: "https://api-center.itsandbox.site"
 
-  # Auth provider — descope / keycloak / google / dev-jwt
+  # Auth provider - composite / internal-jwt / descope / dev-jwt
   AUTH_PROVIDER: "composite"
   INTERNAL_JWT_ISSUER: "https://api-center.itsandbox.site"
   INTERNAL_JWT_AUDIENCE: "api-center"
