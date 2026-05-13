@@ -89,7 +89,7 @@
     "protobufjs": "8.2.0"
   },
   "engines": {
-    "node": ">=26 <27"
+    "node": ">=24 <25"
   },
   "jest": {
     "moduleFileExtensions": [

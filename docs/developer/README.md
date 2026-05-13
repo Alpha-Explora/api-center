@@ -88,7 +88,6 @@ Shared contract snapshot and CI guard:
 
 - [docs/contracts/shared-service-contract.json](../contracts/shared-service-contract.json)
 - `npm run check:contracts`
-- [implementation-plan.md](./implementation-plan.md)
 
 ---
 
@@ -97,7 +96,7 @@ Shared contract snapshot and CI guard:
 ### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Docker Compose v2)
-- Node.js ≥ 18 (for running unit tests outside Docker)
+- Node.js 24 LTS (for running unit tests outside Docker)
 - `jq` (optional, for pretty-printing JSON in the test examples below)
 
 ### First run
