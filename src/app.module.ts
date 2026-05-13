@@ -22,7 +22,7 @@
 //        RegistryModule   — look up upstream URL
 //        TribesModule     — proxy tribe-to-tribe calls
 //        SharedServicesModule — proxy shared platform service calls
-//        ExternalModule   — proxy third-party API calls
+//        ExternalModule   — legacy external proxy namespace; no providers configured by default
 //
 //  §5 / §6  SDK
 //        The shared SDK lives in the dedicated api-shared-services repository.
@@ -117,12 +117,10 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     //   SDK: TribeClient.callSharedService(...)
     SharedServicesModule,
 
-    // EXTERNAL THIRD-PARTY APIS  →  /api/v1/external/:apiName/*
-    //   All external API calls are centralized here.
-    //   API credentials (keys, tokens) live only in APICenter/Vault — never
-    //   in individual tribe codebases.
-    //   SDK: TribeClient.callExternal(...)
-    //   Protected by per-API circuit breakers.
+    // LEGACY EXTERNAL PROXY  →  /api/v1/external/:apiName/*
+    //   Kept as a guarded namespace, but no providers are configured by default.
+    //   New provider-backed integrations should be shared services plus SDK
+    //   wrappers, or governed Kafka routes for event publishing.
     ExternalModule,
 
     // ── 8. Health ─────────────────────────────────────────────────────────────

@@ -56,7 +56,7 @@ Thank you for contributing! Please follow these guidelines to keep the codebase 
 Use clear, concise commit messages:
 
 ```
-feat: add weather external API integration
+feat: add weather shared-service integration
 fix: handle Kafka disconnect gracefully
 docs: update README with new tribe setup steps
 refactor: extract auth middleware into separate module
@@ -82,9 +82,11 @@ refactor: extract auth middleware into separate module
 
 ---
 
-## Adding External APIs
+## Adding Platform Integrations
 
-See the [README](README.md#adding-a-new-external-api) for step-by-step instructions.
+New provider-backed functionality should be added as a shared service in
+`api-shared-services`, then exposed through `/api/v1/shared/:serviceId/*` and
+typed SDK wrappers. Do not add provider credentials to tribe repositories.
 
 ---
 

@@ -125,22 +125,21 @@ Recommended fix:
 
 ### P1: Productionize Provider Integrations
 
-Payment still contains mock/provider TODOs, and the draft payment gateway folder
-can confuse ownership.
+Payment now uses the canonical `paymongo/` shared-service runtime. The legacy
+draft payment gateway folder has been removed, so remaining hardening should
+focus on provider behavior rather than ownership cleanup.
 
 Evidence:
 
 - `api-shared-services/shared-services/paymongo/src/services/paymongo/paymongoService.js`
   contains TODOs for real PayMongo calls and webhook signature verification.
-- `api-shared-services/shared-services/payment-gateway-draft/` still exists as a
-  draft artifact while `paymongo/` is the intended canonical runtime.
+- `api-shared-services/shared-services/paymongo/` is the canonical runtime.
 
 Recommended fix:
 
 1. Implement real PayMongo client calls behind the existing contract.
 2. Add idempotency and webhook signature verification.
-3. Mark draft runtime as deprecated or remove it once PayMongo is complete.
-4. Keep provider-specific details out of tribe services.
+3. Keep provider-specific details out of tribe services.
 
 ### P1: Deepen Contract Compatibility Checks
 
@@ -250,4 +249,3 @@ Tasks:
 The next implementation step should be Phase 1 formatting cleanup for
 `api-center`. It is low-risk if committed separately, and it turns lint back
 into a useful signal before deeper contract and runtime hardening work.
-

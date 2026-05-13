@@ -72,9 +72,6 @@ export class AuthController {
     // Scopes granted per external API name when listed in a tribe's consumes array.
     // External APIs are not in the registry, so we use a static map here.
     const EXTERNAL_API_SCOPE_MAP: Record<string, string[]> = {
-      geolocation: ["external:geolocation:read"],
-      geotagging: ["external:geotagging:read", "external:geotagging:write"],
-      geofencing: ["external:geofencing:read", "external:geofencing:write"],
       kafka: ["external:kafka:read", "external:kafka:write"],
     };
 

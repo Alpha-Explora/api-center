@@ -4,14 +4,11 @@
   "baseUrl": "http://demand-service:4100",
   "requiredScopes": [
     "demand:read",
-    "external:geolocation:read",
-    "external:geotagging:read",
-    "external:geofencing:read",
     "external:kafka:read",
     "external:kafka:write"
   ],
   "exposes": ["GET /demand/:id"],
-  "consumes": ["logistics-service"],
+  "consumes": ["logistics-service", "geo"],
   "healthCheck": "/health",
   "version": "1.0.0",
   "serviceType": "tribe"

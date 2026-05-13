@@ -64,7 +64,7 @@ describe("AuditLogInterceptor", () => {
   it("should still emit audit log when handler throws an error", async () => {
     const request = {
       method: "POST",
-      originalUrl: "/api/v1/external/geolocation/reverse",
+      originalUrl: "/api/v1/shared/geo/reverse-geocode",
       ip: "127.0.0.1",
       tribeId: "caller-service",
       correlationId: "corr-2",

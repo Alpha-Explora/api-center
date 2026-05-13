@@ -1,8 +1,10 @@
 # APICenter — Centralized API Gateway
 
-APICenter is the **single, centralized API gateway** for the platform. Every API call — tribe-to-tribe, shared platform services, and external third-party APIs — routes through APICenter. No tribe calls another tribe directly.
+APICenter is the **single, centralized API gateway** for the platform. Tribe-to-tribe calls, shared platform services, auth, registry, and governed event publishing route through APICenter. No tribe calls another tribe or provider API directly.
 
 > **For platform operators and contributors:** see [docs/developer/README.md](docs/developer/README.md) for local dev setup, testing, CI/CD, and GCP deployment.
+>
+> **Full platform setup:** see [docs/apicenter-platform-setup.md](docs/apicenter-platform-setup.md) for the current APICenter + shared services + provider secrets runbook.
 >
 > **Deploying?** Pick one:
 >
@@ -22,7 +24,7 @@ APICenter is the **single, centralized API gateway** for the platform. Every API
   - [Google OAuth2 / OIDC](#4-google-oauth2--oidc)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
-6. [External APIs](#external-apis)
+6. [Shared Geo and Governed Kafka](#shared-geo-and-governed-kafka)
 7. [API Reference](#api-reference)
 
 ---
@@ -53,7 +55,7 @@ Consumer (tribe SDK / browser / external client)
 |------|----------------|
 | `/api/v1/tribes/:serviceId/*` | Tribe-to-tribe calls |
 | `/api/v1/shared/:serviceId/*` | Shared platform services (email, SMS, payments) |
-| `/api/v1/external/:apiName/*` | Third-party external APIs |
+| `/api/v1/external/:apiName/*` | Legacy external proxy namespace; current provider-backed functionality should be exposed as shared services or governed Kafka routes |
 | `/api/v1/auth/*` | Token issuance / refresh / revocation |
 | `/api/v1/registry/*` | Service self-registration |
 | `/api/v1/health/*` | Liveness + readiness probes |
@@ -372,21 +374,15 @@ await client.paymentCreateRefund('pay_123', {
   reason: 'customer_request',
 });
 
-// External API (credentials stay in APICenter — caller never sees them)
-const geo = await client.callExternal('geolocation', '/geolocation/v1/geolocate', {
-  method: 'POST',
-  data: {
-    considerIp: true,
-  },
-});
-
-// Typed geofence + geotag helpers
-const fence = await client.geofenceCheck({ latitude: 13.7563, longitude: 100.5018 });
-const tags = await client.geotagResolve({
-  ip: '8.8.8.8',
+// Shared geo service (Google Maps credentials stay in shared services)
+const geo = await client.geoReverseGeocode({
   latitude: 13.7563,
   longitude: 100.5018,
-  context: { shipmentId: 'SMOKE-001' },
+});
+
+const fence = await client.geoFenceCheck({
+  latitude: 13.7563,
+  longitude: 100.5018,
 });
 
 // Governed Kafka helpers backed by APICenter and Confluent Cloud
@@ -424,27 +420,16 @@ import {
 
 ---
 
-## External APIs
+## Shared Geo and Governed Kafka
 
-External API credentials live **only** in APICenter — tribe services never hold them.
+Provider API credentials live in platform-owned shared services; tribe services never hold them.
 
-Configured external services:
-
-- `geolocation` (Google Geolocation API)
-- `geotagging` (geo-tag enrichment provider)
-- `geofencing` (geofence provider)
+Geo is not exposed through `/api/v1/external/*`. It is a platform-owned shared
+service registered as `geo`, and tribes call it through `/api/v1/shared/geo/*`.
 
 Kafka is not exposed through `/api/v1/external/*`. Tribe event publishing goes through governed SDK helpers and the API Center producer connection to Confluent Cloud.
 
 ```bash
-# Google Geolocation API (Maps Platform)
-# Default route proxied by APICenter: POST /geolocation/v1/geolocate
-# Base URL defaults to https://www.googleapis.com
-GEOLOCATION_API_KEY=<your-key>
-
-# Replace with your actual geofencing provider
-GEOFENCING_API_KEY=<your-key>
-
 # Confluent Cloud producer used by governed Kafka publishing
 KAFKA_BROKERS=<confluent-bootstrap-server>:9092
 KAFKA_SSL_ENABLED=true
@@ -452,11 +437,6 @@ KAFKA_SASL_MECHANISM=plain
 KAFKA_SASL_USERNAME=<confluent-api-key>
 KAFKA_SASL_PASSWORD=<confluent-api-secret>
 
-# Secure-by-default per-tribe allowlists (comma-separated service IDs)
-# Empty value = deny all for that API
-EXTERNAL_ALLOWLIST_GEOLOCATION=orders-service,shipment-service
-EXTERNAL_ALLOWLIST_GEOTAGGING=orders-service
-EXTERNAL_ALLOWLIST_GEOFENCING=orders-service,shipment-service
 ```
 
 Tribes publish Kafka events through the governed SDK path:
@@ -500,13 +480,10 @@ Generated artifact location:
 
 - `docs/openapi/openapi.json`
 
-The script now performs service registration bootstrap, registry propagation checks across the gateway pool, and verifies geolocation/geofencing/geotagging flows. Confluent validation should use governed Kafka publish and S3 sink verification.
+The script now performs service registration bootstrap and registry propagation checks across the gateway pool. Geo validation should use the shared `geo` service, while Confluent validation should use governed Kafka publish and S3 sink verification.
 
-Required token scopes for external policy enforcement:
+Required token scopes for governed Kafka publishing:
 
-- `external:geolocation:read`
-- `external:geotagging:read` / `external:geotagging:write`
-- `external:geofencing:read` / `external:geofencing:write`
 - `external:kafka:read` / `external:kafka:write`
 
 Kafka tenant isolation rule:
@@ -514,7 +491,7 @@ Kafka tenant isolation rule:
 - Governed Kafka publish calls only accept topics that start with
   `tribe.<tribeId>.` for the authenticated tribe.
 
-To add a new external API, create a handler in `src/external/apis/` following the pattern in `geolocation.ts`.
+To add reusable platform functionality, prefer a shared service manifest and SDK wrapper over a direct external proxy.
 
 ---
 
@@ -547,7 +524,7 @@ To add a new external API, create a handler in `src/external/apis/` following th
 |--------|------|-------------|
 | `*` | `/api/v1/tribes/:serviceId/*` | Proxy to a registered tribe service |
 | `*` | `/api/v1/shared/:serviceId/*` | Proxy to a shared platform service |
-| `*` | `/api/v1/external/:apiName/*` | Proxy to a configured external API |
+| `*` | `/api/v1/external/:apiName/*` | Legacy guarded external proxy namespace; no provider APIs are configured by default |
 
 ### Health
 

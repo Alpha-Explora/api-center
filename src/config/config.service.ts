@@ -153,20 +153,6 @@ export class ConfigService implements OnApplicationBootstrap {
 
   readonly external = {
     timeout: 10000,
-    geolocation: {
-      url: process.env.GEOLOCATION_API_URL || "https://www.googleapis.com",
-      key: process.env.GEOLOCATION_API_KEY || "",
-    },
-    geotagging: {
-      url:
-        process.env.GEOTAGGING_API_URL || "https://api.geotagging.example.com",
-      key: process.env.GEOTAGGING_API_KEY || "",
-    },
-    geofencing: {
-      url:
-        process.env.GEOFENCING_API_URL || "https://api.geofencing.example.com",
-      key: process.env.GEOFENCING_API_KEY || "",
-    },
   };
 
   readonly tracing = {

@@ -72,6 +72,20 @@
         "/verify",
         "/status"
       ]
+    },
+    {
+      "serviceId": "geo",
+      "manifest": "../api-shared-services/shared-services/manifests/geo-manifest.json",
+      "wrappers": [
+        "geoGeocodeAddress",
+        "geoReverseGeocode",
+        "geoFenceCheck"
+      ],
+      "endpoints": [
+        "/geocode",
+        "/reverse-geocode",
+        "/geofence/check"
+      ]
     }
   ],
   "kafkaGovernance": {

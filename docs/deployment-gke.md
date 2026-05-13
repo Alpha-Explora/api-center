@@ -22,7 +22,7 @@
 | Secret Manager secret | `api-center-prod` |
 | Auth provider | `descope` (`AUTH_PROVIDER=descope` in ConfigMap) |
 | Memorystore cache host | `10.34.181.131:6379` |
-| Memorystore rate-limit host | `10.63.215.147:6379` |
+| Memorystore rate-limit host | `10.34.181.131:6379` (shared low-traffic Redis) |
 | Kafka brokers | Confluent Cloud bootstrap endpoint from Secret Manager |
 | Kafka topology | Managed by Confluent Cloud |
 

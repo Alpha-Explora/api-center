@@ -93,9 +93,7 @@ describe('RegistryController scopes (e2e)', () => {
     expect(body.success).toBe(true);
     expect(body.data.platformScopes).toEqual(['platform:admin']);
     expect(body.data.dynamicServiceScopes).toEqual(['billing:read', 'billing:write', 'ledger:read']);
-    expect(body.data.externalScopes).toEqual(
-      expect.arrayContaining(['external:geolocation:read', 'external:kafka:write']),
-    );
+    expect(body.data.externalScopes).toEqual([]);
     expect(body.meta.total).toBe(body.data.allScopes.length);
   });
 

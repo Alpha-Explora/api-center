@@ -1,7 +1,7 @@
 {
   "name": "@apicenter/gateway",
   "version": "1.0.0",
-  "description": "APICenter — single centralized API gateway. 3-container HA deployment behind NGINX round-robin load balancer. All tribe-to-tribe and external API traffic routes through here.",
+  "description": "APICenter - centralized gateway for tribe-to-tribe calls, shared services, auth, registry, and governed event publishing.",
   "main": "./dist/main.js",
   "scripts": {
     "build": "nest build",

@@ -38,7 +38,7 @@ Internet
         └──────────────────────┘
 ```
 
-All pods are stateless and identical — registry entries, refresh tokens, and rate-limit counters live in Memorystore.
+All pods are stateless and identical. Registry entries, refresh tokens, and rate-limit counters live in one shared Memorystore instance for the current low-traffic profile. Split rate-limit counters into a second Redis instance only when traffic is high enough to justify the extra cost.
 
 ---
 

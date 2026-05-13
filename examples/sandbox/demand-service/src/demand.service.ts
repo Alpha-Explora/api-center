@@ -84,24 +84,18 @@ export class DemandService {
       `/shipments/${encodeURIComponent(shipmentId)}`,
     );
 
-    const resolvedIp = (ip || '').trim() || '8.8.8.8';
-    const geolocation = await client.geolocateIp<Record<string, unknown>>(resolvedIp);
+    const resolvedIp = (ip || '').trim() || undefined;
+    const latitude = 13.7563;
+    const longitude = 100.5018;
 
-    const latitude = Number((geolocation as { latitude?: unknown })?.latitude ?? 13.7563);
-    const longitude = Number((geolocation as { longitude?: unknown })?.longitude ?? 100.5018);
-
-    const geofencing = await client.geofenceCheck<Record<string, unknown>>({
+    const fence = await client.geoFenceCheck({
       latitude,
       longitude,
     });
 
-    const geotagging = await client.geotagResolve<Record<string, unknown>>({
-      ip: resolvedIp,
+    const reverseGeocode = await client.geoReverseGeocode({
       latitude,
       longitude,
-      context: {
-        shipmentId,
-      },
     });
 
     this.logger.log(
@@ -119,9 +113,8 @@ export class DemandService {
       demandService: 'ok',
       shipment,
       geoContext: {
-        geolocation,
-        geofencing,
-        geotagging,
+        fence,
+        reverseGeocode,
       },
       correlationId,
     };

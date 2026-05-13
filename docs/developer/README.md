@@ -1,6 +1,6 @@
 # APICenter — Developer Guide
 
-This guide is for contributors and platform operators who need to run, test, and deploy APICenter. For integration and SDK documentation see the [root README](../../README.md).
+This guide is for contributors and platform operators who need to run, test, and deploy APICenter. For the full platform setup, provider-secret checklist, and shared-service deployment model see [../apicenter-platform-setup.md](../apicenter-platform-setup.md). For integration and SDK documentation see the [root README](../../README.md).
 
 ---
 
@@ -19,7 +19,7 @@ This guide is for contributors and platform operators who need to run, test, and
    - [Service Registry](#service-registry)
    - [Tribe-to-Tribe Calls](#tribe-to-tribe-calls)
    - [Shared Services](#shared-services)
-   - [External API Proxy](#external-api-proxy)
+   - [Shared Geo and Governed Kafka](#shared-geo-and-governed-kafka)
    - [Rate Limiting](#rate-limiting)
    - [Circuit Breaker](#circuit-breaker)
    - [Observability Stack](#observability-stack)
@@ -526,18 +526,19 @@ curl -s -X POST "http://localhost:3000/api/v1/shared/sms/send" \
 
 ---
 
-### External API Proxy
+### Shared Geo and Governed Kafka
 
 ```bash
-# List configured external APIs for the current caller token
+# List configured legacy external APIs for the current caller token.
+# Current provider-backed APIs should be exposed as shared services.
 curl -s http://localhost:3000/api/v1/external \
   -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
-# Google Geolocation lookup — requires GEOLOCATION_API_KEY
-curl -s -X POST "http://localhost:3000/api/v1/external/geolocation/geolocation/v1/geolocate" \
+# Shared geo lookup through API Center
+curl -s -X POST "http://localhost:3000/api/v1/shared/geo/reverse-geocode" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"considerIp": true}' | jq .
+  -d '{"latitude":14.5995,"longitude":120.9842}' | jq .
 
 # The API key is injected server-side — never exposed to the caller
 
@@ -781,13 +782,9 @@ TRIBE_SECRET_USER_SERVICE=<sha256hash>
 TRIBE_SECRET_EMAIL_SERVICE=<sha256hash>
 ```
 
-### External APIs
+### Governed Kafka
 
 ```bash
-GEOLOCATION_API_URL=https://www.googleapis.com
-GEOLOCATION_API_KEY=<your-key>
-GEOFENCING_API_URL=https://api.geofencing.example.com
-GEOFENCING_API_KEY=<your-key>
 KAFKA_BROKERS=<confluent-bootstrap-server>:9092
 KAFKA_SSL_ENABLED=true
 KAFKA_SASL_MECHANISM=plain

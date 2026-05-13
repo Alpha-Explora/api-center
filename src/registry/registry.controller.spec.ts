@@ -34,26 +34,14 @@ describe("RegistryController", () => {
 
       expect(response.success).toBe(true);
       expect(response.data.platformScopes).toEqual(["platform:admin"]);
-      expect(response.data.externalScopes).toEqual(
-        expect.arrayContaining([
-          "external:geolocation:read",
-          "external:geotagging:read",
-          "external:geotagging:write",
-          "external:geofencing:read",
-          "external:geofencing:write",
-        ]),
-      );
+      expect(response.data.externalScopes).toEqual([]);
       expect(response.data.dynamicServiceScopes).toEqual([
         "billing:read",
         "billing:write",
         "ledger:read",
       ]);
       expect(response.data.allScopes).toEqual(
-        expect.arrayContaining([
-          "platform:admin",
-          "external:geolocation:read",
-          "billing:write",
-        ]),
+        expect.arrayContaining(["platform:admin", "billing:write"]),
       );
       expect(response.meta.total).toBe(response.data.allScopes.length);
     });
@@ -64,9 +52,7 @@ describe("RegistryController", () => {
       const response = controller.getScopes();
 
       expect(response.data.dynamicServiceScopes).toEqual([]);
-      expect(response.data.allScopes).toEqual(
-        expect.arrayContaining(["platform:admin", "external:geolocation:read"]),
-      );
+      expect(response.data.allScopes).toEqual(["platform:admin"]);
     });
   });
 });

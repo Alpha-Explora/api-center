@@ -26,10 +26,6 @@ describe("ExternalPolicyGuard", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env.EXTERNAL_ALLOWLIST_GEOLOCATION;
-    delete process.env.EXTERNAL_ALLOWLIST_GEOFENCING;
-    delete process.env.EXTERNAL_ALLOWLIST_GEOTAGGING;
-
     guard = new ExternalPolicyGuard(mockAuth, mockLogger);
   });
 
@@ -41,7 +37,7 @@ describe("ExternalPolicyGuard", () => {
     const result = guard.canActivate(
       createContext({
         method: "POST",
-        params: { apiName: "geolocation", 0: "geolocation/v1/geolocate" },
+        params: { apiName: "legacy-provider", 0: "v1/anything" },
         user: { tribeId: "tribe-a" },
       }),
     );
@@ -63,53 +59,18 @@ describe("ExternalPolicyGuard", () => {
     ).toThrow(ForbiddenError);
   });
 
-  it("should deny when external API token has no tribe identity", () => {
-    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue([
-      "external:geolocation:read",
-    ]);
-    process.env.EXTERNAL_ALLOWLIST_GEOLOCATION = "*";
+  it("should deny removed geo external API requests", () => {
+    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue(["geo:read"]);
 
     expect(() =>
       guard.canActivate(
         createContext({
           method: "POST",
-          params: { apiName: "geolocation", 0: "geolocation/v1/geolocate" },
-          user: {},
-        }),
-      ),
-    ).toThrow(ForbiddenError);
-  });
-
-  it("should deny when caller misses required geolocation scope", () => {
-    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue([]);
-    process.env.EXTERNAL_ALLOWLIST_GEOLOCATION = "tribe-a";
-
-    expect(() =>
-      guard.canActivate(
-        createContext({
-          method: "POST",
-          params: { apiName: "geolocation", 0: "geolocation/v1/geolocate" },
+          params: { apiName: "geo", 0: "reverse-geocode" },
           user: { tribeId: "tribe-a" },
         }),
       ),
     ).toThrow(ForbiddenError);
-  });
-
-  it("should allow geolocation read for allowlisted tribe with required scope", () => {
-    (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue([
-      "external:geolocation:read",
-    ]);
-    process.env.EXTERNAL_ALLOWLIST_GEOLOCATION = "tribe-a";
-
-    const result = guard.canActivate(
-      createContext({
-        method: "POST",
-        params: { apiName: "geolocation", 0: "geolocation/v1/geolocate" },
-        user: { tribeId: "tribe-a" },
-      }),
-    );
-
-    expect(result).toBe(true);
   });
 
   it("should deny legacy Kafka REST external API requests", () => {

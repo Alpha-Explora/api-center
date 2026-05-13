@@ -8,20 +8,12 @@
 
 import { ConfigService } from "../../config/config.service";
 import { ExternalApiConfigMap } from "../../types";
-import { createGeolocationApi } from "./geolocation";
-import { createGeotaggingApi } from "./geotagging";
-import { createGeofencingApi } from "./geofencing";
 
 /**
  * Build the external API config map from centralised ConfigService.
  * Called once during ExternalService.onModuleInit().
  */
 export function buildExternalApis(config: ConfigService): ExternalApiConfigMap {
-  return {
-    geolocation: createGeolocationApi(config),
-    geotagging: createGeotaggingApi(config),
-    geofencing: createGeofencingApi(config),
-  };
+  void config;
+  return {};
 }
-
-export { createGeolocationApi, createGeotaggingApi, createGeofencingApi };

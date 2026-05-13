@@ -36,72 +36,7 @@ interface ExternalApiPolicy {
   rules: readonly ExternalPathRule[];
 }
 
-const SAFE_EXTERNAL_PATH_RE =
-  /^\/(?:[A-Za-z0-9._~!$&'()*+,;=:@%-]+(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%-]+)*)?$/;
-
-const EXTERNAL_API_POLICIES: Record<string, ExternalApiPolicy> = {
-  geolocation: {
-    allowlistEnv: "EXTERNAL_ALLOWLIST_GEOLOCATION",
-    requiredScopes: ["external:geolocation:read"],
-    rules: [
-      {
-        methods: ["POST"],
-        path: /^\/geolocation\/v1\/geolocate$/,
-        requiredScopes: [],
-        policyLabel: "geolocation.locate",
-      },
-    ],
-  },
-  // Reserved policy for onboarding a dedicated geotagging provider.
-  geotagging: {
-    allowlistEnv: "EXTERNAL_ALLOWLIST_GEOTAGGING",
-    requiredScopes: ["external:geotagging:read"],
-    rules: [
-      {
-        methods: ["GET", "HEAD"],
-        path: /^\/v1\/geotags(?:\/[A-Za-z0-9._:-]+)?$/,
-        requiredScopes: [],
-        policyLabel: "geotagging.read",
-      },
-      {
-        methods: ["POST"],
-        path: /^\/v1\/geotags\/resolve$/,
-        requiredScopes: [],
-        policyLabel: "geotagging.resolve",
-      },
-      {
-        methods: ["POST", "PUT", "PATCH", "DELETE"],
-        path: /^\/v1\/geotags(?:\/[A-Za-z0-9._:-]+)?$/,
-        requiredScopes: ["external:geotagging:write"],
-        policyLabel: "geotagging.write",
-      },
-    ],
-  },
-  geofencing: {
-    allowlistEnv: "EXTERNAL_ALLOWLIST_GEOFENCING",
-    requiredScopes: ["external:geofencing:read"],
-    rules: [
-      {
-        methods: ["GET", "HEAD"],
-        path: /^\/v1\/geofences(?:\/[A-Za-z0-9._:-]+)?(?:\/events)?$/,
-        requiredScopes: [],
-        policyLabel: "geofencing.read",
-      },
-      {
-        methods: ["POST"],
-        path: /^\/v1\/geofences\/check$/,
-        requiredScopes: [],
-        policyLabel: "geofencing.check",
-      },
-      {
-        methods: ["POST", "PUT", "PATCH", "DELETE"],
-        path: /^\/v1\/geofences(?:\/[A-Za-z0-9._:-]+)?(?:\/events)?$/,
-        requiredScopes: ["external:geofencing:write"],
-        policyLabel: "geofencing.write",
-      },
-    ],
-  },
-};
+const EXTERNAL_API_POLICIES: Record<string, ExternalApiPolicy> = {};
 
 export function getExternalRequiredScopes(): string[] {
   const scopes = new Set<string>();

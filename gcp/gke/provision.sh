@@ -22,7 +22,6 @@ KSA_NS="api-center"
 KSA_NAME="api-center"
 ARTIFACT_REPO="${ARTIFACT_REPO:-api-center}"
 CACHE_INSTANCE="${CACHE_INSTANCE:-api-center-cache}"
-RATELIMIT_INSTANCE="${RATELIMIT_INSTANCE:-api-center-ratelimit}"
 STATIC_IP_NAME="${STATIC_IP_NAME:-api-center-ip}"
 
 gcloud config set project "${PROJECT_ID}"
@@ -57,18 +56,11 @@ echo "==> Creating Memorystore (Redis) — cache + rate-limit"
 gcloud redis instances describe "${CACHE_INSTANCE}" --region="${REGION}" >/dev/null 2>&1 || \
   gcloud redis instances create "${CACHE_INSTANCE}" \
     --size=1 --region="${REGION}" --tier=basic \
-    --redis-version=redis_7_0
-
-gcloud redis instances describe "${RATELIMIT_INSTANCE}" --region="${REGION}" >/dev/null 2>&1 || \
-  gcloud redis instances create "${RATELIMIT_INSTANCE}" \
-    --size=1 --region="${REGION}" --tier=basic \
     --redis-version=redis_7_0 \
     --redis-config maxmemory-policy=allkeys-lru
 
 CACHE_HOST=$(gcloud redis instances describe "${CACHE_INSTANCE}" --region="${REGION}" --format='value(host)')
-RATELIMIT_HOST=$(gcloud redis instances describe "${RATELIMIT_INSTANCE}" --region="${REGION}" --format='value(host)')
-echo "    cache:     ${CACHE_HOST}:6379"
-echo "    ratelimit: ${RATELIMIT_HOST}:6379"
+echo "    redis: ${CACHE_HOST}:6379"
 
 echo "==> Creating GCP service account ${GSA_EMAIL}"
 gcloud iam service-accounts describe "${GSA_EMAIL}" >/dev/null 2>&1 || \
@@ -99,7 +91,7 @@ Provisioning complete. Update your manifests with these values:
   GCP_PROJECT_ID            ${PROJECT_ID}
   GCP_SECRET_NAME           ${SECRET_NAME}
   REDIS_CACHE_URL           redis://${CACHE_HOST}:6379
-  REDIS_RATE_LIMIT_URL      redis://${RATELIMIT_HOST}:6379
+  REDIS_RATE_LIMIT_URL      redis://${CACHE_HOST}:6379
   PUBLIC_HOSTNAME           ${PUBLIC_HOSTNAME}
   Static IP (DNS A record)  ${STATIC_IP}
   Image registry            ${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/api-center

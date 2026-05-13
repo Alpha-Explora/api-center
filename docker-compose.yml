@@ -73,17 +73,7 @@ x-api-center-common: &api-center-common
     # Redis URLs point to container names (Docker internal network)
     REDIS_CACHE_URL:      redis://redis-cache:6379
     REDIS_RATE_LIMIT_URL: redis://redis-rate-limit:6379
-    # Local deterministic geo stack (mock provider)
-    GEOLOCATION_API_URL: http://geo-provider-mock:8085
-    GEOLOCATION_API_KEY: local-geo-key
-    GEOTAGGING_API_URL: http://geo-provider-mock:8085
-    GEOTAGGING_API_KEY: local-geotag-key
-    GEOFENCING_API_URL: http://geo-provider-mock:8085
-    GEOFENCING_API_KEY: local-geofence-key
     # Local sandbox allowlists — wildcard allows all registered tribes
-    EXTERNAL_ALLOWLIST_GEOLOCATION: "*"
-    EXTERNAL_ALLOWLIST_GEOTAGGING: "*"
-    EXTERNAL_ALLOWLIST_GEOFENCING: "*"
     # Vault dev server — replace with AppRole credentials in production
     VAULT_ADDR:     http://vault:8200
     VAULT_TOKEN:    root
@@ -98,8 +88,6 @@ x-api-center-common: &api-center-common
     # artificially throttled by a hard-coded sandbox override.
     RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
   depends_on:
-    geo-provider-mock:
-      condition: service_healthy
     redis-cache:
       condition: service_healthy
     redis-rate-limit:
@@ -122,29 +110,7 @@ x-api-center-common: &api-center-common
 services:
 
   # ---------------------------------------------------------------------------
-  # Geo Provider Mock — deterministic local geolocation/geofencing/geotagging
   # ---------------------------------------------------------------------------
-  geo-provider-mock:
-    build:
-      context: ./examples/sandbox/geo-provider-mock
-      dockerfile: Dockerfile
-    container_name: geo-provider-mock
-    expose:
-      - "8085"
-    ports:
-      - "8085:8085"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    restart: unless-stopped
-    networks:
-      api-center-network:
-        aliases:
-          - geo-provider-mock
-
   # ---------------------------------------------------------------------------
   # NGINX — Single entrypoint + round-robin load balancer  (checklist §3)
   # ---------------------------------------------------------------------------
@@ -406,7 +372,7 @@ services:
   # ---------------------------------------------------------------------------
   payment-service:
     build:
-      context: ../api-shared/shared-services
+      context: ../api-shared-services/shared-services
       dockerfile: paymongo/Dockerfile
     container_name: payment-service
     ports:
@@ -416,7 +382,11 @@ services:
       SERVICE_BASE_URL: "http://payment-service:4010"
       API_CENTER_URL: "http://api-center-1:3000"
       PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
-      PAYMONGO_SECRET_KEY: "${PAYMONGO_SECRET_KEY:-}"
+      PAYMENT_PROVIDER_MODE: "${PAYMENT_PROVIDER_MODE:-test}"
+      PAYMONGO_TEST_SECRET_KEY: "${PAYMONGO_TEST_SECRET_KEY:-}"
+      PAYMONGO_LIVE_SECRET_KEY: "${PAYMONGO_LIVE_SECRET_KEY:-}"
+      PAYMONGO_TEST_WEBHOOK_SECRET: "${PAYMONGO_TEST_WEBHOOK_SECRET:-}"
+      PAYMONGO_LIVE_WEBHOOK_SECRET: "${PAYMONGO_LIVE_WEBHOOK_SECRET:-}"
       PAYMENT_PROVIDER_NAME: "paymongo"
       NODE_ENV: "development"
     depends_on:
@@ -430,7 +400,7 @@ services:
   # ---------------------------------------------------------------------------
   email-service:
     build:
-      context: ../api-shared/shared-services
+      context: ../api-shared-services/shared-services
       dockerfile: email-gateway/Dockerfile
     container_name: email-service
     ports:
@@ -454,7 +424,7 @@ services:
   # ---------------------------------------------------------------------------
   gauth-service:
     build:
-      context: ../api-shared/shared-services
+      context: ../api-shared-services/shared-services
       dockerfile: gauth-gateway/Dockerfile
     container_name: gauth-service
     ports:
@@ -479,7 +449,7 @@ services:
   # ---------------------------------------------------------------------------
   sms-service:
     build:
-      context: ../api-shared/shared-services
+      context: ../api-shared-services/shared-services
       dockerfile: sms-gateway/Dockerfile
     container_name: sms-service
     ports:
@@ -501,7 +471,7 @@ services:
   # ---------------------------------------------------------------------------
   otp-service:
     build:
-      context: ../api-shared/shared-services
+      context: ../api-shared-services/shared-services
       dockerfile: otp-gateway/Dockerfile
     container_name: otp-service
     ports:
@@ -511,6 +481,30 @@ services:
       SERVICE_BASE_URL: "http://otp-service:4014"
       API_CENTER_URL: "http://api-center-1:3000"
       PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      NODE_ENV: "development"
+    depends_on:
+      - api-center-1
+    restart: unless-stopped
+    networks:
+      - api-center-network
+
+  # ---------------------------------------------------------------------------
+  # Geo Service - Google Maps geocoding + platform geofence checks
+  # ---------------------------------------------------------------------------
+  geo-service:
+    build:
+      context: ../api-shared-services/shared-services
+      dockerfile: geo-gateway/Dockerfile
+    container_name: geo-service
+    ports:
+      - "4015:4015"
+    environment:
+      PORT: "4015"
+      SERVICE_BASE_URL: "http://geo-service:4015"
+      API_CENTER_URL: "http://api-center-1:3000"
+      PLATFORM_ADMIN_SECRET: "${PLATFORM_ADMIN_SECRET}"
+      GOOGLE_MAPS_API_KEY: "${GOOGLE_MAPS_API_KEY:-}"
+      GOOGLE_MAPS_GEOCODING_URL: "${GOOGLE_MAPS_GEOCODING_URL:-https://maps.googleapis.com/maps/api/geocode/json}"
       NODE_ENV: "development"
     depends_on:
       - api-center-1

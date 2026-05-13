@@ -10,6 +10,13 @@ const kafkaControllerPath = path.join(repoRoot, 'src', 'kafka-governance', 'kafk
 const externalPolicyPath = path.join(repoRoot, 'src', 'external', 'guards', 'external-policy.guard.ts');
 
 const violations = [];
+const decoratorPatterns = {
+  sharedController: /@Controller\(["']shared["']\)/,
+  kafkaController: /@Controller\(["']kafka["']\)/,
+  kafkaPublish: /@Post\(["']publish["']\)/,
+  kafkaGovernance: /@Get\(["']governance["']\)/,
+  kafkaSchemas: /@Get\(["']schemas["']\)/,
+};
 
 function readText(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -90,7 +97,7 @@ function runContractChecks() {
   }
 
   const sharedControllerSource = readText(sharedControllerPath);
-  if (!sharedControllerSource.includes("@Controller('shared')")) {
+  if (!decoratorPatterns.sharedController.test(sharedControllerSource)) {
     violations.push("Shared services controller is missing @Controller('shared').");
   }
 
@@ -112,19 +119,19 @@ function runContractChecks() {
 
   const kafkaControllerSource = readText(kafkaControllerPath);
 
-  if (!kafkaControllerSource.includes("@Controller('kafka')")) {
+  if (!decoratorPatterns.kafkaController.test(kafkaControllerSource)) {
     violations.push("Kafka governance controller is missing @Controller('kafka').");
   }
 
-  if (!kafkaControllerSource.includes("@Post('publish')")) {
+  if (!decoratorPatterns.kafkaPublish.test(kafkaControllerSource)) {
     violations.push("Kafka governance controller is missing @Post('publish') endpoint.");
   }
 
-  if (!kafkaControllerSource.includes("@Get('governance')")) {
+  if (!decoratorPatterns.kafkaGovernance.test(kafkaControllerSource)) {
     violations.push("Kafka governance controller is missing @Get('governance') endpoint.");
   }
 
-  if (!kafkaControllerSource.includes("@Get('schemas')")) {
+  if (!decoratorPatterns.kafkaSchemas.test(kafkaControllerSource)) {
     violations.push("Kafka governance controller is missing @Get('schemas') endpoint.");
   }
 

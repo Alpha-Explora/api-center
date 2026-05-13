@@ -368,19 +368,17 @@ try {
 }
 
 # STEP 9: Geo Context via SDK Helpers (through demand-service)
-Write-Host "`nSTEP 9: GEOLOCATION + GEOFENCING + GEOTAGGING" -ForegroundColor Green
+Write-Host "`nSTEP 9: SHARED GEO SERVICE" -ForegroundColor Green
 Write-Host "---" -ForegroundColor Gray
 try {
     $geo = Invoke-RestMethod -Uri 'http://localhost:4100/demand/GEO-001/geo-context?ip=8.8.8.8' -Method Get
-    $lat = $geo.geoContext.geolocation.latitude
-    $lng = $geo.geoContext.geolocation.longitude
-    $inside = $geo.geoContext.geofencing.inside
-    $tagCount = @($geo.geoContext.geotagging.tags).Count
+    $lat = $geo.geoContext.reverseGeocode.latitude
+    $lng = $geo.geoContext.reverseGeocode.longitude
+    $inside = $geo.geoContext.fence.inside
 
     Write-Host "[PASS] Geo context flow: WORKING" -ForegroundColor Green
     Write-Host "  Lat/Lng: $lat, $lng" -ForegroundColor Gray
     Write-Host "  Inside geofence: $inside" -ForegroundColor Gray
-    Write-Host "  Resolved tags: $tagCount" -ForegroundColor Gray
 } catch {
     Write-Host "[FAIL] Geo context flow failed: $_" -ForegroundColor Red
     $failedChecks += 'Step 9: Geo context flow failed'

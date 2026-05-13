@@ -13,13 +13,13 @@
 //     │    ↓                                                     │
 //     │  APICenter container  ← this process                    │
 //     │    ↓                                                     │
-//     │  target upstream  (tribe API / shared service / ext)    │
+//     │  target upstream  (tribe API / shared service)          │
 //     └─────────────────────────────────────────────────────────┘
 //
 //   Route namespaces:
 //     /api/v1/tribes/:serviceId/*    — tribe-to-tribe calls
 //     /api/v1/shared/:serviceId/*    — shared platform services
-//     /api/v1/external/:apiName/*    — third-party external APIs
+//     /api/v1/external/:apiName/*    — legacy guarded external proxy namespace
 //     /api/v1/auth/*                 — token issuance / refresh / revoke
 //     /api/v1/registry/*             — service self-registration
 //     /api/v1/health/*               — liveness + readiness probes
