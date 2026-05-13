@@ -1,6 +1,58 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/kafka/governance": {
+      "get": {
+        "operationId": "KafkaGovernanceController_getGovernanceCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KafkaGovernance"
+        ]
+      }
+    },
+    "/api/v1/kafka/schemas": {
+      "get": {
+        "operationId": "KafkaGovernanceController_getSchemaCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KafkaGovernance"
+        ]
+      }
+    },
+    "/api/v1/kafka/publish": {
+      "post": {
+        "operationId": "KafkaGovernanceController_publishMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KafkaPublishMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KafkaGovernance"
+        ]
+      }
+    },
     "/api/v1/auth/token": {
       "post": {
         "operationId": "AuthController_issueToken",
@@ -65,44 +117,6 @@
         },
         "responses": {
           "204": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
-    "/api/v1/auth/google": {
-      "get": {
-        "operationId": "AuthController_initiateGoogleLogin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
-    "/api/v1/auth/google/callback": {
-      "post": {
-        "operationId": "AuthController_googleCallback",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GoogleCallbackDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
             "description": ""
           }
         },
@@ -337,7 +351,7 @@
         ]
       }
     },
-    "/api/v1/tribes/{targetServiceId}/*": {
+    "/api/v1/tribes/{targetServiceId}/{path}": {
       "get": {
         "operationId": "TribesController_proxy_get",
         "parameters": [
@@ -521,7 +535,7 @@
         ]
       }
     },
-    "/api/v1/shared/{serviceId}/*": {
+    "/api/v1/shared/{serviceId}/{path}": {
       "get": {
         "operationId": "SharedServicesController_proxy_get",
         "parameters": [
@@ -705,7 +719,7 @@
         ]
       }
     },
-    "/api/v1/external/{apiName}/*": {
+    "/api/v1/external/{apiName}/{path}": {
       "get": {
         "operationId": "ExternalController_proxyCall_get",
         "parameters": [
@@ -1280,6 +1294,48 @@
       }
     },
     "schemas": {
+      "KafkaPublishMessageDto": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "example": "tribe.orders-service.events",
+            "description": "Tenant-scoped Kafka topic name",
+            "maxLength": 200
+          },
+          "key": {
+            "type": "string",
+            "example": "order-123",
+            "description": "Optional Kafka message key for partition affinity"
+          },
+          "eventType": {
+            "type": "string",
+            "example": "order.created",
+            "description": "Domain event type for schema governance",
+            "maxLength": 120
+          },
+          "payload": {
+            "type": "object",
+            "example": {
+              "orderId": "ord_123",
+              "amount": 99900
+            },
+            "description": "Event payload object"
+          },
+          "metadata": {
+            "type": "object",
+            "example": {
+              "sourceService": "checkout-service"
+            },
+            "description": "Optional event metadata map"
+          }
+        },
+        "required": [
+          "topic",
+          "eventType",
+          "payload"
+        ]
+      },
       "TokenRequestDto": {
         "type": "object",
         "properties": {
@@ -1325,22 +1381,6 @@
         },
         "required": [
           "refreshToken"
-        ]
-      },
-      "GoogleCallbackDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "example": "google-auth-code"
-          },
-          "redirectUri": {
-            "type": "string",
-            "example": "https://app.example.com/auth/callback"
-          }
-        },
-        "required": [
-          "code"
         ]
       },
       "ServiceManifestDto": {

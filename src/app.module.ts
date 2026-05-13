@@ -63,6 +63,7 @@ import { MetricsModule } from "./metrics/metrics.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
+import { ResponseListenerBudgetMiddleware } from "./shared/middleware/response-listener-budget.middleware";
 import { RedisThrottlerStorage } from "./shared/redis-throttler-storage";
 import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
 
@@ -139,6 +140,12 @@ export class AppModule implements NestModule {
   // SecurityMiddleware strips sensitive response headers and enforces payload limits.
   // MorganMiddleware logs incoming HTTP requests to the Winston stream.
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SecurityMiddleware, MorganMiddleware).forRoutes("*");
+    consumer
+      .apply(
+        ResponseListenerBudgetMiddleware,
+        SecurityMiddleware,
+        MorganMiddleware,
+      )
+      .forRoutes("{*splat}");
   }
 }

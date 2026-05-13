@@ -73,7 +73,7 @@ export class SharedServicesController implements OnModuleDestroy {
   }
 
   // ─── Dynamic Proxy to shared services ────────────────────────────────────────
-  @All(":serviceId/*")
+  @All(":serviceId/*path")
   async proxy(
     @Param("serviceId") serviceId: string,
     @Req() req: AuthenticatedRequest,

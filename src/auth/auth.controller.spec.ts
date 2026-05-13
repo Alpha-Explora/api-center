@@ -11,18 +11,9 @@ import { AuthService } from "./auth.service";
 import { RegistryService } from "../registry/registry.service";
 import { LoggerService } from "../shared/logger.service";
 import { KafkaService } from "../kafka/kafka.service";
-import type { GoogleProvider } from "./providers/google.provider";
 import { ConfigService } from "../config/config.service";
 import { NotFoundError, UnauthorizedError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
-
-jest.mock("./providers/google.provider", () => {
-  class GoogleProvider {
-    buildAuthorizationUrl = jest.fn();
-    exchangeCode = jest.fn();
-  }
-  return { GoogleProvider };
-});
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -48,15 +39,8 @@ const mockKafka: Partial<KafkaService> = {
   publishNonBlocking: jest.fn(),
 };
 
-const mockGoogleProvider: Partial<GoogleProvider> = {
-  buildAuthorizationUrl: jest.fn(),
-  exchangeCode: jest.fn(),
-};
-
 const mockConfig: Partial<ConfigService> = {
-  google: {
-    redirectUri: "http://localhost:3000/api/v1/auth/google/callback",
-  },
+  authProvider: "dev-jwt",
 } as ConfigService;
 
 function fakeReq(
@@ -77,7 +61,6 @@ describe("AuthController", () => {
       mockRegistry as RegistryService,
       mockLogger as LoggerService,
       mockKafka as KafkaService,
-      mockGoogleProvider as GoogleProvider,
       mockConfig as ConfigService,
     );
   });
@@ -237,6 +220,13 @@ describe("AuthController", () => {
       (mockAuth.getJwksJson as jest.Mock).mockReturnValue(null);
 
       expect(() => controller.getJwks()).toThrow();
+    });
+  });
+
+  describe("legacy Google auth", () => {
+    it("does not expose Google OAuth handlers from API Center", () => {
+      expect("initiateGoogleLogin" in controller).toBe(false);
+      expect("googleCallback" in controller).toBe(false);
     });
   });
 });

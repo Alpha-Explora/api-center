@@ -12,6 +12,7 @@ import { CorrelationIdInterceptor } from "./interceptors/correlation-id.intercep
 import { AuditLogInterceptor } from "./interceptors/audit-log.interceptor";
 import { SecurityMiddleware } from "./middleware/security.middleware";
 import { MorganMiddleware } from "./middleware/morgan.middleware";
+import { ResponseListenerBudgetMiddleware } from "./middleware/response-listener-budget.middleware";
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
 
 @Global()
@@ -23,6 +24,7 @@ import { RedisThrottlerStorage } from "./redis-throttler-storage";
     AuditLogInterceptor,
     SecurityMiddleware,
     MorganMiddleware,
+    ResponseListenerBudgetMiddleware,
     RedisThrottlerStorage,
   ],
   exports: [
@@ -32,6 +34,7 @@ import { RedisThrottlerStorage } from "./redis-throttler-storage";
     AuditLogInterceptor,
     SecurityMiddleware,
     MorganMiddleware,
+    ResponseListenerBudgetMiddleware,
     RedisThrottlerStorage,
   ],
 })

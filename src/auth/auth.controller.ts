@@ -15,7 +15,6 @@ import {
   Body,
   Req,
   Res,
-  Query,
   HttpCode,
   UseGuards,
   NotFoundException,
@@ -33,9 +32,7 @@ import { TokenRequestDto } from "../shared/dto/token-request.dto";
 import { RefreshTokenDto } from "../shared/dto/refresh-token.dto";
 import { RevokeTokenDto } from "../shared/dto/revoke-token.dto";
 import { AuthenticatedRequest } from "../types";
-import { GoogleProvider } from "./providers/google.provider";
 import { ConfigService } from "../config/config.service";
-import { GoogleCallbackDto } from "../shared/dto/google-callback.dto";
 
 @Controller("auth")
 export class AuthController {
@@ -44,7 +41,6 @@ export class AuthController {
     private readonly registry: RegistryService,
     private readonly logger: LoggerService,
     private readonly kafka: KafkaService,
-    private readonly googleProvider: GoogleProvider,
     private readonly config: ConfigService,
   ) {}
 
@@ -221,108 +217,6 @@ export class AuthController {
   }
 
   // ---------------------------------------------------------------------------
-  // GET /api/v1/auth/google — Initiate Google OAuth2 login (browser redirect)
-  // ---------------------------------------------------------------------------
-  // Redirects the browser to Google's OAuth2 authorization endpoint.
-  // Query params:
-  //   redirectUri  (required) — your frontend callback URL
-  //   state        (optional) — CSRF state token, echoed back by Google
-  //
-  // Example:
-  //   GET /api/v1/auth/google?redirectUri=http://localhost:4000/callback&state=abc123
-  // ---------------------------------------------------------------------------
-
-  @Get("google")
-  initiateGoogleLogin(
-    @Query("redirectUri") redirectUri: string | undefined,
-    @Query("state") state: string | undefined,
-    @Res() res: Response,
-  ): void {
-    const uri = this.validateRedirectUri(redirectUri);
-    const url = this.googleProvider.buildAuthorizationUrl(uri, state);
-    res.redirect(url);
-  }
-
-  // ---------------------------------------------------------------------------
-  // POST /api/v1/auth/google/callback — Exchange Google auth code for tokens
-  // ---------------------------------------------------------------------------
-  // Called by your frontend after Google redirects back with ?code=...
-  // Body: { code: string, redirectUri: string }
-  //
-  // Returns an APICenter-scoped access token wrapping the Google identity.
-  //
-  // Example:
-  //   POST /api/v1/auth/google/callback
-  //   { "code": "<code from Google>", "redirectUri": "http://localhost:4000/callback" }
-  // ---------------------------------------------------------------------------
-
-  @Post("google/callback")
-  async googleCallback(
-    @Body() body: GoogleCallbackDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    const { code, redirectUri } = body;
-    if (!code) {
-      throw new UnauthorizedError("Missing authorization code");
-    }
-
-    const uri = this.validateRedirectUri(redirectUri);
-    const result = await this.googleProvider.exchangeCode(code, uri);
-
-    // Issue an internal APICenter access token wrapping the Google identity
-    const internalToken = await this.auth.issueToken(
-      result.userInfo.sub,
-      ["openid", "email", "profile"],
-      ["openid", "email", "profile"],
-    );
-
-    this.logger.info("Google user authenticated", {
-      sub: result.userInfo.sub,
-      email: result.userInfo.email,
-      hd: result.userInfo.hd,
-      correlationId: req.correlationId,
-    });
-
-    this.kafka.publishNonBlocking(
-      TOPICS.TOKEN_ISSUED,
-      {
-        tribeId: result.userInfo.sub,
-        sub: result.userInfo.sub,
-        scopes: ["openid", "email", "profile"],
-        permissions: ["openid", "email", "profile"],
-        expiresIn: internalToken.expiresIn,
-        provider: "google",
-        correlationId: req.correlationId,
-        timestamp: new Date().toISOString(),
-      },
-      {
-        key: result.userInfo.sub,
-        context: "AuthController",
-      },
-    );
-
-    return {
-      success: true,
-      data: {
-        accessToken: internalToken.accessToken,
-        refreshToken: result.refreshToken ?? internalToken.refreshToken ?? null,
-        expiresIn: internalToken.expiresIn,
-        user: {
-          sub: result.userInfo.sub,
-          email: result.userInfo.email,
-          name: result.userInfo.name,
-          picture: result.userInfo.picture,
-          hd: result.userInfo.hd,
-        },
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        correlationId: req.correlationId,
-      },
-    };
-  }
-
-  // ---------------------------------------------------------------------------
   // GET /api/v1/auth/.well-known/jwks.json — JWKS (DevJwtProvider only)
   // ---------------------------------------------------------------------------
 
@@ -340,32 +234,5 @@ export class AuthController {
       );
     }
     return jwks;
-  }
-
-  private validateRedirectUri(redirectUri?: string): string {
-    const resolvedRedirectUri = redirectUri || this.config.google.redirectUri;
-
-    let parsedRedirectUri: URL;
-    try {
-      parsedRedirectUri = new URL(resolvedRedirectUri);
-    } catch {
-      throw new UnauthorizedError("Invalid redirect URI");
-    }
-
-    if (
-      parsedRedirectUri.protocol !== "http:" &&
-      parsedRedirectUri.protocol !== "https:"
-    ) {
-      throw new UnauthorizedError("Invalid redirect URI protocol");
-    }
-
-    const isAllowedOrigin = this.config.google.allowedRedirectOrigins.includes(
-      parsedRedirectUri.origin,
-    );
-    if (!isAllowedOrigin) {
-      throw new UnauthorizedError("Redirect URI is not allowed");
-    }
-
-    return resolvedRedirectUri;
   }
 }

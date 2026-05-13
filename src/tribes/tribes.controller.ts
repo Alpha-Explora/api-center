@@ -76,7 +76,7 @@ export class TribesController implements OnModuleDestroy {
   }
 
   // ─── Dynamic Proxy ───────────────────────────────────────────────────────────
-  @All(":targetServiceId/*")
+  @All(":targetServiceId/*path")
   async proxy(
     @Param("targetServiceId") targetServiceId: string,
     @Req() req: AuthenticatedRequest,

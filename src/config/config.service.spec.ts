@@ -7,8 +7,11 @@ describe("ConfigService", () => {
     Object.assign(process.env, {
       NODE_ENV: "production",
       PLATFORM_ADMIN_SECRET: "secret",
-      AUTH_PROVIDER: "google",
-      GOOGLE_ALLOWED_REDIRECT_URIS: "https://app.example.com/auth/callback",
+      AUTH_PROVIDER: "descope",
+      DESCOPE_PROJECT_ID: "project-id",
+      DESCOPE_TOKEN_ENDPOINT: "https://api.descope.com/oauth2/v1/apps/token",
+      DESCOPE_ISSUER: "https://api.descope.com/v1/apps/project-id",
+      DESCOPE_AUDIENCE: "project-id",
       ALLOWED_ORIGINS: "https://app.example.com",
       KAFKA_BROKERS: "pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092",
       KAFKA_SSL_ENABLED: "true",
@@ -32,22 +35,6 @@ describe("ConfigService", () => {
     process.env = originalEnv;
   });
 
-  it("should parse unique Google redirect origins from configured callback URIs", () => {
-    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = [
-      "https://app.example.com/auth/callback",
-      "https://app.example.com/sso/callback",
-      "not-a-url",
-      "https://admin.example.com/auth/callback",
-    ].join(",");
-
-    const config = new ConfigService();
-
-    expect(config.google.allowedRedirectOrigins).toEqual([
-      "https://app.example.com",
-      "https://admin.example.com",
-    ]);
-  });
-
   it("should throw when auth provider is invalid", () => {
     setValidProductionEnv();
     process.env.AUTH_PROVIDER = "invalid-provider";
@@ -57,21 +44,13 @@ describe("ConfigService", () => {
     expect(run).toThrow("AUTH_PROVIDER must be one of");
   });
 
-  it("should throw in production when Google redirect allowlist is missing", () => {
+  it("should reject Google as an API Center auth provider", () => {
     setValidProductionEnv();
-    process.env.GOOGLE_ALLOWED_REDIRECT_URIS = "";
+    process.env.AUTH_PROVIDER = "google";
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
-    expect(run).toThrow("GOOGLE_ALLOWED_REDIRECT_URIS is not set or invalid");
-  });
-
-  it("should not throw in production when Google redirect allowlist is valid", () => {
-    setValidProductionEnv();
-
-    const run = () => new ConfigService().onApplicationBootstrap();
-
-    expect(run).not.toThrow();
+    expect(run).toThrow("AUTH_PROVIDER must be one of");
   });
 
   it("should throw in production when ALLOWED_ORIGINS uses wildcard", () => {

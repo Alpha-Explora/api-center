@@ -1,4 +1,4 @@
-# APICenter — Developer Guide
+# APICenter â€” Developer Guide
 
 This guide is for contributors and platform operators who need to run, test, and deploy APICenter. For the full platform setup, provider-secret checklist, and shared-service deployment model see [../apicenter-platform-setup.md](../apicenter-platform-setup.md). For integration and SDK documentation see the [root README](../../README.md).
 
@@ -14,8 +14,6 @@ This guide is for contributors and platform operators who need to run, test, and
    - [dev-jwt Auth Flow](#dev-jwt-auth-flow)
   - [Descope Auth Flow](#descope-auth-flow)
   - [Keycloak Auth Flow](#keycloak-auth-flow)
-   - [Google Auth Flow — User (Browser)](#google-auth-flow--user-browser)
-   - [Google Auth Flow — M2M (Service Account)](#google-auth-flow--m2m-service-account)
    - [Service Registry](#service-registry)
    - [Tribe-to-Tribe Calls](#tribe-to-tribe-calls)
    - [Shared Services](#shared-services)
@@ -26,7 +24,7 @@ This guide is for contributors and platform operators who need to run, test, and
 5. [Environment Variables Reference](#environment-variables-reference)
 6. [Production Hardening Checklist](#production-hardening-checklist)
 7. [Vault Init (first run, dev only)](#vault-init-first-run-dev-only)
-8. [GCP Deployment — Cloud Run + Secret Manager + Cloud Build](#gcp-deployment--cloud-run--secret-manager--cloud-build)
+8. [GCP Deployment â€” Cloud Run + Secret Manager + Cloud Build](#gcp-deployment--cloud-run--secret-manager--cloud-build)
    - [One-time GCP Project Setup](#one-time-setup)
    - [Required IAM Roles](#5-grant-required-iam-roles)
    - [Secret Creation and Rotation](#6-create-the-application-secret-in-secret-manager)
@@ -55,11 +53,11 @@ For higher scale, VPC-private dependencies, or long-lived connections, deploy to
 
 | Need | Cloud Run | GKE |
 | --- | --- | --- |
-| ≤ ~10 instances, bursty traffic | ✅ simpler | overkill |
+| â‰¤ ~10 instances, bursty traffic | âœ… simpler | overkill |
 | > 10 instances or steady high QPS | maxScale ceiling | HPA, quota, and max replicas under operator control |
-| Memorystore / VPC-only deps | needs Serverless VPC connector | ✅ native VPC |
-| Long-lived connections (gRPC streaming, SSE) | limited | ✅ |
-| Sub-second cold-start matters | cold starts | ✅ always-on min replicas |
+| Memorystore / VPC-only deps | needs Serverless VPC connector | âœ… native VPC |
+| Long-lived connections (gRPC streaming, SSE) | limited | âœ… |
+| Sub-second cold-start matters | cold starts | âœ… always-on min replicas |
 
 See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough
 and [`gke-cost-optimization-plan.md`](./gke-cost-optimization-plan.md) before changing
@@ -112,7 +110,7 @@ cp .env.example .env
 # Configure Confluent Cloud Kafka settings in .env before using readiness/publish checks.
 docker-compose up -d
 
-# Watch container health (~30–60 s for all to become healthy)
+# Watch container health (~30â€“60 s for all to become healthy)
 watch docker-compose ps
 ```
 
@@ -145,7 +143,7 @@ npm run dev           # nest start --watch (connects to docker-compose infra)
 
 | Service | Port | URL | Purpose |
 |---------|------|-----|---------|
-| **NGINX** | **3000** | `http://localhost:3000` | **Consumer entrypoint — use this** |
+| **NGINX** | **3000** | `http://localhost:3000` | **Consumer entrypoint â€” use this** |
 | Vault UI | 8200 | `http://localhost:8200/ui` | Secrets (Token: `root`) |
 | Prometheus | 9090 | `http://localhost:9090` | Metrics |
 | Grafana | 3001 | `http://localhost:3001` | Dashboards (admin / admin) |
@@ -157,14 +155,14 @@ npm run dev           # nest start --watch (connects to docker-compose infra)
 
 Two edits to add a 4th container:
 
-**`docker-compose.yml`** — copy the `api-center-3` block:
+**`docker-compose.yml`** â€” copy the `api-center-3` block:
 ```yaml
 api-center-4:
   <<: *api-center-common
   container_name: api-center-4
 ```
 
-**`nginx.conf`** — add one line to the upstream block:
+**`nginx.conf`** â€” add one line to the upstream block:
 ```nginx
 server api-center-4:3000 max_fails=3 fail_timeout=20s;
 ```
@@ -189,7 +187,7 @@ apt-get install jq       # Ubuntu/Debian
 cp .env.example .env
 docker-compose up -d
 
-# Wait for all services to become healthy (~30–60 s)
+# Wait for all services to become healthy (~30â€“60 s)
 watch docker-compose ps
 ```
 
@@ -198,18 +196,18 @@ watch docker-compose ps
 ### Health & Readiness
 
 ```bash
-# Liveness — is the process running?
+# Liveness â€” is the process running?
 curl -s http://localhost:3000/api/v1/health/live | jq .
-# → { "status": "ok" }
+# â†’ { "status": "ok" }
 
-# Readiness — can the process serve traffic? (checks Redis, Kafka)
+# Readiness â€” can the process serve traffic? (checks Redis, Kafka)
 curl -s http://localhost:3000/api/v1/health/ready | jq .
 # Kafka readiness is currently always enforced; configure Confluent before using /ready.
-# → { "status": "ok", "details": { ... } }
+# â†’ { "status": "ok", "details": { ... } }
 
 # NGINX health (bypasses NestJS entirely)
 curl -s http://localhost:3000/nginx-health
-# → healthy
+# â†’ healthy
 ```
 
 ---
@@ -244,7 +242,7 @@ echo $RESPONSE | jq .
 export ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.data.accessToken')
 export REFRESH_TOKEN=$(echo $RESPONSE | jq -r '.data.refreshToken')
 
-# 4. Inspect the JWKS (dev-jwt only — not available with Keycloak or Google)
+# 4. Inspect the JWKS (dev-jwt only â€” not available with Keycloak or Google)
 curl -s http://localhost:3000/api/v1/auth/.well-known/jwks.json | jq .
 
 # 5. Refresh the token
@@ -258,7 +256,7 @@ curl -s -o /dev/null -w "%{http_code}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d "{\"refreshToken\": \"$REFRESH_TOKEN\"}"
-# → 204
+# â†’ 204
 
 # 7. Revoke all tokens for a subject
 curl -s -o /dev/null -w "%{http_code}" \
@@ -266,7 +264,7 @@ curl -s -o /dev/null -w "%{http_code}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d "{\"refreshToken\": \"$REFRESH_TOKEN\", \"revokeAll\": true}"
-# → 204
+# â†’ 204
 ```
 
 ---
@@ -336,113 +334,9 @@ curl -s -X POST http://localhost:3000/api/v1/auth/token \
 
 ---
 
-### Google Auth Flow — User (Browser)
+### Google-backed shared services
 
-> **Requires:** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` set in `.env`, and the redirect URI registered in Google Cloud Console.
-
-```bash
-# Step 1: Build the authorization URL and open it in a browser
-REDIRECT_URI="http://localhost:3000/api/v1/auth/google/callback"
-STATE="csrf-$(date +%s)"
-
-open "http://localhost:3000/api/v1/auth/google?redirectUri=${REDIRECT_URI}&state=${STATE}"
-# Alternatively, hit the URL with curl and follow the Location header:
-# curl -sv "http://localhost:3000/api/v1/auth/google?redirectUri=${REDIRECT_URI}" 2>&1 | grep Location
-
-# Google will redirect your browser to:
-#   http://localhost:3000/api/v1/auth/google/callback?code=<CODE>&state=<STATE>
-#
-# Copy the value of the `code` query parameter from the redirect URL.
-
-# Step 2: Exchange the code for tokens
-GOOGLE_CODE="<paste-code-here>"
-
-curl -s -X POST http://localhost:3000/api/v1/auth/google/callback \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"code\": \"$GOOGLE_CODE\",
-    \"redirectUri\": \"$REDIRECT_URI\"
-  }" | jq .
-
-# Expected response:
-# {
-#   "success": true,
-#   "data": {
-#     "accessToken": "<internal-apicenter-jwt>",
-#     "refreshToken": "<google-refresh-token-or-null>",
-#     "expiresIn": 3600,
-#     "user": {
-#       "sub": "1234567890",
-#       "email": "user@yourcompany.com",
-#       "name": "Jane Doe",
-#       "picture": "https://...",
-#       "hd": "yourcompany.com"
-#     }
-#   }
-# }
-
-# Step 3: Use the returned accessToken in subsequent calls
-export ACCESS_TOKEN="<accessToken-from-response>"
-
-curl -s http://localhost:3000/api/v1/registry/services \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
-
-# Step 4: Refresh using the Google refresh token (if returned)
-export GOOGLE_REFRESH="<refreshToken-from-response>"
-
-curl -s -X POST http://localhost:3000/api/v1/auth/token/refresh \
-  -H "Content-Type: application/json" \
-  -d "{\"refreshToken\": \"$GOOGLE_REFRESH\"}" | jq .
-```
-
-**Testing domain restriction:**
-```bash
-# With GOOGLE_ALLOWED_DOMAINS=yourcompany.com in .env,
-# logging in with a personal @gmail.com account will return:
-# {
-#   "statusCode": 401,
-#   "message": "Google account domain 'personal' is not in the allowed list: yourcompany.com"
-# }
-```
-
----
-
-### Google Auth Flow — M2M (Service Account)
-
-> **Requires:** A GCP service account JSON key, base64-encoded, set as `GOOGLE_SA_KEY_<SERVICE_ID_UPPER>`.
-
-```bash
-# Encode your service account key (run once, then set in .env)
-SA_B64=$(base64 -w0 /path/to/service-account-key.json)
-# macOS: SA_B64=$(base64 -i /path/to/service-account-key.json | tr -d '\n')
-
-# For a service called "analytics-service":
-export GOOGLE_SA_KEY_ANALYTICS_SERVICE=$SA_B64
-
-# Register the service
-curl -s -X POST http://localhost:3000/api/v1/registry/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "serviceId": "analytics-service",
-    "name": "Analytics Service",
-    "baseUrl": "http://analytics-service:5001",
-    "requiredScopes": ["https://www.googleapis.com/auth/bigquery.readonly"],
-    "exposes": [],
-    "consumes": [],
-    "healthCheck": "/health",
-    "version": "1.0.0"
-  }' | jq .
-
-# Issue a token — the gateway uses the SA key internally to get a Google access token
-SA_SECRET="analytics-sa-secret"
-export TRIBE_SECRET_ANALYTICS_SERVICE=$(echo -n "$SA_SECRET" | sha256sum | awk '{print $1}')
-
-curl -s -X POST http://localhost:3000/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d "{\"tribeId\": \"analytics-service\", \"secret\": \"$SA_SECRET\"}" | jq .
-
-# Expected: { "data": { "accessToken": "<google-access-token>", "expiresIn": 3600, ... } }
-```
+Google OAuth and Google API integrations are implemented in `api-shared-services` and are reached through API Center as registered shared services. Use the setup runbook in `docs/apicenter-platform-setup.md` and SDK wrappers for `gauth` and `geo` instead of API Center `/auth/google` routes.
 
 ---
 
@@ -539,7 +433,7 @@ curl -s -X POST "http://localhost:3000/api/v1/shared/geo/reverse-geocode" \
   -H "Content-Type: application/json" \
   -d '{"latitude":14.5995,"longitude":120.9842}' | jq .
 
-# The API key is injected server-side — never exposed to the caller
+# The API key is injected server-side â€” never exposed to the caller
 
 # Kafka event publishing uses APICenter's governed Kafka routes and
 # the server-side Confluent Cloud producer configuration.
@@ -558,7 +452,7 @@ for i in $(seq 1 115); do
     -H "Authorization: Bearer $ACCESS_TOKEN" \
     http://localhost:3000/api/v1/health/live)
   echo "Request $i: HTTP $STATUS"
-  [ "$STATUS" = "429" ] && echo "  ^^^ Rate limited — Retry-After header present" && break
+  [ "$STATUS" = "429" ] && echo "  ^^^ Rate limited â€” Retry-After header present" && break
 done
 
 # Inspect rate limit headers
@@ -603,7 +497,7 @@ done
 # After the threshold: 503 with circuit breaker open message
 curl -s "http://localhost:3000/api/v1/tribes/broken-service/anything" \
   -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
-# → { "statusCode": 503, "message": "Circuit breaker open for broken-service" }
+# â†’ { "statusCode": 503, "message": "Circuit breaker open for broken-service" }
 ```
 
 ---
@@ -632,9 +526,9 @@ open http://localhost:9090
 open http://localhost:3001   # admin / admin
 ```
 
-1. **Configuration → Data Sources → Add data source**
-   - Type: Prometheus, URL: `http://prometheus:9090` → Save & Test
-2. **+ → Import** → enter dashboard ID `1860` (Node.js metrics) → Import
+1. **Configuration â†’ Data Sources â†’ Add data source**
+   - Type: Prometheus, URL: `http://prometheus:9090` â†’ Save & Test
+2. **+ â†’ Import** â†’ enter dashboard ID `1860` (Node.js metrics) â†’ Import
 3. Or create a custom dashboard using the `api_center_*` metrics
 
 #### Distributed tracing (Jaeger)
@@ -647,7 +541,7 @@ for path in health/live health/ready registry/services; do
 done
 
 open http://localhost:16686
-# Service → api-center → Find Traces
+# Service â†’ api-center â†’ Find Traces
 # Click any trace to see the full request waterfall
 ```
 
@@ -658,12 +552,12 @@ open http://localhost:16686
 # Use the Confluent Cloud console or CLI to inspect topics.
 
 # Key topics to inspect:
-# api-center.audit.log            — every proxied request
-# api-center.auth.token-issued    — M2M token issued
-# api-center.auth.token-refreshed — token refreshed
-# api-center.auth.token-revoked   — token revoked
-# api-center.registry.registered  — service registered
-# api-center.gateway.circuit-open — circuit breaker opened
+# api-center.audit.log            â€” every proxied request
+# api-center.auth.token-issued    â€” M2M token issued
+# api-center.auth.token-refreshed â€” token refreshed
+# api-center.auth.token-revoked   â€” token revoked
+# api-center.registry.registered  â€” service registered
+# api-center.gateway.circuit-open â€” circuit breaker opened
 ```
 
 #### Vault secrets browser
@@ -688,14 +582,14 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 |----------|---------|-------------|
 | `PORT` | `3000` | NestJS listener port (inside container) |
 | `NODE_ENV` | `development` | `development` or `production` |
-| `ALLOWED_ORIGINS` | `*` | CORS origins — comma-separated or `*` |
+| `ALLOWED_ORIGINS` | `*` | CORS origins â€” comma-separated or `*` |
 | `PLATFORM_ADMIN_SECRET` | `change-me-in-production` | Required for admin endpoints |
 
 ### Auth provider selection
 
 | Variable | Default | Values |
 |----------|---------|--------|
-| `AUTH_PROVIDER` | `dev-jwt` | `dev-jwt` · `descope` · `keycloak` · `google` |
+| `AUTH_PROVIDER` | `dev-jwt` | `dev-jwt` Â· `descope` Â· `keycloak` |
 
 ### dev-jwt
 
@@ -703,19 +597,9 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 |----------|---------|-------------|
 | `DEV_JWT_ISSUER` | `api-center-dev` | JWT `iss` claim |
 | `DEV_JWT_TTL_SECONDS` | `3600` | Access token TTL (seconds) |
-| `DEV_JWT_REFRESH_TTL_MULTIPLIER` | `24` | Refresh TTL = access TTL × this |
-| `JWT_PRIVATE_KEY` | — | PEM private key (optional, for persistence) |
-| `JWT_PUBLIC_KEY` | — | PEM public key (required when `JWT_PRIVATE_KEY` is set) |
-
-### Google
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GOOGLE_CLIENT_ID` | — | OAuth2 client ID (`*.apps.googleusercontent.com`) |
-| `GOOGLE_CLIENT_SECRET` | — | OAuth2 client secret |
-| `GOOGLE_REDIRECT_URI` | `http://localhost:3000/api/v1/auth/google/callback` | Must match Google Cloud Console exactly |
-| `GOOGLE_ALLOWED_DOMAINS` | — | Comma-separated Workspace `hd` values — empty = any Google account |
-| `GOOGLE_SA_KEY_<SERVICE_ID_UPPER>` | — | base64(service-account.json) for M2M |
+| `DEV_JWT_REFRESH_TTL_MULTIPLIER` | `24` | Refresh TTL = access TTL Ã— this |
+| `JWT_PRIVATE_KEY` | â€” | PEM private key (optional, for persistence) |
+| `JWT_PUBLIC_KEY` | â€” | PEM public key (required when `JWT_PRIVATE_KEY` is set) |
 
 ### Keycloak
 
@@ -724,10 +608,10 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | `KEYCLOAK_BASE_URL` | `http://localhost:8080` | Keycloak server URL |
 | `KEYCLOAK_REALM` | `api-center` | Realm name |
 | `KEYCLOAK_JWKS_URI` | auto-derived | Override for non-standard deployments |
-| `KEYCLOAK_ISSUER` | — | Expected `iss` claim — recommended in production |
-| `KEYCLOAK_AUDIENCE` | — | Expected `aud` claim — recommended in production |
-| `KEYCLOAK_DEFAULT_CLIENT_SECRET` | — | Default M2M secret |
-| `KEYCLOAK_CLIENT_SECRET_<SERVICE_ID_UPPER>` | — | Per-service Keycloak client secret |
+| `KEYCLOAK_ISSUER` | â€” | Expected `iss` claim â€” recommended in production |
+| `KEYCLOAK_AUDIENCE` | â€” | Expected `aud` claim â€” recommended in production |
+| `KEYCLOAK_DEFAULT_CLIENT_SECRET` | â€” | Default M2M secret |
+| `KEYCLOAK_CLIENT_SECRET_<SERVICE_ID_UPPER>` | â€” | Per-service Keycloak client secret |
 | `ENVOY_TRUST_HEADERS` | `false` | Trust Envoy/Ingress pre-verified JWT headers |
 
 ### Descope
@@ -735,21 +619,21 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESCOPE_BASE_URL` | `https://api.descope.com` | Descope API base URL |
-| `DESCOPE_PROJECT_ID` | — | Descope project ID |
+| `DESCOPE_PROJECT_ID` | â€” | Descope project ID |
 | `DESCOPE_JWKS_URI` | `<base>/<projectId>/.well-known/jwks.json` | JWKS endpoint override |
 | `DESCOPE_TOKEN_ENDPOINT` | `<base>/oauth2/v1/token` | OAuth token endpoint |
-| `DESCOPE_ISSUER` | — | Expected `iss` claim (required in production) |
-| `DESCOPE_AUDIENCE` | — | Expected `aud` claim (required in production) |
+| `DESCOPE_ISSUER` | â€” | Expected `iss` claim (required in production) |
+| `DESCOPE_AUDIENCE` | â€” | Expected `aud` claim (required in production) |
 | `DESCOPE_REFRESH_CLIENT_ID` | `api-center` | Client ID for refresh-token grants |
-| `DESCOPE_DEFAULT_CLIENT_SECRET` | — | Default M2M client secret |
-| `DESCOPE_CLIENT_SECRET_<SERVICE_ID_UPPER>` | — | Per-service Descope client secret override |
+| `DESCOPE_DEFAULT_CLIENT_SECRET` | â€” | Default M2M client secret |
+| `DESCOPE_CLIENT_SECRET_<SERVICE_ID_UPPER>` | â€” | Per-service Descope client secret override |
 
 ### GCP Secret Manager
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GCP_SECRET_NAME` | — | Secret name in GCP Secret Manager (leave unset for local dev) |
-| `GCP_PROJECT_ID` | — | GCP project that owns the secret (falls back to `GOOGLE_CLOUD_PROJECT`) |
+| `GCP_SECRET_NAME` | â€” | Secret name in GCP Secret Manager (leave unset for local dev) |
+| `GCP_PROJECT_ID` | â€” | GCP project that owns the secret (falls back to `GOOGLE_CLOUD_PROJECT`) |
 | `GCP_SECRET_VERSION` | `latest` | Secret version to fetch |
 
 ### Infrastructure
@@ -764,8 +648,8 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 | `KAFKA_SASL_MECHANISM` | `plain` | Required for Confluent Cloud API keys |
 | `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | unset | Confluent API key/secret from Secret Manager |
 | `VAULT_ADDR` | `http://localhost:8200` | Vault server |
-| `VAULT_TOKEN` | — | Root/dev token (dev only) |
-| `VAULT_ROLE_ID` / `VAULT_SECRET_ID` | — | AppRole credentials (production) |
+| `VAULT_TOKEN` | â€” | Root/dev token (dev only) |
+| `VAULT_ROLE_ID` / `VAULT_SECRET_ID` | â€” | AppRole credentials (production) |
 | `VAULT_DEV_MODE` | `true` | Set `false` in production |
 | `JAEGER_ENDPOINT` | `http://localhost:14268/api/traces` | Jaeger HTTP collector |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Window in milliseconds |
@@ -796,16 +680,15 @@ KAFKA_SASL_PASSWORD=<confluent-api-secret>
 ## Production Hardening Checklist
 
 - [ ] `NODE_ENV=production`
-- [ ] `AUTH_PROVIDER` set to `descope`, `keycloak`, or `google` — **never** `dev-jwt`
-- [ ] `PLATFORM_ADMIN_SECRET` — generate with `openssl rand -hex 32`
-- [ ] `ALLOWED_ORIGINS` — explicit whitelist, **not** `*`
+- [ ] `AUTH_PROVIDER` set to `descope` or `keycloak` â€” **never** `dev-jwt`
+- [ ] `PLATFORM_ADMIN_SECRET` â€” generate with `openssl rand -hex 32`
+- [ ] `ALLOWED_ORIGINS` â€” explicit whitelist, **not** `*`
 - [ ] **Vault**: `VAULT_DEV_MODE=false`, AppRole credentials (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`)
 - [ ] **Redis**: sentinel or cluster URLs with TLS (`rediss://`)
 - [ ] **Kafka**: Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
 - [ ] **Keycloak**: set `KEYCLOAK_ISSUER` and `KEYCLOAK_AUDIENCE`
 - [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
-- [ ] **Google**: set `GOOGLE_ALLOWED_DOMAINS` to your Workspace domain(s)
-- [ ] TLS terminated at NGINX or upstream ingress — **never** expose port 3000 directly
+- [ ] TLS terminated at NGINX or upstream ingress â€” **never** expose port 3000 directly
 - [ ] Rotate `TRIBE_SECRET_*` secrets regularly
 - [ ] Change Grafana default password (`GF_SECURITY_ADMIN_PASSWORD`)
 - [ ] Restrict Vault UI, Kafka UI, and Prometheus to internal networks only
@@ -823,7 +706,7 @@ Enables the KV v2 and Transit secrets engines and creates a signing key.
 
 ---
 
-## GCP Deployment — Cloud Run + Secret Manager + Cloud Build
+## GCP Deployment â€” Cloud Run + Secret Manager + Cloud Build
 
 This section covers a complete, production-ready deployment of APICenter on Google Cloud Platform using **Cloud Run** (serverless containers), **Secret Manager** (runtime secrets), and **Cloud Build** (CI/CD). All steps below assume you have the [Google Cloud SDK (`gcloud`)](https://cloud.google.com/sdk/docs/install) installed and authenticated.
 
@@ -910,7 +793,7 @@ The secret must be a JSON object whose keys map to environment variable names.
 gcloud secrets create api-center-prod \
   --replication-policy=automatic
 
-# Add the first version — create a JSON file with your env vars:
+# Add the first version â€” create a JSON file with your env vars:
 cat > /tmp/api-center-secrets.json <<'EOF'
 {
   "PLATFORM_ADMIN_SECRET": "change-me-generate-with-openssl-rand-hex-32",
@@ -949,10 +832,10 @@ gcloud secrets add-iam-policy-binding api-center-prod \
 
 The `cloudbuild.yaml` at the repository root defines the pipeline:
 
-1. **`test`** — Install deps, lint, run unit tests
-2. **`build`** — Build the Docker image from `docker/Dockerfile.gcp`
-3. **`push`** — Push the image to Artifact Registry (tagged with `SHORT_SHA` and `latest`)
-4. **`deploy`** — Deploy the new image to Cloud Run
+1. **`test`** â€” Install deps, lint, run unit tests
+2. **`build`** â€” Build the Docker image from `docker/Dockerfile.gcp`
+3. **`push`** â€” Push the image to Artifact Registry (tagged with `SHORT_SHA` and `latest`)
+4. **`deploy`** â€” Deploy the new image to Cloud Run
 
 #### Create a Cloud Build trigger
 
@@ -970,7 +853,7 @@ _GCP_PROJECT_ID=MY_PROJECT_ID,\
 _IMAGE_REPO=us-central1-docker.pkg.dev/MY_PROJECT_ID/api-center
 ```
 
-Or configure the trigger in [Cloud Build → Triggers](https://console.cloud.google.com/cloud-build/triggers) in the console, setting the same substitutions.
+Or configure the trigger in [Cloud Build â†’ Triggers](https://console.cloud.google.com/cloud-build/triggers) in the console, setting the same substitutions.
 
 ---
 
@@ -1025,15 +908,6 @@ Set non-sensitive env vars directly on the Cloud Run service. Sensitive values g
 | `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | Secret Manager JSON |
 | `TRIBE_SECRET_*` | Secret Manager JSON |
 
-```bash
-# Update Cloud Run env vars without redeploying the image
-gcloud run services update api-center \
-  --region=us-central1 \
-  --set-env-vars=AUTH_PROVIDER=google,GOOGLE_ALLOWED_DOMAINS=yourcompany.com
-```
-
----
-
 ### Adding Per-Service Secrets
 
 To add or update a tribe secret without modifying other secrets:
@@ -1044,7 +918,7 @@ To add or update a tribe secret without modifying other secrets:
      --secret=api-center-prod > /tmp/current.json
    ```
 
-2. Edit `/tmp/current.json` — add or update the `TRIBE_SECRET_<NAME>` key.
+2. Edit `/tmp/current.json` â€” add or update the `TRIBE_SECRET_<NAME>` key.
 
 3. Push as a new version:
    ```bash
@@ -1089,17 +963,17 @@ To add or update a tribe secret without modifying other secrets:
 
 ### Local Dev Notes
 
-- Do **not** set `GCP_SECRET_NAME` in your local `.env` — leave it blank to use `process.env` directly (populated from `.env` via dotenv).
+- Do **not** set `GCP_SECRET_NAME` in your local `.env` â€” leave it blank to use `process.env` directly (populated from `.env` via dotenv).
 - To test Secret Manager locally, set `GCP_SECRET_NAME`, `GCP_PROJECT_ID`, and authenticate with:
   ```bash
   gcloud auth application-default login
   ```
   The GCP client library picks up Application Default Credentials automatically.
-- The `docker/Dockerfile.gcp` image exposes port `8080` (Cloud Run default). The root `Dockerfile` and `docker-compose.yml` still use port `3000` for local development — nothing changes for local dev.
+- The `docker/Dockerfile.gcp` image exposes port `8080` (Cloud Run default). The root `Dockerfile` and `docker-compose.yml` still use port `3000` for local development â€” nothing changes for local dev.
 
 ---
 
-### Required IAM Roles — Summary
+### Required IAM Roles â€” Summary
 
 | Principal | Role | Purpose |
 |-----------|------|---------|
@@ -1107,3 +981,4 @@ To add or update a tribe secret without modifying other secrets:
 | Cloud Build SA | `roles/run.admin` | Deploy Cloud Run services |
 | Cloud Build SA | `roles/iam.serviceAccountUser` | Act as Cloud Run SA during deploy |
 | Cloud Build SA | `roles/artifactregistry.writer` | Push Docker images |
+

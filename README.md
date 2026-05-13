@@ -1,4 +1,4 @@
-# APICenter — Centralized API Gateway
+# APICenter â€” Centralized API Gateway
 
 APICenter is the **single, centralized API gateway** for the platform. Tribe-to-tribe calls, shared platform services, auth, registry, and governed event publishing route through APICenter. No tribe calls another tribe or provider API directly.
 
@@ -8,20 +8,19 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 >
 > **Deploying?** Pick one:
 >
-> - [Cloud Run](gcp/cloudrun.yaml) — single Knative Service, simplest path, scale 1–10
-> - [GKE Autopilot + HPA](gcp/gke/README.md) — horizontal pod autoscaling 3–30, Memorystore, GCLB Ingress
+> - [Cloud Run](gcp/cloudrun.yaml) â€” single Knative Service, simplest path, scale 1â€“10
+> - [GKE Autopilot + HPA](gcp/gke/README.md) â€” horizontal pod autoscaling 3â€“30, Memorystore, GCLB Ingress
 
 ---
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Quick Start — dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
+2. [Quick Start â€” dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
 3. [Auth Providers](#auth-providers)
-   - [dev-jwt — Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
-  - [Descope — Enterprise OIDC](#2-descope--enterprise-oidc)
-  - [Keycloak — Enterprise OIDC](#3-keycloak--enterprise-oidc)
-  - [Google OAuth2 / OIDC](#4-google-oauth2--oidc)
+   - [dev-jwt â€” Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
+  - [Descope â€” Enterprise OIDC](#2-descope--enterprise-oidc)
+  - [Keycloak â€” Enterprise OIDC](#3-keycloak--enterprise-oidc)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
 6. [Shared Geo and Governed Kafka](#shared-geo-and-governed-kafka)
@@ -33,19 +32,19 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 
 ```
 Consumer (tribe SDK / browser / external client)
-  │
-  ▼  :3000  ← ONE entrypoint for everything
-┌─────────────────────────────────────────────────┐
-│  NGINX Load Balancer                            │
-│  • Round-robin across 3 containers              │
-│  • Passive health checks (auto remove/re-add)   │
-│  • CORS preflight answered at NGINX level       │
-└──────────┬──────────────┬──────────────┬────────┘
-           │              │              │
-  ┌────────▼──────┐ ┌─────▼──────┐ ┌────▼───────┐
-  │ api-center-1  │ │api-center-2│ │api-center-3│
-  │  (stateless)  │ │ (stateless)│ │ (stateless)│
-  └───────────────┘ └────────────┘ └────────────┘
+  â”‚
+  â–¼  :3000  â† ONE entrypoint for everything
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  NGINX Load Balancer                            â”‚
+â”‚  â€¢ Round-robin across 3 containers              â”‚
+â”‚  â€¢ Passive health checks (auto remove/re-add)   â”‚
+â”‚  â€¢ CORS preflight answered at NGINX level       â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+           â”‚              â”‚              â”‚
+  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”
+  â”‚ api-center-1  â”‚ â”‚api-center-2â”‚ â”‚api-center-3â”‚
+  â”‚  (stateless)  â”‚ â”‚ (stateless)â”‚ â”‚ (stateless)â”‚
+  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
         All 3 share state via Redis (registry, tokens, rate-limit counters)
 ```
 
@@ -62,13 +61,13 @@ Consumer (tribe SDK / browser / external client)
 
 ---
 
-## Quick Start — dev-jwt (zero config)
+## Quick Start â€” dev-jwt (zero config)
 
 No external dependencies. All tokens are self-issued by the gateway.
 
 ```bash
 cp .env.example .env
-# AUTH_PROVIDER=dev-jwt is already the default — no changes needed
+# AUTH_PROVIDER=dev-jwt is already the default â€” no changes needed
 docker-compose up -d
 ```
 
@@ -82,18 +81,17 @@ docker-compose ps   # all services should show "healthy"
 
 ## Auth Providers
 
-APICenter ships **three fully functional** auth providers. Select one with `AUTH_PROVIDER`.
+APICenter ships **two production auth providers** plus a local/CI issuer. Select one with `AUTH_PROVIDER`.
 
 | Value | Use case | External dependency |
 |-------|----------|---------------------|
 | `dev-jwt` | Local dev, CI | None |
 | `descope` | Enterprise OIDC with Descope tenant | Descope project |
 | `keycloak` | Enterprise SSO, on-prem / cloud Keycloak | Keycloak server |
-| `google` | Google Workspace / personal accounts, GCP service accounts | Google Cloud project |
 
 ---
 
-### 1. dev-jwt — Local Dev & CI (default)
+### 1. dev-jwt â€” Local Dev & CI (default)
 
 Self-contained RS256 JWT issuer. No external IdP required.
 
@@ -108,7 +106,7 @@ AUTH_PROVIDER=dev-jwt
 | 1 | Vault Transit engine | `VAULT_TRANSIT_KEY=<key-name>` |
 | 2 | PEM loaded from Vault KV | Vault KV at `VAULT_SECRET_PATH` with `jwt_private_key` |
 | 3 | PEM from env vars | `JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY` |
-| 4 | Ephemeral in-memory (default) | — tokens lost on restart |
+| 4 | Ephemeral in-memory (default) | â€” tokens lost on restart |
 
 **Generate a stable local key pair:**
 ```bash
@@ -127,7 +125,7 @@ GET http://localhost:3000/api/v1/auth/.well-known/jwks.json
 
 ---
 
-### 2. Descope — Enterprise OIDC
+### 2. Descope â€” Enterprise OIDC
 
 ```bash
 AUTH_PROVIDER=descope
@@ -146,9 +144,9 @@ Per-service secret override follows the same pattern used in Keycloak:
 DESCOPE_CLIENT_SECRET_PAYMENT_SERVICE=<service-secret>
 ```
 
-### 3. Keycloak — Enterprise OIDC
+### 3. Keycloak â€” Enterprise OIDC
 
-#### Option A — Local Keycloak (dev / CI)
+#### Option A â€” Local Keycloak (dev / CI)
 
 ```bash
 docker-compose --profile keycloak up -d
@@ -164,7 +162,7 @@ KEYCLOAK_DEFAULT_CLIENT_SECRET=dev-secret
 
 The `keycloak` profile auto-imports `keycloak/realm-api-center.json`, which creates the `api-center` client with secret `dev-secret`.
 
-#### Option B — Org / Production Keycloak
+#### Option B â€” Org / Production Keycloak
 
 ```bash
 AUTH_PROVIDER=keycloak
@@ -178,79 +176,17 @@ KEYCLOAK_DEFAULT_CLIENT_SECRET=<client-secret>
 
 #### Creating a tribe client in Keycloak Admin UI
 
-1. Log in → select your realm → **Clients → Create client**
+1. Log in â†’ select your realm â†’ **Clients â†’ Create client**
 2. Client type: **OpenID Connect**, Client ID: `<service-id>` (e.g. `payment-service`)
-3. Enable **Client authentication** → Save
-4. **Credentials** tab → copy the secret
+3. Enable **Client authentication** â†’ Save
+4. **Credentials** tab â†’ copy the secret
 5. Set in `.env`: `KEYCLOAK_CLIENT_SECRET_PAYMENT_SERVICE=<secret>`
 
 ---
 
-### 4. Google OAuth2 / OIDC
+### Google OAuth and Google APIs
 
-Supports two sub-flows running simultaneously:
-
-- **User authentication** — browser login via Google Account (Authorization Code flow)
-- **Service-account M2M** — tribe authentication using GCP service accounts (JWT Bearer grant)
-
-#### Step 1 — Create a Google Cloud Project
-
-1. Go to [https://console.cloud.google.com](https://console.cloud.google.com)
-2. **Select or create a project**
-3. The **Google Identity** API is enabled by default for all projects
-
-#### Step 2 — OAuth2 Consent Screen (User Auth)
-
-1. **APIs & Services → OAuth consent screen**
-2. User type: **Internal** (Workspace org, recommended) or **External** (any Google account)
-3. Fill in App name, Support email, Developer contact email
-4. **Scopes**: add `openid`, `email`, `profile`
-5. Save and continue through all steps
-
-#### Step 3 — OAuth2 Credentials (User Auth)
-
-1. **APIs & Services → Credentials → Create Credentials → OAuth client ID**
-2. Application type: **Web application**, Name: `APICenter`
-3. **Authorized redirect URIs** — add:
-   - Dev: `http://localhost:3000/api/v1/auth/google/callback`
-   - Prod: `https://api.yourdomain.com/api/v1/auth/google/callback`
-4. Click **Create** — copy **Client ID** and **Client Secret**
-
-Set in `.env`:
-```bash
-AUTH_PROVIDER=google
-GOOGLE_CLIENT_ID=<your-client-id>.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=<your-client-secret>
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/v1/auth/google/callback
-
-# Restrict to your org's Workspace domain(s) — leave empty to allow all Google accounts
-GOOGLE_ALLOWED_DOMAINS=yourcompany.com
-```
-
-#### Step 4 — Service Accounts (M2M)
-
-For each tribe service that authenticates as a GCP service account:
-
-1. **IAM & Admin → Service Accounts → Create Service Account**
-   - Name: `apicenter-<service-id>` (e.g. `apicenter-payment-service`)
-   - Grant required IAM roles → Done
-2. Click the service account → **Keys → Add Key → Create new key → JSON** → Download
-3. Base64-encode the key file:
-
-```bash
-# Linux
-base64 -w0 path/to/service-account-key.json
-
-# macOS
-base64 -i path/to/service-account-key.json | tr -d '\n'
-```
-
-4. Set in `.env` — one variable per service:
-```bash
-# Pattern: GOOGLE_SA_KEY_<SERVICE_ID_UPPERCASED_AND_UNDERSCORED>
-GOOGLE_SA_KEY_PAYMENT_SERVICE=<base64-encoded-json>
-GOOGLE_SA_KEY_USER_SERVICE=<base64-encoded-json>
-```
+Google OAuth and Google API credentials are owned by `api-shared-services`, not by API Center's auth provider switch. Register and call the shared services through `/api/v1/shared/gauth/*` and `/api/v1/shared/geo/*` using the SDK wrappers.
 
 ---
 
@@ -302,7 +238,7 @@ For migration from bootstrap manifests to real tribe startup registration, use t
 
 **Per-service secret** (so the service can authenticate with the gateway):
 ```bash
-# Generate and hash — gateway stores SHA-256, never plaintext
+# Generate and hash â€” gateway stores SHA-256, never plaintext
 echo -n "my-plaintext-secret" | sha256sum | awk '{print $1}'
 
 # Set in .env:
@@ -399,12 +335,12 @@ await client.kafkaPublish({
 **Error types:**
 ```typescript
 import {
-  AuthenticationError,    // 401 — bad credentials
-  AuthorizationError,     // 403 — missing scopes
-  ServiceNotFoundError,   // 404 — service not in registry
-  RateLimitError,         // 429 — slow down (err.retryAfterMs available)
-  GatewayTimeoutError,    // 504 — upstream too slow
-  ServiceUnavailableError,// 503 — circuit breaker open
+  AuthenticationError,    // 401 â€” bad credentials
+  AuthorizationError,     // 403 â€” missing scopes
+  ServiceNotFoundError,   // 404 â€” service not in registry
+  RateLimitError,         // 429 â€” slow down (err.retryAfterMs available)
+  GatewayTimeoutError,    // 504 â€” upstream too slow
+  ServiceUnavailableError,// 503 â€” circuit breaker open
   NetworkError,           // no response from gateway
 } from '@apicenter/sdk';
 ```
@@ -415,8 +351,8 @@ import {
 |--------|---------|-------------|
 | `timeout` | `30000` | Request timeout in ms |
 | `maxRetries` | `3` | Retry attempts for transient failures |
-| `retryBaseDelayMs` | `500` | Initial backoff delay (doubles each attempt with ±25% jitter) |
-| `correlationIdFactory` | — | Factory returning a correlation ID threaded across all requests |
+| `retryBaseDelayMs` | `500` | Initial backoff delay (doubles each attempt with Â±25% jitter) |
+| `correlationIdFactory` | â€” | Factory returning a correlation ID threaded across all requests |
 
 ---
 
@@ -504,8 +440,6 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 | `POST` | `/api/v1/auth/token` | Issue M2M access + refresh token |
 | `POST` | `/api/v1/auth/token/refresh` | Refresh an access token |
 | `POST` | `/api/v1/auth/token/revoke` | Revoke a refresh token (or all tokens) |
-| `GET` | `/api/v1/auth/google` | Initiate Google OAuth2 flow (browser) |
-| `GET` | `/api/v1/auth/google/callback` | Google OAuth2 callback |
 | `GET` | `/api/v1/auth/.well-known/jwks.json` | JWKS endpoint (dev-jwt only) |
 
 ### Registry
@@ -530,8 +464,8 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/health/live` | Liveness — is the process running? |
-| `GET` | `/api/v1/health/ready` | Readiness — Redis + Kafka connectivity |
+| `GET` | `/api/v1/health/live` | Liveness â€” is the process running? |
+| `GET` | `/api/v1/health/ready` | Readiness â€” Redis + Kafka connectivity |
 | `GET` | `/nginx-health` | NGINX bypass health check |
 
 ---

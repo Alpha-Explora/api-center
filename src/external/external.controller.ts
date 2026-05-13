@@ -58,16 +58,17 @@ export class ExternalController {
   /**
    * ALL /api/v1/external/:apiName/* — Proxy to external API through circuit breaker
    */
-  @All(":apiName/*")
+  @All(":apiName/*path")
   @UseGuards(ExternalPolicyGuard)
   async proxyCall(
     @Param("apiName") apiName: string,
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
-    // Wildcard segment captured by the route ':apiName/*' (query string excluded).
+    const params = req.params as Record<string, string | string[] | undefined>;
+    const pathParam = params.path ?? params["0"] ?? "";
     const wildcardPath = (
-      (req.params as Record<string, string | undefined>)["0"] ?? ""
+      Array.isArray(pathParam) ? pathParam.join("/") : pathParam
     ).trim();
     const downstreamPath = `/${wildcardPath}`.replace(/\/{2,}/g, "/");
     const normalizedApiName = apiName.toLowerCase();

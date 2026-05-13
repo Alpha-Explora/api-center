@@ -24,27 +24,12 @@ export class ConfigService implements OnApplicationBootstrap {
 
   // AUTH_PROVIDER=keycloak  → KeycloakProvider (production)
   // AUTH_PROVIDER=descope   → DescopeProvider  (production)
-  // AUTH_PROVIDER=google    → GoogleProvider   (Google OAuth2 / OIDC)
   // AUTH_PROVIDER=dev-jwt   → DevJwtProvider   (local dev / CI) [default]
   readonly authProvider: string = process.env.AUTH_PROVIDER || "dev-jwt";
 
   private readonly descopeBaseUrl =
     process.env.DESCOPE_BASE_URL || "https://api.descope.com";
   private readonly descopeProjectId = process.env.DESCOPE_PROJECT_ID || "";
-
-  readonly google = {
-    clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    allowedDomains: (process.env.GOOGLE_ALLOWED_DOMAINS ?? "")
-      .split(",")
-      .map((d) => d.trim())
-      .filter(Boolean),
-    allowedRedirectOrigins: this.parseGoogleAllowedRedirectOrigins(),
-    // Redirect URI registered in Google Cloud Console
-    redirectUri:
-      process.env.GOOGLE_REDIRECT_URI ??
-      "http://localhost:3000/api/v1/auth/google/callback",
-  };
 
   readonly keycloak = {
     baseUrl: process.env.KEYCLOAK_BASE_URL || "http://localhost:8080",
@@ -178,7 +163,7 @@ export class ConfigService implements OnApplicationBootstrap {
       errors.push("PLATFORM_ADMIN_SECRET must be set in production");
     }
 
-    const validProviders = ["keycloak", "descope", "google", "dev-jwt"];
+    const validProviders = ["keycloak", "descope", "dev-jwt"];
     if (!validProviders.includes(this.authProvider)) {
       errors.push(
         `AUTH_PROVIDER must be one of: ${validProviders.join(", ")} (got '${this.authProvider}')`,
@@ -243,32 +228,9 @@ export class ConfigService implements OnApplicationBootstrap {
       }
     }
 
-    if (this.authProvider === "google") {
-      if (!this.google.clientId)
-        warnings.push("GOOGLE_CLIENT_ID is not set — Google auth will fail");
-      if (!this.google.clientSecret)
-        warnings.push(
-          "GOOGLE_CLIENT_SECRET is not set — Google auth will fail",
-        );
-      if (this.google.allowedDomains.length === 0 && this.isProduction) {
-        warnings.push(
-          "GOOGLE_ALLOWED_DOMAINS is not set in production — any Google account can authenticate",
-        );
-      }
-      if (this.google.allowedRedirectOrigins.length === 0) {
-        const msg =
-          "GOOGLE_ALLOWED_REDIRECT_URIS is not set or invalid — Google redirect URIs cannot be validated";
-        if (this.isProduction) {
-          errors.push(msg);
-        } else {
-          warnings.push(msg);
-        }
-      }
-    }
-
     if (this.authProvider === "dev-jwt" && this.isProduction) {
       errors.push(
-        "AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=descope, keycloak, or google",
+        "AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=descope or keycloak",
       );
     }
 
@@ -438,25 +400,6 @@ export class ConfigService implements OnApplicationBootstrap {
       console.error(msg);
       throw new Error(msg);
     }
-  }
-
-  private parseGoogleAllowedRedirectOrigins(): string[] {
-    const configuredUris = (process.env.GOOGLE_ALLOWED_REDIRECT_URIS ?? "")
-      .split(",")
-      .map((uri) => uri.trim())
-      .filter(Boolean);
-
-    const origins = configuredUris
-      .map((uri) => {
-        try {
-          return new URL(uri).origin;
-        } catch {
-          return "";
-        }
-      })
-      .filter(Boolean);
-
-    return [...new Set(origins)];
   }
 
   private parseAllowedOrigins(): string | string[] {

@@ -12,7 +12,6 @@ graph TB
         AS["AuthService\nProvider-Agnostic Orchestrator"]
         DevJWT["DevJwtProvider\nRS256 Self-Issued\nDev / CI Environment"]
         KC["KeycloakProvider\nOIDC Relay\nStaging / Production"]
-        GG["GoogleProvider\nOAuth2 + Service Accounts\nGCP Environments"]
     end
 
     subgraph TokenLifecycle["Token Lifecycle Management"]
@@ -48,7 +47,6 @@ graph TB
 
     AS -->|"AUTH_PROVIDER=dev-jwt"| DevJWT
     AS -->|"AUTH_PROVIDER=keycloak"| KC
-    AS -->|"AUTH_PROVIDER=google"| GG
 
     AS --> TS
     TS --> RD
