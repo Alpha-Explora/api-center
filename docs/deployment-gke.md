@@ -32,8 +32,8 @@
 
 | Field | Value |
 |---|---|
-| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:8a15338` |
-| Built from | `8a15338` (`main`) |
+| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:96d2fd7` |
+| Built from | `96d2fd7` (`main`) |
 | Last deployed | `2026-05-14` |
 | Deployed by | Codex-assisted operator rollout |
 
@@ -491,6 +491,7 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-11 | pending | Added Confluent Secret Manager validation and GKE cost optimization guardrails | Prevent rollout with non-Confluent broker values and document first safe Autopilot cost lever |
 | 2026-05-11 | pending | Switched API Center to low-credit HPA profile: 2-3 pods, PDB minAvailable 1, CPU request 150m | Reduce idle Autopilot workload spend while keeping one spare pod |
 | 2026-05-11 | pending | Disabled in-container production file logs and skipped health probes from Morgan/audit streams | Reduce recurring Cloud Logging, Kafka, Confluent connector, and S3 noise without changing API behavior |
+| 2026-05-14 | 96d2fd7 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:96d2fd7`; enabled composite auth with API Center-issued tribe JWTs, Descope validation fallback, JWKS exposure, and inactive-provider initialization guards | Roll out long-term tribe token automation without initializing unused Keycloak/dev-jwt providers |
 | 2026-05-14 | 8a15338 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:8a15338`; added protected analytics endpoints for shared-service usage, gateway traffic, provider usage, alerts, and audit events | Roll out management-console observability runtime |
 | 2026-05-13 | 9dab869 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:9dab869`; removed legacy API Center Google auth, migrated wildcard routes to Nest 11 named wildcards, and raised the response listener budget | Clear post-upgrade runtime warnings while keeping Google auth in shared services |
 | 2026-05-13 | 5c55833 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:5c55833`; kept Node 24 LTS runtime target with the proxy v4 ESM bridge | Roll out the dependency upgrade on the production LTS runtime |
