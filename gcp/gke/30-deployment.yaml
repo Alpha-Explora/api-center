@@ -53,7 +53,7 @@ spec:
               app.kubernetes.io/name: api-center
       containers:
         - name: api-center
-          image: us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:5c55833
+          image: us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:9dab869
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
