@@ -30,6 +30,7 @@ import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { ProxyHandler } from "../shared/proxy-handler";
 import { AuthenticatedRequest } from "../types";
+import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 
 @Controller("shared")
 @UseGuards(JwtAuthGuard)
@@ -45,6 +46,7 @@ export class SharedServicesController implements OnModuleDestroy {
     auditEvents: AuditEventsService,
     gatewayTraffic: GatewayTrafficService,
     sharedServiceUsage: SharedServiceUsageService,
+    sharedServiceEvents: SharedServiceEventPublisher,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
@@ -56,6 +58,7 @@ export class SharedServicesController implements OnModuleDestroy {
         auditEvents,
         gatewayTraffic,
         sharedServiceUsage,
+        sharedServiceEvents,
       },
       { namespace: "shared", pathPrefix: "/api/v1/shared" },
     );

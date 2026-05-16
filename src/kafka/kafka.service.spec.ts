@@ -1,7 +1,7 @@
 import { KafkaService } from "./kafka.service";
 import { ConfigService } from "../config/config.service";
 import { LoggerService } from "../shared/logger.service";
-import { TOPICS } from "./topics";
+import { TOPICS, withTopicPrefix } from "./topics";
 import { MetricsService } from "../metrics/metrics.service";
 
 jest.mock("kafkajs", () => ({
@@ -69,8 +69,24 @@ describe("KafkaService", () => {
   };
   let service: KafkaService;
 
+  it("should normalize environment topic prefixes", () => {
+    expect(withTopicPrefix("api-center.audit.log", "")).toBe(
+      "api-center.audit.log",
+    );
+    expect(withTopicPrefix("api-center.audit.log", "test.")).toBe(
+      "test.api-center.audit.log",
+    );
+    expect(withTopicPrefix("tribe.servease.events", "prod")).toBe(
+      "prod.tribe.servease.events",
+    );
+    expect(withTopicPrefix("test.api-center.audit.log", "test.")).toBe(
+      "test.api-center.audit.log",
+    );
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockConfig.kafka as { topicPrefix?: string }).topicPrefix = "";
     const kafkaModule = jest.requireMock("kafkajs") as {
       Kafka: jest.Mock;
     };
@@ -209,6 +225,15 @@ describe("KafkaService", () => {
     ).rejects.toThrow("Kafka schema validation failed");
   });
 
+  it("should reject shared-service export events when required schema fields are missing", async () => {
+    await expect(
+      service.publish(TOPICS.SHARED_SMS_EVENTS, {
+        eventId: "evt_123",
+        tribeId: "svc-alpha",
+      }),
+    ).rejects.toThrow("Kafka schema validation failed");
+  });
+
   it("should publish payload with source metadata and key", async () => {
     await service.publish("custom.topic", { event: "ok" }, "tribe-a");
 
@@ -230,6 +255,22 @@ describe("KafkaService", () => {
     expect(sentPayload._meta.timestamp).toEqual(expect.any(String));
     expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(
       "custom.topic",
+      "success",
+    );
+  });
+
+  it("should publish to environment-prefixed Kafka topics", async () => {
+    (mockConfig.kafka as { topicPrefix?: string }).topicPrefix = "test.";
+
+    await service.publish("custom.topic", { event: "ok" }, "tribe-a");
+
+    expect(mockProducer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "test.custom.topic",
+      }),
+    );
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(
+      "test.custom.topic",
       "success",
     );
   });

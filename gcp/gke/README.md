@@ -40,6 +40,12 @@ Internet
 
 All pods are stateless and identical. Registry entries, refresh tokens, and rate-limit counters live in one shared Memorystore instance for the current low-traffic profile. Split rate-limit counters into a second Redis instance only when traffic is high enough to justify the extra cost.
 
+Optional Postgres control-plane support is present in the application, but it is
+not the active registry source until Supabase migrations are applied, Redis
+data is backfilled, and parity checks pass. Keep
+`DATABASE_ENABLED=false`, `REGISTRY_SOURCE=redis`, and
+`REGISTRY_DUAL_WRITE=false` for the current deployed shape.
+
 ---
 
 ## Files
@@ -65,8 +71,8 @@ All pods are stateless and identical. Registry entries, refresh tokens, and rate
 ### 1. Provision GCP resources (one-time)
 
 ```bash
-PROJECT_ID=my-project \
-REGION=us-central1 \
+PROJECT_ID=api-center-496422 \
+REGION=asia-southeast1 \
 SECRET_NAME=api-center-prod \
 PUBLIC_HOSTNAME=api.example.com \
 ./provision.sh
@@ -121,7 +127,7 @@ in-cluster brokers ending in `.svc.cluster.local:9092`.
 ### 3. Apply
 
 ```bash
-gcloud container clusters get-credentials api-center --region=us-central1
+gcloud container clusters get-credentials api-center --region=asia-southeast1 --project=api-center-496422
 kubectl apply -f gcp/gke/
 ```
 
@@ -131,6 +137,28 @@ Restart the deployment after updating the Secret Manager payload:
 kubectl -n api-center rollout restart deploy/api-center
 kubectl -n api-center rollout status deploy/api-center --timeout=10m
 ```
+
+### 3a. Apply the test namespace overlay
+
+The low-cost test/live split keeps the same cluster and deploys the test stack
+into `api-center-test`.
+
+```powershell
+kubectl kustomize gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -
+kubectl -n api-center-test rollout status deploy/api-center --timeout=10m
+```
+
+The test overlay sets:
+
+```text
+GCP_SECRET_NAME=api-center-test
+KAFKA_TOPIC_PREFIX=test.
+api-center-test.itsandbox.site
+api-center-test-ip
+```
+
+Point Cloudflare DNS for `api-center-test.itsandbox.site` to the reserved test
+IP before expecting the managed certificate to become active.
 
 Verify API Center is reading Confluent credentials:
 
@@ -165,7 +193,7 @@ Cert provisioning takes 10–20 minutes after DNS resolves to the static IP.
 
 ```bash
 kubectl -n api-center set image deploy/api-center \
-  api-center=us-central1-docker.pkg.dev/$PROJECT/api-center/api-center:vX.Y.Z
+  api-center=asia-southeast1-docker.pkg.dev/$PROJECT/api-center/api-center:vX.Y.Z
 kubectl -n api-center rollout status deploy/api-center
 ```
 

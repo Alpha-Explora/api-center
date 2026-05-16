@@ -1,6 +1,6 @@
 # API Center Production Costing
 
-Date: 2026-05-13
+Date: 2026-05-16
 
 This document estimates production and maintenance costs for the current API
 Center platform. All numbers are approximate USD estimates before taxes. Billing
@@ -10,6 +10,7 @@ consoles and pricing calculators remain the source of truth.
 GKE Autopilot API Center
   -> internal shared-service runtimes
   -> Redis / Memorystore
+  -> optional Supabase Postgres control-plane + shared-service schemas
   -> Confluent Cloud Kafka
   -> Confluent S3 Sink Connector
   -> AWS S3 raw data lake
@@ -43,18 +44,19 @@ Verified on 2026-05-13.
 
 | Component | Current state |
 | --- | --- |
-| GCP project | `api-center-492808` |
-| Region | `us-central1` |
+| GCP project | `api-center-496422` |
+| Region | `asia-southeast1` |
 | Cluster | GKE Autopilot cluster `api-center` |
 | Namespace | `api-center` |
 | Public entrypoint | HTTPS GKE Ingress for `api-center.itsandbox.site` |
 | API Center | HPA min `2`, max `3`; request `150m` CPU, `256Mi` memory |
 | Shared services | `payment`, `sms`, `email`, `gauth`, `otp`, `geo`; each HPA min `1`, max `3` |
 | Shared-service exposure | internal `ClusterIP` only, no public load balancers |
-| Redis | one 1 GiB Basic Memorystore instance: `api-center-cache` at `10.34.181.131:6379` |
+| Redis | one 1 GiB Basic Memorystore instance: `api-center-cache` at `10.88.197.107:6379` |
 | Kafka | Confluent Cloud, not self-managed Kafka in GKE |
 | Data lake | Confluent S3 Sink Connector to AWS S3 |
 | Legacy Kafka | `kafka` and `strimzi-operator` namespaces deleted |
+| Supabase Postgres | planned but not live; database feature flags should remain disabled until migrations and cutover checks are complete |
 
 Live verification:
 
@@ -65,7 +67,7 @@ Live verification:
 | Shared-service pods | all six `1/1` ready |
 | Shared-service registry | all six active in API Center |
 | In-cluster shared-service health | API Center pod received HTTP `200` from all six `/health` endpoints |
-| Redis consolidation | API Center cache and rate-limit URLs both point to `10.34.181.131:6379` |
+| Redis consolidation | API Center cache and rate-limit URLs both point to `10.88.197.107:6379` |
 | Shared-service Redis | `api-shared-services-prod` `REDIS_URL` points to the same Redis endpoint |
 | Legacy Kafka persistent volume | no `api-center-kafka` persistent volume remains |
 
@@ -85,6 +87,7 @@ This is the current live shape after cleanup and shared-service deployment.
 | Artifact Registry | retained container images | usually `<1-5/month` |
 | Logging / Monitoring | logs, metrics, alerts, uptime checks | `0-25+/month` at current scale |
 | Networking / NAT / LB data | egress and load-balancer traffic | `20-50+/month` at current scale |
+| Supabase Postgres | not wired into runtime yet | `0/month` current if using an existing free project; add plan cost only when usage/features require it |
 
 Current GCP-side planning range:
 
@@ -201,6 +204,41 @@ Keep these controls in place:
 9. Reduce noisy request logs before disabling metrics or alerts.
 10. Set budgets in GCP, Confluent, AWS, Google Maps, Resend, SMS provider, and PayMongo.
 
+## Test And Live Environment Cost Shape
+
+The current environment split keeps costs lower by sharing the expensive managed
+data-plane resources:
+
+```text
+test namespace + prod namespace
+  -> one GKE Autopilot cluster
+  -> one Redis instance
+  -> one Confluent cluster
+  -> one S3 sink connector
+  -> one S3 bucket
+```
+
+Data is separated with Kafka topic prefixes:
+
+```text
+test.* -> s3://api-center-raw-data/topics/test.*
+prod.* -> s3://api-center-raw-data/topics/prod.*
+```
+
+Incremental cost of the current split:
+
+| Item | Incremental cost |
+| --- | ---: |
+| Test API Center pod, min 1 | low Autopilot workload cost |
+| Six test shared-service pods, min 1 each | similar to current shared-service idle cost |
+| Second HTTPS load balancer for `api-center-test.itsandbox.site` | another load-balancer fixed cost plus traffic |
+| Extra Kafka topics | no direct topic line item, but more partitions can increase eCKU usage |
+| Same S3 sink connector | no second connector task yet |
+| Same S3 bucket | only extra stored data and requests |
+
+Do not create a second GKE cluster, second Redis, second Confluent cluster, or
+second S3 sink connector until live traffic requires hard isolation.
+
 ## Next Cost Risks
 
 | Risk | Why it matters | Control |
@@ -209,6 +247,7 @@ Keep these controls in place:
 | Google Maps traffic | Can grow quickly per request | Set API quotas and alerts. |
 | SMS/OTP abuse | Per-message cost can spike | Rate limit OTP generation and retries. |
 | Confluent connector lag | More tasks add task-hour cost | Scale tasks only when lag requires it. |
+| Supabase Postgres introduced too early | Adds operational complexity before runtime cutover | Keep DB feature flags disabled until migration/backfill work is ready. |
 | Cloud Logging noise | Probe/request logs can create ingestion cost | Keep probe/audit noise filtered. |
 | Unused GCP networking resources | Static IPs, forwarding rules, NAT can quietly bill | Review monthly before deleting anything active. |
 
@@ -228,3 +267,4 @@ Keep these controls in place:
 - [Geocoding API usage and billing](https://developers.google.com/maps/documentation/geocoding/usage-and-billing)
 - [Resend pricing](https://resend.com/pricing)
 - [Descope pricing](https://www.descope.com/pricing)
+- [Supabase pricing](https://supabase.com/pricing)

@@ -86,6 +86,7 @@ export class ConfigService implements OnApplicationBootstrap {
 
   readonly kafka = {
     clientId: process.env.KAFKA_CLIENT_ID || "api-center",
+    topicPrefix: process.env.KAFKA_TOPIC_PREFIX || "",
     brokers: (process.env.KAFKA_BROKERS || "")
       .split(",")
       .map((broker) => broker.trim())
@@ -115,6 +116,15 @@ export class ConfigService implements OnApplicationBootstrap {
       process.env.REDIS_SESSION_TTL_SECONDS || "86400",
       10,
     ),
+  };
+
+  readonly database = {
+    enabled: process.env.DATABASE_ENABLED === "true",
+    provider: process.env.DATABASE_PROVIDER || "",
+    url: process.env.DATABASE_URL || "",
+    registrySource:
+      process.env.REGISTRY_SOURCE === "postgres" ? "postgres" : "redis",
+    dualWrite: process.env.REGISTRY_DUAL_WRITE === "true",
   };
 
   readonly registryBootstrap = {
@@ -254,6 +264,26 @@ export class ConfigService implements OnApplicationBootstrap {
     ) {
       warnings.push(
         "REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true is set in non-production; this override is unnecessary",
+      );
+    }
+
+    if (this.database.enabled && !this.database.url) {
+      errors.push("DATABASE_URL is required when DATABASE_ENABLED=true");
+    }
+
+    const validRegistrySources = ["redis", "postgres"];
+    if (
+      process.env.REGISTRY_SOURCE &&
+      !validRegistrySources.includes(process.env.REGISTRY_SOURCE)
+    ) {
+      errors.push(
+        `REGISTRY_SOURCE must be one of: ${validRegistrySources.join(", ")}`,
+      );
+    }
+
+    if (this.database.registrySource === "postgres" && !this.database.enabled) {
+      errors.push(
+        "DATABASE_ENABLED=true is required when REGISTRY_SOURCE=postgres",
       );
     }
 

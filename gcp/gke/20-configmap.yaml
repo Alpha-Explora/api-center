@@ -6,9 +6,9 @@
 # secrets.service.ts via GCP_SECRET_NAME — NOT in this ConfigMap.
 #
 # Replace placeholders before applying:
-#   api-center-492808            GCP project ID
+#   api-center-496422            GCP project ID
 #   api-center-prod           Secret Manager secret name (e.g. api-center-prod)
-#   10.34.181.131      Memorystore "api-center-cache" host (10.x.x.x)
+#   10.88.197.107      Memorystore "api-center-cache" host (10.x.x.x)
 #   KAFKA_BROKERS / KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD live in Secret Manager
 #   JWT_PRIVATE_KEY / JWT_PUBLIC_KEY live in Secret Manager
 #   *       comma-separated, e.g. https://app.example.com
@@ -23,17 +23,18 @@ data:
   PORT: "3000"
 
   # GCP Secret Manager — secrets.service.ts merges this secret into process.env
-  GCP_PROJECT_ID: "api-center-492808"
+  GCP_PROJECT_ID: "api-center-496422"
   GCP_SECRET_NAME: "api-center-prod"
 
   # Shared Redis (Memorystore). Low-traffic production uses one 1 GiB Basic
   # instance for registry, token, and rate-limit state. Rate-limit keys are
   # prefixed with `throttle:*`, so they can share the cache instance safely.
-  REDIS_CACHE_URL: "redis://10.34.181.131:6379"
-  REDIS_RATE_LIMIT_URL: "redis://10.34.181.131:6379"
+  REDIS_CACHE_URL: "redis://10.88.197.107:6379"
+  REDIS_RATE_LIMIT_URL: "redis://10.88.197.107:6379"
 
   # Kafka event bus. Active production path is Confluent Cloud; bootstrap and
   # SASL credentials are secrets loaded from GCP Secret Manager.
+  KAFKA_TOPIC_PREFIX: "prod."
   KAFKA_SSL_ENABLED: "true"
   KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
   KAFKA_SASL_MECHANISM: "plain"

@@ -6,8 +6,8 @@
 # after the first reconcile.
 #
 # Replace before applying:
-#   us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:prod-20260418151800   Artifact Registry image, e.g.
-#             us-central1-docker.pkg.dev/<PROJECT>/api-center/api-center:v1.2.3
+#   asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:prod-20260418151800   Artifact Registry image, e.g.
+#             asia-southeast1-docker.pkg.dev/<PROJECT>/api-center/api-center:v1.2.3
 # =============================================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -53,7 +53,7 @@ spec:
               app.kubernetes.io/name: api-center
       containers:
         - name: api-center
-          image: us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:9dab869
+          image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:env-split-20260516
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -12,17 +12,17 @@
 
 | Parameter | Value |
 |---|---|
-| GCP Project ID | `api-center-492808` |
-| Region | `us-central1` |
+| GCP Project ID | `api-center-496422` |
+| Region | `asia-southeast1` |
 | Cluster name | `api-center` (Autopilot) |
 | Namespace | `api-center` |
-| Artifact Registry | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center` |
-| Static IP name | `api-center-ip` |
+| Artifact Registry | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center` |
+| Static IP name | `api-center-ip` (`34.8.167.159`) |
 | Public hostname | `api-center.itsandbox.site` |
-| Secret Manager secret | `api-center-prod` |
+| Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<service-id>` secrets |
 | Auth provider | `composite` (`AUTH_PROVIDER=composite` in ConfigMap): API Center-issued tribe JWTs with Descope validation fallback |
-| Memorystore cache host | `10.34.181.131:6379` |
-| Memorystore rate-limit host | `10.34.181.131:6379` (shared low-traffic Redis) |
+| Memorystore cache host | `10.88.197.107:6379` |
+| Memorystore rate-limit host | `10.88.197.107:6379` (shared low-traffic Redis) |
 | Kafka brokers | Confluent Cloud bootstrap endpoint from Secret Manager |
 | Kafka topology | Managed by Confluent Cloud |
 
@@ -32,9 +32,9 @@
 
 | Field | Value |
 |---|---|
-| Image | `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:73bfd90` |
-| Built from | `73bfd90` (`main`) |
-| Last deployed | `2026-05-14` |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:migration-20260516` |
+| Built from | local working tree retargeted for new GCP project migration |
+| Last deployed | `2026-05-16` |
 | Deployed by | Codex-assisted operator rollout |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
@@ -105,23 +105,23 @@ grep -rn 'example.com\|example.internal' gcp/gke/
 ```bash
 # Confirm correct GCP project
 gcloud config get-value project
-# → api-center-492808
+# → api-center-496422
 
 # Get cluster credentials
-gcloud container clusters get-credentials api-center --region=us-central1
+gcloud container clusters get-credentials api-center --region=asia-southeast1
 
 # Confirm kubectl context
 kubectl config current-context
 
 # Confirm Artifact Registry exists
-gcloud artifacts repositories describe api-center --location=us-central1
+gcloud artifacts repositories describe api-center --location=asia-southeast1
 ```
 
 ### 1. One-time provisioning (skip if cluster already up)
 
 ```bash
-PROJECT_ID=api-center-492808 \
-REGION=us-central1 \
+PROJECT_ID=api-center-496422 \
+REGION=asia-southeast1 \
 SECRET_NAME=api-center-prod \
 PUBLIC_HOSTNAME=<real-hostname> \
 ./gcp/gke/provision.sh
@@ -153,7 +153,9 @@ cp /tmp/api-center-prod.current.json /tmp/api-center-prod.next.json
 # Edit /tmp/api-center-prod.next.json and ensure it contains at least:
 # JWT_PRIVATE_KEY=<persistent RS256 private key PEM with escaped newlines>
 # JWT_PUBLIC_KEY=<matching RS256 public key PEM with escaped newlines>
-# TRIBE_SECRET_<SERVICE_ID_UPPER>=<sha256 of plaintext tribe secret>
+# TRIBE_SECRET_SOURCE=gcp-secret-manager
+# TRIBE_SECRET_GCP_PREFIX=api-center-tribe-secret-
+# TRIBE_SECRET_CACHE_TTL_SECONDS=300
 # DESCOPE_BASE_URL=https://api.descope.com
 # DESCOPE_PROJECT_ID=P3CDYwDpERyUJPEfqnppZM7HLySN
 # DESCOPE_ISSUER=https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN
@@ -172,7 +174,9 @@ include them here only if you intentionally run without that ConfigMap.
 {
         "JWT_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----",
         "JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----",
-        "TRIBE_SECRET_SMOKE_TRIBE": "<sha256-hash>",
+        "TRIBE_SECRET_SOURCE": "gcp-secret-manager",
+        "TRIBE_SECRET_GCP_PREFIX": "api-center-tribe-secret-",
+        "TRIBE_SECRET_CACHE_TTL_SECONDS": "300",
         "DESCOPE_BASE_URL": "https://api.descope.com",
         "DESCOPE_PROJECT_ID": "P3CDYwDpERyUJPEfqnppZM7HLySN",
         "DESCOPE_ISSUER": "https://api.descope.com/v1/apps/P3CDYwDpERyUJPEfqnppZM7HLySN",
@@ -180,6 +184,28 @@ include them here only if you intentionally run without that ConfigMap.
         "DESCOPE_JWKS_URI": "https://api.descope.com/P3CDYwDpERyUJPEfqnppZM7HLySN/.well-known/jwks.json"
 }
 ```
+
+Per-tribe secret hashes no longer belong in `api-center-prod`. Create one Secret
+Manager secret per tribe, for example:
+
+```text
+api-center-tribe-secret-smoke-tribe
+```
+
+with payload:
+
+```json
+{
+        "serviceId": "smoke-tribe",
+        "secretHashSha256": "<sha256-hash>",
+        "status": "active",
+        "rotatedAt": "2026-05-14T00:00:00.000Z"
+}
+```
+
+Legacy rollback path: `TRIBE_SECRET_<SERVICE_ID_UPPER>` in `api-center-prod`
+still takes precedence during migration. Remove those keys after a successful
+token smoke test against the per-tribe secret.
 
 ### 2B. Confirm runtime selector
 
@@ -217,7 +243,7 @@ Then update `api-center-prod` and validate the payload shape before rolling the 
 
 ```powershell
 $tmp = Join-Path $env:TEMP ('api-center-prod-verify-' + [guid]::NewGuid().ToString() + '.json')
-gcloud.cmd secrets versions access latest --secret=api-center-prod --project api-center-492808 |
+gcloud.cmd secrets versions access latest --secret=api-center-prod --project api-center-496422 |
   Set-Content -LiteralPath $tmp -Encoding UTF8
 $json = Get-Content -Raw -LiteralPath $tmp | ConvertFrom-Json
 Remove-Item -LiteralPath $tmp -Force
@@ -231,6 +257,38 @@ $brokers = [string]$json.KAFKA_BROKERS
   [pscustomobject]@{ Check = 'Custom CA removed'; Pass = ($json.PSObject.Properties.Name -notcontains 'KAFKA_SSL_CA_PEM') }
 ) | Format-Table -AutoSize
 ```
+
+### 2D. Optional control-plane database keys
+
+Do not add these until a Postgres database exists and the initial migration has
+been deployed. Redis remains the active registry source during the migration
+window.
+
+```json
+{
+  "DATABASE_ENABLED": "true",
+  "DATABASE_URL": "postgresql://api_center_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true",
+  "DATABASE_PROVIDER": "supabase",
+  "REGISTRY_SOURCE": "redis",
+  "REGISTRY_DUAL_WRITE": "true"
+}
+```
+
+Switch `REGISTRY_SOURCE` to `postgres` only after registry backfill and
+Redis/Postgres parity checks pass. See `docs/database-control-plane.md`.
+
+Shared-service provider/business schemas are migrated from the
+`api-shared-services` repo, not this gateway repo. Keep their runtime flag
+disabled until each shared-service gateway is wired and tested:
+
+```json
+{
+  "SHARED_SERVICES_DATABASE_ENABLED": "false",
+  "SHARED_SERVICES_DATABASE_URL": "postgresql://shared_services_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true"
+}
+```
+
+Those keys belong in `api-shared-services-prod`, not `api-center-prod`.
 
 ### 3. Run smoke tests before rollout
 
@@ -274,13 +332,13 @@ curl -sS "https://${PUBLIC_HOSTNAME}/api/v1/auth/.well-known/jwks.json" | jq .
 ### 4. Build & push image
 
 ```bash
-IMAGE="us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:$(git rev-parse --short HEAD)"
+IMAGE="asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:$(git rev-parse --short HEAD)"
 
 # Build using the GCP-optimised Dockerfile
 docker build -f docker/Dockerfile.gcp -t "$IMAGE" .
 
 # Authenticate Docker to Artifact Registry (once per machine)
-gcloud auth configure-docker us-central1-docker.pkg.dev
+gcloud auth configure-docker asia-southeast1-docker.pkg.dev
 
 docker push "$IMAGE"
 echo "Pushed: $IMAGE"
@@ -468,7 +526,7 @@ there is no nginx pod in the request path; ingress is handled by GCLB + NEG.
 Secrets now preload before Nest boot via `src/config/gcp-secret-loader.ts` and are rechecked by `secrets.service.ts`.
 This guarantees auth and Kafka config read Secret Manager values during provider initialization.
 The pod KSA `api-center` is Workload Identity-bound to
-`api-center-gke@api-center-492808.iam.gserviceaccount.com`.
+`api-center-gke@api-center-496422.iam.gserviceaccount.com`.
 
 ---
 
@@ -498,3 +556,6 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-13 | 5c55833 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:5c55833`; kept Node 24 LTS runtime target with the proxy v4 ESM bridge | Roll out the dependency upgrade on the production LTS runtime |
 | 2026-05-11 | 512702a | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:512702a`; applied corrected ConfigMap, 2-3 HPA, PDB minAvailable 1, and CPU request 150m | Roll out Confluent/GKE reliability changes and restore the intended low-credit GKE profile |
 | 2026-04-18 | pending | Reduced HPA max replicas from 30 to 6 in `gcp/gke/50-hpa.yaml` for current cluster quota envelope | Prevent futile autoscaler scale-up attempts until node CPU/memory/SSD quotas are increased |
+| 2026-05-14 | manual-tribe-secret-20260514123048 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:manual-tribe-secret-20260514123048`; enabled per-tribe Secret Manager lookup and verified `smoke-tribe` token issuance from `api-center-tribe-secret-smoke-tribe` | Stop editing `api-center-prod` for ordinary tribe secret onboarding |
+| 2026-05-15 | shared-service-export-20260515184111 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:shared-service-export-20260515184111`; added sanitized shared-service export publishing for `sms`, `email`, `payment`, `otp`, `geo`, and `gauth` | Export shared-service usage to dedicated Confluent topics for S3 lake ingestion |
+| 2026-05-16 | migration-20260516 | Created new GCP target project resources in `api-center-496422` / `asia-southeast1`, created fresh Secret Manager versions, deployed API Center and shared services, and verified internal readiness HTTP 200. DNS cutover is still pending. | Move API Center hosting away from the old GCP project while keeping Confluent/S3 external |

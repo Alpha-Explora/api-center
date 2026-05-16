@@ -2,6 +2,9 @@
 
 This guide is for contributors and platform operators who need to run, test, and deploy APICenter. For the full platform setup, provider-secret checklist, and shared-service deployment model see [../apicenter-platform-setup.md](../apicenter-platform-setup.md). For integration and SDK documentation see the [root README](../../README.md).
 
+For future Descope human/admin auth usage, see
+[descope-human-auth-reference.md](./descope-human-auth-reference.md).
+
 ---
 
 ## Table of Contents
@@ -230,8 +233,8 @@ curl -s -X POST http://localhost:3000/api/v1/registry/register \
     "version": "1.0.0"
   }' | jq .
 
-# 2. Add the service secret to .env and restart (or export for this session)
-#    Hash: echo -n "test-secret" | sha256sum | awk '{print $1}'
+# 2. Local dev can still export the legacy env hash.
+#    Deployed envs should use api-center-tribe-secret-test-service instead.
 export TRIBE_SECRET_TEST_SERVICE=$(echo -n "test-secret" | sha256sum | awk '{print $1}')
 
 # 3. Issue a token
@@ -291,9 +294,10 @@ curl -s -X POST http://localhost:3000/api/v1/auth/token \
 ```
 
 API Center validates the plaintext service secret against
-`TRIBE_SECRET_<SERVICE_ID_UPPER>` and signs an internal JWT with registry-derived
-`tribeId`, `permissions`, and `scopes`. New tribes do not need a Descope app for
-machine-to-machine access.
+`api-center-tribe-secret-<service-id>` in GCP Secret Manager, or a legacy
+`TRIBE_SECRET_<SERVICE_ID_UPPER>` env hash during migration, and signs an
+internal JWT with registry-derived `tribeId`, `permissions`, and `scopes`. New
+tribes do not need a Descope app for machine-to-machine access.
 
 ### Descope Validation Fallback
 
@@ -302,35 +306,6 @@ JWT validation fails. Keep `DESCOPE_PROJECT_ID`, `DESCOPE_ISSUER`,
 `DESCOPE_AUDIENCE`, and `DESCOPE_JWKS_URI` configured if human/admin auth still
 uses Descope. Per-tribe `DESCOPE_CLIENT_SECRET_<SERVICE_ID>` keys are only
 needed if you intentionally switch back to `AUTH_PROVIDER=descope`.
-
----
-
-
-```bash
-
-until curl -sf http://localhost:8080/health/ready > /dev/null; do
-done
-
-# Update .env and restart gateway containers
-# (or export inline for a quick test)
-docker-compose up -d api-center-1 api-center-2 api-center-3
-
-KC_RESPONSE=$(curl -s -X POST \
-  "http://localhost:8080/realms/api-center/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials&client_id=api-center&client_secret=dev-secret")
-echo $KC_RESPONSE | jq .
-
-export KC_TOKEN=$(echo $KC_RESPONSE | jq -r '.access_token')
-
-curl -s http://localhost:3000/api/v1/registry/services \
-  -H "Authorization: Bearer $KC_TOKEN" | jq .
-
-# Or let the gateway issue a token via APICenter's /auth/token endpoint
-curl -s -X POST http://localhost:3000/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"tribeId": "api-center", "secret": "dev-secret"}' | jq .
-```
 
 ---
 
@@ -629,8 +604,7 @@ See [`.env.example`](../../.env.example) for the annotated full list. Key variab
 
 Production tribe-token mode should use `composite` first, then optionally
 `internal-jwt` after Descope validation fallback is no longer needed. Supported
-provider values are `dev-jwt`, `internal-jwt`, `composite`, `descope`, and
-`descope`.
+provider values are `dev-jwt`, `internal-jwt`, `composite`, and `descope`.
 
 ### dev-jwt
 
@@ -698,14 +672,42 @@ only. New tribe M2M tokens are issued by API Center and do not need
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Window in milliseconds |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window per service |
 
+### Optional Postgres control plane
+
+Keep these disabled until Supabase migrations have been applied and
+Redis/Postgres parity checks pass.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_ENABLED` | `false` | Enables API Center Postgres connectivity |
+| `DATABASE_URL` | unset | Runtime DB URL for API Center control-plane schemas |
+| `DATABASE_PROVIDER` | unset | Set to `supabase` when using Supabase Postgres |
+| `REGISTRY_SOURCE` | `redis` | Active registry read source: `redis` or `postgres` |
+| `REGISTRY_DUAL_WRITE` | `false` | Enables Redis + Postgres write migration mode |
+
+Shared-service business schemas use `SHARED_SERVICES_DATABASE_URL` in the
+`api-shared-services` repo and secret payload. Do not put shared-service DB
+credentials in `api-center-prod`.
+
 ### Per-service tribe secrets
 
+```text
+Secret name: api-center-tribe-secret-<service-id>
+```
+
+```json
+{
+  "serviceId": "payment-service",
+  "secretHashSha256": "<sha256-hash-of-plaintext-secret>",
+  "status": "active",
+  "rotatedAt": "2026-05-14T00:00:00.000Z"
+}
+```
+
+Legacy local/dev fallback:
+
 ```bash
-# Format: TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>=<sha256-hash-of-plaintext-secret>
-# Hash:   echo -n "my-plaintext-secret" | sha256sum | awk '{print $1}'
 TRIBE_SECRET_PAYMENT_SERVICE=<sha256hash>
-TRIBE_SECRET_USER_SERVICE=<sha256hash>
-TRIBE_SECRET_EMAIL_SERVICE=<sha256hash>
 ```
 
 ### Governed Kafka
@@ -730,7 +732,7 @@ KAFKA_SASL_PASSWORD=<confluent-api-secret>
 - [ ] **Kafka**: Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
 - [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
 - [ ] TLS terminated at NGINX or upstream ingress â€” **never** expose port 3000 directly
-- [ ] Rotate `TRIBE_SECRET_*` secrets regularly
+- [ ] Rotate per-tribe `api-center-tribe-secret-<service-id>` secrets regularly
 - [ ] Change Grafana default password (`GF_SECURITY_ADMIN_PASSWORD`)
 - [ ] Restrict Vault UI, Kafka UI, and Prometheus to internal networks only
 - [ ] `ENVOY_TRUST_HEADERS=false` unless behind a verified Envoy sidecar
@@ -845,8 +847,9 @@ cat > /tmp/api-center-secrets.json <<'EOF'
   "KAFKA_BROKERS": "pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092",
   "KAFKA_SASL_USERNAME": "<confluent-api-key>",
   "KAFKA_SASL_PASSWORD": "<confluent-api-secret>",
-  "TRIBE_SECRET_USER_SERVICE": "<sha256hash>",
-  "TRIBE_SECRET_PAYMENT_SERVICE": "<sha256hash>"
+  "TRIBE_SECRET_SOURCE": "gcp-secret-manager",
+  "TRIBE_SECRET_GCP_PREFIX": "api-center-tribe-secret-",
+  "TRIBE_SECRET_CACHE_TTL_SECONDS": "300"
 }
 EOF
 
@@ -947,11 +950,13 @@ Set non-sensitive env vars directly on the Cloud Run service. Sensitive values g
 | `REDIS_CACHE_URL` | Secret Manager JSON |
 | `KAFKA_BROKERS` | Secret Manager JSON |
 | `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | Secret Manager JSON |
-| `TRIBE_SECRET_*` | Secret Manager JSON |
+| `TRIBE_SECRET_SOURCE` / `TRIBE_SECRET_GCP_PREFIX` / `TRIBE_SECRET_CACHE_TTL_SECONDS` | Secret Manager JSON or env var |
 
 ### Adding Per-Service Secrets
 
-To add or update a tribe secret without modifying other secrets:
+To add or update a tribe secret without modifying `api-center-prod`, create or
+rotate a separate Secret Manager secret. The old `api-center-prod` edit flow
+below is a legacy rollback path only.
 
 1. Download the current secret version:
    ```bash

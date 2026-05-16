@@ -39,6 +39,54 @@ Connector state captured during setup: RUNNING
 
 The earlier `api-center-gcp-dev` / `lkc-vgdkm5` cluster in `ap-southeast-3` is historical. Do not point new API Center deployments at it.
 
+## Test And Live Topic Split
+
+The current low-cost test/live split uses one Confluent cluster and one S3 sink
+connector, but separates records by Kafka topic prefix:
+
+```text
+test API Center -> test.* Kafka topics -> api-center-s3-sink -> s3://api-center-raw-data/topics/test.*
+prod API Center -> prod.* Kafka topics -> api-center-s3-sink -> s3://api-center-raw-data/topics/prod.*
+```
+
+API Center reads `KAFKA_TOPIC_PREFIX` at runtime:
+
+```text
+KAFKA_TOPIC_PREFIX=test.
+KAFKA_TOPIC_PREFIX=prod.
+```
+
+The app validates events against the base schema topic name, then publishes to
+the physical prefixed topic:
+
+```text
+base schema topic: api-center.shared.payment.events
+test physical topic: test.api-center.shared.payment.events
+prod physical topic: prod.api-center.shared.payment.events
+```
+
+Implemented prefixed topics include:
+
+```text
+test.api-center.*
+test.api-center.shared.*
+test.tribe.smoke-tribe.events
+test.tribe.servease.events
+prod.api-center.*
+prod.api-center.shared.*
+prod.tribe.servease.events
+```
+
+New tribe topics should follow the same pattern:
+
+```text
+test.tribe.<tribeId>.events
+prod.tribe.<tribeId>.events
+```
+
+Only create separate Confluent clusters and separate S3 buckets when production
+traffic, compliance, or blast-radius requirements justify the extra fixed cost.
+
 ## User Setup After Repo Fix
 
 1. Create or choose a dedicated API Center producer service account/API key scoped to `lkc-850n9q`.
@@ -48,6 +96,59 @@ The earlier `api-center-gcp-dev` / `lkc-vgdkm5` cluster in `ap-southeast-3` is h
 5. Send a real API Center event and verify it appears in Confluent.
 6. Verify the S3 sink exports records to `s3://api-center-raw-data/topics/...`.
 7. Retire the old `ap-southeast-3` cluster only after API Center and S3 export validation pass.
+
+## Local Management Topic Provisioning
+
+New tribe event topics no longer need to be created manually in the Confluent UI
+when the local `apicenter-management` console is configured with Confluent
+management credentials.
+
+Add these to `apicenter-management/.env.local`. Do not use `NEXT_PUBLIC_*` for
+any of these values.
+
+```text
+CONFLUENT_ENVIRONMENT_ID=<env-id>
+CONFLUENT_KAFKA_CLUSTER_ID=lkc-850n9q
+CONFLUENT_KAFKA_REST_ENDPOINT=https://pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:443
+CONFLUENT_KAFKA_API_KEY=<cluster-scoped Kafka API key>
+CONFLUENT_KAFKA_API_SECRET=<cluster-scoped Kafka API secret>
+CONFLUENT_CLOUD_API_KEY=<cloud management API key>
+CONFLUENT_CLOUD_API_SECRET=<cloud management API secret>
+CONFLUENT_S3_CONNECTOR_NAME=api-center-s3-sink
+CONFLUENT_DEFAULT_RETENTION_MS=604800000
+```
+
+Credential meanings:
+
+```text
+CONFLUENT_KAFKA_API_KEY / SECRET
+  Kafka cluster API key used against the Kafka REST API to check/create topics.
+
+CONFLUENT_CLOUD_API_KEY / SECRET
+  Cloud management API key used against the Connect API to read/update the S3
+  Sink connector config.
+```
+
+Operator flow:
+
+1. Open `http://localhost:3000/tribes/<serviceId>`.
+2. In **Confluent data pipeline**, click **Provision topic**.
+3. Click **Add to S3 sink**.
+4. Publish through API Center's governed Kafka wrapper.
+5. Confirm the topic receives messages and the S3 sink exports them under the
+   configured topic prefix.
+
+Manual fallback:
+
+1. In Confluent Cloud, open cluster `lkc-850n9q`.
+2. Create topic `tribe.<serviceId>.events`.
+3. Use 1 partition and `retention.ms=604800000`.
+4. Open connector `api-center-s3-sink`.
+5. Add `tribe.<serviceId>.events` to the connector topic list.
+6. Restart the connector only if Confluent requires it after config update.
+
+Tribes still do not receive Confluent credentials. They publish through API
+Center and the SDK; API Center is the runtime Confluent producer.
 
 ## Completed Setup
 
@@ -78,7 +179,9 @@ Cluster ID: lkc-vgdkm5
 
 ### 2. Topics Created
 
-Created 22 Kafka topics with 1 partition each.
+Created the original 22 Kafka topics with 1 partition each. The current
+shared-service export design adds 6 more platform topics, for a target S3 sink
+coverage set of 28 topics plus any newly registered `tribe.<id>.events` topics.
 
 Core API Center topics:
 
@@ -88,6 +191,12 @@ api-center.gateway.response
 api-center.gateway.error
 api-center.external.request
 api-center.audit.log
+api-center.shared.sms.events
+api-center.shared.email.events
+api-center.shared.payment.events
+api-center.shared.otp.events
+api-center.shared.geo.events
+api-center.shared.gauth.events
 api-center.auth.token-issued
 api-center.auth.token-refreshed
 api-center.auth.token-revoked
@@ -111,6 +220,22 @@ tribe.pakiapps.events
 tribe.shoteam.events
 tribe.greenovate.events
 ```
+
+Shared-service export topics:
+
+```text
+api-center.shared.sms.events
+api-center.shared.email.events
+api-center.shared.payment.events
+api-center.shared.otp.events
+api-center.shared.geo.events
+api-center.shared.gauth.events
+```
+
+These shared-service topics contain sanitized platform export events emitted by
+API Center after `/api/v1/shared/:serviceId/*` calls. They are not tribe-owned
+topics and should not include raw OTP codes, OAuth tokens, API keys, email
+bodies, SMS bodies, raw email addresses, raw phone numbers, or provider secrets.
 
 Recommended topic settings:
 
@@ -275,7 +400,7 @@ Recommended settings:
 
 ```text
 Connector: Amazon S3 Sink
-Topics: all 22 API Center and tribe event topics
+Topics: all API Center, shared-service export, and tribe event topics
 Kafka credentials: Service account
 Service account name: api-center-s3-sink-connector
 AWS S3 region: same region as the S3 bucket
@@ -307,15 +432,18 @@ Keep `Output message format` as JSON for the initial setup because API Center pu
 Connector sizing screen values:
 
 ```text
-Topics selected: 22
-Partitions selected from topics: 22
+Topics selected: 28 plus any newly registered tribe event topics
+Partitions selected from topics: 28 plus any newly registered tribe event topics
 Tasks: 1
 Estimated task cost shown during setup: $0.043/hr + $0.03125/GB usage
 Throughput shown during setup: up to 5 MBps
 Max partitions shown during setup: 100
 ```
 
-One task is sufficient for the current setup because there are only 22 partitions and Confluent shows one task can handle up to 100 partitions for this connector.
+One task is sufficient for the current setup because the initial topic set is
+well below 100 partitions, and Confluent shows one task can handle up to 100
+partitions for this connector. Revisit task count only when connector lag or
+partition count requires it.
 
 Connector review screen captured values:
 
@@ -641,7 +769,8 @@ Implications:
 ```text
 1. Existing S3 bucket api-center-raw-data can stay unchanged.
 2. Existing AWS IAM role ConfluentS3SinkRole and S3 permissions can remain scoped to api-center-raw-data.
-3. Recreate the 22 Kafka topics in the new Sydney Confluent cluster.
+3. Recreate the API Center, shared-service export, and tribe Kafka topics in
+   the new Sydney Confluent cluster.
 4. Create a new S3 Sink connector in the new Sydney cluster.
 5. Point API Center env vars to the new Sydney cluster bootstrap/REST endpoint and API key.
 6. The old ap-southeast-3 cluster can be deleted after validation to avoid duplicate cost.
@@ -692,11 +821,23 @@ Cluster ID: lkc-850n9q
 Phase: PROVISIONED
 ```
 
-New cluster topic creation result:
+Initial new cluster topic creation result:
 
 ```text
 22 topics created successfully
 22 topics verified through Kafka REST API
+```
+
+Current target topic set after adding shared-service export topics:
+
+```text
+28 baseline topics:
+- 16 core API Center topics
+- 6 shared-service export topics
+- 6 original tribe event topics
+
+Newly registered tribes add one topic each:
+tribe.<tribeId>.events
 ```
 
 New cluster Kafka API key:
@@ -723,7 +864,7 @@ Kafka service account: sa-8wz0rqm
 Initial new connector failure:
 
 ```text
-Missing read permission on the 22 source topics.
+Missing read permission on the source topics.
 s3.bucket.name: Failed to build aws sts client.
 tasks.max: Unable to check whether topic exists.
 ```
@@ -818,7 +959,8 @@ Next checklist:
 ```text
 1. Verify S3 output appears in api-center-raw-data.
 2. Create or choose a dedicated API Center producer service account/API key for lkc-850n9q.
-3. Grant API Center producer permissions to write to the 22 topics.
+3. Grant API Center producer permissions to write to the API Center,
+   shared-service export, and tribe topics.
 4. Update API Center/GCP environment variables to use the new cluster bootstrap/API key.
 5. Redeploy or restart API Center.
 6. Trigger real API Center traffic.
@@ -841,13 +983,13 @@ Kafka topic partitions can be increased later, but they cannot be decreased in p
 Current setup:
 
 ```text
-22 topics x 1 partition = 22 leader partitions
+28 baseline topics x 1 partition = 28 leader partitions
 ```
 
 If every topic is increased to 3 partitions:
 
 ```text
-22 topics x 3 partitions = 66 leader partitions
+28 baseline topics x 3 partitions = 84 leader partitions
 ```
 
 Confluent Cloud does not bill partitions as a separate line item on the current eCKU pricing model, but partition count can affect eCKU usage. Confluent's Basic cluster guideline is 30 pre-replication partitions per Basic eCKU.
@@ -855,11 +997,11 @@ Confluent Cloud does not bill partitions as a separate line item on the current 
 Approximate partition-driven eCKU estimate for Basic:
 
 ```text
-22 partitions -> fits within 1 Basic eCKU
-66 partitions -> may require about 3 Basic eCKUs by partition capacity
+28 partitions -> fits within 1 Basic eCKU under the 30-partition guideline
+84 partitions -> may require about 3 Basic eCKUs by partition capacity
 ```
 
-Confluent's public pricing says the first Basic eCKU is free, then additional Basic eCKUs are $0.14/eCKU-hour. If 66 partitions cause the cluster to use 3 eCKUs, the incremental eCKU cost estimate is:
+Confluent's public pricing says the first Basic eCKU is free, then additional Basic eCKUs are $0.14/eCKU-hour. If 84 partitions cause the cluster to use 3 eCKUs, the incremental eCKU cost estimate is:
 
 ```text
 2 paid eCKUs x $0.14/hr = $0.28/hr
@@ -867,7 +1009,7 @@ $0.28/hr x 24 = $6.72/day
 $0.28/hr x 730 = about $204.40/month
 ```
 
-Connector cost does not increase just from moving to 66 partitions because the S3 Sink connector setup shows 1 task can handle up to 100 partitions. Connector cost remains the shown:
+Connector cost does not increase just from moving to 84 partitions because the S3 Sink connector setup shows 1 task can handle up to 100 partitions. Connector cost remains the shown:
 
 ```text
 $0.043/hr + $0.03125/GB usage

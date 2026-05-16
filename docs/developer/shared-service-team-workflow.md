@@ -128,7 +128,8 @@ The SDK wraps gateway routes only. It does not bypass AP Center policy and it do
 Before a tribe integration is considered ready, verify:
 
 - The tribe is registered in AP Center.
-- `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` exists in AP Center env/secrets.
+- `api-center-tribe-secret-<service-id>` exists in Secret Manager and stores
+  only the tribe secret SHA-256 hash.
 - The shared service is registered with `serviceType: "shared"`.
 - The tribe manifest includes the shared service ID in `consumes`.
 - The SDK method maps to a route listed in the shared-service manifest and contract snapshot.
@@ -139,7 +140,7 @@ Before a tribe integration is considered ready, verify:
   registry-derived scopes, and scope enforcement.
 - In `AUTH_PROVIDER=composite` or `AUTH_PROVIDER=internal-jwt`, tribes do not need
   a Descope app for API Center machine-to-machine access. AP Center validates
-  `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` and signs an internal JWT.
+  the per-tribe Secret Manager hash and signs an internal JWT.
 - Descope remains for human/user identity and management-console login flows, not
   for one OAuth client per tribe.
 - Shared service runtime can trust AP Center forwarded identity headers and does not need to duplicate AP Center authorization policy.

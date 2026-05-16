@@ -25,9 +25,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
 
-COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY tsconfig.json tsconfig.build.json nest-cli.json prisma.config.ts ./
+COPY prisma/ ./prisma/
 COPY src/ ./src/
-RUN npm run build && \
+RUN npm run db:generate && \
+    npm run build && \
     npm prune --omit=dev && \
     npm cache clean --force
 

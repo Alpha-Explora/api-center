@@ -65,6 +65,9 @@ function createMockDeps(): ProxyHandlerDeps {
     sharedServiceUsage: {
       record: jest.fn().mockResolvedValue(undefined),
     } as any,
+    sharedServiceEvents: {
+      publishSharedServiceCall: jest.fn(),
+    } as any,
   };
 }
 
@@ -686,6 +689,39 @@ describe("ProxyHandler", () => {
           type: "shared_service.call",
           tribeServiceId: "campusone",
           sharedServiceId: "paymongo",
+        }),
+      );
+    });
+
+    it("publishes sanitized shared-service export events", async () => {
+      const req = fakeReq({
+        tribeId: "campusone",
+        method: "POST",
+        originalUrl: "/api/v1/shared/sms/send",
+        body: {
+          to: "+639171234567",
+          message: "Your OTP is 123456",
+        },
+      });
+      const res = fakeResWithFinish(201);
+
+      await handler.proxyRequest("sms", req, res);
+      res.finishHandlers.forEach((handler: () => void) => handler());
+
+      expect(
+        deps.sharedServiceEvents?.publishSharedServiceCall,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tribeId: "campusone",
+          sharedServiceId: "sms",
+          route: "/api/v1/shared/sms/send",
+          method: "POST",
+          statusCode: 201,
+          ok: true,
+          requestBody: {
+            to: "+639171234567",
+            message: "Your OTP is 123456",
+          },
         }),
       );
     });

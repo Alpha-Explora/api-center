@@ -8,17 +8,27 @@ import { RegistryService } from "./registry.service";
 import { RegistryController } from "./registry.controller";
 import { HealthMonitorService } from "./health-monitor.service";
 import { RegistryBootstrapService } from "./registry-bootstrap.service";
+import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
+import { PostgresRegistryStoreService } from "./postgres-registry-store.service";
 import { VaultModule } from "../auth/vault.module";
 import { AuthModule } from "../auth/auth.module";
+import { DatabaseModule } from "../database/database.module";
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     VaultModule,
+    DatabaseModule,
     forwardRef(() => AuthModule),
   ],
   controllers: [RegistryController],
-  providers: [RegistryService, HealthMonitorService, RegistryBootstrapService],
+  providers: [
+    RegistryService,
+    HealthMonitorService,
+    RegistryBootstrapService,
+    TribeSecretResolverService,
+    PostgresRegistryStoreService,
+  ],
   exports: [RegistryService],
 })
 export class RegistryModule {}

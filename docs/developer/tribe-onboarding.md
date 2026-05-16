@@ -33,8 +33,9 @@ Validation notes:
 
 ## Tribe Startup Checklist
 
-1. Add hashed startup secret in API Center Secret Manager:
-   - `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>=<sha256>`
+1. Create the per-tribe Secret Manager secret:
+   - secret name: `api-center-tribe-secret-<service-id>`
+   - payload stores `secretHashSha256=<sha256>` only
 2. Ensure tribe requests an access token from `/api/v1/auth/token`.
 3. Register service manifest at startup.
 4. Verify discovery visibility through `/api/v1/tribes` or `/api/v1/shared`.
@@ -44,8 +45,10 @@ Validation notes:
 
 New tribes do not need a Descope app for API Center machine-to-machine access.
 API Center validates the plaintext tribe secret against
-`TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>`, derives scopes from the registry, and
-issues an API Center-signed internal JWT.
+`api-center-tribe-secret-<service-id>`, derives scopes from the registry, and
+issues an API Center-signed internal JWT. Legacy
+`TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` env keys are accepted only during
+migration.
 
 The tribe sends the plaintext secret only to:
 
@@ -55,8 +58,19 @@ POST /api/v1/auth/token
 
 Secret Manager stores only the SHA-256 hash:
 
+```json
+{
+  "serviceId": "orders-service",
+  "secretHashSha256": "<sha256 hash of plaintext tribe secret>",
+  "status": "active",
+  "rotatedAt": "2026-05-14T00:00:00.000Z"
+}
+```
+
+Secret name:
+
 ```text
-TRIBE_SECRET_ORDERS_SERVICE=<sha256 hash of plaintext tribe secret>
+api-center-tribe-secret-orders-service
 ```
 
 Descope remains for human/user identity and future management-console login. Do

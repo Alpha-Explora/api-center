@@ -7,9 +7,11 @@ import { SharedServicesController } from "./shared-services.controller";
 import { AuthModule } from "../auth/auth.module";
 import { RegistryModule } from "../registry/registry.module";
 import { AnalyticsModule } from "../analytics/analytics.module";
+import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 
 @Module({
   imports: [AuthModule, RegistryModule, AnalyticsModule],
   controllers: [SharedServicesController],
+  providers: [SharedServiceEventPublisher],
 })
 export class SharedServicesModule {}

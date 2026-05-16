@@ -8,3 +8,4 @@ export * from "./external.schemas";
 export * from "./registry.schemas";
 export * from "./tribe.schemas";
 export * from "./auth.schemas";
+export * from "./shared-service-export.schemas";

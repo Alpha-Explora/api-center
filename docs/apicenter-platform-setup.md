@@ -35,17 +35,38 @@ GCP API Gateway / APICenter shared services
 
 Confluent Cloud is not in the synchronous proxy path for tribe-to-tribe calls. It is the asynchronous event and raw-data backbone.
 
+## Confluent Ownership Rule
+
+API Center owns Confluent credentials and publishing. Tribes do not receive
+Confluent Cloud API keys, Kafka API keys, connector credentials, or AWS S3
+credentials.
+
+For new tribes, use the local `apicenter-management` tribe detail page to:
+
+1. Provision `tribe.<serviceId>.events` in Confluent Cloud.
+2. Add that topic to the existing `api-center-s3-sink` connector.
+3. Keep tribe runtime code on the SDK path:
+
+```text
+tribe backend -> @implementsprint/sdk -> API Center -> Confluent Cloud -> S3
+```
+
+This is an operator-only management action. It does not create direct tribe
+Confluent credentials.
+
 ## Current Cloud Resources
 
 | Resource | Current role |
 | --- | --- |
 | GCP project | Hosts GKE, Secret Manager, Memorystore, Artifact Registry, and load-balancer resources. |
-| GKE cluster | `api-center` in `us-central1`; runs APICenter pods. |
+| GKE cluster | `api-center` in `asia-southeast1`; runs APICenter pods. |
 | GKE namespace | `api-center`. |
 | APICenter HPA | Current low-credit target is min 2 pods, max 3 pods. |
 | Shared-service HPAs | `payment`, `sms`, `email`, `gauth`, `otp`, and `geo` run as internal `ClusterIP` services with HPA min 1, max 3. |
-| Secret Manager | `api-center-prod` for gateway secrets. Use `api-shared-services-prod` for shared-service provider secrets. |
-| Memorystore Redis | Registry/token cache, rate-limit counters, and shared-service OTP/SMS state. Current low-traffic target uses one 1 GiB Basic instance, `api-center-cache` at `10.34.181.131:6379`; verify the endpoint in GCP before pasting. |
+| Secret Manager | `api-center-prod` for gateway/platform secrets, `api-center-tribe-secret-<service-id>` for per-tribe secret hashes, and `api-shared-services-prod` for shared-service provider secrets. |
+| Memorystore Redis | Registry/token cache, rate-limit counters, and shared-service OTP/SMS state. Current low-traffic target uses one 1 GiB Basic instance, `api-center-cache` at `10.88.197.107:6379`; verify the endpoint in GCP before pasting. |
+| Postgres control-plane DB | Optional ACID store for durable management state. Keep disabled until the database is created and migrated; Redis remains the active source for now. See [database-control-plane.md](database-control-plane.md). |
+| Shared-service Postgres schemas | Optional provider/domain records for payment, OTP, email, SMS, geo, and Google OAuth. These schemas are migrated from `api-shared-services` and remain disabled until runtime persistence is wired. |
 | Confluent Cloud | Managed Kafka cluster and connector runtime. Use Kafka cluster API keys for `KAFKA_SASL_USERNAME` and `KAFKA_SASL_PASSWORD`. |
 | AWS S3 | Raw data lake target for the Confluent S3 Sink connector. |
 
@@ -130,7 +151,9 @@ ConfigMap values.
   "KAFKA_SASL_MECHANISM": "plain",
   "KAFKA_SASL_USERNAME": "<confluent-kafka-cluster-api-key>",
   "KAFKA_SASL_PASSWORD": "<confluent-kafka-cluster-api-secret>",
-  "TRIBE_SECRET_<SERVICE_ID>": "<sha256-of-tribe-secret>"
+  "TRIBE_SECRET_SOURCE": "gcp-secret-manager",
+  "TRIBE_SECRET_GCP_PREFIX": "api-center-tribe-secret-",
+  "TRIBE_SECRET_CACHE_TTL_SECONDS": "300"
 }
 ```
 
@@ -156,6 +179,36 @@ $bytes = [System.Text.Encoding]::UTF8.GetBytes($raw)
 ([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join ""
 ```
 
+## Per-Tribe Secret Manager Payload
+
+Do not add new `TRIBE_SECRET_*` keys to `api-center-prod`. Each tribe gets its
+own Secret Manager secret:
+
+```text
+api-center-tribe-secret-<service-id>
+```
+
+Payload:
+
+```json
+{
+  "serviceId": "orders-service",
+  "secretHashSha256": "<sha256 hash of plaintext tribe secret>",
+  "status": "active",
+  "rotatedAt": "2026-05-14T00:00:00.000Z"
+}
+```
+
+API Center reads this payload dynamically when
+`TRIBE_SECRET_SOURCE=gcp-secret-manager` is set. Resolved hashes are cached for
+`TRIBE_SECRET_CACHE_TTL_SECONDS`, so normal tribe onboarding does not require an
+API Center restart.
+
+Legacy rollback path: `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` in
+`api-center-prod` still works during migration and takes precedence over the
+per-tribe Secret Manager secret. Remove those legacy keys after smoke tests
+pass.
+
 ## Shared Services Secret Manager Payload
 
 Secret name:
@@ -174,6 +227,8 @@ Use one shared secret payload for provider-backed shared services if they run to
   "REDIS_URL": "redis://<api-center-cache-private-ip>:6379",
   "OTP_REDIS_URL": "redis://<api-center-cache-private-ip>:6379",
   "SMS_REDIS_URL": "redis://<api-center-cache-private-ip>:6379",
+  "SHARED_SERVICES_DATABASE_ENABLED": "false",
+  "SHARED_SERVICES_DATABASE_URL": "postgresql://shared_services_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true",
   "PAYMENT_PROVIDER_MODE": "test",
   "PAYMENT_PROVIDER_NAME": "paymongo",
   "PAYMONGO_BASE_URL": "https://api.paymongo.com/v1",
@@ -192,6 +247,19 @@ Use one shared secret payload for provider-backed shared services if they run to
 ```
 
 Use `PAYMENT_PROVIDER_MODE=test` until you are ready for live charges. Keeping test and live PayMongo keys in the same secret lets the runtime switch mode without editing credentials.
+
+Keep `SHARED_SERVICES_DATABASE_ENABLED=false` until Supabase migrations have
+been deployed from `api-shared-services`, and each shared-service
+gateway has runtime persistence tests. The DB URL belongs in
+`api-shared-services-prod`, not `api-center-prod`.
+
+Optional shared-service migration command from `api-shared-services`:
+
+```powershell
+npx supabase link --project-ref <project-ref>
+npx supabase db push --dry-run
+npx supabase db push
+```
 
 ## Legacy Keys To Remove
 
@@ -300,16 +368,23 @@ Use a separate rate-limit Redis only when traffic is high enough that counter ch
 
 ## Deployment Order
 
-1. Update `api-center-prod`.
+1. Update `api-center-prod` once with platform/runtime keys and the tribe secret
+   resolver settings.
 2. Update `api-shared-services-prod`.
-3. Restart or redeploy APICenter only when its own secret changed.
-4. In `api-shared-services`, run `scripts/sync-gke-secret.ps1` to copy
+3. If Supabase Postgres is being introduced, run API Center and shared-service
+   Supabase migrations first, but keep both database feature flags disabled
+   until runtime verification is ready.
+4. Restart or redeploy APICenter only when its own platform secret changed.
+5. In `api-shared-services`, run `scripts/sync-gke-secret.ps1` to copy
    `api-shared-services-prod` into the Kubernetes secret of the same name.
-5. Apply `api-shared-services/gcp/gke/00-shared-services.yaml`.
-6. Confirm shared services self-register through `PLATFORM_ADMIN_SECRET`.
-7. Register tribe manifests with `consumes` entries for the shared services they need.
-8. Issue a tribe token and smoke test one route per shared service.
-9. Verify Confluent publishing and S3 sink delivery.
+6. Apply `api-shared-services/gcp/gke/00-shared-services.yaml`.
+7. Confirm shared services self-register through `PLATFORM_ADMIN_SECRET`.
+8. Register tribe manifests with `consumes` entries for the shared services they need.
+9. Create `api-center-tribe-secret-<service-id>` for each tribe secret hash.
+10. Provision `tribe.<service-id>.events` from the management console and add it
+   to `api-center-s3-sink`.
+11. Issue a tribe token and smoke test one route per shared service.
+12. Verify Confluent publishing and S3 sink delivery.
 
 Current deployed shared-service image tag:
 
@@ -353,7 +428,7 @@ In `/api/v1/metrics`, check for Kafka producer readiness and publish failure cou
 Before a tribe uses shared services:
 
 - Tribe has a stable `serviceId`.
-- `TRIBE_SECRET_<SERVICE_ID>` exists in `api-center-prod` as a SHA-256 hash.
+- `api-center-tribe-secret-<service-id>` exists and stores only the SHA-256 hash.
 - API Center has a persistent internal JWT key pair in `JWT_PRIVATE_KEY` and
   `JWT_PUBLIC_KEY`; do not use generated in-memory keys in production.
 - Tribe manifest is registered with correct `consumes`.

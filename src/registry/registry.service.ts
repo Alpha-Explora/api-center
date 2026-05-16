@@ -13,7 +13,6 @@
 // =============================================================================
 
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import crypto from "node:crypto";
 import Redis from "ioredis";
 import {
   ServiceManifest,
@@ -31,6 +30,7 @@ import {
   ValidationError,
 } from "../shared/errors";
 import { TOPICS } from "../kafka/topics";
+import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
 
 const REDIS_REGISTRY_KEY = "api-center:registry:services";
 
@@ -50,6 +50,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly kafka: KafkaService,
     private readonly metrics: MetricsService,
+    private readonly tribeSecretResolver: TribeSecretResolverService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -482,13 +483,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // -------------------------------------------------------------------------
 
   async validateSecret(serviceId: string, secret: string): Promise<boolean> {
-    const envKey = `TRIBE_SECRET_${serviceId.toUpperCase().replaceAll("-", "_")}`;
-    const expected = process.env[envKey];
-    if (!expected) return false;
-
-    const hash = crypto.createHash("sha256").update(secret).digest("hex");
-    if (hash.length !== expected.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(expected));
+    return this.tribeSecretResolver.validateSecret(serviceId, secret);
   }
 
   // -------------------------------------------------------------------------

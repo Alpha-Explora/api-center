@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["api_center", "api_center_ops", "api_center_audit"]
+}
+
+model Organization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String   @unique
+  name      String
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  services Service[]
+
+  @@map("organizations")
+  @@schema("api_center")
+}
+
+model Service {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  serviceId            String    @map("service_id")
+  name                 String
+  serviceType          String    @map("service_type")
+  baseUrl              String    @map("base_url")
+  healthCheckPath      String?   @map("health_check_path")
+  status               String    @default("active")
+  version              String?
+  previousVersion      String?   @map("previous_version")
+  description          String?
+  tags                 Json      @default("[]")
+  ownerTeam            String?   @map("owner_team")
+  contact              String?
+  serviceTier          String?   @map("service_tier")
+  costCenter           String?   @map("cost_center")
+  sunsetDate           DateTime? @map("sunset_date") @db.Timestamptz(6)
+  replacementServiceId String?   @map("replacement_service_id")
+  healthy              Boolean?
+  lastHealthCheckAt    DateTime? @map("last_health_check_at") @db.Timestamptz(6)
+  registeredAt         DateTime  @default(now()) @map("registered_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization         Organization            @relation(fields: [organizationId], references: [id])
+  routes               ServiceRoute[]
+  scopes               ServiceScope[]
+  dependencies         ServiceDependency[]     @relation("ServiceDependencies")
+  dependedOnBy         ServiceDependency[]     @relation("DependsOnService")
+  lifecycleEvents      ServiceLifecycleEvent[]
+  tribeSecretRef       TribeSecretRef?
+  confluentTopics      ConfluentTopic[]
+  provisioningJobs     ProvisioningJob[]
+  healthSnapshots      HealthSnapshot[]
+  smokeTestRuns        SmokeTestRun[]          @relation("SmokeTestService")
+  tribeSmokeTestRuns   SmokeTestRun[]          @relation("SmokeTestTribe")
+  usageAsConsumer      UsageRollup[]           @relation("UsageConsumer")
+  usageAsTarget        UsageRollup[]           @relation("UsageTarget")
+
+  @@unique([organizationId, serviceId], name: "organization_service_id")
+  @@index([serviceType, status], name: "services_type_status_idx")
+  @@index([ownerTeam], name: "services_owner_team_idx")
+  @@map("services")
+  @@schema("api_center")
+}
+
+model ServiceRoute {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId   String   @map("service_id") @db.Uuid
+  method      String?
+  path        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, method, path])
+  @@map("service_routes")
+  @@schema("api_center")
+}
+
+model ServiceScope {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId String   @map("service_id") @db.Uuid
+  scope     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, scope])
+  @@map("service_scopes")
+  @@schema("api_center")
+}
+
+model ServiceDependency {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId           String   @map("service_id") @db.Uuid
+  dependsOnServiceId  String?  @map("depends_on_service_id") @db.Uuid
+  dependsOnExternalId String?  @map("depends_on_external_id")
+  dependencyType      String   @default("consumes") @map("dependency_type")
+  required            Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  service          Service  @relation("ServiceDependencies", fields: [serviceId], references: [id], onDelete: Cascade)
+  dependsOnService Service? @relation("DependsOnService", fields: [dependsOnServiceId], references: [id])
+
+  @@index([serviceId], name: "service_dependencies_service_idx")
+  @@index([dependsOnServiceId], name: "service_dependencies_depends_on_idx")
+  @@map("service_dependencies")
+  @@schema("api_center")
+}
+
+model ServiceLifecycleEvent {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId       String   @map("service_id") @db.Uuid
+  eventType       String   @map("event_type")
+  previousStatus  String?  @map("previous_status")
+  nextStatus      String?  @map("next_status")
+  previousVersion String?  @map("previous_version")
+  nextVersion     String?  @map("next_version")
+  actorType       String   @default("system") @map("actor_type")
+  actorId         String?  @map("actor_id")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("service_lifecycle_events")
+  @@schema("api_center")
+}
+
+model TribeSecretRef {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId         String    @unique @map("service_id") @db.Uuid
+  secretManagerName String    @map("secret_manager_name")
+  latestVersion     String?   @map("latest_version")
+  status            String    @default("active")
+  rotatedAt         DateTime? @map("rotated_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("tribe_secret_refs")
+  @@schema("api_center")
+}
+
+model ConfluentTopic {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicName         String    @unique @map("topic_name")
+  ownerServiceId    String?   @map("owner_service_id") @db.Uuid
+  topicType         String    @map("topic_type")
+  partitions        Int       @default(1)
+  retentionMs       BigInt?   @map("retention_ms")
+  cleanupPolicy     String    @default("delete") @map("cleanup_policy")
+  existsInConfluent Boolean   @default(false) @map("exists_in_confluent")
+  lastCheckedAt     DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  lastError         String?   @map("last_error")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ownerService Service?      @relation(fields: [ownerServiceId], references: [id], onDelete: SetNull)
+  s3SinkTopics S3SinkTopic[]
+
+  @@map("confluent_topics")
+  @@schema("api_center")
+}
+
+model S3SinkTopic {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId       String    @map("topic_id") @db.Uuid
+  connectorName String    @map("connector_name")
+  included      Boolean   @default(false)
+  lastCheckedAt DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  topic ConfluentTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, connectorName])
+  @@map("s3_sink_topics")
+  @@schema("api_center")
+}
+
+model ProvisioningJob {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId    String?   @map("service_id") @db.Uuid
+  jobType      String    @map("job_type")
+  status       String    @default("pending")
+  requestedBy  String?   @map("requested_by")
+  request      Json      @default("{}")
+  result       Json      @default("{}")
+  errorMessage String?   @map("error_message")
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt   DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([serviceId], name: "provisioning_jobs_service_idx")
+  @@index([status, createdAt], name: "provisioning_jobs_status_created_idx")
+  @@map("provisioning_jobs")
+  @@schema("api_center_ops")
+}
+
+model AuditEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correlationId  String?  @map("correlation_id")
+  actorType      String   @default("system") @map("actor_type")
+  actorId        String?  @map("actor_id")
+  action         String
+  resourceType   String   @map("resource_type")
+  resourceId     String?  @map("resource_id")
+  outcome        String   @default("succeeded")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt], name: "audit_events_created_idx")
+  @@index([resourceType, resourceId, createdAt], name: "audit_events_resource_idx")
+  @@index([actorType, actorId, createdAt], name: "audit_events_actor_idx")
+  @@map("audit_events")
+  @@schema("api_center_audit")
+}
+
+model HealthSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId    String   @map("service_id") @db.Uuid
+  healthy      Boolean
+  statusCode   Int?     @map("status_code")
+  latencyMs    Int?     @map("latency_ms")
+  errorMessage String?  @map("error_message")
+  checkedAt    DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("health_snapshots")
+  @@schema("api_center_ops")
+}
+
+model SmokeTestRun {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId          String?  @map("service_id") @db.Uuid
+  tribeServiceId     String?  @map("tribe_service_id") @db.Uuid
+  testType           String   @map("test_type")
+  providerImpacting  Boolean  @default(false) @map("provider_impacting")
+  status             String
+  statusCode         Int?     @map("status_code")
+  latencyMs          Int?     @map("latency_ms")
+  responsePreview    String?  @map("response_preview")
+  errorMessage       String?  @map("error_message")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  service      Service? @relation("SmokeTestService", fields: [serviceId], references: [id], onDelete: SetNull)
+  tribeService Service? @relation("SmokeTestTribe", fields: [tribeServiceId], references: [id], onDelete: SetNull)
+
+  @@map("smoke_test_runs")
+  @@schema("api_center_ops")
+}
+
+model UsageRollup {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  windowStart       DateTime  @map("window_start") @db.Timestamptz(6)
+  windowEnd         DateTime  @map("window_end") @db.Timestamptz(6)
+  consumerServiceId String?   @map("consumer_service_id") @db.Uuid
+  targetServiceId   String?   @map("target_service_id") @db.Uuid
+  routeFamily       String    @map("route_family")
+  requestCount      Int       @default(0) @map("request_count")
+  successCount      Int       @default(0) @map("success_count")
+  errorCount        Int       @default(0) @map("error_count")
+  avgLatencyMs      Decimal?  @map("avg_latency_ms") @db.Decimal(10, 2)
+  p95LatencyMs      Int?      @map("p95_latency_ms")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  consumerService Service? @relation("UsageConsumer", fields: [consumerServiceId], references: [id], onDelete: SetNull)
+  targetService   Service? @relation("UsageTarget", fields: [targetServiceId], references: [id], onDelete: SetNull)
+
+  @@unique([windowStart, windowEnd, consumerServiceId, targetServiceId, routeFamily])
+  @@map("usage_rollups")
+  @@schema("api_center_ops")
+}

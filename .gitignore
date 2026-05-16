@@ -37,6 +37,9 @@ desktop.ini
 # ---- Test coverage ----
 coverage/
 
+# ---- Supabase local state ----
+supabase/.temp/
+
 # ---- Docker (local volumes) ----
 docker-data/
 

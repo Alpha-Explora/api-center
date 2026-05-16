@@ -18,6 +18,14 @@ export const TOPICS = {
   // ---- Audit / Observability ----
   AUDIT_LOG: "api-center.audit.log",
 
+  // ---- Shared-service sanitized export events ----
+  SHARED_SMS_EVENTS: "api-center.shared.sms.events",
+  SHARED_EMAIL_EVENTS: "api-center.shared.email.events",
+  SHARED_PAYMENT_EVENTS: "api-center.shared.payment.events",
+  SHARED_OTP_EVENTS: "api-center.shared.otp.events",
+  SHARED_GEO_EVENTS: "api-center.shared.geo.events",
+  SHARED_GAUTH_EVENTS: "api-center.shared.gauth.events",
+
   // ---- Service Registry events ----
   SERVICE_REGISTERED: "api-center.registry.service-registered",
   SERVICE_DEREGISTERED: "api-center.registry.service-deregistered",
@@ -44,3 +52,27 @@ export const TOPICS = {
 } as const;
 
 export type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
+
+export function withTopicPrefix(topic: string, prefix?: string) {
+  const cleanTopic = topic.trim();
+  const cleanPrefix = (prefix ?? "").trim().replace(/\.+$/, "");
+
+  if (!cleanPrefix) return cleanTopic;
+  if (cleanTopic === cleanPrefix || cleanTopic.startsWith(`${cleanPrefix}.`)) {
+    return cleanTopic;
+  }
+
+  return `${cleanPrefix}.${cleanTopic}`;
+}
+
+export const SHARED_SERVICE_EVENT_TOPICS = {
+  sms: TOPICS.SHARED_SMS_EVENTS,
+  email: TOPICS.SHARED_EMAIL_EVENTS,
+  payment: TOPICS.SHARED_PAYMENT_EVENTS,
+  otp: TOPICS.SHARED_OTP_EVENTS,
+  geo: TOPICS.SHARED_GEO_EVENTS,
+  gauth: TOPICS.SHARED_GAUTH_EVENTS,
+} as const;
+
+export type SharedServiceEventTopicId =
+  keyof typeof SHARED_SERVICE_EVENT_TOPICS;

@@ -11,6 +11,7 @@ import { LoggerService } from "../shared/logger.service";
 import { ConfigService } from "../config/config.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { MetricsService } from "../metrics/metrics.service";
+import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
 import { ServiceManifest } from "../types";
 import {
   NotFoundError,
@@ -40,6 +41,10 @@ const mockKafka: Partial<KafkaService> = {
 const mockMetrics: Partial<MetricsService> = {
   setRegistryServicesCount: jest.fn(),
   setRegistryServicesCountByStatus: jest.fn(),
+};
+
+const mockTribeSecretResolver: Partial<TribeSecretResolverService> = {
+  validateSecret: jest.fn(),
 };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -72,6 +77,7 @@ describe("RegistryService", () => {
       mockConfig as ConfigService,
       mockKafka as KafkaService,
       mockMetrics as MetricsService,
+      mockTribeSecretResolver as TribeSecretResolverService,
     );
   });
 

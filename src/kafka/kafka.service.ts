@@ -22,7 +22,7 @@ import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
-import { TOPICS } from "./topics";
+import { TOPICS, withTopicPrefix } from "./topics";
 import {
   GatewayRequestEventSchema,
   GatewayResponseEventSchema,
@@ -40,6 +40,7 @@ import {
   TokenIssuedEventSchema,
   TokenRefreshedEventSchema,
   TokenRevokedEventSchema,
+  SharedServiceExportEventSchema,
 } from "./schemas";
 
 /**
@@ -63,6 +64,12 @@ const TOPIC_SCHEMAS: Record<string, ZodSchema> = {
   [TOPICS.TOKEN_ISSUED]: TokenIssuedEventSchema,
   [TOPICS.TOKEN_REFRESHED]: TokenRefreshedEventSchema,
   [TOPICS.TOKEN_REVOKED]: TokenRevokedEventSchema,
+  [TOPICS.SHARED_SMS_EVENTS]: SharedServiceExportEventSchema,
+  [TOPICS.SHARED_EMAIL_EVENTS]: SharedServiceExportEventSchema,
+  [TOPICS.SHARED_PAYMENT_EVENTS]: SharedServiceExportEventSchema,
+  [TOPICS.SHARED_OTP_EVENTS]: SharedServiceExportEventSchema,
+  [TOPICS.SHARED_GEO_EVENTS]: SharedServiceExportEventSchema,
+  [TOPICS.SHARED_GAUTH_EVENTS]: SharedServiceExportEventSchema,
 };
 
 @Injectable()
@@ -200,6 +207,8 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     payload: Record<string, unknown>,
     key?: string,
   ): Promise<void> {
+    const physicalTopic = withTopicPrefix(topic, this.config.kafka.topicPrefix);
+
     try {
       // ---- Schema validation ----
       const schema = TOPIC_SCHEMAS[topic];
@@ -213,7 +222,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       }
 
       await this.producer.send({
-        topic,
+        topic: physicalTopic,
         messages: [
           {
             key: key ? String(key) : undefined,
@@ -227,19 +236,20 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
           },
         ],
       });
-      this.metrics?.recordKafkaPublish(topic, "success");
+      this.metrics?.recordKafkaPublish(physicalTopic, "success");
     } catch (err) {
-      this.metrics?.recordKafkaPublish(topic, "failure");
+      this.metrics?.recordKafkaPublish(physicalTopic, "failure");
       this.gatewayTraffic
-        ?.recordKafkaPublishFailure(topic)
+        ?.recordKafkaPublishFailure(physicalTopic)
         .catch(() => undefined);
       this.auditEvents
         ?.record({
           type: "kafka.publish_failed",
           severity: "error",
-          message: `Kafka publish failed for ${topic}`,
+          message: `Kafka publish failed for ${physicalTopic}`,
           payload: {
-            topic,
+            topic: physicalTopic,
+            baseTopic: topic,
             error: (err as Error).message,
           },
         })
@@ -266,9 +276,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       context = "KafkaService",
       failureLogLevel = "debug",
     } = options || {};
+    const physicalTopic = withTopicPrefix(topic, this.config.kafka.topicPrefix);
 
     void this.publish(topic, payload, key).catch((err) => {
-      const message = `Kafka publish failed for ${topic} (non-blocking): ${(err as Error).message}`;
+      const message = `Kafka publish failed for ${physicalTopic} (non-blocking): ${(err as Error).message}`;
       if (failureLogLevel === "warn") {
         this.logger.warn(message, context);
         return;
@@ -285,12 +296,13 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     topic: string,
     handler: (message: Record<string, unknown>) => Promise<void>,
   ): Promise<void> {
+    const physicalTopic = withTopicPrefix(topic, this.config.kafka.topicPrefix);
     const consumer = this.kafka.consumer({
-      groupId: `${this.config.kafka.groupId}-${topic}`,
+      groupId: `${this.config.kafka.groupId}-${physicalTopic}`,
     });
 
     await consumer.connect();
-    await consumer.subscribe({ topic, fromBeginning: false });
+    await consumer.subscribe({ topic: physicalTopic, fromBeginning: false });
 
     await consumer.run({
       eachMessage: async ({ message }) => {
@@ -307,7 +319,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    this.consumers.set(topic, consumer);
-    this.logger.log(`Kafka subscribed to topic: ${topic}`, "KafkaService");
+    this.consumers.set(physicalTopic, consumer);
+    this.logger.log(
+      `Kafka subscribed to topic: ${physicalTopic}`,
+      "KafkaService",
+    );
   }
 }

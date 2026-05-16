@@ -21,6 +21,7 @@ import { MetricsService } from "../metrics/metrics.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
+import { SharedServiceEventPublisher } from "../shared-services/shared-service-event-publisher";
 import { CircuitBreaker } from "../shared/circuit-breaker";
 import {
   ForbiddenError,
@@ -56,6 +57,7 @@ export interface ProxyHandlerDeps {
   auditEvents?: AuditEventsService;
   gatewayTraffic?: GatewayTrafficService;
   sharedServiceUsage?: SharedServiceUsageService;
+  sharedServiceEvents?: SharedServiceEventPublisher;
 }
 
 export interface ProxyOptions {
@@ -354,6 +356,13 @@ export class ProxyHandler {
         res.statusCode,
         latencyMs,
       );
+      this.publishSharedServiceExportEvent(
+        tribeId,
+        targetServiceId,
+        req,
+        res.statusCode,
+        latencyMs,
+      );
     });
 
     try {
@@ -440,6 +449,30 @@ export class ProxyHandler {
           "ProxyHandler",
         );
       });
+  }
+
+  private publishSharedServiceExportEvent(
+    tribeId: string,
+    targetServiceId: string,
+    req: AuthenticatedRequest,
+    statusCode: number,
+    latencyMs: number,
+  ): void {
+    if (this.opts.namespace !== "shared" || !this.deps.sharedServiceEvents) {
+      return;
+    }
+
+    this.deps.sharedServiceEvents.publishSharedServiceCall({
+      tribeId,
+      sharedServiceId: targetServiceId,
+      route: req.originalUrl ?? req.url ?? "",
+      method: req.method,
+      statusCode,
+      ok: statusCode < 400,
+      latencyMs,
+      correlationId: req.correlationId,
+      requestBody: req.body,
+    });
   }
 
   private recordGatewayTraffic(

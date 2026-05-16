@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-center-config
+data:
+  GCP_SECRET_NAME: "api-center-test"
+  KAFKA_TOPIC_PREFIX: "test."
+  ALLOWED_ORIGINS: "https://api-center-test.itsandbox.site"
+  INTERNAL_JWT_ISSUER: "https://api-center-test.itsandbox.site"

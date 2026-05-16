@@ -1,4 +1,4 @@
-# APICenter â€” Centralized API Gateway
+﻿# APICenter - Centralized API Gateway
 
 APICenter is the **single, centralized API gateway** for the platform. Tribe-to-tribe calls, shared platform services, auth, registry, and governed event publishing route through APICenter. No tribe calls another tribe or provider API directly.
 
@@ -8,17 +8,21 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 >
 > **Deploying?** Pick one:
 >
-> - [Cloud Run](gcp/cloudrun.yaml) â€” single Knative Service, simplest path, scale 1â€“10
-> - [GKE Autopilot + HPA](gcp/gke/README.md) â€” horizontal pod autoscaling 3â€“30, Memorystore, GCLB Ingress
+> Current production uses GKE Autopilot with API Center HPA min 2 / max 3.
+> Cloud Run remains an older/simple deployment option only if the platform
+> deliberately moves away from the current GKE shape.
+>
+> - [GKE Autopilot + HPA](gcp/gke/README.md) - current production shape, min 2 / max 3 API Center pods, Memorystore, GCLB Ingress
+> - [Cloud Run](gcp/cloudrun.yaml) - older/simple deployment option; use only if deliberately moving away from the current GKE shape
 
 ---
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Quick Start â€” dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
+2. [Quick Start Ã¢â‚¬â€ dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
 3. [Auth Providers](#auth-providers)
-   - [dev-jwt â€” Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
+   - [dev-jwt Ã¢â‚¬â€ Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
   - [Internal Tribe JWT + Descope Fallback](#2-internal-tribe-jwt--descope-fallback)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
@@ -29,22 +33,17 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 
 ## Architecture Overview
 
-```
-Consumer (tribe SDK / browser / external client)
-  â”‚
-  â–¼  :3000  â† ONE entrypoint for everything
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚  NGINX Load Balancer                            â”‚
-â”‚  â€¢ Round-robin across 3 containers              â”‚
-â”‚  â€¢ Passive health checks (auto remove/re-add)   â”‚
-â”‚  â€¢ CORS preflight answered at NGINX level       â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-           â”‚              â”‚              â”‚
-  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”
-  â”‚ api-center-1  â”‚ â”‚api-center-2â”‚ â”‚api-center-3â”‚
-  â”‚  (stateless)  â”‚ â”‚ (stateless)â”‚ â”‚ (stateless)â”‚
-  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-        All 3 share state via Redis (registry, tokens, rate-limit counters)
+```text
+tribe service / browser / external client
+  -> API Center public gateway
+  -> auth, registry, consumes, scope, rate-limit, and circuit-breaker checks
+  -> /api/v1/tribes/:serviceId/* or /api/v1/shared/:serviceId/*
+  -> registered tribe or shared-service runtime
+
+API Center instances are stateless. Redis is the current active registry, token,
+rate-limit, and short-window analytics store. Optional Postgres schemas exist for
+future durable control-plane and shared-service business state, but they are disabled
+until Supabase migrations and cutover checks are complete.
 ```
 
 ### Route Namespaces
@@ -58,15 +57,30 @@ Consumer (tribe SDK / browser / external client)
 | `/api/v1/registry/*` | Service self-registration |
 | `/api/v1/health/*` | Liveness + readiness probes |
 
+### Runtime Stores
+
+Current production still uses Redis as the active registry/token/rate-limit
+runtime store. The optional Postgres control-plane schema exists for durable
+management state but should remain disabled until Supabase migrations are
+applied, Redis data is backfilled, and parity checks pass.
+
+| Store | Current role |
+| --- | --- |
+| Redis / Memorystore | Active registry source, token state, rate-limit counters, short-window analytics |
+| API Center Postgres schemas | Optional durable control-plane state, disabled by default |
+| Shared-service Postgres schemas | Optional provider/domain records owned by `api-shared-services`, disabled by default |
+| Confluent Cloud + S3 | Raw event export and analytics lake |
+| Secret Manager | Platform secrets, per-tribe secret hashes, provider secrets |
+
 ---
 
-## Quick Start â€” dev-jwt (zero config)
+## Quick Start Ã¢â‚¬â€ dev-jwt (zero config)
 
 No external dependencies. All tokens are self-issued by the gateway.
 
 ```bash
 cp .env.example .env
-# AUTH_PROVIDER=dev-jwt is already the default â€” no changes needed
+# AUTH_PROVIDER=dev-jwt is already the default Ã¢â‚¬â€ no changes needed
 docker-compose up -d
 ```
 
@@ -139,7 +153,7 @@ JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
 JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
 ```
 
-Use `composite` first in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes only need `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` in Secret Manager; they do not need one Descope app per tribe.
+Use `composite` first in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes need one per-tribe GCP Secret Manager secret named `api-center-tribe-secret-<service-id>`; they do not need one Descope app per tribe.
 
 Legacy Descope-only M2M mode:
 
@@ -216,12 +230,22 @@ For migration from bootstrap manifests to real tribe startup registration, use t
 
 **Per-service secret** (so the service can authenticate with the gateway):
 ```bash
-# Generate and hash â€” gateway stores SHA-256, never plaintext
+# Generate and hash Ã¢â‚¬â€ gateway stores SHA-256, never plaintext
 echo -n "my-plaintext-secret" | sha256sum | awk '{print $1}'
 
 # Set in .env:
 TRIBE_SECRET_PAYMENT_SERVICE=<sha256-hash>
 ```
+
+Use `TRIBE_SECRET_*` only for local/dev fallback or temporary rollback. In
+deployed environments, create one Secret Manager secret per tribe:
+
+```text
+api-center-tribe-secret-<service-id>
+```
+
+The payload shape and IAM setup are documented in
+[docs/apicenter-platform-setup.md](docs/apicenter-platform-setup.md).
 
 ---
 
@@ -313,12 +337,12 @@ await client.kafkaPublish({
 **Error types:**
 ```typescript
 import {
-  AuthenticationError,    // 401 â€” bad credentials
-  AuthorizationError,     // 403 â€” missing scopes
-  ServiceNotFoundError,   // 404 â€” service not in registry
-  RateLimitError,         // 429 â€” slow down (err.retryAfterMs available)
-  GatewayTimeoutError,    // 504 â€” upstream too slow
-  ServiceUnavailableError,// 503 â€” circuit breaker open
+  AuthenticationError,    // 401 Ã¢â‚¬â€ bad credentials
+  AuthorizationError,     // 403 Ã¢â‚¬â€ missing scopes
+  ServiceNotFoundError,   // 404 Ã¢â‚¬â€ service not in registry
+  RateLimitError,         // 429 Ã¢â‚¬â€ slow down (err.retryAfterMs available)
+  GatewayTimeoutError,    // 504 Ã¢â‚¬â€ upstream too slow
+  ServiceUnavailableError,// 503 Ã¢â‚¬â€ circuit breaker open
   NetworkError,           // no response from gateway
 } from '@implementsprint/sdk';
 ```
@@ -329,8 +353,8 @@ import {
 |--------|---------|-------------|
 | `timeout` | `30000` | Request timeout in ms |
 | `maxRetries` | `3` | Retry attempts for transient failures |
-| `retryBaseDelayMs` | `500` | Initial backoff delay (doubles each attempt with Â±25% jitter) |
-| `correlationIdFactory` | â€” | Factory returning a correlation ID threaded across all requests |
+| `retryBaseDelayMs` | `500` | Initial backoff delay (doubles each attempt with Ã‚Â±25% jitter) |
+| `correlationIdFactory` | Ã¢â‚¬â€ | Factory returning a correlation ID threaded across all requests |
 
 ---
 
@@ -442,8 +466,8 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/health/live` | Liveness â€” is the process running? |
-| `GET` | `/api/v1/health/ready` | Readiness â€” Redis + Kafka connectivity |
+| `GET` | `/api/v1/health/live` | Liveness Ã¢â‚¬â€ is the process running? |
+| `GET` | `/api/v1/health/ready` | Readiness Ã¢â‚¬â€ Redis + Kafka connectivity |
 | `GET` | `/nginx-health` | NGINX bypass health check |
 
 ---

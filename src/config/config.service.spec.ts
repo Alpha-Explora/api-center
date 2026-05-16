@@ -146,6 +146,47 @@ describe("ConfigService", () => {
     expect(run).not.toThrow();
   });
 
+  it("should expose database defaults with Postgres disabled", () => {
+    const config = new ConfigService();
+
+    expect(config.database).toEqual({
+      enabled: false,
+      provider: "",
+      url: "",
+      registrySource: "redis",
+      dualWrite: false,
+    });
+  });
+
+  it("should expose Kafka topic prefix for environment isolation", () => {
+    process.env.KAFKA_TOPIC_PREFIX = "test.";
+
+    const config = new ConfigService();
+
+    expect(config.kafka.topicPrefix).toBe("test.");
+  });
+
+  it("should throw when database is enabled without DATABASE_URL", () => {
+    setValidProductionEnv();
+    process.env.DATABASE_ENABLED = "true";
+    delete process.env.DATABASE_URL;
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow(
+      "DATABASE_URL is required when DATABASE_ENABLED=true",
+    );
+  });
+
+  it("should throw when REGISTRY_SOURCE is not redis or postgres", () => {
+    setValidProductionEnv();
+    process.env.REGISTRY_SOURCE = "mysql";
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow("REGISTRY_SOURCE must be one of: redis, postgres");
+  });
+
   it("should throw in production when Kafka broker points to localhost", () => {
     setValidProductionEnv();
     process.env.KAFKA_BROKERS = "localhost:9092";
