@@ -158,6 +158,14 @@ describe("ConfigService", () => {
     });
   });
 
+  it("should expose registry dual-write when enabled", () => {
+    process.env.REGISTRY_DUAL_WRITE = "true";
+
+    const config = new ConfigService();
+
+    expect(config.database.dualWrite).toBe(true);
+  });
+
   it("should expose Kafka topic prefix for environment isolation", () => {
     process.env.KAFKA_TOPIC_PREFIX = "test.";
 

@@ -24,6 +24,7 @@
     "db:migration:push:dry": "supabase db push --dry-run",
     "db:reset": "supabase db reset",
     "db:studio": "supabase status",
+    "db:backfill:registry": "ts-node scripts/backfill-registry-to-postgres.ts",
     "check:boundaries": "node scripts/check-boundaries.js",
     "check:contracts": "node scripts/check-contract-compatibility.js",
     "smoke:gke": "node scripts/smoke-gke-deploy.js",

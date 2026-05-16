@@ -6,15 +6,18 @@ It does not replace Redis for hot runtime state, and it does not replace Conflue
 
 ## Current Runtime Mode
 
-Keep production on Redis until the database is created, migrated, backfilled, and verified.
+Keep production registry reads on Redis until the database is created, migrated,
+backfilled, and verified. The database connection can be enabled before the
+read-source cutover so readiness catches connection problems early.
 
 ```text
-DATABASE_ENABLED=false
+DATABASE_ENABLED=true
 REGISTRY_SOURCE=redis
 REGISTRY_DUAL_WRITE=false
 ```
 
-With this mode, the database schema files exist in the repo, but the gateway does not open a database connection at startup.
+With this mode, the gateway opens a database connection, but registry reads and
+registry writes still use Redis unless `REGISTRY_DUAL_WRITE=true`.
 
 ## API Center Schemas
 
@@ -66,13 +69,16 @@ Add these keys to `api-center-prod` only after a Postgres database exists:
 {
   "DATABASE_ENABLED": "true",
   "DATABASE_PROVIDER": "supabase",
-  "DATABASE_URL": "postgresql://api_center_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true",
+  "DATABASE_URL": "postgresql://api_center_app:<password>@<supabase-session-pooler-host>:5432/postgres",
   "REGISTRY_SOURCE": "redis",
   "REGISTRY_DUAL_WRITE": "true"
 }
 ```
 
-Use `REGISTRY_SOURCE=redis` during migration. Do not switch to `postgres` until registry backfill and read-path verification are complete.
+Use `REGISTRY_SOURCE=redis` during migration. Enable `REGISTRY_DUAL_WRITE=true`
+only after the migrations are applied and the Postgres write path is verified.
+Do not switch to `postgres` until registry backfill and read-path verification
+are complete.
 
 ## Local Commands
 
@@ -124,32 +130,34 @@ Recommended rollout sequence:
 1. Create or choose the Supabase Postgres project.
 2. Create separate runtime and operator/migration credentials where possible.
 3. Run `npx supabase db push --dry-run`, then `npx supabase db push`, from a trusted operator environment or CI job.
-4. Add DB env keys to `api-center-prod` with `REGISTRY_SOURCE=redis` and `REGISTRY_DUAL_WRITE=true`.
+4. Add DB env keys to `api-center-prod` with `DATABASE_ENABLED=true`,
+   `REGISTRY_SOURCE=redis`, and `REGISTRY_DUAL_WRITE=false`.
 5. Restart API Center and verify readiness.
-6. Backfill registry/provisioning state.
-7. Compare Redis and Postgres reads.
-8. Switch `REGISTRY_SOURCE=postgres` only after verification.
+6. Switch `REGISTRY_DUAL_WRITE=true` after migrations and focused tests pass.
+7. Backfill registry/provisioning state.
+8. Compare Redis and Postgres reads.
+9. Switch `REGISTRY_SOURCE=postgres` only after verification.
 
 Rollback is simple during the migration window:
 
 ```text
 REGISTRY_SOURCE=redis
 REGISTRY_DUAL_WRITE=false
-DATABASE_ENABLED=false
 ```
 
 ## Current Implementation Status
 
 The API Center Prisma schema, Supabase CLI config, initial Supabase SQL
-migration, config flags, Prisma service, and registry Postgres store abstraction
-are present. The linked Supabase project is `qnebjcboppqdsgmgizvs`, and the
-initial API Center plus shared-service schema migrations were applied on
-2026-05-16. Redis is still the active registry source by default.
+migration, config flags, Prisma service, registry Postgres store abstraction,
+registry dual-write hooks, and Redis-to-Postgres registry backfill script are
+present. Redis is still the active registry source by default.
 
 Still pending before Postgres becomes the active source of truth:
 
-1. Add or complete dual-write wiring for registry/provisioning/audit flows.
-2. Backfill existing Redis registry data into Postgres.
-3. Add parity checks between Redis and Postgres reads.
-4. Switch `REGISTRY_SOURCE=postgres` only after parity checks pass.
-5. Keep rollback to `REGISTRY_SOURCE=redis` documented and tested.
+1. Apply/verify migrations in test, then production.
+2. Enable `REGISTRY_DUAL_WRITE=true` after migrations are confirmed.
+3. Backfill existing Redis registry data into Postgres with
+   `npm run db:backfill:registry`.
+4. Add parity checks between Redis and Postgres reads.
+5. Switch `REGISTRY_SOURCE=postgres` only after parity checks pass.
+6. Keep rollback to `REGISTRY_SOURCE=redis` documented and tested.

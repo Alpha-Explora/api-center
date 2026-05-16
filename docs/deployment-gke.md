@@ -267,15 +267,16 @@ window.
 ```json
 {
   "DATABASE_ENABLED": "true",
-  "DATABASE_URL": "postgresql://api_center_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true",
+  "DATABASE_URL": "postgresql://api_center_app:<password>@<supabase-session-pooler-host>:5432/postgres",
   "DATABASE_PROVIDER": "supabase",
   "REGISTRY_SOURCE": "redis",
-  "REGISTRY_DUAL_WRITE": "true"
+  "REGISTRY_DUAL_WRITE": "false"
 }
 ```
 
-Switch `REGISTRY_SOURCE` to `postgres` only after registry backfill and
-Redis/Postgres parity checks pass. See `docs/database-control-plane.md`.
+Switch `REGISTRY_DUAL_WRITE=true` only after migrations are verified. Switch
+`REGISTRY_SOURCE` to `postgres` only after registry backfill and Redis/Postgres
+parity checks pass. See `docs/database-control-plane.md`.
 
 Shared-service provider/business schemas are migrated from the
 `api-shared-services` repo, not this gateway repo. Keep their runtime flag
@@ -283,8 +284,8 @@ disabled until each shared-service gateway is wired and tested:
 
 ```json
 {
-  "SHARED_SERVICES_DATABASE_ENABLED": "false",
-  "SHARED_SERVICES_DATABASE_URL": "postgresql://shared_services_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true"
+  "SHARED_SERVICES_DATABASE_ENABLED": "true",
+  "SHARED_SERVICES_DATABASE_URL": "postgresql://shared_services_app:<password>@<supabase-session-pooler-host>:5432/postgres"
 }
 ```
 

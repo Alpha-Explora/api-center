@@ -12,6 +12,7 @@ import { ConfigService } from "../config/config.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { MetricsService } from "../metrics/metrics.service";
 import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
+import { PostgresRegistryStoreService } from "./postgres-registry-store.service";
 import { ServiceManifest } from "../types";
 import {
   NotFoundError,
@@ -31,6 +32,13 @@ const mockLogger: Partial<LoggerService> = {
 
 const mockConfig: Partial<ConfigService> = {
   redis: { cacheUrl: "", rateLimitUrl: "" } as any,
+  database: {
+    enabled: false,
+    provider: "",
+    url: "",
+    registrySource: "redis",
+    dualWrite: false,
+  } as any,
 };
 
 const mockKafka: Partial<KafkaService> = {
@@ -45,6 +53,12 @@ const mockMetrics: Partial<MetricsService> = {
 
 const mockTribeSecretResolver: Partial<TribeSecretResolverService> = {
   validateSecret: jest.fn(),
+};
+
+const mockPostgresStore: Partial<PostgresRegistryStoreService> = {
+  loadAll: jest.fn(),
+  upsert: jest.fn(),
+  remove: jest.fn(),
 };
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -71,6 +85,16 @@ describe("RegistryService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockConfig as any).database = {
+      enabled: false,
+      provider: "",
+      url: "",
+      registrySource: "redis",
+      dualWrite: false,
+    };
+    (mockPostgresStore.loadAll as jest.Mock).mockResolvedValue({});
+    (mockPostgresStore.upsert as jest.Mock).mockResolvedValue(undefined);
+    (mockPostgresStore.remove as jest.Mock).mockResolvedValue(undefined);
     // Construct without lifecycle hooks — avoids Redis connection
     service = new RegistryService(
       mockLogger as LoggerService,
@@ -78,6 +102,7 @@ describe("RegistryService", () => {
       mockKafka as KafkaService,
       mockMetrics as MetricsService,
       mockTribeSecretResolver as TribeSecretResolverService,
+      mockPostgresStore as PostgresRegistryStoreService,
     );
   });
 
@@ -106,6 +131,46 @@ describe("RegistryService", () => {
     it("syncs the metrics gauge", async () => {
       await service.register(baseManifest());
       expect(mockMetrics.setRegistryServicesCount).toHaveBeenCalledWith(1);
+    });
+
+    it("dual-writes to Postgres when enabled", async () => {
+      (mockConfig as any).database = {
+        ...mockConfig.database,
+        enabled: true,
+        dualWrite: true,
+      };
+
+      const entry = await service.register(baseManifest());
+
+      expect(mockPostgresStore.upsert).toHaveBeenCalledWith(entry);
+    });
+
+    it("does not write to Postgres when dual-write is disabled", async () => {
+      (mockConfig as any).database = {
+        ...mockConfig.database,
+        enabled: true,
+        dualWrite: false,
+      };
+
+      await service.register(baseManifest());
+
+      expect(mockPostgresStore.upsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects registration and restores memory when Postgres dual-write fails", async () => {
+      (mockConfig as any).database = {
+        ...mockConfig.database,
+        enabled: true,
+        dualWrite: true,
+      };
+      (mockPostgresStore.upsert as jest.Mock).mockRejectedValueOnce(
+        new Error("db down"),
+      );
+
+      await expect(service.register(baseManifest())).rejects.toThrow(
+        "Registry Postgres write failed for 'svc-alpha'",
+      );
+      expect(service.get("svc-alpha")).toBeNull();
     });
 
     it("updates an existing service while preserving registeredAt", async () => {

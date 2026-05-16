@@ -73,3 +73,54 @@ events for S3 and later analytics.
 
 `tribe.<tribeId>.events` remains the tribe-owned event stream for events that a
 tribe explicitly publishes through API Center.
+
+## Payment Lifecycle Events
+
+Payment shared-service calls may include a normalized `lifecycle` object when
+the route creates or changes payment state. This keeps PayMongo-specific payloads
+out of the data lake while still exposing useful analytics fields.
+
+```json
+{
+  "eventId": "ad82f2b7-7b2a-41b9-8a76-8a4d4df96a01",
+  "eventType": "shared.payment.call",
+  "tribeId": "servease",
+  "sharedServiceId": "payment",
+  "route": "/api/v1/shared/payment/checkout/sessions/cs_123/cancelled",
+  "method": "POST",
+  "statusCode": 200,
+  "ok": true,
+  "latencyMs": 31,
+  "request": {
+    "reason": "user_returned_from_cancel_url"
+  },
+  "response": {
+    "checkoutId": "cs_123",
+    "status": "cancelled"
+  },
+  "lifecycle": {
+    "eventType": "payment.checkout.cancelled",
+    "checkoutId": "cs_123",
+    "referenceId": "order_123",
+    "status": "cancelled",
+    "amount": 10000,
+    "currency": "PHP",
+    "provider": "paymongo",
+    "providerMode": "test"
+  },
+  "redactions": [],
+  "timestamp": "2026-05-16T00:00:00.000Z"
+}
+```
+
+Canonical payment lifecycle event types:
+
+```text
+payment.checkout.created
+payment.checkout.paid
+payment.checkout.failed
+payment.checkout.cancelled
+payment.checkout.expired
+payment.refunded
+payment.refund.updated
+```

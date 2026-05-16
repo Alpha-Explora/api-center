@@ -311,7 +311,8 @@ For Confluent Cloud, use the bootstrap endpoint shown in the Confluent cluster s
 4. Go to Developers > Webhooks.
 5. Create one test webhook and one live webhook.
 6. Use the gateway URL:
-   - `https://api-center.itsandbox.site/api/v1/shared/payment/webhooks`
+   - Test: `https://api-center-test.itsandbox.site/api/v1/shared/payment/webhooks`
+   - Live: `https://api-center.itsandbox.site/api/v1/shared/payment/webhooks`
 7. Minimum event for checkout-only flows:
    - `checkout.session.payment.paid`
 8. Add these if you use direct payment/refund flows:
@@ -322,6 +323,15 @@ For Confluent Cloud, use the bootstrap endpoint shown in the Confluent cluster s
 9. Copy each webhook signing secret into the matching test/live key.
 
 The PayMongo public key is for browser/client-side flows. The current shared-service runtime uses server-side secret keys and webhook secrets.
+
+Payment result pages use the hybrid model:
+
+- API Center/shared services own checkout state, webhook processing, refunds,
+  cancellation markers, and data export.
+- Tribes own their branded success, cancelled, and failed pages.
+- Tribe cancelled pages should call
+  `POST /api/v1/shared/payment/checkout/sessions/:checkoutId/cancelled`, then
+  read `GET /api/v1/shared/payment/checkout/sessions/:checkoutId/status`.
 
 ### Resend
 

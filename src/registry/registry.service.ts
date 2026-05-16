@@ -12,7 +12,12 @@
 // On registration/deregistration, both memory and Redis are updated.
 // =============================================================================
 
-import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Optional,
+} from "@nestjs/common";
 import Redis from "ioredis";
 import {
   ServiceManifest,
@@ -31,6 +36,7 @@ import {
 } from "../shared/errors";
 import { TOPICS } from "../kafka/topics";
 import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
+import { PostgresRegistryStoreService } from "./postgres-registry-store.service";
 
 const REDIS_REGISTRY_KEY = "api-center:registry:services";
 
@@ -51,6 +57,8 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     private readonly kafka: KafkaService,
     private readonly metrics: MetricsService,
     private readonly tribeSecretResolver: TribeSecretResolverService,
+    @Optional()
+    private readonly postgresStore?: PostgresRegistryStoreService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -68,8 +76,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       await this.redis.connect();
       this.logger.info("Registry connected to Redis (cache)", {});
 
-      // Hydrate in-memory map from Redis on boot
-      await this.loadFromRedis();
+      if (this.config.database.registrySource === "postgres") {
+        await this.loadFromPostgres();
+      } else {
+        await this.loadFromRedis();
+      }
     } catch (err) {
       this.logger.warn(
         `Registry Redis unavailable — running in memory-only mode: ${(err as Error).message}`,
@@ -161,7 +172,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     // Persist to Redis with a strict timeout — fail the registration if Redis
     // is unavailable so the gateway never silently drifts from its source of truth.
     try {
-      await this.persistToRedisStrict(manifest.serviceId, entry);
+      await this.persistRegistryEntryStrict(manifest.serviceId, entry, {
+        previousEntry,
+      });
     } catch (err) {
       if (previousEntry) {
         this.services[manifest.serviceId] = previousEntry;
@@ -238,7 +251,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     // Remove from Redis with strict timeout
     try {
-      await this.removeFromRedisStrict(serviceId);
+      await this.removeRegistryEntryStrict(serviceId, { previousEntry });
     } catch (err) {
       this.services[serviceId] = previousEntry;
       this.syncMetricsGauge();
@@ -293,7 +306,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     this.syncMetricsGauge();
 
     try {
-      await this.persistToRedisStrict(serviceId, updatedEntry);
+      await this.persistRegistryEntryStrict(serviceId, updatedEntry, {
+        previousEntry,
+      });
     } catch (err) {
       this.services[serviceId] = previousEntry;
       this.syncMetricsGauge();
@@ -342,7 +357,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     this.syncMetricsGauge();
 
     try {
-      await this.persistToRedisStrict(serviceId, updatedEntry);
+      await this.persistRegistryEntryStrict(serviceId, updatedEntry, {
+        previousEntry,
+      });
     } catch (err) {
       this.services[serviceId] = previousEntry;
       this.syncMetricsGauge();
@@ -395,7 +412,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     this.syncMetricsGauge();
 
     try {
-      await this.persistToRedisStrict(serviceId, updatedEntry);
+      await this.persistRegistryEntryStrict(serviceId, updatedEntry, {
+        previousEntry,
+      });
     } catch (err) {
       this.services[serviceId] = previousEntry;
       this.syncMetricsGauge();
@@ -509,6 +528,12 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     this.persistToRedis(serviceId, entry).catch((err) => {
       this.logger.warn(
         `Redis persist failed for health update '${serviceId}': ${(err as Error).message}`,
+        "RegistryService",
+      );
+    });
+    this.persistToPostgresIfEnabled(entry).catch((err) => {
+      this.logger.warn(
+        `Postgres persist failed for health update '${serviceId}': ${(err as Error).message}`,
         "RegistryService",
       );
     });
@@ -650,6 +675,32 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Load all service entries from Postgres into the in-memory map.
+   * Used only after REGISTRY_SOURCE=postgres is explicitly enabled.
+   */
+  async loadFromPostgres(): Promise<void> {
+    if (!this.config.database.enabled) {
+      throw new Error(
+        "DATABASE_ENABLED=true is required to load registry from Postgres",
+      );
+    }
+    if (!this.postgresStore) {
+      throw new Error("Postgres registry store is not available");
+    }
+
+    const entries = await this.postgresStore.loadAll();
+    for (const [serviceId, entry] of Object.entries(entries)) {
+      this.services[serviceId] = entry;
+    }
+    this.syncMetricsGauge();
+
+    const count = Object.keys(entries).length;
+    if (count > 0) {
+      this.logger.info(`Registry hydrated ${count} service(s) from Postgres`, {});
+    }
+  }
+
+  /**
    * Return the raw Redis hash entries for drift comparison.
    * Returns `null` when Redis is unavailable.
    */
@@ -684,6 +735,73 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     if (!this.redis) return;
     await this.redis.hset(REDIS_REGISTRY_KEY, serviceId, JSON.stringify(entry));
+  }
+
+  private shouldWritePostgres(): boolean {
+    return (
+      this.config.database.enabled &&
+      this.config.database.dualWrite &&
+      !!this.postgresStore
+    );
+  }
+
+  private async persistToPostgresIfEnabled(
+    entry: ServiceRegistryEntry,
+  ): Promise<void> {
+    if (!this.shouldWritePostgres()) return;
+    await this.postgresStore!.upsert(entry);
+  }
+
+  private async removeFromPostgresIfEnabled(serviceId: string): Promise<void> {
+    if (!this.shouldWritePostgres()) return;
+    await this.postgresStore!.remove(serviceId);
+  }
+
+  private async persistRegistryEntryStrict(
+    serviceId: string,
+    entry: ServiceRegistryEntry,
+    options: { previousEntry: ServiceRegistryEntry | null },
+  ): Promise<void> {
+    await this.persistToRedisStrict(serviceId, entry);
+
+    try {
+      await this.persistToPostgresIfEnabled(entry);
+    } catch (err) {
+      await this.rollbackRedisAfterPostgresFailure(
+        serviceId,
+        options.previousEntry,
+      );
+      throw new Error(
+        `Registry Postgres write failed for '${serviceId}': ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private async removeRegistryEntryStrict(
+    serviceId: string,
+    options: { previousEntry: ServiceRegistryEntry },
+  ): Promise<void> {
+    await this.removeFromRedisStrict(serviceId);
+
+    try {
+      await this.removeFromPostgresIfEnabled(serviceId);
+    } catch (err) {
+      await this.persistToRedisStrict(serviceId, options.previousEntry);
+      throw new Error(
+        `Registry Postgres remove failed for '${serviceId}': ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private async rollbackRedisAfterPostgresFailure(
+    serviceId: string,
+    previousEntry: ServiceRegistryEntry | null,
+  ): Promise<void> {
+    if (previousEntry) {
+      await this.persistToRedisStrict(serviceId, previousEntry);
+    } else {
+      await this.removeFromRedisStrict(serviceId);
+    }
   }
 
   /**

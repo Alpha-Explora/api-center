@@ -51,6 +51,9 @@ export class SharedServiceEventPublisher {
         ...(input.correlationId && { correlationId: input.correlationId }),
         request,
         response,
+        ...(input.sharedServiceId === "payment" && {
+          lifecycle: buildPaymentLifecycle(response),
+        }),
         redactions,
         timestamp: new Date().toISOString(),
       },
@@ -60,6 +63,46 @@ export class SharedServiceEventPublisher {
       },
     );
   }
+}
+
+function buildPaymentLifecycle(
+  response: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const status = typeof response.status === "string" ? response.status : "";
+  const checkoutId =
+    typeof response.checkoutId === "string" ? response.checkoutId : undefined;
+  const paymentId =
+    typeof response.paymentId === "string" ? response.paymentId : undefined;
+
+  if (!status || (!checkoutId && !paymentId)) {
+    return undefined;
+  }
+
+  return {
+    eventType: paymentLifecycleEventType(status, Boolean(checkoutId)),
+    ...(checkoutId && { checkoutId }),
+    ...(paymentId && { paymentId }),
+    status,
+    ...(typeof response.provider === "string" && {
+      provider: response.provider,
+    }),
+  };
+}
+
+function paymentLifecycleEventType(status: string, hasCheckoutId: boolean) {
+  if (hasCheckoutId) {
+    if (status === "paid") return "payment.checkout.paid";
+    if (status === "failed") return "payment.checkout.failed";
+    if (status === "cancelled") return "payment.checkout.cancelled";
+    if (status === "expired") return "payment.checkout.expired";
+    return "payment.checkout.created";
+  }
+
+  if (status === "refunded" || status === "partially_refunded") {
+    return "payment.refunded";
+  }
+
+  return "payment.provider_event.received";
 }
 
 function isSharedServiceEventTopicId(
