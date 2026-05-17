@@ -89,6 +89,55 @@ describe("sanitizeSharedServiceEventInput", () => {
     expect(serialized).not.toContain("provider-secret");
   });
 
+  it("exports subscription metadata without customer contact or provider secrets", () => {
+    const result = sanitizeSharedServiceEventInput({
+      sharedServiceId: "payment",
+      route: "/subscriptions",
+      requestBody: {
+        referenceId: "church_123_basic",
+        idempotencyKey: "sub-idem-secret",
+        customerId: "cus_123",
+        priceId: "price_123",
+        email: "buyer@example.com",
+        PAYMONGO_TEST_SECRET_KEY: "sk_test_secret",
+      },
+      responseBody: {
+        data: {
+          subscriptionId: "sub_123",
+          customerId: "cus_123",
+          priceId: "price_123",
+          status: "active",
+          provider: "paymongo",
+          providerMode: "test",
+        },
+      },
+    });
+
+    const serialized = JSON.stringify(result);
+
+    expect(result.request).toEqual(
+      expect.objectContaining({
+        referenceId: "church_123_basic",
+        customerId: "cus_123",
+        priceId: "price_123",
+        idempotencyKeyHash: expect.stringMatching(/^sha256:/),
+      }),
+    );
+    expect(result.response).toEqual(
+      expect.objectContaining({
+        subscriptionId: "sub_123",
+        customerId: "cus_123",
+        priceId: "price_123",
+        status: "active",
+        provider: "paymongo",
+        providerMode: "test",
+      }),
+    );
+    expect(serialized).not.toContain("sub-idem-secret");
+    expect(serialized).not.toContain("buyer@example.com");
+    expect(serialized).not.toContain("sk_test_secret");
+  });
+
   it("redacts OTP codes and raw email targets", () => {
     const result = sanitizeSharedServiceEventInput({
       sharedServiceId: "otp",

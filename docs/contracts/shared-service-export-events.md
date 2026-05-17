@@ -121,6 +121,35 @@ payment.checkout.paid
 payment.checkout.failed
 payment.checkout.cancelled
 payment.checkout.expired
+payment.subscription.created
+payment.subscription.active
+payment.subscription.past_due
+payment.subscription.paused
+payment.subscription.cancelled
+payment.invoice.created
+payment.invoice.paid
+payment.invoice.failed
 payment.refunded
 payment.refund.updated
 ```
+
+Subscription and invoice lifecycle events may include these sanitized fields in
+`lifecycle` when present:
+
+```json
+{
+  "eventType": "payment.invoice.paid",
+  "subscriptionId": "sub_123",
+  "invoiceId": "inv_123",
+  "paymentId": "pay_123",
+  "referenceId": "church_123_basic",
+  "status": "paid",
+  "amount": 9900,
+  "currency": "PHP",
+  "provider": "paymongo",
+  "providerMode": "test"
+}
+```
+
+Do not export raw webhook bodies, provider authorization headers, card/bank
+payloads, PayMongo secret keys, or webhook signing secrets.

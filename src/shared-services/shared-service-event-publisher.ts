@@ -73,29 +73,91 @@ function buildPaymentLifecycle(
     typeof response.checkoutId === "string" ? response.checkoutId : undefined;
   const paymentId =
     typeof response.paymentId === "string" ? response.paymentId : undefined;
+  const subscriptionId =
+    typeof response.subscriptionId === "string"
+      ? response.subscriptionId
+      : undefined;
+  const invoiceId =
+    typeof response.invoiceId === "string" ? response.invoiceId : undefined;
+  const refundId =
+    typeof response.refundId === "string" ? response.refundId : undefined;
 
-  if (!status || (!checkoutId && !paymentId)) {
+  if (!status || (!checkoutId && !paymentId && !subscriptionId && !invoiceId && !refundId)) {
     return undefined;
   }
 
   return {
-    eventType: paymentLifecycleEventType(status, Boolean(checkoutId)),
+    eventType: paymentLifecycleEventType(status, {
+      checkoutId,
+      paymentId,
+      subscriptionId,
+      invoiceId,
+      refundId,
+    }),
     ...(checkoutId && { checkoutId }),
     ...(paymentId && { paymentId }),
+    ...(subscriptionId && { subscriptionId }),
+    ...(invoiceId && { invoiceId }),
+    ...(refundId && { refundId }),
+    ...(typeof response.customerId === "string" && {
+      customerId: response.customerId,
+    }),
+    ...(typeof response.priceId === "string" && {
+      priceId: response.priceId,
+    }),
+    ...(typeof response.referenceId === "string" && {
+      referenceId: response.referenceId,
+    }),
     status,
+    ...(typeof response.amount === "number" && {
+      amount: response.amount,
+    }),
+    ...(typeof response.currency === "string" && {
+      currency: response.currency,
+    }),
     ...(typeof response.provider === "string" && {
       provider: response.provider,
+    }),
+    ...(typeof response.providerMode === "string" && {
+      providerMode: response.providerMode,
     }),
   };
 }
 
-function paymentLifecycleEventType(status: string, hasCheckoutId: boolean) {
-  if (hasCheckoutId) {
+function paymentLifecycleEventType(
+  status: string,
+  ids: {
+    checkoutId?: string;
+    paymentId?: string;
+    subscriptionId?: string;
+    invoiceId?: string;
+    refundId?: string;
+  },
+) {
+  if (ids.checkoutId) {
     if (status === "paid") return "payment.checkout.paid";
     if (status === "failed") return "payment.checkout.failed";
     if (status === "cancelled") return "payment.checkout.cancelled";
     if (status === "expired") return "payment.checkout.expired";
     return "payment.checkout.created";
+  }
+
+  if (ids.subscriptionId) {
+    if (status === "active") return "payment.subscription.active";
+    if (status === "past_due") return "payment.subscription.past_due";
+    if (status === "paused") return "payment.subscription.paused";
+    if (status === "cancelled") return "payment.subscription.cancelled";
+    return "payment.subscription.created";
+  }
+
+  if (ids.invoiceId) {
+    if (status === "paid") return "payment.invoice.paid";
+    if (status === "failed") return "payment.invoice.failed";
+    return "payment.invoice.created";
+  }
+
+  if (ids.refundId) {
+    return "payment.refund.updated";
   }
 
   if (status === "refunded" || status === "partially_refunded") {

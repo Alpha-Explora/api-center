@@ -48,4 +48,46 @@ describe("SharedServiceExportEventSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("accepts subscription lifecycle metadata", () => {
+    const result = SharedServiceExportEventSchema.safeParse({
+      eventId: "evt_sub_123",
+      eventType: "shared.payment.call",
+      tribeId: "smoke-tribe",
+      sharedServiceId: "payment",
+      route: "/api/v1/shared/payment/subscriptions",
+      method: "POST",
+      statusCode: 201,
+      ok: true,
+      latencyMs: 50,
+      request: {
+        referenceId: "church_123_basic",
+        customerId: "cus_123",
+        priceId: "price_123",
+      },
+      response: {
+        subscriptionId: "sub_123",
+        status: "active",
+        provider: "paymongo",
+      },
+      redactions: ["request.idempotencyKey"],
+      lifecycle: {
+        eventType: "payment.subscription.active",
+        customerId: "cus_123",
+        priceId: "price_123",
+        subscriptionId: "sub_123",
+        invoiceId: "inv_123",
+        paymentId: "pay_123",
+        referenceId: "church_123_basic",
+        status: "active",
+        amount: 9900,
+        currency: "PHP",
+        provider: "paymongo",
+        providerMode: "test",
+      },
+      timestamp: "2026-05-15T00:00:00.000Z",
+    });
+
+    expect(result.success).toBe(true);
+  });
 });

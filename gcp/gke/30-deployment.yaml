@@ -53,7 +53,7 @@ spec:
               app.kubernetes.io/name: api-center
       containers:
         - name: api-center
-          image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:db-cutover-20260516
+          image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:payment-webhook-route-29ef3bd-202605161950
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

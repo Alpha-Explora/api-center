@@ -1,0 +1,22 @@
+substitutions:
+  _IMAGE: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:manual
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_IMAGE}
+      - -f
+      - docker/Dockerfile.gcp
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_IMAGE}
+
+images:
+  - ${_IMAGE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

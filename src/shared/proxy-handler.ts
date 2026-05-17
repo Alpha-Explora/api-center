@@ -37,6 +37,9 @@ const PROXY_TIMEOUT_MS = 30_000;
 /** Maximum number of cached proxy middleware instances. */
 const MAX_PROXY_CACHE_SIZE = 200;
 
+/** Maximum upstream response body bytes captured for sanitized event export. */
+const MAX_CAPTURED_RESPONSE_BYTES = 64_000;
+
 /** HTTP status codes that indicate upstream failure for circuit-breaker tracking. */
 const UPSTREAM_FAILURE_CODES = new Set([502, 503, 504]);
 
@@ -45,6 +48,78 @@ export class GoneError extends NotFoundError {
   constructor(message: string) {
     super(message);
     Object.defineProperty(this, "status", { value: 410 });
+  }
+}
+
+function attachJsonResponseCapture(res: Response): { getBody: () => unknown } {
+  const response = res as unknown as {
+    write?: (...args: unknown[]) => unknown;
+    end?: (...args: unknown[]) => unknown;
+  };
+
+  if (
+    typeof response.write !== "function" ||
+    typeof response.end !== "function"
+  ) {
+    return { getBody: () => undefined };
+  }
+
+  const chunks: Buffer[] = [];
+  let capturedBytes = 0;
+  let truncated = false;
+  const originalWrite = response.write.bind(res);
+  const originalEnd = response.end.bind(res);
+
+  response.write = (...args: unknown[]) => {
+    captureChunk(args[0]);
+    return originalWrite(...args);
+  };
+
+  response.end = (...args: unknown[]) => {
+    captureChunk(args[0]);
+    return originalEnd(...args);
+  };
+
+  return {
+    getBody: () => {
+      if (truncated || chunks.length === 0) {
+        return undefined;
+      }
+
+      try {
+        return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        return undefined;
+      }
+    },
+  };
+
+  function captureChunk(chunk: unknown) {
+    if (chunk === undefined || chunk === null || typeof chunk === "function") {
+      return;
+    }
+
+    let buffer: Buffer | undefined;
+    if (Buffer.isBuffer(chunk)) {
+      buffer = chunk;
+    } else if (chunk instanceof Uint8Array) {
+      buffer = Buffer.from(chunk);
+    } else if (typeof chunk === "string") {
+      buffer = Buffer.from(chunk);
+    }
+
+    if (!buffer) {
+      return;
+    }
+
+    capturedBytes += buffer.length;
+    if (capturedBytes > MAX_CAPTURED_RESPONSE_BYTES) {
+      truncated = true;
+      chunks.length = 0;
+      return;
+    }
+
+    chunks.push(buffer);
   }
 }
 
@@ -330,6 +405,7 @@ export class ProxyHandler {
 
     // ── 5. Forward the request ─────────────────────────────────────────────
     const proxyStart = Date.now();
+    const responseCapture = attachJsonResponseCapture(res);
 
     res.on("finish", () => {
       const latencyMs = Date.now() - proxyStart;
@@ -362,6 +438,7 @@ export class ProxyHandler {
         req,
         res.statusCode,
         latencyMs,
+        responseCapture.getBody(),
       );
     });
 
@@ -457,6 +534,7 @@ export class ProxyHandler {
     req: AuthenticatedRequest,
     statusCode: number,
     latencyMs: number,
+    responseBody?: unknown,
   ): void {
     if (this.opts.namespace !== "shared" || !this.deps.sharedServiceEvents) {
       return;
@@ -472,6 +550,7 @@ export class ProxyHandler {
       latencyMs,
       correlationId: req.correlationId,
       requestBody: req.body,
+      responseBody,
     });
   }
 

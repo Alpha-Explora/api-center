@@ -92,7 +92,7 @@ Shared services:
 
 | Service ID | Runtime | Internal service URL | Provider / function |
 | --- | --- | --- | --- |
-| `payment` | `api-shared-services/shared-services/paymongo` | `http://payment-service:4010` | PayMongo checkout, payment lookup, refunds, and webhooks. |
+| `payment` | `api-shared-services/shared-services/paymongo` | `http://payment-service:4010` | PayMongo checkout, subscriptions, refunds, and webhooks. |
 | `email` | `api-shared-services/shared-services/email-gateway` | `http://email-service:4012` | Resend email sending. |
 | `sms` | `api-shared-services/shared-services/sms-gateway` | `http://sms-service:4011` | SMS gateway contract. Current implementation is platform-owned and can be wired to a carrier later. |
 | `gauth` | `api-shared-services/shared-services/gauth-gateway` | `http://gauth-service:4013` | Google OAuth authorization URL, code exchange, refresh, and logout. |
@@ -103,7 +103,7 @@ Shared services:
 
 Typed wrappers:
 
-- Payment: `paymentCreateCheckoutSession`, `paymentGetCheckoutSession`, `paymentCreateRefund`
+- Payment: `paymentCreateCheckoutSession`, `paymentGetCheckoutSession`, `paymentCreateCustomer`, `paymentCreateProduct`, `paymentCreatePrice`, `paymentCreateSubscription`, `paymentGetSubscription`, `paymentCancelSubscription`, `paymentCreateRefund`
 - Email: `emailSend`, `emailGetStatus`
 - SMS: `smsSend`, `smsGetStatus`
 - Google OAuth: `gauthGetAuthorizationUrl`, `gauthExchangeCode`, `gauthRefreshToken`, `gauthLogout`
@@ -229,6 +229,7 @@ Use one shared secret payload for provider-backed shared services if they run to
   "SMS_REDIS_URL": "redis://<api-center-cache-private-ip>:6379",
   "SHARED_SERVICES_DATABASE_ENABLED": "false",
   "SHARED_SERVICES_DATABASE_URL": "postgresql://shared_services_app:<password>@<supabase-pooler-host>:6543/postgres?pgbouncer=true",
+  "PAYMENT_SUBSCRIPTIONS_ENABLED": "false",
   "PAYMENT_PROVIDER_MODE": "test",
   "PAYMENT_PROVIDER_NAME": "paymongo",
   "PAYMONGO_BASE_URL": "https://api.paymongo.com/v1",
@@ -252,6 +253,12 @@ Keep `SHARED_SERVICES_DATABASE_ENABLED=false` until Supabase migrations have
 been deployed from `api-shared-services`, and each shared-service
 gateway has runtime persistence tests. The DB URL belongs in
 `api-shared-services-prod`, not `api-center-prod`.
+
+Keep `PAYMENT_SUBSCRIPTIONS_ENABLED=false` in production until the test
+environment has proven catalog creation, subscription creation, cancellation,
+invoice webhook persistence, and sanitized export events. The production
+`payment-service` manifest also sets the flag to `"false"` as a live-charge
+guard; the test overlay enables it only for `api-center-test`.
 
 Optional shared-service migration command from `api-shared-services`:
 
@@ -320,7 +327,16 @@ For Confluent Cloud, use the bootstrap endpoint shown in the Confluent cluster s
    - `payment.failed`
    - `payment.refunded`
    - `payment.refund.updated`
-9. Copy each webhook signing secret into the matching test/live key.
+9. Add these before enabling subscription smoke tests:
+   - `subscription.created`
+   - `subscription.active`
+   - `subscription.past_due`
+   - `subscription.paused`
+   - `subscription.cancelled`
+   - `invoice.created`
+   - `invoice.paid`
+   - `invoice.failed`
+10. Copy each webhook signing secret into the matching test/live key.
 
 The PayMongo public key is for browser/client-side flows. The current shared-service runtime uses server-side secret keys and webhook secrets.
 

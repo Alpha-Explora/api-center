@@ -105,6 +105,8 @@ function fakeResWithFinish(statusCode = 200) {
     on: jest.fn((event: string, handler: () => void) => {
       if (event === "finish") finishHandlers.push(handler);
     }),
+    write: jest.fn(),
+    end: jest.fn(),
     finishHandlers,
   } as any;
 }
@@ -721,6 +723,58 @@ describe("ProxyHandler", () => {
           requestBody: {
             to: "+639171234567",
             message: "Your OTP is 123456",
+          },
+        }),
+      );
+    });
+
+    it("passes upstream JSON response bodies to shared-service export events", async () => {
+      setCreateProxyMiddlewareForTesting(
+        jest.fn(() =>
+          jest.fn((_req: any, res: any) => {
+            res.write(
+              JSON.stringify({
+                success: true,
+                data: {
+                  subscriptionId: "sub_proxy_123",
+                  status: "active",
+                  provider: "paymongo",
+                  providerMode: "test",
+                },
+              }),
+            );
+            res.end();
+          }) as any,
+        ) as any,
+      );
+
+      const req = fakeReq({
+        tribeId: "campusone",
+        method: "POST",
+        originalUrl: "/api/v1/shared/payment/subscriptions",
+        body: {
+          subscriptionId: "sub_proxy_123",
+          idempotencyKey: "subscription-secret",
+        },
+      });
+      const res = fakeResWithFinish(201);
+
+      await handler.proxyRequest("payment", req, res);
+      res.finishHandlers.forEach((handler: () => void) => handler());
+
+      expect(
+        deps.sharedServiceEvents?.publishSharedServiceCall,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sharedServiceId: "payment",
+          responseBody: {
+            success: true,
+            data: {
+              subscriptionId: "sub_proxy_123",
+              status: "active",
+              provider: "paymongo",
+              providerMode: "test",
+            },
           },
         }),
       );

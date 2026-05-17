@@ -19,6 +19,11 @@ const REDACTED_KEYS = new Set([
   "accesstoken",
   "refreshtoken",
   "secret",
+  "idempotencykey",
+  "paymongo_test_secret_key",
+  "paymongo_live_secret_key",
+  "paymongo_test_webhook_secret",
+  "paymongo_live_webhook_secret",
   "apikey",
   "password",
   "code",
@@ -84,6 +89,9 @@ function sanitizeRequest(
     const totals = getPaymentTotal(lineItems);
     return {
       referenceId: stringOrUndefined(body.referenceId),
+      customerId: stringOrUndefined(body.customerId),
+      priceId: stringOrUndefined(body.priceId),
+      subscriptionId: stringOrUndefined(body.subscriptionId),
       idempotencyKeyHash: hashOptional(body.idempotencyKey),
       amount: totals.amount,
       currency: totals.currency,
@@ -139,9 +147,18 @@ function sanitizeResponse(
   if (sharedServiceId === "payment") {
     return {
       checkoutId: stringOrUndefined(data.checkoutId),
+      customerId: stringOrUndefined(data.customerId),
+      priceId: stringOrUndefined(data.priceId),
+      subscriptionId: stringOrUndefined(data.subscriptionId),
+      invoiceId: stringOrUndefined(data.invoiceId),
       paymentId: stringOrUndefined(data.paymentId),
+      refundId: stringOrUndefined(data.refundId),
+      referenceId: stringOrUndefined(data.referenceId),
       status: stringOrUndefined(data.status),
+      amount: getResponseAmount(data).amount,
+      currency: getResponseAmount(data).currency,
       provider: stringOrUndefined(data.provider),
+      providerMode: stringOrUndefined(data.providerMode),
     };
   }
 
@@ -263,5 +280,22 @@ function getPaymentTotal(lineItems: unknown[]): {
   return {
     amount: amount > 0 ? amount : undefined,
     currency,
+  };
+}
+
+function getResponseAmount(data: Record<string, unknown>): {
+  amount?: number;
+  currency?: string;
+} {
+  const amountRecord = asRecord(data.amount);
+  return {
+    amount:
+      numberOrUndefined(data.amount) ??
+      numberOrUndefined(amountRecord.value) ??
+      numberOrUndefined(data.amountDue) ??
+      numberOrUndefined(data.amountPaid),
+    currency:
+      stringOrUndefined(data.currency) ??
+      stringOrUndefined(amountRecord.currency),
   };
 }

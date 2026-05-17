@@ -74,4 +74,57 @@ describe("SharedServiceEventPublisher", () => {
 
     expect(kafka.publishNonBlocking).not.toHaveBeenCalled();
   });
+
+  it("publishes subscription lifecycle metadata for payment responses", () => {
+    const kafka = {
+      publishNonBlocking: jest.fn(),
+    };
+    const publisher = new SharedServiceEventPublisher(kafka as any);
+
+    publisher.publishSharedServiceCall({
+      tribeId: "smoke-tribe",
+      sharedServiceId: "payment",
+      route: "/api/v1/shared/payment/subscriptions",
+      method: "POST",
+      statusCode: 201,
+      ok: true,
+      latencyMs: 84,
+      requestBody: {
+        referenceId: "church_123_basic",
+        idempotencyKey: "subscription-secret",
+        customerId: "cus_123",
+        priceId: "price_123",
+      },
+      responseBody: {
+        data: {
+          subscriptionId: "sub_123",
+          customerId: "cus_123",
+          priceId: "price_123",
+          referenceId: "church_123_basic",
+          status: "active",
+          provider: "paymongo",
+          providerMode: "test",
+        },
+      },
+    });
+
+    expect(kafka.publishNonBlocking).toHaveBeenCalledWith(
+      TOPICS.SHARED_PAYMENT_EVENTS,
+      expect.objectContaining({
+        eventType: "shared.payment.call",
+        lifecycle: expect.objectContaining({
+          eventType: "payment.subscription.active",
+          subscriptionId: "sub_123",
+          customerId: "cus_123",
+          priceId: "price_123",
+          referenceId: "church_123_basic",
+          status: "active",
+          provider: "paymongo",
+          providerMode: "test",
+        }),
+        redactions: expect.arrayContaining(["request.idempotencyKey"]),
+      }),
+      expect.any(Object),
+    );
+  });
 });

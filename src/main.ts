@@ -64,7 +64,10 @@ async function bootstrap() {
     warn: (message: string) => console.warn(`[Bootstrap] ${message}`),
   });
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
 
   const logger = app.get(LoggerService);
   const config = app.get(ConfigService);
