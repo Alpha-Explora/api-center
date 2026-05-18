@@ -65,6 +65,18 @@ export class ServiceManifestDto {
   @IsOptional()
   consumes?: string[] = [];
 
+  @ApiPropertyOptional({
+    example: "logistics",
+    description:
+      "Tribe that owns this service. Defaults to serviceId for legacy tribe entries.",
+  })
+  @IsString()
+  @Matches(/^[a-z0-9-]+$/, {
+    message: "ownerTribeId must be lowercase alphanumeric with hyphens only",
+  })
+  @IsOptional()
+  ownerTribeId?: string;
+
   @ApiPropertyOptional({ example: "/health" })
   @IsString()
   @IsOptional()

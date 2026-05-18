@@ -1,6 +1,76 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/analytics/shared-service-usage": {
+      "get": {
+        "operationId": "AnalyticsController_getSharedServiceUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/gateway-traffic": {
+      "get": {
+        "operationId": "AnalyticsController_getGatewayTraffic",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/provider-usage": {
+      "get": {
+        "operationId": "AnalyticsController_getProviderUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/alerts": {
+      "get": {
+        "operationId": "AnalyticsController_getAlerts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/audit/events": {
+      "get": {
+        "operationId": "AnalyticsController_getAuditEvents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/v1/kafka/governance": {
       "get": {
         "operationId": "KafkaGovernanceController_getGovernanceCatalog",
@@ -518,6 +588,20 @@
         },
         "tags": [
           "Tribes"
+        ]
+      }
+    },
+    "/api/v1/shared/payment/webhooks": {
+      "post": {
+        "operationId": "PaymentWebhookController_forwardPayMongoWebhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PaymentWebhook"
         ]
       }
     },
@@ -1299,7 +1383,7 @@
         "properties": {
           "topic": {
             "type": "string",
-            "example": "tribe.orders-service.events",
+            "example": "tribe.logistics.events",
             "description": "Tenant-scoped Kafka topic name",
             "maxLength": 200
           },
@@ -1321,6 +1405,12 @@
               "amount": 99900
             },
             "description": "Event payload object"
+          },
+          "sourceServiceId": {
+            "type": "string",
+            "example": "logistics-orders",
+            "description": "Microservice that produced the event inside the authenticated tribe boundary",
+            "maxLength": 64
           },
           "metadata": {
             "type": "object",
@@ -1427,6 +1517,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "ownerTribeId": {
+            "type": "string",
+            "example": "logistics",
+            "description": "Tribe that owns this service. Defaults to serviceId for legacy tribe entries."
           },
           "healthCheck": {
             "type": "string",

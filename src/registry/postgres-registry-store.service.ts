@@ -159,6 +159,7 @@ function mapRegistryEntryToServiceCreate(
     previousVersion: entry.previousVersion,
     description: entry.description,
     tags: entry.tags ?? [],
+    ownerTribeId: effectiveOwnerTribeId(entry),
     ownerTeam: entry.ownerTeam,
     contact: entry.contact,
     serviceTier: entry.serviceTier,
@@ -187,6 +188,7 @@ function mapRegistryEntryToServiceUpdate(
     previousVersion: entry.previousVersion,
     description: entry.description,
     tags: entry.tags ?? [],
+    ownerTribeId: effectiveOwnerTribeId(entry),
     ownerTeam: entry.ownerTeam,
     contact: entry.contact,
     serviceTier: entry.serviceTier,
@@ -222,6 +224,7 @@ function mapRowToRegistryEntry(
     version: row.version ?? undefined,
     description: row.description ?? undefined,
     tags: Array.isArray(row.tags) ? row.tags.filter(isString) : undefined,
+    ownerTribeId: row.ownerTribeId ?? undefined,
     ownerTeam: row.ownerTeam ?? undefined,
     contact: row.contact ?? undefined,
     serviceTier: row.serviceTier as ServiceTier | undefined,
@@ -239,4 +242,14 @@ function mapRowToRegistryEntry(
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
+}
+
+function effectiveOwnerTribeId(
+  entry: ServiceRegistryEntry,
+): string | undefined {
+  if ((entry.serviceType ?? "tribe") === "shared") {
+    return entry.ownerTribeId;
+  }
+
+  return entry.ownerTribeId ?? entry.serviceId;
 }

@@ -72,6 +72,8 @@ export interface ServiceManifest {
   requiredScopes: string[];
   exposes: string[];
   consumes: string[];
+  /** Tribe that owns this service. Defaults to serviceId for legacy tribe entries. */
+  ownerTribeId?: string;
   /** Routing namespace — 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
   serviceType?: ServiceType;
   healthCheck?: string;

@@ -417,6 +417,43 @@ describe("RegistryService", () => {
       );
       expect(service.canConsume("svc-a", "svc-b")).toBe(false);
     });
+
+    it("uses ownerTribeId as the boundary for owned microservices", async () => {
+      await service.register(
+        baseManifest({
+          serviceId: "logistics",
+          ownerTribeId: "logistics",
+          name: "Logistics Tribe",
+          requiredScopes: ["logistics:read"],
+          consumes: ["payment"],
+        }),
+      );
+      await service.register(
+        baseManifest({
+          serviceId: "logistics-orders",
+          ownerTribeId: "logistics",
+          name: "Logistics Orders",
+          requiredScopes: ["orders:read"],
+          consumes: [],
+        }),
+      );
+      await service.register(
+        baseManifest({
+          serviceId: "payment",
+          name: "Payment",
+          serviceType: "shared",
+          requiredScopes: ["payment:write"],
+        }),
+      );
+
+      expect(service.getEffectiveOwnerTribeId("logistics-orders")).toBe(
+        "logistics",
+      );
+      expect(service.getOwnedServices("logistics").map((svc) => svc.serviceId))
+        .toEqual(expect.arrayContaining(["logistics", "logistics-orders"]));
+      expect(service.canAccess("logistics", "logistics-orders")).toBe(true);
+      expect(service.canConsume("logistics", "payment")).toBe(true);
+    });
   });
 
   describe("getConsumers()", () => {

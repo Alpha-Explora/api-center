@@ -19,7 +19,7 @@
 | Artifact Registry | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center` |
 | Static IP name | `api-center-ip` (`34.8.167.159`) |
 | Public hostname | `api-center.itsandbox.site` |
-| Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<service-id>` secrets |
+| Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<tribe-id>` secrets |
 | Auth provider | `composite` (`AUTH_PROVIDER=composite` in ConfigMap): API Center-issued tribe JWTs with Descope validation fallback |
 | Memorystore cache host | `10.88.197.107:6379` |
 | Memorystore rate-limit host | `10.88.197.107:6379` (shared low-traffic Redis) |
@@ -400,7 +400,7 @@ values:
 
 ```bash
 export APICENTER_URL=https://api-center.itsandbox.site
-export APICENTER_TRIBE_ID=<registered-service-id>
+export APICENTER_TRIBE_ID=<owning-tribe-id>
 export APICENTER_TRIBE_SECRET=<registered-service-secret>
 export APICENTER_PLATFORM_ADMIN_TOKEN=<token-with-platform-admin>
 # or:

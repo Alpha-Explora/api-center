@@ -34,7 +34,7 @@ Validation notes:
 ## Tribe Startup Checklist
 
 1. Create the per-tribe Secret Manager secret:
-   - secret name: `api-center-tribe-secret-<service-id>`
+   - secret name: `api-center-tribe-secret-<tribe-id>`
    - payload stores `secretHashSha256=<sha256>` only
 2. Ensure tribe requests an access token from `/api/v1/auth/token`.
 3. Register service manifest at startup.
@@ -45,7 +45,7 @@ Validation notes:
 
 New tribes do not need a Descope app for API Center machine-to-machine access.
 API Center validates the plaintext tribe secret against
-`api-center-tribe-secret-<service-id>`, derives scopes from the registry, and
+`api-center-tribe-secret-<tribe-id>`, derives scopes from the registry, and
 issues an API Center-signed internal JWT. Legacy
 `TRIBE_SECRET_<SERVICE_ID_UPPER_SNAKE>` env keys are accepted only during
 migration.

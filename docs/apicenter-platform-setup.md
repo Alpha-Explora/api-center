@@ -43,7 +43,8 @@ credentials.
 
 For new tribes, use the local `apicenter-management` tribe detail page to:
 
-1. Provision `tribe.<serviceId>.events` in Confluent Cloud.
+1. Provision `tribe.<ownerTribeId>.events` in Confluent Cloud. If the service
+   is the tribe principal, `ownerTribeId` is the same as `serviceId`.
 2. Add that topic to the existing `api-center-s3-sink` connector.
 3. Keep tribe runtime code on the SDK path:
 
@@ -63,7 +64,7 @@ Confluent credentials.
 | GKE namespace | `api-center`. |
 | APICenter HPA | Current low-credit target is min 2 pods, max 3 pods. |
 | Shared-service HPAs | `payment`, `sms`, `email`, `gauth`, `otp`, and `geo` run as internal `ClusterIP` services with HPA min 1, max 3. |
-| Secret Manager | `api-center-prod` for gateway/platform secrets, `api-center-tribe-secret-<service-id>` for per-tribe secret hashes, and `api-shared-services-prod` for shared-service provider secrets. |
+| Secret Manager | `api-center-prod` for gateway/platform secrets, `api-center-tribe-secret-<tribe-id>` for per-tribe secret hashes, and `api-shared-services-prod` for shared-service provider secrets. |
 | Memorystore Redis | Registry/token cache, rate-limit counters, and shared-service OTP/SMS state. Current low-traffic target uses one 1 GiB Basic instance, `api-center-cache` at `10.88.197.107:6379`; verify the endpoint in GCP before pasting. |
 | Postgres control-plane DB | Optional ACID store for durable management state. Keep disabled until the database is created and migrated; Redis remains the active source for now. See [database-control-plane.md](database-control-plane.md). |
 | Shared-service Postgres schemas | Optional provider/domain records for payment, OTP, email, SMS, geo, and Google OAuth. These schemas are migrated from `api-shared-services` and remain disabled until runtime persistence is wired. |
@@ -185,7 +186,7 @@ Do not add new `TRIBE_SECRET_*` keys to `api-center-prod`. Each tribe gets its
 own Secret Manager secret:
 
 ```text
-api-center-tribe-secret-<service-id>
+api-center-tribe-secret-<tribe-id>
 ```
 
 Payload:
@@ -406,9 +407,10 @@ Use a separate rate-limit Redis only when traffic is high enough that counter ch
 6. Apply `api-shared-services/gcp/gke/00-shared-services.yaml`.
 7. Confirm shared services self-register through `PLATFORM_ADMIN_SECRET`.
 8. Register tribe manifests with `consumes` entries for the shared services they need.
-9. Create `api-center-tribe-secret-<service-id>` for each tribe secret hash.
-10. Provision `tribe.<service-id>.events` from the management console and add it
-   to `api-center-s3-sink`.
+9. Create `api-center-tribe-secret-<tribe-id>` for each tribe secret hash.
+10. Provision `tribe.<tribe-id>.events` from the management console and add it
+   to `api-center-s3-sink`. Microservices owned by that tribe use the same topic
+   and carry `sourceServiceId` for attribution.
 11. Issue a tribe token and smoke test one route per shared service.
 12. Verify Confluent publishing and S3 sink delivery.
 
@@ -454,7 +456,7 @@ In `/api/v1/metrics`, check for Kafka producer readiness and publish failure cou
 Before a tribe uses shared services:
 
 - Tribe has a stable `serviceId`.
-- `api-center-tribe-secret-<service-id>` exists and stores only the SHA-256 hash.
+- `api-center-tribe-secret-<tribe-id>` exists and stores only the SHA-256 hash.
 - API Center has a persistent internal JWT key pair in `JWT_PRIVATE_KEY` and
   `JWT_PUBLIC_KEY`; do not use generated in-memory keys in production.
 - Tribe manifest is registered with correct `consumes`.

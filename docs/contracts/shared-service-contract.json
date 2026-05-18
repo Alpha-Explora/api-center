@@ -131,7 +131,8 @@
     ],
     "wrappers": [
       "kafkaGetGovernanceCatalog",
-      "kafkaPublish"
+      "kafkaPublish",
+      "publishTribeEvent"
     ],
     "endpoints": [
       "/api/v1/kafka/governance",

@@ -475,10 +475,50 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // Access Control
   // -------------------------------------------------------------------------
 
+  getEffectiveOwnerTribeId(serviceId: string): string | undefined {
+    const service = this.services[serviceId];
+    if (!service) return undefined;
+    if ((service.serviceType ?? "tribe") === "shared") {
+      return service.ownerTribeId;
+    }
+
+    return service.ownerTribeId ?? service.serviceId;
+  }
+
+  getOwnedServices(tribeId: string): ServiceRegistryEntry[] {
+    return Object.values(this.services).filter((service) => {
+      if ((service.serviceType ?? "tribe") !== "tribe") return false;
+      return (service.ownerTribeId ?? service.serviceId) === tribeId;
+    });
+  }
+
+  getEffectiveConsumesForTribe(tribeId: string): string[] {
+    const direct = this.services[tribeId]?.consumes ?? [];
+    const owned = this.getOwnedServices(tribeId).flatMap(
+      (service) => service.consumes ?? [],
+    );
+
+    return [...new Set([...direct, ...owned])];
+  }
+
+  canAccess(sourceTribeId: string, targetServiceId: string): boolean {
+    const target = this.services[targetServiceId];
+    if (!target) return false;
+
+    if ((target.serviceType ?? "tribe") === "tribe") {
+      const targetOwner = target.ownerTribeId ?? target.serviceId;
+      if (targetOwner === sourceTribeId) return true;
+    }
+
+    return this.canConsume(sourceTribeId, targetServiceId);
+  }
+
   canConsume(sourceServiceId: string, targetServiceId: string): boolean {
     const source = this.services[sourceServiceId];
-    if (!source) return false;
-    return source.consumes.includes(targetServiceId);
+    if (source?.consumes.includes(targetServiceId)) return true;
+    return this.getEffectiveConsumesForTribe(sourceServiceId).includes(
+      targetServiceId,
+    );
   }
 
   getRequiredScopes(targetServiceId: string): string[] {

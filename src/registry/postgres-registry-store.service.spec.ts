@@ -11,6 +11,7 @@ function entry(overrides: Partial<ServiceRegistryEntry> = {}): ServiceRegistryEn
     exposes: ["/health", "/orders"],
     consumes: ["payment", "missing-service"],
     serviceType: "tribe",
+    ownerTribeId: "servease",
     healthCheck: "/health",
     version: "1.0.0",
     description: "Test tribe",
@@ -92,6 +93,12 @@ describe("PostgresRegistryStoreService", () => {
         },
       }),
     );
+    expect(tx.service.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ ownerTribeId: "servease" }),
+        update: expect.objectContaining({ ownerTribeId: "servease" }),
+      }),
+    );
     expect(tx.serviceRoute.createMany).toHaveBeenCalledWith({
       data: [
         { serviceId: "service-1", path: "/health" },
@@ -132,6 +139,7 @@ describe("PostgresRegistryStoreService", () => {
     prisma.service.findMany.mockResolvedValue([
       {
         serviceId: "payment",
+        ownerTribeId: null,
         name: "Payment Shared Service",
         serviceType: "shared",
         baseUrl: "http://payment-service:4010",
@@ -168,10 +176,22 @@ describe("PostgresRegistryStoreService", () => {
       expect.objectContaining({
         serviceId: "payment",
         serviceType: "shared",
+        ownerTribeId: undefined,
         exposes: ["/checkout"],
         requiredScopes: ["payment:write"],
         consumes: ["external-bank"],
         tags: ["payments"],
+      }),
+    );
+  });
+
+  it("defaults tribe owner to serviceId when storing legacy tribe entries", async () => {
+    await service.upsert(entry({ serviceId: "legacy-tribe", ownerTribeId: undefined }));
+
+    expect(tx.service.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ ownerTribeId: "legacy-tribe" }),
+        update: expect.objectContaining({ ownerTribeId: "legacy-tribe" }),
       }),
     );
   });

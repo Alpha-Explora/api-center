@@ -29,7 +29,7 @@ The API Center migration creates one database with three Postgres schemas:
 | `api_center_ops` | Provisioning jobs, readiness/health snapshots, smoke-test runs, and usage rollups |
 | `api_center_audit` | Durable operator and system audit events |
 
-Secrets stay in GCP Secret Manager. Postgres stores only references and metadata, such as `api-center-tribe-secret-<service-id>`.
+Secrets stay in GCP Secret Manager. Postgres stores only references and metadata, such as `api-center-tribe-secret-<tribe-id>`.
 
 ## Shared-Service Schemas
 

@@ -13,7 +13,7 @@ const TOPIC_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 export class KafkaPublishMessageDto {
   @ApiProperty({
-    example: "tribe.orders-service.events",
+    example: "tribe.logistics.events",
     description: "Tenant-scoped Kafka topic name",
     maxLength: 200,
   })
@@ -51,6 +51,20 @@ export class KafkaPublishMessageDto {
   @IsObject({ message: "payload must be an object" })
   @IsNotEmptyObject({}, { message: "payload must not be empty" })
   payload!: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    example: "logistics-orders",
+    description:
+      "Microservice that produced the event inside the authenticated tribe boundary",
+    maxLength: 64,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64, { message: "sourceServiceId is too long" })
+  @Matches(/^[a-z0-9-]+$/, {
+    message: "sourceServiceId must be lowercase alphanumeric with hyphens only",
+  })
+  sourceServiceId?: string;
 
   @ApiPropertyOptional({
     example: { sourceService: "checkout-service" },

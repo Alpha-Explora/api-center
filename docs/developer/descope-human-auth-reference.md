@@ -57,7 +57,7 @@ In this mode:
 ```text
 Token issuance:
   /api/v1/auth/token
-  -> validate api-center-tribe-secret-<service-id>
+  -> validate api-center-tribe-secret-<tribe-id>
   -> sign API Center internal JWT
 
 Token validation:

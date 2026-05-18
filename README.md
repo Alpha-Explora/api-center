@@ -153,7 +153,7 @@ JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
 JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
 ```
 
-Use `composite` first in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes need one per-tribe GCP Secret Manager secret named `api-center-tribe-secret-<service-id>`; they do not need one Descope app per tribe.
+Use `composite` first in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes need one per-tribe GCP Secret Manager secret named `api-center-tribe-secret-<tribe-id>`; they do not need one Descope app per tribe.
 
 Legacy Descope-only M2M mode:
 
@@ -241,7 +241,7 @@ Use `TRIBE_SECRET_*` only for local/dev fallback or temporary rollback. In
 deployed environments, create one Secret Manager secret per tribe:
 
 ```text
-api-center-tribe-secret-<service-id>
+api-center-tribe-secret-<tribe-id>
 ```
 
 The payload shape and IAM setup are documented in
@@ -276,7 +276,8 @@ import { TribeClient } from '@implementsprint/sdk';
 
 const client = new TribeClient({
   gatewayUrl: process.env.APICENTER_URL,   // http://localhost:3000 (dev)
-  tribeId:    'my-service',
+  tribeId:    process.env.APICENTER_TRIBE_ID,
+  sourceServiceId: process.env.APICENTER_SERVICE_ID,
   secret:     process.env.MY_SERVICE_SECRET,
 });
 
@@ -325,9 +326,8 @@ const fence = await client.geoFenceCheck({
 
 // Governed Kafka helpers backed by APICenter and Confluent Cloud
 const kafkaGovernance = await client.kafkaGetGovernanceCatalog();
-const tenantTopic = TribeClient.buildTenantTopic('orders-service', 'events');
-await client.kafkaPublish({
-  topic: tenantTopic,
+await client.publishTribeEvent({
+  sourceServiceId: 'orders-service',
   key: 'order-123',
   eventType: 'order.created',
   payload: { orderId: 'order-123' },
@@ -384,16 +384,16 @@ import { TribeClient } from '@implementsprint/sdk';
 
 const client = new TribeClient({
   gatewayUrl: process.env.APICENTER_URL,
-  tribeId: 'orders-service',
+  tribeId: process.env.APICENTER_TRIBE_ID,
+  sourceServiceId: process.env.APICENTER_SERVICE_ID,
   secret: process.env.ORDERS_SERVICE_SECRET,
 });
 
 await client.authenticate();
 
 const governance = await client.kafkaGetGovernanceCatalog();
-const topic = TribeClient.buildTenantTopic('orders-service', 'events');
-await client.kafkaPublish({
-  topic,
+await client.publishTribeEvent({
+  sourceServiceId: 'orders-service',
   key: 'order-123',
   eventType: 'order.created',
   payload: { orderId: 'order-123' },
@@ -426,8 +426,9 @@ Required token scopes for governed Kafka publishing:
 
 Kafka tenant isolation rule:
 
-- Governed Kafka publish calls only accept topics that start with
-  `tribe.<tribeId>.` for the authenticated tribe.
+- Governed tribe event publishing uses `tribe.<tribeId>.events` for the
+  authenticated tribe. Microservices should keep the same `APICENTER_TRIBE_ID`
+  and pass their registered backend ID as `sourceServiceId`.
 
 To add reusable platform functionality, prefer a shared service manifest and SDK wrapper over a direct external proxy.
 

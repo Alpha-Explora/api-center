@@ -239,7 +239,7 @@ export class ProxyHandler {
       .filter((svc) => svc.status !== "retired")
       .map((svc) => ({
         canAccess: tribeId
-          ? this.deps.registry.canConsume(tribeId, svc.serviceId)
+          ? this.deps.registry.canAccess(tribeId, svc.serviceId)
           : false,
         serviceId: svc.serviceId,
         name: svc.name,
@@ -299,9 +299,9 @@ export class ProxyHandler {
     this.enforceLifecycleGate(targetEntry, targetServiceId, res);
 
     // ── 2. Scope check ─────────────────────────────────────────────────────
-    if (!this.deps.registry.canConsume(tribeId, targetServiceId)) {
+    if (!this.deps.registry.canAccess(tribeId, targetServiceId)) {
       throw new ForbiddenError(
-        `Tribe '${tribeId}' is not authorised to consume '${targetServiceId}'`,
+        `Tribe '${tribeId}' is not authorised to access '${targetServiceId}'`,
       );
     }
 

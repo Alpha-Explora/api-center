@@ -55,4 +55,40 @@ describe("ServiceManifestDto", () => {
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
   });
+
+  it("accepts ownerTribeId for microservices owned by a tribe", async () => {
+    const dto = transform({
+      ...baseManifest,
+      serviceId: "logistics-orders",
+      ownerTribeId: "logistics",
+      name: "Logistics Orders",
+      baseUrl: "http://logistics-orders:3000",
+      requiredScopes: ["orders:read"],
+      exposes: ["/orders", "/health"],
+      consumes: ["payment"],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects invalid ownerTribeId values", async () => {
+    const dto = transform({
+      ...baseManifest,
+      serviceId: "logistics-orders",
+      ownerTribeId: "Logistics Orders!",
+      name: "Logistics Orders",
+      baseUrl: "http://logistics-orders:3000",
+      requiredScopes: ["orders:read"],
+      exposes: ["/orders"],
+      consumes: [],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === "ownerTribeId")).toBe(
+      true,
+    );
+  });
 });

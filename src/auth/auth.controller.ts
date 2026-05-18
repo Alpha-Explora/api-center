@@ -71,11 +71,16 @@ export class AuthController {
       kafka: ["external:kafka:read", "external:kafka:write"],
     };
 
-    // Build scopes: own + consumable targets' scopes + external API scopes
+    // Build scopes: own + owned microservices + consumable targets + external APIs.
     const ownScopes = service.requiredScopes || [];
+    const ownedServiceScopes = this.registry
+      .getOwnedServices(tribeId)
+      .flatMap((ownedService) => ownedService.requiredScopes ?? []);
+    const effectiveConsumes =
+      this.registry.getEffectiveConsumesForTribe(tribeId);
     const consumableScopes: string[] = [];
     const externalApiScopes: string[] = [];
-    for (const targetId of service.consumes) {
+    for (const targetId of effectiveConsumes) {
       const target = this.registry.get(targetId);
       if (target) {
         consumableScopes.push(...target.requiredScopes);
@@ -84,7 +89,12 @@ export class AuthController {
       }
     }
     const scopes = [
-      ...new Set([...ownScopes, ...consumableScopes, ...externalApiScopes]),
+      ...new Set([
+        ...ownScopes,
+        ...ownedServiceScopes,
+        ...consumableScopes,
+        ...externalApiScopes,
+      ]),
     ];
     const permissions = [
       `tribe:${tribeId}:read`,

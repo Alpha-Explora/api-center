@@ -14,6 +14,7 @@ const GOVERNED_SCHEMA_VERSION = "1.0.0";
 const GovernedKafkaPayloadSchema = z.object({
   eventType: z.string().min(1),
   payload: z.record(z.string(), z.unknown()),
+  sourceServiceId: z.string().regex(/^[a-z0-9-]+$/).optional(),
   metadata: z.record(z.string(), z.string()).optional(),
 });
 
@@ -78,6 +79,7 @@ export class KafkaGovernanceService {
     const parseResult = GovernedKafkaPayloadSchema.safeParse({
       eventType: dto.eventType,
       payload: dto.payload,
+      sourceServiceId: dto.sourceServiceId,
       metadata: dto.metadata,
     });
 
@@ -95,6 +97,9 @@ export class KafkaGovernanceService {
         governance: {
           schemaVersion: GOVERNED_SCHEMA_VERSION,
           sourceTribeId: tribeId,
+          ...(parseResult.data.sourceServiceId && {
+            sourceServiceId: parseResult.data.sourceServiceId,
+          }),
           correlationId,
         },
       },

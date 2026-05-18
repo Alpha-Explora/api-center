@@ -12,7 +12,7 @@ sequenceDiagram
 
     rect rgb(26, 26, 46)
     Note over App,UP: Phase 1 — Initialization
-    App->>TC: new TribeClient(gatewayUrl, tribeId, secret)
+    App->>TC: new TribeClient(gatewayUrl, tribeId, secret, sourceServiceId?)
     TC->>AX: Create Axios instance
     TC->>TC: Set defaults: timeout 30s, headers
     end

@@ -294,7 +294,7 @@ curl -s -X POST http://localhost:3000/api/v1/auth/token \
 ```
 
 API Center validates the plaintext service secret against
-`api-center-tribe-secret-<service-id>` in GCP Secret Manager, or a legacy
+`api-center-tribe-secret-<tribe-id>` in GCP Secret Manager, or a legacy
 `TRIBE_SECRET_<SERVICE_ID_UPPER>` env hash during migration, and signs an
 internal JWT with registry-derived `tribeId`, `permissions`, and `scopes`. New
 tribes do not need a Descope app for machine-to-machine access.
@@ -692,7 +692,7 @@ credentials in `api-center-prod`.
 ### Per-service tribe secrets
 
 ```text
-Secret name: api-center-tribe-secret-<service-id>
+Secret name: api-center-tribe-secret-<tribe-id>
 ```
 
 ```json
@@ -732,7 +732,7 @@ KAFKA_SASL_PASSWORD=<confluent-api-secret>
 - [ ] **Kafka**: Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
 - [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
 - [ ] TLS terminated at NGINX or upstream ingress â€” **never** expose port 3000 directly
-- [ ] Rotate per-tribe `api-center-tribe-secret-<service-id>` secrets regularly
+- [ ] Rotate per-tribe `api-center-tribe-secret-<tribe-id>` secrets regularly
 - [ ] Change Grafana default password (`GF_SECURITY_ADMIN_PASSWORD`)
 - [ ] Restrict Vault UI, Kafka UI, and Prometheus to internal networks only
 - [ ] `ENVOY_TRUST_HEADERS=false` unless behind a verified Envoy sidecar

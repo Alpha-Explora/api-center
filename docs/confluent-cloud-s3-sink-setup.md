@@ -21,6 +21,18 @@ GCP API Gateway / API Center shared services
 
 Confluent Cloud is not in the synchronous proxy path for tribe-to-tribe calls. API Center still handles live service routing through the registry and proxy layer. Confluent is the asynchronous event/data backbone.
 
+## Ownership Alignment
+
+The long-running ownership model is documented in
+`docs/superpowers/plans/2026-05-19-tribe-data-pipeline-ownership.md`.
+
+Use that plan as the source of truth for tribes that are not in S3 yet:
+
+- platform owns Confluent, S3 Sink, raw S3, Glue/Athena, Databricks infrastructure, Bronze, common Silver, governance, and access control
+- tribes own event semantics, business transformations, tribe-specific Silver/Gold models, and domain dashboard metrics
+- ordinary tribes publish through APICenter and the SDK; they do not receive Confluent or AWS S3 writer credentials
+- separate tribe-owned full pipelines are exception cases, not the default operating model
+
 ## Current Active Target
 
 Use this Confluent target for API Center producer credentials and S3 sink validation:
@@ -84,6 +96,11 @@ test.tribe.<tribeId>.events
 prod.tribe.<tribeId>.events
 ```
 
+Microservices do not get separate event topics by default. A service registered
+with `serviceId=logistics-orders` and `ownerTribeId=logistics` publishes to the
+owning tribe topic `tribe.logistics.events` and carries `sourceServiceId` for
+microservice attribution.
+
 Only create separate Confluent clusters and separate S3 buckets when production
 traffic, compliance, or blast-radius requirements justify the extra fixed cost.
 
@@ -132,19 +149,26 @@ CONFLUENT_CLOUD_API_KEY / SECRET
 Operator flow:
 
 1. Open `http://localhost:3000/tribes/<serviceId>`.
-2. In **Confluent data pipeline**, click **Provision topic**.
+2. In **Confluent data pipeline**, click **Provision topic**. If the service has
+   `ownerTribeId`, the console provisions `tribe.<ownerTribeId>.events`.
 3. Click **Add to S3 sink**.
 4. Publish through API Center's governed Kafka wrapper.
 5. Confirm the topic receives messages and the S3 sink exports them under the
    configured topic prefix.
 
+If the console detects a legacy service-scoped topic such as
+`tribe.<serviceId>.events`, use **Upgrade legacy topic**. The action creates or
+verifies `tribe.<ownerTribeId>.events`, adds the new topic to the S3 Sink, and
+keeps the old topic until all producers have moved to the owner-tribe topic.
+
 Manual fallback:
 
 1. In Confluent Cloud, open cluster `lkc-850n9q`.
-2. Create topic `tribe.<serviceId>.events`.
+2. Create topic `tribe.<ownerTribeId>.events` for tribe-owned microservices, or
+   `tribe.<serviceId>.events` when the service itself is the tribe principal.
 3. Use 1 partition and `retention.ms=604800000`.
 4. Open connector `api-center-s3-sink`.
-5. Add `tribe.<serviceId>.events` to the connector topic list.
+5. Add that tribe event topic to the connector topic list.
 6. Restart the connector only if Confluent requires it after config update.
 
 Tribes still do not receive Confluent credentials. They publish through API

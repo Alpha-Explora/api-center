@@ -37,6 +37,7 @@ function createMockDeps(): ProxyHandlerDeps {
       get: jest.fn(),
       getByType: jest.fn().mockReturnValue([]),
       canConsume: jest.fn().mockReturnValue(true),
+      canAccess: jest.fn().mockReturnValue(true),
       getRequiredScopes: jest.fn().mockReturnValue([]),
       validateSecret: jest.fn(),
       onCacheInvalidation: jest.fn().mockReturnValue(() => {}),
@@ -413,11 +414,31 @@ describe("ProxyHandler", () => {
     });
 
     it("throws ForbiddenError when tribe cannot consume target service", async () => {
-      (deps.registry.canConsume as jest.Mock).mockReturnValue(false);
+      (deps.registry.canAccess as jest.Mock).mockReturnValue(false);
 
       await expect(
         handler.proxyRequest("locked-svc", fakeReq(), fakeRes()),
       ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("allows owned microservice access through the tribe boundary", async () => {
+      (deps.registry.canAccess as jest.Mock).mockImplementation(
+        (sourceTribeId: string, targetServiceId: string) =>
+          sourceTribeId === "logistics" &&
+          targetServiceId === "logistics-orders",
+      );
+
+      await handler.proxyRequest(
+        "logistics-orders",
+        fakeReq({ tribeId: "logistics" }),
+        fakeRes(),
+      );
+
+      expect(deps.registry.canAccess).toHaveBeenCalledWith(
+        "logistics",
+        "logistics-orders",
+      );
+      expect(mockProxyMiddleware).toHaveBeenCalled();
     });
 
     it("throws ForbiddenError when caller lacks required scopes", async () => {
@@ -483,7 +504,7 @@ describe("ProxyHandler", () => {
           serviceType: "tribe",
         },
       ]);
-      (deps.registry.canConsume as jest.Mock).mockReturnValue(true);
+      (deps.registry.canAccess as jest.Mock).mockReturnValue(true);
 
       const result = handler.listServices("svc-alpha");
 
@@ -504,7 +525,7 @@ describe("ProxyHandler", () => {
           replacementService: "new-svc",
         },
       ]);
-      (deps.registry.canConsume as jest.Mock).mockReturnValue(true);
+      (deps.registry.canAccess as jest.Mock).mockReturnValue(true);
 
       const result = handler.listServices("svc-alpha");
 
@@ -532,7 +553,7 @@ describe("ProxyHandler", () => {
           serviceType: "tribe",
         },
       ]);
-      (deps.registry.canConsume as jest.Mock).mockImplementation(
+      (deps.registry.canAccess as jest.Mock).mockImplementation(
         (sourceServiceId: string, targetServiceId: string) =>
           sourceServiceId === "svc-alpha" && targetServiceId === "visible-svc",
       );
@@ -563,7 +584,7 @@ describe("ProxyHandler", () => {
           serviceType: "tribe",
         },
       ]);
-      (deps.registry.canConsume as jest.Mock).mockImplementation(
+      (deps.registry.canAccess as jest.Mock).mockImplementation(
         (sourceServiceId: string, targetServiceId: string) =>
           sourceServiceId === "svc-alpha" && targetServiceId === "visible-svc",
       );

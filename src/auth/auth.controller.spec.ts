@@ -26,6 +26,8 @@ const mockAuth: Partial<AuthService> = {
 const mockRegistry: Partial<RegistryService> = {
   get: jest.fn(),
   validateSecret: jest.fn(),
+  getOwnedServices: jest.fn(),
+  getEffectiveConsumesForTribe: jest.fn(),
 };
 
 const mockLogger: Partial<LoggerService> = {
@@ -71,6 +73,16 @@ describe("AuthController", () => {
 
   describe("issueToken()", () => {
     const dto = { tribeId: "svc-alpha", secret: "s3cret" };
+
+    beforeEach(() => {
+      (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
+      (mockRegistry.getEffectiveConsumesForTribe as jest.Mock).mockImplementation(
+        (tribeId: string) => {
+          const service = (mockRegistry.get as jest.Mock)(tribeId);
+          return service?.consumes ?? [];
+        },
+      );
+    });
 
     it("returns accessToken AND refreshToken", async () => {
       (mockRegistry.get as jest.Mock).mockReturnValue({
@@ -161,6 +173,66 @@ describe("AuthController", () => {
       // Raw JWT must NEVER appear in the event
       expect(JSON.stringify(payload)).not.toContain("access-jwt");
       expect(JSON.stringify(payload)).not.toContain("refresh-jwt");
+    });
+
+    it("issues scopes from tribe-owned microservices and effective consumes", async () => {
+      (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) => {
+        if (serviceId === "logistics") {
+          return {
+            serviceId: "logistics",
+            ownerTribeId: "logistics",
+            requiredScopes: ["logistics:read"],
+            consumes: ["kafka"],
+          };
+        }
+        if (serviceId === "payment") {
+          return {
+            serviceId: "payment",
+            serviceType: "shared",
+            requiredScopes: ["payment:write"],
+            consumes: [],
+          };
+        }
+        return null;
+      });
+      (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([
+        {
+          serviceId: "logistics",
+          ownerTribeId: "logistics",
+          requiredScopes: ["logistics:read"],
+        },
+        {
+          serviceId: "logistics-orders",
+          ownerTribeId: "logistics",
+          requiredScopes: ["orders:read"],
+        },
+      ]);
+      (mockRegistry.getEffectiveConsumesForTribe as jest.Mock).mockReturnValue([
+        "payment",
+        "kafka",
+      ]);
+      (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
+      (mockAuth.issueToken as jest.Mock).mockResolvedValue({
+        accessToken: "access-jwt",
+        refreshToken: "refresh-jwt",
+        expiresIn: 3600,
+      });
+
+      await controller.issueToken(
+        { tribeId: "logistics", secret: "s3cret" },
+        fakeReq(),
+      );
+
+      expect(mockAuth.issueToken).toHaveBeenCalledWith(
+        "logistics",
+        expect.arrayContaining(["tribe:logistics:read"]),
+        expect.arrayContaining([
+          "logistics:read",
+          "orders:read",
+          "payment:write",
+          "external:kafka:write",
+        ]),
+      );
     });
   });
 

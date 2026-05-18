@@ -128,7 +128,7 @@ The SDK wraps gateway routes only. It does not bypass AP Center policy and it do
 Before a tribe integration is considered ready, verify:
 
 - The tribe is registered in AP Center.
-- `api-center-tribe-secret-<service-id>` exists in Secret Manager and stores
+- `api-center-tribe-secret-<tribe-id>` exists in Secret Manager and stores
   only the tribe secret SHA-256 hash.
 - The shared service is registered with `serviceType: "shared"`.
 - The tribe manifest includes the shared service ID in `consumes`.

@@ -49,6 +49,47 @@ describe("KafkaGovernanceService", () => {
     );
   });
 
+  it("publishes tribe events with source service attribution", async () => {
+    await service.publishMessage(
+      "logistics",
+      {
+        topic: "tribe.logistics.events",
+        key: "ord_123",
+        eventType: "order.created",
+        payload: { orderId: "ord_123" },
+        sourceServiceId: "logistics-orders",
+        metadata: { schema: "orders.v1" },
+      } as any,
+      "corr-1",
+    );
+
+    expect(mockKafka.publish).toHaveBeenCalledWith(
+      "tribe.logistics.events",
+      expect.objectContaining({
+        eventType: "order.created",
+        payload: { orderId: "ord_123" },
+        metadata: { schema: "orders.v1" },
+        governance: expect.objectContaining({
+          sourceTribeId: "logistics",
+          sourceServiceId: "logistics-orders",
+          correlationId: "corr-1",
+        }),
+      }),
+      "ord_123",
+    );
+  });
+
+  it("rejects source service attempts to publish outside the tribe topic", async () => {
+    await expect(
+      service.publishMessage("logistics", {
+        topic: "tribe.logistics-orders.events",
+        eventType: "order.created",
+        payload: { orderId: "ord_123" },
+        sourceServiceId: "logistics-orders",
+      } as any),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it("rejects publish to non-tenant topic", async () => {
     await expect(
       service.publishMessage("orders-service", {

@@ -34,6 +34,7 @@ model Service {
   previousVersion      String?   @map("previous_version")
   description          String?
   tags                 Json      @default("[]")
+  ownerTribeId         String?   @map("owner_tribe_id")
   ownerTeam            String?   @map("owner_team")
   contact              String?
   serviceTier          String?   @map("service_tier")
@@ -62,6 +63,8 @@ model Service {
 
   @@unique([organizationId, serviceId], name: "organization_service_id")
   @@index([serviceType, status], name: "services_type_status_idx")
+  @@index([ownerTribeId], name: "services_owner_tribe_idx")
+  @@index([organizationId, ownerTribeId, serviceType, status], name: "services_org_owner_type_status_idx")
   @@index([ownerTeam], name: "services_owner_team_idx")
   @@map("services")
   @@schema("api_center")
