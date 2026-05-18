@@ -32,8 +32,8 @@
 
 | Field | Value |
 |---|---|
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-184acd7-202605190511` |
-| Built from | `184acd7` |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-80440b7-202605190539` |
+| Built from | `80440b7` |
 | Last deployed | `2026-05-19` |
 | Deployed by | Codex-assisted operator rollout |
 
@@ -560,4 +560,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-14 | manual-tribe-secret-20260514123048 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:manual-tribe-secret-20260514123048`; enabled per-tribe Secret Manager lookup and verified `smoke-tribe` token issuance from `api-center-tribe-secret-smoke-tribe` | Stop editing `api-center-prod` for ordinary tribe secret onboarding |
 | 2026-05-15 | shared-service-export-20260515184111 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:shared-service-export-20260515184111`; added sanitized shared-service export publishing for `sms`, `email`, `payment`, `otp`, `geo`, and `gauth` | Export shared-service usage to dedicated Confluent topics for S3 lake ingestion |
 | 2026-05-16 | migration-20260516 | Created new GCP target project resources in `api-center-496422` / `asia-southeast1`, created fresh Secret Manager versions, deployed API Center and shared services, and verified internal readiness HTTP 200. DNS cutover is still pending. | Move API Center hosting away from the old GCP project while keeping Confluent/S3 external |
-| 2026-05-19 | 184acd7 | Applied Supabase migration `20260519000000_add_owner_tribe_id.sql` and deployed image `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-184acd7-202605190511`; readiness returned HTTP 200 after rollout | Roll out explicit owner-tribe boundaries and per-tribe event-topic support |
+| 2026-05-19 | 80440b7 | Applied Supabase migration `20260519000000_add_owner_tribe_id.sql` and deployed image `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-80440b7-202605190539`; readiness returned HTTP 200 after rollout | Roll out explicit owner-tribe boundaries, prefixed topic governance, and per-tribe event-topic support |
