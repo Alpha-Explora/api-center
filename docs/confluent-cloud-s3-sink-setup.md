@@ -87,6 +87,14 @@ test.tribe.servease.events
 prod.api-center.*
 prod.api-center.shared.*
 prod.tribe.servease.events
+prod.tribe.church-donations.events
+prod.tribe.flow-ci.events
+prod.tribe.greenovate.events
+prod.tribe.pakiapps.events
+prod.tribe.shoteam.events
+prod.tribe.smoke-tribe.events
+prod.tribe.smurf-village.events
+prod.tribe.trinithrive.events
 ```
 
 New tribe topics should follow the same pattern:
@@ -103,6 +111,13 @@ microservice attribution.
 
 Only create separate Confluent clusters and separate S3 buckets when production
 traffic, compliance, or blast-radius requirements justify the extra fixed cost.
+
+Production cutover note, 2026-05-19:
+
+- Created the eight current live tribe topics listed above.
+- Added those topics to `api-center-prod-s3-sink`, bringing the connector topic list to 31.
+- Granted the S3 sink service account `READ` and `DESCRIBE` on the `prod.` topic prefix, plus the required DLQ ACLs after connector restart assigned a new DLQ topic.
+- Verified `api-center-prod-s3-sink` returned `RUNNING` with one running task after ACL propagation.
 
 ## User Setup After Repo Fix
 
