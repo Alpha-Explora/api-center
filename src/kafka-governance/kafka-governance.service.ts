@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { z } from "zod";
 
+import { ConfigService } from "../config/config.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
@@ -24,6 +25,7 @@ export class KafkaGovernanceService {
     private readonly kafka: KafkaService,
     private readonly logger: LoggerService,
     private readonly metrics: MetricsService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   getGovernanceCatalog(tribeId: string) {
@@ -125,8 +127,13 @@ export class KafkaGovernanceService {
     topic: string,
     normalizedTribeId: string,
   ): void {
+    const policyTopic = this.stripConfiguredTopicPrefix(topic);
+
     for (const blockedPrefix of RESERVED_TOPIC_PREFIXES) {
-      if (topic.startsWith(blockedPrefix)) {
+      if (
+        topic.startsWith(blockedPrefix) ||
+        policyTopic.startsWith(blockedPrefix)
+      ) {
         throw new ForbiddenError(
           `Kafka topic '${topic}' is blocked by governance policy`,
         );
@@ -138,15 +145,28 @@ export class KafkaGovernanceService {
       `tribe-${normalizedTribeId}.`,
     ];
 
-    if (!allowedPrefixes.some((prefix) => topic.startsWith(prefix))) {
+    if (!allowedPrefixes.some((prefix) => policyTopic.startsWith(prefix))) {
       throw new ForbiddenError(
         `Kafka topic '${topic}' is outside tenant boundary for tribe '${normalizedTribeId}'`,
       );
     }
   }
 
+  private stripConfiguredTopicPrefix(topic: string): string {
+    const cleanTopic = topic.trim();
+    const cleanPrefix = (this.config?.kafka?.topicPrefix ?? "")
+      .trim()
+      .replace(/\.+$/, "");
+
+    if (!cleanPrefix) return cleanTopic;
+    if (!cleanTopic.startsWith(`${cleanPrefix}.`)) return cleanTopic;
+
+    return cleanTopic.slice(cleanPrefix.length + 1);
+  }
+
   private normalizeTribeId(tribeId: string): string {
     return String(tribeId)
+      .trim()
       .toLowerCase()
       .replaceAll(/[^a-z0-9._-]/g, "-");
   }

@@ -60,7 +60,7 @@ Tribes do not receive:
 | Area | Owner | Notes |
 | --- | --- | --- |
 | APICenter registration, `consumes`, scopes, lifecycle gate | Platform | Required before SDK calls or governed publish are accepted. |
-| Topic naming rules and tenant boundary | Platform | Base tenant topic is `tribe.<tribeId>.events`; runtime may publish to prefixed physical topics such as `prod.tribe.<tribeId>.events`. |
+| Topic naming rules and tenant boundary | Platform | Base tenant topic is `tribe.<ownerTribeId>.events`; runtime may publish to prefixed physical topics such as `prod.tribe.<ownerTribeId>.events`. Microservices do not get separate topics by default. |
 | Confluent topic creation | Platform | Can be automated through `apicenter-management`; manual Confluent UI is fallback only. |
 | S3 Sink topic inclusion | Platform | Platform updates the managed connector topic list. |
 | Raw S3 bucket and object layout | Platform | One governed raw lake unless compliance requires isolation. |
@@ -68,7 +68,7 @@ Tribes do not receive:
 | Athena validation queries | Platform | Used to prove raw counts, redaction, and per-tribe data arrival. |
 | Databricks workspace and shared jobs | Platform | Platform owns infrastructure, schedules, cluster/job guardrails, and common ingestion. |
 | Bronze tables | Platform | Bronze preserves raw event fidelity with ingestion metadata. |
-| Common Silver standards | Platform | Common fields include `event_id`, `event_type`, `tribe_id`, `event_timestamp`, `source_topic`, `correlation_id`, and ingestion metadata. |
+| Common Silver standards | Platform | Common fields include `event_id`, `event_type`, `tribe_id`, `source_service_id`, `event_timestamp`, `source_topic`, `correlation_id`, and ingestion metadata. |
 | Tribe domain event schema | Tribe | Tribe defines events such as `order.created`, `booking.completed`, or `student.enrolled`. |
 | Tribe-specific Silver models | Tribe, with platform templates | Tribe validates business rules and data semantics. |
 | Shared Gold metrics | Platform | Cross-tribe usage, reliability, export health, and shared-service analytics. |
@@ -78,7 +78,15 @@ Tribes do not receive:
 
 ## Tribe S3 Onboarding States
 
-Track every tribe through these states. A tribe that is not in S3 starts at `Not configured`.
+Track every owner tribe through these states. A tribe that is not in S3 starts
+at `Not configured`.
+
+The state boundary is the owner tribe topic, not an individual microservice. A
+registered microservice such as `logistics-orders` with `ownerTribeId=logistics`
+publishes to `tribe.logistics.events` and is attributed with
+`sourceServiceId=logistics-orders`. Management may show the contributing
+microservices under the tribe topic, but it must not create a separate S3
+onboarding state or Confluent topic for each microservice by default.
 
 | State | Meaning | Required Evidence To Exit |
 | --- | --- | --- |
@@ -100,6 +108,7 @@ Every state transition must be auditable:
 
 ```text
 service_id
+owner_tribe_id
 environment
 previous_state
 new_state
@@ -111,6 +120,11 @@ blocking_reason
 next_review_date
 ```
 
+For tribe-owned microservices, the transition record is keyed by
+`owner_tribe_id` and physical topic. `service_id` may be recorded as the
+producer or management page context, but it must not create a separate topic
+state when the producer is already under an owner tribe.
+
 The management UI should show the current state, but the durable source of truth
 must include state history so `Curated active` can be traced back to actual
 platform and tribe approvals.
@@ -121,24 +135,28 @@ Use this flow whenever a tribe asks to participate in the shared data visualizat
 
 1. Confirm whether the tribe has business events worth exporting.
 2. Complete data classification and retention review.
-3. Confirm the tribe is registered in APICenter.
+3. Confirm the owner tribe is registered in APICenter, and confirm any
+   publishing microservice is registered with `ownerTribeId` pointing to that
+   tribe.
 4. Add or verify `external:kafka:write` for the tribe token scope.
 5. Confirm the tenant topic:
 
 ```text
-tribe.<tribeId>.events
+tribe.<ownerTribeId>.events
 ```
 
 6. Resolve and provision the environment-specific physical topic:
 
 ```text
-test.tribe.<tribeId>.events
-prod.tribe.<tribeId>.events
+test.tribe.<ownerTribeId>.events
+prod.tribe.<ownerTribeId>.events
 ```
 
 7. Add the physical topic to the managed Confluent S3 Sink connector.
 8. Give the tribe the SDK publishing contract, not provider credentials.
-9. Tribe publishes a first smoke event through `publishTribeEvent()`.
+9. Tribe publishes a first smoke event through `publishTribeEvent()` with
+   `sourceServiceId` set to the registered backend service ID when the producer
+   is a microservice.
 10. Platform validates APICenter logs, Confluent topic traffic, and S3 object creation.
 11. Platform catalogs the raw topic into Bronze.
 12. Tribe defines domain Silver/Gold models using platform templates.
@@ -153,8 +171,9 @@ Definitions:
 
 | Term | Example | Owner | Notes |
 | --- | --- | --- | --- |
-| Tribe ID | `flow-ci` | Platform registry | Canonical lower-case service ID used for policy and topic derivation. |
-| Logical tenant topic | `tribe.flow-ci.events` | Tribe publishes through SDK | Tribe code uses this base topic. |
+| Owner tribe ID | `flow-ci` | Platform registry | Canonical lower-case tribe principal. For a microservice, this is `ownerTribeId`; for a legacy tribe principal, this is `serviceId`. |
+| Source service ID | `flow-ci-api` | Platform registry | Registered backend service that produced the event. This is event attribution only and does not create a separate topic by default. |
+| Logical tenant topic | `tribe.flow-ci.events` | Tribe publishes through SDK | Tribe code uses this base topic for all microservices owned by the tribe. |
 | Environment prefix | `test` or `prod` | Platform runtime config | Comes from `KAFKA_TOPIC_PREFIX` or management environment config. |
 | Physical topic | `prod.tribe.flow-ci.events` | Platform provisions in Confluent | APICenter producer and S3 Sink use this topic. |
 | Raw S3 prefix | `s3://api-center-raw-data/topics/prod.tribe.flow-ci.events/` | Platform | Connector output path used for validation and discovery. |
@@ -165,6 +184,8 @@ Required decision:
 Tribe code publishes logical tenant topics.
 APICenter applies the environment prefix when writing to Kafka.
 Management provisions and includes the physical topic using the same resolver.
+For tribe-owned microservices, the resolver uses `ownerTribeId ?? serviceId` as
+the topic owner and records the actual producer as `sourceServiceId`.
 Downstream data layers derive environment and tribe_id from source_topic.
 ```
 
@@ -197,9 +218,24 @@ Topic resolver tests must prove:
 - `flow-ci` resolves to `tribe.flow-ci.events` as the logical topic.
 - `prod` resolves to `prod.tribe.flow-ci.events` as the physical topic.
 - `test` resolves to `test.tribe.flow-ci.events` as the physical topic.
+- `serviceId=flow-ci-api` with `ownerTribeId=flow-ci` resolves to
+  `tribe.flow-ci.events`, not `tribe.flow-ci-api.events`.
 - `prod.api-center.audit.log` is not eligible as a tribe S3 export topic.
 - `prod.tribe.other.events` is rejected for tribe `flow-ci`.
-- only `tribe.<tribeId>.events` and approved `api-center.shared.<serviceId>.events` export topics are eligible for S3 Sink inclusion.
+- only `tribe.<ownerTribeId>.events` and approved `api-center.shared.<serviceId>.events` export topics are eligible for S3 Sink inclusion.
+
+Legacy service topic migration:
+
+```text
+old topic: tribe.<serviceId>.events
+new topic: tribe.<ownerTribeId>.events
+event attribution: governance.sourceServiceId = <serviceId>
+```
+
+When an existing microservice already has a service-specific topic, do not
+delete it during the migration. Provision the owner tribe topic, include it in
+the S3 Sink, update SDK producers to the owner tribe topic, and preserve the old
+topic until retention, replay, and dashboard cutover are complete.
 
 ## Future Systems And Not-Yet-Provisioned Scope
 
@@ -227,6 +263,7 @@ source_system
 environment
 source_topic
 tribe_id
+source_service_id
 event_type
 ```
 
@@ -264,6 +301,9 @@ Required fields:
 ```text
 service_id
 canonical_service_id
+owner_tribe_id
+canonical_tribe_id
+source_service_ids
 environment
 source_system
 logical_topic
@@ -292,6 +332,17 @@ failure_reason
 next_review_date
 ```
 
+Field meaning for tribe-owned microservices:
+
+- `owner_tribe_id` / `canonical_tribe_id` are the visibility, topic, and S3
+  onboarding boundary.
+- `service_id` / `canonical_service_id` identify a registered producer only
+  when the record is being viewed from a service detail page. They must not be
+  used to derive a separate tribe event topic when `owner_tribe_id` is present.
+- `source_service_ids` lists the registered microservices known to publish into
+  the owner tribe topic. Event-level records still carry the single producing
+  `sourceServiceId` in governance metadata.
+
 State derivation should be deterministic:
 
 | Inputs | Derived State |
@@ -315,6 +366,11 @@ Some tribe topics will not exist when the shared analytics pipeline is first
 deployed. That is expected. Missing future topics do not change the ownership
 model and do not require each tribe to build its own full pipeline.
 
+For microservice additions inside an already onboarded tribe, do not create a
+new late-provisioned topic by default. Add the microservice as another producer
+under the existing owner tribe topic and use `sourceServiceId` for visibility,
+lineage, and dashboard filtering.
+
 Treat every late topic as a new onboarding instance:
 
 ```text
@@ -335,7 +391,7 @@ The shared pipeline must be designed to accept new topics after go-live:
 - The managed S3 Sink connector topic list must be updateable without rebuilding
   the whole pipeline.
 - Raw S3 validation must check the exact physical topic path, for example
-  `s3://api-center-raw-data/topics/prod.tribe.<tribeId>.events/...`.
+  `s3://api-center-raw-data/topics/prod.tribe.<ownerTribeId>.events/...`.
 - Glue/Athena/Databricks discovery must have a refresh path for newly added
   topic folders.
 - Bronze ingestion must include the new `source_topic` without changing the
@@ -380,13 +436,16 @@ true:
 - `apicenter-management` can create a new Confluent topic and update the S3
   Sink connector topic list for that topic.
 - The S3 Sink writes all included topics under a predictable topic folder such
-  as `topics/prod.tribe.<tribeId>.events/`.
+  as `topics/prod.tribe.<ownerTribeId>.events/`.
 - Glue/Athena discovery is folder-based or crawler-based, so a new topic folder
   can be picked up by a crawler or metadata refresh.
 - Bronze ingestion reads from the shared raw topic root or from a configurable
   topic registry, not from a fixed list compiled into code.
 - Bronze records always carry `source_topic`, so downstream logic can identify
   the late tribe without a schema change.
+- Bronze and Common Silver preserve `source_service_id`, so a new microservice
+  under an existing tribe can be visible without a new Kafka topic or job
+  rewrite.
 - Common Silver parses the shared event envelope and keeps the tribe-specific
   payload as data, not as new columns that require code changes per tribe.
 - Tribe-specific Silver/Gold is attached through templates, configuration, or
@@ -478,7 +537,9 @@ The Bronze job must:
 
 - derive `source_topic` from the S3 path
 - derive `environment` from the topic prefix such as `test.` or `prod.`
-- derive `tribe_id` from `tribe.<tribeId>.events`
+- derive `tribe_id` from `tribe.<ownerTribeId>.events`
+- derive or preserve `source_service_id` from APICenter governance metadata when
+  present, so microservice visibility does not require per-service topics
 - preserve the raw event as `raw_record`
 - add `source_file`, `ingested_at`, `event_date`, and checkpoint metadata
 - quarantine malformed records instead of failing the whole job
@@ -609,6 +670,11 @@ await apiCenter.publishTribeEvent({
 });
 ```
 
+Use one APICenter tribe principal per owner tribe. If the backend service is
+registered as `logistics-orders` and its `ownerTribeId` is `logistics`, the SDK
+uses `APICENTER_TRIBE_ID=logistics`, publishes to `tribe.logistics.events`, and
+sends `sourceServiceId=logistics-orders` for attribution.
+
 Rules:
 
 - `eventType` must be stable and versioned by convention when behavior changes, for example `order.created.v2`.
@@ -648,6 +714,7 @@ raw_record
 event_id_or_key
 event_type
 tribe_id
+source_service_id
 ```
 
 Bronze keeps raw fidelity and supports replay.
@@ -666,6 +733,7 @@ Required columns:
 event_id
 event_type
 tribe_id
+source_service_id
 source_system
 environment
 source_topic
@@ -682,7 +750,8 @@ Common Silver normalizes the basics but does not guess domain-specific business 
 
 Common Silver is also shared across all current and future tribes. A new tribe
 must appear in Common Silver through `source_topic`, `environment`, and
-`tribe_id`, without a schema or job rewrite.
+`tribe_id`, without a schema or job rewrite. Microservice-level filtering comes
+from `source_service_id`, not from separate Common Silver tables.
 
 Column derivation rules:
 
@@ -691,6 +760,7 @@ Column derivation rules:
 | `event_id` | event `eventId` if present, otherwise deterministic hash of `source_topic`, key, event type, source file, and source offset/path metadata |
 | `event_type` | SDK `eventType` |
 | `tribe_id` | APICenter governance metadata or derived from `source_topic` |
+| `source_service_id` | APICenter governance `sourceServiceId` when present; defaults to `tribe_id` only for legacy tribe-principal producers |
 | `source_system` | topic state record when present; otherwise derived from registry ownership for the physical topic |
 | `environment` | prefix in `source_topic`, such as `test` or `prod` |
 | `source_topic` | S3 path topic folder |
@@ -936,7 +1006,11 @@ At least one match in each linked document.
 - Test: `apicenter-management/src/components/tribe-onboarding-flow.test.tsx`
 
 - [ ] Add the S3 onboarding states from this plan to the onboarding model.
-- [ ] Show the current state for each tribe topic in the onboarding flow.
+- [ ] Show the current state for each owner tribe topic in the onboarding flow,
+  using `ownerTribeId ?? serviceId` as the topic/state boundary.
+- [ ] For microservices under a tribe, show the contributing `serviceId` values
+  as producers under the owner tribe topic instead of creating separate topic
+  states.
 - [ ] Add the machine-readable topic state record fields needed by management.
 - [ ] Ensure the state derivation table is implemented from explicit inputs:
   `classificationApproved`, `hasScope`, `topicExists`,
@@ -948,9 +1022,13 @@ At least one match in each linked document.
   `Raw observed`, `Bronze cataloged`, `Needs remediation`, `Rejected`, and
   `Blocked by exception`.
 - [ ] Show classification tier, retention tier, data owner, approved readers,
-  quota status, last access review, exception status, and next review date.
+  quota status, last access review, exception status, next review date, owner
+  tribe ID, and known source service IDs.
 - [ ] Add tests for every state and for partial/failure cases such as topic
   exists but S3 Sink check failed.
+- [ ] Add tests that `serviceId=logistics-orders` with
+  `ownerTribeId=logistics` displays `tribe.logistics.events` as the pipeline
+  state and `logistics-orders` only as source-service attribution.
 - [ ] Run:
 
 ```powershell
@@ -1045,25 +1123,38 @@ The runbooks describe each layer and ownership boundary.
 - [ ] Implement or document one shared topic resolver contract: tribe code uses
   logical topics, APICenter applies environment prefix, and management
   provisions/includes physical topics using the same prefix.
+- [ ] Make the resolver use `ownerTribeId ?? serviceId` for tribe-owned event
+  topics, while preserving `serviceId` as `sourceServiceId` for producer
+  attribution.
 - [ ] Add APICenter governance tests for `prod.tribe.flow-ci.events`,
   `test.tribe.flow-ci.events`, blocked `prod.api-center.audit.log`, and
   cross-tenant `prod.tribe.other.events`.
+- [ ] Add APICenter/SDK tests that a microservice using tribe principal
+  `logistics` can publish to `tribe.logistics.events` with
+  `sourceServiceId=logistics-orders`, and cannot publish to
+  `tribe.logistics-orders.events` unless that service is itself the owner
+  tribe.
 - [ ] Add canonical tribe/service ID normalization tests for `Flow CI`,
   `FLOW_CI`, `flow.ci`, and `flow-ci`.
-- [ ] Verify topic provisioning and S3 Sink inclusion are driven by service ID
-  and environment prefix, not by a hardcoded allowlist.
+- [ ] Verify topic provisioning and S3 Sink inclusion are driven by owner tribe
+  ID and environment prefix, not by a hardcoded allowlist or the microservice
+  service ID.
 - [ ] Add tests proving a new tribe service ID can produce the expected topic
   name and S3 Sink operation without changing source code.
+- [ ] Add migration tests for legacy service topics:
+  `tribe.<serviceId>.events` is preserved, `tribe.<ownerTribeId>.events` is
+  provisioned/included, and producers can be switched after validation.
 - [ ] Add idempotency tests for existing topic no-op, already-included topic
   no-op, preserving existing connector topics, stable topic ordering, and
   failed connector update not reporting success.
-- [ ] Add S3 Sink eligibility tests so only `tribe.<tribeId>.events` and
+- [ ] Add S3 Sink eligibility tests so only `tribe.<ownerTribeId>.events` and
   approved `api-center.shared.<serviceId>.events` can be included.
 - [ ] Document the metadata refresh path that picks up a new S3 topic folder.
 - [ ] Document the Bronze ingestion rule that reads from the shared raw root or
   a configurable registry rather than a fixed topic list.
 - [ ] Document that Common Silver accepts new tribes through `source_topic` and
-  `tribe_id`, while tribe-specific Silver/Gold remains opt-in.
+  `tribe_id`, accepts microservice attribution through `source_service_id`, and
+  keeps tribe-specific Silver/Gold opt-in.
 - [ ] Split verification into two lanes: mocked CI tests that always run and
   live Confluent/S3 smoke tests gated by required environment variables.
 - [ ] Run:
@@ -1148,11 +1239,19 @@ operator terms.
 - Modify: `api-center/docs/data-pipeline/new-tribe-s3-onboarding-runbook.md`
 
 - [ ] Define the topic state record shape from this plan.
+- [ ] Persist `owner_tribe_id`, `canonical_tribe_id`, `source_service_ids`,
+  logical topic, and physical topic so the topic state can be rendered per
+  tribe while still showing microservice producers.
 - [ ] Add state transition history fields: actor, timestamp, previous state,
   new state, approver, evidence link, blocking reason, and next review date.
+- [ ] Ensure state transition history is keyed by owner tribe topic, not by
+  every microservice service ID.
 - [ ] Add tests that state history is preserved when moving from
   `Sink included` to `Publishing`, `Raw observed`, `Bronze cataloged`, and
   `Curated active`.
+- [ ] Add tests that adding another microservice under an already-onboarded
+  tribe updates source-service attribution without resetting the tribe topic's
+  onboarding state.
 - [ ] Document where the state record lives until a persistent database table
   is implemented.
 - [ ] Run:
@@ -1181,11 +1280,15 @@ Future agents should preserve these decisions unless the user explicitly changes
 - no raw S3, Bronze, Common Silver, Gold, or BI read access without named group approval
 - platform-owned Raw/Bronze/common Silver
 - tribe-owned domain event semantics and tribe-specific Silver/Gold
+- one event topic and one S3 onboarding state per owner tribe by default, with
+  microservice producers attributed by `sourceServiceId`
 - every tribe can receive its own Silver/Gold data products after shared
   ingestion and semantic approval, including late-provisioned tribes
 - Databricks Free Edition is allowed only for prototype validation, not as the
   dependable production BI/transform platform for multiple tribes
 - one shared topic resolver contract for logical and physical topics
+- legacy service-specific topics can be preserved during migration, but the
+  target topic for tribe-owned microservices is `tribe.<ownerTribeId>.events`
 - not-yet-provisioned systems stay out of active scope until they pass the
   onboarding state machine
 - late-provisioned topics use the same onboarding state machine and join the
@@ -1196,14 +1299,19 @@ Future agents should preserve these decisions unless the user explicitly changes
 
 ## Verification Checklist
 
-- [ ] Every tribe has one visible S3 onboarding state.
+- [ ] Every owner tribe has one visible S3 onboarding state.
+- [ ] Microservices under the same owner tribe share the owner tribe topic and
+  are visible through `source_service_id` / `sourceServiceId`.
 - [ ] Late-provisioned topics can be added without rebuilding the whole analytics pipeline.
 - [ ] Late-provisioned topics require operational onboarding actions, not code or job rewrites.
 - [ ] No ordinary tribe receives Confluent or AWS S3 writer credentials.
 - [ ] Every S3-exported tribe event is published through APICenter governance.
 - [ ] Platform can verify Confluent topic traffic and S3 object arrival.
-- [ ] Bronze includes source topic, source file, ingestion time, event date, event type, and tribe ID.
+- [ ] Bronze includes source topic, source file, ingestion time, event date,
+  event type, tribe ID, and source service ID when available.
 - [ ] Common Silver does not define tribe-specific business metrics.
+- [ ] Common Silver supports microservice filtering through `source_service_id`
+  without per-service tables.
 - [ ] Tribe-specific Silver/Gold models have tribe sign-off before dashboard use.
 - [ ] The topic resolver contract is tested across APICenter and management.
 - [ ] S3 Sink topic inclusion is idempotent, preserves existing connector topics, and verifies connector state.

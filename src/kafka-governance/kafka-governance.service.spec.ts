@@ -1,3 +1,4 @@
+import { ConfigService } from "../config/config.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { MetricsService } from "../metrics/metrics.service";
 import { ForbiddenError, ValidationError } from "../shared/errors";
@@ -19,9 +20,19 @@ describe("KafkaGovernanceService", () => {
 
   let service: KafkaGovernanceService;
 
+  const createService = (topicPrefix = "") =>
+    new KafkaGovernanceService(
+      mockKafka,
+      mockLogger,
+      mockMetrics,
+      {
+        kafka: { topicPrefix },
+      } as ConfigService,
+    );
+
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new KafkaGovernanceService(mockKafka, mockLogger, mockMetrics);
+    service = createService();
   });
 
   it("publishes governed messages to tenant-scoped topics", async () => {
@@ -79,10 +90,65 @@ describe("KafkaGovernanceService", () => {
     );
   });
 
+  it("accepts a prod-prefixed tenant topic when prod is the configured runtime prefix", async () => {
+    service = createService("prod.");
+
+    await service.publishMessage("flow-ci", {
+      topic: "prod.tribe.flow-ci.events",
+      eventType: "build.completed",
+      payload: { buildId: "build_123" },
+    });
+
+    expect(mockKafka.publish).toHaveBeenCalledWith(
+      "prod.tribe.flow-ci.events",
+      expect.objectContaining({
+        eventType: "build.completed",
+        governance: expect.objectContaining({
+          sourceTribeId: "flow-ci",
+        }),
+      }),
+      "flow-ci",
+    );
+  });
+
+  it("accepts a test-prefixed tenant topic when test is the configured runtime prefix", async () => {
+    service = createService("test.");
+
+    await service.publishMessage("flow-ci", {
+      topic: "test.tribe.flow-ci.events",
+      eventType: "build.completed",
+      payload: { buildId: "build_123" },
+    });
+
+    expect(mockKafka.publish).toHaveBeenCalledWith(
+      "test.tribe.flow-ci.events",
+      expect.objectContaining({
+        eventType: "build.completed",
+        governance: expect.objectContaining({
+          sourceTribeId: "flow-ci",
+        }),
+      }),
+      "flow-ci",
+    );
+  });
+
   it("rejects source service attempts to publish outside the tribe topic", async () => {
     await expect(
       service.publishMessage("logistics", {
         topic: "tribe.logistics-orders.events",
+        eventType: "order.created",
+        payload: { orderId: "ord_123" },
+        sourceServiceId: "logistics-orders",
+      } as any),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects prefixed source service attempts to publish outside the owner tribe topic", async () => {
+    service = createService("prod.");
+
+    await expect(
+      service.publishMessage("logistics", {
+        topic: "prod.tribe.logistics-orders.events",
         eventType: "order.created",
         payload: { orderId: "ord_123" },
         sourceServiceId: "logistics-orders",
@@ -100,12 +166,36 @@ describe("KafkaGovernanceService", () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
+  it("rejects prefixed cross-tenant topics", async () => {
+    service = createService("prod.");
+
+    await expect(
+      service.publishMessage("flow-ci", {
+        topic: "prod.tribe.other.events",
+        eventType: "build.completed",
+        payload: { buildId: "build_123" },
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it("rejects publish to reserved topics", async () => {
     await expect(
       service.publishMessage("orders-service", {
         topic: "__consumer_offsets",
         eventType: "order.created",
         payload: { orderId: "ord_123" },
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects prefixed reserved operational topics", async () => {
+    service = createService("prod.");
+
+    await expect(
+      service.publishMessage("orders-service", {
+        topic: "prod.api-center.audit.log",
+        eventType: "audit.test",
+        payload: { auditId: "audit_123" },
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
