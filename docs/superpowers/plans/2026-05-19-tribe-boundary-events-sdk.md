@@ -1925,6 +1925,11 @@ Test SDK smoke:
 
 Remaining package install verification:
 - npm view @implementsprint/sdk@1.2.1 against GitHub Packages returned 401 because this shell has no package-read token configured.
+
+GitHub Packages install visibility, 2026-05-20:
+- Operator configured GITHUB_TOKEN with read:packages locally.
+- npm view @implementsprint/sdk@1.2.1 version --registry=https://npm.pkg.github.com returned 1.2.1.
+- Durable npm config uses @implementsprint registry mapping and ${GITHUB_TOKEN}; no raw token is committed.
 ```
 
 - [x] **Step 6: Commit final verification notes**

@@ -129,6 +129,24 @@ The management UI should show the current state, but the durable source of truth
 must include state history so `Curated active` can be traced back to actual
 platform and tribe approvals.
 
+## Verified Test Topic Baseline
+
+Use this verified test topic as the first actual pipeline validation target:
+
+```text
+temporary_tribe: codex-sdk-20260520041053
+temporary_source_service: codex-sdk-20260520041053-api
+physical_topic: test.tribe.codex-sdk-20260520041053.events
+confluent_cluster: lkc-850n9q
+s3_sink_connector: api-center-test-s3-sink
+sdk_publish_result: accepted=true
+microservice_topic_boundary_result: 403 outside tenant boundary
+```
+
+The actual data pipeline starts from a known topic that reached `Sink included`
+and `Publishing`; S3 object observation and Bronze cataloging are the next
+evidence gates.
+
 ## Standard Onboarding Flow For Tribes Not In S3
 
 Use this flow whenever a tribe asks to participate in the shared data visualization pipeline.
