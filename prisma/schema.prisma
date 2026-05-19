@@ -211,6 +211,30 @@ model ProvisioningJob {
   @@schema("api_center_ops")
 }
 
+model ServiceRegistrationRequest {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId        String    @map("service_id")
+  ownerTribeId     String    @map("owner_tribe_id")
+  status           String    @default("pending")
+  manifest         Json
+  validationReport Json      @default("{}") @map("validation_report")
+  requestedBy      String?   @map("requested_by")
+  approvedBy       String?   @map("approved_by")
+  rejectedBy       String?   @map("rejected_by")
+  rejectionReason  String?   @map("rejection_reason")
+  appliedServiceId String?   @map("applied_service_id")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(6)
+  appliedAt        DateTime? @map("applied_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt], name: "service_registration_requests_status_created_idx")
+  @@index([serviceId], name: "service_registration_requests_service_idx")
+  @@index([ownerTribeId], name: "service_registration_requests_owner_idx")
+  @@map("service_registration_requests")
+  @@schema("api_center_ops")
+}
+
 model AuditEvent {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   correlationId  String?  @map("correlation_id")

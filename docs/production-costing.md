@@ -204,6 +204,12 @@ Keep these controls in place:
 9. Reduce noisy request logs before disabling metrics or alerts.
 10. Set budgets in GCP, Confluent, AWS, Google Maps, Resend, SMS provider, and PayMongo.
 
+For the tribe analytics pipeline, use
+`docs/data-pipeline/retention-access-cost-controls.md` as the detailed control
+sheet. It defines Raw S3, Bronze, Common Silver, Tribe Silver, Gold, Athena
+workgroup, Databricks job cluster, publish quota, max event size, BI refresh,
+and approved reader group guardrails.
+
 ## Test And Live Environment Cost Shape
 
 The current environment split keeps costs lower by sharing the expensive managed

@@ -119,6 +119,25 @@ Production cutover note, 2026-05-19:
 - Granted the S3 sink service account `READ` and `DESCRIBE` on the `prod.` topic prefix, plus the required DLQ ACLs after connector restart assigned a new DLQ topic.
 - Verified `api-center-prod-s3-sink` returned `RUNNING` with one running task after ACL propagation.
 
+Test connector repair note, 2026-05-20:
+
+- `api-center-test-s3-sink` uses Confluent service account `sa-8wz0rqm`.
+- The connector failed validation after adding test tribe topics because the service account lacked `READ` and `DESCRIBE` on the `test.` topic prefix.
+- After those ACLs were added, restart surfaced the connector DLQ requirement for `dlq-lcc-j5o59x8`.
+- Granting topic-level `CREATE`, `WRITE`, and `DESCRIBE` on the DLQ topic plus cluster-level `CREATE` allowed the connector to restart.
+- Final observed state: `api-center-test-s3-sink` was `RUNNING` with one running task.
+
+Repeatable ACL repair:
+
+```powershell
+cd C:\Codes\apic\api-center
+.\scripts\grant-confluent-s3-sink-acls.ps1 `
+  -EnvFile ..\apicenter-management\.env.test `
+  -TopicPrefix test. `
+  -ConnectorServiceAccountId sa-8wz0rqm `
+  -DlqTopic dlq-lcc-j5o59x8
+```
+
 ## User Setup After Repo Fix
 
 1. Create or choose a dedicated API Center producer service account/API key scoped to `lkc-850n9q`.
@@ -176,11 +195,30 @@ If the console detects a legacy service-scoped topic such as
 verifies `tribe.<ownerTribeId>.events`, adds the new topic to the S3 Sink, and
 keeps the old topic until all producers have moved to the owner-tribe topic.
 
+### Migrating From Service Topics To Tribe Topics
+
+For each tribe:
+
+1. Identify the tribe principal id, for example `logistics`.
+2. Identify existing service topics, for example
+   `prod.tribe.logistics-orders.events`.
+3. Use the management console **Upgrade legacy topic** action, or manually
+   create or verify `prod.tribe.logistics.events`.
+4. Confirm `prod.tribe.logistics.events` is included in the managed S3 Sink
+   connector.
+5. Update SDK producers to use `tribeId=logistics` and
+   `sourceServiceId=<microservice-id>`.
+6. Verify new objects appear under the S3 prefix for
+   `prod.tribe.logistics.events`.
+7. Keep old service topics for the agreed retention window.
+8. Remove old service topics from the S3 Sink only after no producers publish
+   to them.
+
 Manual fallback:
 
 1. In Confluent Cloud, open cluster `lkc-850n9q`.
 2. Create topic `tribe.<ownerTribeId>.events` for tribe-owned microservices, or
-   `tribe.<serviceId>.events` when the service itself is the tribe principal.
+   `tribe.<tribeId>.events` when the service itself is the tribe principal.
 3. Use 1 partition and `retention.ms=604800000`.
 4. Open connector `api-center-s3-sink`.
 5. Add that tribe event topic to the connector topic list.

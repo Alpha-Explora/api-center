@@ -8,4 +8,4 @@ spec:
     spec:
       containers:
         - name: api-center
-          image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:proxy-events-29ef3bd-202605171555
+          image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-test-3bfaaea-20260520023812

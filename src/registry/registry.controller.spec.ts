@@ -5,6 +5,7 @@ import { AuditEventsService } from "../analytics/audit-events.service";
 
 describe("RegistryController", () => {
   const mockRegistry = {
+    count: jest.fn(),
     getAll: jest.fn(),
   } as unknown as RegistryService;
 
@@ -20,11 +21,40 @@ describe("RegistryController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockRegistry.count as jest.Mock).mockReturnValue(1);
     controller = new RegistryController(
       mockRegistry,
       mockLogger,
       mockAuditEvents,
     );
+  });
+
+  describe("listServices", () => {
+    it("returns ownerTribeId in service list responses", () => {
+      (mockRegistry.getAll as jest.Mock).mockReturnValue({
+        "logistics-orders": {
+          serviceId: "logistics-orders",
+          ownerTribeId: "logistics",
+          name: "Logistics Orders",
+          baseUrl: "https://orders.example.test",
+          status: "active",
+          serviceType: "tribe",
+          exposes: ["/orders"],
+          requiredScopes: ["orders:read"],
+          consumes: [],
+          version: "1.0.0",
+          registeredAt: "2026-05-20T00:00:00.000Z",
+          updatedAt: "2026-05-20T00:00:00.000Z",
+        },
+      });
+
+      const result = controller.listServices();
+
+      expect(result.data[0]).toMatchObject({
+        serviceId: "logistics-orders",
+        ownerTribeId: "logistics",
+      });
+    });
   });
 
   describe("getScopes", () => {
