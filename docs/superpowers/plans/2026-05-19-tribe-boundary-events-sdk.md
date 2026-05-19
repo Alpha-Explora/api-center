@@ -1895,6 +1895,18 @@ Blocked verification:
 - User will publish SDK 1.2.1 manually; implementation session treats SDK publish as an external owner action.
 ```
 
+Current release handoff observation, 2026-05-20:
+
+```text
+User reported @implementsprint/sdk@1.2.1 is published.
+Verified Git remote state:
+- origin/main -> 13720053b8686efd8a4f7e1ce2ea6934a2c10f14
+- refs/tags/v1.2.1 -> 13720053b8686efd8a4f7e1ce2ea6934a2c10f14
+
+Package registry verification from this shell remains blocked:
+- npm view @implementsprint/sdk@1.2.1 --registry=https://npm.pkg.github.com returned 401 because no package-read token is configured.
+```
+
 - [x] **Step 6: Commit final verification notes**
 
 Add a short verification note to the active rollout or PR description:
@@ -1921,7 +1933,7 @@ Verified tribe boundary model:
 - Management test provisioning created or verified test.tribe.logistics.events.
 - The test S3 Sink api-center-test-s3-sink includes test.tribe.logistics.events.
 - Legacy service topic migration maps test.tribe.logistics-orders.events to test.tribe.logistics.events and preserves the old topic.
-- SDK release code is preflighted locally; package publication is now an operator-owned manual 1.2.1 action.
+- SDK release code is preflighted locally; user reported 1.2.1 package publication, and remote tag v1.2.1 exists at 13720053b8686efd8a4f7e1ce2ea6934a2c10f14.
 ```
 
 ## Rollback Plan
