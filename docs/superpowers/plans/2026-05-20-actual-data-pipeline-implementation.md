@@ -42,7 +42,53 @@ Confluent S3 Sink
 - Raw S3 remains platform-only; production dashboards must not query raw S3 directly.
 - Bronze and Common Silver must be generic enough for late-provisioned tribes.
 - Tribe-specific Silver/Gold starts only after event semantics and metric definitions are approved.
+- APICenter operational analytics is required, but it must use approved sanitized ops export streams, not a blanket export of every internal APICenter infrastructure topic.
 - Databricks Free Edition is prototype-only; it must not be treated as the production multi-tribe platform.
+
+## North Star Question
+
+The north star for this pipeline is:
+
+```text
+How does APICenter turn governed gateway, shared-service, and tribe-owned event activity into trusted, owner-aware data products and dashboards without giving every tribe a separate unmanaged data pipeline?
+```
+
+That breaks into three visibility questions:
+
+1. What are tribes doing through their owned business events?
+2. What are shared services doing for tribes, and are providers healthy?
+3. Is APICenter itself healthy as the gateway, policy, registry, and data-export control plane?
+
+The implementation must answer all three, but with separate topic lanes and schemas so tribe business analytics, shared-service telemetry, and APICenter operational analytics do not get mixed accidentally.
+
+## Topic Inclusion Lanes
+
+The pipeline includes all approved export topics, not every Kafka topic.
+
+| Lane | Included topics | Owner | Bronze target | Notes |
+| --- | --- | --- | --- | --- |
+| Tribe business events | `test.tribe.<ownerTribeId>.events`, `prod.tribe.<ownerTribeId>.events` | Tribe semantics, platform pipeline | `bronze.tribe_events` | Microservices use `sourceServiceId`; no per-service topic by default. |
+| Shared-service exports | `test.api-center.shared.<serviceId>.events`, `prod.api-center.shared.<serviceId>.events` | Platform shared-service owner | `bronze.shared_service_events` | Sanitized provider/service telemetry only. |
+| APICenter operational analytics | `test.api-center.ops.<stream>.events`, `prod.api-center.ops.<stream>.events` | Platform API/data owner | `bronze.apicenter_ops_events` | Gateway, auth, policy, registry, Kafka publish, and S3 export health events. |
+
+Do not include these internal/control topics by default:
+
+```text
+api-center.tribe.request
+api-center.tribe.response
+api-center.shared.request
+api-center.shared.response
+api-center.audit.log
+api-center.registry.service-registered
+api-center.registry.service-deregistered
+__consumer_offsets
+__*
+```
+
+If an internal topic becomes analytically important, create a sanitized
+`api-center.ops.<stream>.events` export first, with schema, redaction,
+retention, and approval. Do not point the data lake directly at request/response
+or audit topics that may contain payloads, credentials, tokens, or PII.
 
 ## Existing Repo Anchors
 
@@ -67,7 +113,10 @@ Create implementation artifacts under `api-center/infra/aws-data-pipeline/` and 
 | `api-center/infra/aws-data-pipeline/README.md` | Operator entrypoint, environment variables, and execution order. |
 | `api-center/infra/aws-data-pipeline/catalog/raw-topic-tables.sql` | Athena/Glue external table DDL for raw S3 topic folders. |
 | `api-center/infra/aws-data-pipeline/catalog/bronze-tribe-events.sql` | Bronze table/view DDL and normalization rules. |
+| `api-center/infra/aws-data-pipeline/catalog/bronze-shared-service-events.sql` | Bronze table/view DDL for approved shared-service export topics. |
+| `api-center/infra/aws-data-pipeline/catalog/bronze-apicenter-ops-events.sql` | Bronze table/view DDL for approved APICenter operational analytics streams. |
 | `api-center/infra/aws-data-pipeline/catalog/common-silver-events.sql` | Common Silver view/table for normalized cross-tribe event analytics. |
+| `api-center/docs/data-pipeline/apicenter-operational-analytics-contract.md` | Approved APICenter ops streams, schemas, redaction rules, and forbidden raw topics. |
 | `api-center/infra/aws-data-pipeline/catalog/gold-platform-health.sql` | First shared Gold metrics for pipeline health and event freshness. |
 | `api-center/infra/aws-data-pipeline/catalog/tribe-silver-template.sql` | Template for tribe-owned Silver models. |
 | `api-center/infra/aws-data-pipeline/catalog/tribe-gold-template.sql` | Template for tribe-owned Gold metrics. |
@@ -524,6 +573,193 @@ Run:
 cd C:\Codes\apic\api-center
 git add infra/aws-data-pipeline/catalog/bronze-tribe-events.sql infra/aws-data-pipeline/queries/validate-bronze-topic.sql docs/data-pipeline/raw-to-bronze-runbook.md
 git commit -m "feat: add bronze tribe event layer"
+```
+
+---
+
+## Phase 3A: Add Shared-Service And APICenter Ops Bronze Lanes
+
+**Purpose:** Include APICenter-owned analytics without opening the lake to raw internal infrastructure topics.
+
+**Files:**
+- Create: `api-center/infra/aws-data-pipeline/catalog/bronze-shared-service-events.sql`
+- Create: `api-center/infra/aws-data-pipeline/catalog/bronze-apicenter-ops-events.sql`
+- Create: `api-center/docs/data-pipeline/apicenter-operational-analytics-contract.md`
+- Modify: `api-center/docs/data-pipeline/raw-to-bronze-runbook.md`
+
+- [ ] **Step 1: Create shared-service Bronze DDL**
+
+Create `api-center/infra/aws-data-pipeline/catalog/bronze-shared-service-events.sql`:
+
+```sql
+CREATE DATABASE IF NOT EXISTS bronze;
+
+CREATE OR REPLACE VIEW bronze.shared_service_events AS
+SELECT
+  physical_topic AS source_topic,
+  CASE
+    WHEN physical_topic LIKE 'test.%' THEN 'test'
+    WHEN physical_topic LIKE 'prod.%' THEN 'prod'
+    ELSE 'unknown'
+  END AS environment,
+  regexp_extract(physical_topic, '^(?:test|prod)\\.api-center\\.shared\\.([a-z0-9._-]+)\\.events$', 1) AS shared_service_id,
+  json_extract_scalar(raw_line, '$.eventType') AS event_type,
+  json_extract_scalar(raw_line, '$.metadata.schemaVersion') AS schema_version,
+  json_extract_scalar(raw_line, '$.payload.provider') AS provider,
+  json_extract_scalar(raw_line, '$.payload.status') AS provider_status,
+  json_extract_scalar(raw_line, '$.payload.occurredAt') AS occurred_at,
+  raw_line AS raw_record,
+  current_timestamp AS ingested_at,
+  CASE
+    WHEN json_extract_scalar(raw_line, '$.eventType') IS NULL THEN 'invalid'
+    WHEN regexp_extract(physical_topic, '^(?:test|prod)\\.api-center\\.shared\\.([a-z0-9._-]+)\\.events$', 1) = '' THEN 'invalid'
+    ELSE 'valid'
+  END AS quality_status,
+  CASE
+    WHEN json_extract_scalar(raw_line, '$.eventType') IS NULL THEN 'missing eventType'
+    WHEN regexp_extract(physical_topic, '^(?:test|prod)\\.api-center\\.shared\\.([a-z0-9._-]+)\\.events$', 1) = '' THEN 'invalid shared-service export topic'
+    ELSE NULL
+  END AS quality_error
+FROM api_center_raw.topic_records
+WHERE physical_topic LIKE 'test.api-center.shared.%.events'
+   OR physical_topic LIKE 'prod.api-center.shared.%.events';
+```
+
+- [ ] **Step 2: Create APICenter ops Bronze DDL**
+
+Create `api-center/infra/aws-data-pipeline/catalog/bronze-apicenter-ops-events.sql`:
+
+```sql
+CREATE DATABASE IF NOT EXISTS bronze;
+
+CREATE OR REPLACE VIEW bronze.apicenter_ops_events AS
+SELECT
+  physical_topic AS source_topic,
+  CASE
+    WHEN physical_topic LIKE 'test.%' THEN 'test'
+    WHEN physical_topic LIKE 'prod.%' THEN 'prod'
+    ELSE 'unknown'
+  END AS environment,
+  regexp_extract(physical_topic, '^(?:test|prod)\\.api-center\\.ops\\.([a-z0-9._-]+)\\.events$', 1) AS ops_stream,
+  json_extract_scalar(raw_line, '$.eventType') AS event_type,
+  json_extract_scalar(raw_line, '$.metadata.schemaVersion') AS schema_version,
+  json_extract_scalar(raw_line, '$.payload.status') AS status,
+  json_extract_scalar(raw_line, '$.payload.latencyMs') AS latency_ms,
+  json_extract_scalar(raw_line, '$.payload.occurredAt') AS occurred_at,
+  raw_line AS raw_record,
+  current_timestamp AS ingested_at,
+  CASE
+    WHEN json_extract_scalar(raw_line, '$.eventType') IS NULL THEN 'invalid'
+    WHEN regexp_extract(physical_topic, '^(?:test|prod)\\.api-center\\.ops\\.([a-z0-9._-]+)\\.events$', 1) = '' THEN 'invalid'
+    ELSE 'valid'
+  END AS quality_status,
+  CASE
+    WHEN json_extract_scalar(raw_line, '$.eventType') IS NULL THEN 'missing eventType'
+    WHEN regexp_extract(physical_topic, '^(?:test|prod)\\.api-center\\.ops\\.([a-z0-9._-]+)\\.events$', 1) = '' THEN 'invalid APICenter ops export topic'
+    ELSE NULL
+  END AS quality_error
+FROM api_center_raw.topic_records
+WHERE physical_topic LIKE 'test.api-center.ops.%.events'
+   OR physical_topic LIKE 'prod.api-center.ops.%.events';
+```
+
+- [ ] **Step 3: Create APICenter operational analytics contract**
+
+Create `api-center/docs/data-pipeline/apicenter-operational-analytics-contract.md`:
+
+```markdown
+# APICenter Operational Analytics Contract
+
+APICenter operational analytics is required for platform visibility, but raw
+internal infrastructure topics are not automatically eligible for S3 export.
+
+## Approved Ops Streams
+
+| Stream | Topic pattern | Purpose |
+| --- | --- | --- |
+| Gateway traffic | `<env>.api-center.ops.gateway-traffic.events` | Request counts, status classes, latency, source/target service IDs. |
+| Auth events | `<env>.api-center.ops.auth-events.events` | Token issuance, refresh, denied auth attempts, without secrets or token bodies. |
+| Policy decisions | `<env>.api-center.ops.policy-decisions.events` | Scope/consume decisions, allow/deny, reason code, target service. |
+| Registry lifecycle | `<env>.api-center.ops.registry-lifecycle.events` | Registration, deprecation, retirement, activation state changes. |
+| Kafka publish health | `<env>.api-center.ops.kafka-publish.events` | Governed publish accepted/failed, topic, event type, reason code. |
+| S3 export health | `<env>.api-center.ops.s3-export-health.events` | Topic sink inclusion, object observation, Bronze observation, connector health. |
+
+## Forbidden By Default
+
+Do not export these directly:
+
+```text
+api-center.tribe.request
+api-center.tribe.response
+api-center.shared.request
+api-center.shared.response
+api-center.audit.log
+api-center.registry.service-registered
+api-center.registry.service-deregistered
+__*
+```
+
+If one becomes necessary, create a sanitized `api-center.ops.<stream>.events`
+producer with explicit schema, redaction, retention, and approval.
+
+## Required Redaction
+
+Ops events must not include:
+
+- request bodies
+- response bodies
+- bearer tokens
+- refresh tokens
+- tribe secrets
+- provider API keys
+- payment card details
+- OTP values
+- raw PII unless explicitly approved and classified
+
+## Required Envelope Fields
+
+```text
+eventType
+payload.occurredAt
+payload.status
+payload.reasonCode
+payload.sourceServiceId
+payload.targetServiceId
+payload.tribeId
+payload.latencyMs
+metadata.schemaVersion
+metadata.classification
+metadata.correlationId
+```
+```
+
+- [ ] **Step 4: Update raw-to-bronze runbook with three Bronze lanes**
+
+Add:
+
+```markdown
+## Bronze Lanes
+
+The raw root feeds three approved Bronze lanes:
+
+| Bronze view | Topic pattern |
+| --- | --- |
+| `bronze.tribe_events` | `<env>.tribe.<ownerTribeId>.events` |
+| `bronze.shared_service_events` | `<env>.api-center.shared.<serviceId>.events` |
+| `bronze.apicenter_ops_events` | `<env>.api-center.ops.<stream>.events` |
+
+Internal APICenter request/response, audit, registry, and system topics are not
+included unless they are converted into sanitized approved ops export streams.
+```
+
+- [ ] **Step 5: Commit Phase 3A**
+
+Run:
+
+```powershell
+cd C:\Codes\apic\api-center
+git add infra/aws-data-pipeline/catalog/bronze-shared-service-events.sql infra/aws-data-pipeline/catalog/bronze-apicenter-ops-events.sql docs/data-pipeline/apicenter-operational-analytics-contract.md docs/data-pipeline/raw-to-bronze-runbook.md
+git commit -m "feat: add apicenter ops bronze lane"
 ```
 
 ---
@@ -1070,7 +1306,9 @@ git commit -m "docs: add data pipeline guardrails"
 - S3 object arrival is validated for at least one test tribe topic.
 - Raw Glue/Athena catalog can query the physical topic.
 - Bronze derives `environment`, `tribe_id`, `source_service_id`, `event_type`, and quality fields.
+- Bronze has separate approved lanes for tribe events, shared-service exports, and APICenter operational analytics.
 - Common Silver exposes only valid normalized envelope records.
+- APICenter internal/control topics remain excluded unless converted to sanitized `api-center.ops.<stream>.events` exports.
 - First Gold pipeline-health data product exists and filters test/prod correctly.
 - Management state can record `Raw observed` and `Bronze cataloged` evidence.
 - Runbook documents operator commands, evidence fields, rollback, cost controls, and access controls.
