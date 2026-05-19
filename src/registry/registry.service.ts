@@ -143,6 +143,8 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const existing = this.services[manifest.serviceId];
     const previousEntry = existing ? { ...existing } : null;
 
+    this.validateOwnerTribeRegistration(manifest);
+
     // ── Version governance ─────────────────────────────────────────────────
     let previousVersion: string | undefined;
     if (existing && manifest.version && existing.version) {
@@ -232,6 +234,20 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     }
 
     return entry;
+  }
+
+  private validateOwnerTribeRegistration(manifest: ServiceManifest): void {
+    if ((manifest.serviceType ?? "tribe") === "shared") return;
+
+    const ownerTribeId = manifest.ownerTribeId ?? manifest.serviceId;
+    if (ownerTribeId === manifest.serviceId) return;
+
+    const owner = this.services[ownerTribeId];
+    if (!owner || (owner.serviceType ?? "tribe") !== "tribe") {
+      throw new ValidationError(
+        `Owner tribe '${ownerTribeId}' must be registered before service '${manifest.serviceId}' can be registered`,
+      );
+    }
   }
 
   /**
@@ -736,7 +752,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     const count = Object.keys(entries).length;
     if (count > 0) {
-      this.logger.info(`Registry hydrated ${count} service(s) from Postgres`, {});
+      this.logger.info(
+        `Registry hydrated ${count} service(s) from Postgres`,
+        {},
+      );
     }
   }
 

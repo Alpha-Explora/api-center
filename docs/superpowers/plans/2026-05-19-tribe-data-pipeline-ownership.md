@@ -1005,31 +1005,31 @@ At least one match in each linked document.
 - Test: `apicenter-management/src/lib/service-onboarding.test.ts`
 - Test: `apicenter-management/src/components/tribe-onboarding-flow.test.tsx`
 
-- [ ] Add the S3 onboarding states from this plan to the onboarding model.
-- [ ] Show the current state for each owner tribe topic in the onboarding flow,
+- [x] Add the S3 onboarding states from this plan to the onboarding model.
+- [x] Show the current state for each owner tribe topic in the onboarding flow,
   using `ownerTribeId ?? serviceId` as the topic/state boundary.
-- [ ] For microservices under a tribe, show the contributing `serviceId` values
+- [x] For microservices under a tribe, show the contributing `serviceId` values
   as producers under the owner tribe topic instead of creating separate topic
   states.
-- [ ] Add the machine-readable topic state record fields needed by management.
-- [ ] Ensure the state derivation table is implemented from explicit inputs:
+- [x] Add the machine-readable topic state record fields needed by management.
+- [x] Ensure the state derivation table is implemented from explicit inputs:
   `classificationApproved`, `hasScope`, `topicExists`,
   `s3SinkIncludesTopic`, `lastAcceptedPublishAt`, `latestS3ObjectAt`,
   `latestBronzeObservedAt`, `curatedSignoffAt`, `failureReason`, and
   `exceptionStatus`.
-- [ ] Ensure the state distinguishes `Data classification ready`,
+- [x] Ensure the state distinguishes `Data classification ready`,
   `Topic provisioned`, `Sink included`, `Publishing but not flushed`,
   `Raw observed`, `Bronze cataloged`, `Needs remediation`, `Rejected`, and
   `Blocked by exception`.
-- [ ] Show classification tier, retention tier, data owner, approved readers,
+- [x] Show classification tier, retention tier, data owner, approved readers,
   quota status, last access review, exception status, next review date, owner
   tribe ID, and known source service IDs.
-- [ ] Add tests for every state and for partial/failure cases such as topic
+- [x] Add tests for every state and for partial/failure cases such as topic
   exists but S3 Sink check failed.
-- [ ] Add tests that `serviceId=logistics-orders` with
+- [x] Add tests that `serviceId=logistics-orders` with
   `ownerTribeId=logistics` displays `tribe.logistics.events` as the pipeline
   state and `logistics-orders` only as source-service attribution.
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 cd C:\Codes\apic\apicenter-management
@@ -1049,16 +1049,16 @@ All selected tests pass.
 - Create: `api-center/docs/data-pipeline/tribe-event-contract.md`
 - Modify: `api-shared-services/docs/consumer-runbook.md`
 
-- [ ] Document the required `kafkaPublish()` shape.
-- [ ] Document event naming, stable keys, payload rules, field-level
+- [x] Document the required `kafkaPublish()` shape.
+- [x] Document event naming, stable keys, payload rules, field-level
   classification, and redaction requirements.
-- [ ] Include two domain examples: one transactional event and one lifecycle/status event.
-- [ ] Add a schema-review checklist with schema owner, semantic owner,
+- [x] Include two domain examples: one transactional event and one lifecycle/status event.
+- [x] Add a schema-review checklist with schema owner, semantic owner,
   compatibility policy, versioning rule, PII classification, expected volume,
   retention class, sample payload, and breaking-change approver.
-- [ ] Add accepted and rejected payload examples.
-- [ ] Link the contract from the consumer runbook.
-- [ ] Run:
+- [x] Add accepted and rejected payload examples.
+- [x] Link the contract from the consumer runbook.
+- [x] Run:
 
 ```powershell
 rg -n "tribe-event-contract|domain.event_name|kafkaPublish" api-center api-shared-services
@@ -1078,24 +1078,24 @@ The new contract and consumer runbook references are found.
 - Create: `api-center/docs/data-pipeline/raw-to-bronze-runbook.md`
 - Create: `api-center/docs/data-pipeline/silver-gold-ownership-runbook.md`
 
-- [ ] Document how platform validates raw S3 arrival.
-- [ ] Document how platform promotes records to Bronze.
-- [ ] Document the common Silver columns.
-- [ ] Document how tribes request or own tribe-specific Silver/Gold models.
-- [ ] Document the per-tribe data product path from `silver.common_tribe_events`
+- [x] Document how platform validates raw S3 arrival.
+- [x] Document how platform promotes records to Bronze.
+- [x] Document the common Silver columns.
+- [x] Document how tribes request or own tribe-specific Silver/Gold models.
+- [x] Document the per-tribe data product path from `silver.common_tribe_events`
   to `silver_<tribe>.*`, `gold_<tribe>.*`, and tribe dashboard datasets.
-- [ ] Document that late-provisioned tribes enter shared Bronze/Common Silver
+- [x] Document that late-provisioned tribes enter shared Bronze/Common Silver
   first, then get tribe-specific Silver/Gold after event semantics are approved.
-- [ ] Document the sign-off point before dashboard metrics are treated as production reporting.
-- [ ] Include exact smoke event JSON, exact S3 path template, dynamic Athena
+- [x] Document the sign-off point before dashboard metrics are treated as production reporting.
+- [x] Include exact smoke event JSON, exact S3 path template, dynamic Athena
   validation query shape, expected Bronze/Common Silver columns, failure triage
   table, metric dictionary template, and sign-off artifact template.
-- [ ] Document crawler/metadata refresh behavior for new topic folders.
-- [ ] Document test/prod filtering rules so test records cannot appear in
+- [x] Document crawler/metadata refresh behavior for new topic folders.
+- [x] Document test/prod filtering rules so test records cannot appear in
   production dashboards.
-- [ ] Document that Databricks Free Edition is prototype-only and not the
+- [x] Document that Databricks Free Edition is prototype-only and not the
   production shared tribe analytics platform.
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "Bronze|Common Silver|Tribe Silver|Gold|sign-off" api-center/docs/data-pipeline
@@ -1120,44 +1120,44 @@ The runbooks describe each layer and ownership boundary.
 - Test: `apicenter-management/src/components/confluent-provisioning-card.test.tsx`
 - Test: `apicenter-management/src/lib/event-topics.test.ts`
 
-- [ ] Implement or document one shared topic resolver contract: tribe code uses
+- [x] Implement or document one shared topic resolver contract: tribe code uses
   logical topics, APICenter applies environment prefix, and management
   provisions/includes physical topics using the same prefix.
-- [ ] Make the resolver use `ownerTribeId ?? serviceId` for tribe-owned event
+- [x] Make the resolver use `ownerTribeId ?? serviceId` for tribe-owned event
   topics, while preserving `serviceId` as `sourceServiceId` for producer
   attribution.
-- [ ] Add APICenter governance tests for `prod.tribe.flow-ci.events`,
+- [x] Add APICenter governance tests for `prod.tribe.flow-ci.events`,
   `test.tribe.flow-ci.events`, blocked `prod.api-center.audit.log`, and
   cross-tenant `prod.tribe.other.events`.
-- [ ] Add APICenter/SDK tests that a microservice using tribe principal
+- [x] Add APICenter/SDK tests that a microservice using tribe principal
   `logistics` can publish to `tribe.logistics.events` with
   `sourceServiceId=logistics-orders`, and cannot publish to
   `tribe.logistics-orders.events` unless that service is itself the owner
   tribe.
-- [ ] Add canonical tribe/service ID normalization tests for `Flow CI`,
+- [x] Add canonical tribe/service ID normalization tests for `Flow CI`,
   `FLOW_CI`, `flow.ci`, and `flow-ci`.
-- [ ] Verify topic provisioning and S3 Sink inclusion are driven by owner tribe
+- [x] Verify topic provisioning and S3 Sink inclusion are driven by owner tribe
   ID and environment prefix, not by a hardcoded allowlist or the microservice
   service ID.
-- [ ] Add tests proving a new tribe service ID can produce the expected topic
+- [x] Add tests proving a new tribe service ID can produce the expected topic
   name and S3 Sink operation without changing source code.
-- [ ] Add migration tests for legacy service topics:
+- [x] Add migration tests for legacy service topics:
   `tribe.<serviceId>.events` is preserved, `tribe.<ownerTribeId>.events` is
   provisioned/included, and producers can be switched after validation.
-- [ ] Add idempotency tests for existing topic no-op, already-included topic
+- [x] Add idempotency tests for existing topic no-op, already-included topic
   no-op, preserving existing connector topics, stable topic ordering, and
   failed connector update not reporting success.
-- [ ] Add S3 Sink eligibility tests so only `tribe.<ownerTribeId>.events` and
+- [x] Add S3 Sink eligibility tests so only `tribe.<ownerTribeId>.events` and
   approved `api-center.shared.<serviceId>.events` can be included.
-- [ ] Document the metadata refresh path that picks up a new S3 topic folder.
-- [ ] Document the Bronze ingestion rule that reads from the shared raw root or
+- [x] Document the metadata refresh path that picks up a new S3 topic folder.
+- [x] Document the Bronze ingestion rule that reads from the shared raw root or
   a configurable registry rather than a fixed topic list.
-- [ ] Document that Common Silver accepts new tribes through `source_topic` and
+- [x] Document that Common Silver accepts new tribes through `source_topic` and
   `tribe_id`, accepts microservice attribution through `source_service_id`, and
   keeps tribe-specific Silver/Gold opt-in.
-- [ ] Split verification into two lanes: mocked CI tests that always run and
+- [x] Split verification into two lanes: mocked CI tests that always run and
   live Confluent/S3 smoke tests gated by required environment variables.
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -1182,14 +1182,14 @@ source-code changes.
 - Create: `api-center/docs/data-pipeline/pipeline-exception-request-template.md`
 - Modify: `api-shared-services/docs/consumer-runbook.md`
 
-- [ ] Create the RACI table for classification, policy, topic, sink, raw,
+- [x] Create the RACI table for classification, policy, topic, sink, raw,
   Bronze, and production metric gates.
-- [ ] Create the data classification checklist.
-- [ ] Create the exception request template with approvers, expiry, cost owner,
+- [x] Create the data classification checklist.
+- [x] Create the exception request template with approvers, expiry, cost owner,
   retention, access model, incident owner, audit obligations, and rejoin path.
-- [ ] Update the consumer runbook go-live checklist with classification,
+- [x] Update the consumer runbook go-live checklist with classification,
   retention, access, quota, and production metric approval checks.
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "Data classification ready|Production Metrics Approval|Exception Request|retention tier|approved_reader" api-center api-shared-services
@@ -1209,14 +1209,14 @@ the required gates.
 - Create: `api-center/docs/data-pipeline/retention-access-cost-controls.md`
 - Modify: `api-center/docs/production-costing.md`
 
-- [ ] Document retention defaults per environment and layer.
-- [ ] Document read-access boundaries for Raw, Bronze, Common Silver, Tribe
+- [x] Document retention defaults per environment and layer.
+- [x] Document read-access boundaries for Raw, Bronze, Common Silver, Tribe
   Silver, Gold, and BI dashboards.
-- [ ] Document per-tribe publish quotas, max event size, topic partition
+- [x] Document per-tribe publish quotas, max event size, topic partition
   defaults, Athena workgroup limits, Databricks cluster policies, concurrency
   caps, BI refresh limits, and alert thresholds.
-- [ ] Link these controls from the production costing doc.
-- [ ] Run:
+- [x] Link these controls from the production costing doc.
+- [x] Run:
 
 ```powershell
 rg -n "Athena workgroup|Databricks job cluster|publish quota|max event size|Raw S3|BI refresh" api-center/docs
@@ -1238,27 +1238,27 @@ operator terms.
 - Modify: `apicenter-management/src/components/tribe-onboarding-flow.tsx`
 - Modify: `api-center/docs/data-pipeline/new-tribe-s3-onboarding-runbook.md`
 
-- [ ] Define the topic state record shape from this plan.
-- [ ] Persist `owner_tribe_id`, `canonical_tribe_id`, `source_service_ids`,
+- [x] Define the topic state record shape from this plan.
+- [x] Persist `owner_tribe_id`, `canonical_tribe_id`, `source_service_ids`,
   logical topic, and physical topic so the topic state can be rendered per
   tribe while still showing microservice producers.
-- [ ] Add state transition history fields: actor, timestamp, previous state,
+- [x] Add state transition history fields: actor, timestamp, previous state,
   new state, approver, evidence link, blocking reason, and next review date.
-- [ ] Ensure state transition history is keyed by owner tribe topic, not by
+- [x] Ensure state transition history is keyed by owner tribe topic, not by
   every microservice service ID.
-- [ ] Add tests that state history is preserved when moving from
+- [x] Add tests that state history is preserved when moving from
   `Sink included` to `Publishing`, `Raw observed`, `Bronze cataloged`, and
   `Curated active`.
-- [ ] Add tests that adding another microservice under an already-onboarded
+- [x] Add tests that adding another microservice under an already-onboarded
   tribe updates source-service attribution without resetting the tribe topic's
   onboarding state.
-- [ ] Document where the state record lives until a persistent database table
+- [x] Document where the state record lives until a persistent database table
   is implemented.
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 cd C:\Codes\apic\apicenter-management
-npm test -- service-onboarding.test.ts tribe-onboarding-flow.test.tsx
+npm test -- service-onboarding.test.ts tribe-onboarding-flow.test.tsx topic-onboarding-state-store.test.ts
 ```
 
 Expected result:
@@ -1270,7 +1270,8 @@ and who approved the transition.
 
 ## Current Source Of Truth
 
-Until Tasks 2 through 9 are implemented, this file is the alignment source of truth for S3-to-data-visualization ownership.
+This file and the `docs/data-pipeline/` runbooks are the alignment source of
+truth for S3-to-data-visualization ownership.
 
 Future agents should preserve these decisions unless the user explicitly changes the operating model:
 
@@ -1299,24 +1300,24 @@ Future agents should preserve these decisions unless the user explicitly changes
 
 ## Verification Checklist
 
-- [ ] Every owner tribe has one visible S3 onboarding state.
-- [ ] Microservices under the same owner tribe share the owner tribe topic and
+- [x] Every owner tribe has one visible S3 onboarding state.
+- [x] Microservices under the same owner tribe share the owner tribe topic and
   are visible through `source_service_id` / `sourceServiceId`.
-- [ ] Late-provisioned topics can be added without rebuilding the whole analytics pipeline.
-- [ ] Late-provisioned topics require operational onboarding actions, not code or job rewrites.
-- [ ] No ordinary tribe receives Confluent or AWS S3 writer credentials.
-- [ ] Every S3-exported tribe event is published through APICenter governance.
-- [ ] Platform can verify Confluent topic traffic and S3 object arrival.
-- [ ] Bronze includes source topic, source file, ingestion time, event date,
+- [x] Late-provisioned topics can be added without rebuilding the whole analytics pipeline.
+- [x] Late-provisioned topics require operational onboarding actions, not code or job rewrites.
+- [x] No ordinary tribe receives Confluent or AWS S3 writer credentials.
+- [x] Every S3-exported tribe event is published through APICenter governance.
+- [x] Platform can verify Confluent topic traffic and S3 object arrival.
+- [x] Bronze includes source topic, source file, ingestion time, event date,
   event type, tribe ID, and source service ID when available.
-- [ ] Common Silver does not define tribe-specific business metrics.
-- [ ] Common Silver supports microservice filtering through `source_service_id`
+- [x] Common Silver does not define tribe-specific business metrics.
+- [x] Common Silver supports microservice filtering through `source_service_id`
   without per-service tables.
-- [ ] Tribe-specific Silver/Gold models have tribe sign-off before dashboard use.
-- [ ] The topic resolver contract is tested across APICenter and management.
-- [ ] S3 Sink topic inclusion is idempotent, preserves existing connector topics, and verifies connector state.
-- [ ] Glue/Athena discovery can pick up a newly added topic folder.
-- [ ] Bronze ingestion reads from raw root or a data-driven topic registry, not a compiled topic list.
-- [ ] Test records are filtered out of production Silver/Gold/BI outputs.
-- [ ] Every Gold metric has a metric dictionary entry and production approval.
-- [ ] Any separate tribe-owned full pipeline is documented as an approved exception waiver with expiry, cost owner, and rejoin path.
+- [x] Tribe-specific Silver/Gold models have tribe sign-off before dashboard use.
+- [x] The topic resolver contract is tested across APICenter and management.
+- [x] S3 Sink topic inclusion is idempotent, preserves existing connector topics, and verifies connector state.
+- [x] Glue/Athena discovery can pick up a newly added topic folder.
+- [x] Bronze ingestion reads from raw root or a data-driven topic registry, not a compiled topic list.
+- [x] Test records are filtered out of production Silver/Gold/BI outputs.
+- [x] Every Gold metric has a metric dictionary entry and production approval.
+- [x] Any separate tribe-owned full pipeline is documented as an approved exception waiver with expiry, cost owner, and rejoin path.

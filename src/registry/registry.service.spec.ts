@@ -189,6 +189,41 @@ describe("RegistryService", () => {
         service.register(baseManifest({ version: "2.0.0" })),
       ).rejects.toThrow(ConflictError);
     });
+
+    it("rejects microservice registration when ownerTribeId is missing from registry", async () => {
+      await expect(
+        service.register(
+          baseManifest({
+            serviceId: "logistics-orders",
+            ownerTribeId: "logistics",
+            name: "Logistics Orders",
+          }),
+        ),
+      ).rejects.toThrow("Owner tribe 'logistics' must be registered");
+    });
+
+    it("accepts microservice registration after owner tribe exists", async () => {
+      await service.register(
+        baseManifest({
+          serviceId: "logistics",
+          ownerTribeId: "logistics",
+          name: "Logistics",
+        }),
+      );
+
+      const entry = await service.register(
+        baseManifest({
+          serviceId: "logistics-orders",
+          ownerTribeId: "logistics",
+          name: "Logistics Orders",
+        }),
+      );
+
+      expect(entry).toMatchObject({
+        serviceId: "logistics-orders",
+        ownerTribeId: "logistics",
+      });
+    });
   });
 
   // =========================================================================
@@ -449,8 +484,9 @@ describe("RegistryService", () => {
       expect(service.getEffectiveOwnerTribeId("logistics-orders")).toBe(
         "logistics",
       );
-      expect(service.getOwnedServices("logistics").map((svc) => svc.serviceId))
-        .toEqual(expect.arrayContaining(["logistics", "logistics-orders"]));
+      expect(
+        service.getOwnedServices("logistics").map((svc) => svc.serviceId),
+      ).toEqual(expect.arrayContaining(["logistics", "logistics-orders"]));
       expect(service.canAccess("logistics", "logistics-orders")).toBe(true);
       expect(service.canConsume("logistics", "payment")).toBe(true);
     });

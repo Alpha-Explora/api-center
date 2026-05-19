@@ -39,6 +39,16 @@
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
+## Current Test Image
+
+| Field | Value |
+|---|---|
+| Namespace | `api-center-test` |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-test-3bfaaea-20260520023812` |
+| Built from | local workspace based on `3bfaaea` |
+| Last deployed | `2026-05-20` |
+| Validation | Owner-tribe registration, owned microservice registration, governed publish with `sourceServiceId`, Confluent topic creation, S3 Sink inclusion, and connector `RUNNING` were verified against test. |
+
 ---
 
 ## HPA Configuration
@@ -561,3 +571,5 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-15 | shared-service-export-20260515184111 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:shared-service-export-20260515184111`; added sanitized shared-service export publishing for `sms`, `email`, `payment`, `otp`, `geo`, and `gauth` | Export shared-service usage to dedicated Confluent topics for S3 lake ingestion |
 | 2026-05-16 | migration-20260516 | Created new GCP target project resources in `api-center-496422` / `asia-southeast1`, created fresh Secret Manager versions, deployed API Center and shared services, and verified internal readiness HTTP 200. DNS cutover is still pending. | Move API Center hosting away from the old GCP project while keeping Confluent/S3 external |
 | 2026-05-19 | 80440b7 | Applied Supabase migration `20260519000000_add_owner_tribe_id.sql` and deployed image `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-80440b7-202605190539`; readiness returned HTTP 200 after rollout | Roll out explicit owner-tribe boundaries, prefixed topic governance, and per-tribe event-topic support |
+| 2026-05-20 | 3bfaaea-local | Applied test Supabase migrations `20260519000000_add_owner_tribe_id.sql` and `20260520000000_add_service_registration_requests.sql`; deployed test image `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-test-3bfaaea-20260520023812`; live test accepted `ownerTribeId` and `sourceServiceId` payloads and kept `api-center-test-s3-sink` running | Unblock the next tribe data-pipeline slice in the test environment without touching production |
+| 2026-05-20 | pending | CI and Docker image builds now run `npm run db:generate` before TypeScript build and copy `prisma/` into the Docker builder stage | Ensure Prisma Client is available during API Center CI, image build, and test-environment deployment |

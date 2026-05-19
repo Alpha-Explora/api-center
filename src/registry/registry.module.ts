@@ -10,6 +10,8 @@ import { HealthMonitorService } from "./health-monitor.service";
 import { RegistryBootstrapService } from "./registry-bootstrap.service";
 import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
 import { PostgresRegistryStoreService } from "./postgres-registry-store.service";
+import { RegistrationRequestsController } from "./registration-requests.controller";
+import { RegistrationRequestsService } from "./registration-requests.service";
 import { VaultModule } from "../auth/vault.module";
 import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../database/database.module";
@@ -21,9 +23,10 @@ import { DatabaseModule } from "../database/database.module";
     DatabaseModule,
     forwardRef(() => AuthModule),
   ],
-  controllers: [RegistryController],
+  controllers: [RegistryController, RegistrationRequestsController],
   providers: [
     RegistryService,
+    RegistrationRequestsService,
     HealthMonitorService,
     RegistryBootstrapService,
     TribeSecretResolverService,

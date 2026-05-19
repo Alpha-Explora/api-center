@@ -15,7 +15,10 @@ const GOVERNED_SCHEMA_VERSION = "1.0.0";
 const GovernedKafkaPayloadSchema = z.object({
   eventType: z.string().min(1),
   payload: z.record(z.string(), z.unknown()),
-  sourceServiceId: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  sourceServiceId: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
   metadata: z.record(z.string(), z.string()).optional(),
 });
 

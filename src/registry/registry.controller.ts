@@ -97,6 +97,7 @@ export class RegistryController {
         exposes: svc.exposes,
         requiredScopes: svc.requiredScopes,
         consumes: svc.consumes,
+        ownerTribeId: svc.ownerTribeId,
         version: svc.version,
         previousVersion: svc.previousVersion,
         ownerTeam: svc.ownerTeam,

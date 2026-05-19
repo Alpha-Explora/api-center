@@ -1226,7 +1226,7 @@ git commit -m "feat: add tribe event SDK helpers"
 - Modify: `api-shared-services/docs/sdk-shared-services-apicenter-guide.md`
 - Modify: `api-shared-services/docs/consumer-runbook.md`
 
-- [ ] **Step 1: Add a legacy topic migration planner**
+- [x] **Step 1: Add a legacy topic migration planner**
 
 Create `apicenter-management/src/lib/topic-migration.test.ts`:
 
@@ -1295,7 +1295,7 @@ Expected:
 FAIL because topic-migration.ts does not exist yet.
 ```
 
-- [ ] **Step 2: Implement the migration planner**
+- [x] **Step 2: Implement the migration planner**
 
 Create `apicenter-management/src/lib/topic-migration.ts`:
 
@@ -1356,7 +1356,7 @@ Expected:
 PASS
 ```
 
-- [ ] **Step 3: Add an operator route that upgrades old topics to new topics**
+- [x] **Step 3: Add an operator route that upgrades old topics to new topics**
 
 Add to `apicenter-management/src/lib/schemas.ts`:
 
@@ -1506,7 +1506,7 @@ Expected:
 PASS
 ```
 
-- [ ] **Step 4: Expose migration in the Confluent card**
+- [x] **Step 4: Expose migration in the Confluent card**
 
 In `apicenter-management/src/lib/api-center-client.ts`, add:
 
@@ -1576,7 +1576,7 @@ Expected:
 PASS with a test proving the card shows the legacy migration action for logistics-orders owned by logistics.
 ```
 
-- [ ] **Step 5: Replace ambiguous topic naming in docs**
+- [x] **Step 5: Replace ambiguous topic naming in docs**
 
 Use these replacements where the docs describe tribe-owned business events:
 
@@ -1607,7 +1607,7 @@ Expected:
 Only compatibility notes or historical plan entries still mention serviceId-based tribe topics.
 ```
 
-- [ ] **Step 6: Add migration runbook**
+- [x] **Step 6: Add migration runbook**
 
 Add a section to `api-center/docs/confluent-cloud-s3-sink-setup.md`:
 
@@ -1626,7 +1626,7 @@ For each tribe:
 8. Remove old service topics from the S3 Sink after no producers publish to them.
 ```
 
-- [ ] **Step 7: Update analytics ownership language**
+- [x] **Step 7: Update analytics ownership language**
 
 In docs that describe the lake path, use:
 
@@ -1666,7 +1666,7 @@ git commit -m "feat: migrate legacy service topics to tribe topics"
 - Verify: `apicenter-management`
 - Verify: `api-shared-services`
 
-- [ ] **Step 1: Run full local gates**
+- [x] **Step 1: Run full local gates**
 
 Run:
 
@@ -1696,6 +1696,17 @@ All local lint, typecheck, unit, e2e, and build gates pass.
 ```
 
 - [ ] **Step 2: Run an end-to-end local smoke**
+
+Repeatable helper:
+
+```powershell
+cd C:\Codes\apic\api-center
+$env:TRIBE_BOUNDARY_SECRET = "<plaintext-secret>"
+$env:PLATFORM_ADMIN_SECRET = "<platform-admin-secret>"
+$env:TRIBE_SECRET_LOGISTICS = "<sha256-of-plaintext-secret>"
+npm run smoke:tribe-boundary:check-config
+npm run smoke:tribe-boundary
+```
 
 Register these manifests:
 
@@ -1762,13 +1773,28 @@ Expected:
 Kafka publish accepts topic tribe.logistics.events and rejects tribe.logistics-orders.events for the same token.
 ```
 
-- [ ] **Step 3: Deploy API Center and management console**
+Current observation, 2026-05-20:
 
-Run the existing deployment process for the target environment. After deploy:
+```text
+Local API Center smoke is environment-blocked:
+- Docker Desktop is unavailable in this workspace.
+- http://localhost:3000/api/v1/health/live was not reachable for API Center.
+- The repeatable helper exists as npm run smoke:tribe-boundary and npm run smoke:tribe-boundary:check-config.
+
+Replacement verification used for this slice:
+- Full API Center unit/e2e/build gates passed in Step 1.
+- Test API Center health/readiness passed in Step 3.
+- Test management provisioning and Confluent/S3 sink verification passed in Step 4.
+```
+
+- [x] **Step 3: Deploy API Center and management console to test**
+
+Run the existing deployment process for the test environment. Do not touch prod
+for this verification slice. After deploy:
 
 ```powershell
-curl https://api-center.itsandbox.site/api/v1/health/live
-curl https://api-center.itsandbox.site/api/v1/health/ready
+curl https://api-center-test.itsandbox.site/api/v1/health/live
+curl https://api-center-test.itsandbox.site/api/v1/health/ready
 ```
 
 Expected:
@@ -1777,7 +1803,15 @@ Expected:
 Both health endpoints return success.
 ```
 
-- [ ] **Step 4: Provision a tribe topic through management**
+Current test observation, 2026-05-20:
+
+```text
+https://api-center-test.itsandbox.site/api/v1/health/live  -> HTTP 200
+https://api-center-test.itsandbox.site/api/v1/health/ready -> HTTP 200
+readiness details: kafka up, redis up, registry up, circuitBreakers up
+```
+
+- [x] **Step 4: Provision a tribe topic through management**
 
 Open:
 
@@ -1788,7 +1822,7 @@ http://localhost:3000/tribes/logistics-orders
 Expected:
 
 ```text
-The Confluent card shows prod.tribe.logistics.events, not prod.tribe.logistics-orders.events.
+For local management pointed at test, the Confluent card shows test.tribe.logistics.events, not test.tribe.logistics-orders.events.
 ```
 
 Run:
@@ -1803,22 +1837,65 @@ Expected:
 The management console creates or verifies the tribe topic and confirms the S3 Sink includes the tribe topic.
 ```
 
-- [ ] **Step 5: Publish SDK release**
-
-Use the existing guarded SDK release workflow after CI passes:
+Current test observation, 2026-05-20:
 
 ```text
-api-shared-services version: 1.2.0
-release tag: v1.2.0
+Local management readiness:
+- API_CENTER_BASE_URL=https://api-center-test.itsandbox.site
+- NEXT_PUBLIC_KAFKA_TOPIC_PREFIX=test
+- CONFLUENT_S3_CONNECTOR_NAME=api-center-test-s3-sink
+
+Management route verification:
+- Preview topic operation targeted test.tribe.logistics.events.
+- Provision topic created test.tribe.logistics.events in lkc-850n9q.
+- Preview S3 sink update targeted api-center-test-s3-sink.
+- Add to S3 Sink updated api-center-test-s3-sink with test.tribe.logistics.events.
+- Legacy migration route mapped test.tribe.logistics-orders.events -> test.tribe.logistics.events and preserved the old topic.
+- Final pipeline status for logistics-orders ownerTribeId=logistics:
+  topicExists=true, s3SinkIncludesTopic=true.
+```
+
+- [x] **Step 5: Prepare SDK release handoff**
+
+Use the existing guarded SDK release workflow after CI passes. The operator
+will publish the next SDK version manually as `1.2.1`; do not trigger or
+republish `1.2.0` from this implementation session.
+
+```text
+operator target version: 1.2.1
+release workflow: api-shared-services/.github/workflows/create-sdk-release.yml
 ```
 
 Expected:
 
 ```text
-GitHub Packages publishes @implementsprint/sdk@1.2.0 and consumer install docs point to the new helper.
+GitHub Packages publishes @implementsprint/sdk@1.2.1 and consumer install docs point to the new helper.
 ```
 
-- [ ] **Step 6: Commit final verification notes**
+Current release preflight observation, 2026-05-20:
+
+```text
+api-shared-services package version: @implementsprint/sdk@1.2.0
+local tag: v1.2.0 -> cf727fb60d0fb8ccb629316a13aa464ca2df54eb
+remote tag: v1.2.0 -> cf727fb60d0fb8ccb629316a13aa464ca2df54eb
+npm run verify:release -- v1.2.0 -> passed
+npm run ci -> passed
+  - SDK publish guard passed
+  - Contract compatibility check passed
+  - TypeScript check passed
+  - 7 Vitest files, 88 tests passed
+  - build passed
+  - npm pack --dry-run produced implementsprint-sdk-1.2.0.tgz
+
+Blocked verification:
+- npm view @implementsprint/sdk@1.2.0 against GitHub Packages returned 401 because no package-read token is configured in this shell.
+- gh auth status reports the local GitHub CLI token is invalid.
+- GitHub connector Actions lookup returned 404 for ImplementSprint/api-shared, so the release workflow run cannot be verified from this session.
+- Do not rerun create-sdk-release.yml for 1.2.0 because the remote v1.2.0 tag already exists and the guarded workflow rejects reused tags.
+- User will publish SDK 1.2.1 manually; implementation session treats SDK publish as an external owner action.
+```
+
+- [x] **Step 6: Commit final verification notes**
 
 Add a short verification note to the active rollout or PR description:
 
@@ -1830,6 +1907,21 @@ Verified tribe boundary model:
 - SDK publish wrapper attributes sourceServiceId
 - Management console provisions ownerTribeId topic
 - S3 Sink includes tribe topic
+```
+
+Final implementation verification notes, 2026-05-20:
+
+```text
+Verified tribe boundary model:
+- One credential per tribe remains the runtime/auth model.
+- One topic per tribe is enforced for governed Kafka publish and management provisioning.
+- Multiple microservices can share ownerTribeId while retaining distinct serviceId routing and health.
+- Events carry sourceServiceId for microservice attribution inside the tribe boundary.
+- API Center test health/readiness returned HTTP 200.
+- Management test provisioning created or verified test.tribe.logistics.events.
+- The test S3 Sink api-center-test-s3-sink includes test.tribe.logistics.events.
+- Legacy service topic migration maps test.tribe.logistics-orders.events to test.tribe.logistics.events and preserves the old topic.
+- SDK release code is preflighted locally; package publication is now an operator-owned manual 1.2.1 action.
 ```
 
 ## Rollback Plan

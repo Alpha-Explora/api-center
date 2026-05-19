@@ -4,6 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const repoRoot = path.resolve(__dirname, '..');
+const sharedServicesRoot = process.env.API_SHARED_SERVICES_ROOT
+  ? path.resolve(repoRoot, process.env.API_SHARED_SERVICES_ROOT)
+  : path.resolve(repoRoot, '..', 'api-shared-services');
+const allowMissingExternalManifests =
+  process.env.ALLOW_MISSING_EXTERNAL_MANIFESTS === 'true';
 const contractPath = path.join(repoRoot, 'docs', 'contracts', 'shared-service-contract.json');
 const sharedControllerPath = path.join(repoRoot, 'src', 'shared-services', 'shared-services.controller.ts');
 const kafkaControllerPath = path.join(repoRoot, 'src', 'kafka-governance', 'kafka-governance.controller.ts');
@@ -27,13 +32,38 @@ function readJson(filePath) {
 }
 
 function assertFileExists(relativePath) {
-  const absolutePath = path.join(repoRoot, relativePath);
+  const resolved = resolveContractPath(relativePath);
+  const absolutePath = resolved.absolutePath;
   if (!fs.existsSync(absolutePath)) {
+    if (resolved.externalSharedManifest && allowMissingExternalManifests) {
+      console.warn(
+        `Skipping unavailable external shared-service manifest: ${relativePath}`,
+      );
+      return null;
+    }
+
     violations.push(`Missing required file: ${relativePath}`);
     return null;
   }
 
   return absolutePath;
+}
+
+function resolveContractPath(relativePath) {
+  const normalized = relativePath.split(path.sep).join('/');
+  const sharedPrefix = '../api-shared-services/';
+
+  if (normalized.startsWith(sharedPrefix)) {
+    return {
+      absolutePath: path.join(sharedServicesRoot, normalized.slice(sharedPrefix.length)),
+      externalSharedManifest: true,
+    };
+  }
+
+  return {
+    absolutePath: path.join(repoRoot, relativePath),
+    externalSharedManifest: false,
+  };
 }
 
 function collectManifestDriftViolations() {
