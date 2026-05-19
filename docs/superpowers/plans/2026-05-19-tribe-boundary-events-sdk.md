@@ -1226,7 +1226,7 @@ git commit -m "feat: add tribe event SDK helpers"
 - Modify: `api-shared-services/docs/sdk-shared-services-apicenter-guide.md`
 - Modify: `api-shared-services/docs/consumer-runbook.md`
 
-- [ ] **Step 1: Add a legacy topic migration planner**
+- [x] **Step 1: Add a legacy topic migration planner**
 
 Create `apicenter-management/src/lib/topic-migration.test.ts`:
 
@@ -1295,7 +1295,7 @@ Expected:
 FAIL because topic-migration.ts does not exist yet.
 ```
 
-- [ ] **Step 2: Implement the migration planner**
+- [x] **Step 2: Implement the migration planner**
 
 Create `apicenter-management/src/lib/topic-migration.ts`:
 
@@ -1356,7 +1356,7 @@ Expected:
 PASS
 ```
 
-- [ ] **Step 3: Add an operator route that upgrades old topics to new topics**
+- [x] **Step 3: Add an operator route that upgrades old topics to new topics**
 
 Add to `apicenter-management/src/lib/schemas.ts`:
 
@@ -1506,7 +1506,7 @@ Expected:
 PASS
 ```
 
-- [ ] **Step 4: Expose migration in the Confluent card**
+- [x] **Step 4: Expose migration in the Confluent card**
 
 In `apicenter-management/src/lib/api-center-client.ts`, add:
 
@@ -1576,7 +1576,7 @@ Expected:
 PASS with a test proving the card shows the legacy migration action for logistics-orders owned by logistics.
 ```
 
-- [ ] **Step 5: Replace ambiguous topic naming in docs**
+- [x] **Step 5: Replace ambiguous topic naming in docs**
 
 Use these replacements where the docs describe tribe-owned business events:
 
@@ -1607,7 +1607,7 @@ Expected:
 Only compatibility notes or historical plan entries still mention serviceId-based tribe topics.
 ```
 
-- [ ] **Step 6: Add migration runbook**
+- [x] **Step 6: Add migration runbook**
 
 Add a section to `api-center/docs/confluent-cloud-s3-sink-setup.md`:
 
@@ -1626,7 +1626,7 @@ For each tribe:
 8. Remove old service topics from the S3 Sink after no producers publish to them.
 ```
 
-- [ ] **Step 7: Update analytics ownership language**
+- [x] **Step 7: Update analytics ownership language**
 
 In docs that describe the lake path, use:
 
