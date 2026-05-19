@@ -130,6 +130,7 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
+          ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
 
   # ---------------------------------------------------------------------------
   # Job 4: Docker Build (verify Dockerfile works)

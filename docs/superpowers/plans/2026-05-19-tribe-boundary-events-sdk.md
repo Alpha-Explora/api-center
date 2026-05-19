@@ -1789,6 +1789,14 @@ Expected:
 Both health endpoints return success.
 ```
 
+Current test observation, 2026-05-20:
+
+```text
+https://api-center-test.itsandbox.site/api/v1/health/live  -> HTTP 200
+https://api-center-test.itsandbox.site/api/v1/health/ready -> HTTP 200
+readiness details: kafka up, redis up, registry up, circuitBreakers up
+```
+
 - [ ] **Step 4: Provision a tribe topic through management**
 
 Open:
