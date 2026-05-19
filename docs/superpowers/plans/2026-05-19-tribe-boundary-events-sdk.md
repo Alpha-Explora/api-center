@@ -1856,6 +1856,28 @@ Expected:
 GitHub Packages publishes @implementsprint/sdk@1.2.0 and consumer install docs point to the new helper.
 ```
 
+Current release preflight observation, 2026-05-20:
+
+```text
+api-shared-services package version: @implementsprint/sdk@1.2.0
+local tag: v1.2.0 -> cf727fb60d0fb8ccb629316a13aa464ca2df54eb
+remote tag: v1.2.0 -> cf727fb60d0fb8ccb629316a13aa464ca2df54eb
+npm run verify:release -- v1.2.0 -> passed
+npm run ci -> passed
+  - SDK publish guard passed
+  - Contract compatibility check passed
+  - TypeScript check passed
+  - 7 Vitest files, 88 tests passed
+  - build passed
+  - npm pack --dry-run produced implementsprint-sdk-1.2.0.tgz
+
+Blocked verification:
+- npm view @implementsprint/sdk@1.2.0 against GitHub Packages returned 401 because no package-read token is configured in this shell.
+- gh auth status reports the local GitHub CLI token is invalid.
+- GitHub connector Actions lookup returned 404 for ImplementSprint/api-shared, so the release workflow run cannot be verified from this session.
+- Do not rerun create-sdk-release.yml for 1.2.0 because the remote v1.2.0 tag already exists and the guarded workflow rejects reused tags.
+```
+
 - [ ] **Step 6: Commit final verification notes**
 
 Add a short verification note to the active rollout or PR description:
