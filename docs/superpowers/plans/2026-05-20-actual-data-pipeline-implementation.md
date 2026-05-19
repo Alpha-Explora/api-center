@@ -38,28 +38,32 @@ Confluent S3 Sink
 ## Scope Decisions
 
 - First implementation target is AWS-native Glue/Athena, not Databricks-first.
+- Active system scope is APICenter only.
 - Test and prod must remain isolated by `environment` parsed from physical topic prefixes.
 - Raw S3 remains platform-only; production dashboards must not query raw S3 directly.
 - Bronze and Common Silver must be generic enough for late-provisioned tribes.
 - Tribe-specific Silver/Gold starts only after event semantics and metric definitions are approved.
 - APICenter operational analytics is required, but it must use approved sanitized ops export streams, not a blanket export of every internal APICenter infrastructure topic.
+- Other non-provisioned systems are out of scope for this implementation plan until they are explicitly onboarded and provisioned.
 - Databricks Free Edition is prototype-only; it must not be treated as the production multi-tribe platform.
 
 ## North Star Question
 
-The north star for this pipeline is:
+The APICenter north star for this pipeline is:
 
 ```text
-How does APICenter turn governed gateway, shared-service, and tribe-owned event activity into trusted, owner-aware data products and dashboards without giving every tribe a separate unmanaged data pipeline?
+From tribe request to gateway decision to event export to visualization, can we trace who called what, whether it was allowed, what happened, how much it cost, and where the data landed?
 ```
 
-That breaks into three visibility questions:
+That breaks into five APICenter visibility questions:
 
-1. What are tribes doing through their owned business events?
-2. What are shared services doing for tribes, and are providers healthy?
-3. Is APICenter itself healthy as the gateway, policy, registry, and data-export control plane?
+1. Who called what: caller tribe, source service, target service, route, event type.
+2. Whether it was allowed: auth result, scopes, consumes policy, gateway decision, denial reason.
+3. What happened: response status, provider outcome, latency, retry/failure classification.
+4. How much it cost: provider cost, event volume, Confluent/S3/Athena/BI cost drivers.
+5. Where the data landed: Kafka physical topic, S3 prefix/object, Bronze/Silver/Gold table, dashboard/API surface.
 
-The implementation must answer all three, but with separate topic lanes and schemas so tribe business analytics, shared-service telemetry, and APICenter operational analytics do not get mixed accidentally.
+The implementation must answer all five for APICenter, but with separate topic lanes and schemas so tribe business analytics, shared-service telemetry, and APICenter operational analytics do not get mixed accidentally. Do not add any other system-specific north star to this plan until that system has gone through onboarding, classification, topic provisioning, and data-product approval.
 
 ## Topic Inclusion Lanes
 
@@ -168,21 +172,11 @@ Expected:
 .npmrc contains ${GITHUB_TOKEN}, not a raw token
 ```
 
-- [ ] **Step 3: Decide whether to keep `secret-ops` npmrc edits**
+- [ ] **Step 3: Decide whether to keep external consumer npmrc edits**
 
-If consumer repos should keep durable install config, commit them in their own repos. If this work was only for APICenter testing, revert only the `.npmrc` edits in:
+If external consumer repos should keep durable install config, commit them in their own repos. If this work was only for APICenter testing, revert only the `.npmrc` edits in the touched consumer repos.
 
-```text
-C:\Codes\secret-ops\campus-one-be
-C:\Codes\secret-ops\greenovate-be
-C:\Codes\secret-ops\paki-apps-be
-C:\Codes\secret-ops\sho-team-be
-C:\Codes\secret-ops\smurf-village-be
-C:\Codes\secret-ops\template-repo-be-nest
-C:\Codes\secret-ops\trini-thrive-be
-```
-
-Do not change package dependencies in this step.
+Do not add those consumer systems to this data-pipeline plan, and do not change package dependencies in this step.
 
 - [ ] **Step 4: Confirm topic state baseline**
 
