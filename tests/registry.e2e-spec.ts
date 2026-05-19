@@ -6,6 +6,7 @@ import { LoggerService } from '../src/shared/logger.service';
 import { ScopedAdminGuard } from '../src/auth/guards/scoped-admin.guard';
 import { ConfigService } from '../src/config/config.service';
 import { AuthService } from '../src/auth/auth.service';
+import { AuditEventsService } from '../src/analytics/audit-events.service';
 
 describe('RegistryController scopes (e2e)', () => {
   let app: INestApplication;
@@ -40,6 +41,12 @@ describe('RegistryController scopes (e2e)', () => {
           useValue: {
             validateToken: jest.fn(),
             mergeCallerScopes: jest.fn().mockReturnValue([]),
+          },
+        },
+        {
+          provide: AuditEventsService,
+          useValue: {
+            record: jest.fn().mockResolvedValue(undefined),
           },
         },
         ScopedAdminGuard,

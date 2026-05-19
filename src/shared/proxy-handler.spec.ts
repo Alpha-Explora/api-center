@@ -751,21 +751,22 @@ describe("ProxyHandler", () => {
 
     it("passes upstream JSON response bodies to shared-service export events", async () => {
       setCreateProxyMiddlewareForTesting(
-        jest.fn(() =>
-          jest.fn((_req: any, res: any) => {
-            res.write(
-              JSON.stringify({
-                success: true,
-                data: {
-                  subscriptionId: "sub_proxy_123",
-                  status: "active",
-                  provider: "paymongo",
-                  providerMode: "test",
-                },
-              }),
-            );
-            res.end();
-          }) as any,
+        jest.fn(
+          () =>
+            jest.fn((_req: any, res: any) => {
+              res.write(
+                JSON.stringify({
+                  success: true,
+                  data: {
+                    subscriptionId: "sub_proxy_123",
+                    status: "active",
+                    provider: "paymongo",
+                    providerMode: "test",
+                  },
+                }),
+              );
+              res.end();
+            }) as any,
         ) as any,
       );
 

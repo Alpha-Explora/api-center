@@ -213,12 +213,14 @@ function mapRowToRegistryEntry(
     baseUrl: row.baseUrl,
     requiredScopes: row.scopes.map((scope) => scope.scope),
     exposes: row.routes.map((route) => route.path),
-    consumes: row.dependencies.map(
-      (dependency) =>
-        dependency.dependsOnService?.serviceId ??
-        dependency.dependsOnExternalId ??
-        "",
-    ).filter(Boolean),
+    consumes: row.dependencies
+      .map(
+        (dependency) =>
+          dependency.dependsOnService?.serviceId ??
+          dependency.dependsOnExternalId ??
+          "",
+      )
+      .filter(Boolean),
     serviceType: row.serviceType as ServiceType,
     healthCheck: row.healthCheckPath ?? undefined,
     version: row.version ?? undefined,

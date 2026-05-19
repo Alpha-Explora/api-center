@@ -21,14 +21,9 @@ describe("KafkaGovernanceService", () => {
   let service: KafkaGovernanceService;
 
   const createService = (topicPrefix = "") =>
-    new KafkaGovernanceService(
-      mockKafka,
-      mockLogger,
-      mockMetrics,
-      {
-        kafka: { topicPrefix },
-      } as ConfigService,
-    );
+    new KafkaGovernanceService(mockKafka, mockLogger, mockMetrics, {
+      kafka: { topicPrefix },
+    } as ConfigService);
 
   beforeEach(() => {
     jest.clearAllMocks();

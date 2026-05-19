@@ -752,7 +752,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     const count = Object.keys(entries).length;
     if (count > 0) {
-      this.logger.info(`Registry hydrated ${count} service(s) from Postgres`, {});
+      this.logger.info(
+        `Registry hydrated ${count} service(s) from Postgres`,
+        {},
+      );
     }
   }
 

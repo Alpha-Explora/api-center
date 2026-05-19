@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service";
 import { ConflictError, NotFoundError } from "../shared/errors";
-import { ServiceManifest, ServiceRegistryEntry } from "../types";
+import { ServiceManifest } from "../types";
 import { RegistryService } from "./registry.service";
 
 type RegistrationRequestStatus =
@@ -169,7 +169,9 @@ export class RegistrationRequestsService {
     );
 
     if (!rows[0]) {
-      throw new ConflictError("Only pending registration requests can be rejected");
+      throw new ConflictError(
+        "Only pending registration requests can be rejected",
+      );
     }
 
     return mapRow(rows[0]);

@@ -85,7 +85,9 @@ describe("RegistrationRequestsService", () => {
     });
 
     expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("insert into api_center_ops.service_registration_requests"),
+      expect.stringContaining(
+        "insert into api_center_ops.service_registration_requests",
+      ),
       "logistics-orders",
       "logistics",
       "pending",
