@@ -1773,6 +1773,20 @@ Expected:
 Kafka publish accepts topic tribe.logistics.events and rejects tribe.logistics-orders.events for the same token.
 ```
 
+Current observation, 2026-05-20:
+
+```text
+Local API Center smoke is environment-blocked:
+- Docker Desktop is unavailable in this workspace.
+- http://localhost:3000/api/v1/health/live was not reachable for API Center.
+- The repeatable helper exists as npm run smoke:tribe-boundary and npm run smoke:tribe-boundary:check-config.
+
+Replacement verification used for this slice:
+- Full API Center unit/e2e/build gates passed in Step 1.
+- Test API Center health/readiness passed in Step 3.
+- Test management provisioning and Confluent/S3 sink verification passed in Step 4.
+```
+
 - [x] **Step 3: Deploy API Center and management console to test**
 
 Run the existing deployment process for the test environment. Do not touch prod
@@ -1841,19 +1855,21 @@ Management route verification:
   topicExists=true, s3SinkIncludesTopic=true.
 ```
 
-- [ ] **Step 5: Publish SDK release**
+- [x] **Step 5: Prepare SDK release handoff**
 
-Use the existing guarded SDK release workflow after CI passes:
+Use the existing guarded SDK release workflow after CI passes. The operator
+will publish the next SDK version manually as `1.2.1`; do not trigger or
+republish `1.2.0` from this implementation session.
 
 ```text
-api-shared-services version: 1.2.0
-release tag: v1.2.0
+operator target version: 1.2.1
+release workflow: api-shared-services/.github/workflows/create-sdk-release.yml
 ```
 
 Expected:
 
 ```text
-GitHub Packages publishes @implementsprint/sdk@1.2.0 and consumer install docs point to the new helper.
+GitHub Packages publishes @implementsprint/sdk@1.2.1 and consumer install docs point to the new helper.
 ```
 
 Current release preflight observation, 2026-05-20:
@@ -1876,9 +1892,10 @@ Blocked verification:
 - gh auth status reports the local GitHub CLI token is invalid.
 - GitHub connector Actions lookup returned 404 for ImplementSprint/api-shared, so the release workflow run cannot be verified from this session.
 - Do not rerun create-sdk-release.yml for 1.2.0 because the remote v1.2.0 tag already exists and the guarded workflow rejects reused tags.
+- User will publish SDK 1.2.1 manually; implementation session treats SDK publish as an external owner action.
 ```
 
-- [ ] **Step 6: Commit final verification notes**
+- [x] **Step 6: Commit final verification notes**
 
 Add a short verification note to the active rollout or PR description:
 
@@ -1890,6 +1907,21 @@ Verified tribe boundary model:
 - SDK publish wrapper attributes sourceServiceId
 - Management console provisions ownerTribeId topic
 - S3 Sink includes tribe topic
+```
+
+Final implementation verification notes, 2026-05-20:
+
+```text
+Verified tribe boundary model:
+- One credential per tribe remains the runtime/auth model.
+- One topic per tribe is enforced for governed Kafka publish and management provisioning.
+- Multiple microservices can share ownerTribeId while retaining distinct serviceId routing and health.
+- Events carry sourceServiceId for microservice attribution inside the tribe boundary.
+- API Center test health/readiness returned HTTP 200.
+- Management test provisioning created or verified test.tribe.logistics.events.
+- The test S3 Sink api-center-test-s3-sink includes test.tribe.logistics.events.
+- Legacy service topic migration maps test.tribe.logistics-orders.events to test.tribe.logistics.events and preserves the old topic.
+- SDK release code is preflighted locally; package publication is now an operator-owned manual 1.2.1 action.
 ```
 
 ## Rollback Plan
