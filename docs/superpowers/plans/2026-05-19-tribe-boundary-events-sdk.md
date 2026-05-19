@@ -1773,7 +1773,7 @@ Expected:
 Kafka publish accepts topic tribe.logistics.events and rejects tribe.logistics-orders.events for the same token.
 ```
 
-- [ ] **Step 3: Deploy API Center and management console to test**
+- [x] **Step 3: Deploy API Center and management console to test**
 
 Run the existing deployment process for the test environment. Do not touch prod
 for this verification slice. After deploy:
@@ -1797,7 +1797,7 @@ https://api-center-test.itsandbox.site/api/v1/health/ready -> HTTP 200
 readiness details: kafka up, redis up, registry up, circuitBreakers up
 ```
 
-- [ ] **Step 4: Provision a tribe topic through management**
+- [x] **Step 4: Provision a tribe topic through management**
 
 Open:
 
@@ -1821,6 +1821,24 @@ Expected:
 
 ```text
 The management console creates or verifies the tribe topic and confirms the S3 Sink includes the tribe topic.
+```
+
+Current test observation, 2026-05-20:
+
+```text
+Local management readiness:
+- API_CENTER_BASE_URL=https://api-center-test.itsandbox.site
+- NEXT_PUBLIC_KAFKA_TOPIC_PREFIX=test
+- CONFLUENT_S3_CONNECTOR_NAME=api-center-test-s3-sink
+
+Management route verification:
+- Preview topic operation targeted test.tribe.logistics.events.
+- Provision topic created test.tribe.logistics.events in lkc-850n9q.
+- Preview S3 sink update targeted api-center-test-s3-sink.
+- Add to S3 Sink updated api-center-test-s3-sink with test.tribe.logistics.events.
+- Legacy migration route mapped test.tribe.logistics-orders.events -> test.tribe.logistics.events and preserved the old topic.
+- Final pipeline status for logistics-orders ownerTribeId=logistics:
+  topicExists=true, s3SinkIncludesTopic=true.
 ```
 
 - [ ] **Step 5: Publish SDK release**
