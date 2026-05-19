@@ -57,8 +57,16 @@ jobs:
       - name: Enforce gateway and SDK boundaries
         run: npm run check:boundaries
 
+      - name: Checkout shared-services contract repo
+        uses: actions/checkout@v4
+        with:
+          repository: ImplementSprint/api-shared
+          path: api-shared-services
+
       - name: Enforce gateway and SDK contract compatibility
         run: npm run check:contracts
+        env:
+          API_SHARED_SERVICES_ROOT: api-shared-services
 
       - name: TypeScript type check
         run: npx tsc --noEmit

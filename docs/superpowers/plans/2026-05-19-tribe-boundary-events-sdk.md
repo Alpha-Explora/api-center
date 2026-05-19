@@ -1666,7 +1666,7 @@ git commit -m "feat: migrate legacy service topics to tribe topics"
 - Verify: `apicenter-management`
 - Verify: `api-shared-services`
 
-- [ ] **Step 1: Run full local gates**
+- [x] **Step 1: Run full local gates**
 
 Run:
 

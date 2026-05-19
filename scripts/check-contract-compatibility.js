@@ -4,6 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const repoRoot = path.resolve(__dirname, '..');
+const sharedServicesRoot = process.env.API_SHARED_SERVICES_ROOT
+  ? path.resolve(repoRoot, process.env.API_SHARED_SERVICES_ROOT)
+  : path.resolve(repoRoot, '..', 'api-shared-services');
 const contractPath = path.join(repoRoot, 'docs', 'contracts', 'shared-service-contract.json');
 const sharedControllerPath = path.join(repoRoot, 'src', 'shared-services', 'shared-services.controller.ts');
 const kafkaControllerPath = path.join(repoRoot, 'src', 'kafka-governance', 'kafka-governance.controller.ts');
@@ -27,13 +30,24 @@ function readJson(filePath) {
 }
 
 function assertFileExists(relativePath) {
-  const absolutePath = path.join(repoRoot, relativePath);
+  const absolutePath = resolveContractPath(relativePath);
   if (!fs.existsSync(absolutePath)) {
     violations.push(`Missing required file: ${relativePath}`);
     return null;
   }
 
   return absolutePath;
+}
+
+function resolveContractPath(relativePath) {
+  const normalized = relativePath.split(path.sep).join('/');
+  const sharedPrefix = '../api-shared-services/';
+
+  if (normalized.startsWith(sharedPrefix)) {
+    return path.join(sharedServicesRoot, normalized.slice(sharedPrefix.length));
+  }
+
+  return path.join(repoRoot, relativePath);
 }
 
 function collectManifestDriftViolations() {
