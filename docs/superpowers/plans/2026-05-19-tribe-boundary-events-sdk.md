@@ -1697,6 +1697,17 @@ All local lint, typecheck, unit, e2e, and build gates pass.
 
 - [ ] **Step 2: Run an end-to-end local smoke**
 
+Repeatable helper:
+
+```powershell
+cd C:\Codes\apic\api-center
+$env:TRIBE_BOUNDARY_SECRET = "<plaintext-secret>"
+$env:PLATFORM_ADMIN_SECRET = "<platform-admin-secret>"
+$env:TRIBE_SECRET_LOGISTICS = "<sha256-of-plaintext-secret>"
+npm run smoke:tribe-boundary:check-config
+npm run smoke:tribe-boundary
+```
+
 Register these manifests:
 
 ```json
@@ -1762,13 +1773,14 @@ Expected:
 Kafka publish accepts topic tribe.logistics.events and rejects tribe.logistics-orders.events for the same token.
 ```
 
-- [ ] **Step 3: Deploy API Center and management console**
+- [ ] **Step 3: Deploy API Center and management console to test**
 
-Run the existing deployment process for the target environment. After deploy:
+Run the existing deployment process for the test environment. Do not touch prod
+for this verification slice. After deploy:
 
 ```powershell
-curl https://api-center.itsandbox.site/api/v1/health/live
-curl https://api-center.itsandbox.site/api/v1/health/ready
+curl https://api-center-test.itsandbox.site/api/v1/health/live
+curl https://api-center-test.itsandbox.site/api/v1/health/ready
 ```
 
 Expected:
@@ -1788,7 +1800,7 @@ http://localhost:3000/tribes/logistics-orders
 Expected:
 
 ```text
-The Confluent card shows prod.tribe.logistics.events, not prod.tribe.logistics-orders.events.
+For local management pointed at test, the Confluent card shows test.tribe.logistics.events, not test.tribe.logistics-orders.events.
 ```
 
 Run:

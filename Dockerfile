@@ -43,8 +43,10 @@ COPY package.json package-lock.json* ./
 
 # Copy source and compile TypeScript (NestJS uses nest build)
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY prisma/ ./prisma/
 COPY src/ ./src/
-RUN npm run build && \
+RUN npm run db:generate && \
+    npm run build && \
     npm prune --omit=dev && \
     npm cache clean --force
 
