@@ -3,6 +3,11 @@ param(
   [string]$Database = $env:ATHENA_DATABASE,
   [string]$Workgroup = $env:ATHENA_WORKGROUP,
   [string]$OutputLocation = $env:ATHENA_OUTPUT_LOCATION,
+  [ValidateSet("platform-validation", "management", "tribe")]
+  [string]$ResultPurpose = "platform-validation",
+  [ValidateSet("test", "prod")]
+  [string]$Environment = "test",
+  [string]$TribeId,
   [string]$Profile = $env:AWS_PROFILE,
   [hashtable]$Parameters = @{},
   [switch]$Wait,
@@ -14,6 +19,21 @@ $ErrorActionPreference = "Stop"
 
 if (-not $Database) { throw "ATHENA_DATABASE is required" }
 if (-not $Workgroup) { throw "ATHENA_WORKGROUP is required" }
+
+if (-not $OutputLocation) {
+  $resolver = Join-Path $PSScriptRoot "resolve-athena-output-location.ps1"
+  $resolverArgs = @{
+    Purpose = $ResultPurpose
+    Environment = $Environment
+  }
+
+  if ($TribeId) {
+    $resolverArgs.TribeId = $TribeId
+  }
+
+  $OutputLocation = & $resolver @resolverArgs
+}
+
 if (-not $OutputLocation) { throw "ATHENA_OUTPUT_LOCATION is required" }
 
 function Invoke-AwsJson {
