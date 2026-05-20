@@ -100,3 +100,21 @@ Move old flat files to legacy quarantine only after reviewing dry-run output:
 
 Use `-Delete -ConfirmCleanup` only after lifecycle policy and retention have
 been approved.
+
+## Dedicated Results Bucket Gate
+
+Before granting tribe or BI access to Athena result artifacts, create or approve:
+
+```text
+bucket: api-center-athena-results
+platform_validation_workgroup:
+management_workgroup:
+tribe_reader_workgroup:
+raw_bucket_access_for_bi: false
+result_bucket_lifecycle_days: 7-30
+prod_result_prefix: s3://api-center-athena-results/management/prod/
+tribe_result_prefix: s3://api-center-athena-results/tribe/<tribe_id>/prod/
+```
+
+Keep `api-center-raw-data` platform-only. Do not use raw bucket permissions to
+grant dashboard access.

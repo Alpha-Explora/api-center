@@ -106,6 +106,14 @@ Operator rules:
 - Treat repeated broad scans as an incident until the query is narrowed or the
   data is compacted.
 
+## Athena Workgroup Split Target
+
+| Workgroup | Output prefix | Readers |
+| --- | --- | --- |
+| `api-center-platform-validation` | `s3://api-center-athena-results/platform/validation/<environment>/` | Platform data operators |
+| `api-center-management` | `s3://api-center-athena-results/management/<environment>/` | Management service role/operators |
+| `api-center-tribe-<tribe_id>` | `s3://api-center-athena-results/tribe/<tribe_id>/<environment>/` | Approved tribe readers |
+
 ## Operator Guardrails
 
 - Keep Kafka retention short because Raw S3 is the archive.
