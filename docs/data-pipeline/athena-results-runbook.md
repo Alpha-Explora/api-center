@@ -72,3 +72,31 @@ aws s3api put-bucket-lifecycle-configuration `
   --lifecycle-configuration file://infra/aws-data-pipeline/policies/athena-results-lifecycle.json `
   --profile apic
 ```
+
+## Cleanup
+
+Always run inventory first:
+
+```powershell
+.\scripts\data-pipeline\validate-athena-results-layout.ps1 -Bucket api-center-raw-data -Profile apic
+```
+
+Run dry-run cleanup:
+
+```powershell
+.\scripts\data-pipeline\cleanup-athena-results.ps1 -Bucket api-center-raw-data -Profile apic -OlderThanDays 7
+```
+
+Move old flat files to legacy quarantine only after reviewing dry-run output:
+
+```powershell
+.\scripts\data-pipeline\cleanup-athena-results.ps1 `
+  -Bucket api-center-raw-data `
+  -Profile apic `
+  -OlderThanDays 7 `
+  -MoveToLegacy `
+  -ConfirmCleanup
+```
+
+Use `-Delete -ConfirmCleanup` only after lifecycle policy and retention have
+been approved.
