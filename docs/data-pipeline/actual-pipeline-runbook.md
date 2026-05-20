@@ -86,3 +86,35 @@ Required defaults:
 Do not connect a production dashboard directly to Raw S3. Production dashboards
 must read approved Gold or Tribe Silver outputs with an `environment = 'prod'`
 filter.
+
+## Test-Only Pilot Completion, 2026-05-20
+
+```text
+physical_topic: test.tribe.codex-sdk-20260520041053.events
+environment: test
+s3_object_count: 2
+latest_s3_object_key: topics/test.tribe.codex-sdk-20260520041053.events/year=2026/month=05/day=20/hour=09/test.tribe.codex-sdk-20260520041053.events+0+0000000001.json
+latest_s3_object_at: 2026-05-20T09:41:51+00:00
+raw_query_id: 1de4b99e-b1c2-4439-aae0-6ac797e50d16
+raw_record_count: 1000
+bronze_query_id: 4e6d6724-2b76-4b7a-8da1-c7f04c7a2ae2
+bronze_valid_count: 1000
+bronze_event_type: codex.pipeline.flush
+bronze_latest_occurred_at: 2026-05-20T09:41:45.721Z
+common_silver_query_id: a8f2a5fc-49f1-4ab0-875d-d817cbd2017f
+common_silver_count: 1000
+gold_query_id: de046be3-ee6f-4e9d-b5ac-aa7773b8be3a
+gold_event_count: 1000
+gold_latest_ingested_at: 2026-05-20 11:10:16.469 UTC
+prod_leak_guard_query_id: a9463449-137f-435d-b51e-c0c24cc490b0
+prod_leak_guard_count: 0
+operator: codex
+checked_at: 2026-05-20T11:13:00Z
+```
+
+The pilot remains test-only. Production pilot execution requires an approved
+production physical topic and a named operator.
+
+The prod leak guard must stay bounded by `year`, `month`, and `day`. An
+unbounded guard query was cancelled during validation because the projected
+partition view can run longer than necessary even when it scans no data.
