@@ -1245,6 +1245,13 @@ git commit -m "docs: add data pipeline guardrails"
 
 **Purpose:** Prove one test topic end to end, then one production topic, before onboarding more tribes.
 
+### Continuation Status, 2026-05-20
+
+The test-only pilot and management health wiring continue in
+`2026-05-20-data-pipeline-pilot-and-management-health.md`.
+Production pilot execution remains gated behind an approved production physical
+topic and metric-reader approval.
+
 **Pilot sequence:**
 
 1. Test topic: `test.tribe.<pilotTribe>.events`
