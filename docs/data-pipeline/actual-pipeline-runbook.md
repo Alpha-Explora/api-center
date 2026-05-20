@@ -45,3 +45,44 @@ Notes:
 - Connector status after update: connector `RUNNING`, task `0:RUNNING`.
 - The connector uses `flush.size=1000` and `time.interval=HOURLY`; a 1000-record flush run was produced to the test topic.
 - The sampled S3 object is line-delimited JSON string values. Bronze parsing must unwrap the JSON string before extracting event fields.
+
+## Operating Guardrails
+
+Before a topic is promoted from validation to scheduled dashboard or BI use,
+record these controls:
+
+```text
+workgroup:
+bytes_scanned_limit:
+query_result_location:
+query_result_retention_days:
+raw_test_retention_days:
+raw_prod_retention_days:
+bronze_retention_days:
+curated_retention_days:
+raw_s3_readers:
+bronze_readers:
+common_silver_readers:
+tribe_silver_readers:
+gold_readers:
+owner:
+alert_threshold:
+```
+
+Required defaults:
+
+| Control | Default |
+| --- | --- |
+| Raw S3 | Platform data operators only. |
+| Bronze | Platform data operators and controlled jobs. |
+| Common Silver | Approved tenant-filtered readers only. |
+| Tribe Silver | Owning tribe plus platform data operators. |
+| Gold | Approved BI groups. |
+| Test raw retention | `30-90` days. |
+| Prod raw retention | `180-365` days. |
+| Bronze retention | `365` days. |
+| Curated retention | Metric-specific. |
+
+Do not connect a production dashboard directly to Raw S3. Production dashboards
+must read approved Gold or Tribe Silver outputs with an `environment = 'prod'`
+filter.

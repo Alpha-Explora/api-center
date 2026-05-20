@@ -13,16 +13,35 @@ These controls keep the shared tribe analytics pipeline governed and affordable.
 | Tribe Silver | Tribe decision | Tribe decision | Must match classification approval. |
 | Gold | Tribe/platform decision | Tribe/platform decision | Keep metric history per business need. |
 
+## S3 Lifecycle Targets
+
+Raw S3 is the replay and audit source, but it is not the dashboard source. Apply
+these lifecycle targets before onboarding many tribes:
+
+```text
+raw_test_retention_days: 30-90
+raw_prod_retention_days: 180-365
+bronze_retention_days: 365
+curated_retention_days: metric-specific
+```
+
+| Prefix or layer | Target action |
+| --- | --- |
+| `topics/test.*` raw prefixes | Expire after the approved test retention window. |
+| `topics/prod.*` raw prefixes | Retain through the approved production replay window. |
+| Athena query results | Expire through the workgroup result bucket lifecycle rule. |
+| Bronze and curated exports | Keep according to classification, metric approval, and access review. |
+
 ## Read Access
 
-| Layer | Default access |
-| --- | --- |
-| Raw S3 | Platform data operators only |
-| Bronze | Platform data operators and controlled jobs |
-| Common Silver | Platform plus approved tenant-filtered readers |
-| Tribe Silver | Owning tribe plus platform data operators |
-| Gold | Approved BI groups only |
-| BI dashboards | Named groups with access review |
+| Layer | Default access | Enforcement |
+| --- | --- | --- |
+| Raw S3 | Platform data operators only | Bucket policy/IAM role; no BI principals. |
+| Bronze | Platform data operators and controlled jobs | Athena/Glue grants for operators and jobs. |
+| Common Silver | Approved tenant-filtered readers | Views must preserve `environment` and `tribe_id` filters. |
+| Tribe Silver | Owning tribe plus platform data operators | Tribe-specific schema grants. |
+| Gold | Approved BI groups | Metric dictionary approval plus BI group mapping. |
+| BI dashboards | Named groups with access review | Dashboard/workspace permissions and review dates. |
 
 Approved access fields:
 
@@ -32,6 +51,17 @@ last_access_review_at:
 next_access_review_date:
 data_owner:
 data_steward:
+```
+
+Access review defaults:
+
+```text
+raw_s3_readers: platform-data-operators
+bronze_readers: platform-data-operators, controlled-pipeline-jobs
+common_silver_readers: approved-tenant-filtered-readers
+tribe_silver_readers: owning-tribe, platform-data-operators
+gold_readers: approved-bi-groups
+review_cadence: monthly during pilot, quarterly after stable production
 ```
 
 ## Cost Controls
@@ -46,6 +76,30 @@ data_steward:
 | Databricks job cluster | Use job clusters or serverless with auto-stop; no always-on warehouse by default. |
 | BI refresh | Start daily or manual; raise after Production Metrics Approval. |
 | alert thresholds | Alert on connector failure, publish failure, S3 flush lag, and query spend. |
+
+## Athena Workgroup Guardrails
+
+Every Athena validation, management-console query, and BI query must run through
+an owned workgroup with scan limits and a managed result location.
+
+```text
+workgroup: primary during pilot; dedicated api-center-curated before broad BI use
+bytes_scanned_limit: set before scheduled dashboard refresh
+query_result_location: s3://api-center-raw-data/athena-results/
+query_result_retention_days: 7-30
+owner: platform-data-platform-owner
+alert_threshold: notify on failed queries, repeated broad scans, and spend drift
+```
+
+Operator rules:
+
+- Use bounded `year`, `month`, `day`, and `hour` filters for raw or Bronze
+  validation queries.
+- Production dashboards read Gold or approved Tribe Silver, not Raw S3.
+- Pause scheduled refreshes before changing raw partition projection or Bronze
+  view logic.
+- Treat repeated broad scans as an incident until the query is narrowed or the
+  data is compacted.
 
 ## Operator Guardrails
 
