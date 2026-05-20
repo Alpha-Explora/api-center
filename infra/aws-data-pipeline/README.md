@@ -46,3 +46,13 @@ s3://api-center-raw-data/topics/<physical_topic>/year=YYYY/month=MM/day=DD/hour=
 The observed test object contains line-delimited JSON string values, for example
 a line starts with a quoted and escaped JSON event body. Bronze views must unwrap
 the string value before extracting event fields.
+
+`api_center_raw.topic_records` uses Athena partition projection. The
+`physical_topic` projection is an enum of approved exported topics so curated
+views can scan across lanes. When a late-provisioned topic is added to the S3
+Sink, update `projection.physical_topic.values` with the same physical topic.
+
+Queries against projected raw or Bronze views must include bounded time
+partition filters (`year`, `month`, `day`, and preferably `hour`) unless the
+caller intentionally wants a broad scan. Unbounded cross-topic scans can be slow
+and expensive because Athena enumerates projected partition combinations.

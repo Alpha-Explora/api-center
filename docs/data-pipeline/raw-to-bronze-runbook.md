@@ -76,6 +76,32 @@ bronze.tribe_events reads s3://api-center-raw-data/topics/*/
 Do not compile a fixed list of tribe topics into the job. Late-provisioned
 topics must be included through topic state/configuration.
 
+## Bronze Lanes
+
+The raw root feeds three approved Bronze lanes:
+
+| Bronze view | Topic pattern |
+| --- | --- |
+| `bronze.tribe_events` | `<env>.tribe.<ownerTribeId>.events` |
+| `bronze.shared_service_events` | `<env>.api-center.shared.<serviceId>.events` |
+| `bronze.apicenter_ops_events` | `<env>.api-center.ops.<stream>.events` |
+
+Internal APICenter request/response, audit, registry, and system topics are not
+included unless they are converted into sanitized approved ops export streams.
+
+Because raw topics use Athena partition projection, validation and dashboard
+queries must include bounded partition filters:
+
+```sql
+WHERE year = '2026'
+  AND month = '05'
+  AND day = '20'
+  AND hour = '09'
+```
+
+Use broader scans only when the Athena workgroup limit and expected cost are
+explicitly acceptable.
+
 ## Required Bronze Columns
 
 ```text
