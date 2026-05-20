@@ -55,6 +55,9 @@ record these controls:
 workgroup:
 bytes_scanned_limit:
 query_result_location:
+  platform validation: s3://api-center-raw-data/athena-results/platform/validation/<environment>/
+  management: s3://api-center-raw-data/athena-results/management/<environment>/
+  tribe: s3://api-center-raw-data/athena-results/tribe/<tribe_id>/<environment>/
 query_result_retention_days:
 raw_test_retention_days:
 raw_prod_retention_days:
@@ -86,6 +89,10 @@ Required defaults:
 Do not connect a production dashboard directly to Raw S3. Production dashboards
 must read approved Gold or Tribe Silver outputs with an `environment = 'prod'`
 filter.
+
+If an operator passes `-OutputLocation`, that explicit path wins. Use explicit
+paths only for break-glass diagnostics or migration testing. Normal validation
+uses `-ResultPurpose` and `-Environment`.
 
 ## Test-Only Pilot Completion, 2026-05-20
 

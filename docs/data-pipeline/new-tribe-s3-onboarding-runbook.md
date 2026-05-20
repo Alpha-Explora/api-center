@@ -144,6 +144,24 @@ SELECT COUNT(*)
 FROM api_center_raw."prod_tribe_logistics_events";
 ```
 
+If an operator passes `-OutputLocation`, that explicit path wins. Use explicit
+paths only for break-glass diagnostics or migration testing. Normal validation
+uses `-ResultPurpose` and `-Environment`.
+
+Use governed Athena result prefixes during onboarding validation:
+
+```powershell
+.\scripts\data-pipeline\run-athena-query.ps1 `
+  -QueryFile .\infra\aws-data-pipeline\queries\validate-raw-topic.sql `
+  -Database api_center_raw `
+  -Workgroup primary `
+  -Profile apic `
+  -Environment <environment> `
+  -ResultPurpose platform-validation `
+  -Parameters @{ physical_topic = "<environment>.tribe.<ownerTribeId>.events" } `
+  -Wait
+```
+
 ## Failure Triage
 
 | Symptom | Likely cause | Required action |
@@ -200,6 +218,7 @@ CONFLUENT_CLOUD_API_SECRET
 CONFLUENT_S3_CONNECTOR_NAME
 AWS_PROFILE or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
 API_CENTER_RAW_BUCKET
+ATHENA_RESULTS_BUCKET
 ATHENA_WORKGROUP
 ATHENA_DATABASE
 ```

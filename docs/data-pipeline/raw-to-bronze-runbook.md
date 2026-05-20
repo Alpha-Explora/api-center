@@ -102,6 +102,10 @@ WHERE year = '2026'
 Use broader scans only when the Athena workgroup limit and expected cost are
 explicitly acceptable.
 
+If an operator passes `-OutputLocation`, that explicit path wins. Use explicit
+paths only for break-glass diagnostics or migration testing. Normal validation
+uses `-ResultPurpose` and `-Environment`.
+
 ## Required Bronze Columns
 
 ```text
@@ -161,6 +165,20 @@ SELECT
 FROM bronze.tribe_events
 WHERE source_topic = '$physical_topic'
 GROUP BY 1, 2, 3, 4;
+```
+
+Run validation through the governed result prefix resolver:
+
+```powershell
+.\scripts\data-pipeline\run-athena-query.ps1 `
+  -QueryFile .\infra\aws-data-pipeline\queries\validate-bronze-topic.sql `
+  -Database bronze `
+  -Workgroup primary `
+  -Profile apic `
+  -Environment test `
+  -ResultPurpose platform-validation `
+  -Parameters @{ physical_topic = "<environment>.tribe.<ownerTribeId>.events" } `
+  -Wait
 ```
 
 ## Bronze Evidence

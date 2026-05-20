@@ -38,7 +38,7 @@ api-center latest commit needing protection: c9a9bae
 management latest commit: 91539d0
 test physical topic: test.tribe.codex-sdk-20260520041053.events
 raw bucket: api-center-raw-data
-Athena output: s3://api-center-raw-data/athena-results/
+Athena output: s3://api-center-raw-data/athena-results/platform/validation/test/
 AWS profile: apic
 ```
 
@@ -162,7 +162,8 @@ cd C:\Codes\apic\api-center
   -QueryFile .\infra\aws-data-pipeline\queries\validate-raw-topic.sql `
   -Database api_center_raw `
   -Workgroup primary `
-  -OutputLocation s3://api-center-raw-data/athena-results/ `
+  -Environment test `
+  -ResultPurpose platform-validation `
   -Profile apic `
   -Parameters @{ physical_topic = "test.tribe.codex-sdk-20260520041053.events" }
 ```
@@ -184,7 +185,8 @@ cd C:\Codes\apic\api-center
   -QueryFile .\infra\aws-data-pipeline\queries\validate-bronze-topic.sql `
   -Database bronze `
   -Workgroup primary `
-  -OutputLocation s3://api-center-raw-data/athena-results/ `
+  -Environment test `
+  -ResultPurpose platform-validation `
   -Profile apic `
   -Parameters @{ physical_topic = "test.tribe.codex-sdk-20260520041053.events" }
 ```
@@ -210,7 +212,8 @@ cd C:\Codes\apic\api-center
   -QueryFile .\infra\aws-data-pipeline\queries\validate-common-silver.sql `
   -Database common_silver `
   -Workgroup primary `
-  -OutputLocation s3://api-center-raw-data/athena-results/ `
+  -Environment test `
+  -ResultPurpose platform-validation `
   -Profile apic `
   -Parameters @{ physical_topic = "test.tribe.codex-sdk-20260520041053.events" }
 ```
@@ -233,7 +236,8 @@ cd C:\Codes\apic\api-center
   -QueryFile .\infra\aws-data-pipeline\queries\pipeline-health-daily.sql `
   -Database gold_platform `
   -Workgroup primary `
-  -OutputLocation s3://api-center-raw-data/athena-results/ `
+  -Environment test `
+  -ResultPurpose platform-validation `
   -Profile apic `
   -Parameters @{ environment = "test" }
 ```
