@@ -22,6 +22,27 @@ s3://api-center-raw-data/topics/prod.api-center.shared.payment.events/
 Raw is replay storage. BI tools must not use raw S3 directly for production
 dashboards.
 
+## Observed Raw File Format
+
+The current Confluent S3 Sink writes line-delimited JSON string values under
+hour partitions:
+
+```text
+s3://api-center-raw-data/topics/<physical-topic-name>/year=YYYY/month=MM/day=DD/hour=HH/*.json
+```
+
+Each line is a JSON string containing the event JSON body, for example:
+
+```text
+"{\"sourceServiceId\":\"codex-sdk-20260520041053-api\", ... }"
+```
+
+Bronze must unwrap the string value before extracting event fields:
+
+```sql
+COALESCE(json_extract_scalar(raw_line, '$'), raw_line)
+```
+
 ## Metadata Refresh
 
 The crawler or metadata refresh must cover the shared raw root:
@@ -79,13 +100,13 @@ Derivation rules:
 
 | Column | Rule |
 | --- | --- |
-| `source_topic` | Parse the S3 folder under `topics/`. |
+| `source_topic` | Use the partition-projected `physical_topic` under `topics/`. |
 | `environment` | Parse prefix such as `test` or `prod`. |
 | `tribe_id` | Parse `tribe.<ownerTribeId>.events` or use governance metadata. |
 | `source_service_id` | Use governance `sourceServiceId` when present. |
 | `event_type` | Use SDK `eventType`. |
 | `event_date` | Date from payload `occurredAt`; otherwise ingestion date with quality flag. |
-| `raw_record` | Preserve the original record. |
+| `raw_record` | Preserve the original line, including the escaped JSON string if that is what S3 stored. |
 
 Malformed records are quarantined or marked with `quality_status`, not allowed
 to fail the whole job.
