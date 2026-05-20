@@ -95,6 +95,16 @@ Path template:
 s3://api-center-raw-data/topics/<environment>.tribe.<ownerTribeId>.events/...
 ```
 
+Use the validator before cataloging:
+
+```powershell
+cd C:\Codes\apic\api-center
+.\scripts\data-pipeline\validate-s3-prefix.ps1 `
+  -Bucket api-center-raw-data `
+  -PhysicalTopic <environment>.tribe.<ownerTribeId>.events `
+  -Profile apic
+```
+
 Record this evidence:
 
 ```text
@@ -109,6 +119,8 @@ connector_state:
 connector_task_state:
 actor:
 evidence_link:
+validator_command:
+validator_output_link:
 ```
 
 ## Athena Validation
