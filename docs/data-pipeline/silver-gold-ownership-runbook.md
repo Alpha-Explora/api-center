@@ -78,6 +78,14 @@ Platform provides templates, review, and data quality guardrails.
 Late-provisioned tribes enter Raw, Bronze, and Common Silver first. Tribe
 Silver starts only after event semantics are documented and approved.
 
+## Tribe Template Promotion
+
+The template files under `infra/aws-data-pipeline/catalog/` are not production
+objects by themselves. A tribe-specific Silver or Gold object becomes
+production-ready only after the event owner signs off on event semantics, the
+data steward approves classification and retention, and the metric dictionary
+records formula, filters, owner, and approved readers.
+
 ## Gold
 
 Platform-owned Gold examples:
