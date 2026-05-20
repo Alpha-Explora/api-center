@@ -118,3 +118,25 @@ production physical topic and a named operator.
 The prod leak guard must stay bounded by `year`, `month`, and `day`. An
 unbounded guard query was cancelled during validation because the projected
 partition view can run longer than necessary even when it scans no data.
+
+## Production Pilot Gate
+
+Do not run production validation until these fields are complete:
+
+```text
+approved_prod_physical_topic:
+owner_tribe_id:
+source_service_ids:
+data_owner:
+data_steward:
+approved_reader_groups:
+metric_dictionary_rows_approved:
+raw_prod_retention_days:
+athena_workgroup:
+bytes_scanned_limit:
+operator:
+approval_timestamp:
+```
+
+After approval, repeat the same S3, Raw, Bronze, Common Silver, Gold, and prod
+leak-guard checks from the test pilot with `environment = 'prod'`.

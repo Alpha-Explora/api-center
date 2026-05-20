@@ -22,3 +22,17 @@ approval_state:
 approved_at:
 next_review_at:
 ```
+
+## Production Pilot Approval
+
+No production dashboard row is approved until:
+
+| Requirement | Required value |
+| --- | --- |
+| Metric owner | Named platform or tribe owner |
+| Formula | Recorded in this dictionary |
+| Source | Gold or approved Tribe Silver only |
+| Environment filter | `environment = 'prod'` |
+| Raw S3 access | Not granted to BI users |
+| Reader group | Named approved group |
+| Review date | Recorded before dashboard refresh |
