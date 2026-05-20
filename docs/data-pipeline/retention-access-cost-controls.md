@@ -85,7 +85,12 @@ an owned workgroup with scan limits and a managed result location.
 ```text
 workgroup: primary during pilot; dedicated api-center-curated before broad BI use
 bytes_scanned_limit: set before scheduled dashboard refresh
-query_result_location: s3://api-center-raw-data/athena-results/
+query_result_location:
+  platform validation test: s3://api-center-raw-data/athena-results/platform/validation/test/
+  platform validation prod: s3://api-center-raw-data/athena-results/platform/validation/prod/
+  management test: s3://api-center-raw-data/athena-results/management/test/
+  management prod: s3://api-center-raw-data/athena-results/management/prod/
+  tribe results: s3://api-center-raw-data/athena-results/tribe/<tribe_id>/<environment>/
 query_result_retention_days: 7-30
 owner: platform-data-platform-owner
 alert_threshold: notify on failed queries, repeated broad scans, and spend drift

@@ -171,6 +171,7 @@ Data pipeline cost guardrails:
 | Bronze retention `365` days | Preserves operational replay without making raw data the BI source. |
 | Curated retention metric-specific | Lets approved metrics keep longer history without retaining every raw event. |
 | Athena workgroup byte limits | Caps accidental broad scans before scheduled dashboards exist. |
+| Separated Athena result prefixes | Lets lifecycle and IAM cleanup target query artifacts without touching raw S3. |
 | Manual or daily BI refresh during pilot | Avoids high-frequency query cost before usage is proven. |
 
 ### Provider APIs

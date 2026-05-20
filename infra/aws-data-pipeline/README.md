@@ -18,6 +18,7 @@ Required environment:
 AWS_PROFILE
 ATHENA_WORKGROUP
 ATHENA_DATABASE
+ATHENA_RESULTS_BUCKET
 ATHENA_OUTPUT_LOCATION
 API_CENTER_RAW_BUCKET
 ```
@@ -28,7 +29,10 @@ Current test defaults:
 AWS_PROFILE=apic
 ATHENA_WORKGROUP=primary
 ATHENA_DATABASE=api_center_raw
-ATHENA_OUTPUT_LOCATION=s3://api-center-raw-data/athena-results/
+ATHENA_RESULTS_BUCKET=api-center-raw-data
+ATHENA_OUTPUT_LOCATION is optional when using scripts/data-pipeline/run-athena-query.ps1.
+Default output is resolved from ResultPurpose and Environment, for example:
+s3://api-center-raw-data/athena-results/platform/validation/test/
 API_CENTER_RAW_BUCKET=api-center-raw-data
 ```
 
