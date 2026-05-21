@@ -1,0 +1,161 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ValidateRawTopicObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::api-center-raw-data/topics/*"
+    },
+    {
+      "Sid": "ListRawTopicPrefixes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::api-center-raw-data",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "topics/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadAthenaResultsBucketLocation",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::api-center-athena-results"
+    },
+    {
+      "Sid": "ReadAndWriteAthenaResultPrefixes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::api-center-athena-results/athena-results/platform/validation/*",
+        "arn:aws:s3:::api-center-athena-results/athena-results/platform/materialization/*",
+        "arn:aws:s3:::api-center-athena-results/athena-results/management/*",
+        "arn:aws:s3:::api-center-athena-results/athena-results/tribe/*",
+        "arn:aws:s3:::api-center-athena-results/athena-results/legacy-unclassified/*"
+      ]
+    },
+    {
+      "Sid": "ListAthenaResultPrefixes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::api-center-athena-results",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "athena-results",
+            "athena-results/",
+            "athena-results/*",
+            "athena-results/platform/validation/*",
+            "athena-results/platform/materialization/*",
+            "athena-results/management/*",
+            "athena-results/tribe/*",
+            "athena-results/legacy-unclassified/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadCuratedDataBucketLocation",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::api-center-curated-data"
+    },
+    {
+      "Sid": "ReadWriteMaterializedCuratedOutputs",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::api-center-curated-data/*"
+    },
+    {
+      "Sid": "ListMaterializedCuratedPrefixes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::api-center-curated-data",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "bronze/*",
+            "silver/*",
+            "gold/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "RunBoundedAthenaValidation",
+      "Effect": "Allow",
+      "Action": [
+        "athena:GetWorkGroup",
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution"
+      ],
+      "Resource": [
+        "arn:aws:athena:*:*:workgroup/api-center-platform-validation",
+        "arn:aws:athena:*:*:workgroup/api-center-platform-validation-*",
+        "arn:aws:athena:*:*:workgroup/api-center-materialization",
+        "arn:aws:athena:*:*:workgroup/api-center-materialization-*",
+        "arn:aws:athena:*:*:workgroup/api-center-management",
+        "arn:aws:athena:*:*:workgroup/api-center-management-*",
+        "arn:aws:athena:*:*:workgroup/api-center-tribe-*"
+      ]
+    },
+    {
+      "Sid": "ReadGlueCatalogForValidation",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:GetPartition",
+        "glue:GetPartitions"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageMaterializedGlueCatalogDdl",
+      "Effect": "Allow",
+      "Action": [
+        "glue:CreateDatabase",
+        "glue:UpdateDatabase",
+        "glue:CreateTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable",
+        "glue:CreatePartition",
+        "glue:UpdatePartition",
+        "glue:BatchCreatePartition"
+      ],
+      "Resource": [
+        "arn:aws:glue:*:*:catalog",
+        "arn:aws:glue:*:*:database/materialized_platform",
+        "arn:aws:glue:*:*:table/materialized_platform/*"
+      ]
+    }
+  ]
+}

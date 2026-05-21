@@ -1,7 +1,12 @@
-import { Injectable, Optional } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { z } from "zod";
 
 import { ConfigService } from "../config/config.service";
+import {
+  EventSchemaRegistryService,
+  EventSchemaValidationResult,
+} from "../data-pipeline/event-schema-registry.service";
+import { PipelineHealthEnvironment } from "../data-pipeline/pipeline-health.dto";
 import { KafkaService } from "../kafka/kafka.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
@@ -11,6 +16,7 @@ import { KafkaPublishMessageDto } from "./dto/kafka-publish-message.dto";
 const RESERVED_TOPIC_PREFIXES = ["api-center.", "__"];
 const TOPIC_PREFIX_TEMPLATE = "tribe.<tribe-id>.";
 const GOVERNED_SCHEMA_VERSION = "1.0.0";
+const DEFAULT_EVENT_SCHEMA_VERSION = "1.0.0";
 
 const GovernedKafkaPayloadSchema = z.object({
   eventType: z.string().min(1),
@@ -28,7 +34,8 @@ export class KafkaGovernanceService {
     private readonly kafka: KafkaService,
     private readonly logger: LoggerService,
     private readonly metrics: MetricsService,
-    @Optional() private readonly config?: ConfigService,
+    private readonly config: ConfigService,
+    private readonly eventSchemaRegistry: EventSchemaRegistryService,
   ) {}
 
   getGovernanceCatalog(tribeId: string) {
@@ -76,7 +83,14 @@ export class KafkaGovernanceService {
     tribeId: string,
     dto: KafkaPublishMessageDto,
     correlationId?: string,
-  ): Promise<{ topic: string; eventType: string; accepted: true }> {
+  ): Promise<{
+    topic: string;
+    eventType: string;
+    accepted: true;
+    schemaValidationStatus: EventSchemaValidationResult["schemaValidationStatus"];
+    schemaRegistryVersion: string;
+    schemaValidationError?: string;
+  }> {
     const normalizedTribeId = this.normalizeTribeId(tribeId);
 
     this.assertTopicIsTenantScoped(dto.topic, normalizedTribeId);
@@ -95,12 +109,44 @@ export class KafkaGovernanceService {
       );
     }
 
+    const eventSchemaVersion =
+      dto.schemaVersion?.trim() || DEFAULT_EVENT_SCHEMA_VERSION;
+    const schemaValidation = await this.validateEventSchema({
+      environment: this.resolvePublishEnvironment(dto.topic),
+      tribeId: normalizedTribeId,
+      eventType: dto.eventType,
+      schemaVersion: eventSchemaVersion,
+      payload: parseResult.data.payload,
+    });
+
+    if (!schemaValidation.accepted) {
+      this.metrics.recordKafkaGovernanceOperation("publish", "failure");
+      throw new ValidationError(
+        `Kafka schema governance rejected event: ${
+          schemaValidation.schemaValidationError ?? "schema not approved"
+        }`,
+      );
+    }
+
+    if (schemaValidation.schemaValidationStatus === "test_discovery") {
+      this.logger.warn(
+        "Kafka test discovery schema accepted",
+        "KafkaGovernanceService",
+      );
+    }
+
     await this.kafka.publish(
       dto.topic,
       {
         ...parseResult.data,
         governance: {
           schemaVersion: GOVERNED_SCHEMA_VERSION,
+          eventSchemaVersion,
+          schemaValidationStatus: schemaValidation.schemaValidationStatus,
+          schemaRegistryVersion: schemaValidation.schemaRegistryVersion,
+          ...(schemaValidation.schemaValidationError && {
+            schemaValidationError: schemaValidation.schemaValidationError,
+          }),
           sourceTribeId: tribeId,
           ...(parseResult.data.sourceServiceId && {
             sourceServiceId: parseResult.data.sourceServiceId,
@@ -123,7 +169,25 @@ export class KafkaGovernanceService {
       topic: dto.topic,
       eventType: dto.eventType,
       accepted: true,
+      schemaValidationStatus: schemaValidation.schemaValidationStatus,
+      schemaRegistryVersion: schemaValidation.schemaRegistryVersion,
+      ...(schemaValidation.schemaValidationError && {
+        schemaValidationError: schemaValidation.schemaValidationError,
+      }),
     };
+  }
+
+  private async validateEventSchema(input: {
+    environment: PipelineHealthEnvironment;
+    tribeId: string;
+    eventType: string;
+    schemaVersion: string;
+    payload: Record<string, unknown>;
+  }): Promise<EventSchemaValidationResult> {
+    return this.eventSchemaRegistry.validateEvent({
+      ...input,
+      allowTestDiscovery: input.environment === "test",
+    });
   }
 
   private assertTopicIsTenantScoped(
@@ -165,6 +229,21 @@ export class KafkaGovernanceService {
     if (!cleanTopic.startsWith(`${cleanPrefix}.`)) return cleanTopic;
 
     return cleanTopic.slice(cleanPrefix.length + 1);
+  }
+
+  private resolvePublishEnvironment(topic: string): PipelineHealthEnvironment {
+    const cleanTopic = topic.trim();
+    if (cleanTopic.startsWith("test.")) return "test";
+    if (cleanTopic.startsWith("prod.")) return "prod";
+
+    const cleanPrefix = (this.config?.kafka?.topicPrefix ?? "")
+      .trim()
+      .replace(/\.+$/, "");
+    if (cleanPrefix === "test" || cleanPrefix === "prod") {
+      return cleanPrefix;
+    }
+
+    return this.config?.nodeEnv === "production" ? "prod" : "test";
   }
 
   private normalizeTribeId(tribeId: string): string {

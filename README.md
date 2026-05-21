@@ -253,23 +253,10 @@ The payload shape and IAM setup are documented in
 
 Every tribe **must** use the shared SDK. Direct HTTP to the gateway is not permitted.
 
-SDK source of truth now lives in the dedicated `api-shared-services` repository. The gateway repository is runtime-only and no longer publishes SDK artifacts.
-
-Tribe repositories must install this SDK from the private registry. Configure `.npmrc` in each tribe repo before installing:
-
-```ini
-@implementsprint:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-always-auth=true
-```
-
-Reference template:
-
-- `../api-shared-services/.npmrc.example`
-
-```bash
-npm install @implementsprint/sdk
-```
+SDK source of truth now lives in the dedicated `api-shared-services` repository.
+The gateway repository is runtime-only and no longer publishes SDK artifacts.
+Use `../api-shared-services/docs/consumer-runbook.md` as the canonical install,
+GitHub Packages auth, runtime env, and S3 validation guide.
 
 ```typescript
 import { TribeClient } from '@implementsprint/sdk';

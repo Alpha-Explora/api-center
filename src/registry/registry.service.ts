@@ -5,11 +5,14 @@
 // themselves at runtime by POSTing a ServiceManifest.
 //
 // STORAGE STRATEGY (layered):
-//  1. In-memory Map  — hot cache for zero-latency lookups (primary)
-//  2. Redis          — source of truth, shared across instances (persistent)
+//  1. In-memory Map  - hot cache for zero-latency lookups.
+//  2. Redis          - default persistent source shared across instances.
+//  3. Postgres       - optional source when REGISTRY_SOURCE=postgres, with
+//                      DATABASE_DUAL_WRITE=true used during cutover.
 //
-// On startup (OnModuleInit), all entries are loaded from Redis into memory.
-// On registration/deregistration, both memory and Redis are updated.
+// On startup (OnModuleInit), entries are loaded from Redis by default or from
+// Postgres after explicit cutover. Registration/deregistration always updates
+// memory and Redis, and also writes Postgres when dual-write is enabled.
 // =============================================================================
 
 import {
@@ -132,11 +135,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Register a new service or update an existing one.
-   * Writes to both in-memory Map and Redis.
+   * Writes to the in-memory cache plus the configured persistent stores.
    * Validates semver on updates and tracks version changes.
    *
-   * Redis persistence is **awaited** with a strict timeout — if Redis is
-   * unavailable the registration fails so in-memory and Redis never drift.
+   * Redis persistence is awaited with a strict timeout. Postgres persistence is
+   * also awaited when DATABASE_DUAL_WRITE=true so cutover drift is visible.
    */
   async register(manifest: ServiceManifest): Promise<ServiceRegistryEntry> {
     const now = new Date().toISOString();
@@ -171,8 +174,8 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     this.services[manifest.serviceId] = entry;
     this.syncMetricsGauge();
 
-    // Persist to Redis with a strict timeout — fail the registration if Redis
-    // is unavailable so the gateway never silently drifts from its source of truth.
+    // Persist to Redis with a strict timeout. If Postgres dual-write is enabled,
+    // failures roll Redis back so the cutover stores do not silently drift.
     try {
       await this.persistRegistryEntryStrict(manifest.serviceId, entry, {
         previousEntry,
@@ -252,7 +255,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Remove a service from the registry.
-   * Removes from both in-memory Map and Redis.
+   * Removes from memory, Redis, and Postgres when dual-write is enabled.
    */
   async deregister(serviceId: string): Promise<void> {
     const existing = this.services[serviceId];
@@ -265,7 +268,8 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     delete this.services[serviceId];
     this.syncMetricsGauge();
 
-    // Remove from Redis with strict timeout
+    // Remove from Redis with strict timeout; Postgres removal is part of the
+    // same strict operation when dual-write is enabled.
     try {
       await this.removeRegistryEntryStrict(serviceId, { previousEntry });
     } catch (err) {
@@ -580,7 +584,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     entry.lastHealthCheckAt = new Date().toISOString();
     entry.updatedAt = entry.lastHealthCheckAt;
 
-    // Best-effort persist to Redis (health flap should not block callers)
+    // Best-effort health persistence should not block callers.
     this.persistToRedis(serviceId, entry).catch((err) => {
       this.logger.warn(
         `Redis persist failed for health update '${serviceId}': ${(err as Error).message}`,
@@ -613,7 +617,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
   seed(manifests: ServiceManifest[]): void {
     for (const manifest of manifests) {
-      // Seed uses fire-and-forget style — Redis catch handled inside register
+      // Seed uses fire-and-forget style; persistence failures are handled in register().
       this.register(manifest).catch((err) => {
         this.logger.warn(
           `Seed failed for '${manifest.serviceId}': ${(err as Error).message}`,

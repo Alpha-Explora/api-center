@@ -1,4 +1,5 @@
 import { ConfigService } from "../config/config.service";
+import { EventSchemaRegistryService } from "../data-pipeline/event-schema-registry.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { MetricsService } from "../metrics/metrics.service";
 import { ForbiddenError, ValidationError } from "../shared/errors";
@@ -12,21 +13,37 @@ describe("KafkaGovernanceService", () => {
 
   const mockLogger = {
     info: jest.fn(),
+    warn: jest.fn(),
   } as unknown as LoggerService;
 
   const mockMetrics = {
     recordKafkaGovernanceOperation: jest.fn(),
   } as unknown as MetricsService;
 
+  const mockEventSchemaRegistry = {
+    validateEvent: jest.fn(),
+  } as unknown as EventSchemaRegistryService;
+
   let service: KafkaGovernanceService;
 
   const createService = (topicPrefix = "") =>
-    new KafkaGovernanceService(mockKafka, mockLogger, mockMetrics, {
-      kafka: { topicPrefix },
-    } as ConfigService);
+    new KafkaGovernanceService(
+      mockKafka,
+      mockLogger,
+      mockMetrics,
+      {
+        kafka: { topicPrefix },
+      } as ConfigService,
+      mockEventSchemaRegistry,
+    );
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockEventSchemaRegistry.validateEvent as jest.Mock).mockResolvedValue({
+      accepted: true,
+      schemaValidationStatus: "approved",
+      schemaRegistryVersion: "fixture-registry-v1",
+    });
     service = createService();
   });
 
@@ -49,9 +66,43 @@ describe("KafkaGovernanceService", () => {
         governance: expect.objectContaining({
           sourceTribeId: "orders-service",
           correlationId: "corr-1",
+          eventSchemaVersion: "1.0.0",
+          schemaValidationStatus: "approved",
+          schemaRegistryVersion: "fixture-registry-v1",
         }),
       }),
       "orders-service",
+    );
+  });
+
+  it("validates event schema before publishing and returns validation evidence", async () => {
+    const result = await service.publishMessage(
+      "orders-service",
+      {
+        topic: "tribe.orders-service.events",
+        eventType: "order.created",
+        schemaVersion: "1.0.0",
+        payload: { orderId: "ord_123" },
+      },
+      "corr-1",
+    );
+
+    expect(mockEventSchemaRegistry.validateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        environment: "test",
+        tribeId: "orders-service",
+        eventType: "order.created",
+        schemaVersion: "1.0.0",
+        payload: { orderId: "ord_123" },
+        allowTestDiscovery: true,
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        accepted: true,
+        schemaValidationStatus: "approved",
+        schemaRegistryVersion: "fixture-registry-v1",
+      }),
     );
   });
 
@@ -65,7 +116,7 @@ describe("KafkaGovernanceService", () => {
         payload: { orderId: "ord_123" },
         sourceServiceId: "logistics-orders",
         metadata: { schema: "orders.v1" },
-      } as any,
+      },
       "corr-1",
     );
 
@@ -127,6 +178,56 @@ describe("KafkaGovernanceService", () => {
     );
   });
 
+  it("allows test discovery events when registry policy accepts them", async () => {
+    service = createService("test.");
+    (mockEventSchemaRegistry.validateEvent as jest.Mock).mockResolvedValue({
+      accepted: true,
+      schemaValidationStatus: "test_discovery",
+      schemaRegistryVersion: "fixture-registry-v1",
+    });
+
+    await service.publishMessage("flow-ci", {
+      topic: "test.tribe.flow-ci.events",
+      eventType: "build.experimental.completed",
+      payload: { buildId: "build_123" },
+    });
+
+    expect(mockKafka.publish).toHaveBeenCalledWith(
+      "test.tribe.flow-ci.events",
+      expect.objectContaining({
+        governance: expect.objectContaining({
+          schemaValidationStatus: "test_discovery",
+          schemaRegistryVersion: "fixture-registry-v1",
+        }),
+      }),
+      "flow-ci",
+    );
+  });
+
+  it("rejects unapproved production event schemas before publishing", async () => {
+    service = createService("prod.");
+    (mockEventSchemaRegistry.validateEvent as jest.Mock).mockResolvedValue({
+      accepted: false,
+      schemaValidationStatus: "rejected",
+      schemaRegistryVersion: "fixture-registry-v1",
+      schemaValidationError: "No approved schema registered",
+    });
+
+    await expect(
+      service.publishMessage("flow-ci", {
+        topic: "prod.tribe.flow-ci.events",
+        eventType: "build.experimental.completed",
+        payload: { buildId: "build_123" },
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    expect(mockKafka.publish).not.toHaveBeenCalled();
+    expect(mockMetrics.recordKafkaGovernanceOperation).toHaveBeenCalledWith(
+      "publish",
+      "failure",
+    );
+  });
+
   it("rejects source service attempts to publish outside the tribe topic", async () => {
     await expect(
       service.publishMessage("logistics", {
@@ -134,7 +235,7 @@ describe("KafkaGovernanceService", () => {
         eventType: "order.created",
         payload: { orderId: "ord_123" },
         sourceServiceId: "logistics-orders",
-      } as any),
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -147,7 +248,7 @@ describe("KafkaGovernanceService", () => {
         eventType: "order.created",
         payload: { orderId: "ord_123" },
         sourceServiceId: "logistics-orders",
-      } as any),
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 

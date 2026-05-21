@@ -3,7 +3,7 @@ param(
   [string]$Database = $env:ATHENA_DATABASE,
   [string]$Workgroup = $env:ATHENA_WORKGROUP,
   [string]$OutputLocation = $env:ATHENA_OUTPUT_LOCATION,
-  [ValidateSet("platform-validation", "management", "tribe")]
+  [ValidateSet("platform-validation", "platform-materialization", "management", "tribe")]
   [string]$ResultPurpose = "platform-validation",
   [ValidateSet("test", "prod")]
   [string]$Environment = "test",

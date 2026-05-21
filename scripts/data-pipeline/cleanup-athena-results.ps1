@@ -10,11 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not $Bucket) {
-  $Bucket = $env:API_CENTER_RAW_BUCKET
-}
-
-if (-not $Bucket) {
-  $Bucket = "api-center-raw-data"
+  $Bucket = "api-center-athena-results"
 }
 
 if (($MoveToLegacy -or $Delete) -and -not $ConfirmCleanup) {

@@ -43,6 +43,7 @@ COPY package.json package-lock.json* ./
 
 # Copy source and compile TypeScript (NestJS uses nest build)
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY config/ ./config/
 COPY prisma/ ./prisma/
 COPY src/ ./src/
 RUN npm run db:generate && \
@@ -61,6 +62,7 @@ ENV NODE_ENV=production
 COPY --chown=node:node package.json package-lock.json* ./
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/config ./config
 
 # Create logs directory
 RUN mkdir -p /app/logs && chown node:node /app/logs

@@ -15,6 +15,7 @@ describe("ServiceManifestDto", () => {
     requiredScopes: ["demand:read"],
     exposes: ["GET /demand/:id"],
     consumes: ["logistics-service"],
+    ownerTribeId: "demand",
     healthCheck: "/health",
     version: "1.0.0",
     serviceType: "tribe",
@@ -66,6 +67,42 @@ describe("ServiceManifestDto", () => {
       requiredScopes: ["orders:read"],
       exposes: ["/orders", "/health"],
       consumes: ["payment"],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects likely tribe microservices without ownerTribeId", async () => {
+    const dto = transform({
+      ...baseManifest,
+      serviceId: "logistics-orders",
+      ownerTribeId: undefined,
+      name: "Logistics Orders",
+      baseUrl: "http://logistics-orders:3000",
+      requiredScopes: ["orders:read"],
+      exposes: ["/orders", "/health"],
+      consumes: [],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === "ownerTribeId")).toBe(
+      true,
+    );
+  });
+
+  it("accepts root tribe service manifests without ownerTribeId", async () => {
+    const dto = transform({
+      ...baseManifest,
+      serviceId: "logistics",
+      ownerTribeId: undefined,
+      name: "Logistics",
+      baseUrl: "http://logistics:3000",
+      requiredScopes: ["logistics:read"],
+      exposes: ["/health"],
+      consumes: [],
     });
 
     const errors = await validate(dto);

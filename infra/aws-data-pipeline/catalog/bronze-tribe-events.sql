@@ -22,7 +22,16 @@ SELECT
   split_part(physical_topic, '.', 3) AS tribe_id,
   json_extract_scalar(event_json, '$.eventType') AS event_type,
   json_extract_scalar(event_json, '$.sourceServiceId') AS source_service_id,
-  json_extract_scalar(event_json, '$.metadata.schemaVersion') AS schema_version,
+  COALESCE(
+    json_extract_scalar(event_json, '$.governance.eventSchemaVersion'),
+    json_extract_scalar(event_json, '$.metadata.schemaVersion')
+  ) AS schema_version,
+  COALESCE(
+    json_extract_scalar(event_json, '$.governance.schemaValidationStatus'),
+    'not_provided'
+  ) AS schema_validation_status,
+  json_extract_scalar(event_json, '$.governance.schemaRegistryVersion') AS schema_registry_version,
+  json_extract_scalar(event_json, '$.governance.schemaValidationError') AS schema_validation_error,
   json_extract_scalar(event_json, '$.payload.occurredAt') AS occurred_at,
   year,
   month,
@@ -34,12 +43,18 @@ SELECT
     WHEN json_extract_scalar(event_json, '$.eventType') IS NULL THEN 'invalid'
     WHEN physical_topic NOT LIKE 'test.tribe.%.events'
       AND physical_topic NOT LIKE 'prod.tribe.%.events' THEN 'invalid'
+    WHEN json_extract_scalar(event_json, '$.governance.schemaValidationStatus') = 'rejected' THEN 'invalid'
     ELSE 'valid'
   END AS quality_status,
   CASE
     WHEN json_extract_scalar(event_json, '$.eventType') IS NULL THEN 'missing eventType'
     WHEN physical_topic NOT LIKE 'test.tribe.%.events'
       AND physical_topic NOT LIKE 'prod.tribe.%.events' THEN 'topic is not a tribe event topic'
+    WHEN json_extract_scalar(event_json, '$.governance.schemaValidationStatus') = 'rejected'
+      THEN COALESCE(
+        json_extract_scalar(event_json, '$.governance.schemaValidationError'),
+        'schema validation rejected'
+      )
     ELSE NULL
   END AS quality_error
 FROM parsed

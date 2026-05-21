@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("platform-validation", "management", "tribe")]
+  [ValidateSet("platform-validation", "platform-materialization", "management", "tribe")]
   [string]$Purpose = "platform-validation",
 
   [ValidateSet("test", "prod")]
@@ -14,12 +14,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Prefer ATHENA_RESULTS_BUCKET=api-center-athena-results before granting BI or
+# tribe-facing access. API_CENTER_RAW_BUCKET remains a pilot fallback only.
 if (-not $ResultsBucket) {
-  $ResultsBucket = $FallbackBucket
+  $ResultsBucket = "api-center-athena-results"
 }
 
 if (-not $ResultsBucket) {
-  $ResultsBucket = "api-center-raw-data"
+  $ResultsBucket = $FallbackBucket
 }
 
 if ($Purpose -eq "tribe") {
@@ -37,6 +39,11 @@ if ($Purpose -eq "tribe") {
 
 if ($Purpose -eq "platform-validation") {
   "s3://$ResultsBucket/athena-results/platform/validation/$Environment/"
+  exit 0
+}
+
+if ($Purpose -eq "platform-materialization") {
+  "s3://$ResultsBucket/athena-results/platform/materialization/$Environment/"
   exit 0
 }
 

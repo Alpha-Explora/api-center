@@ -7,7 +7,20 @@
         "Prefix": "athena-results/platform/validation/"
       },
       "Expiration": {
-        "Days": 30
+        "Days": 7
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    },
+    {
+      "ID": "expire-athena-platform-materialization-results",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "athena-results/platform/materialization/"
+      },
+      "Expiration": {
+        "Days": 7
       },
       "AbortIncompleteMultipartUpload": {
         "DaysAfterInitiation": 7
@@ -20,7 +33,7 @@
         "Prefix": "athena-results/management/"
       },
       "Expiration": {
-        "Days": 30
+        "Days": 14
       },
       "AbortIncompleteMultipartUpload": {
         "DaysAfterInitiation": 7

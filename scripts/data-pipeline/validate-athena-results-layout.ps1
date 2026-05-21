@@ -7,11 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not $Bucket) {
-  $Bucket = $env:API_CENTER_RAW_BUCKET
-}
-
-if (-not $Bucket) {
-  $Bucket = "api-center-raw-data"
+  $Bucket = "api-center-athena-results"
 }
 
 $args = @(
@@ -25,11 +21,26 @@ if ($Profile) {
   $args += @("--profile", $Profile)
 }
 
-$json = & aws @args | ConvertFrom-Json
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+  $raw = & aws @args 2>&1
+  $exitCode = $LASTEXITCODE
+} finally {
+  $ErrorActionPreference = $previousErrorActionPreference
+}
+
+if ($exitCode -ne 0) {
+  throw "aws s3api list-objects-v2 failed: $raw"
+}
+
+$json = $raw | ConvertFrom-Json
 $objects = @($json.Contents | Where-Object { $_ })
 $approvedPrefixes = @(
   "athena-results/platform/validation/test/",
   "athena-results/platform/validation/prod/",
+  "athena-results/platform/materialization/test/",
+  "athena-results/platform/materialization/prod/",
   "athena-results/management/test/",
   "athena-results/management/prod/",
   "athena-results/tribe/",

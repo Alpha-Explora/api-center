@@ -44,6 +44,20 @@ export class KafkaPublishMessageDto {
   @MaxLength(120, { message: "eventType is too long" })
   eventType!: string;
 
+  @ApiPropertyOptional({
+    example: "1.0.0",
+    description:
+      "Event schema version approved in the APICenter schema registry. Defaults to 1.0.0 when omitted.",
+    maxLength: 40,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40, { message: "schemaVersion is too long" })
+  @Matches(/^[A-Za-z0-9._-]+$/, {
+    message: "schemaVersion contains unsupported characters",
+  })
+  schemaVersion?: string;
+
   @ApiProperty({
     example: { orderId: "ord_123", amount: 99900 },
     description: "Event payload object",

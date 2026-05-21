@@ -61,6 +61,7 @@ import { SharedServicesModule } from "./shared-services/shared-services.module";
 import { HealthModule } from "./health/health.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { DataPipelineModule } from "./data-pipeline/data-pipeline.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -94,6 +95,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     // ── 4. Observability ──────────────────────────────────────────────────────
     MetricsModule, // Prometheus counters / histograms / gauges
     AnalyticsModule, // Protected JSON analytics for the management console
+    DataPipelineModule, // Curated pipeline health and governance evidence
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     KafkaModule, // Audit events, auth events, registry lifecycle events

@@ -84,10 +84,11 @@ The raw root feeds three approved Bronze lanes:
 | --- | --- |
 | `bronze.tribe_events` | `<env>.tribe.<ownerTribeId>.events` |
 | `bronze.shared_service_events` | `<env>.api-center.shared.<serviceId>.events` |
-| `bronze.apicenter_ops_events` | `<env>.api-center.ops.<stream>.events` |
+| `bronze.apicenter_ops_events` | Current `<env>.api-center.<stream>` topics such as `<env>.api-center.gateway.request`, plus legacy `<env>.api-center.ops.<stream>.events` if present |
 
-Internal APICenter request/response, audit, registry, and system topics are not
-included unless they are converted into sanitized approved ops export streams.
+APICenter request/response, audit, auth, registry, external, and system topics
+are platform-owned ops streams. They are included only when the physical topic
+is explicitly present in `infra/aws-data-pipeline/topic-projection-values.txt`.
 
 Because raw topics use Athena partition projection, validation and dashboard
 queries must include bounded partition filters:

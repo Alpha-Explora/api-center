@@ -32,6 +32,28 @@ curated_retention_days: metric-specific
 | Athena query results | Expire through the workgroup result bucket lifecycle rule. |
 | Bronze and curated exports | Keep according to classification, metric approval, and access review. |
 
+## Materialized Curated Outputs
+
+Use `docs/data-pipeline/materialization-strategy.md` before creating any
+materialized Silver or Gold output. Materialized datasets write to
+`api-center-curated-data`, not to the raw topic bucket:
+
+```text
+s3://api-center-curated-data/<layer>/<dataset>/environment=<env>/year=YYYY/month=MM/day=DD/
+```
+
+Materialize only when a dashboard is scheduled, repeated query telemetry shows
+broad or expensive scans, BI needs a stable extract, or a production-facing
+tribe metric has owner/steward approval. The first operator entrypoint is:
+
+```powershell
+.\scripts\data-pipeline\materialize-silver-gold.ps1 -DryRun
+```
+
+Dry-run output must be reviewed before running CTAS. Production BI readers
+should consume approved Gold views or curated Parquet under
+`api-center-curated-data`; they must not read `api-center-raw-data/topics/*`.
+
 ## Read Access
 
 | Layer | Default access | Enforcement |
@@ -83,18 +105,33 @@ Every Athena validation, management-console query, and BI query must run through
 an owned workgroup with scan limits and a managed result location.
 
 ```text
-workgroup: primary during pilot; dedicated api-center-curated before broad BI use
+workgroup: environment-specific api-center-* workgroups before broad BI use
 bytes_scanned_limit: set before scheduled dashboard refresh
 query_result_location:
-  platform validation test: s3://api-center-raw-data/athena-results/platform/validation/test/
-  platform validation prod: s3://api-center-raw-data/athena-results/platform/validation/prod/
-  management test: s3://api-center-raw-data/athena-results/management/test/
-  management prod: s3://api-center-raw-data/athena-results/management/prod/
-  tribe results: s3://api-center-raw-data/athena-results/tribe/<tribe_id>/<environment>/
+  platform validation test: s3://api-center-athena-results/athena-results/platform/validation/test/
+  platform validation prod: s3://api-center-athena-results/athena-results/platform/validation/prod/
+  platform materialization test: s3://api-center-athena-results/athena-results/platform/materialization/test/
+  platform materialization prod: s3://api-center-athena-results/athena-results/platform/materialization/prod/
+  management test: s3://api-center-athena-results/athena-results/management/test/
+  management prod: s3://api-center-athena-results/athena-results/management/prod/
+  tribe results: s3://api-center-athena-results/athena-results/tribe/<tribe_id>/<environment>/
 query_result_retention_days: 7-30
 owner: platform-data-platform-owner
 alert_threshold: notify on failed queries, repeated broad scans, and spend drift
 ```
+
+Quality gates must run before scheduled dashboard refresh:
+
+```text
+invalid_quality_count: 0
+missing_tribe_id_count: 0
+missing_source_service_id_count: 0
+unexpected_environment_count: 0
+```
+
+Use `infra/aws-data-pipeline/queries/validate-quality-thresholds.sql` with
+bounded `year`, `month`, and `day` parameters. If any threshold is non-zero,
+pause the refresh and fix Bronze parsing or event publisher behavior first.
 
 Operator rules:
 
@@ -110,9 +147,17 @@ Operator rules:
 
 | Workgroup | Output prefix | Readers |
 | --- | --- | --- |
-| `api-center-platform-validation` | `s3://api-center-athena-results/platform/validation/<environment>/` | Platform data operators |
-| `api-center-management` | `s3://api-center-athena-results/management/<environment>/` | Management service role/operators |
-| `api-center-tribe-<tribe_id>` | `s3://api-center-athena-results/tribe/<tribe_id>/<environment>/` | Approved tribe readers |
+| `api-center-platform-validation-test` | `s3://api-center-athena-results/athena-results/platform/validation/test/` | Platform data operators |
+| `api-center-platform-validation-prod` | `s3://api-center-athena-results/athena-results/platform/validation/prod/` | Platform data operators |
+| `api-center-materialization-test` | `s3://api-center-athena-results/athena-results/platform/materialization/test/` | Platform data operators |
+| `api-center-materialization-prod` | `s3://api-center-athena-results/athena-results/platform/materialization/prod/` | Platform data operators |
+| `api-center-management-test` | `s3://api-center-athena-results/athena-results/management/test/` | Management service role/operators |
+| `api-center-management-prod` | `s3://api-center-athena-results/athena-results/management/prod/` | Management service role/operators |
+| `api-center-tribe-<tribe_id>-test` | `s3://api-center-athena-results/athena-results/tribe/<tribe_id>/test/` | Approved tribe readers |
+| `api-center-tribe-<tribe_id>-prod` | `s3://api-center-athena-results/athena-results/tribe/<tribe_id>/prod/` | Approved tribe readers |
+
+Legacy workgroups without the environment suffix are retired. New validation,
+management, and tribe-reader work must use the environment-specific names.
 
 ## Operator Guardrails
 

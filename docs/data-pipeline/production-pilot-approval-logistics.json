@@ -1,0 +1,15 @@
+{
+  "approved_prod_physical_topic": "prod.tribe.logistics.events",
+  "owner_tribe_id": "logistics",
+  "source_service_ids": ["logistics-orders"],
+  "data_owner": "logistics-platform-owner",
+  "data_steward": "logistics-data-steward",
+  "approved_reader_groups": ["logistics-bi-readers"],
+  "metric_dictionary_rows_approved": ["order_created_daily"],
+  "raw_prod_retention_days": 90,
+  "athena_workgroup": "api-center-platform-validation-prod",
+  "bytes_scanned_limit": 1073741824,
+  "operator": "api-center-platform-operator",
+  "approval_timestamp": "2026-05-21T00:00:00.000Z",
+  "temporary_sdk_prod_approval": false
+}

@@ -40,12 +40,12 @@ s3://api-center-raw-data/athena-results/legacy-unclassified/<yyyy-mm-dd>/
 Long-term, prefer a dedicated bucket:
 
 ```text
-s3://api-center-athena-results/platform/validation/test/
-s3://api-center-athena-results/platform/validation/prod/
-s3://api-center-athena-results/management/test/
-s3://api-center-athena-results/management/prod/
-s3://api-center-athena-results/tribe/<tribe_id>/test/
-s3://api-center-athena-results/tribe/<tribe_id>/prod/
+s3://api-center-athena-results/athena-results/platform/validation/test/
+s3://api-center-athena-results/athena-results/platform/validation/prod/
+s3://api-center-athena-results/athena-results/management/test/
+s3://api-center-athena-results/athena-results/management/prod/
+s3://api-center-athena-results/athena-results/tribe/<tribe_id>/test/
+s3://api-center-athena-results/athena-results/tribe/<tribe_id>/prod/
 ```
 
 Do not separate Athena results by microservice. Use:
@@ -982,9 +982,9 @@ Add to `api-center/docs/data-pipeline/retention-access-cost-controls.md`:
 
 | Workgroup | Output prefix | Readers |
 | --- | --- | --- |
-| `api-center-platform-validation` | `s3://api-center-athena-results/platform/validation/<environment>/` | Platform data operators |
-| `api-center-management` | `s3://api-center-athena-results/management/<environment>/` | Management service role/operators |
-| `api-center-tribe-<tribe_id>` | `s3://api-center-athena-results/tribe/<tribe_id>/<environment>/` | Approved tribe readers |
+| `api-center-platform-validation` | `s3://api-center-athena-results/athena-results/platform/validation/<environment>/` | Platform data operators |
+| `api-center-management` | `s3://api-center-athena-results/athena-results/management/<environment>/` | Management service role/operators |
+| `api-center-tribe-<tribe_id>` | `s3://api-center-athena-results/athena-results/tribe/<tribe_id>/<environment>/` | Approved tribe readers |
 ```
 
 - [ ] **Step 3: Commit Phase 8**
