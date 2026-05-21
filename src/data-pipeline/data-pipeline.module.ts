@@ -27,6 +27,8 @@ import {
   PIPELINE_HEALTH_SERVICE_OPTIONS,
   PipelineHealthService,
 } from "./pipeline-health.service";
+import { TopicOnboardingStateController } from "./topic-onboarding-state.controller";
+import { TopicOnboardingStateService } from "./topic-onboarding-state.service";
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -35,6 +37,7 @@ import {
     EventSchemaRegistryController,
     PipelineFeedbackController,
     DecisionSignalsController,
+    TopicOnboardingStateController,
   ],
   providers: [
     {
@@ -81,6 +84,7 @@ import {
     PipelineFeedbackService,
     DecisionSignalsService,
     EventSchemaRegistryService,
+    TopicOnboardingStateService,
   ],
   exports: [
     PipelineHealthService,
@@ -88,6 +92,7 @@ import {
     PipelineFeedbackService,
     DecisionSignalsService,
     EventSchemaRegistryService,
+    TopicOnboardingStateService,
   ],
 })
 export class DataPipelineModule {}

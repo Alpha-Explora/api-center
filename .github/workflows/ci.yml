@@ -152,11 +152,23 @@ jobs:
 
       - name: Verify image runs
         run: |
+          set -euo pipefail
+          cleanup() {
+            docker logs api-center-test || true
+            docker stop api-center-test || true
+          }
+          trap cleanup EXIT
           docker run --rm -d --name api-center-test \
             -e PORT=3000 \
             -e NODE_ENV=test \
             -e KAFKA_BROKERS=localhost:9092 \
             -p 3000:3000 \
-            api-center:${{ github.sha }} || true
-          sleep 3
-          docker stop api-center-test || true
+            api-center:${{ github.sha }}
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/health/live; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API Center container did not pass liveness within 60 seconds."
+          exit 1
