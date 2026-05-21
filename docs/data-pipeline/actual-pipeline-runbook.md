@@ -437,6 +437,11 @@ test_backend_smoke: readiness ok; decision-signals success=true source=athena-pr
 management_test_deployment: Vercel deployment dpl_3jxXVxMYDd3BxjetZbAbAtrrA5na at https://apicenter-management-test-4kym37e24-ele-3-ap-i-center.vercel.app aliased to https://api-center-management-test.itsandbox.site
 management_test_env_fix: MANAGEMENT_PUBLIC_BASE_URL=https://api-center-management-test.itsandbox.site; PIPELINE_HEALTH_PROVIDER=api-center; PIPELINE_GOVERNANCE_PROVIDER=api-center
 management_test_smoke: deployed config is test/descope with missingEnvCount=0; /api/local/data-pipeline/health returned count=1 source=athena-proxy; /api/local/data-pipeline/decision-signals returned count=3 source=athena-proxy
+test_topic_state_migration: supabase/migrations/20260522021500_add_topic_onboarding_states.sql applied to api-center-test DATABASE_URL
+test_topic_state_deployed_image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-ops-094a6e9-20260522
+test_topic_state_rollout_status: deployment/api-center successfully rolled out
+test_post_deploy_smoke: readiness ok; health count=1 source=athena-proxy; decision-signals count=3 source=athena-proxy; management alias missingEnvCount=0
+test_topic_state_route_smoke: GET /api/v1/data-pipeline/topic-onboarding-states/test.tribe.codex-live-route-check.events returned HTTP 404, proving route and table are live without writing a record
 ```
 
 Resolved blocker status for the live dashboard:

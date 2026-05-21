@@ -45,10 +45,10 @@
 | Field | Value |
 |---|---|
 | Namespace | `api-center-test` |
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` |
-| Built from | local workspace based on `d1eb7e6` |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-ops-094a6e9-20260522` |
+| Built from | local workspace based on `094a6e9` |
 | Last deployed | `2026-05-22` |
-| Validation | GKE rollout succeeded; `api-center-test` ConfigMap now has Athena data-pipeline settings; dedicated AWS IAM user `api-center-athena-reader-gke-test` is stored only in `api-center-test`; direct test smoke returned decision-signals count=3 with `meta.source=athena-proxy`, valid false-positive signal feedback `status=closed`, and invalid false-positive event feedback HTTP 400. |
+| Validation | GKE rollout succeeded; `api-center-test` database migration `20260522021500_add_topic_onboarding_states` applied; post-deploy smoke returned readiness `ok`, pipeline health count=1, decision-signals count=3, both with `meta.source=athena-proxy`; management test alias returned `missingEnvCount=0`; topic onboarding state route returned expected HTTP 404 for a non-existent synthetic test topic. |
 
 ---
 
