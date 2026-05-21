@@ -434,7 +434,7 @@ test_runtime_aws_principal: api-center-athena-reader-gke-test with ApiCenterAthe
 test_secret_update: api-center-test version 8 contains the dedicated test AWS runtime key; prod AWS keys were not copied into the test secret
 test_feedback_db_migrations: feedback action table and signal false-positive constraints applied to the api-center-test DATABASE_URL
 test_backend_smoke: readiness ok; decision-signals success=true source=athena-proxy count=3; valid false-positive signal feedback status=closed; invalid false-positive event feedback rejected with HTTP 400
-management_test_deployment: Vercel deployment dpl_De8byVKRL1gdNkECvBP7Vk1gRYWV aliased to https://api-center-management-test.itsandbox.site
+management_test_deployment: Vercel deployment dpl_3jxXVxMYDd3BxjetZbAbAtrrA5na at https://apicenter-management-test-4kym37e24-ele-3-ap-i-center.vercel.app aliased to https://api-center-management-test.itsandbox.site
 management_test_env_fix: MANAGEMENT_PUBLIC_BASE_URL=https://api-center-management-test.itsandbox.site; PIPELINE_HEALTH_PROVIDER=api-center; PIPELINE_GOVERNANCE_PROVIDER=api-center
 management_test_smoke: deployed config is test/descope with missingEnvCount=0; /api/local/data-pipeline/health returned count=1 source=athena-proxy; /api/local/data-pipeline/decision-signals returned count=3 source=athena-proxy
 ```
