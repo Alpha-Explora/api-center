@@ -29,7 +29,6 @@ prod.tribe.pakiapps.events
 prod.tribe.servease.events
 prod.tribe.shoteam.events
 prod.tribe.smoke-tribe.events
-prod.tribe.smurf-village.events
 prod.tribe.trinithrive.events
 test.api-center.audit.log
 test.api-center.auth.token-issued
@@ -62,4 +61,5 @@ test.tribe.pakiapps.events
 test.tribe.servease.events
 test.tribe.shoteam.events
 test.tribe.smoke-tribe.events
+test.tribe.smurf-village.events
 test.tribe.trinithrive.events

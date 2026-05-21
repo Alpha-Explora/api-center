@@ -84,6 +84,7 @@ test.api-center.*
 test.api-center.shared.*
 test.tribe.smoke-tribe.events
 test.tribe.servease.events
+test.tribe.smurf-village.events
 prod.api-center.*
 prod.api-center.shared.*
 prod.tribe.servease.events
@@ -93,7 +94,6 @@ prod.tribe.greenovate.events
 prod.tribe.pakiapps.events
 prod.tribe.shoteam.events
 prod.tribe.smoke-tribe.events
-prod.tribe.smurf-village.events
 prod.tribe.trinithrive.events
 ```
 
