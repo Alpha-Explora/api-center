@@ -53,8 +53,8 @@ Observed doc volume:
 
 | Repo | Plan docs | Main docs signal |
 | --- | ---: | --- |
-| `api-center` | 18 tracked `docs/superpowers/plans/*.md` files plus one untracked Control Tower plan | Several long plans still contain historical decisions and old commands. |
-| `apicenter-management` | 17 tracked `docs/superpowers/plans/*.md` files | Some older plans say GKE/internal deployment while newer plans and code support Vercel OIDC. |
+| `api-center` | 23 tracked `docs/superpowers/plans/*.md` files plus the plan index | Several long plans still contain historical decisions and old commands, but the index now marks completed and historical work. |
+| `apicenter-management` | 18 tracked `docs/superpowers/plans/*.md` files plus the plan index | Some older plans say GKE/internal deployment while newer plans and code support Vercel OIDC. |
 | `api-shared-services` | 0 superpowers plan docs | Docs are more product-facing and less plan-sprawled, but README overlaps with consumer runbooks. |
 
 ## Key Current Decisions
@@ -186,7 +186,7 @@ Observed doc volume:
 
 | Finding | Evidence | Risk | Recommended fix |
 | --- | --- | --- | --- |
-| No tracked GitHub Actions workflow | `.github/workflows` is absent in `apicenter-management`. | Vercel may build, but PR validation is not explicit in the repo. | Add CI: `npm ci`, `npm run lint`, `npm test`, `npm run build`. |
+| GitHub Actions workflow now exists | `apicenter-management/.github/workflows/ci.yml` runs install, lint, typecheck, tests, route smoke, and build. | Vercel still builds deploys, but PR validation is now explicit in the repo. | Keep CI current with app scripts and add focused route/component tests for new surfaces. |
 | Large component files concentrate behavior | `src/components/service-detail-client.tsx` is about 30 KB; `shared-service-smoke-tests.tsx` about 25 KB; `tribe-form.tsx` about 22 KB. | UI changes become risky and hard to test in small slices. | Split into focused panels/hooks only when touching those flows. |
 | Deployment docs mix Vercel and GKE | README and ops docs include both. | Operators may configure the wrong identity path. | Add a deployment decision header: Vercel default, GKE fallback. |
 | Pipeline health reads local evidence file | `src/lib/server/pipeline-health-store.ts` reads `PIPELINE_HEALTH_EVIDENCE_FILE`. | Good for pilot, but not enough for live dashboards. | Keep the local file as fallback, then add Athena/API-backed provider behind the same contract. |

@@ -350,13 +350,13 @@ code.
 APICENTER_URL=https://api-center.itsandbox.site
 APICENTER_TRIBE_ID=logistics
 APICENTER_TRIBE_SECRET=<provided-by-apicenter>
-APICENTER_SOURCE_SERVICE_ID=logistics-orders
+APICENTER_SERVICE_ID=logistics-orders
 ```
 
 Rules:
 
 - `APICENTER_TRIBE_ID` is the owning tribe, not the microservice.
-- `APICENTER_SOURCE_SERVICE_ID` is the backend service producing the event.
+- `APICENTER_SERVICE_ID` is the backend service producing the event.
 - `APICENTER_TRIBE_SECRET` stays server-side only.
 - The source service must be registered under the owner tribe before production.
 
@@ -369,7 +369,7 @@ export const apiCenter = new TribeClient({
   gatewayUrl: process.env.APICENTER_URL!,
   tribeId: process.env.APICENTER_TRIBE_ID!,
   secret: process.env.APICENTER_TRIBE_SECRET!,
-  sourceServiceId: process.env.APICENTER_SOURCE_SERVICE_ID!,
+  sourceServiceId: process.env.APICENTER_SERVICE_ID!,
 });
 ```
 
@@ -1025,7 +1025,7 @@ Before asking APICenter to debug S3 or Athena, confirm:
 
 - the SDK can authenticate
 - `APICENTER_TRIBE_ID` is the owner tribe
-- `APICENTER_SOURCE_SERVICE_ID` is the registered backend service
+- `APICENTER_SERVICE_ID` is the registered backend service
 - your token includes Kafka publish capability
 - `publishTribeEvent()` returns `accepted: true`
 - the event type and schema version match the approved dictionary

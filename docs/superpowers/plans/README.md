@@ -24,21 +24,18 @@ active, completed, superseded, historical
 | superseded | `2026-05-17-payment-sdk-production-rollout-next-phases.md` | `api-shared-services/docs/consumer-runbook.md`. |
 | historical | `2026-05-17-stripe-like-paymongo-checkout-subscriptions.md` | Shared-services payment provider docs. |
 | completed | `2026-05-19-tribe-boundary-events-sdk.md` | `docs/data-pipeline/tribe-event-contract.md` and SDK tests. |
-| active | `2026-05-19-tribe-data-pipeline-ownership.md` | `docs/data-pipeline/README.md` and data-pipeline runbooks. |
-| active | `2026-05-20-actual-data-pipeline-implementation.md` | `docs/data-pipeline/actual-pipeline-runbook.md`. |
+| completed | `2026-05-19-tribe-data-pipeline-ownership.md` | `docs/data-pipeline/README.md` and data-pipeline runbooks. |
+| completed | `2026-05-20-actual-data-pipeline-implementation.md` | `docs/data-pipeline/actual-pipeline-runbook.md`. |
 | active | `2026-05-20-apicenter-tribe-registration-rollout-phased-plan.md` | Management topic/provisioning workflows and pipeline onboarding docs. |
-| active | `2026-05-20-athena-results-separation-cleanup.md` | `docs/data-pipeline/athena-results-runbook.md`. |
-| active | `2026-05-20-data-pipeline-pilot-and-management-health.md` | Management pipeline health panel and `docs/data-pipeline/actual-pipeline-runbook.md`. |
+| completed | `2026-05-20-athena-results-separation-cleanup.md` | `docs/data-pipeline/athena-results-runbook.md`. |
+| completed | `2026-05-20-data-pipeline-pilot-and-management-health.md` | Management pipeline health panel and `docs/data-pipeline/actual-pipeline-runbook.md`. |
 
-## Working Tree Plans
-
-These plans exist in the current working tree and should be added to this table
-after they are committed:
+## Current And Follow-Up Plans
 
 | Status | Plan | Current source of truth |
 | --- | --- | --- |
 | active | `2026-05-20-apicenter-system-cleanup-improvement-plan.md` | This cleanup index, data-pipeline entrypoint, and active repo guardrails. |
-| active | `2026-05-20-control-tower-cicd-s3-telemetry.md` | Control Tower/APICenter telemetry plan; not part of the current API Center runtime implementation slice. |
-| active | `2026-05-20-apicenter-total-data-pipeline-phased-plan.md` | Full phased plan for test/prod APICenter data pipeline, central governance, live management health, tribe Silver/Gold, and decision signals. |
-| active | `2026-05-21-phase-9-blocker-fix-plan.md` | Blocker remediation plan for live Athena runtime, Athena cost telemetry, and durable feedback actions. |
+| historical | `2026-05-20-control-tower-cicd-s3-telemetry.md` | Control Tower/APICenter telemetry plan; not part of the current API Center runtime implementation slice. |
+| completed | `2026-05-20-apicenter-total-data-pipeline-phased-plan.md` | Full phased plan for test/prod APICenter data pipeline, central governance, live management health, tribe Silver/Gold, and decision signals. |
+| completed | `2026-05-21-phase-9-blocker-fix-plan.md` | Blocker remediation plan for live Athena runtime, Athena cost telemetry, and durable feedback actions. |
 | active | `2026-05-22-secret-manager-migration-cleanup.md` | Evidence-first GCP Secret Manager migration cleanup, no-BOM rotation, old-version disablement, and smoke/test secret retirement. |

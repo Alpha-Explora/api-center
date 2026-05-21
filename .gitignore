@@ -39,6 +39,7 @@ coverage/
 
 # ---- Supabase local state ----
 supabase/.temp/
+supabase/backups/
 
 # ---- Docker (local volumes) ----
 docker-data/
