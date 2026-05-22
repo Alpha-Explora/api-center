@@ -1,4 +1,12 @@
-import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { AuthenticatedRequest } from "../types";
 import {
@@ -7,6 +15,7 @@ import {
 } from "./pipeline-health.dto";
 import { PipelineGovernanceService } from "./pipeline-governance.service";
 import { PipelineHealthService } from "./pipeline-health.service";
+import { RawToSilverRunService } from "./raw-to-silver-run.service";
 
 @Controller("data-pipeline")
 @UseGuards(ScopedAdminGuard)
@@ -14,6 +23,7 @@ export class PipelineHealthController {
   constructor(
     private readonly pipelineHealth: PipelineHealthService,
     private readonly pipelineGovernance: PipelineGovernanceService,
+    private readonly rawToSilverRuns: RawToSilverRunService,
   ) {}
 
   @Get("health")
@@ -126,6 +136,41 @@ export class PipelineHealthController {
     };
   }
 
+  @Post("raw-to-silver-runs")
+  async startRawToSilverRun(
+    @Body() body: RawToSilverRunRequestBody,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const environment = parsePipelineHealthEnvironment(body.environment);
+    const partition = parsePipelinePartitionDate(
+      body.year,
+      body.month,
+      body.day,
+    );
+    if (!partition) {
+      throw new Error("year, month, and day are required.");
+    }
+
+    const data = await this.rawToSilverRuns.startRun({
+      environment,
+      tribeId: body.tribeId,
+      partition,
+      materialize: Boolean(body.materialize),
+      preview: Boolean(body.preview),
+    });
+
+    return {
+      success: true,
+      data,
+      meta: {
+        environment,
+        partition,
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId,
+      },
+    };
+  }
+
   private buildGovernanceMeta(
     environment: ReturnType<typeof parsePipelineHealthEnvironment>,
     req: AuthenticatedRequest,
@@ -139,4 +184,14 @@ export class PipelineHealthController {
       correlationId: req.correlationId,
     };
   }
+}
+
+interface RawToSilverRunRequestBody {
+  environment?: string;
+  tribeId: string;
+  year?: string;
+  month?: string;
+  day?: string;
+  materialize?: boolean;
+  preview?: boolean;
 }

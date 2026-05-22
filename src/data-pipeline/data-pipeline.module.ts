@@ -27,6 +27,10 @@ import {
   PIPELINE_HEALTH_SERVICE_OPTIONS,
   PipelineHealthService,
 } from "./pipeline-health.service";
+import {
+  RAW_TO_SILVER_RUN_SERVICE_OPTIONS,
+  RawToSilverRunService,
+} from "./raw-to-silver-run.service";
 import { TopicOnboardingStateController } from "./topic-onboarding-state.controller";
 import { TopicOnboardingStateService } from "./topic-onboarding-state.service";
 
@@ -79,10 +83,15 @@ import { TopicOnboardingStateService } from "./topic-onboarding-state.service";
         athenaTelemetry,
       }),
     },
+    {
+      provide: RAW_TO_SILVER_RUN_SERVICE_OPTIONS,
+      useValue: {},
+    },
     PipelineHealthService,
     PipelineGovernanceService,
     PipelineFeedbackService,
     DecisionSignalsService,
+    RawToSilverRunService,
     EventSchemaRegistryService,
     TopicOnboardingStateService,
   ],
@@ -91,6 +100,7 @@ import { TopicOnboardingStateService } from "./topic-onboarding-state.service";
     PipelineGovernanceService,
     PipelineFeedbackService,
     DecisionSignalsService,
+    RawToSilverRunService,
     EventSchemaRegistryService,
     TopicOnboardingStateService,
   ],
