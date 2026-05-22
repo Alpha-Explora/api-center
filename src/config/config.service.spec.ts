@@ -181,9 +181,7 @@ describe("ConfigService", () => {
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
-    expect(run).toThrow(
-      "DATABASE_URL is required when DATABASE_ENABLED=true",
-    );
+    expect(run).toThrow("DATABASE_URL is required when DATABASE_ENABLED=true");
   });
 
   it("should throw when REGISTRY_SOURCE is not redis or postgres", () => {

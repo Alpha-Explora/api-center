@@ -82,7 +82,9 @@ function response(
   };
 }
 
-function normalizeManifest(manifest: CreateRegistrationRequestDto["manifest"]): ServiceManifest {
+function normalizeManifest(
+  manifest: CreateRegistrationRequestDto["manifest"],
+): ServiceManifest {
   return {
     ...manifest,
     consumes: manifest.consumes ?? [],

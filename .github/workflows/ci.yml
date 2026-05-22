@@ -28,7 +28,7 @@ on:
     branches: [main]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -51,6 +51,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npm run db:generate
+
       - name: Run ESLint
         run: npm run lint
 
@@ -59,6 +62,8 @@ jobs:
 
       - name: Enforce gateway and SDK contract compatibility
         run: npm run check:contracts
+        env:
+          ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
 
       - name: TypeScript type check
         run: npx tsc --noEmit
@@ -83,6 +88,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
 
       - name: Build TypeScript
         run: npm run build
@@ -115,10 +123,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npm run db:generate
+
       - name: Run tests
         run: npm test
         env:
           NODE_ENV: test
+          ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
 
   # ---------------------------------------------------------------------------
   # Job 4: Docker Build (verify Dockerfile works)

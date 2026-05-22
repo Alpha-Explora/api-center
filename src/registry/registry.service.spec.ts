@@ -484,8 +484,9 @@ describe("RegistryService", () => {
       expect(service.getEffectiveOwnerTribeId("logistics-orders")).toBe(
         "logistics",
       );
-      expect(service.getOwnedServices("logistics").map((svc) => svc.serviceId))
-        .toEqual(expect.arrayContaining(["logistics", "logistics-orders"]));
+      expect(
+        service.getOwnedServices("logistics").map((svc) => svc.serviceId),
+      ).toEqual(expect.arrayContaining(["logistics", "logistics-orders"]));
       expect(service.canAccess("logistics", "logistics-orders")).toBe(true);
       expect(service.canConsume("logistics", "payment")).toBe(true);
     });

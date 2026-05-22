@@ -6,6 +6,8 @@ import { KafkaService } from '../src/kafka/kafka.service';
 import { RegistryService } from '../src/registry/registry.service';
 import { ExternalService } from '../src/external/external.service';
 import { TokenStoreService } from '../src/auth/token-store.service';
+import { GatewayTrafficService } from '../src/analytics/gateway-traffic.service';
+import { AuditEventsService } from '../src/analytics/audit-events.service';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication;
@@ -57,6 +59,18 @@ describe('HealthController (e2e)', () => {
           provide: TokenStoreService,
           useValue: tokenStore,
         },
+        {
+          provide: GatewayTrafficService,
+          useValue: {
+            recordReadinessFailure: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: AuditEventsService,
+          useValue: {
+            record: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -68,7 +82,9 @@ describe('HealthController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('should return liveness payload at GET /api/v1/health/live', async () => {

@@ -2,7 +2,9 @@ import { PostgresRegistryStoreService } from "./postgres-registry-store.service"
 import { PrismaService } from "../database/prisma.service";
 import { ServiceRegistryEntry } from "../types";
 
-function entry(overrides: Partial<ServiceRegistryEntry> = {}): ServiceRegistryEntry {
+function entry(
+  overrides: Partial<ServiceRegistryEntry> = {},
+): ServiceRegistryEntry {
   return {
     serviceId: "servease",
     name: "Servease",
@@ -186,7 +188,9 @@ describe("PostgresRegistryStoreService", () => {
   });
 
   it("defaults tribe owner to serviceId when storing legacy tribe entries", async () => {
-    await service.upsert(entry({ serviceId: "legacy-tribe", ownerTribeId: undefined }));
+    await service.upsert(
+      entry({ serviceId: "legacy-tribe", ownerTribeId: undefined }),
+    );
 
     expect(tx.service.upsert).toHaveBeenCalledWith(
       expect.objectContaining({

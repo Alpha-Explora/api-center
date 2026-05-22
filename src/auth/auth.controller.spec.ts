@@ -76,12 +76,12 @@ describe("AuthController", () => {
 
     beforeEach(() => {
       (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
-      (mockRegistry.getEffectiveConsumesForTribe as jest.Mock).mockImplementation(
-        (tribeId: string) => {
-          const service = (mockRegistry.get as jest.Mock)(tribeId);
-          return service?.consumes ?? [];
-        },
-      );
+      (
+        mockRegistry.getEffectiveConsumesForTribe as jest.Mock
+      ).mockImplementation((tribeId: string) => {
+        const service = (mockRegistry.get as jest.Mock)(tribeId);
+        return service?.consumes ?? [];
+      });
     });
 
     it("returns accessToken AND refreshToken", async () => {
@@ -176,25 +176,27 @@ describe("AuthController", () => {
     });
 
     it("issues scopes from tribe-owned microservices and effective consumes", async () => {
-      (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) => {
-        if (serviceId === "logistics") {
-          return {
-            serviceId: "logistics",
-            ownerTribeId: "logistics",
-            requiredScopes: ["logistics:read"],
-            consumes: ["kafka"],
-          };
-        }
-        if (serviceId === "payment") {
-          return {
-            serviceId: "payment",
-            serviceType: "shared",
-            requiredScopes: ["payment:write"],
-            consumes: [],
-          };
-        }
-        return null;
-      });
+      (mockRegistry.get as jest.Mock).mockImplementation(
+        (serviceId: string) => {
+          if (serviceId === "logistics") {
+            return {
+              serviceId: "logistics",
+              ownerTribeId: "logistics",
+              requiredScopes: ["logistics:read"],
+              consumes: ["kafka"],
+            };
+          }
+          if (serviceId === "payment") {
+            return {
+              serviceId: "payment",
+              serviceType: "shared",
+              requiredScopes: ["payment:write"],
+              consumes: [],
+            };
+          }
+          return null;
+        },
+      );
       (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([
         {
           serviceId: "logistics",

@@ -82,7 +82,10 @@ function buildPaymentLifecycle(
   const refundId =
     typeof response.refundId === "string" ? response.refundId : undefined;
 
-  if (!status || (!checkoutId && !paymentId && !subscriptionId && !invoiceId && !refundId)) {
+  if (
+    !status ||
+    (!checkoutId && !paymentId && !subscriptionId && !invoiceId && !refundId)
+  ) {
     return undefined;
   }
 

@@ -33,6 +33,8 @@ describe("AuthController (e2e)", () => {
 
   const registryService = {
     get: jest.fn(),
+    getEffectiveConsumesForTribe: jest.fn().mockReturnValue([]),
+    getOwnedServices: jest.fn().mockReturnValue([]),
     validateSecret: jest.fn().mockResolvedValue(true),
   } as unknown as RegistryService;
 
@@ -83,6 +85,10 @@ describe("AuthController (e2e)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (registryService.validateSecret as jest.Mock).mockResolvedValue(true);
+    (registryService.getEffectiveConsumesForTribe as jest.Mock).mockReturnValue(
+      [],
+    );
+    (registryService.getOwnedServices as jest.Mock).mockReturnValue([]);
     (registryService.get as jest.Mock).mockImplementation(
       (serviceId: string) => {
         if (serviceId === "svc-alpha") {
