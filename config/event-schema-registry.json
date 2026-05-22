@@ -1,0 +1,28 @@
+{
+  "registryVersion": "apicenter-event-schemas-2026-05-21",
+  "records": [
+    {
+      "tribeId": "logistics",
+      "eventType": "order.created",
+      "schemaVersion": "1.0.0",
+      "environment": "prod",
+      "owner": "logistics-platform-owner",
+      "steward": "logistics-data-steward",
+      "status": "approved",
+      "compatibilityMode": "backward",
+      "approvedBy": "api-center-platform-operator",
+      "approvedAt": "2026-05-21T00:00:00.000Z",
+      "jsonSchema": {
+        "type": "object",
+        "required": ["orderId", "occurredAt", "sourceServiceId"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "smokeId": { "type": "string" },
+          "ownerTribeId": { "type": "string" },
+          "sourceServiceId": { "type": "string" },
+          "occurredAt": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

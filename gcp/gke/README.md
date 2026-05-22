@@ -197,6 +197,11 @@ kubectl -n api-center set image deploy/api-center \
 kubectl -n api-center rollout status deploy/api-center
 ```
 
+Before applying static manifests, confirm `30-deployment.yaml` will not roll the
+deployment back to a stale pinned image tag. Prefer `kubectl set image` with the
+intended build tag, record the tag in release evidence, then apply only
+non-image manifest changes.
+
 ---
 
 ## Verify HPA

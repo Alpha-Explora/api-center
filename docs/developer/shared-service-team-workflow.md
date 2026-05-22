@@ -1,5 +1,9 @@
 # Shared Service Team Workflow
 
+Source of truth: this document owns APICenter gateway/platform boundaries for
+shared services. SDK/runtime delivery workflow belongs in
+`api-shared-services/docs/shared-service-delivery-workflow.md`.
+
 This document defines how AP Center and shared-service teams collaborate without tight coupling.
 
 ## Repository Split

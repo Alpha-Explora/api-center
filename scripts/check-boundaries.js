@@ -8,7 +8,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const FORBIDDEN_DIRECTORIES = ['src/sdk', 'examples/sandbox/sdk'];
 const FORBIDDEN_IMPORT_PATTERNS = [
   {
-    description: 'Local SDK source import is forbidden; consume @apicenter/sdk package instead',
+    description:
+      'Local SDK source import is forbidden; consume the published @implementsprint/sdk package instead',
     regex: /(from|require\()\s*['"](?:\.{1,2}\/)+sdk(?:\/|['"])/,
   },
   {
@@ -16,8 +17,9 @@ const FORBIDDEN_IMPORT_PATTERNS = [
     regex: /(from|require\()\s*['"][^'"]*api-shared-services\/src\//,
   },
   {
-    description: 'file: SDK dependency is forbidden; use published @apicenter/sdk version',
-    regex: /"@apicenter\/sdk"\s*:\s*"file:/,
+    description:
+      'file: SDK dependency is forbidden; use a published @implementsprint/sdk version',
+    regex: /"@implementsprint\/sdk"\s*:\s*"file:/,
   },
 ];
 

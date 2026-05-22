@@ -1695,7 +1695,7 @@ Expected:
 All local lint, typecheck, unit, e2e, and build gates pass.
 ```
 
-- [ ] **Step 2: Run an end-to-end local smoke**
+- [x] **Step 2: Run an end-to-end test SDK smoke**
 
 Repeatable helper:
 
@@ -1785,6 +1785,7 @@ Replacement verification used for this slice:
 - Full API Center unit/e2e/build gates passed in Step 1.
 - Test API Center health/readiness passed in Step 3.
 - Test management provisioning and Confluent/S3 sink verification passed in Step 4.
+- SDK 1.2.1 source smoke passed against API Center test on 2026-05-20.
 ```
 
 - [x] **Step 3: Deploy API Center and management console to test**
@@ -1895,6 +1896,42 @@ Blocked verification:
 - User will publish SDK 1.2.1 manually; implementation session treats SDK publish as an external owner action.
 ```
 
+SDK 1.2.1 post-publish source verification, 2026-05-20:
+
+```text
+api-shared-services package version: @implementsprint/sdk@1.2.1
+remote tag: v1.2.1 -> 13720053b8686efd8a4f7e1ce2ea6934a2c10f14
+remote main: 13720053b8686efd8a4f7e1ce2ea6934a2c10f14
+npm run ci -> passed
+  - SDK publish guard passed
+  - Contract compatibility check passed
+  - TypeScript check passed
+  - 7 Vitest files, 88 tests passed
+  - build passed
+  - npm pack --dry-run produced implementsprint-sdk-1.2.1.tgz
+
+Test SDK smoke:
+- Temporary tribe: codex-sdk-20260520041053
+- Temporary source service: codex-sdk-20260520041053-api
+- Physical test topic: test.tribe.codex-sdk-20260520041053.events
+- Management route registered the owner tribe and owned source service.
+- Secret Manager hash was provisioned for codex-sdk-20260520041053.
+- Confluent created test.tribe.codex-sdk-20260520041053.events in lkc-850n9q.
+- api-center-test-s3-sink was updated to include test.tribe.codex-sdk-20260520041053.events.
+- TribeClient authenticated against https://api-center-test.itsandbox.site.
+- kafkaGetGovernanceCatalog returned tenantTopicPrefix tribe.codex-sdk-20260520041053.
+- publishTribeEvent() accepted tribe.codex-sdk-20260520041053.events with eventType codex.sdk121.smoke.
+- Direct kafkaPublish() to tribe.codex-sdk-20260520041053-api.events was rejected with 403 outside tenant boundary.
+
+Remaining package install verification:
+- npm view @implementsprint/sdk@1.2.1 against GitHub Packages returned 401 because this shell has no package-read token configured.
+
+GitHub Packages install visibility, 2026-05-20:
+- Operator configured GITHUB_TOKEN with read:packages locally.
+- npm view @implementsprint/sdk@1.2.1 version --registry=https://npm.pkg.github.com returned 1.2.1.
+- Durable npm config uses @implementsprint registry mapping and ${GITHUB_TOKEN}; no raw token is committed.
+```
+
 - [x] **Step 6: Commit final verification notes**
 
 Add a short verification note to the active rollout or PR description:
@@ -1921,7 +1958,9 @@ Verified tribe boundary model:
 - Management test provisioning created or verified test.tribe.logistics.events.
 - The test S3 Sink api-center-test-s3-sink includes test.tribe.logistics.events.
 - Legacy service topic migration maps test.tribe.logistics-orders.events to test.tribe.logistics.events and preserves the old topic.
-- SDK release code is preflighted locally; package publication is now an operator-owned manual 1.2.1 action.
+- SDK 1.2.1 source is synced locally and passed npm run ci.
+- SDK 1.2.1 source smoke passed against API Center test with a temporary tribe and sourceServiceId.
+- GitHub Packages installability still requires consumer package-read auth to verify from this shell.
 ```
 
 ## Rollback Plan

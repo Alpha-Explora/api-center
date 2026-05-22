@@ -47,14 +47,62 @@ s3_prefix:
 5. Resolve the logical topic `tribe.<ownerTribeId>.events`.
 6. Provision the physical topic, for example
    `prod.tribe.<ownerTribeId>.events`.
-7. Add the physical topic to the managed S3 Sink connector.
-8. Publish a smoke event through the SDK.
-9. Validate APICenter accepted the event.
-10. Validate Confluent topic traffic.
-11. Validate S3 object arrival after connector flush.
-12. Refresh Glue/Athena or Databricks discovery.
-13. Validate Bronze and Common Silver.
-14. Start tribe-specific Silver/Gold only after event semantics are approved.
+7. Add the physical topic to
+   `infra/aws-data-pipeline/topic-projection-values.txt` and regenerate the
+   Athena projection enum.
+8. Run the projection drift gate before catalog apply.
+9. Add the physical topic to the managed S3 Sink connector.
+10. Publish a smoke event through the SDK.
+11. Validate APICenter accepted the event.
+12. Validate Confluent topic traffic.
+13. Validate S3 object arrival after connector flush.
+14. Refresh Glue/Athena or Databricks discovery.
+15. Validate Bronze and Common Silver.
+16. Start tribe-specific Silver/Gold only after event semantics are approved.
+
+## Projection Drift Gate
+
+Run this after adding a physical topic to
+`infra/aws-data-pipeline/topic-projection-values.txt` and before applying the
+Athena catalog:
+
+```powershell
+cd C:\Codes\apic\api-center
+.\scripts\data-pipeline\check-topic-projection-drift.ps1 `
+  -TopicsFile .\infra\aws-data-pipeline\topic-projection-values.txt `
+  -ExpectedTopic <environment>.tribe.<ownerTribeId>.events
+```
+
+The gate fails if:
+
+- the expected physical topic is missing
+- `topic-projection-values.txt` is not sorted and unique
+- the generated projection enum does not match
+  `infra/aws-data-pipeline/catalog/raw-topic-tables.sql`
+- a topic onboarding state file contains a `physical_topic` that is missing
+  from the projection values
+- live Confluent or S3 Sink topics are available and include managed topics not
+  present in the projection values
+
+For CI and offline validation without provider credentials:
+
+```powershell
+npm run check:data-pipeline-projection
+```
+
+For live connector comparison, provide the local test/prod env file. The script
+uses Confluent connector config when `CONFLUENT_CLOUD_API_KEY`,
+`CONFLUENT_CLOUD_API_SECRET`, `CONFLUENT_ENVIRONMENT_ID`,
+`CONFLUENT_KAFKA_CLUSTER_ID`, and `CONFLUENT_S3_CONNECTOR_NAME` are present.
+It can also use Kafka REST topic listing when `CONFLUENT_KAFKA_REST_ENDPOINT`,
+`CONFLUENT_KAFKA_API_KEY`, and `CONFLUENT_KAFKA_API_SECRET` are present.
+
+```powershell
+.\scripts\data-pipeline\check-topic-projection-drift.ps1 `
+  -TopicsFile .\infra\aws-data-pipeline\topic-projection-values.txt `
+  -ExpectedTopic test.tribe.logistics.events `
+  -EnvFile ..\apicenter-management\.env.test
+```
 
 ## Smoke Event
 
@@ -95,6 +143,16 @@ Path template:
 s3://api-center-raw-data/topics/<environment>.tribe.<ownerTribeId>.events/...
 ```
 
+Use the validator before cataloging:
+
+```powershell
+cd C:\Codes\apic\api-center
+.\scripts\data-pipeline\validate-s3-prefix.ps1 `
+  -Bucket api-center-raw-data `
+  -PhysicalTopic <environment>.tribe.<ownerTribeId>.events `
+  -Profile apic
+```
+
 Record this evidence:
 
 ```text
@@ -109,6 +167,8 @@ connector_state:
 connector_task_state:
 actor:
 evidence_link:
+validator_command:
+validator_output_link:
 ```
 
 ## Athena Validation
@@ -130,6 +190,24 @@ folder first:
 ```sql
 SELECT COUNT(*)
 FROM api_center_raw."prod_tribe_logistics_events";
+```
+
+If an operator passes `-OutputLocation`, that explicit path wins. Use explicit
+paths only for break-glass diagnostics or migration testing. Normal validation
+uses `-ResultPurpose` and `-Environment`.
+
+Use governed Athena result prefixes during onboarding validation:
+
+```powershell
+.\scripts\data-pipeline\run-athena-query.ps1 `
+  -QueryFile .\infra\aws-data-pipeline\queries\validate-raw-topic.sql `
+  -Database api_center_raw `
+  -Workgroup primary `
+  -Profile apic `
+  -Environment <environment> `
+  -ResultPurpose platform-validation `
+  -Parameters @{ physical_topic = "<environment>.tribe.<ownerTribeId>.events" } `
+  -Wait
 ```
 
 ## Failure Triage
@@ -188,6 +266,7 @@ CONFLUENT_CLOUD_API_SECRET
 CONFLUENT_S3_CONNECTOR_NAME
 AWS_PROFILE or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
 API_CENTER_RAW_BUCKET
+ATHENA_RESULTS_BUCKET
 ATHENA_WORKGROUP
 ATHENA_DATABASE
 ```
@@ -197,9 +276,12 @@ The live lane must prove:
 1. APICenter accepts the smoke event.
 2. The physical topic exists in Confluent.
 3. The S3 Sink includes the physical topic.
-4. A new S3 object appears under the exact topic prefix.
-5. Athena or Bronze sees the expected physical topic and event count.
-6. The management topic-state record advances with evidence links.
+4. The physical topic exists in `topic-projection-values.txt`.
+5. The generated Athena enum in `raw-topic-tables.sql` matches the projection
+   values file.
+6. A new S3 object appears under the exact topic prefix.
+7. Athena or Bronze sees the expected physical topic and event count.
+8. The management topic-state record advances with evidence links.
 
 Before adding a new topic to a test or prod connector, confirm the connector
 service account can read the environment topic prefix and write to its DLQ.

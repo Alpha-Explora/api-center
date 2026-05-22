@@ -1,0 +1,14 @@
+{
+  "Rules": [
+    {
+      "ID": "abort-incomplete-curated-materialized-uploads",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    }
+  ]
+}

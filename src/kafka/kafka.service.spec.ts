@@ -275,6 +275,26 @@ describe("KafkaService", () => {
     );
   });
 
+  it("should publish to an exact physical topic without applying the configured prefix", async () => {
+    (mockConfig.kafka as { topicPrefix?: string }).topicPrefix = "prod.";
+
+    await service.publishPhysicalTopic(
+      "test.api-center.pipeline.athena-query-execution",
+      { event: "ok" },
+      "api-center-platform-validation-test",
+    );
+
+    expect(mockProducer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "test.api-center.pipeline.athena-query-execution",
+      }),
+    );
+    expect(mockMetrics.recordKafkaPublish).toHaveBeenCalledWith(
+      "test.api-center.pipeline.athena-query-execution",
+      "success",
+    );
+  });
+
   it("should publish audit events when payload satisfies audit schema", async () => {
     await service.publish(TOPICS.AUDIT_LOG, {
       tribeId: "svc-alpha",

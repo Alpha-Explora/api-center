@@ -63,3 +63,19 @@ data:
 
   # Observability
   OTEL_SERVICE_NAME: "api-center"
+
+  # Curated data-pipeline dashboard reads. API Center reads Athena through the
+  # AWS SDK; AWS credentials stay in GCP Secret Manager, not this ConfigMap.
+  PIPELINE_HEALTH_SOURCE: "athena"
+  PIPELINE_GOVERNANCE_SOURCE: "athena"
+  PIPELINE_HEALTH_ATHENA_DATABASE: "gold_platform"
+  PIPELINE_GOVERNANCE_ATHENA_DATABASE: "gold_platform"
+  PIPELINE_HEALTH_QUERY_LIMIT: "100"
+  PIPELINE_GOVERNANCE_QUERY_LIMIT: "100"
+  AWS_REGION: "ap-southeast-2"
+
+  # Governed event publishing. Prod rejects tribe events unless an approved
+  # schema is present in this registry.
+  EVENT_SCHEMA_REGISTRY_FILE: "/app/config/event-schema-registry.json"
+  EVENT_SCHEMA_REGISTRY_VERSION: "apicenter-event-schemas-2026-05-21"
+  EVENT_SCHEMA_TEST_DISCOVERY_ENABLED: "false"

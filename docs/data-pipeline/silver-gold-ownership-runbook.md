@@ -22,7 +22,7 @@ Do not create `bronze_<tribe>` by default.
 Platform-owned standardization table:
 
 ```text
-silver.common_tribe_events
+common_silver.tribe_event_envelope
 ```
 
 Required columns:
@@ -50,6 +50,18 @@ Common Silver accepts new tribes through `source_topic`, `environment`,
 `tribe_id`, and `source_service_id`. It must not require a job rewrite for each
 new tribe or microservice.
 
+## Common Silver Boundary
+
+`common_silver.tribe_event_envelope` is platform-owned. It normalizes the
+shared event envelope and preserves tribe payload as raw data. It must not
+define tribe-specific business metrics such as revenue, completion rate,
+enrollment status, or delivery SLA unless those metrics are explicitly promoted
+into approved Gold definitions.
+
+Because the raw and Bronze layers use Athena partition projection, Common Silver
+validation and dashboard queries should keep bounded partition filters such as
+`year`, `month`, `day`, and `hour` or another approved date-range constraint.
+
 ## Tribe Silver
 
 Tribe-owned semantic models:
@@ -65,6 +77,14 @@ Platform provides templates, review, and data quality guardrails.
 
 Late-provisioned tribes enter Raw, Bronze, and Common Silver first. Tribe
 Silver starts only after event semantics are documented and approved.
+
+## Tribe Template Promotion
+
+The template files under `infra/aws-data-pipeline/catalog/` are not production
+objects by themselves. A tribe-specific Silver or Gold object becomes
+production-ready only after the event owner signs off on event semantics, the
+data steward approves classification and retention, and the metric dictionary
+records formula, filters, owner, and approved readers.
 
 ## Gold
 

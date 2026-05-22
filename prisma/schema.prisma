@@ -235,6 +235,44 @@ model ServiceRegistrationRequest {
   @@schema("api_center_ops")
 }
 
+model PipelineFeedbackActionRecord {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action        String
+  environment   String
+  targetType    String   @map("target_type")
+  targetId      String   @map("target_id")
+  ownerTribeId  String?  @map("owner_tribe_id")
+  evidenceLink  String?  @map("evidence_link")
+  reason        String
+  actorId       String   @map("actor_id")
+  actorRole     String   @map("actor_role")
+  correlationId String?  @map("correlation_id")
+  status        String
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([environment, targetId, createdAt], name: "pipeline_feedback_actions_env_target_idx")
+  @@index([status, createdAt], name: "pipeline_feedback_actions_status_created_idx")
+  @@index([ownerTribeId, createdAt], name: "pipeline_feedback_actions_owner_idx")
+  @@index([correlationId], name: "pipeline_feedback_actions_correlation_idx")
+  @@map("pipeline_feedback_actions")
+  @@schema("api_center_ops")
+}
+
+model TopicOnboardingStateRecord {
+  physicalTopic String   @id @map("physical_topic")
+  environment   String
+  ownerTribeId  String?  @map("owner_tribe_id")
+  record        Json
+  updatedBy     String?  @map("updated_by")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([environment, ownerTribeId], name: "topic_onboarding_states_env_owner_idx")
+  @@index([updatedAt], name: "topic_onboarding_states_updated_idx")
+  @@map("topic_onboarding_states")
+  @@schema("api_center_ops")
+}
+
 model AuditEvent {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   correlationId  String?  @map("correlation_id")

@@ -27,6 +27,8 @@
     "db:backfill:registry": "ts-node scripts/backfill-registry-to-postgres.ts",
     "check:boundaries": "node scripts/check-boundaries.js",
     "check:contracts": "node scripts/check-contract-compatibility.js",
+    "check:data-pipeline-projection": "node scripts/data-pipeline/resolve-athena-topic-projection.js --check -TopicsFile infra/aws-data-pipeline/topic-projection-values.txt -RawTopicTablesSql infra/aws-data-pipeline/catalog/raw-topic-tables.sql --onboarding-state-file .local-state/topic-onboarding-states.json",
+    "smoke:post-deploy": "node scripts/post-deploy-smoke.js",
     "smoke:gke": "node scripts/smoke-gke-deploy.js",
     "smoke:gke:check-config": "node scripts/smoke-gke-deploy.js --check-config",
     "smoke:tribe-boundary": "node scripts/smoke-tribe-boundary.js",
@@ -41,6 +43,8 @@
     "format": "prettier --write \"src/**/*.ts\""
   },
   "dependencies": {
+    "@aws-sdk/client-athena": "^3.1051.0",
+    "@aws-sdk/credential-providers": "^3.1051.0",
     "@google-cloud/secret-manager": "^6.1.1",
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",

@@ -128,9 +128,66 @@ describe("RegistrationRequestsService", () => {
       expect.stringContaining("status = 'applied'"),
       "platform-admin",
       "logistics-orders",
+      expect.stringContaining('"canApply":true'),
       "00000000-0000-0000-0000-000000000001",
     );
     expect(result.status).toBe("applied");
+  });
+
+  it("recomputes validation at approval time and blocks stale requests", async () => {
+    registry.getAll.mockReturnValue({});
+    prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([row()])
+      .mockResolvedValueOnce([
+        row({
+          validation_report: {
+            canApply: false,
+            issues: [
+              {
+                severity: "blocking",
+                code: "owner-tribe-missing",
+                serviceId: "logistics-orders",
+                message: "Owner tribe is missing.",
+              },
+            ],
+          },
+        }),
+      ]);
+
+    await expect(
+      service.approveRequest(
+        "00000000-0000-0000-0000-000000000001",
+        "platform-admin",
+      ),
+    ).rejects.toThrow(
+      "Owner tribe 'logistics' must exist before 'logistics-orders' can be registered.",
+    );
+
+    expect(registry.register).not.toHaveBeenCalled();
+    expect(prisma.$queryRawUnsafe).toHaveBeenLastCalledWith(
+      expect.stringContaining("set validation_report = cast($1 as jsonb)"),
+      expect.stringContaining('"canApply":false'),
+      "00000000-0000-0000-0000-000000000001",
+    );
+  });
+
+  it("treats kafka consumes as a platform capability instead of an unknown service", async () => {
+    prisma.$queryRawUnsafe.mockResolvedValueOnce([row()]);
+
+    await service.createRequest({
+      manifest: manifest({ consumes: ["kafka"] }),
+      requestedBy: "github:logistics/orders",
+    });
+
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
+      expect.any(String),
+      "logistics-orders",
+      "logistics",
+      "pending",
+      expect.any(String),
+      expect.not.stringContaining("unknown-consumed-service"),
+      "github:logistics/orders",
+    );
   });
 
   it("rejects a pending request without registering the manifest", async () => {

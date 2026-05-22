@@ -32,10 +32,11 @@
 
 | Field | Value |
 |---|---|
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-80440b7-202605190539` |
-| Built from | `80440b7` |
-| Last deployed | `2026-05-19` |
-| Deployed by | Codex-assisted operator rollout |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` |
+| Built from | local workspace based on `d1eb7e6` |
+| Last deployed | `2026-05-22` |
+| Deployed by | Codex-assisted Phase 11 review-fix2 rollout |
+| Validation | GKE rollout succeeded; dated decision-signals smoke for `2026-05-20` returned HTTP 200 with `success=true`, `meta.source=athena-proxy`, and test count=3. False-positive feedback smoke created and listed `decision.false_positive.marked` on `targetType=signal` with `status=closed`; invalid `targetType=event` false-positive smoke was rejected with HTTP 400. Readiness returned `ok`. |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
@@ -44,10 +45,10 @@
 | Field | Value |
 |---|---|
 | Namespace | `api-center-test` |
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-test-3bfaaea-20260520023812` |
-| Built from | local workspace based on `3bfaaea` |
-| Last deployed | `2026-05-20` |
-| Validation | Owner-tribe registration, owned microservice registration, governed publish with `sourceServiceId`, Confluent topic creation, S3 Sink inclusion, and connector `RUNNING` were verified against test. |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-ops-094a6e9-20260522` |
+| Built from | local workspace based on `094a6e9` |
+| Last deployed | `2026-05-22` |
+| Validation | GKE rollout succeeded; `api-center-test` database migration `20260522021500_add_topic_onboarding_states` applied; post-deploy smoke returned readiness `ok`, pipeline health count=1, decision-signals count=3, both with `meta.source=athena-proxy`; management test alias returned `missingEnvCount=0`; topic onboarding state route returned expected HTTP 404 for a non-existent synthetic test topic. |
 
 ---
 
@@ -268,7 +269,58 @@ $brokers = [string]$json.KAFKA_BROKERS
 ) | Format-Table -AutoSize
 ```
 
-### 2D. Optional control-plane database keys
+### 2D. Configure AWS Athena read credentials in Secret Manager
+
+The data-pipeline dashboard reads curated Gold tables through the API Center
+runtime, not directly from management. `gcp/gke/20-configmap.yaml` sets only
+non-secret Athena selectors such as `PIPELINE_HEALTH_SOURCE=athena`,
+`PIPELINE_GOVERNANCE_SOURCE=athena`, and `AWS_REGION=ap-southeast-2`.
+
+AWS credentials for APICenter Athena reads must be available to the API Center
+runtime through the approved secret path. For the current GKE deployment, that
+means the `api-center-prod` Secret Manager JSON loaded at boot must include
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, or an approved AWS runtime
+credential mechanism. If temporary credentials are used, include
+`AWS_SESSION_TOKEN`.
+
+Attach the repo policy
+`infra/aws-data-pipeline/policies/api-center-athena-runtime-policy.json` to the
+dedicated API Center runtime principal, for example
+`api-center-athena-reader-gke`. This is the policy whose access key should be
+stored in `api-center-prod`.
+
+Required AWS permissions:
+
+- `athena:GetWorkGroup`
+- `athena:StartQueryExecution`
+- `athena:GetQueryExecution`
+- `athena:GetQueryResults`
+- `athena:StopQueryExecution`
+- `glue:GetDatabase`
+- `glue:GetDatabases`
+- `glue:GetTable`
+- `glue:GetTables`
+- `glue:GetPartition`
+- `glue:GetPartitions`
+- `s3:GetObject` and scoped `s3:ListBucket` on `api-center-raw-data/topics/*`
+- `s3:GetBucketLocation` on `api-center-athena-results`
+- `s3:GetObject` and `s3:PutObject` on approved `athena-results/*` prefixes
+
+Validate key presence without printing values:
+
+```powershell
+$json = gcloud.cmd secrets versions access latest `
+  --secret=api-center-prod `
+  --project api-center-496422 | ConvertFrom-Json
+$names = $json.PSObject.Properties.Name
+@(
+  [pscustomobject]@{ Check = 'AWS_ACCESS_KEY_ID present'; Pass = ($names -contains 'AWS_ACCESS_KEY_ID') }
+  [pscustomobject]@{ Check = 'AWS_SECRET_ACCESS_KEY present'; Pass = ($names -contains 'AWS_SECRET_ACCESS_KEY') }
+  [pscustomobject]@{ Check = 'AWS_SESSION_TOKEN optional'; Pass = ($true) }
+) | Format-Table -AutoSize
+```
+
+### 2E. Optional control-plane database keys
 
 Do not add these until a Postgres database exists and the initial migration has
 been deployed. Redis remains the active registry source during the migration
@@ -573,3 +625,12 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-19 | 80440b7 | Applied Supabase migration `20260519000000_add_owner_tribe_id.sql` and deployed image `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-80440b7-202605190539`; readiness returned HTTP 200 after rollout | Roll out explicit owner-tribe boundaries, prefixed topic governance, and per-tribe event-topic support |
 | 2026-05-20 | 3bfaaea-local | Applied test Supabase migrations `20260519000000_add_owner_tribe_id.sql` and `20260520000000_add_service_registration_requests.sql`; deployed test image `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:tribe-owner-test-3bfaaea-20260520023812`; live test accepted `ownerTribeId` and `sourceServiceId` payloads and kept `api-center-test-s3-sink` running | Unblock the next tribe data-pipeline slice in the test environment without touching production |
 | 2026-05-20 | pending | CI and Docker image builds now run `npm run db:generate` before TypeScript build and copy `prisma/` into the Docker builder stage | Ensure Prisma Client is available during API Center CI, image build, and test-environment deployment |
+| 2026-05-21 | d1eb7e6-local | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-governance-fix-d1eb7e6-202605210317`; route smoke for data-pipeline health, quality, shared-service usage, gateway decisions, and cost returned HTTP 200 with `success=true` | Add Phase 9 platform governance endpoints while recording that GKE Athena runtime remains fixture-mode until a live provider is configured |
+| 2026-05-21 | 7b854f58-5998-478f-b3e2-6d5afe931131 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-athena-sdk-region-d1eb7e6-20260521150223`; created dedicated AWS runtime principal `api-center-athena-reader-gke`; corrected Athena runtime region to `ap-southeast-2`; test route smoke returned HTTP 200 with `meta.source=athena-proxy` for health, quality, shared-service usage, gateway decisions, and cost | Remove AWS CLI shell-out blocker and make GKE API Center read curated Athena views through the AWS SDK |
+| 2026-05-21 | 6df72593-0dbb-4e94-9fc7-ac54fcb739bb | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-athena-cancel-d1eb7e6-20260521152340`; runtime policy default version `v4` removes `s3:DeleteObject`; route smoke still returned HTTP 200 with `meta.source=athena-proxy` for all test data-pipeline routes | Close review findings for Phase 1 by cancelling timed-out Athena queries and preserving result evidence |
+| 2026-05-21 | 8451ea31-4885-4a60-b99c-a66b3b3fea34 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-feedback-durable-reviewfix-d1eb7e6-20260521175948`; live feedback smoke persisted reviewed evidence into `api_center_ops.pipeline_feedback_actions` with `correlationId=corr_phase9_reviewfix_smoke` | Close durable feedback action findings and make management feedback writes database-backed |
+| 2026-05-21 | 7b812838-d455-452e-872f-261499a52555 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-partition-override-d1eb7e6-20260521203007`; data-pipeline routes accept `year`, `month`, and `day` query parameters while defaulting to current UTC when omitted; dated test/prod smoke for `2026-05-20` returned live health and quality rows | Let operators review populated historical evidence partitions without freezing deployed dashboards on stale ConfigMap dates |
+| 2026-05-21 | 8aefc271-4a38-4eb8-9681-84465ccb8954 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-signals-fix-d1eb7e6-20260521235419`; dated test/prod smoke for `2026-05-20` returned `meta.source=athena-proxy` for decision signals with test count=3 and prod count=0 | Roll out Phase 11 deterministic decision signals and keep runtime source aligned with the Athena governance provider |
+| 2026-05-22 | 9884dad4-96d9-4cd1-b669-43a780daf797 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix-d1eb7e6-20260522001734`; live smoke confirmed decision-signals stayed Athena-backed and false-positive signal feedback creates/lists with `status=closed` | Close Phase 11 review findings for signal-specific false-positive actions and evidence/status visibility |
+| 2026-05-22 | 9a6b5a94-ac35-4efc-aff3-d2a0a7a3cc84 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353`; live smoke confirmed valid false-positive signal feedback succeeds and invalid false-positive event feedback is rejected with HTTP 400 | Enforce the signal-only false-positive contract at API and database boundaries |
+| 2026-05-22 | test-rollout-d1eb7e6 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` to namespace `api-center-test`; added non-secret Athena data-pipeline ConfigMap settings, created dedicated test AWS runtime principal `api-center-athena-reader-gke-test`, applied feedback table migrations to the test DB, and verified test routes through the deployed management app | Bring the test API Center lane up to the same Phase 11 data-pipeline capability used by the management test deployment |

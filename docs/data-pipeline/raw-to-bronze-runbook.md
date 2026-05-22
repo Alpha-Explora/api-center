@@ -22,6 +22,27 @@ s3://api-center-raw-data/topics/prod.api-center.shared.payment.events/
 Raw is replay storage. BI tools must not use raw S3 directly for production
 dashboards.
 
+## Observed Raw File Format
+
+The current Confluent S3 Sink writes line-delimited JSON string values under
+hour partitions:
+
+```text
+s3://api-center-raw-data/topics/<physical-topic-name>/year=YYYY/month=MM/day=DD/hour=HH/*.json
+```
+
+Each line is a JSON string containing the event JSON body, for example:
+
+```text
+"{\"sourceServiceId\":\"codex-sdk-20260520041053-api\", ... }"
+```
+
+Bronze must unwrap the string value before extracting event fields:
+
+```sql
+COALESCE(json_extract_scalar(raw_line, '$'), raw_line)
+```
+
 ## Metadata Refresh
 
 The crawler or metadata refresh must cover the shared raw root:
@@ -55,6 +76,37 @@ bronze.tribe_events reads s3://api-center-raw-data/topics/*/
 Do not compile a fixed list of tribe topics into the job. Late-provisioned
 topics must be included through topic state/configuration.
 
+## Bronze Lanes
+
+The raw root feeds three approved Bronze lanes:
+
+| Bronze view | Topic pattern |
+| --- | --- |
+| `bronze.tribe_events` | `<env>.tribe.<ownerTribeId>.events` |
+| `bronze.shared_service_events` | `<env>.api-center.shared.<serviceId>.events` |
+| `bronze.apicenter_ops_events` | Current `<env>.api-center.<stream>` topics such as `<env>.api-center.gateway.request`, plus legacy `<env>.api-center.ops.<stream>.events` if present |
+
+APICenter request/response, audit, auth, registry, external, and system topics
+are platform-owned ops streams. They are included only when the physical topic
+is explicitly present in `infra/aws-data-pipeline/topic-projection-values.txt`.
+
+Because raw topics use Athena partition projection, validation and dashboard
+queries must include bounded partition filters:
+
+```sql
+WHERE year = '2026'
+  AND month = '05'
+  AND day = '20'
+  AND hour = '09'
+```
+
+Use broader scans only when the Athena workgroup limit and expected cost are
+explicitly acceptable.
+
+If an operator passes `-OutputLocation`, that explicit path wins. Use explicit
+paths only for break-glass diagnostics or migration testing. Normal validation
+uses `-ResultPurpose` and `-Environment`.
+
 ## Required Bronze Columns
 
 ```text
@@ -79,13 +131,13 @@ Derivation rules:
 
 | Column | Rule |
 | --- | --- |
-| `source_topic` | Parse the S3 folder under `topics/`. |
+| `source_topic` | Use the partition-projected `physical_topic` under `topics/`. |
 | `environment` | Parse prefix such as `test` or `prod`. |
 | `tribe_id` | Parse `tribe.<ownerTribeId>.events` or use governance metadata. |
 | `source_service_id` | Use governance `sourceServiceId` when present. |
 | `event_type` | Use SDK `eventType`. |
 | `event_date` | Date from payload `occurredAt`; otherwise ingestion date with quality flag. |
-| `raw_record` | Preserve the original record. |
+| `raw_record` | Preserve the original line, including the escaped JSON string if that is what S3 stored. |
 
 Malformed records are quarantined or marked with `quality_status`, not allowed
 to fail the whole job.
@@ -114,6 +166,20 @@ SELECT
 FROM bronze.tribe_events
 WHERE source_topic = '$physical_topic'
 GROUP BY 1, 2, 3, 4;
+```
+
+Run validation through the governed result prefix resolver:
+
+```powershell
+.\scripts\data-pipeline\run-athena-query.ps1 `
+  -QueryFile .\infra\aws-data-pipeline\queries\validate-bronze-topic.sql `
+  -Database bronze `
+  -Workgroup primary `
+  -Profile apic `
+  -Environment test `
+  -ResultPurpose platform-validation `
+  -Parameters @{ physical_topic = "<environment>.tribe.<ownerTribeId>.events" } `
+  -Wait
 ```
 
 ## Bronze Evidence

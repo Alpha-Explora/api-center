@@ -2,6 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import { ServiceManifest } from "../types";
+import { isPlatformCapability } from "../shared/platform-capabilities";
+import { isOwnerTribeIdRequiredForManifest } from "../shared/service-manifest-governance";
 import { RegistryService } from "./registry.service";
 
 type RegistrationRequestStatus =
@@ -125,6 +127,34 @@ export class RegistrationRequestsService {
       );
     }
 
+    const validationReport = this.buildValidationReport(
+      request.manifest,
+      request.ownerTribeId,
+    );
+
+    if (!validationReport.canApply) {
+      await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
+        `
+          update api_center_ops.service_registration_requests
+          set validation_report = cast($1 as jsonb),
+              updated_at = now()
+          where id = cast($2 as uuid)
+          returning *
+        `,
+        JSON.stringify(validationReport),
+        requestId,
+      );
+
+      const blockingMessages = validationReport.issues
+        .filter((issue) => issue.severity === "blocking")
+        .map((issue) => issue.message)
+        .join(" ");
+
+      throw new ConflictError(
+        `Registration request cannot be approved: ${blockingMessages}`,
+      );
+    }
+
     const entry = await this.registry.register(request.manifest);
     const rows = await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
       `
@@ -132,14 +162,16 @@ export class RegistrationRequestsService {
         set status = 'applied',
             approved_by = $1,
             applied_service_id = $2,
+            validation_report = cast($3 as jsonb),
             decided_at = now(),
             applied_at = now(),
             updated_at = now()
-        where id = cast($3 as uuid)
+        where id = cast($4 as uuid)
         returning *
       `,
       approvedBy,
       entry.serviceId,
+      JSON.stringify(validationReport),
       requestId,
     );
 
@@ -204,6 +236,15 @@ export class RegistrationRequestsService {
     const registry = this.registry.getAll();
     const issues: RegistrationPlanIssue[] = [];
 
+    if (isOwnerTribeIdRequiredForManifest(manifest)) {
+      issues.push({
+        severity: "blocking",
+        code: "owner-tribe-required",
+        serviceId: manifest.serviceId,
+        message: `ownerTribeId is required before '${manifest.serviceId}' can be registered as a tribe microservice.`,
+      });
+    }
+
     if (
       (manifest.serviceType ?? "tribe") !== "shared" &&
       ownerTribeId !== manifest.serviceId
@@ -220,6 +261,10 @@ export class RegistrationRequestsService {
     }
 
     for (const dependency of manifest.consumes ?? []) {
+      if (isPlatformCapability(dependency)) {
+        continue;
+      }
+
       if (!registry[dependency]) {
         issues.push({
           severity: "warning",

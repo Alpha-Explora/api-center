@@ -159,6 +159,20 @@ These are outside the core GCP workload estimate.
 | Connector transfer | about `0.025/GB` | Billed by Confluent, pre-compression. |
 | AWS S3 Standard storage | usage-based | Low at small volume; grows with raw retention. |
 | AWS S3 requests | usage-based | File rotation and flush size affect object count. |
+| Athena scans | usage-based | Keep validation bounded and dashboards on curated Gold/Silver outputs. |
+| Athena query results | usage-based S3 storage | Apply lifecycle cleanup to the result prefix. |
+
+Data pipeline cost guardrails:
+
+| Guardrail | Monthly cost effect |
+| --- | --- |
+| Raw test retention `30-90` days | Prevents test topics from becoming permanent archive cost. |
+| Raw prod retention `180-365` days | Keeps replay/audit storage explicit instead of unlimited. |
+| Bronze retention `365` days | Preserves operational replay without making raw data the BI source. |
+| Curated retention metric-specific | Lets approved metrics keep longer history without retaining every raw event. |
+| Athena workgroup byte limits | Caps accidental broad scans before scheduled dashboards exist. |
+| Separated Athena result prefixes | Lets lifecycle and IAM cleanup target query artifacts without touching raw S3. |
+| Manual or daily BI refresh during pilot | Avoids high-frequency query cost before usage is proven. |
 
 ### Provider APIs
 
@@ -203,6 +217,9 @@ Keep these controls in place:
 8. Keep readiness, Kafka, and failure alerts.
 9. Reduce noisy request logs before disabling metrics or alerts.
 10. Set budgets in GCP, Confluent, AWS, Google Maps, Resend, SMS provider, and PayMongo.
+11. Set Athena workgroup scan limits before any scheduled dashboard refresh.
+12. Apply S3 lifecycle rules to raw test prefixes and Athena result prefixes.
+13. Keep Raw S3 restricted to platform operators; BI users should not receive raw bucket access.
 
 For the tribe analytics pipeline, use
 `docs/data-pipeline/retention-access-cost-controls.md` as the detailed control

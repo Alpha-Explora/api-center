@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>APICenter Multi-Tribe Data Pipeline</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --surface-2: #f0f4f8;
+      --ink: #172033;
+      --muted: #65738a;
+      --line: #cfdae8;
+      --blue: #2f6df6;
+      --blue-soft: #e9f0ff;
+      --green: #16845f;
+      --green-soft: #e8f6ef;
+      --amber: #a86505;
+      --amber-soft: #fff1d7;
+      --red: #bf3434;
+      --red-soft: #ffe9e9;
+      --purple: #6f4ad4;
+      --purple-soft: #f0eaff;
+      --shadow: 0 14px 34px rgba(30, 42, 66, 0.08);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    main {
+      width: min(1500px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 44px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      max-width: 920px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      padding: 9px 12px;
+      cursor: pointer;
+      min-width: 74px;
+    }
+
+    button[aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .north-star {
+      border: 1px solid #b8c7dd;
+      background: linear-gradient(180deg, #ffffff, #f4f7fb);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+      margin-bottom: 18px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .north-star strong {
+      color: var(--blue);
+      white-space: nowrap;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: 1.08fr 0.9fr 1fr 1.05fr 1.05fr 1.15fr;
+      gap: 14px;
+      align-items: stretch;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .layer {
+      min-width: 210px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      position: relative;
+    }
+
+    .layer h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .stack {
+      display: grid;
+      gap: 9px;
+    }
+
+    .node {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      padding: 10px;
+      min-height: 74px;
+    }
+
+    .node h3 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .node p,
+    .node li {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .node ul {
+      padding-left: 16px;
+      margin: 0;
+    }
+
+    .governance {
+      background: var(--blue-soft);
+      border-color: #a9bff4;
+    }
+
+    .test {
+      background: var(--green-soft);
+      border-color: #aad7c3;
+    }
+
+    .prod {
+      background: var(--red-soft);
+      border-color: #f0b7b7;
+    }
+
+    .analytics {
+      background: var(--purple-soft);
+      border-color: #cab8f2;
+    }
+
+    .warning {
+      background: var(--amber-soft);
+      border-color: #edc775;
+    }
+
+    .arrow {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 4px 0;
+    }
+
+    .swimlanes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .lane {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .lane h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .topics {
+      display: grid;
+      gap: 8px;
+    }
+
+    code {
+      display: block;
+      white-space: normal;
+      word-break: break-word;
+      border-radius: 7px;
+      padding: 8px 9px;
+      background: #101827;
+      color: #eff4ff;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+    }
+
+    .panel ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .panel li {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 6px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .faded {
+      opacity: 0.32;
+      filter: grayscale(0.3);
+    }
+
+    @media (max-width: 1080px) {
+      header,
+      .north-star,
+      .swimlanes,
+      .matrix {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        justify-content: flex-start;
+      }
+
+      .pipeline {
+        grid-template-columns: repeat(6, minmax(210px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>APICenter Multi-Tribe Data Pipeline</h1>
+        <p class="subtitle">
+          A governed test and prod event pipeline for tribe-owned events,
+          shared-service telemetry, APICenter control-plane events, S3 landing,
+          Athena validation, and management visibility.
+        </p>
+      </div>
+      <div class="controls" aria-label="Environment filter">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="test" aria-pressed="false">Test</button>
+        <button type="button" data-filter="prod" aria-pressed="false">Prod</button>
+      </div>
+    </header>
+
+    <section class="north-star" aria-label="North star">
+      <strong>North Star</strong>
+      <div>
+        From tribe request to gateway decision to event export to visualization,
+        trace who called what, whether it was allowed, what happened, how much
+        it cost, and where the data landed.
+      </div>
+    </section>
+
+    <section class="pipeline" aria-label="End to end pipeline">
+      <div class="layer">
+        <h2>1. Producers</h2>
+        <div class="stack">
+          <div class="node">
+            <h3>Tribe services</h3>
+            <p>Each tribe owns domain events and payload meaning.</p>
+          </div>
+          <div class="node">
+            <h3>Shared services</h3>
+            <p>Payment, email, SMS, Google auth, OTP, and geo emit platform telemetry.</p>
+          </div>
+          <div class="node governance">
+            <h3>APICenter control plane</h3>
+            <p>Gateway, registry, auth, audit, cost, and policy events.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <h2>2. Governed Publish</h2>
+        <div class="stack">
+          <div class="node governance">
+            <h3>SDK + Gateway</h3>
+            <ul>
+              <li>Authenticates tribe principal</li>
+              <li>Checks consumes/scopes</li>
+              <li>Adds source service attribution</li>
+            </ul>
+          </div>
+          <div class="arrow">then</div>
+          <div class="node governance">
+            <h3>Event envelope</h3>
+            <p>tribeId, sourceServiceId, eventType, payload, metadata, environment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <h2>3. Topics</h2>
+        <div class="stack">
+          <div class="node test" data-env="test">
+            <h3>Test topics</h3>
+            <p>Used for onboarding, smoke tests, and pipeline validation.</p>
+          </div>
+          <div class="node prod" data-env="prod">
+            <h3>Prod topics</h3>
+            <p>Used only after approval, prod ownership, and access controls.</p>
+          </div>
+          <div class="node">
+            <h3>Topic families</h3>
+            <p>Tribe events, shared-service events, APICenter governance events.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <h2>4. Landing</h2>
+        <div class="stack">
+          <div class="node">
+            <h3>Confluent S3 Sink</h3>
+            <p>Flushes governed Kafka topics into raw S3 by physical topic.</p>
+          </div>
+          <div class="arrow">writes</div>
+          <div class="node">
+            <h3>S3 Raw</h3>
+            <p>api-center-raw-data/topics/&lt;physical_topic&gt;/year/month/day/hour</p>
+          </div>
+          <div class="node warning">
+            <h3>Raw is platform-only</h3>
+            <p>BI and tribe readers do not get raw topic bucket access.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <h2>5. Catalog + Transform</h2>
+        <div class="stack">
+          <div class="node">
+            <h3>Glue + Athena raw table</h3>
+            <p>Projected partitions over approved physical topics.</p>
+          </div>
+          <div class="node">
+            <h3>Bronze</h3>
+            <p>Parse, unwrap, validate, normalize, and mark quality status.</p>
+          </div>
+          <div class="node analytics">
+            <h3>Silver + Gold</h3>
+            <p>Common Silver for cross-tribe standards; Tribe Silver/Gold for local semantics.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <h2>6. Consumption</h2>
+        <div class="stack">
+          <div class="node governance">
+            <h3>Management visibility</h3>
+            <p>Pipeline health, traceability, audit, costs, access review.</p>
+          </div>
+          <div class="node analytics">
+            <h3>Tribe analytics</h3>
+            <p>Approved tribe dashboards and BI read curated Silver/Gold only.</p>
+          </div>
+          <div class="node warning">
+            <h3>Athena results</h3>
+            <p>api-center-athena-results split by platform, management, tribe, and environment.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="swimlanes" aria-label="Environment lanes">
+      <div class="lane test" data-env="test">
+        <h2>Test Lane</h2>
+        <div class="topics">
+          <code>test.tribe.&lt;tribeId&gt;.events</code>
+          <code>test.api-center.shared.payment.events</code>
+          <code>test.api-center.gateway.request</code>
+          <code>s3://api-center-athena-results/athena-results/platform/validation/test/</code>
+          <code>s3://api-center-athena-results/athena-results/management/test/</code>
+          <code>s3://api-center-athena-results/athena-results/tribe/&lt;tribeId&gt;/test/</code>
+        </div>
+      </div>
+
+      <div class="lane prod" data-env="prod">
+        <h2>Prod Lane</h2>
+        <div class="topics">
+          <code>prod.tribe.&lt;tribeId&gt;.events</code>
+          <code>prod.api-center.shared.payment.events</code>
+          <code>prod.api-center.gateway.request</code>
+          <code>s3://api-center-athena-results/athena-results/platform/validation/prod/</code>
+          <code>s3://api-center-athena-results/athena-results/management/prod/</code>
+          <code>s3://api-center-athena-results/athena-results/tribe/&lt;tribeId&gt;/prod/</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="matrix" aria-label="Ownership and improvements">
+      <div class="panel">
+        <h2>Central Governing Tribe Owns</h2>
+        <ul>
+          <li>Topic standards and event envelope.</li>
+          <li>Gateway authorization and publish governance.</li>
+          <li>Raw landing, catalog, Bronze, common Silver.</li>
+          <li>Workgroups, result bucket, access review, cost controls.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h2>Each Tribe Owns</h2>
+        <ul>
+          <li>Domain event schemas and event meaning.</li>
+          <li>Payload quality at source.</li>
+          <li>Tribe Silver/Gold semantic models.</li>
+          <li>Tribe dashboards, KPIs, and decisions.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h2>Current Test Proof</h2>
+        <ul>
+          <li>Raw S3 observed for codex test topic.</li>
+          <li>Athena catalog applied through dedicated workgroup.</li>
+          <li>Quality checks: 0 invalid over 1000 records.</li>
+          <li>Gold pipeline-health returned the expected test row.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h2>Next Improvements</h2>
+        <ul>
+          <li>Expose live APICenter pipeline-health endpoint.</li>
+          <li>Reapply validator policy for result-bucket inventory listing.</li>
+          <li>Add event contracts per eventType.</li>
+          <li>Materialize high-use Silver/Gold tables to reduce Athena cost.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll("[data-filter]"));
+    const envBlocks = Array.from(document.querySelectorAll("[data-env]"));
+
+    function setFilter(filter) {
+      buttons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.filter === filter));
+      });
+
+      envBlocks.forEach((block) => {
+        const matches = filter === "all" || block.dataset.env === filter;
+        block.classList.toggle("faded", !matches);
+      });
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => setFilter(button.dataset.filter));
+    });
+  </script>
+</body>
+</html>

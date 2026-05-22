@@ -258,6 +258,51 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async publishPhysicalTopic(
+    topic: string,
+    payload: Record<string, unknown>,
+    key?: string,
+  ): Promise<void> {
+    const physicalTopic = topic.trim();
+
+    try {
+      await this.producer.send({
+        topic: physicalTopic,
+        messages: [
+          {
+            key: key ? String(key) : undefined,
+            value: JSON.stringify({
+              ...payload,
+              _meta: {
+                timestamp: new Date().toISOString(),
+                source: this.config.kafka.clientId,
+              },
+            }),
+          },
+        ],
+      });
+      this.metrics?.recordKafkaPublish(physicalTopic, "success");
+    } catch (err) {
+      this.metrics?.recordKafkaPublish(physicalTopic, "failure");
+      this.gatewayTraffic
+        ?.recordKafkaPublishFailure(physicalTopic)
+        .catch(() => undefined);
+      this.auditEvents
+        ?.record({
+          type: "kafka.publish_failed",
+          severity: "error",
+          message: `Kafka publish failed for ${physicalTopic}`,
+          payload: {
+            topic: physicalTopic,
+            baseTopic: topic,
+            error: (err as Error).message,
+          },
+        })
+        .catch(() => undefined);
+      throw err;
+    }
+  }
+
   /**
    * Fire-and-forget publish for request-path events. Failures are logged and
    * intentionally not rethrown so primary request flow remains unaffected.

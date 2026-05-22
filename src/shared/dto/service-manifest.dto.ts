@@ -16,8 +16,41 @@ import {
   IsIn,
   IsDateString,
   Matches,
+  Validate,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { isOwnerTribeIdRequiredForManifest } from "../service-manifest-governance";
+
+@ValidatorConstraint({ name: "ownerTribeId", async: false })
+class OwnerTribeIdConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown, args: ValidationArguments): boolean {
+    const manifest = args.object as {
+      serviceId?: string;
+      serviceType?: string;
+      ownerTribeId?: string;
+    };
+    if (value === undefined || value === null || value === "") {
+      return !isOwnerTribeIdRequiredForManifest(manifest);
+    }
+
+    return typeof value === "string" && /^[a-z0-9-]+$/.test(value);
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    if (
+      args.value === undefined ||
+      args.value === null ||
+      args.value === ""
+    ) {
+      return "ownerTribeId is required for tribe microservices or hyphenated tribe service IDs";
+    }
+
+    return "ownerTribeId must be lowercase alphanumeric with hyphens only";
+  }
+}
 
 export class ServiceManifestDto {
   @ApiProperty({ example: "payment-service" })
@@ -70,11 +103,7 @@ export class ServiceManifestDto {
     description:
       "Tribe that owns this service. Defaults to serviceId for legacy tribe entries.",
   })
-  @IsString()
-  @Matches(/^[a-z0-9-]+$/, {
-    message: "ownerTribeId must be lowercase alphanumeric with hyphens only",
-  })
-  @IsOptional()
+  @Validate(OwnerTribeIdConstraint)
   ownerTribeId?: string;
 
   @ApiPropertyOptional({ example: "/health" })
