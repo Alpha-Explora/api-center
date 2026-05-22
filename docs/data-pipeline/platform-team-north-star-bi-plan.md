@@ -547,6 +547,32 @@ Deliverable:
 One-page final evidence summary answering the north-star question.
 ```
 
+## Management Console Embed
+
+The `apicenter-management` `/data-pipeline` page can embed the approved Power BI
+north-star report after the report is connected to governed Gold or
+`materialized_platform.*` outputs.
+
+Required management environment variables:
+
+```text
+POWERBI_NORTH_STAR_ENABLED=true
+POWERBI_NORTH_STAR_REPORT_ID=<approved-report-id>
+POWERBI_NORTH_STAR_EMBED_URL=<https-powerbi-report-embed-url>
+```
+
+The embedded report must have these pages or equivalent visual groups:
+
+| View | Question answered | Required source |
+| --- | --- | --- |
+| Traceability | Who called what and what event was produced? | Gold or materialized platform health and gateway outputs |
+| Governance | Was it allowed, denied, invalid, or flagged? | Gold quality, gateway decision, and decision signal outputs |
+| Export | Did the event land and curate from raw through Gold? | Pipeline-health Gold/materialized output |
+| Cost | Which refreshes or queries are expensive? | Athena cost Gold/materialized output |
+| Supporting detail | Which tribe, service, event type, and date need review? | Approved Gold or Common Silver detail with bounded partitions |
+
+Do not embed a report that reads Raw S3 or broad unbounded Athena views.
+
 ## Suggested Team Split
 
 All four members have the same AWS access. The work can be split by outcome:
