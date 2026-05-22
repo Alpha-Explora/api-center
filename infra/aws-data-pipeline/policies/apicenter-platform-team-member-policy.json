@@ -154,6 +154,22 @@
       ]
     },
     {
+      "Sid": "ReadAccountPasswordPolicy",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetAccountPasswordPolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ChangeOwnConsolePassword",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ChangePassword"
+      ],
+      "Resource": "arn:aws:iam::688717565427:user/${aws:username}"
+    },
+    {
       "Sid": "DenyDangerousDayToDayMutations",
       "Effect": "Deny",
       "Action": [

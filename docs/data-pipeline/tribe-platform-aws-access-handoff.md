@@ -44,6 +44,7 @@ region: ap-southeast-2
 This role lets you:
 
 - open Athena;
+- change your own AWS console password after first login;
 - query APICenter platform validation, management, and tribe workgroups;
 - inspect Glue catalog metadata for the APICenter pipeline;
 - read raw S3 topic folders for validation;
@@ -55,6 +56,7 @@ This role lets you:
 This role does not let you:
 
 - create IAM users, groups, or policies;
+- reset another person's password;
 - create or update Athena workgroups;
 - create or update Glue tables/databases;
 - change S3 bucket policies, lifecycle rules, or encryption;
@@ -273,3 +275,8 @@ api-center/docs/data-pipeline/silver-gold-ownership-runbook.md
 If login fails, you cannot change your password, or Athena says access is denied,
 send the exact error message and the workgroup/query you were using to the
 platform owner.
+
+Password changes also require the AWS account password policy to allow users to
+change their own password. Platform administrators should keep
+`AllowUsersToChangePassword` enabled on account `688717565427` when issuing
+temporary console passwords.
