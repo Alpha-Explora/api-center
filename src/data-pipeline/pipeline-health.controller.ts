@@ -12,6 +12,7 @@ import { AuthenticatedRequest } from "../types";
 import {
   parsePipelineHealthEnvironment,
   parsePipelinePartitionDate,
+  parsePipelineWindowDays,
 } from "./pipeline-health.dto";
 import { PipelineGovernanceService } from "./pipeline-governance.service";
 import { PipelineHealthService } from "./pipeline-health.service";
@@ -57,19 +58,22 @@ export class PipelineHealthController {
     @Query("year") year: string | undefined,
     @Query("month") month: string | undefined,
     @Query("day") day: string | undefined,
+    @Query("windowDays") windowDaysParam: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const environment = parsePipelineHealthEnvironment(environmentParam);
     const partition = parsePipelinePartitionDate(year, month, day);
+    const windowDays = parsePipelineWindowDays(windowDaysParam);
     const data = await this.pipelineGovernance.listQuality(
       environment,
       partition,
+      windowDays,
     );
 
     return {
       success: true,
       data,
-      meta: this.buildGovernanceMeta(environment, req, partition),
+      meta: this.buildGovernanceMeta(environment, req, partition, windowDays),
     };
   }
 
@@ -79,19 +83,22 @@ export class PipelineHealthController {
     @Query("year") year: string | undefined,
     @Query("month") month: string | undefined,
     @Query("day") day: string | undefined,
+    @Query("windowDays") windowDaysParam: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const environment = parsePipelineHealthEnvironment(environmentParam);
     const partition = parsePipelinePartitionDate(year, month, day);
+    const windowDays = parsePipelineWindowDays(windowDaysParam);
     const data = await this.pipelineGovernance.listSharedServiceUsage(
       environment,
       partition,
+      windowDays,
     );
 
     return {
       success: true,
       data,
-      meta: this.buildGovernanceMeta(environment, req, partition),
+      meta: this.buildGovernanceMeta(environment, req, partition, windowDays),
     };
   }
 
@@ -101,19 +108,22 @@ export class PipelineHealthController {
     @Query("year") year: string | undefined,
     @Query("month") month: string | undefined,
     @Query("day") day: string | undefined,
+    @Query("windowDays") windowDaysParam: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const environment = parsePipelineHealthEnvironment(environmentParam);
     const partition = parsePipelinePartitionDate(year, month, day);
+    const windowDays = parsePipelineWindowDays(windowDaysParam);
     const data = await this.pipelineGovernance.listGatewayDecisions(
       environment,
       partition,
+      windowDays,
     );
 
     return {
       success: true,
       data,
-      meta: this.buildGovernanceMeta(environment, req, partition),
+      meta: this.buildGovernanceMeta(environment, req, partition, windowDays),
     };
   }
 
@@ -123,16 +133,22 @@ export class PipelineHealthController {
     @Query("year") year: string | undefined,
     @Query("month") month: string | undefined,
     @Query("day") day: string | undefined,
+    @Query("windowDays") windowDaysParam: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const environment = parsePipelineHealthEnvironment(environmentParam);
     const partition = parsePipelinePartitionDate(year, month, day);
-    const data = await this.pipelineGovernance.listCost(environment, partition);
+    const windowDays = parsePipelineWindowDays(windowDaysParam);
+    const data = await this.pipelineGovernance.listCost(
+      environment,
+      partition,
+      windowDays,
+    );
 
     return {
       success: true,
       data,
-      meta: this.buildGovernanceMeta(environment, req, partition),
+      meta: this.buildGovernanceMeta(environment, req, partition, windowDays),
     };
   }
 
@@ -175,10 +191,12 @@ export class PipelineHealthController {
     environment: ReturnType<typeof parsePipelineHealthEnvironment>,
     req: AuthenticatedRequest,
     partition: ReturnType<typeof parsePipelinePartitionDate>,
+    windowDays: ReturnType<typeof parsePipelineWindowDays>,
   ) {
     return {
       environment,
       partition,
+      windowDays,
       source: this.pipelineGovernance.getResponseSource(),
       timestamp: new Date().toISOString(),
       correlationId: req.correlationId,

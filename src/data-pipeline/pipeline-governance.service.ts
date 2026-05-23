@@ -59,11 +59,12 @@ export class PipelineGovernanceService {
   async listQuality(
     environment: PipelineHealthEnvironment,
     partitionDate?: PipelinePartitionDate,
+    windowDays?: number,
   ): Promise<PipelineQualityRow[]> {
     const rows = await this.listRows(
       environment,
       "qualityRows",
-      this.buildQualityQuery(environment, partitionDate),
+      this.buildQualityQuery(environment, partitionDate, windowDays),
     );
     return rows.map((row) => this.normalizeQualityRow(row));
   }
@@ -71,11 +72,12 @@ export class PipelineGovernanceService {
   async listSharedServiceUsage(
     environment: PipelineHealthEnvironment,
     partitionDate?: PipelinePartitionDate,
+    windowDays?: number,
   ): Promise<PipelineSharedServiceUsageRow[]> {
     const rows = await this.listRows(
       environment,
       "sharedServiceUsageRows",
-      this.buildSharedServiceUsageQuery(environment, partitionDate),
+      this.buildSharedServiceUsageQuery(environment, partitionDate, windowDays),
     );
     return rows.map((row) => this.normalizeSharedServiceUsageRow(row));
   }
@@ -83,11 +85,12 @@ export class PipelineGovernanceService {
   async listGatewayDecisions(
     environment: PipelineHealthEnvironment,
     partitionDate?: PipelinePartitionDate,
+    windowDays?: number,
   ): Promise<PipelineGatewayDecisionRow[]> {
     const rows = await this.listRows(
       environment,
       "gatewayDecisionRows",
-      this.buildGatewayDecisionQuery(environment, partitionDate),
+      this.buildGatewayDecisionQuery(environment, partitionDate, windowDays),
     );
     return rows.map((row) => this.normalizeGatewayDecisionRow(row));
   }
@@ -95,11 +98,12 @@ export class PipelineGovernanceService {
   async listCost(
     environment: PipelineHealthEnvironment,
     partitionDate?: PipelinePartitionDate,
+    windowDays?: number,
   ): Promise<PipelineAthenaCostRow[]> {
     const rows = await this.listRows(
       environment,
       "costRows",
-      this.buildCostQuery(environment, partitionDate),
+      this.buildCostQuery(environment, partitionDate, windowDays),
     );
     return rows.map((row) => this.normalizeCostRow(row));
   }
@@ -200,6 +204,7 @@ export class PipelineGovernanceService {
   private buildQualityQuery(
     environment: PipelineHealthEnvironment,
     partitionDate: PipelinePartitionDate | undefined,
+    windowDays: number | undefined,
   ): string {
     const partition = this.resolvePartitionDate(partitionDate);
     return `
@@ -220,14 +225,16 @@ WHERE environment = '${environment}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
+  ${this.buildEventDayWindowPredicate(partition, windowDays)}
 ORDER BY quality_error_count DESC, tribe_id ASC, source_service_id ASC, event_type ASC
-LIMIT ${this.resolveQueryLimit()}
+LIMIT ${this.resolveQueryLimit(windowDays)}
 `.trim();
   }
 
   private buildSharedServiceUsageQuery(
     environment: PipelineHealthEnvironment,
     partitionDate: PipelinePartitionDate | undefined,
+    windowDays: number | undefined,
   ): string {
     const partition = this.resolvePartitionDate(partitionDate);
     return `
@@ -248,14 +255,16 @@ WHERE environment = '${environment}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
+  ${this.buildEventDayWindowPredicate(partition, windowDays)}
 ORDER BY event_count DESC, tribe_id ASC, shared_service_id ASC
-LIMIT ${this.resolveQueryLimit()}
+LIMIT ${this.resolveQueryLimit(windowDays)}
 `.trim();
   }
 
   private buildGatewayDecisionQuery(
     environment: PipelineHealthEnvironment,
     partitionDate: PipelinePartitionDate | undefined,
+    windowDays: number | undefined,
   ): string {
     const partition = this.resolvePartitionDate(partitionDate);
     return `
@@ -278,14 +287,16 @@ WHERE environment = '${environment}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
+  ${this.buildEventDayWindowPredicate(partition, windowDays)}
 ORDER BY denied_count DESC, decision_count DESC, tribe_id ASC, source_service_id ASC
-LIMIT ${this.resolveQueryLimit()}
+LIMIT ${this.resolveQueryLimit(windowDays)}
 `.trim();
   }
 
   private buildCostQuery(
     environment: PipelineHealthEnvironment,
     partitionDate: PipelinePartitionDate | undefined,
+    windowDays: number | undefined,
   ): string {
     const partition = this.resolvePartitionDate(partitionDate);
     return `
@@ -305,9 +316,23 @@ WHERE environment = '${environment}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
+  ${this.buildEventDayWindowPredicate(partition, windowDays)}
 ORDER BY bytes_scanned DESC, workgroup ASC, result_purpose ASC
-LIMIT ${this.resolveQueryLimit()}
+LIMIT ${this.resolveQueryLimit(windowDays)}
 `.trim();
+  }
+
+  private buildEventDayWindowPredicate(
+    partition: PipelinePartitionDate,
+    windowDays: number | undefined,
+  ): string {
+    if (!windowDays || windowDays <= 1) return "";
+    const endDate = `${partition.year}-${partition.month}-${partition.day}`;
+    return [
+      "AND event_day BETWEEN",
+      `date_add('day', -${windowDays - 1}, DATE '${endDate}')`,
+      `AND DATE '${endDate}'`,
+    ].join(" ");
   }
 
   private resolveSource(): PipelineGovernanceSource {
@@ -335,10 +360,21 @@ LIMIT ${this.resolveQueryLimit()}
     );
   }
 
-  private resolveQueryLimit(): number {
-    const value =
+  private resolveQueryLimit(windowDays?: number): number {
+    const configured =
       this.options.queryLimit ??
-      Number.parseInt(process.env.PIPELINE_GOVERNANCE_QUERY_LIMIT ?? "100", 10);
+      (process.env.PIPELINE_GOVERNANCE_QUERY_LIMIT
+        ? Number.parseInt(process.env.PIPELINE_GOVERNANCE_QUERY_LIMIT, 10)
+        : undefined);
+    if (
+      typeof configured === "number" &&
+      Number.isFinite(configured) &&
+      configured > 0
+    ) {
+      return configured;
+    }
+
+    const value = windowDays && windowDays > 1 ? 500 : 100;
     return Number.isFinite(value) && value > 0 ? value : 100;
   }
 
