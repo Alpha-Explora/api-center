@@ -178,6 +178,37 @@ describe("PipelineGovernanceService", () => {
       }),
     );
   });
+
+  it("bounds Athena governance reads to an event-day window when requested", async () => {
+    const athenaRunner = {
+      run: jest.fn(async () => ({
+        queryExecutionId: "query-window",
+        bytesScanned: 1,
+        rows: [],
+      })),
+    };
+    const service = new PipelineGovernanceService({
+      source: "athena",
+      athenaRunner,
+      year: "2026",
+      month: "05",
+      day: "23",
+    });
+
+    await service.listGatewayDecisions(
+      "test",
+      { year: "2026", month: "05", day: "23" },
+      30,
+    );
+
+    expect(athenaRunner.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining(
+          "event_day BETWEEN date_add('day', -29, DATE '2026-05-23') AND DATE '2026-05-23'",
+        ),
+      }),
+    );
+  });
 });
 
 async function writeFixtureFile() {

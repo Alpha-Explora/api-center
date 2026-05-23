@@ -163,4 +163,30 @@ describe("DecisionSignalsService", () => {
       }
     }
   });
+
+  it("bounds Athena decision signal reads to an evidence window when requested", async () => {
+    const athenaRunner = {
+      run: jest.fn().mockResolvedValue({
+        queryExecutionId: "query-window",
+        rows: [],
+      }),
+    };
+    const service = new DecisionSignalsService({
+      source: "athena",
+      athenaRunner,
+      year: "2026",
+      month: "05",
+      day: "23",
+    });
+
+    await service.listSignals(
+      "test",
+      { year: "2026", month: "05", day: "23" },
+      30,
+    );
+
+    expect(athenaRunner.run.mock.calls[0][0].query).toContain(
+      "CAST(evidence_window_start AS date) BETWEEN date_add('day', -29, DATE '2026-05-23') AND DATE '2026-05-23'",
+    );
+  });
 });

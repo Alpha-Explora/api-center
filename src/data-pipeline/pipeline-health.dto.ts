@@ -170,6 +170,21 @@ export function parsePipelinePartitionDate(
   return normalized;
 }
 
+export function parsePipelineWindowDays(
+  value: string | undefined,
+): number | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || String(parsed) !== value.trim()) {
+    throw new ValidationError("windowDays must be a whole number");
+  }
+  if (parsed < 1 || parsed > 90) {
+    throw new ValidationError("windowDays must be between 1 and 90");
+  }
+  return parsed;
+}
+
 function normalizeDatePart(
   value: string | undefined,
   fieldName: string,

@@ -53,10 +53,11 @@ export class DecisionSignalsService {
   async listSignals(
     environment: PipelineHealthEnvironment,
     partitionDate?: PipelinePartitionDate,
+    windowDays?: number,
   ): Promise<PipelineDecisionSignalRow[]> {
     const rows =
       this.resolveSource() === "athena"
-        ? await this.readAthenaRows(environment, partitionDate)
+        ? await this.readAthenaRows(environment, partitionDate, windowDays)
         : await this.readFixtureRows();
 
     return rows
@@ -90,11 +91,12 @@ export class DecisionSignalsService {
   private async readAthenaRows(
     environment: PipelineHealthEnvironment,
     partitionDate: PipelinePartitionDate | undefined,
+    windowDays: number | undefined,
   ): Promise<RawDecisionSignalRow[]> {
     const database = this.resolveAthenaDatabase();
     const workgroup = this.resolveAthenaWorkgroup(environment);
     const result = await this.resolveAthenaRunner().run({
-      query: this.buildAthenaQuery(environment, partitionDate),
+      query: this.buildAthenaQuery(environment, partitionDate, windowDays),
       database,
       workgroup,
     });
@@ -136,6 +138,7 @@ export class DecisionSignalsService {
   private buildAthenaQuery(
     environment: PipelineHealthEnvironment,
     partitionDate: PipelinePartitionDate | undefined,
+    windowDays: number | undefined,
   ): string {
     const partition = this.resolvePartitionDate(partitionDate);
     return `
@@ -160,13 +163,27 @@ WHERE environment = '${environment}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
+  ${this.buildEvidenceWindowPredicate(partition, windowDays)}
 ORDER BY
   CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
   created_at DESC,
   tribe_id ASC,
   signal_type ASC
-LIMIT ${this.resolveQueryLimit()}
+LIMIT ${this.resolveQueryLimit(windowDays)}
 `.trim();
+  }
+
+  private buildEvidenceWindowPredicate(
+    partition: PipelinePartitionDate,
+    windowDays: number | undefined,
+  ): string {
+    if (!windowDays || windowDays <= 1) return "";
+    const endDate = `${partition.year}-${partition.month}-${partition.day}`;
+    return [
+      "AND CAST(evidence_window_start AS date) BETWEEN",
+      `date_add('day', -${windowDays - 1}, DATE '${endDate}')`,
+      `AND DATE '${endDate}'`,
+    ].join(" ");
   }
 
   private resolveSource(): DecisionSignalsSource {
@@ -200,13 +217,21 @@ LIMIT ${this.resolveQueryLimit()}
     );
   }
 
-  private resolveQueryLimit(): number {
-    const value =
+  private resolveQueryLimit(windowDays?: number): number {
+    const configured =
       this.options.queryLimit ??
-      Number.parseInt(
-        process.env.PIPELINE_DECISION_SIGNALS_QUERY_LIMIT ?? "100",
-        10,
-      );
+      (process.env.PIPELINE_DECISION_SIGNALS_QUERY_LIMIT
+        ? Number.parseInt(process.env.PIPELINE_DECISION_SIGNALS_QUERY_LIMIT, 10)
+        : undefined);
+    if (
+      typeof configured === "number" &&
+      Number.isFinite(configured) &&
+      configured > 0
+    ) {
+      return configured;
+    }
+
+    const value = windowDays && windowDays > 1 ? 500 : 100;
     return Number.isFinite(value) && value > 0 ? value : 100;
   }
 

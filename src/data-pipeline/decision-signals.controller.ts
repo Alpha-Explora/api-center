@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "../types";
 import {
   parsePipelineHealthEnvironment,
   parsePipelinePartitionDate,
+  parsePipelineWindowDays,
 } from "./pipeline-health.dto";
 import { DecisionSignalsService } from "./decision-signals.service";
 
@@ -18,11 +19,17 @@ export class DecisionSignalsController {
     @Query("year") year: string | undefined,
     @Query("month") month: string | undefined,
     @Query("day") day: string | undefined,
+    @Query("windowDays") windowDaysParam: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const environment = parsePipelineHealthEnvironment(environmentParam);
     const partition = parsePipelinePartitionDate(year, month, day);
-    const data = await this.decisionSignals.listSignals(environment, partition);
+    const windowDays = parsePipelineWindowDays(windowDaysParam);
+    const data = await this.decisionSignals.listSignals(
+      environment,
+      partition,
+      windowDays,
+    );
 
     return {
       success: true,
@@ -30,6 +37,7 @@ export class DecisionSignalsController {
       meta: {
         environment,
         partition,
+        windowDays,
         source: this.decisionSignals.getResponseSource(),
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
