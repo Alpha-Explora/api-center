@@ -45,10 +45,10 @@
 | Field | Value |
 |---|---|
 | Namespace | `api-center-test` |
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-ops-094a6e9-20260522` |
-| Built from | local workspace based on `094a6e9` |
-| Last deployed | `2026-05-22` |
-| Validation | GKE rollout succeeded; `api-center-test` database migration `20260522021500_add_topic_onboarding_states` applied; post-deploy smoke returned readiness `ok`, pipeline health count=1, decision-signals count=3, both with `meta.source=athena-proxy`; management test alias returned `missingEnvCount=0`; topic onboarding state route returned expected HTTP 404 for a non-existent synthetic test topic. |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:apicenter-platform-window-306ef8a-20260523105623` |
+| Built from | local deploy branch commit `306ef8a` |
+| Last deployed | `2026-05-23` |
+| Validation | GKE rollout succeeded; readiness returned `ok`; `windowDays=30` test smoke returned HTTP 200 with `meta.source=athena-proxy` and `meta.windowDays=30` for gateway decisions, shared-service usage, Athena cost, and decision signals. |
 
 ---
 
@@ -634,3 +634,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-22 | 9884dad4-96d9-4cd1-b669-43a780daf797 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix-d1eb7e6-20260522001734`; live smoke confirmed decision-signals stayed Athena-backed and false-positive signal feedback creates/lists with `status=closed` | Close Phase 11 review findings for signal-specific false-positive actions and evidence/status visibility |
 | 2026-05-22 | 9a6b5a94-ac35-4efc-aff3-d2a0a7a3cc84 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353`; live smoke confirmed valid false-positive signal feedback succeeds and invalid false-positive event feedback is rejected with HTTP 400 | Enforce the signal-only false-positive contract at API and database boundaries |
 | 2026-05-22 | test-rollout-d1eb7e6 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` to namespace `api-center-test`; added non-secret Athena data-pipeline ConfigMap settings, created dedicated test AWS runtime principal `api-center-athena-reader-gke-test`, applied feedback table migrations to the test DB, and verified test routes through the deployed management app | Bring the test API Center lane up to the same Phase 11 data-pipeline capability used by the management test deployment |
+| 2026-05-23 | 306ef8a | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:apicenter-platform-window-306ef8a-20260523105623` to namespace `api-center-test`; live `windowDays=30` smoke returned Athena-backed rows for gateway decisions, shared-service usage, Athena cost, and decision signals | Roll out APICenter platform-only 30-day governance windows for synthetic test history |
