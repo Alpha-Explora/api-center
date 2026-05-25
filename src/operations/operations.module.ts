@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ApprovalsModule } from "../approvals/approvals.module";
 import { DataPipelineModule } from "../data-pipeline/data-pipeline.module";
+import { DatabaseModule } from "../database/database.module";
 import { EntitlementsModule } from "../entitlements/entitlements.module";
 import { QuotasModule } from "../quotas/quotas.module";
 import { RegistryModule } from "../registry/registry.module";
@@ -19,6 +20,7 @@ import { RuntimeDependencyMapService } from "./runtime-dependency-map.service";
   imports: [
     RegistryModule,
     QuotasModule,
+    DatabaseModule,
     EntitlementsModule,
     ApprovalsModule,
     DataPipelineModule,
