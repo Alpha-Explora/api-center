@@ -33,6 +33,7 @@ import {
   BadGatewayError,
   ServiceUnavailableError,
 } from "../shared/errors";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import { AuthenticatedRequest, ServiceType } from "../types";
 
 /** Default hard timeout for outgoing proxy requests (ms). */
@@ -137,8 +138,8 @@ export interface ProxyHandlerDeps {
   gatewayTraffic?: GatewayTrafficService;
   sharedServiceUsage?: SharedServiceUsageService;
   sharedServiceEvents?: SharedServiceEventPublisher;
-  quotaEnforcer?: TribeQuotaEnforcerService;
-  policyEngine?: PolicyEngineService;
+  quotaEnforcer: TribeQuotaEnforcerService;
+  policyEngine: PolicyEngineService;
 }
 
 export interface ProxyOptions {
@@ -324,7 +325,11 @@ export class ProxyHandler {
     }
 
     // ── 3. Circuit-breaker gate ────────────────────────────────────────────
-    await this.deps.quotaEnforcer?.check({
+    const quotaEnforcer = requireGovernanceDependency(
+      this.deps.quotaEnforcer,
+      "TribeQuotaEnforcerService",
+    );
+    await quotaEnforcer.check({
       ownerTribeId: tribeId,
       scope: this.opts.namespace as TribeQuotaScope,
       targetServiceId,
@@ -663,9 +668,13 @@ export class ProxyHandler {
     req: AuthenticatedRequest,
     res: Response,
   ) {
-    if (!this.deps.policyEngine || !targetEntry) return;
+    if (!targetEntry) return;
+    const policyEngine = requireGovernanceDependency(
+      this.deps.policyEngine,
+      "PolicyEngineService",
+    );
 
-    const explanations = this.deps.policyEngine.evaluate({
+    const explanations = policyEngine.evaluate({
       targetEnvironment: this.resolveTargetEnvironment(req),
       serviceType: targetEntry.serviceType ?? "tribe",
       serviceTier: targetEntry.serviceTier,
@@ -673,7 +682,7 @@ export class ProxyHandler {
       sunsetDate: targetEntry.sunsetDate,
       providerCostSensitive: this.isProviderCostSensitive(targetEntry),
       hasActivePlan: true,
-      hasActiveQuota: Boolean(this.deps.quotaEnforcer),
+      hasActiveQuota: true,
       hasTargetQuota: false,
     });
     const warnings = explanations.filter(

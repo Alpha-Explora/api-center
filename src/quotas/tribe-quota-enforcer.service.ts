@@ -1,6 +1,7 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
 import Redis from "ioredis";
 import { ConfigService } from "../config/config.service";
+import { TribeCostService } from "../costs/tribe-cost.service";
 import { PrismaService } from "../database/prisma.service";
 import { QuotaExceededError } from "../shared/errors";
 import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
@@ -55,6 +56,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     private readonly policies: TribeQuotaPolicyService,
     prisma: PrismaService,
     private readonly config: ConfigService,
+    @Optional() private readonly costs?: TribeCostService,
   ) {
     this.quotaPrisma = prisma as unknown as QuotaDecisionPrisma;
   }
@@ -117,6 +119,24 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
         },
       });
     }
+  }
+
+  estimateUsageChargeback(input: {
+    requestCount: number;
+    maxRequests: number;
+    scope: TribeQuotaScope | string;
+  }) {
+    if (!this.costs || input.maxRequests <= 0) return undefined;
+    const usagePercent = input.requestCount / input.maxRequests;
+    if (usagePercent < 0.8) return undefined;
+
+    return this.costs.estimateMonthlyChargeback({
+      apiCalls:
+        input.scope === "kafka_publish" ? 0 : Math.max(0, input.requestCount),
+      kafkaPublishes:
+        input.scope === "kafka_publish" ? Math.max(0, input.requestCount) : 0,
+      gbScanned: 0,
+    });
   }
 
   private async incrementCounter(

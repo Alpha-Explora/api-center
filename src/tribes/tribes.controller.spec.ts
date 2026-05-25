@@ -18,6 +18,8 @@ describe("TribesController", () => {
   const mockMetrics = {} as MetricsService;
   const mockAuditEvents = {} as AuditEventsService;
   const mockGatewayTraffic = {} as GatewayTrafficService;
+  const mockQuotaEnforcer = { check: jest.fn().mockResolvedValue(undefined) };
+  const mockPolicyEngine = { evaluate: jest.fn().mockReturnValue([]) };
 
   let controller: TribesController;
   let handler: {
@@ -35,6 +37,8 @@ describe("TribesController", () => {
       mockMetrics,
       mockAuditEvents,
       mockGatewayTraffic,
+      mockQuotaEnforcer as any,
+      mockPolicyEngine as any,
     );
 
     handler = {

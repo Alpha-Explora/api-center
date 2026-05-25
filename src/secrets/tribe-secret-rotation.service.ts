@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import crypto from "node:crypto";
+import { AuditEventsService } from "../analytics/audit-events.service";
 
 export type TribeSecretRotationState =
   | "active_current"
@@ -65,12 +66,14 @@ const DEFAULT_ROTATION_STATE: TribeSecretRotationState = "active_current";
 
 @Injectable()
 export class TribeSecretRotationService {
+  constructor(@Optional() private readonly auditEvents?: AuditEventsService) {}
+
   startRotation(input: StartRotationInput): StartRotationResult {
     const now = (input.now ?? new Date()).toISOString();
     const plaintextSecret = this.generatePlaintextSecret();
     const nextSecretHashSha256 = this.hashPlaintextSecret(plaintextSecret);
 
-    return {
+    const result: StartRotationResult = {
       plaintextSecret,
       payload: {
         serviceId: input.serviceId,
@@ -88,6 +91,8 @@ export class TribeSecretRotationService {
         ],
       },
     };
+    this.recordAudit("secret.rotation_started", input.serviceId, input.actor);
+    return result;
   }
 
   markNewSecretVerified(
@@ -99,7 +104,7 @@ export class TribeSecretRotationService {
     }
 
     const now = (input.now ?? new Date()).toISOString();
-    return {
+    const result: TribeSecretRotationPayload = {
       ...payload,
       rotationState: "old_pending_revoke",
       verifiedAt: now,
@@ -112,6 +117,12 @@ export class TribeSecretRotationService {
         },
       ],
     };
+    this.recordAudit(
+      "secret.new_secret_verified",
+      payload.serviceId,
+      input.actor,
+    );
+    return result;
   }
 
   revokeOldSecret(
@@ -124,7 +135,7 @@ export class TribeSecretRotationService {
 
     const now = (input.now ?? new Date()).toISOString();
     const { nextSecretHashSha256, ...payloadWithoutNext } = payload;
-    return {
+    const result: TribeSecretRotationPayload = {
       ...payloadWithoutNext,
       secretHashSha256: this.normalizeHash(nextSecretHashSha256),
       previousSecretHashSha256: this.normalizeHash(payload.secretHashSha256),
@@ -139,6 +150,12 @@ export class TribeSecretRotationService {
         },
       ],
     };
+    this.recordAudit(
+      "secret.old_secret_revoked",
+      payload.serviceId,
+      input.actor,
+    );
+    return result;
   }
 
   validatePlaintextSecret(
@@ -217,9 +234,7 @@ export class TribeSecretRotationService {
     return hash.trim().toLowerCase();
   }
 
-  private resolveRotationState(
-    value: unknown,
-  ): TribeSecretRotationState {
+  private resolveRotationState(value: unknown): TribeSecretRotationState {
     return value === "active_dual_valid" ||
       value === "old_pending_revoke" ||
       value === "old_revoked" ||
@@ -237,5 +252,18 @@ export class TribeSecretRotationService {
       Buffer.from(left, "utf8"),
       Buffer.from(right, "utf8"),
     );
+  }
+
+  private recordAudit(type: string, serviceId: string, actor: string): void {
+    this.auditEvents
+      ?.record({
+        type,
+        actionFamily: "secret",
+        actor,
+        serviceId,
+        severity: "info",
+        message: `${type} for ${serviceId}`,
+      })
+      .catch(() => undefined);
   }
 }

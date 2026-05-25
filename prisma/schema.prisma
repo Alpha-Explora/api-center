@@ -46,20 +46,20 @@ model Service {
   registeredAt         DateTime  @default(now()) @map("registered_at") @db.Timestamptz(6)
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization         Organization            @relation(fields: [organizationId], references: [id])
-  routes               ServiceRoute[]
-  scopes               ServiceScope[]
-  dependencies         ServiceDependency[]     @relation("ServiceDependencies")
-  dependedOnBy         ServiceDependency[]     @relation("DependsOnService")
-  lifecycleEvents      ServiceLifecycleEvent[]
-  tribeSecretRef       TribeSecretRef?
-  confluentTopics      ConfluentTopic[]
-  provisioningJobs     ProvisioningJob[]
-  healthSnapshots      HealthSnapshot[]
-  smokeTestRuns        SmokeTestRun[]          @relation("SmokeTestService")
-  tribeSmokeTestRuns   SmokeTestRun[]          @relation("SmokeTestTribe")
-  usageAsConsumer      UsageRollup[]           @relation("UsageConsumer")
-  usageAsTarget        UsageRollup[]           @relation("UsageTarget")
+  organization       Organization            @relation(fields: [organizationId], references: [id])
+  routes             ServiceRoute[]
+  scopes             ServiceScope[]
+  dependencies       ServiceDependency[]     @relation("ServiceDependencies")
+  dependedOnBy       ServiceDependency[]     @relation("DependsOnService")
+  lifecycleEvents    ServiceLifecycleEvent[]
+  tribeSecretRef     TribeSecretRef?
+  confluentTopics    ConfluentTopic[]
+  provisioningJobs   ProvisioningJob[]
+  healthSnapshots    HealthSnapshot[]
+  smokeTestRuns      SmokeTestRun[]          @relation("SmokeTestService")
+  tribeSmokeTestRuns SmokeTestRun[]          @relation("SmokeTestTribe")
+  usageAsConsumer    UsageRollup[]           @relation("UsageConsumer")
+  usageAsTarget      UsageRollup[]           @relation("UsageTarget")
 
   @@unique([organizationId, serviceId], name: "organization_service_id")
   @@index([serviceType, status], name: "services_type_status_idx")
@@ -274,16 +274,16 @@ model TopicOnboardingStateRecord {
 }
 
 model AuditEvent {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  correlationId  String?  @map("correlation_id")
-  actorType      String   @default("system") @map("actor_type")
-  actorId        String?  @map("actor_id")
-  action         String
-  resourceType   String   @map("resource_type")
-  resourceId     String?  @map("resource_id")
-  outcome        String   @default("succeeded")
-  metadata       Json     @default("{}")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correlationId String?  @map("correlation_id")
+  actorType     String   @default("system") @map("actor_type")
+  actorId       String?  @map("actor_id")
+  action        String
+  resourceType  String   @map("resource_type")
+  resourceId    String?  @map("resource_id")
+  outcome       String   @default("succeeded")
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([createdAt], name: "audit_events_created_idx")
   @@index([resourceType, resourceId, createdAt], name: "audit_events_resource_idx")
@@ -308,17 +308,17 @@ model HealthSnapshot {
 }
 
 model SmokeTestRun {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId          String?  @map("service_id") @db.Uuid
-  tribeServiceId     String?  @map("tribe_service_id") @db.Uuid
-  testType           String   @map("test_type")
-  providerImpacting  Boolean  @default(false) @map("provider_impacting")
-  status             String
-  statusCode         Int?     @map("status_code")
-  latencyMs          Int?     @map("latency_ms")
-  responsePreview    String?  @map("response_preview")
-  errorMessage       String?  @map("error_message")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId         String?  @map("service_id") @db.Uuid
+  tribeServiceId    String?  @map("tribe_service_id") @db.Uuid
+  testType          String   @map("test_type")
+  providerImpacting Boolean  @default(false) @map("provider_impacting")
+  status            String
+  statusCode        Int?     @map("status_code")
+  latencyMs         Int?     @map("latency_ms")
+  responsePreview   String?  @map("response_preview")
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   service      Service? @relation("SmokeTestService", fields: [serviceId], references: [id], onDelete: SetNull)
   tribeService Service? @relation("SmokeTestTribe", fields: [tribeServiceId], references: [id], onDelete: SetNull)
@@ -328,19 +328,19 @@ model SmokeTestRun {
 }
 
 model UsageRollup {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  windowStart       DateTime  @map("window_start") @db.Timestamptz(6)
-  windowEnd         DateTime  @map("window_end") @db.Timestamptz(6)
-  consumerServiceId String?   @map("consumer_service_id") @db.Uuid
-  targetServiceId   String?   @map("target_service_id") @db.Uuid
-  routeFamily       String    @map("route_family")
-  requestCount      Int       @default(0) @map("request_count")
-  successCount      Int       @default(0) @map("success_count")
-  errorCount        Int       @default(0) @map("error_count")
-  avgLatencyMs      Decimal?  @map("avg_latency_ms") @db.Decimal(10, 2)
-  p95LatencyMs      Int?      @map("p95_latency_ms")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  windowStart       DateTime @map("window_start") @db.Timestamptz(6)
+  windowEnd         DateTime @map("window_end") @db.Timestamptz(6)
+  consumerServiceId String?  @map("consumer_service_id") @db.Uuid
+  targetServiceId   String?  @map("target_service_id") @db.Uuid
+  routeFamily       String   @map("route_family")
+  requestCount      Int      @default(0) @map("request_count")
+  successCount      Int      @default(0) @map("success_count")
+  errorCount        Int      @default(0) @map("error_count")
+  avgLatencyMs      Decimal? @map("avg_latency_ms") @db.Decimal(10, 2)
+  p95LatencyMs      Int?     @map("p95_latency_ms")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   consumerService Service? @relation("UsageConsumer", fields: [consumerServiceId], references: [id], onDelete: SetNull)
   targetService   Service? @relation("UsageTarget", fields: [targetServiceId], references: [id], onDelete: SetNull)

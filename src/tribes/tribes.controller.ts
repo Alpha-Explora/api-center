@@ -48,8 +48,8 @@ export class TribesController implements OnModuleDestroy {
     metrics: MetricsService,
     auditEvents: AuditEventsService,
     gatewayTraffic: GatewayTrafficService,
-    quotaEnforcer?: TribeQuotaEnforcerService,
-    policyEngine?: PolicyEngineService,
+    quotaEnforcer: TribeQuotaEnforcerService,
+    policyEngine: PolicyEngineService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(

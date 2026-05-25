@@ -35,6 +35,7 @@ import { ServiceManifestDto } from "../shared/dto/service-manifest.dto";
 import { DeprecateServiceDto } from "../shared/dto/deprecate-service.dto";
 import { getExternalRequiredScopes } from "../external/guards/external-policy.guard";
 import { NotFoundError } from "../shared/errors";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import { AuthenticatedRequest, ServiceTier, ServiceType } from "../types";
 
 const PLATFORM_ADMIN_SCOPE = "platform:admin";
@@ -46,7 +47,7 @@ export class RegistryController {
     private readonly registry: RegistryService,
     private readonly logger: LoggerService,
     private readonly auditEvents: AuditEventsService,
-    private readonly approvals?: ApprovalRequestService,
+    private readonly approvals: ApprovalRequestService,
   ) {}
 
   /**
@@ -381,6 +382,10 @@ export class RegistryController {
     targetEnvironment: string;
     targetId: string;
   }) {
-    await this.approvals?.assertApprovedForAction(input);
+    const approvals = requireGovernanceDependency(
+      this.approvals,
+      "ApprovalRequestService",
+    );
+    await approvals.assertApprovedForAction(input);
   }
 }

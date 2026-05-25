@@ -21,6 +21,7 @@ import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { RegistryService } from "../registry/registry.service";
 import { ExternalService } from "../external/external.service";
 import { TokenStoreService } from "../auth/token-store.service";
+import { GovernanceReadinessService } from "./governance-readiness.service";
 
 @Controller("health")
 export class HealthController {
@@ -32,6 +33,7 @@ export class HealthController {
     private readonly tokenStore: TokenStoreService,
     private readonly gatewayTraffic: GatewayTrafficService,
     private readonly auditEvents: AuditEventsService,
+    private readonly governanceReadiness: GovernanceReadinessService,
   ) {}
 
   /**
@@ -55,6 +57,7 @@ export class HealthController {
       () => this.redisCheck(),
       () => this.registryCheck(),
       () => this.circuitBreakerCheck(),
+      () => this.governanceCheck(),
     ]);
   }
 
@@ -129,6 +132,21 @@ export class HealthController {
         })),
       },
     };
+  }
+
+  private async governanceCheck(): Promise<HealthIndicatorResult> {
+    const snapshot = this.governanceReadiness.snapshot({
+      quotaEnforcer: true,
+      policyEngine: true,
+      approvals: true,
+      sdkContractVersion: process.env.APICENTER_SDK_CONTRACT_VERSION ?? "local",
+      imageTag:
+        process.env.K_REVISION ?? process.env.APICENTER_IMAGE_TAG ?? "local",
+    });
+
+    if (snapshot.status !== "up") this.recordReadinessFailure("governance");
+
+    return { governance: snapshot };
   }
 
   private recordReadinessFailure(check: string): void {

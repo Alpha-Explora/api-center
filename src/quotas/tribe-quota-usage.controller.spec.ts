@@ -1,4 +1,5 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
+import { TribeCostService } from "../costs/tribe-cost.service";
 import { PrismaService } from "../database/prisma.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { ValidationError } from "../shared/errors";
@@ -17,6 +18,7 @@ describe("TribeQuotaUsageController", () => {
     jest.clearAllMocks();
     controller = new TribeQuotaUsageController(
       prisma as unknown as PrismaService,
+      new TribeCostService(),
     );
   });
 
@@ -75,6 +77,12 @@ describe("TribeQuotaUsageController", () => {
       maxRequests: 100,
       mode: "observe",
       outcome: "observed_exceeded",
+      estimatedChargeback: {
+        apiCallCost: 0.05,
+        kafkaPublishCost: 0,
+        analyticsScanCost: 0,
+        totalCost: 0.05,
+      },
       correlationId: "corr-decision",
       createdAt: "2026-05-25T00:00:30.000Z",
     });

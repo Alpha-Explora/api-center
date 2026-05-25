@@ -1,4 +1,5 @@
 export type ApprovalActionType =
+  | "quota.increase"
   | "quota.enforce"
   | "secret.rotate"
   | "topic.provision"

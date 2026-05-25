@@ -16,11 +16,13 @@ import { VaultModule } from "../auth/vault.module";
 import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../database/database.module";
 import { TribeSecretRotationService } from "../secrets/tribe-secret-rotation.service";
+import { ApprovalsModule } from "../approvals/approvals.module";
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     VaultModule,
+    ApprovalsModule,
     DatabaseModule,
     forwardRef(() => AuthModule),
   ],

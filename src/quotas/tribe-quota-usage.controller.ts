@@ -1,5 +1,13 @@
-import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Optional,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
+import { TribeCostService } from "../costs/tribe-cost.service";
 import { PrismaService } from "../database/prisma.service";
 import { ValidationError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
@@ -33,7 +41,10 @@ interface QuotaDecisionDelegate {
 export class TribeQuotaUsageController {
   private readonly decisions: QuotaDecisionDelegate;
 
-  constructor(prisma: PrismaService) {
+  constructor(
+    prisma: PrismaService,
+    @Optional() private readonly costs?: TribeCostService,
+  ) {
     this.decisions = (
       prisma as unknown as { tribeApiQuotaDecision: QuotaDecisionDelegate }
     ).tribeApiQuotaDecision;
@@ -70,6 +81,7 @@ export class TribeQuotaUsageController {
         maxRequests: row.maxRequests,
         mode: row.mode,
         outcome: row.outcome,
+        estimatedChargeback: this.estimatedChargeback(row),
         correlationId: row.correlationId ?? null,
         createdAt: this.toIso(row.createdAt),
       })),
@@ -100,5 +112,16 @@ export class TribeQuotaUsageController {
 
   private toIso(value: Date | string): string {
     return value instanceof Date ? value.toISOString() : value;
+  }
+
+  private estimatedChargeback(row: QuotaDecisionRow) {
+    if (!this.costs || row.maxRequests <= 0) return undefined;
+    if (row.requestCount / row.maxRequests < 0.8) return undefined;
+
+    return this.costs.estimateMonthlyChargeback({
+      apiCalls: row.scope === "kafka_publish" ? 0 : row.requestCount,
+      kafkaPublishes: row.scope === "kafka_publish" ? row.requestCount : 0,
+      gbScanned: 0,
+    });
   }
 }

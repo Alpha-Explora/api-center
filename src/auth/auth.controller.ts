@@ -97,11 +97,7 @@ export class AuthController {
       "external:read",
     ];
 
-    const token = await this.auth.issueTribeToken(
-      tribeId,
-      permissions,
-      scopes,
-    );
+    const token = await this.auth.issueTribeToken(tribeId, permissions, scopes);
 
     this.logger.info("Token issued", {
       serviceId: tribeId,

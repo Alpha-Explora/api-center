@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { AuditEventsService } from "../analytics/audit-events.service";
 
 export type EnvironmentPromotionGateId =
   | "health_check"
@@ -43,7 +44,11 @@ export type EnvironmentPromotionDecision = {
 
 @Injectable()
 export class EnvironmentPromotionService {
-  evaluate(evidence: EnvironmentPromotionEvidence): EnvironmentPromotionDecision {
+  constructor(@Optional() private readonly auditEvents?: AuditEventsService) {}
+
+  evaluate(
+    evidence: EnvironmentPromotionEvidence,
+  ): EnvironmentPromotionDecision {
     const gates: EnvironmentPromotionGate[] = [
       {
         id: "health_check",
@@ -52,7 +57,8 @@ export class EnvironmentPromotionService {
         evidence: evidence.healthCheckPassed
           ? "Latest health check passed."
           : "No passing health check evidence.",
-        proposedAction: "Run the service health check from the service detail page.",
+        proposedAction:
+          "Run the service health check from the service detail page.",
         required: true,
       },
       {
@@ -62,7 +68,8 @@ export class EnvironmentPromotionService {
         evidence: evidence.smokeTestPassed
           ? "Smoke test evidence is present."
           : "No passing smoke test evidence.",
-        proposedAction: "Run safe shared-service smoke checks with a tribe token.",
+        proposedAction:
+          "Run safe shared-service smoke checks with a tribe token.",
         required: true,
       },
       {
@@ -83,7 +90,8 @@ export class EnvironmentPromotionService {
         evidence: evidence.quotaPolicyExists
           ? "Active observe or enforce quota policy exists."
           : "No active quota policy exists.",
-        proposedAction: "Create an observe-mode quota policy before live rollout.",
+        proposedAction:
+          "Create an observe-mode quota policy before live rollout.",
         required: true,
       },
       {
@@ -146,10 +154,24 @@ export class EnvironmentPromotionService {
       (gate) => gate.required && !gate.passed,
     ).length;
 
-    return {
+    const decision = {
       canPromote: blockedGateCount === 0,
       blockedGateCount,
       gates,
     };
+    this.auditEvents
+      ?.record({
+        type: "promotion.evaluated",
+        actionFamily: "promotion",
+        actor: "platform",
+        severity: decision.canPromote ? "info" : "warning",
+        message: decision.canPromote
+          ? "Promotion gates passed"
+          : `${blockedGateCount} promotion gate(s) blocked`,
+        payload: { blockedGateCount },
+      })
+      .catch(() => undefined);
+
+    return decision;
   }
 }

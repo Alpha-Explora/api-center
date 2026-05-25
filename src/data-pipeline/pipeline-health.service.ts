@@ -74,7 +74,7 @@ export class PipelineHealthService {
     try {
       const raw = await readFile(filePath, "utf8");
       const parsed = JSON.parse(raw) as { rows?: unknown[] } | unknown[];
-      const rows = Array.isArray(parsed) ? parsed : parsed.rows ?? [];
+      const rows = Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
       return rows.map((row) => this.normalizeRow(this.readRawRow(row)));
     } catch (error) {
       if (isMissingFileError(error)) return [];
@@ -108,7 +108,10 @@ export class PipelineHealthService {
       if (result.outputLocation && raw.athena_result_location === undefined) {
         raw.athena_result_location = result.outputLocation;
       }
-      if (result.bytesScanned !== undefined && raw.bytes_scanned === undefined) {
+      if (
+        result.bytesScanned !== undefined &&
+        raw.bytes_scanned === undefined
+      ) {
         raw.bytes_scanned = String(result.bytesScanned);
       }
       if (raw.last_refreshed_at === undefined) {
@@ -168,7 +171,9 @@ LIMIT ${this.resolveQueryLimit()}
     const source =
       this.options.source ?? process.env.PIPELINE_HEALTH_SOURCE ?? "fixture";
     if (source === "fixture" || source === "athena") return source;
-    throw new ValidationError("PIPELINE_HEALTH_SOURCE must be fixture or athena.");
+    throw new ValidationError(
+      "PIPELINE_HEALTH_SOURCE must be fixture or athena.",
+    );
   }
 
   private resolveAthenaDatabase(): string {
@@ -228,15 +233,23 @@ LIMIT ${this.resolveQueryLimit()}
         row.eventType ?? row.event_type,
         "event_type",
       ),
-      eventDay: this.readRequiredString(row.eventDay ?? row.event_day, "event_day"),
-      eventCount: this.readNumber(row.eventCount ?? row.event_count, "event_count"),
+      eventDay: this.readRequiredString(
+        row.eventDay ?? row.event_day,
+        "event_day",
+      ),
+      eventCount: this.readNumber(
+        row.eventCount ?? row.event_count,
+        "event_count",
+      ),
       latestOccurredAt: this.readOptionalString(
         row.latestOccurredAt ?? row.latest_occurred_at,
       ),
       latestIngestedAt: this.readOptionalString(
         row.latestIngestedAt ?? row.latest_ingested_at,
       ),
-      connectorName: this.readOptionalString(row.connectorName ?? row.connector_name),
+      connectorName: this.readOptionalString(
+        row.connectorName ?? row.connector_name,
+      ),
       connectorState: this.readOptionalString(
         row.connectorState ?? row.connector_state,
       ),
@@ -263,7 +276,9 @@ LIMIT ${this.resolveQueryLimit()}
       athenaResultLocation: this.readOptionalString(
         row.athenaResultLocation ?? row.athena_result_location,
       ),
-      bytesScanned: this.readOptionalNumber(row.bytesScanned ?? row.bytes_scanned),
+      bytesScanned: this.readOptionalNumber(
+        row.bytesScanned ?? row.bytes_scanned,
+      ),
       lastRefreshedAt: this.readOptionalString(
         row.lastRefreshedAt ?? row.last_refreshed_at,
       ),

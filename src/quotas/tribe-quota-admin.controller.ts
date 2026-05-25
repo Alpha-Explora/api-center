@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Optional,
   Param,
   Patch,
   Post,
@@ -13,6 +14,7 @@ import {
 import { ApprovalRequestService } from "../approvals/approval-request.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { ValidationError } from "../shared/errors";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import { AuthenticatedRequest } from "../types";
 import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
 import {
@@ -23,6 +25,7 @@ import {
   TribeQuotaStatus,
   UpdateTribeQuotaPolicyInput,
 } from "./tribe-quota-policy.types";
+import { AuditEventsService } from "../analytics/audit-events.service";
 
 const SCOPES: TribeQuotaScope[] = ["all", "shared", "tribe", "kafka_publish"];
 const MODES: TribeQuotaMode[] = ["observe", "enforce"];
@@ -33,7 +36,9 @@ const STATUSES: TribeQuotaStatus[] = ["active", "disabled"];
 export class TribeQuotaAdminController {
   constructor(
     private readonly policies: TribeQuotaPolicyService,
-    private readonly approvals?: ApprovalRequestService,
+    private readonly approvals: ApprovalRequestService,
+    @Optional()
+    private readonly auditEvents?: AuditEventsService,
   ) {}
 
   @Get()
@@ -67,6 +72,10 @@ export class TribeQuotaAdminController {
       createdBy: actor,
       updatedBy: actor,
     });
+    this.recordAudit("quota.policy.updated", body.ownerTribeId, actor, req, {
+      mode: policy.mode,
+      policyId: policy.id,
+    });
 
     return this.response(this.toPolicyResponse(policy), req);
   }
@@ -87,6 +96,13 @@ export class TribeQuotaAdminController {
       ...policyInput,
       updatedBy: this.resolveActor(req),
     });
+    this.recordAudit(
+      "quota.policy.updated",
+      policy.ownerTribeId,
+      this.resolveActor(req),
+      req,
+      { mode: policy.mode, policyId: policy.id },
+    );
 
     return this.response(this.toPolicyResponse(policy), req);
   }
@@ -99,6 +115,13 @@ export class TribeQuotaAdminController {
     const policy = await this.policies.disablePolicy(policyId, {
       updatedBy: this.resolveActor(req),
     });
+    this.recordAudit(
+      "quota.policy.disabled",
+      policy.ownerTribeId,
+      this.resolveActor(req),
+      req,
+      { mode: policy.mode, policyId: policy.id },
+    );
 
     return this.response(this.toPolicyResponse(policy), req);
   }
@@ -184,7 +207,11 @@ export class TribeQuotaAdminController {
     input: { mode?: TribeQuotaMode; targetId: string },
   ) {
     if (input.mode !== "enforce") return;
-    await this.approvals?.assertApprovedForAction({
+    const approvals = requireGovernanceDependency(
+      this.approvals,
+      "ApprovalRequestService",
+    );
+    await approvals.assertApprovedForAction({
       approvalRequestId,
       actionType: "quota.enforce",
       targetEnvironment: "live",
@@ -195,5 +222,28 @@ export class TribeQuotaAdminController {
   private toIso(value: Date | string | undefined): string | undefined {
     if (!value) return undefined;
     return value instanceof Date ? value.toISOString() : value;
+  }
+
+  private recordAudit(
+    type: string,
+    ownerTribeId: string,
+    actor: string | undefined,
+    req: AuthenticatedRequest,
+    payload: Record<string, unknown>,
+  ): void {
+    this.auditEvents
+      ?.record({
+        type,
+        actionFamily: "quota",
+        actor: actor ?? "platform",
+        severity: "info",
+        message: `Quota policy updated for ${ownerTribeId}`,
+        payload: {
+          ownerTribeId,
+          correlationId: req.correlationId,
+          ...payload,
+        },
+      })
+      .catch(() => undefined);
   }
 }

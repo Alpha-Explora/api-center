@@ -108,6 +108,8 @@ describe("AnalyticsController", () => {
       "10",
       "payment",
       undefined,
+      "quota",
+      "platform@example.test",
       {} as any,
     );
 
@@ -116,6 +118,8 @@ describe("AnalyticsController", () => {
       limit: 10,
       serviceId: "payment",
       type: undefined,
+      actionFamily: "quota",
+      actor: "platform@example.test",
     });
   });
 });

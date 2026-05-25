@@ -7,6 +7,15 @@ import { LoggerService } from "../shared/logger.service";
 export interface AuditEventRecord {
   id: string;
   type: string;
+  actionFamily?:
+    | "quota"
+    | "plan"
+    | "approval"
+    | "promotion"
+    | "secret"
+    | "policy"
+    | "runtime";
+  actor?: string;
   serviceId?: string;
   tribeServiceId?: string;
   sharedServiceId?: string;
@@ -20,6 +29,8 @@ export interface AuditEventFilter {
   limit?: number;
   serviceId?: string;
   type?: string;
+  actionFamily?: AuditEventRecord["actionFamily"];
+  actor?: string;
 }
 
 const AUDIT_KEY = "api-center:audit:events";
@@ -100,6 +111,11 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
 
     return events
       .filter((event) => !filter.type || event.type === filter.type)
+      .filter(
+        (event) =>
+          !filter.actionFamily || event.actionFamily === filter.actionFamily,
+      )
+      .filter((event) => !filter.actor || event.actor === filter.actor)
       .filter(
         (event) =>
           !filter.serviceId ||

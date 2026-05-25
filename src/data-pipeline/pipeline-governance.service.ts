@@ -134,9 +134,7 @@ export class PipelineGovernanceService {
       const raw = await readFile(filePath, "utf8");
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const rows = parsed[kind];
-      return Array.isArray(rows)
-        ? rows.map((row) => this.readRawRow(row))
-        : [];
+      return Array.isArray(rows) ? rows.map((row) => this.readRawRow(row)) : [];
     } catch (error) {
       if (isMissingFileError(error)) return [];
       throw error;
@@ -337,7 +335,9 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
 
   private resolveSource(): PipelineGovernanceSource {
     const source =
-      this.options.source ?? process.env.PIPELINE_GOVERNANCE_SOURCE ?? "fixture";
+      this.options.source ??
+      process.env.PIPELINE_GOVERNANCE_SOURCE ??
+      "fixture";
     if (source === "fixture" || source === "athena") return source;
     throw new ValidationError(
       "PIPELINE_GOVERNANCE_SOURCE must be fixture or athena.",
@@ -352,7 +352,9 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
     );
   }
 
-  private resolveAthenaWorkgroup(environment: PipelineHealthEnvironment): string {
+  private resolveAthenaWorkgroup(
+    environment: PipelineHealthEnvironment,
+  ): string {
     return (
       this.options.athenaWorkgroup ??
       process.env.PIPELINE_GOVERNANCE_ATHENA_WORKGROUP ??
@@ -410,8 +412,14 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
         row.eventType ?? row.event_type,
         "event_type",
       ),
-      eventDay: this.readRequiredString(row.eventDay ?? row.event_day, "event_day"),
-      eventCount: this.readNumber(row.eventCount ?? row.event_count, "event_count"),
+      eventDay: this.readRequiredString(
+        row.eventDay ?? row.event_day,
+        "event_day",
+      ),
+      eventCount: this.readNumber(
+        row.eventCount ?? row.event_count,
+        "event_count",
+      ),
       validEventCount: this.readNumber(
         row.validEventCount ?? row.valid_event_count,
         "valid_event_count",
@@ -448,8 +456,14 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
         row.providerStatus ?? row.provider_status,
         "provider_status",
       ),
-      eventDay: this.readRequiredString(row.eventDay ?? row.event_day, "event_day"),
-      eventCount: this.readNumber(row.eventCount ?? row.event_count, "event_count"),
+      eventDay: this.readRequiredString(
+        row.eventDay ?? row.event_day,
+        "event_day",
+      ),
+      eventCount: this.readNumber(
+        row.eventCount ?? row.event_count,
+        "event_count",
+      ),
       successCount: this.readNumber(
         row.successCount ?? row.success_count,
         "success_count",
@@ -471,7 +485,11 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
     row: RawMetricRow,
   ): PipelineGatewayDecisionRow {
     const decision = this.readRequiredString(row.decision, "decision");
-    if (decision !== "allowed" && decision !== "denied" && decision !== "unknown") {
+    if (
+      decision !== "allowed" &&
+      decision !== "denied" &&
+      decision !== "unknown"
+    ) {
       throw new Error("decision must be allowed, denied, or unknown");
     }
 
@@ -486,7 +504,10 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
       ),
       scope: this.readOptionalString(row.scope),
       decision,
-      eventDay: this.readRequiredString(row.eventDay ?? row.event_day, "event_day"),
+      eventDay: this.readRequiredString(
+        row.eventDay ?? row.event_day,
+        "event_day",
+      ),
       decisionCount: this.readNumber(
         row.decisionCount ?? row.decision_count,
         "decision_count",
@@ -519,8 +540,14 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
         row.resultPurpose ?? row.result_purpose,
         "result_purpose",
       ),
-      eventDay: this.readRequiredString(row.eventDay ?? row.event_day, "event_day"),
-      queryCount: this.readNumber(row.queryCount ?? row.query_count, "query_count"),
+      eventDay: this.readRequiredString(
+        row.eventDay ?? row.event_day,
+        "event_day",
+      ),
+      queryCount: this.readNumber(
+        row.queryCount ?? row.query_count,
+        "query_count",
+      ),
       bytesScanned: this.readNumber(
         row.bytesScanned ?? row.bytes_scanned,
         "bytes_scanned",

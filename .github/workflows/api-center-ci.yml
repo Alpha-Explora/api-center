@@ -1,0 +1,45 @@
+name: API Center CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  api-center:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --runInBand
+
+      - name: Build
+        run: npm run build
+
+      - name: Deployed quota smoke
+        if: ${{ secrets.APICENTER_SMOKE_BASE_URL != '' && secrets.APICENTER_SMOKE_TRIBE_TOKEN != '' }}
+        env:
+          APICENTER_SMOKE_BASE_URL: ${{ secrets.APICENTER_SMOKE_BASE_URL }}
+          APICENTER_SMOKE_TRIBE_TOKEN: ${{ secrets.APICENTER_SMOKE_TRIBE_TOKEN }}
+          API_CENTER_PLATFORM_ADMIN_SECRET: ${{ secrets.API_CENTER_PLATFORM_ADMIN_SECRET }}
+          APICENTER_SMOKE_TRIBE_ID: smoke-tribe
+        run: npm run smoke:quota

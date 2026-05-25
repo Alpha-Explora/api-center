@@ -49,8 +49,8 @@ export class SharedServicesController implements OnModuleDestroy {
     gatewayTraffic: GatewayTrafficService,
     sharedServiceUsage: SharedServiceUsageService,
     sharedServiceEvents: SharedServiceEventPublisher,
-    quotaEnforcer?: TribeQuotaEnforcerService,
-    policyEngine?: PolicyEngineService,
+    quotaEnforcer: TribeQuotaEnforcerService,
+    policyEngine: PolicyEngineService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(

@@ -152,8 +152,8 @@ describe("AthenaQueryRunner", () => {
       }),
     ).rejects.toThrow("Athena query query-1 timed out after 0 seconds.");
 
-    expect(sent.some((command) => command instanceof StopQueryExecutionCommand)).toBe(
-      true,
-    );
+    expect(
+      sent.some((command) => command instanceof StopQueryExecutionCommand),
+    ).toBe(true);
   });
 });

@@ -95,7 +95,11 @@ export class PipelineFeedbackService {
     actor: PipelineFeedbackActor,
   ): Promise<PipelineFeedbackRecord> {
     this.validateActionTarget(input);
-    const reason = this.normalizeReason(input.reason, input.action, input.environment);
+    const reason = this.normalizeReason(
+      input.reason,
+      input.action,
+      input.environment,
+    );
     const status = this.resolveStatus(input.action);
 
     const database = this.databaseClient();
@@ -211,12 +215,16 @@ export class PipelineFeedbackService {
     const reason = value?.trim() ?? "";
     if (reason) return reason;
     if (environment === "prod" && action === "promotion.blocked") {
-      throw new ValidationError("reason is required for prod promotion.blocked");
+      throw new ValidationError(
+        "reason is required for prod promotion.blocked",
+      );
     }
     throw new ValidationError("reason is required");
   }
 
-  private resolveStatus(action: PipelineFeedbackAction): PipelineFeedbackStatus {
+  private resolveStatus(
+    action: PipelineFeedbackAction,
+  ): PipelineFeedbackStatus {
     switch (action) {
       case "validation.rerun.requested":
       case "schema.fix.requested":

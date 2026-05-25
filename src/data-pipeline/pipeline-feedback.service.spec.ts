@@ -126,8 +126,7 @@ describe("PipelineFeedbackService", () => {
           action: "decision.false_positive.marked",
           environment: "test",
           targetType: "signal",
-          targetId:
-            "test:shared_service_error_spike:pakiapps:email:20260520",
+          targetId: "test:shared_service_error_spike:pakiapps:email:20260520",
           ownerTribeId: "pakiapps",
           evidenceLink: "cbde08d3-0488-4aeb-a50e-0e280bcb058e",
           reason: "Provider maintenance window already approved",
@@ -203,15 +202,17 @@ describe("PipelineFeedbackService", () => {
         targetId: "test.api-center.pipeline.athena-query-execution",
         reason: "Reviewed test telemetry evidence",
       },
-        {
-          actorId: "operator@example.com",
-          actorRole: "platform-admin",
-          correlationId: "corr_postgres_feedback",
-        },
-      );
+      {
+        actorId: "operator@example.com",
+        actorRole: "platform-admin",
+        correlationId: "corr_postgres_feedback",
+      },
+    );
 
     expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("insert into api_center_ops.pipeline_feedback_actions"),
+      expect.stringContaining(
+        "insert into api_center_ops.pipeline_feedback_actions",
+      ),
       "evidence.reviewed",
       "test",
       "topic",

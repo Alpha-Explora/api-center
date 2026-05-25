@@ -17,13 +17,20 @@ describe("KafkaGovernanceController", () => {
   const mockQuotaEnforcer = {
     check: jest.fn().mockResolvedValue(undefined),
   };
+  const mockPolicyEngine = {
+    evaluate: jest.fn().mockReturnValue([]),
+  };
 
   let controller: KafkaGovernanceController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new KafkaGovernanceController(mockKafkaGovernance, mockAuth);
-    (controller as any).quotaEnforcer = mockQuotaEnforcer;
+    controller = new KafkaGovernanceController(
+      mockKafkaGovernance,
+      mockAuth,
+      mockQuotaEnforcer as any,
+      mockPolicyEngine as any,
+    );
   });
 
   it("returns governance catalog for authorised caller", () => {

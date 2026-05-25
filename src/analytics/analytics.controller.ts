@@ -243,12 +243,16 @@ export class AnalyticsController {
     @Query("limit") limit: string | undefined,
     @Query("serviceId") serviceId: string | undefined,
     @Query("type") type: string | undefined,
+    @Query("actionFamily") actionFamily: string | undefined,
+    @Query("actor") actor: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const data = await this.auditEvents.list({
       limit: limit ? Number(limit) : 100,
       serviceId,
       type,
+      actionFamily: actionFamily as any,
+      actor,
     });
 
     return {

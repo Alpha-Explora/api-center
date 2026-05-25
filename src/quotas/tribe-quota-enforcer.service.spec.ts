@@ -1,5 +1,6 @@
 import { ConfigService } from "../config/config.service";
 import { PrismaService } from "../database/prisma.service";
+import { TribeCostService } from "../costs/tribe-cost.service";
 import { TribeQuotaEnforcerService } from "./tribe-quota-enforcer.service";
 import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
 
@@ -29,6 +30,7 @@ describe("TribeQuotaEnforcerService", () => {
       {
         redis: { rateLimitUrl: "" },
       } as ConfigService,
+      new TribeCostService(),
     );
   });
 
@@ -109,6 +111,21 @@ describe("TribeQuotaEnforcerService", () => {
     await expect(service.check(request())).resolves.toBeUndefined();
 
     expect(prisma.tribeApiQuotaDecision.create).not.toHaveBeenCalled();
+  });
+
+  it("estimates chargeback when usage is above 80 percent of quota", () => {
+    expect(
+      service.estimateUsageChargeback({
+        requestCount: 90,
+        maxRequests: 100,
+        scope: "shared",
+      }),
+    ).toEqual({
+      apiCallCost: 0.05,
+      kafkaPublishCost: 0,
+      analyticsScanCost: 0,
+      totalCost: 0.05,
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 # APICenter Hardening And Product Improvements Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Close the remaining APICenter governance gaps after the platform-wide quota rollout, then add the next useful product features for operators and tribes.
 
@@ -102,7 +102,7 @@ The previous platform-wide governance and quota plan is complete by checklist an
 - Modify: `api-center/src/shared/proxy-handler.ts`
 - Modify: `api-center/src/shared/proxy-handler.spec.ts`
 
-- [ ] **Step 1: Add a failing unit test for missing approval enforcement**
+- [x] **Step 1: Add a failing unit test for missing approval enforcement**
 
 Add this test to `api-center/src/quotas/tribe-quota-admin.controller.spec.ts`:
 
@@ -132,7 +132,7 @@ it("fails closed when enforce mode is requested without approval service", async
 });
 ```
 
-- [ ] **Step 2: Run the failing approval test**
+- [x] **Step 2: Run the failing approval test**
 
 Run:
 
@@ -142,7 +142,7 @@ npm run test -- src/quotas/tribe-quota-admin.controller.spec.ts --runInBand
 
 Expected: the new test fails because the controller currently uses optional approval chaining.
 
-- [ ] **Step 3: Add the shared fail-closed helper**
+- [x] **Step 3: Add the shared fail-closed helper**
 
 Create `api-center/src/shared/governance-dependencies.ts`:
 
@@ -166,7 +166,7 @@ export function requireGovernanceDependency<T>(
 }
 ```
 
-- [ ] **Step 4: Add helper tests**
+- [x] **Step 4: Add helper tests**
 
 Create `api-center/src/shared/governance-dependencies.spec.ts`:
 
@@ -191,7 +191,7 @@ describe("requireGovernanceDependency", () => {
 });
 ```
 
-- [ ] **Step 5: Make approval dependencies required**
+- [x] **Step 5: Make approval dependencies required**
 
 In `api-center/src/quotas/tribe-quota-admin.controller.ts` and `api-center/src/registry/registry.controller.ts`, remove `?` from approval constructor parameters and replace optional approval calls with direct calls:
 
@@ -209,7 +209,7 @@ await this.approvals.assertApprovedForAction({
 });
 ```
 
-- [ ] **Step 6: Make quota and policy dependencies required in gateway paths**
+- [x] **Step 6: Make quota and policy dependencies required in gateway paths**
 
 In `api-center/src/tribes/tribes.controller.ts`, `api-center/src/shared-services/shared-services.controller.ts`, and `api-center/src/kafka-governance/kafka-governance.controller.ts`, remove optional constructor types and optional chaining:
 
@@ -230,7 +230,7 @@ await this.quotaEnforcer.check({
 });
 ```
 
-- [ ] **Step 7: Make proxy handler governance dependencies required**
+- [x] **Step 7: Make proxy handler governance dependencies required**
 
 In `api-center/src/shared/proxy-handler.ts`, change the dependency interface and runtime calls:
 
@@ -254,7 +254,7 @@ await this.deps.quotaEnforcer.check({
 });
 ```
 
-- [ ] **Step 8: Add controller tests that prove quota checks always run**
+- [x] **Step 8: Add controller tests that prove quota checks always run**
 
 Update the relevant specs so each runtime path constructs the controller with explicit quota and policy mocks and asserts quota checks are invoked:
 
@@ -268,7 +268,7 @@ expect(mockQuotaEnforcer.check).toHaveBeenCalledWith(
 );
 ```
 
-- [ ] **Step 9: Run focused fail-closed tests**
+- [x] **Step 9: Run focused fail-closed tests**
 
 Run:
 
@@ -278,7 +278,7 @@ npm run test -- src/shared/governance-dependencies.spec.ts src/quotas/tribe-quot
 
 Expected: all listed suites pass.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```powershell
 git add api-center/src/shared/governance-dependencies.ts api-center/src/shared/governance-dependencies.spec.ts api-center/src/quotas/tribe-quota-admin.controller.ts api-center/src/quotas/tribe-quota-admin.controller.spec.ts api-center/src/registry/registry.controller.ts api-center/src/registry/registry.controller.spec.ts api-center/src/tribes/tribes.controller.ts api-center/src/tribes/tribes.controller.spec.ts api-center/src/shared-services/shared-services.controller.ts api-center/src/shared-services/shared-services.controller.spec.ts api-center/src/kafka-governance/kafka-governance.controller.ts api-center/src/kafka-governance/kafka-governance.controller.spec.ts api-center/src/shared/proxy-handler.ts api-center/src/shared/proxy-handler.spec.ts
@@ -293,7 +293,7 @@ git commit -m "fix: fail closed for governance enforcement"
 - Modify: `apicenter-management/src/components/environment-promotion-panel.tsx`
 - Modify: `apicenter-management/src/components/environment-promotion-panel.test.tsx`
 
-- [ ] **Step 1: Add a focused test for default service selection without state-in-effect**
+- [x] **Step 1: Add a focused test for default service selection without state-in-effect**
 
 Add this test to `apicenter-management/src/components/environment-promotion-panel.test.tsx`:
 
@@ -306,7 +306,7 @@ it("selects the first service without requiring an initial service id", async ()
 });
 ```
 
-- [ ] **Step 2: Run the focused management test**
+- [x] **Step 2: Run the focused management test**
 
 Run:
 
@@ -316,7 +316,7 @@ npm test -- src/components/environment-promotion-panel.test.tsx
 
 Expected: the test passes or exposes the existing selection behavior before the lint fix.
 
-- [ ] **Step 3: Replace the synchronous state update in the effect**
+- [x] **Step 3: Replace the synchronous state update in the effect**
 
 In `apicenter-management/src/components/environment-promotion-panel.tsx`, remove the `useEffect` that calls `setSelectedServiceId`. Use a memoized services array and an effective selected id:
 
@@ -339,7 +339,7 @@ Set the select value from `effectiveSelectedServiceId`:
 >
 ```
 
-- [ ] **Step 4: Normalize API Center line endings**
+- [x] **Step 4: Normalize API Center line endings**
 
 Add or update `api-center/.gitattributes`:
 
@@ -360,7 +360,7 @@ Run Prettier for API Center source files that lint reports with CRLF errors:
 npm exec prettier -- --write "src/**/*.{ts,tsx}" "test/**/*.{ts,tsx}" "prisma/**/*.prisma"
 ```
 
-- [ ] **Step 5: Run lint in all three projects**
+- [x] **Step 5: Run lint in all three projects**
 
 Run:
 
@@ -372,7 +372,7 @@ Run from `api-center`, then from `apicenter-management`, then from `api-shared-s
 
 Expected: all lint commands pass with no errors. Warnings can remain only if they already exist and do not block CI.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add api-center/.gitattributes api-center/package.json apicenter-management/src/components/environment-promotion-panel.tsx apicenter-management/src/components/environment-promotion-panel.test.tsx
@@ -387,7 +387,7 @@ git commit -m "chore: restore lint gate for governance rollout"
 - Modify: `.github/workflows/api-center-ci.yml`
 - Modify: `api-center/docs/developer/tribe-api-quotas.md`
 
-- [ ] **Step 1: Create the smoke script**
+- [x] **Step 1: Create the smoke script**
 
 Create `api-center/scripts/smoke/tribe-quota-policy-smoke.ts`:
 
@@ -463,7 +463,7 @@ main().catch((error) => {
 });
 ```
 
-- [ ] **Step 2: Add the package script**
+- [x] **Step 2: Add the package script**
 
 In `api-center/package.json`, add:
 
@@ -475,7 +475,7 @@ In `api-center/package.json`, add:
 }
 ```
 
-- [ ] **Step 3: Add CI workflow step**
+- [x] **Step 3: Add CI workflow step**
 
 In `.github/workflows/api-center-ci.yml`, add the smoke only when deployed smoke secrets exist:
 
@@ -491,7 +491,7 @@ In `.github/workflows/api-center-ci.yml`, add the smoke only when deployed smoke
   run: npm run smoke:quota
 ```
 
-- [ ] **Step 4: Document the required secrets**
+- [x] **Step 4: Document the required secrets**
 
 In `api-center/docs/developer/tribe-api-quotas.md`, add:
 
@@ -507,7 +507,7 @@ The deployed quota smoke requires:
 The smoke creates a short-window enforced quota for `APICENTER_SMOKE_TRIBE_ID`, sends three calls, and expects `200`, `200`, then `429`.
 ```
 
-- [ ] **Step 5: Run local dry test**
+- [x] **Step 5: Run local dry test**
 
 Run without env vars:
 
@@ -517,7 +517,7 @@ npm run smoke:quota
 
 Expected: exits non-zero with the missing environment variable message.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add api-center/scripts/smoke/tribe-quota-policy-smoke.ts api-center/package.json .github/workflows/api-center-ci.yml api-center/docs/developer/tribe-api-quotas.md
@@ -536,7 +536,7 @@ git commit -m "test: automate deployed quota smoke"
 - Create: `apicenter-management/src/components/governance-readiness-panel.tsx`
 - Create: `apicenter-management/src/components/governance-readiness-panel.test.tsx`
 
-- [ ] **Step 1: Add API Center readiness service tests**
+- [x] **Step 1: Add API Center readiness service tests**
 
 Create `api-center/src/health/governance-readiness.service.spec.ts`:
 
@@ -581,7 +581,7 @@ describe("GovernanceReadinessService", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the readiness snapshot**
+- [x] **Step 2: Implement the readiness snapshot**
 
 Create `api-center/src/health/governance-readiness.service.ts`:
 
@@ -627,7 +627,7 @@ export class GovernanceReadinessService {
 }
 ```
 
-- [ ] **Step 3: Include governance in `/health/ready`**
+- [x] **Step 3: Include governance in `/health/ready`**
 
 In `api-center/src/health/health.controller.ts`, inject `GovernanceReadinessService` and add:
 
@@ -649,7 +649,7 @@ private async governanceCheck(): Promise<HealthIndicatorResult> {
 
 Add `() => this.governanceCheck()` to the readiness check list.
 
-- [ ] **Step 4: Add Management panel tests**
+- [x] **Step 4: Add Management panel tests**
 
 Create `apicenter-management/src/components/governance-readiness-panel.test.tsx`:
 
@@ -680,7 +680,7 @@ describe("GovernanceReadinessPanel", () => {
 });
 ```
 
-- [ ] **Step 5: Implement the Management panel and route mapping**
+- [x] **Step 5: Implement the Management panel and route mapping**
 
 Create `apicenter-management/src/components/governance-readiness-panel.tsx`:
 
@@ -723,7 +723,7 @@ function ReadinessItem({ label, value }: { label: string; value: string }) {
 }
 ```
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -737,7 +737,7 @@ Run from `apicenter-management`:
 npm test -- src/components/governance-readiness-panel.test.tsx
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add api-center/src/health/governance-readiness.service.ts api-center/src/health/governance-readiness.service.spec.ts api-center/src/health/health.controller.ts api-center/src/health/health.controller.spec.ts apicenter-management/src/app/api/local/readiness/route.ts apicenter-management/src/components/readiness-client.tsx apicenter-management/src/components/governance-readiness-panel.tsx apicenter-management/src/components/governance-readiness-panel.test.tsx
@@ -756,7 +756,7 @@ git commit -m "feat: expose governance readiness"
 - Modify: `apicenter-management/src/app/api/local/audit/events/route.ts`
 - Modify: `apicenter-management/src/components/audit-log-client.tsx`
 
-- [ ] **Step 1: Add audit filter tests**
+- [x] **Step 1: Add audit filter tests**
 
 Add to `api-center/src/analytics/audit-events.service.spec.ts`:
 
@@ -788,7 +788,7 @@ it("filters audit events by action family and actor", async () => {
 });
 ```
 
-- [ ] **Step 2: Extend audit event types**
+- [x] **Step 2: Extend audit event types**
 
 In `api-center/src/analytics/audit-events.service.ts`, extend the record and filter interfaces:
 
@@ -823,7 +823,7 @@ Add filters:
 .filter((event) => !filter.actor || event.actor === filter.actor)
 ```
 
-- [ ] **Step 3: Record operator actions**
+- [x] **Step 3: Record operator actions**
 
 Record audit events from quota, plan assignment, promotion, and secret rotation paths with these event types:
 
@@ -838,7 +838,7 @@ await this.auditEvents.record({
 });
 ```
 
-- [ ] **Step 4: Add Management export support**
+- [x] **Step 4: Add Management export support**
 
 In `apicenter-management/src/app/api/local/audit/events/route.ts`, accept `actionFamily`, `actor`, and `format=csv`. For CSV responses, return:
 
@@ -856,7 +856,7 @@ const rows = [
 ];
 ```
 
-- [ ] **Step 5: Add audit UI filters**
+- [x] **Step 5: Add audit UI filters**
 
 In `apicenter-management/src/components/audit-log-client.tsx`, add select/input controls for action family and actor, plus an export link that preserves the current filters:
 
@@ -864,7 +864,7 @@ In `apicenter-management/src/components/audit-log-client.tsx`, add select/input 
 const exportHref = `/api/local/audit/events?format=csv&actionFamily=${encodeURIComponent(actionFamily)}&actor=${encodeURIComponent(actor)}`;
 ```
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -878,7 +878,7 @@ Run from `apicenter-management`:
 npm test -- src/components/audit-log-client.test.tsx src/app/api/local/audit/events/route.test.ts
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add api-center/src/analytics/audit-events.service.ts api-center/src/analytics/audit-events.service.spec.ts api-center/src/quotas/tribe-quota-admin.controller.ts api-center/src/entitlements/tribe-plan-admin.controller.ts api-center/src/secrets/tribe-secret-rotation.service.ts api-center/src/promotions/environment-promotion.service.ts apicenter-management/src/app/api/local/audit/events/route.ts apicenter-management/src/components/audit-log-client.tsx
@@ -896,7 +896,7 @@ git commit -m "feat: add operator audit history exports"
 - Modify: `apicenter-management/src/components/tribe-cost-and-quota-panel.test.tsx`
 - Modify: `apicenter-management/src/components/app-shell.tsx`
 
-- [ ] **Step 1: Add cost calculation tests**
+- [x] **Step 1: Add cost calculation tests**
 
 Create `api-center/src/costs/tribe-cost.service.spec.ts`:
 
@@ -923,7 +923,7 @@ describe("TribeCostService", () => {
 });
 ```
 
-- [ ] **Step 2: Implement cost service**
+- [x] **Step 2: Implement cost service**
 
 Create `api-center/src/costs/tribe-cost.service.ts`:
 
@@ -957,7 +957,7 @@ function roundCurrency(value: number) {
 }
 ```
 
-- [ ] **Step 3: Surface cost pressure in quota usage responses**
+- [x] **Step 3: Surface cost pressure in quota usage responses**
 
 Extend quota usage responses with:
 
@@ -972,7 +972,7 @@ estimatedChargeback: {
 
 Add test coverage in `api-center/src/quotas/tribe-quota-enforcer.service.spec.ts` to assert usage includes cost pressure when usage is above 80 percent of the quota.
 
-- [ ] **Step 4: Add Management cost panel**
+- [x] **Step 4: Add Management cost panel**
 
 Create `apicenter-management/src/components/tribe-cost-and-quota-panel.tsx`:
 
@@ -996,7 +996,7 @@ export function TribeCostAndQuotaPanel({
 }
 ```
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run:
 
@@ -1010,7 +1010,7 @@ Run from `apicenter-management`:
 npm test -- src/components/tribe-cost-and-quota-panel.test.tsx
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add api-center/src/costs/tribe-cost.service.ts api-center/src/costs/tribe-cost.service.spec.ts api-center/src/quotas/tribe-quota-enforcer.service.ts api-center/src/quotas/tribe-quota-enforcer.service.spec.ts apicenter-management/src/components/tribe-cost-and-quota-panel.tsx apicenter-management/src/components/tribe-cost-and-quota-panel.test.tsx apicenter-management/src/components/app-shell.tsx
@@ -1028,7 +1028,7 @@ git commit -m "feat: add cost aware quota signals"
 - Modify: `apicenter-management/src/lib/api-center-client.ts`
 - Modify: `api-shared-services/docs/consumer-runbook.md`
 
-- [ ] **Step 1: Add request controller tests**
+- [x] **Step 1: Add request controller tests**
 
 Create `api-center/src/developer-portal/developer-portal-request.controller.spec.ts`:
 
@@ -1066,7 +1066,7 @@ describe("DeveloperPortalRequestController", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the request controller**
+- [x] **Step 2: Implement the request controller**
 
 Create `api-center/src/developer-portal/developer-portal-request.controller.ts`:
 
@@ -1104,11 +1104,11 @@ export class DeveloperPortalRequestController {
 }
 ```
 
-- [ ] **Step 3: Register the controller**
+- [x] **Step 3: Register the controller**
 
 In `api-center/src/developer-portal/developer-portal.module.ts`, add `DeveloperPortalRequestController` to `controllers`.
 
-- [ ] **Step 4: Add Management request panel**
+- [x] **Step 4: Add Management request panel**
 
 Create `apicenter-management/src/components/developer-portal-request-panel.tsx`:
 
@@ -1141,7 +1141,7 @@ export function DeveloperPortalRequestPanel({
 }
 ```
 
-- [ ] **Step 5: Document the request model**
+- [x] **Step 5: Document the request model**
 
 In `api-shared-services/docs/consumer-runbook.md`, add:
 
@@ -1151,7 +1151,7 @@ In `api-shared-services/docs/consumer-runbook.md`, add:
 Tribes do not raise live quotas directly. They submit a quota increase request through the developer portal. Platform operators approve the request, then API Center applies the quota policy with an approval reference.
 ```
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -1165,7 +1165,7 @@ Run from `apicenter-management`:
 npm test -- src/components/developer-portal-request-panel.test.tsx
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add api-center/src/developer-portal/developer-portal-request.controller.ts api-center/src/developer-portal/developer-portal-request.controller.spec.ts api-center/src/developer-portal/developer-portal.module.ts apicenter-management/src/components/developer-portal-request-panel.tsx apicenter-management/src/components/developer-portal-request-panel.test.tsx apicenter-management/src/lib/api-center-client.ts api-shared-services/docs/consumer-runbook.md
@@ -1183,7 +1183,7 @@ git commit -m "feat: add tribe self service requests"
 - Modify: `api-shared-services/tests/manifest.test.ts`
 - Modify: `api-shared-services/docs/consumer-runbook.md`
 
-- [ ] **Step 1: Add SDK quota header test**
+- [x] **Step 1: Add SDK quota header test**
 
 Add to `api-shared-services/tests/quota-error.test.ts`:
 
@@ -1208,7 +1208,7 @@ it("preserves quota headers on rate limit errors", async () => {
 });
 ```
 
-- [ ] **Step 2: Add SDK request guidance**
+- [x] **Step 2: Add SDK request guidance**
 
 In `api-shared-services/docs/consumer-runbook.md`, add:
 
@@ -1218,7 +1218,7 @@ In `api-shared-services/docs/consumer-runbook.md`, add:
 When API Center returns `429` with `TRIBE_API_QUOTA_EXCEEDED`, tribes should read `retryAfterSeconds`, slow retry traffic, and request a quota increase only when sustained usage is expected. Do not retry immediately in a tight loop.
 ```
 
-- [ ] **Step 3: Run complete verification**
+- [x] **Step 3: Run complete verification**
 
 Run from `api-center`:
 
@@ -1248,11 +1248,11 @@ npm run build
 npm run check:contracts
 ```
 
-- [ ] **Step 4: Mark the plan complete**
+- [x] **Step 4: Mark the plan complete**
 
 After all verification commands pass, update this plan by changing each checkbox from `[ ]` to `[x]`, then update `api-center/docs/superpowers/plans/README.md` and `apicenter-management/docs/superpowers/plans/README.md` from `active` to `completed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add api-shared-services/src/quota.ts api-shared-services/src/errors.ts api-shared-services/src/TribeClient.ts api-shared-services/tests/quota-error.test.ts api-shared-services/contracts/service-manifest.schema.json api-shared-services/tests/manifest.test.ts api-shared-services/docs/consumer-runbook.md api-center/docs/superpowers/plans/2026-05-25-apicenter-hardening-and-product-improvements.md api-center/docs/superpowers/plans/README.md apicenter-management/docs/superpowers/plans/README.md

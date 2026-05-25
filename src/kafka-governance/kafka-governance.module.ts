@@ -4,6 +4,8 @@ import { AuthModule } from "../auth/auth.module";
 import { DataPipelineModule } from "../data-pipeline/data-pipeline.module";
 import { KafkaModule } from "../kafka/kafka.module";
 import { MetricsModule } from "../metrics/metrics.module";
+import { PolicyEngineModule } from "../policy/policy-engine.module";
+import { QuotasModule } from "../quotas/quotas.module";
 import { SharedModule } from "../shared/shared.module";
 import { KafkaGovernanceController } from "./kafka-governance.controller";
 import { KafkaGovernanceService } from "./kafka-governance.service";
@@ -14,6 +16,8 @@ import { KafkaGovernanceService } from "./kafka-governance.service";
     DataPipelineModule,
     KafkaModule,
     MetricsModule,
+    PolicyEngineModule,
+    QuotasModule,
     SharedModule,
   ],
   controllers: [KafkaGovernanceController],

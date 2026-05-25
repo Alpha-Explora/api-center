@@ -79,9 +79,7 @@ export class DecisionSignalsService {
       const raw = await readFile(filePath, "utf8");
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const rows = parsed.decisionSignalRows;
-      return Array.isArray(rows)
-        ? rows.map((row) => this.readRawRow(row))
-        : [];
+      return Array.isArray(rows) ? rows.map((row) => this.readRawRow(row)) : [];
     } catch (error) {
       if (isMissingFileError(error)) return [];
       throw error;
@@ -208,7 +206,9 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
     );
   }
 
-  private resolveAthenaWorkgroup(environment: PipelineHealthEnvironment): string {
+  private resolveAthenaWorkgroup(
+    environment: PipelineHealthEnvironment,
+  ): string {
     return (
       this.options.athenaWorkgroup ??
       process.env.PIPELINE_DECISION_SIGNALS_ATHENA_WORKGROUP ??
@@ -261,7 +261,10 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
 
   private normalizeRow(row: RawDecisionSignalRow): PipelineDecisionSignalRow {
     return {
-      signalId: this.readRequiredString(row.signalId ?? row.signal_id, "signal_id"),
+      signalId: this.readRequiredString(
+        row.signalId ?? row.signal_id,
+        "signal_id",
+      ),
       environment: this.readEnvironment(row.environment),
       tribeId: this.readRequiredString(row.tribeId ?? row.tribe_id, "tribe_id"),
       sourceServiceId: this.readOptionalString(
@@ -296,7 +299,10 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
         row.evidenceWindowEnd ?? row.evidence_window_end,
         "evidence_window_end",
       ),
-      createdAt: this.readRequiredString(row.createdAt ?? row.created_at, "created_at"),
+      createdAt: this.readRequiredString(
+        row.createdAt ?? row.created_at,
+        "created_at",
+      ),
       status: this.readStatus(row.status),
     };
   }

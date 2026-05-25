@@ -67,7 +67,8 @@ export class AthenaQueryRunner {
 
     return {
       queryExecutionId,
-      outputLocation: execution.QueryExecution?.ResultConfiguration?.OutputLocation,
+      outputLocation:
+        execution.QueryExecution?.ResultConfiguration?.OutputLocation,
       bytesScanned: execution.QueryExecution?.Statistics?.DataScannedInBytes,
       completedAt:
         execution.QueryExecution?.Status?.CompletionDateTime?.toISOString(),

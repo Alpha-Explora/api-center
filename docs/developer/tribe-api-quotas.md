@@ -40,3 +40,15 @@ observe-mode quota proposals from that tier. The first tier defaults are:
 Plan assignment does not auto-enforce quotas. Operators review the generated
 quota proposals, create observe-mode policies, and switch to enforce only after
 usage is reviewed.
+
+## CI Smoke Requirements
+
+The deployed quota smoke requires:
+
+- `APICENTER_SMOKE_BASE_URL`
+- `APICENTER_SMOKE_TRIBE_TOKEN`
+- `API_CENTER_PLATFORM_ADMIN_SECRET`
+
+The smoke creates and approves a short-window enforced quota for
+`APICENTER_SMOKE_TRIBE_ID`, sends three calls through a shared-service route,
+and expects `200`, `200`, then `429` with `TRIBE_API_QUOTA_EXCEEDED`.

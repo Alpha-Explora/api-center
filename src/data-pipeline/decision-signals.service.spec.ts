@@ -117,7 +117,9 @@ describe("DecisionSignalsService", () => {
     expect(athenaRunner.run).toHaveBeenCalledWith({
       database: "gold_platform",
       workgroup: "api-center-platform-validation-test",
-      query: expect.stringContaining("FROM gold_platform.decision_signals_daily"),
+      query: expect.stringContaining(
+        "FROM gold_platform.decision_signals_daily",
+      ),
     });
     expect(athenaRunner.run.mock.calls[0][0].query).toContain(
       "WHERE environment = 'test'",

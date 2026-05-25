@@ -9,6 +9,7 @@ import { RegistryModule } from "../registry/registry.module";
 import { ExternalModule } from "../external/external.module";
 import { AuthModule } from "../auth/auth.module";
 import { AnalyticsModule } from "../analytics/analytics.module";
+import { GovernanceReadinessService } from "./governance-readiness.service";
 
 @Module({
   imports: [
@@ -19,5 +20,6 @@ import { AnalyticsModule } from "../analytics/analytics.module";
     AnalyticsModule,
   ],
   controllers: [HealthController],
+  providers: [GovernanceReadinessService],
 })
 export class HealthModule {}

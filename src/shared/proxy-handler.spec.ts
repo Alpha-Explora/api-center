@@ -69,6 +69,12 @@ function createMockDeps(): ProxyHandlerDeps {
     sharedServiceEvents: {
       publishSharedServiceCall: jest.fn(),
     } as any,
+    quotaEnforcer: {
+      check: jest.fn().mockResolvedValue(undefined),
+    } as any,
+    policyEngine: {
+      evaluate: jest.fn().mockReturnValue([]),
+    } as any,
   };
 }
 
@@ -164,14 +170,9 @@ describe("ProxyHandler", () => {
     });
 
     it("checks tribe quota before acquiring proxy resources", async () => {
-      const quotaEnforcer = {
-        check: jest.fn().mockResolvedValue(undefined),
-      };
-      (deps as any).quotaEnforcer = quotaEnforcer;
-
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
 
-      expect(quotaEnforcer.check).toHaveBeenCalledWith({
+      expect(deps.quotaEnforcer.check).toHaveBeenCalledWith({
         ownerTribeId: "svc-alpha",
         scope: "tribe",
         targetServiceId: "user-svc",

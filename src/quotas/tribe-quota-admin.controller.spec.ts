@@ -21,6 +21,7 @@ describe("TribeQuotaAdminController", () => {
     jest.clearAllMocks();
     controller = new TribeQuotaAdminController(
       policies as unknown as TribeQuotaPolicyService,
+      approvals as any,
     );
   });
 
@@ -121,6 +122,30 @@ describe("TribeQuotaAdminController", () => {
     expect(policies.createPolicy).toHaveBeenCalledWith(
       expect.not.objectContaining({ approvalRequestId: expect.anything() }),
     );
+  });
+
+  it("fails closed when enforce mode is requested without approval service", async () => {
+    const unguardedController = new TribeQuotaAdminController(
+      policies as unknown as TribeQuotaPolicyService,
+      undefined as never,
+    );
+
+    await expect(
+      unguardedController.createPolicy(
+        {
+          ownerTribeId: "campus-one",
+          scope: "all",
+          windowSeconds: 86400,
+          maxRequests: 25000,
+          mode: "enforce",
+          reason: "Live enforcement",
+          approvalRequestId: "approval-1",
+        },
+        { user: { tribeId: "platform" } } as any,
+      ),
+    ).rejects.toThrow("ApprovalRequestService is required");
+
+    expect(policies.createPolicy).not.toHaveBeenCalled();
   });
 });
 

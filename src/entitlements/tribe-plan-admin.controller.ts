@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Optional,
   Post,
   Query,
   Req,
@@ -10,6 +11,7 @@ import {
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { ValidationError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { TribePlanService } from "./tribe-plan.service";
 import {
   AssignTribePlanResult,
@@ -36,7 +38,11 @@ interface AssignPlanRequest {
 @Controller("plans")
 @UseGuards(ScopedAdminGuard)
 export class TribePlanAdminController {
-  constructor(private readonly plans: TribePlanService) {}
+  constructor(
+    private readonly plans: TribePlanService,
+    @Optional()
+    private readonly auditEvents?: AuditEventsService,
+  ) {}
 
   @Get("definitions")
   listDefinitions(@Req() req: AuthenticatedRequest) {
@@ -66,6 +72,21 @@ export class TribePlanAdminController {
       reason: body.reason!,
       assignedBy: req.user?.tribeId ?? req.tribeId,
     });
+    this.auditEvents
+      ?.record({
+        type: "plan.assignment.updated",
+        actionFamily: "plan",
+        actor: req.user?.tribeId ?? req.tribeId ?? "platform",
+        severity: "info",
+        message: `Plan ${body.planKey} assigned to ${body.ownerTribeId}`,
+        payload: {
+          ownerTribeId: body.ownerTribeId,
+          planKey: body.planKey,
+          environment: body.environment,
+          correlationId: req.correlationId,
+        },
+      })
+      .catch(() => undefined);
 
     return this.response(result, req);
   }

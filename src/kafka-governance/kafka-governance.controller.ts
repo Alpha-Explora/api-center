@@ -6,6 +6,7 @@ import { PolicyEngineService } from "../policy/policy-engine.service";
 import { PolicyRuleExplanation } from "../policy/policy-rule.types";
 import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
 import { ForbiddenError } from "../shared/errors";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import { AuthenticatedRequest } from "../types";
 import { KafkaPublishMessageDto } from "./dto/kafka-publish-message.dto";
 import { KafkaGovernanceService } from "./kafka-governance.service";
@@ -16,8 +17,8 @@ export class KafkaGovernanceController {
   constructor(
     private readonly kafkaGovernance: KafkaGovernanceService,
     private readonly auth: AuthService,
-    private readonly quotaEnforcer?: TribeQuotaEnforcerService,
-    private readonly policyEngine?: PolicyEngineService,
+    private readonly quotaEnforcer: TribeQuotaEnforcerService,
+    private readonly policyEngine: PolicyEngineService,
   ) {}
 
   @Get("governance")
@@ -61,7 +62,11 @@ export class KafkaGovernanceController {
     this.ensureScopes(req, ["external:kafka:write"]);
     const policy = this.evaluatePolicy(req, dto.topic);
 
-    await this.quotaEnforcer?.check({
+    const quotaEnforcer = requireGovernanceDependency(
+      this.quotaEnforcer,
+      "TribeQuotaEnforcerService",
+    );
+    await quotaEnforcer.check({
       ownerTribeId: tribeId,
       scope: "kafka_publish",
       targetServiceId: "kafka",
@@ -114,13 +119,16 @@ export class KafkaGovernanceController {
     req: AuthenticatedRequest,
     topic: string,
   ): PolicyRuleExplanation[] {
-    const explanations =
-      this.policyEngine?.evaluate({
-        targetEnvironment: this.resolveTargetEnvironment(req, topic),
-        serviceType: "tribe",
-        hasActivePlan: true,
-        hasActiveQuota: Boolean(this.quotaEnforcer),
-      }) ?? [];
+    const policyEngine = requireGovernanceDependency(
+      this.policyEngine,
+      "PolicyEngineService",
+    );
+    const explanations = policyEngine.evaluate({
+      targetEnvironment: this.resolveTargetEnvironment(req, topic),
+      serviceType: "tribe",
+      hasActivePlan: true,
+      hasActiveQuota: Boolean(this.quotaEnforcer),
+    });
     const blocks = explanations.filter(
       (explanation) => explanation.decision === "block",
     );

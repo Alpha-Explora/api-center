@@ -1,8 +1,7 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { PipelineHealthEnvironment } from "./pipeline-health.dto";
 
-export const ATHENA_QUERY_TELEMETRY_OPTIONS =
-  "ATHENA_QUERY_TELEMETRY_OPTIONS";
+export const ATHENA_QUERY_TELEMETRY_OPTIONS = "ATHENA_QUERY_TELEMETRY_OPTIONS";
 
 export const ATHENA_QUERY_TELEMETRY_TOPIC_SUFFIX =
   "api-center.pipeline.athena-query-execution";

@@ -6,6 +6,7 @@ import { ExternalService } from "../external/external.service";
 import { TokenStoreService } from "../auth/token-store.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
+import { GovernanceReadinessService } from "./governance-readiness.service";
 
 type IndicatorFn = () => Promise<Record<string, unknown>>;
 
@@ -53,6 +54,7 @@ describe("HealthController", () => {
     const auditEvents = {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuditEventsService;
+    const governanceReadiness = new GovernanceReadinessService();
 
     controller = new HealthController(
       health,
@@ -62,6 +64,7 @@ describe("HealthController", () => {
       tokenStore,
       gatewayTraffic,
       auditEvents,
+      governanceReadiness,
     );
   });
 
@@ -93,5 +96,16 @@ describe("HealthController", () => {
     const result = await controller.readiness();
 
     expect((result as any).info.registry.registeredServices).toBe(2);
+  });
+
+  it("should include governance readiness in readiness output", async () => {
+    const result = await controller.readiness();
+
+    expect((result as any).info.governance).toMatchObject({
+      status: "up",
+      quotaEnforcer: "up",
+      policyEngine: "up",
+      approvals: "up",
+    });
   });
 });

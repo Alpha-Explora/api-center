@@ -212,7 +212,9 @@ describe("PipelineGovernanceService", () => {
 });
 
 async function writeFixtureFile() {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "apic-pipeline-governance-"));
+  const dir = await mkdtemp(
+    path.join(os.tmpdir(), "apic-pipeline-governance-"),
+  );
   const filePath = path.join(dir, "pipeline-governance.json");
   await writeFile(
     filePath,

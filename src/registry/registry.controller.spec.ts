@@ -32,6 +32,7 @@ describe("RegistryController", () => {
       mockRegistry,
       mockLogger,
       mockAuditEvents,
+      mockApprovals as any,
     );
   });
 
@@ -173,6 +174,34 @@ describe("RegistryController", () => {
         targetEnvironment: "live",
         targetId: "orders",
       });
+    });
+
+    it("fails closed when live registration has no approval service", async () => {
+      const unguardedController = new RegistryController(
+        mockRegistry,
+        mockLogger,
+        mockAuditEvents,
+        undefined as never,
+      );
+
+      await expect(
+        unguardedController.register(
+          {
+            serviceId: "orders",
+            name: "Orders",
+            baseUrl: "https://orders.example.test",
+            requiredScopes: ["orders:read"],
+            exposes: ["/orders"],
+            consumes: [],
+            serviceType: "tribe",
+            targetEnvironment: "live",
+            approvalRequestId: "approval-1",
+          } as any,
+          { correlationId: "corr-register" } as any,
+        ),
+      ).rejects.toThrow("ApprovalRequestService is required");
+
+      expect(mockRegistry.register).not.toHaveBeenCalled();
     });
   });
 });

@@ -9,8 +9,7 @@ export const PIPELINE_FEEDBACK_ACTIONS = [
   "schema.fix.requested",
 ] as const;
 
-export type PipelineFeedbackAction =
-  (typeof PIPELINE_FEEDBACK_ACTIONS)[number];
+export type PipelineFeedbackAction = (typeof PIPELINE_FEEDBACK_ACTIONS)[number];
 
 export const PIPELINE_FEEDBACK_TARGET_TYPES = [
   "topic",
