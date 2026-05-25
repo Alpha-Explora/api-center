@@ -1,4 +1,5 @@
 import { DeveloperPortalRequestController } from "./developer-portal-request.controller";
+import { ForbiddenError } from "../shared/errors";
 
 describe("DeveloperPortalRequestController", () => {
   it("creates a quota increase request instead of changing quota directly", async () => {
@@ -27,5 +28,42 @@ describe("DeveloperPortalRequestController", () => {
         targetId: "campus-one",
       }),
     );
+  });
+
+  it("rejects quota increase requests for another tribe", async () => {
+    const approvals = {
+      createRequest: jest.fn(),
+    };
+    const controller = new DeveloperPortalRequestController(approvals as any);
+
+    await expect(
+      controller.requestQuotaIncrease(
+        {
+          ownerTribeId: "other-tribe",
+          requestedMaxRequests: 50000,
+          reason: "Enrollment launch",
+        },
+        { user: { tribeId: "campus-one" } } as any,
+      ),
+    ).rejects.toThrow(ForbiddenError);
+    expect(approvals.createRequest).not.toHaveBeenCalled();
+  });
+
+  it("requires a tribe token", async () => {
+    const approvals = {
+      createRequest: jest.fn(),
+    };
+    const controller = new DeveloperPortalRequestController(approvals as any);
+
+    await expect(
+      controller.requestQuotaIncrease(
+        {
+          ownerTribeId: "campus-one",
+          requestedMaxRequests: 50000,
+          reason: "Enrollment launch",
+        },
+        {} as any,
+      ),
+    ).rejects.toThrow("Quota increase requests require a tribe token.");
   });
 });
