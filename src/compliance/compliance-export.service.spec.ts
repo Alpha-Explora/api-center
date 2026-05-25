@@ -16,4 +16,19 @@ describe("ComplianceExportService", () => {
     expect(packet.summary.auditEventCount).toBe(1);
     expect(packet.summary.evidenceBundleCount).toBe(1);
   });
+
+  it("renders compliance packets as markdown", () => {
+    const service = new ComplianceExportService();
+    const packet = service.buildPacket({
+      from: "2026-05-01",
+      to: "2026-05-25",
+      auditEvents: [{ type: "quota.policy.updated" }],
+      evidenceBundles: [{ serviceId: "campus-one", ready: true }],
+    } as any);
+
+    expect(service.toMarkdown(packet)).toContain(
+      "# APICenter Compliance Export",
+    );
+    expect(service.toMarkdown(packet)).toContain("Evidence bundles: 1");
+  });
 });

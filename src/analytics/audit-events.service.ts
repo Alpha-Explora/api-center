@@ -31,6 +31,8 @@ export interface AuditEventFilter {
   type?: string;
   actionFamily?: AuditEventRecord["actionFamily"];
   actor?: string;
+  from?: string;
+  to?: string;
 }
 
 const AUDIT_KEY = "api-center:audit:events";
@@ -116,6 +118,7 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
           !filter.actionFamily || event.actionFamily === filter.actionFamily,
       )
       .filter((event) => !filter.actor || event.actor === filter.actor)
+      .filter((event) => isWithinDateRange(event.timestamp, filter))
       .filter(
         (event) =>
           !filter.serviceId ||
@@ -148,4 +151,23 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
       return this.memoryEvents.slice(0, limit);
     }
   }
+}
+
+function isWithinDateRange(timestamp: string, filter: AuditEventFilter) {
+  const time = Date.parse(timestamp);
+  if (Number.isNaN(time)) return false;
+
+  if (filter.from) {
+    const from = Date.parse(filter.from);
+    if (!Number.isNaN(from) && time < from) return false;
+  }
+
+  if (filter.to) {
+    const to = Date.parse(
+      filter.to.includes("T") ? filter.to : `${filter.to}T23:59:59.999Z`,
+    );
+    if (!Number.isNaN(to) && time > to) return false;
+  }
+
+  return true;
 }

@@ -21,9 +21,18 @@ export interface PromotionEvidenceBundleInput {
   } | null;
 }
 
+export type PromotionEvidenceBundle = {
+  serviceId: string;
+  ready: boolean;
+  generatedAt: string;
+  sections: PromotionEvidenceSection[];
+};
+
 @Injectable()
 export class PromotionEvidenceBundleService {
-  build(input: PromotionEvidenceBundleInput) {
+  private readonly bundles = new Map<string, PromotionEvidenceBundle>();
+
+  build(input: PromotionEvidenceBundleInput): PromotionEvidenceBundle {
     const sections: PromotionEvidenceSection[] = [
       {
         key: "health",
@@ -66,12 +75,18 @@ export class PromotionEvidenceBundleService {
       },
     ];
 
-    return {
+    const bundle = {
       serviceId: input.serviceId,
       ready: sections.every((section) => section.status === "pass"),
       generatedAt: new Date().toISOString(),
       sections,
     };
+    this.bundles.set(input.serviceId, bundle);
+    return bundle;
+  }
+
+  listBundles(): PromotionEvidenceBundle[] {
+    return Array.from(this.bundles.values());
   }
 }
 

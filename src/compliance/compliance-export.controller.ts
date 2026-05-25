@@ -1,6 +1,8 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { AuditEventsService } from "../analytics/audit-events.service";
+import { PromotionEvidenceBundleService } from "../operations/promotion-evidence-bundle.service";
 import { ComplianceExportService } from "./compliance-export.service";
 
 @Controller("admin/compliance/export")
@@ -9,22 +11,35 @@ export class ComplianceExportController {
   constructor(
     private readonly auditEvents: AuditEventsService,
     private readonly compliance: ComplianceExportService,
+    private readonly evidence: PromotionEvidenceBundleService,
   ) {}
 
   @Get()
   async export(
     @Query("from") from: string | undefined,
     @Query("to") to: string | undefined,
+    @Query("format") format: string | undefined,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    const auditEvents = await this.auditEvents.list({ limit: 200 });
-    return {
-      success: true,
-      data: this.compliance.buildPacket({
-        from: from ?? "",
-        to: to ?? "",
-        auditEvents,
-        evidenceBundles: [],
-      }),
-    };
+    const auditEvents = await this.auditEvents.list({
+      limit: 500,
+      from,
+      to,
+    });
+    const packet = this.compliance.buildPacket({
+      from: from ?? "",
+      to: to ?? "",
+      auditEvents,
+      evidenceBundles: this.evidence.listBundles() as Array<
+        Record<string, any>
+      >,
+    });
+
+    if (format === "md") {
+      res?.type("text/markdown");
+      return this.compliance.toMarkdown(packet);
+    }
+
+    return { success: true, data: packet };
   }
 }
