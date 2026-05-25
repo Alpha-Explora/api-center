@@ -26,4 +26,31 @@ describe("PromotionEvidenceBundleService", () => {
       "pipeline",
     ]);
   });
+
+  it("fails closed when required evidence is missing", () => {
+    const service = new PromotionEvidenceBundleService();
+
+    const bundle = service.build({
+      serviceId: "campus-one",
+      health: { status: "up" },
+      quotaPolicy: null,
+      planAssignment: null,
+      approval: null,
+      smoke: { status: "missing" },
+      manifest: { status: "missing" },
+      pipeline: null,
+    });
+
+    expect(bundle.ready).toBe(false);
+    expect(bundle.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "quota", status: "fail" }),
+        expect.objectContaining({ key: "plan", status: "fail" }),
+        expect.objectContaining({ key: "approval", status: "fail" }),
+        expect.objectContaining({ key: "smoke", status: "fail" }),
+        expect.objectContaining({ key: "manifest", status: "fail" }),
+        expect.objectContaining({ key: "pipeline", status: "fail" }),
+      ]),
+    );
+  });
 });

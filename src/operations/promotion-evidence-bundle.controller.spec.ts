@@ -3,21 +3,113 @@ import { PromotionEvidenceBundleController } from "./promotion-evidence-bundle.c
 import { PromotionEvidenceBundleService } from "./promotion-evidence-bundle.service";
 
 describe("PromotionEvidenceBundleController", () => {
-  it("returns markdown evidence when requested", () => {
-    const registry = {
-      get: jest.fn().mockReturnValue({
-        serviceId: "campus-one",
-        consumes: ["kafka"],
-      }),
-    } as unknown as RegistryService;
-    const controller = new PromotionEvidenceBundleController(
+  const registry = {
+    get: jest.fn(),
+  } as unknown as RegistryService;
+  const quotaPolicies = {
+    listPolicies: jest.fn(),
+  };
+  const planService = {
+    listPlanAssignments: jest.fn(),
+  };
+  const approvals = {
+    listRequests: jest.fn(),
+  };
+  const pipelineHealth = {
+    listHealth: jest.fn(),
+  };
+
+  let controller: PromotionEvidenceBundleController;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    controller = new PromotionEvidenceBundleController(
       registry,
       new PromotionEvidenceBundleService(),
+      quotaPolicies as any,
+      planService as any,
+      approvals as any,
+      pipelineHealth as any,
     );
+  });
 
-    const response = controller.getEvidence("campus-one", "md");
+  it("returns markdown evidence when requested", async () => {
+    (registry.get as jest.Mock).mockReturnValue({
+      serviceId: "campus-one",
+      ownerTribeId: "campus-one",
+      consumes: ["kafka"],
+    });
+    quotaPolicies.listPolicies.mockResolvedValue([
+      { id: "quota-1", status: "active" },
+    ]);
+    planService.listPlanAssignments.mockResolvedValue([
+      { id: "plan-1", status: "active" },
+    ]);
+    approvals.listRequests.mockResolvedValue([
+      { id: "approval-1", status: "approved", targetId: "campus-one" },
+    ]);
+    pipelineHealth.listHealth.mockResolvedValue([
+      { tribeId: "campus-one", sourceServiceId: "student-api" },
+    ]);
+
+    const response = await controller.getEvidence("campus-one", "md");
 
     expect(response).toContain("# Promotion Evidence: campus-one");
     expect(response).toContain("## Health");
+  });
+
+  it("does not mark quota, plan, approval, or pipeline as passing when evidence is missing", async () => {
+    (registry.get as jest.Mock).mockReturnValue({
+      serviceId: "campus-one",
+      ownerTribeId: "campus-one",
+      healthy: true,
+      consumes: [],
+    });
+    quotaPolicies.listPolicies.mockResolvedValue([]);
+    planService.listPlanAssignments.mockResolvedValue([]);
+    approvals.listRequests.mockResolvedValue([]);
+    pipelineHealth.listHealth.mockResolvedValue([]);
+
+    const response = await controller.getEvidence("campus-one", undefined);
+
+    expect(response).toMatchObject({ success: true });
+    if (typeof response === "string") throw new Error("Expected JSON response");
+    expect(response.data.ready).toBe(false);
+    expect(response.data.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "quota", status: "fail" }),
+        expect.objectContaining({ key: "plan", status: "fail" }),
+        expect.objectContaining({ key: "approval", status: "fail" }),
+        expect.objectContaining({ key: "pipeline", status: "fail" }),
+      ]),
+    );
+  });
+
+  it("uses owner tribe for quota and plan evidence lookup", async () => {
+    (registry.get as jest.Mock).mockReturnValue({
+      serviceId: "student-api",
+      ownerTribeId: "campus-one",
+      healthy: true,
+    });
+    quotaPolicies.listPolicies.mockResolvedValue([
+      { id: "quota-1", status: "active" },
+    ]);
+    planService.listPlanAssignments.mockResolvedValue([
+      { id: "plan-1", status: "active" },
+    ]);
+    approvals.listRequests.mockResolvedValue([
+      { id: "approval-1", status: "approved", targetId: "student-api" },
+    ]);
+    pipelineHealth.listHealth.mockResolvedValue([
+      { tribeId: "campus-one", sourceServiceId: "student-api" },
+    ]);
+
+    await controller.getEvidence("student-api", undefined);
+
+    expect(quotaPolicies.listPolicies).toHaveBeenCalledWith("campus-one");
+    expect(planService.listPlanAssignments).toHaveBeenCalledWith({
+      ownerTribeId: "campus-one",
+      status: "active",
+    });
   });
 });

@@ -6,9 +6,24 @@ export interface PromotionEvidenceSection {
   data: unknown;
 }
 
+export interface PromotionEvidenceBundleInput {
+  serviceId: string;
+  health?: { status?: string } | null;
+  quotaPolicy?: unknown;
+  planAssignment?: unknown;
+  approval?: unknown;
+  smoke?: { status?: string } | null;
+  manifest?: { status?: string } | null;
+  pipeline?: {
+    topicExists?: boolean;
+    s3SinkIncludesTopic?: boolean;
+    [key: string]: unknown;
+  } | null;
+}
+
 @Injectable()
 export class PromotionEvidenceBundleService {
-  build(input: Record<string, any>) {
+  build(input: PromotionEvidenceBundleInput) {
     const sections: PromotionEvidenceSection[] = [
       {
         key: "health",
@@ -27,7 +42,8 @@ export class PromotionEvidenceBundleService {
       },
       {
         key: "approval",
-        status: input.approval?.status === "approved" ? "pass" : "fail",
+        status:
+          readEvidenceStatus(input.approval) === "approved" ? "pass" : "fail",
         data: input.approval,
       },
       {
@@ -57,4 +73,10 @@ export class PromotionEvidenceBundleService {
       sections,
     };
   }
+}
+
+function readEvidenceStatus(input: unknown): string | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const status = (input as { status?: unknown }).status;
+  return typeof status === "string" ? status : undefined;
 }
