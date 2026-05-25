@@ -15,6 +15,7 @@ import {
   IsOptional,
   IsIn,
   IsDateString,
+  IsBoolean,
   Matches,
   Validate,
   ValidationArguments,
@@ -40,11 +41,7 @@ class OwnerTribeIdConstraint implements ValidatorConstraintInterface {
   }
 
   defaultMessage(args: ValidationArguments): string {
-    if (
-      args.value === undefined ||
-      args.value === null ||
-      args.value === ""
-    ) {
+    if (args.value === undefined || args.value === null || args.value === "") {
       return "ownerTribeId is required for tribe microservices or hyphenated tribe service IDs";
     }
 
@@ -188,4 +185,60 @@ export class ServiceManifestDto {
   })
   @IsOptional()
   serviceType?: string = "tribe";
+
+  @ApiPropertyOptional({ example: "live", enum: ["test", "live"] })
+  @IsString()
+  @IsIn(["test", "live"], {
+    message: "targetEnvironment must be test or live",
+  })
+  @IsOptional()
+  targetEnvironment?: string;
+
+  @ApiPropertyOptional({ example: "approval-request-id" })
+  @IsString()
+  @MaxLength(128)
+  @IsOptional()
+  approvalRequestId?: string;
+
+  @ApiPropertyOptional({ example: "Payments API" })
+  @IsString()
+  @MaxLength(128)
+  @IsOptional()
+  apiProductName?: string;
+
+  @ApiPropertyOptional({ example: "Checkout and subscription operations." })
+  @IsString()
+  @MaxLength(500)
+  @IsOptional()
+  apiProductDescription?: string;
+
+  @ApiPropertyOptional({ example: "gold" })
+  @IsString()
+  @MaxLength(64)
+  @IsOptional()
+  slaTier?: string;
+
+  @ApiPropertyOptional({ example: "#payments-support" })
+  @IsString()
+  @MaxLength(128)
+  @IsOptional()
+  supportChannel?: string;
+
+  @ApiPropertyOptional({ example: "https://docs.example.com/payments" })
+  @IsString()
+  @IsUrl(
+    {
+      require_tld: false,
+      require_protocol: true,
+      protocols: ["http", "https"],
+    },
+    { message: "documentationUrl must be a valid URL" },
+  )
+  @IsOptional()
+  documentationUrl?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  providerCostSensitive?: boolean;
 }

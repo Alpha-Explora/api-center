@@ -2,7 +2,7 @@ import { ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
 import { AllExceptionsFilter } from "./all-exceptions.filter";
 import { LoggerService } from "../logger.service";
 import { ConfigService } from "../../config/config.service";
-import { UnauthorizedError } from "../errors";
+import { QuotaExceededError, UnauthorizedError } from "../errors";
 
 function createHost(
   request: Record<string, unknown>,
@@ -77,6 +77,44 @@ describe("AllExceptionsFilter", () => {
         error: expect.objectContaining({
           message: "Validation failed",
           details: ["field a required", "field b invalid"],
+        }),
+      }),
+    );
+  });
+
+  it("should preserve quota error code and retry metadata", () => {
+    const filter = new AllExceptionsFilter(mockLogger, {
+      isProduction: false,
+    } as ConfigService);
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const response = { status };
+    const request = { correlationId: "corr-quota" };
+
+    filter.catch(
+      new QuotaExceededError("Tribe API quota exceeded", {
+        ownerTribeId: "campus-one",
+        retryAfterSeconds: 60,
+        quota: {
+          scope: "shared",
+          targetServiceId: "payment-service",
+          maxRequests: 100,
+          windowSeconds: 60,
+        },
+      }),
+      createHost(request, response),
+    );
+
+    expect(status).toHaveBeenCalledWith(HttpStatus.TOO_MANY_REQUESTS);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "TRIBE_API_QUOTA_EXCEEDED",
+          message: "Tribe API quota exceeded",
+          detail: expect.objectContaining({
+            ownerTribeId: "campus-one",
+            retryAfterSeconds: 60,
+          }),
         }),
       }),
     );

@@ -30,6 +30,8 @@ Validation notes:
 - Arrays must not contain duplicate values.
 - `healthCheck`, if provided, must start with `/`.
 - `serviceTier`, if provided, must be `critical`, `standard`, or `experimental`.
+- Shared-service manifests may include advisory `quotaHints`; API Center quota
+  policies remain the runtime enforcement source.
 
 ## Tribe Startup Checklist
 

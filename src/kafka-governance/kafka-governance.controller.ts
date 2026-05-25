@@ -2,6 +2,9 @@ import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { AuthService } from "../auth/auth.service";
+import { PolicyEngineService } from "../policy/policy-engine.service";
+import { PolicyRuleExplanation } from "../policy/policy-rule.types";
+import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
 import { ForbiddenError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
 import { KafkaPublishMessageDto } from "./dto/kafka-publish-message.dto";
@@ -13,6 +16,8 @@ export class KafkaGovernanceController {
   constructor(
     private readonly kafkaGovernance: KafkaGovernanceService,
     private readonly auth: AuthService,
+    private readonly quotaEnforcer?: TribeQuotaEnforcerService,
+    private readonly policyEngine?: PolicyEngineService,
   ) {}
 
   @Get("governance")
@@ -54,6 +59,15 @@ export class KafkaGovernanceController {
   ) {
     const tribeId = this.resolveTribeId(req);
     this.ensureScopes(req, ["external:kafka:write"]);
+    const policy = this.evaluatePolicy(req, dto.topic);
+
+    await this.quotaEnforcer?.check({
+      ownerTribeId: tribeId,
+      scope: "kafka_publish",
+      targetServiceId: "kafka",
+      routeFamily: "kafka:publish",
+      correlationId: req.correlationId,
+    });
 
     const result = await this.kafkaGovernance.publishMessage(
       tribeId,
@@ -68,6 +82,7 @@ export class KafkaGovernanceController {
         timestamp: new Date().toISOString(),
         tribeId,
         correlationId: req.correlationId,
+        policy,
       },
     };
   }
@@ -93,5 +108,35 @@ export class KafkaGovernanceController {
         `Missing required scopes: ${missingScopes.join(", ")}`,
       );
     }
+  }
+
+  private evaluatePolicy(
+    req: AuthenticatedRequest,
+    topic: string,
+  ): PolicyRuleExplanation[] {
+    const explanations =
+      this.policyEngine?.evaluate({
+        targetEnvironment: this.resolveTargetEnvironment(req, topic),
+        serviceType: "tribe",
+        hasActivePlan: true,
+        hasActiveQuota: Boolean(this.quotaEnforcer),
+      }) ?? [];
+    const blocks = explanations.filter(
+      (explanation) => explanation.decision === "block",
+    );
+
+    if (blocks.length) {
+      throw new ForbiddenError(JSON.stringify(blocks[0]));
+    }
+
+    return explanations;
+  }
+
+  private resolveTargetEnvironment(req: AuthenticatedRequest, topic: string) {
+    if (req.headers?.["x-apicenter-target-environment"] === "live") {
+      return "live";
+    }
+
+    return topic.startsWith("prod.") ? "live" : "test";
   }
 }

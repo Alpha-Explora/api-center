@@ -1,0 +1,49 @@
+export type ApprovalActionType =
+  | "quota.enforce"
+  | "secret.rotate"
+  | "topic.provision"
+  | "s3_sink.include_topic"
+  | "service.register_live"
+  | "service.retire"
+  | "plan.assign_live";
+
+export type ApprovalRiskLevel = "low" | "medium" | "high" | "critical";
+export type ApprovalRequestStatus = "pending" | "approved" | "rejected";
+
+export interface ApprovalRequest {
+  id?: string;
+  actionType: ApprovalActionType;
+  targetId?: string | null;
+  targetEnvironment: string;
+  status: ApprovalRequestStatus;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  riskLevel: ApprovalRiskLevel;
+  reason: string;
+  requestedBy: string;
+  approvedBy?: string | null;
+  approvedAt?: Date | string | null;
+  rejectedBy?: string | null;
+  rejectedAt?: Date | string | null;
+  rejectionReason?: string | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+export interface CreateApprovalRequestInput {
+  actionType: ApprovalActionType;
+  targetId?: string | null;
+  targetEnvironment: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  riskLevel: ApprovalRiskLevel;
+  reason: string;
+  requestedBy: string;
+}
+
+export interface ApprovalCheckInput {
+  approvalRequestId?: string;
+  actionType: ApprovalActionType;
+  targetEnvironment: string;
+  targetId?: string;
+}

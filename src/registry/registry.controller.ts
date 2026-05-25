@@ -26,6 +26,7 @@ import {
   UseGuards,
   Req,
 } from "@nestjs/common";
+import { ApprovalRequestService } from "../approvals/approval-request.service";
 import { RegistryService } from "./registry.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
@@ -45,6 +46,7 @@ export class RegistryController {
     private readonly registry: RegistryService,
     private readonly logger: LoggerService,
     private readonly auditEvents: AuditEventsService,
+    private readonly approvals?: ApprovalRequestService,
   ) {}
 
   /**
@@ -55,11 +57,22 @@ export class RegistryController {
     @Body() dto: ServiceManifestDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.requireApproval({
+      approvalRequestId: dto.approvalRequestId,
+      actionType: "service.register_live",
+      targetEnvironment: dto.targetEnvironment ?? "test",
+      targetId: dto.serviceId,
+    });
+    const {
+      approvalRequestId: _approvalRequestId,
+      targetEnvironment: _targetEnvironment,
+      ...manifestDto
+    } = dto;
     const manifest = {
-      ...dto,
-      consumes: dto.consumes ?? [],
-      serviceTier: dto.serviceTier as ServiceTier | undefined,
-      serviceType: (dto.serviceType ?? "tribe") as ServiceType,
+      ...manifestDto,
+      consumes: manifestDto.consumes ?? [],
+      serviceTier: manifestDto.serviceTier as ServiceTier | undefined,
+      serviceType: (manifestDto.serviceType ?? "tribe") as ServiceType,
     };
     const entry = await this.registry.register(manifest);
 
@@ -106,6 +119,12 @@ export class RegistryController {
         costCenter: svc.costCenter,
         sunsetDate: svc.sunsetDate,
         replacementService: svc.replacementService,
+        apiProductName: svc.apiProductName,
+        apiProductDescription: svc.apiProductDescription,
+        slaTier: svc.slaTier,
+        supportChannel: svc.supportChannel,
+        documentationUrl: svc.documentationUrl,
+        providerCostSensitive: svc.providerCostSensitive,
         registeredAt: svc.registeredAt,
         updatedAt: svc.updatedAt,
       })),
@@ -255,8 +274,15 @@ export class RegistryController {
   @Post("services/:serviceId/retire")
   async retire(
     @Param("serviceId") serviceId: string,
+    @Body() body: { approvalRequestId?: string } = {},
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.requireApproval({
+      approvalRequestId: body.approvalRequestId,
+      actionType: "service.retire",
+      targetEnvironment: "live",
+      targetId: serviceId,
+    });
     const consumers = this.registry.getConsumers(serviceId);
     const entry = await this.registry.retire(serviceId);
 
@@ -347,5 +373,14 @@ export class RegistryController {
         },
       })
       .catch(() => undefined);
+  }
+
+  private async requireApproval(input: {
+    approvalRequestId?: string;
+    actionType: "service.register_live" | "service.retire";
+    targetEnvironment: string;
+    targetId: string;
+  }) {
+    await this.approvals?.assertApprovedForAction(input);
   }
 }

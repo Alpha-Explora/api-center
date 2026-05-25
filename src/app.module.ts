@@ -61,6 +61,11 @@ import { SharedServicesModule } from "./shared-services/shared-services.module";
 import { HealthModule } from "./health/health.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { QuotasModule } from "./quotas/quotas.module";
+import { EntitlementsModule } from "./entitlements/entitlements.module";
+import { DeveloperPortalModule } from "./developer-portal/developer-portal.module";
+import { ApprovalsModule } from "./approvals/approvals.module";
+import { PolicyEngineModule } from "./policy/policy-engine.module";
 import { DataPipelineModule } from "./data-pipeline/data-pipeline.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
@@ -95,6 +100,11 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     // ── 4. Observability ──────────────────────────────────────────────────────
     MetricsModule, // Prometheus counters / histograms / gauges
     AnalyticsModule, // Protected JSON analytics for the management console
+    QuotasModule, // Operator quota policies and runtime enforcement
+    EntitlementsModule, // Tribe plan tiers and quota proposal defaults
+    DeveloperPortalModule, // Tribe-facing read-only self-service portal APIs
+    ApprovalsModule, // Risky live-change request, approval, and audit gate
+    PolicyEngineModule, // Explainable policy warnings and blocks
     DataPipelineModule, // Curated pipeline health and governance evidence
 
     // ── 5. Infrastructure services ────────────────────────────────────────────

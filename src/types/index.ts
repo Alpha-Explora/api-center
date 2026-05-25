@@ -94,6 +94,12 @@ export interface ServiceManifest {
   sunsetDate?: string;
   /** serviceId of the replacement service consumers should migrate to */
   replacementService?: string;
+  apiProductName?: string;
+  apiProductDescription?: string;
+  slaTier?: string;
+  supportChannel?: string;
+  documentationUrl?: string;
+  providerCostSensitive?: boolean;
 }
 
 /**

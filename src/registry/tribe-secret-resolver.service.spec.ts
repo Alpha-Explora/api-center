@@ -88,6 +88,58 @@ describe("TribeSecretResolverService", () => {
     });
   });
 
+  it("accepts current and next hashes while a rotation is dual-valid", async () => {
+    process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
+    process.env.GCP_PROJECT_ID = "api-center-test";
+    const currentHash = hashSecret("current-secret");
+    const nextHash = hashSecret("next-secret");
+    accessSecretVersion.mockReturnValueOnce(
+      secretResponse(
+        JSON.stringify({
+          serviceId: "smoke-tribe",
+          secretHashSha256: currentHash,
+          nextSecretHashSha256: nextHash,
+          status: "active",
+          rotationState: "active_dual_valid",
+        }),
+      ),
+    );
+
+    await expect(
+      service.validateSecret("smoke-tribe", "current-secret"),
+    ).resolves.toBe(true);
+    await expect(
+      service.validateSecret("smoke-tribe", "next-secret"),
+    ).resolves.toBe(true);
+    await expect(
+      service.validateSecret("smoke-tribe", "wrong-secret"),
+    ).resolves.toBe(false);
+  });
+
+  it("accepts only the promoted hash after the old secret is revoked", async () => {
+    process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
+    process.env.GCP_PROJECT_ID = "api-center-test";
+    const promotedHash = hashSecret("new-secret");
+    accessSecretVersion.mockReturnValueOnce(
+      secretResponse(
+        JSON.stringify({
+          serviceId: "smoke-tribe",
+          secretHashSha256: promotedHash,
+          previousSecretHashSha256: hashSecret("old-secret"),
+          status: "active",
+          rotationState: "old_revoked",
+        }),
+      ),
+    );
+
+    await expect(
+      service.validateSecret("smoke-tribe", "new-secret"),
+    ).resolves.toBe(true);
+    await expect(
+      service.validateSecret("smoke-tribe", "old-secret"),
+    ).resolves.toBe(false);
+  });
+
   it("supports a raw hash payload during migration", async () => {
     process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
     process.env.GCP_PROJECT_ID = "api-center-test";

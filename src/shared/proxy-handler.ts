@@ -22,6 +22,10 @@ import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { SharedServiceEventPublisher } from "../shared-services/shared-service-event-publisher";
+import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
+import { TribeQuotaScope } from "../quotas/tribe-quota-policy.types";
+import { PolicyEngineService } from "../policy/policy-engine.service";
+import { PolicyRuleExplanation } from "../policy/policy-rule.types";
 import { CircuitBreaker } from "../shared/circuit-breaker";
 import {
   ForbiddenError,
@@ -133,6 +137,8 @@ export interface ProxyHandlerDeps {
   gatewayTraffic?: GatewayTrafficService;
   sharedServiceUsage?: SharedServiceUsageService;
   sharedServiceEvents?: SharedServiceEventPublisher;
+  quotaEnforcer?: TribeQuotaEnforcerService;
+  policyEngine?: PolicyEngineService;
 }
 
 export interface ProxyOptions {
@@ -297,6 +303,7 @@ export class ProxyHandler {
 
     // ── 1c. Lifecycle gate ─────────────────────────────────────────────────
     this.enforceLifecycleGate(targetEntry, targetServiceId, res);
+    this.enforcePolicyRules(targetEntry, req, res);
 
     // ── 2. Scope check ─────────────────────────────────────────────────────
     if (!this.deps.registry.canAccess(tribeId, targetServiceId)) {
@@ -317,6 +324,14 @@ export class ProxyHandler {
     }
 
     // ── 3. Circuit-breaker gate ────────────────────────────────────────────
+    await this.deps.quotaEnforcer?.check({
+      ownerTribeId: tribeId,
+      scope: this.opts.namespace as TribeQuotaScope,
+      targetServiceId,
+      routeFamily: `${this.opts.namespace}:${targetServiceId}`,
+      correlationId,
+    });
+
     const breaker = this.getOrCreateCircuitBreaker(targetServiceId);
     if (!breaker.tryAcquire()) {
       this.deps.logger.warn(
@@ -641,5 +656,67 @@ export class ProxyHandler {
         );
       }
     }
+  }
+
+  private enforcePolicyRules(
+    targetEntry: ReturnType<RegistryService["get"]>,
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
+    if (!this.deps.policyEngine || !targetEntry) return;
+
+    const explanations = this.deps.policyEngine.evaluate({
+      targetEnvironment: this.resolveTargetEnvironment(req),
+      serviceType: targetEntry.serviceType ?? "tribe",
+      serviceTier: targetEntry.serviceTier,
+      lifecycleStatus: targetEntry.status,
+      sunsetDate: targetEntry.sunsetDate,
+      providerCostSensitive: this.isProviderCostSensitive(targetEntry),
+      hasActivePlan: true,
+      hasActiveQuota: Boolean(this.deps.quotaEnforcer),
+      hasTargetQuota: false,
+    });
+    const warnings = explanations.filter(
+      (explanation) => explanation.decision === "warn",
+    );
+    const blocks = explanations.filter(
+      (explanation) => explanation.decision === "block",
+    );
+
+    if (warnings.length) {
+      this.setPolicyHeader(res, "X-API-Center-Policy-Warnings", warnings);
+    }
+    if (blocks.length) {
+      this.setPolicyHeader(res, "X-API-Center-Policy-Block", blocks);
+      throw new ForbiddenError(JSON.stringify(blocks[0]));
+    }
+  }
+
+  private resolveTargetEnvironment(req: AuthenticatedRequest) {
+    return req.headers?.["x-apicenter-target-environment"] === "live"
+      ? "live"
+      : "test";
+  }
+
+  private isProviderCostSensitive(targetEntry: object) {
+    const record = targetEntry as {
+      providerCostSensitive?: boolean;
+      quotaHints?: { providerCostSensitive?: boolean };
+    };
+    const quotaHints = record.quotaHints as
+      | { providerCostSensitive?: boolean }
+      | undefined;
+    return (
+      record.providerCostSensitive === true ||
+      quotaHints?.providerCostSensitive === true
+    );
+  }
+
+  private setPolicyHeader(
+    res: Response,
+    headerName: string,
+    explanations: PolicyRuleExplanation[],
+  ) {
+    res.setHeader(headerName, JSON.stringify(explanations));
   }
 }

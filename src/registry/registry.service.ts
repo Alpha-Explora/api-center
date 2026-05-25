@@ -512,6 +512,30 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  getDeveloperPortalServices(tribeId: string) {
+    const safeService = (service: ServiceRegistryEntry) => ({
+      serviceId: service.serviceId,
+      name: service.name,
+      serviceType: service.serviceType ?? "tribe",
+      routes: service.exposes ?? [],
+      scopes: service.requiredScopes ?? [],
+      status: service.status,
+      version: service.version,
+      description: service.description,
+      serviceTier: service.serviceTier,
+      contact: service.contact,
+    });
+    const allowedServiceIds = this.getEffectiveConsumesForTribe(tribeId);
+
+    return {
+      ownedServices: this.getOwnedServices(tribeId).map(safeService),
+      allowedServices: allowedServiceIds
+        .map((serviceId) => this.services[serviceId])
+        .filter((service): service is ServiceRegistryEntry => Boolean(service))
+        .map(safeService),
+    };
+  }
+
   getEffectiveConsumesForTribe(tribeId: string): string[] {
     const direct = this.services[tribeId]?.consumes ?? [];
     const owned = this.getOwnedServices(tribeId).flatMap(

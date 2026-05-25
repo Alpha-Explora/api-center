@@ -89,10 +89,10 @@ For Power BI or Looker:
 If the BI tool cannot enforce scoped result prefixes or query limits, the data
 must be materialized to an approved Gold output before handoff.
 
-## Power BI Embed In Management Console
+## BI Embed In Management Console
 
-The management console may embed the approved APICenter north-star Power BI
-report as a read-only operator view.
+The management console may embed the approved APICenter north-star Power BI,
+Looker, or Looker Studio dashboard as a read-only operator view.
 
 Embed approval checklist:
 
@@ -103,11 +103,11 @@ Embed approval checklist:
 - Scheduled refresh cadence and scan budget are recorded in the BI inventory.
 - The report owner and data steward are recorded.
 - The management deployment stores only the report embed URL and report id.
-- No Power BI client secret, AWS key, or Athena credential is exposed to the
+- No BI client secret, AWS key, or Athena credential is exposed to the
   browser.
 
 If any checklist item is not satisfied, leave
-`POWERBI_NORTH_STAR_ENABLED=false` and use the native `/data-pipeline` views
+`BI_NORTH_STAR_ENABLED=false` and use the native `/data-pipeline` views
 until the report is approved.
 
 ## North-Star Mapping

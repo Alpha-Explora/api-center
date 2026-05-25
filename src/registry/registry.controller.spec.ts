@@ -7,6 +7,9 @@ describe("RegistryController", () => {
   const mockRegistry = {
     count: jest.fn(),
     getAll: jest.fn(),
+    getConsumers: jest.fn(),
+    register: jest.fn(),
+    retire: jest.fn(),
   } as unknown as RegistryService;
 
   const mockLogger = {
@@ -16,6 +19,9 @@ describe("RegistryController", () => {
   const mockAuditEvents = {
     record: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuditEventsService;
+  const mockApprovals = {
+    assertApprovedForAction: jest.fn(),
+  };
 
   let controller: RegistryController;
 
@@ -91,6 +97,82 @@ describe("RegistryController", () => {
 
       expect(response.data.dynamicServiceScopes).toEqual([]);
       expect(response.data.allScopes).toEqual(["platform:admin"]);
+    });
+  });
+
+  describe("approval gates", () => {
+    it("requires approval before live service registration", async () => {
+      const guardedController = new RegistryController(
+        mockRegistry,
+        mockLogger,
+        mockAuditEvents,
+        mockApprovals as any,
+      );
+      (mockRegistry.register as jest.Mock).mockResolvedValue({
+        serviceId: "orders",
+        name: "Orders",
+        baseUrl: "https://orders.example.test",
+        requiredScopes: ["orders:read"],
+        exposes: ["/orders"],
+        consumes: [],
+        serviceType: "tribe",
+        status: "active",
+      });
+
+      await guardedController.register(
+        {
+          serviceId: "orders",
+          name: "Orders",
+          baseUrl: "https://orders.example.test",
+          requiredScopes: ["orders:read"],
+          exposes: ["/orders"],
+          consumes: [],
+          serviceType: "tribe",
+          targetEnvironment: "live",
+          approvalRequestId: "approval-1",
+        } as any,
+        { correlationId: "corr-register" } as any,
+      );
+
+      expect(mockApprovals.assertApprovedForAction).toHaveBeenCalledWith({
+        approvalRequestId: "approval-1",
+        actionType: "service.register_live",
+        targetEnvironment: "live",
+        targetId: "orders",
+      });
+      expect(mockRegistry.register).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          approvalRequestId: expect.anything(),
+          targetEnvironment: expect.anything(),
+        }),
+      );
+    });
+
+    it("requires approval before service retirement", async () => {
+      const guardedController = new RegistryController(
+        mockRegistry,
+        mockLogger,
+        mockAuditEvents,
+        mockApprovals as any,
+      );
+      (mockRegistry.getConsumers as jest.Mock).mockReturnValue([]);
+      (mockRegistry.retire as jest.Mock).mockResolvedValue({
+        serviceId: "orders",
+        status: "retired",
+      });
+
+      await guardedController.retire(
+        "orders",
+        { approvalRequestId: "approval-2" },
+        { correlationId: "corr-retire" } as any,
+      );
+
+      expect(mockApprovals.assertApprovedForAction).toHaveBeenCalledWith({
+        approvalRequestId: "approval-2",
+        actionType: "service.retire",
+        targetEnvironment: "live",
+        targetId: "orders",
+      });
     });
   });
 });

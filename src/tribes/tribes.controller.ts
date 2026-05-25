@@ -30,6 +30,8 @@ import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
+import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
+import { PolicyEngineService } from "../policy/policy-engine.service";
 import { ProxyHandler } from "../shared/proxy-handler";
 import { AuthenticatedRequest } from "../types";
 
@@ -46,10 +48,21 @@ export class TribesController implements OnModuleDestroy {
     metrics: MetricsService,
     auditEvents: AuditEventsService,
     gatewayTraffic: GatewayTrafficService,
+    quotaEnforcer?: TribeQuotaEnforcerService,
+    policyEngine?: PolicyEngineService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
-      { registry, auth, logger, metrics, auditEvents, gatewayTraffic },
+      {
+        registry,
+        auth,
+        logger,
+        metrics,
+        auditEvents,
+        gatewayTraffic,
+        quotaEnforcer,
+        policyEngine,
+      },
       { namespace: "tribe", pathPrefix: "/api/v1/tribes" },
     );
   }

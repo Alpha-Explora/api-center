@@ -14,11 +14,16 @@ describe("KafkaGovernanceController", () => {
     checkScopes: jest.fn().mockReturnValue([]),
   } as unknown as AuthService;
 
+  const mockQuotaEnforcer = {
+    check: jest.fn().mockResolvedValue(undefined),
+  };
+
   let controller: KafkaGovernanceController;
 
   beforeEach(() => {
     jest.clearAllMocks();
     controller = new KafkaGovernanceController(mockKafkaGovernance, mockAuth);
+    (controller as any).quotaEnforcer = mockQuotaEnforcer;
   });
 
   it("returns governance catalog for authorised caller", () => {
@@ -79,5 +84,36 @@ describe("KafkaGovernanceController", () => {
       }),
       "corr-kafka-3",
     );
+  });
+
+  it("checks kafka publish quota before publishing", async () => {
+    (mockAuth.checkScopes as jest.Mock).mockReturnValue([]);
+    (mockKafkaGovernance.publishMessage as jest.Mock).mockResolvedValue({
+      topic: "tribe.orders-service.events",
+      eventType: "order.created",
+      accepted: true,
+    });
+
+    await controller.publishMessage(
+      {
+        topic: "tribe.orders-service.events",
+        eventType: "order.created",
+        payload: { orderId: "ord_123" },
+      },
+      {
+        tribeId: "orders-service",
+        user: { tribeId: "orders-service", scopes: ["external:kafka:write"] },
+        correlationId: "corr-kafka-4",
+      } as any,
+    );
+
+    expect(mockQuotaEnforcer.check).toHaveBeenCalledWith({
+      ownerTribeId: "orders-service",
+      scope: "kafka_publish",
+      targetServiceId: "kafka",
+      routeFamily: "kafka:publish",
+      correlationId: "corr-kafka-4",
+    });
+    expect(mockKafkaGovernance.publishMessage).toHaveBeenCalledTimes(1);
   });
 });

@@ -18,7 +18,7 @@ import { AuthenticatedRequest } from "../types";
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockAuth: Partial<AuthService> = {
-  issueToken: jest.fn(),
+  issueTribeToken: jest.fn(),
   refreshToken: jest.fn(),
   getJwksJson: jest.fn(),
 };
@@ -91,8 +91,8 @@ describe("AuthController", () => {
         consumes: [],
       });
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
-      // AuthService.issueToken returns IssuedToken shape
-      (mockAuth.issueToken as jest.Mock).mockResolvedValue({
+      // AuthService.issueTribeToken returns IssuedToken shape
+      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",
         expiresIn: 3600,
@@ -113,7 +113,7 @@ describe("AuthController", () => {
         consumes: [],
       });
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
-      (mockAuth.issueToken as jest.Mock).mockResolvedValue({
+      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: null,
         expiresIn: 3600,
@@ -149,7 +149,7 @@ describe("AuthController", () => {
         consumes: [],
       });
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
-      (mockAuth.issueToken as jest.Mock).mockResolvedValue({
+      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",
         expiresIn: 3600,
@@ -214,7 +214,7 @@ describe("AuthController", () => {
         "kafka",
       ]);
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
-      (mockAuth.issueToken as jest.Mock).mockResolvedValue({
+      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",
         expiresIn: 3600,
@@ -225,7 +225,7 @@ describe("AuthController", () => {
         fakeReq(),
       );
 
-      expect(mockAuth.issueToken).toHaveBeenCalledWith(
+      expect(mockAuth.issueTribeToken).toHaveBeenCalledWith(
         "logistics",
         expect.arrayContaining(["tribe:logistics:read"]),
         expect.arrayContaining([

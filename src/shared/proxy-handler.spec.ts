@@ -163,6 +163,24 @@ describe("ProxyHandler", () => {
       );
     });
 
+    it("checks tribe quota before acquiring proxy resources", async () => {
+      const quotaEnforcer = {
+        check: jest.fn().mockResolvedValue(undefined),
+      };
+      (deps as any).quotaEnforcer = quotaEnforcer;
+
+      await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
+
+      expect(quotaEnforcer.check).toHaveBeenCalledWith({
+        ownerTribeId: "svc-alpha",
+        scope: "tribe",
+        targetServiceId: "user-svc",
+        routeFamily: "tribe:user-svc",
+        correlationId: "corr-1",
+      });
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(1);
+    });
+
     it("reuses the cached proxy on subsequent requests", async () => {
       const req = fakeReq();
       const res = fakeRes();

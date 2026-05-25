@@ -145,6 +145,7 @@ Common Silver sample:
 
 ```sql
 SELECT
+  source_topic,
   environment,
   tribe_id,
   source_service_id,
@@ -153,12 +154,19 @@ SELECT
   occurred_at,
   ingested_at
 FROM common_silver.tribe_event_envelope
-WHERE environment = 'prod'
+WHERE source_topic = 'prod.tribe.<tribe_id>.events'
+  AND environment = 'prod'
   AND year = '2026'
   AND month = '05'
   AND day = '21'
 LIMIT 100;
 ```
+
+For a tribe-scoped reader, replace `<tribe_id>` and keep `source_topic`,
+`environment`, and date filters in place. Do not run unbounded discovery queries
+such as `SELECT DISTINCT tribe_id FROM common_silver.tribe_event_envelope`;
+those ask Athena to plan across the shared raw table and are expected to fail
+under least-privilege raw S3 access.
 
 Raw validation must always be bounded by topic and date:
 

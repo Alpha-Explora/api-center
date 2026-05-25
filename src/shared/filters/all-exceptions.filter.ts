@@ -60,7 +60,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const code =
           exception instanceof AppError
             ? exception.code
-            : (resp.error as string) || "HTTP_ERROR";
+            : (resp.code as string) || (resp.error as string) || "HTTP_ERROR";
 
         this.logger.warn(
           `HTTP ${status}: ${messages.join(", ")}`,
@@ -73,6 +73,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             code,
             message: messages.length === 1 ? messages[0] : "Validation failed",
             ...(messages.length > 1 && { details: messages }),
+            ...("detail" in resp && { detail: resp.detail }),
           },
           meta: { timestamp: new Date().toISOString(), correlationId },
         });

@@ -349,3 +349,107 @@ model UsageRollup {
   @@map("usage_rollups")
   @@schema("api_center_ops")
 }
+
+model TribeApiQuotaPolicy {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerTribeId    String   @map("owner_tribe_id")
+  scope           String   @default("all")
+  targetServiceId String?  @map("target_service_id")
+  windowSeconds   Int      @map("window_seconds")
+  maxRequests     Int      @map("max_requests")
+  burstRequests   Int?     @map("burst_requests")
+  mode            String   @default("observe")
+  status          String   @default("active")
+  reason          String
+  createdBy       String?  @map("created_by")
+  updatedBy       String?  @map("updated_by")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([ownerTribeId, status], name: "tribe_quota_policies_owner_status_idx")
+  @@index([scope, targetServiceId], name: "tribe_quota_policies_scope_target_idx")
+  @@map("tribe_api_quota_policies")
+  @@schema("api_center_ops")
+}
+
+model TribeApiQuotaDecision {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerTribeId    String   @map("owner_tribe_id")
+  policyId        String?  @map("policy_id") @db.Uuid
+  scope           String
+  targetServiceId String?  @map("target_service_id")
+  routeFamily     String   @map("route_family")
+  windowStart     DateTime @map("window_start") @db.Timestamptz(6)
+  windowEnd       DateTime @map("window_end") @db.Timestamptz(6)
+  requestCount    Int      @map("request_count")
+  maxRequests     Int      @map("max_requests")
+  mode            String
+  outcome         String
+  correlationId   String?  @map("correlation_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([ownerTribeId, createdAt], name: "tribe_quota_decisions_owner_created_idx")
+  @@index([outcome, createdAt], name: "tribe_quota_decisions_outcome_created_idx")
+  @@index([correlationId], name: "tribe_quota_decisions_correlation_idx")
+  @@map("tribe_api_quota_decisions")
+  @@schema("api_center_ops")
+}
+
+model TribePlanDefinition {
+  planKey              String   @id @map("plan_key")
+  displayName          String   @map("display_name")
+  gatewayCallsPerDay   Int?     @map("gateway_calls_per_day")
+  kafkaPublishesPerDay Int?     @map("kafka_publishes_per_day")
+  retentionTier        String   @map("retention_tier")
+  sharedServiceAccess  String   @map("shared_service_access")
+  supportTier          String   @map("support_tier")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("tribe_plan_definitions")
+  @@schema("api_center_ops")
+}
+
+model TribePlanAssignment {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerTribeId String   @map("owner_tribe_id")
+  planKey      String   @map("plan_key")
+  environment  String
+  status       String   @default("active")
+  effectiveAt  DateTime @map("effective_at") @db.Timestamptz(6)
+  reason       String
+  assignedBy   String?  @map("assigned_by")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([ownerTribeId, environment, status], name: "tribe_plan_assignments_owner_env_status_idx")
+  @@index([planKey, environment], name: "tribe_plan_assignments_plan_env_idx")
+  @@map("tribe_plan_assignments")
+  @@schema("api_center_ops")
+}
+
+model ApprovalRequest {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actionType        String    @map("action_type")
+  targetId          String?   @map("target_id")
+  targetEnvironment String    @map("target_environment")
+  status            String    @default("pending")
+  before            Json
+  after             Json
+  riskLevel         String    @map("risk_level")
+  reason            String
+  requestedBy       String    @map("requested_by")
+  approvedBy        String?   @map("approved_by")
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz(6)
+  rejectedBy        String?   @map("rejected_by")
+  rejectedAt        DateTime? @map("rejected_at") @db.Timestamptz(6)
+  rejectionReason   String?   @map("rejection_reason")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt], name: "approval_requests_status_created_idx")
+  @@index([actionType, targetEnvironment], name: "approval_requests_action_env_idx")
+  @@index([targetId], name: "approval_requests_target_idx")
+  @@map("approval_requests")
+  @@schema("api_center_ops")
+}

@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from "@nestjs/common";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import crypto from "node:crypto";
 import { LoggerService } from "../shared/logger.service";
+import { TribeSecretRotationService } from "../secrets/tribe-secret-rotation.service";
 
 export type SecretManagerClientLike = Pick<
   SecretManagerServiceClient,
@@ -9,14 +10,21 @@ export type SecretManagerClientLike = Pick<
 >;
 
 type CachedSecret = {
-  hash: string;
+  hashes: string[];
   expiresAt: number;
 };
 
 type TribeSecretPayload = {
   serviceId?: unknown;
   secretHashSha256?: unknown;
+  nextSecretHashSha256?: unknown;
+  previousSecretHashSha256?: unknown;
   status?: unknown;
+  rotationState?: unknown;
+  rotatedAt?: unknown;
+  verifiedAt?: unknown;
+  revokedAt?: unknown;
+  auditEvidence?: unknown;
 };
 
 const SHA_256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
@@ -36,6 +44,8 @@ export class TribeSecretResolverService {
     @Optional()
     @Inject(TRIBE_SECRET_MANAGER_CLIENT)
     secretManagerClient?: SecretManagerClientLike,
+    @Optional()
+    private readonly rotationService: TribeSecretRotationService = new TribeSecretRotationService(),
   ) {
     this.secretManagerClient = secretManagerClient ?? null;
   }
@@ -44,53 +54,60 @@ export class TribeSecretResolverService {
     serviceId: string,
     plaintextSecret: string,
   ): Promise<boolean> {
-    const expectedHash = await this.resolveSecretHash(serviceId);
-    if (!expectedHash) return false;
+    const expectedHashes = await this.resolveSecretHashes(serviceId);
+    if (expectedHashes.length === 0) return false;
 
     const requestHash = crypto
       .createHash("sha256")
       .update(plaintextSecret)
       .digest("hex");
 
-    if (requestHash.length !== expectedHash.length) return false;
+    return expectedHashes.some((expectedHash) => {
+      if (requestHash.length !== expectedHash.length) return false;
 
-    return crypto.timingSafeEqual(
-      Buffer.from(requestHash, "utf8"),
-      Buffer.from(expectedHash, "utf8"),
-    );
+      return crypto.timingSafeEqual(
+        Buffer.from(requestHash, "utf8"),
+        Buffer.from(expectedHash, "utf8"),
+      );
+    });
   }
 
   async resolveSecretHash(serviceId: string): Promise<string | null> {
+    const hashes = await this.resolveSecretHashes(serviceId);
+    return hashes[0] ?? null;
+  }
+
+  private async resolveSecretHashes(serviceId: string): Promise<string[]> {
     const normalizedServiceId = this.normalizeServiceId(serviceId);
     if (!normalizedServiceId) {
       this.logger.warn(
         `Tribe secret lookup rejected invalid serviceId '${serviceId}'`,
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
 
     const legacyHash = this.getLegacyEnvHash(normalizedServiceId);
-    if (legacyHash) return legacyHash;
+    if (legacyHash) return [legacyHash];
 
     if (process.env.TRIBE_SECRET_SOURCE !== "gcp-secret-manager") {
-      return null;
+      return [];
     }
 
     const cached = this.cache.get(normalizedServiceId);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.hash;
+      return cached.hashes;
     }
 
-    const resolvedHash = await this.getGcpSecretHash(normalizedServiceId);
-    if (!resolvedHash) return null;
+    const resolvedHashes = await this.getGcpSecretHashes(normalizedServiceId);
+    if (resolvedHashes.length === 0) return [];
 
     this.cache.set(normalizedServiceId, {
-      hash: resolvedHash,
+      hashes: resolvedHashes,
       expiresAt: Date.now() + this.getCacheTtlMs(),
     });
 
-    return resolvedHash;
+    return resolvedHashes;
   }
 
   clearCache(serviceId?: string): void {
@@ -121,7 +138,7 @@ export class TribeSecretResolverService {
     return hash.toLowerCase();
   }
 
-  private async getGcpSecretHash(serviceId: string): Promise<string | null> {
+  private async getGcpSecretHashes(serviceId: string): Promise<string[]> {
     const projectId =
       process.env.GCP_PROJECT_ID ||
       process.env.GOOGLE_CLOUD_PROJECT ||
@@ -132,7 +149,7 @@ export class TribeSecretResolverService {
         "Tribe Secret Manager lookup skipped - set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT",
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
 
     const prefix = process.env.TRIBE_SECRET_GCP_PREFIX || DEFAULT_SECRET_PREFIX;
@@ -150,7 +167,7 @@ export class TribeSecretResolverService {
           `Tribe Secret Manager secret '${secretName}' returned an empty payload`,
           "TribeSecretResolverService",
         );
-        return null;
+        return [];
       }
 
       const raw = Buffer.isBuffer(rawPayload)
@@ -163,7 +180,7 @@ export class TribeSecretResolverService {
         `Tribe Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
   }
 
@@ -171,10 +188,10 @@ export class TribeSecretResolverService {
     serviceId: string,
     secretName: string,
     rawPayload: string,
-  ): string | null {
+  ): string[] {
     const normalizedPayload = rawPayload.trim();
     if (this.isValidHash(normalizedPayload)) {
-      return normalizedPayload.toLowerCase();
+      return [normalizedPayload.toLowerCase()];
     }
 
     let parsed: TribeSecretPayload;
@@ -185,7 +202,7 @@ export class TribeSecretResolverService {
         `Tribe Secret Manager secret '${secretName}' payload is not JSON or a raw SHA-256 hash`,
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
 
     const payloadServiceId =
@@ -197,7 +214,7 @@ export class TribeSecretResolverService {
         `Tribe Secret Manager secret '${secretName}' serviceId '${payloadServiceId}' does not match '${serviceId}'`,
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
 
     if (parsed.status && parsed.status !== "active") {
@@ -205,21 +222,19 @@ export class TribeSecretResolverService {
         `Tribe Secret Manager secret '${secretName}' is inactive`,
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
 
-    if (
-      typeof parsed.secretHashSha256 !== "string" ||
-      !this.isValidHash(parsed.secretHashSha256)
-    ) {
+    const acceptedHashes = this.rotationService.getAcceptedSecretHashes(parsed);
+    if (acceptedHashes.length === 0) {
       this.logger.warn(
         `Tribe Secret Manager secret '${secretName}' secretHashSha256 is malformed`,
         "TribeSecretResolverService",
       );
-      return null;
+      return [];
     }
 
-    return parsed.secretHashSha256.toLowerCase();
+    return acceptedHashes;
   }
 
   private getSecretManagerClient(): SecretManagerClientLike {

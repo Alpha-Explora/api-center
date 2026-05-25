@@ -72,6 +72,23 @@ export class RateLimitError extends AppError {
 }
 
 /** 502 — Upstream service is down */
+export class QuotaExceededError extends HttpException {
+  public readonly code = "TRIBE_API_QUOTA_EXCEEDED";
+  constructor(
+    message = "Tribe API quota exceeded",
+    public readonly detail: Record<string, unknown>,
+  ) {
+    super(
+      { message, code: "TRIBE_API_QUOTA_EXCEEDED", detail },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+    Object.defineProperty(this, "status", {
+      value: HttpStatus.TOO_MANY_REQUESTS,
+      enumerable: true,
+    });
+  }
+}
+
 export class BadGatewayError extends AppError {
   constructor(message = "Upstream service unavailable") {
     super(message, HttpStatus.BAD_GATEWAY, "BAD_GATEWAY");

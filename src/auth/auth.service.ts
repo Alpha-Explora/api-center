@@ -62,6 +62,14 @@ export class AuthService {
     return issued;
   }
 
+  async issueTribeToken(
+    tribeId: string,
+    permissions: string[] = [],
+    scopes: string[] = [],
+  ): Promise<IssuedToken> {
+    return this.issueToken(tribeId, permissions, scopes);
+  }
+
   // ---------------------------------------------------------------------------
   // Token refresh
   // ---------------------------------------------------------------------------

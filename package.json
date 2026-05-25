@@ -33,6 +33,7 @@
     "smoke:gke:check-config": "node scripts/smoke-gke-deploy.js --check-config",
     "smoke:tribe-boundary": "node scripts/smoke-tribe-boundary.js",
     "smoke:tribe-boundary:check-config": "node scripts/smoke-tribe-boundary.js --check-config",
+    "smoke:tribe-quotas": "node scripts/smoke-tribe-quota.js",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f nginx api-center-1 api-center-2 api-center-3",

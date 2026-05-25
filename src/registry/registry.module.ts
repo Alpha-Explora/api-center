@@ -15,6 +15,7 @@ import { RegistrationRequestsService } from "./registration-requests.service";
 import { VaultModule } from "../auth/vault.module";
 import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../database/database.module";
+import { TribeSecretRotationService } from "../secrets/tribe-secret-rotation.service";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DatabaseModule } from "../database/database.module";
     HealthMonitorService,
     RegistryBootstrapService,
     TribeSecretResolverService,
+    TribeSecretRotationService,
     PostgresRegistryStoreService,
   ],
   exports: [RegistryService],

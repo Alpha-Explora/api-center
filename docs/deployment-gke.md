@@ -45,10 +45,10 @@
 | Field | Value |
 |---|---|
 | Namespace | `api-center-test` |
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:apicenter-platform-window-306ef8a-20260523105623` |
-| Built from | local deploy branch commit `306ef8a` |
-| Last deployed | `2026-05-23` |
-| Validation | GKE rollout succeeded; readiness returned `ok`; `windowDays=30` test smoke returned HTTP 200 with `meta.source=athena-proxy` and `meta.windowDays=30` for gateway decisions, shared-service usage, Athena cost, and decision signals. |
+| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:platform-governance-quotas-9052cf5-2026052503` |
+| Built from | local workspace based on `9052cf5` with platform governance and quota changes |
+| Last deployed | `2026-05-25` |
+| Validation | GKE rollout succeeded in `api-center-test`; readiness returned HTTP 200; `npm run smoke:tribe-quotas` against `https://api-center-test.itsandbox.site` created an approved enforced quota policy for `quota-smoke`, returned HTTP 200 for attempts 1 and 2 to `/api/v1/shared/payment/health`, returned HTTP 429 `TRIBE_API_QUOTA_EXCEEDED` for attempt 3, and disabled the test policy. |
 
 ---
 

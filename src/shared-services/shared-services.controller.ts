@@ -28,6 +28,8 @@ import { MetricsService } from "../metrics/metrics.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
+import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
+import { PolicyEngineService } from "../policy/policy-engine.service";
 import { ProxyHandler } from "../shared/proxy-handler";
 import { AuthenticatedRequest } from "../types";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
@@ -47,6 +49,8 @@ export class SharedServicesController implements OnModuleDestroy {
     gatewayTraffic: GatewayTrafficService,
     sharedServiceUsage: SharedServiceUsageService,
     sharedServiceEvents: SharedServiceEventPublisher,
+    quotaEnforcer?: TribeQuotaEnforcerService,
+    policyEngine?: PolicyEngineService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
@@ -59,6 +63,8 @@ export class SharedServicesController implements OnModuleDestroy {
         gatewayTraffic,
         sharedServiceUsage,
         sharedServiceEvents,
+        quotaEnforcer,
+        policyEngine,
       },
       { namespace: "shared", pathPrefix: "/api/v1/shared" },
     );

@@ -53,6 +53,7 @@ test.api-center.shared.payment.events
 test.api-center.shared.sms.events
 test.api-center.tribe.request
 test.api-center.tribe.response
+test.tribe.aping-api.events
 test.tribe.codex-sdk-20260520041053.events
 test.tribe.flow-ci.events
 test.tribe.greenovate.events

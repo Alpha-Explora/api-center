@@ -36,7 +36,7 @@ By the end of the work, we should be able to show:
 | Gateway governance | What was allowed or denied by the gateway? | `gold_platform.gateway_decision_daily` |
 | Shared-service usage | Which shared services are being used, succeeding, or failing? | `gold_platform.shared_service_usage_daily` |
 | Cost visibility | Which Athena queries are expensive or need optimization? | `gold_platform.athena_query_cost_daily` |
-| BI readiness | Can Power BI refresh from governed curated outputs, not raw S3? | `materialized_platform.*` |
+| BI readiness | Can Power BI, Looker, or Looker Studio refresh from governed curated outputs, not raw S3? | `materialized_platform.*` |
 
 ## Rules We Must Follow
 
@@ -48,7 +48,7 @@ By the end of the work, we should be able to show:
 - Do not use raw S3 as a BI source.
 - Do not run broad unbounded Athena queries.
 - Gold views must be filtered by `environment`, `year`, `month`, and `day`.
-- Power BI should use materialized tables when refreshes are repeated.
+- BI dashboards should use materialized tables when refreshes are repeated.
 - Raw S3 is for validation and troubleshooting only.
 
 ## Data Layer Map
@@ -63,7 +63,7 @@ Raw S3
   -> tribe silver / platform silver
   -> gold_platform.* metrics
   -> materialized_platform.* BI-ready Parquet snapshots
-  -> Power BI / dashboard
+  -> Power BI / Looker / dashboard
 ```
 
 | Layer | What it means | When we use it |
@@ -72,7 +72,7 @@ Raw S3
 | Bronze | Parsed raw events plus quality status | Troubleshooting parsing or rejected records |
 | Common Silver | Standard event envelope across tribes | Event-level validation and mapping |
 | Gold | Aggregated platform and governance metrics | Primary analytics source |
-| Materialized Platform | Gold/Silver snapshot written as Parquet | Power BI and repeated dashboard refreshes |
+| Materialized Platform | Gold/Silver snapshot written as Parquet | BI tools and repeated dashboard refreshes |
 
 ## Phase 0: Account And Console Setup
 
@@ -307,7 +307,7 @@ Quality and governance summary for the selected production date.
 
 ## Phase 5: Decide Whether BI Should Use Gold View Or Materialized Table
 
-Goal: Decide whether Power BI can query Gold directly or needs a materialized
+Goal: Decide whether the BI dashboard can query Gold directly or needs a materialized
 snapshot.
 
 Use direct Gold queries when:
@@ -320,7 +320,7 @@ Use direct Gold queries when:
 Use `materialized_platform` when:
 
 - the dashboard refreshes repeatedly;
-- Power BI needs a stable source;
+- the BI dashboard needs a stable source;
 - broad scans are unavoidable;
 - the Gold view is slow because it still reads raw-backed views;
 - the same daily dataset will be reused by several people.
@@ -340,7 +340,7 @@ Decision record stating whether the first dashboard reads Gold directly or a mat
 
 ## Phase 6: Materialize BI-Ready Tables When Needed
 
-Goal: Create a fast Parquet-backed snapshot for Power BI.
+Goal: Create a fast Parquet-backed snapshot for BI refresh.
 
 This is an operator task. If you do not have CLI/operator access, ask the
 platform owner to run it.
@@ -381,7 +381,7 @@ Expected table:
 materialized_platform.gold_platform_pipeline_health_daily_prod_20260520
 ```
 
-Power BI/Athena query:
+BI/Athena query:
 
 ```sql
 SELECT *
@@ -395,7 +395,7 @@ Deliverable:
 Materialized table name, S3 curated path, row count, and source Gold query used.
 ```
 
-## Phase 7: Build The First Power BI Model
+## Phase 7: Build The First BI Model
 
 Goal: Turn the governed data into a dashboard model that answers the north-star
 question.
@@ -440,7 +440,7 @@ Active Event Types = DISTINCTCOUNT(event_type)
 Deliverable:
 
 ```text
-Power BI dashboard page showing platform pipeline health for the selected production date.
+BI dashboard page showing platform pipeline health for the selected production date.
 ```
 
 ## Phase 8: Add Governance And Reliability Pages
@@ -476,7 +476,7 @@ Dashboard pages mapped to Gold sources and north-star proof areas.
 
 ## Phase 9: Validate The Dashboard Against Athena
 
-Goal: Make sure Power BI numbers match Athena.
+Goal: Make sure BI dashboard numbers match Athena.
 
 For every visual, keep a matching Athena validation query.
 
@@ -497,7 +497,7 @@ ORDER BY total_events DESC;
 
 Validation checklist:
 
-- Power BI total equals Athena total.
+- BI dashboard total equals Athena total.
 - Tribe counts match.
 - Service counts match.
 - Event type counts match.
@@ -525,7 +525,7 @@ We can identify the owning tribe, source service, event type, event volume,
 latest event time, and latest ingestion time.
 
 For dashboard use, we do not rely on raw S3. We use Gold for governed metrics
-and materialized_platform for repeatable Power BI refreshes.
+and materialized_platform for repeatable BI refreshes.
 
 Raw S3 remains available only as audit/debug evidence to prove records landed
 from the S3 Sink.
@@ -537,7 +537,7 @@ Evidence to include:
 - Common Silver sample.
 - Optional raw S3 landing proof.
 - Materialized table name if BI uses one.
-- Power BI visual totals.
+- BI visual totals.
 - Athena validation query IDs.
 - Known gaps or missing metrics.
 
@@ -549,16 +549,18 @@ One-page final evidence summary answering the north-star question.
 
 ## Management Console Embed
 
-The `apicenter-management` `/data-pipeline` page can embed the approved Power BI
-north-star report after the report is connected to governed Gold or
-`materialized_platform.*` outputs.
+The `apicenter-management` `/data-pipeline` page can embed the approved Power BI,
+Looker, or Looker Studio north-star dashboard after it is connected to governed
+Gold or `materialized_platform.*` outputs.
 
 Required management environment variables:
 
 ```text
-POWERBI_NORTH_STAR_ENABLED=true
-POWERBI_NORTH_STAR_REPORT_ID=<approved-report-id>
-POWERBI_NORTH_STAR_EMBED_URL=<https-powerbi-report-embed-url>
+BI_NORTH_STAR_ENABLED=true
+BI_NORTH_STAR_PROVIDER=<powerbi|looker|looker-studio>
+BI_NORTH_STAR_DASHBOARD_ID=<approved-dashboard-id>
+BI_NORTH_STAR_EMBED_URL=<https-bi-embed-url>
+BI_NORTH_STAR_ALLOWED_HOST=<required-for-looker>
 ```
 
 The embedded report must have these pages or equivalent visual groups:
@@ -581,7 +583,7 @@ All four members have the same AWS access. The work can be split by outcome:
 | --- | --- | --- |
 | Member 1 | Gold pipeline health | Tribe/service/event mapping and event counts |
 | Member 2 | Silver and raw traceability | Evidence that Gold can be traced to event rows and raw landing |
-| Member 3 | BI model and visuals | Power BI dataset, model, measures, and first dashboard page |
+| Member 3 | BI model and visuals | governed dataset, model, measures, and first dashboard page |
 | Member 4 | Governance and validation | Quality/gateway/shared-service/cost checks and final evidence notes |
 
 Even with this split, everyone should use the same rules:
@@ -596,7 +598,7 @@ Even with this split, everyone should use the same rules:
 
 Do not:
 
-- connect Power BI to raw S3;
+- connect BI tools to raw S3;
 - run `SELECT *` against Gold without date filters;
 - treat `LIMIT 50` as a performance fix;
 - mix test and prod data in one visual;
