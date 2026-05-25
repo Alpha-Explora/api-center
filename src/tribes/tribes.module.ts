@@ -9,6 +9,7 @@ import { RegistryModule } from "../registry/registry.module";
 import { AnalyticsModule } from "../analytics/analytics.module";
 import { QuotasModule } from "../quotas/quotas.module";
 import { PolicyEngineModule } from "../policy/policy-engine.module";
+import { OperationsModule } from "../operations/operations.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PolicyEngineModule } from "../policy/policy-engine.module";
     AnalyticsModule,
     QuotasModule,
     PolicyEngineModule,
+    OperationsModule,
   ],
   controllers: [TribesController],
 })

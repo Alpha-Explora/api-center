@@ -1,6 +1,7 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
 import { TribeCostService } from "../costs/tribe-cost.service";
 import { PrismaService } from "../database/prisma.service";
+import { QuotaForecastService } from "../forecasting/quota-forecast.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { ValidationError } from "../shared/errors";
 import { TribeQuotaUsageController } from "./tribe-quota-usage.controller";
@@ -19,6 +20,7 @@ describe("TribeQuotaUsageController", () => {
     controller = new TribeQuotaUsageController(
       prisma as unknown as PrismaService,
       new TribeCostService(),
+      new QuotaForecastService(),
     );
   });
 
@@ -82,6 +84,11 @@ describe("TribeQuotaUsageController", () => {
         kafkaPublishCost: 0,
         analyticsScanCost: 0,
         totalCost: 0.05,
+      },
+      forecast: {
+        status: "warning",
+        daysUntilExhaustion: 0,
+        projectedMonthlyUsage: 3030,
       },
       correlationId: "corr-decision",
       createdAt: "2026-05-25T00:00:30.000Z",

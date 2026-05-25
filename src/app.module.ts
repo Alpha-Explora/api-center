@@ -67,6 +67,10 @@ import { DeveloperPortalModule } from "./developer-portal/developer-portal.modul
 import { ApprovalsModule } from "./approvals/approvals.module";
 import { PolicyEngineModule } from "./policy/policy-engine.module";
 import { DataPipelineModule } from "./data-pipeline/data-pipeline.module";
+import { CatalogModule } from "./catalog/catalog.module";
+import { ComplianceModule } from "./compliance/compliance.module";
+import { ForecastingModule } from "./forecasting/forecasting.module";
+import { OperationsModule } from "./operations/operations.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -106,6 +110,10 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     ApprovalsModule, // Risky live-change request, approval, and audit gate
     PolicyEngineModule, // Explainable policy warnings and blocks
     DataPipelineModule, // Curated pipeline health and governance evidence
+    ForecastingModule, // Quota pressure projections
+    OperationsModule, // Drift, dependencies, evidence, emergency, scorecards
+    CatalogModule, // API marketplace product projection
+    ComplianceModule, // Audit-ready export packets
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     KafkaModule, // Audit events, auth events, registry lifecycle events

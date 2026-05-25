@@ -9,6 +9,7 @@ import {
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { TribeCostService } from "../costs/tribe-cost.service";
 import { PrismaService } from "../database/prisma.service";
+import { QuotaForecastService } from "../forecasting/quota-forecast.service";
 import { ValidationError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
 
@@ -44,6 +45,7 @@ export class TribeQuotaUsageController {
   constructor(
     prisma: PrismaService,
     @Optional() private readonly costs?: TribeCostService,
+    @Optional() private readonly forecasts?: QuotaForecastService,
   ) {
     this.decisions = (
       prisma as unknown as { tribeApiQuotaDecision: QuotaDecisionDelegate }
@@ -82,6 +84,7 @@ export class TribeQuotaUsageController {
         mode: row.mode,
         outcome: row.outcome,
         estimatedChargeback: this.estimatedChargeback(row),
+        forecast: this.forecast(row),
         correlationId: row.correlationId ?? null,
         createdAt: this.toIso(row.createdAt),
       })),
@@ -122,6 +125,16 @@ export class TribeQuotaUsageController {
       apiCalls: row.scope === "kafka_publish" ? 0 : row.requestCount,
       kafkaPublishes: row.scope === "kafka_publish" ? row.requestCount : 0,
       gbScanned: 0,
+    });
+  }
+
+  private forecast(row: QuotaDecisionRow) {
+    if (!this.forecasts) return undefined;
+
+    return this.forecasts.forecast({
+      quotaLimit: row.maxRequests,
+      used: row.requestCount,
+      averageDailyUsage: row.requestCount,
     });
   }
 }

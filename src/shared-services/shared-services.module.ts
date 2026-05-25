@@ -10,6 +10,7 @@ import { RegistryModule } from "../registry/registry.module";
 import { AnalyticsModule } from "../analytics/analytics.module";
 import { QuotasModule } from "../quotas/quotas.module";
 import { PolicyEngineModule } from "../policy/policy-engine.module";
+import { OperationsModule } from "../operations/operations.module";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 
 @Module({
@@ -19,6 +20,7 @@ import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
     AnalyticsModule,
     QuotasModule,
     PolicyEngineModule,
+    OperationsModule,
   ],
   controllers: [PaymentWebhookController, SharedServicesController],
   providers: [SharedServiceEventPublisher],

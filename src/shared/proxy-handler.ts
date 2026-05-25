@@ -22,6 +22,7 @@ import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { SharedServiceEventPublisher } from "../shared-services/shared-service-event-publisher";
+import { EmergencyControlService } from "../operations/emergency-control.service";
 import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
 import { TribeQuotaScope } from "../quotas/tribe-quota-policy.types";
 import { PolicyEngineService } from "../policy/policy-engine.service";
@@ -140,6 +141,7 @@ export interface ProxyHandlerDeps {
   sharedServiceEvents?: SharedServiceEventPublisher;
   quotaEnforcer: TribeQuotaEnforcerService;
   policyEngine: PolicyEngineService;
+  emergencyControls?: EmergencyControlService;
 }
 
 export interface ProxyOptions {
@@ -307,6 +309,15 @@ export class ProxyHandler {
     this.enforcePolicyRules(targetEntry, req, res);
 
     // ── 2. Scope check ─────────────────────────────────────────────────────
+    const emergency = this.deps.emergencyControls?.evaluate({
+      ownerTribeId: tribeId,
+      serviceId: targetServiceId,
+    });
+
+    if (emergency && !emergency.allowed) {
+      throw new ForbiddenError(`Emergency control active: ${emergency.reason}`);
+    }
+
     if (!this.deps.registry.canAccess(tribeId, targetServiceId)) {
       throw new ForbiddenError(
         `Tribe '${tribeId}' is not authorised to access '${targetServiceId}'`,
