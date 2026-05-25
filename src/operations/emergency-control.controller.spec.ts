@@ -1,5 +1,6 @@
 import { EmergencyControlController } from "./emergency-control.controller";
 import { EmergencyControlService } from "./emergency-control.service";
+import { ValidationError } from "../shared/errors";
 
 describe("EmergencyControlController", () => {
   it("applies and lists emergency controls", () => {
@@ -15,5 +16,20 @@ describe("EmergencyControlController", () => {
     });
 
     expect(controller.list().data).toHaveLength(1);
+  });
+
+  it("rejects invalid emergency control input", () => {
+    const service = new EmergencyControlService();
+    const controller = new EmergencyControlController(service);
+
+    expect(() =>
+      controller.apply({
+        targetType: "bad",
+        targetId: "",
+        mode: "pause",
+        reason: "",
+        appliedBy: "",
+      } as never),
+    ).toThrow(ValidationError);
   });
 });

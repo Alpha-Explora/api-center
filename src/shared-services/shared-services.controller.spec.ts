@@ -24,6 +24,7 @@ describe("SharedServicesController", () => {
   const mockSharedServiceEvents = {} as SharedServiceEventPublisher;
   const mockQuotaEnforcer = { check: jest.fn().mockResolvedValue(undefined) };
   const mockPolicyEngine = { evaluate: jest.fn().mockReturnValue([]) };
+  const mockEmergencyControls = { evaluate: jest.fn() };
 
   let controller: SharedServicesController;
   let handler: {
@@ -45,6 +46,7 @@ describe("SharedServicesController", () => {
       mockSharedServiceEvents,
       mockQuotaEnforcer as any,
       mockPolicyEngine as any,
+      mockEmergencyControls as any,
     );
 
     handler = {

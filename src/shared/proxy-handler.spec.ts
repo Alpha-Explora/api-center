@@ -75,6 +75,9 @@ function createMockDeps(): ProxyHandlerDeps {
     policyEngine: {
       evaluate: jest.fn().mockReturnValue([]),
     } as any,
+    emergencyControls: {
+      evaluate: jest.fn().mockReturnValue({ allowed: true }),
+    } as any,
   };
 }
 
@@ -438,6 +441,19 @@ describe("ProxyHandler", () => {
       await expect(
         handler.proxyRequest("locked-svc", fakeReq(), fakeRes()),
       ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("throws ForbiddenError when an emergency control blocks the target", async () => {
+      (deps.emergencyControls.evaluate as jest.Mock).mockReturnValue({
+        allowed: false,
+        reason: "Incident containment",
+        mode: "pause",
+      });
+
+      await expect(
+        handler.proxyRequest("locked-svc", fakeReq(), fakeRes()),
+      ).rejects.toThrow("Emergency control active: Incident containment");
+      expect(deps.registry.canAccess).not.toHaveBeenCalled();
     });
 
     it("allows owned microservice access through the tribe boundary", async () => {

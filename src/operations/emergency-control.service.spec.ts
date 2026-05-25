@@ -1,4 +1,8 @@
-import { EmergencyControlService } from "./emergency-control.service";
+import {
+  EmergencyControlService,
+  parseEmergencyControl,
+} from "./emergency-control.service";
+import { ValidationError } from "../shared/errors";
 
 describe("EmergencyControlService", () => {
   it("blocks traffic when a tribe is paused", () => {
@@ -22,5 +26,35 @@ describe("EmergencyControlService", () => {
       reason: "Incident containment",
       mode: "pause",
     });
+  });
+
+  it("trims and validates emergency control input", () => {
+    expect(
+      parseEmergencyControl({
+        targetType: "service",
+        targetId: " student-api ",
+        mode: "observe_only",
+        reason: " Incident review ",
+        appliedBy: " platform ",
+      }),
+    ).toEqual({
+      targetType: "service",
+      targetId: "student-api",
+      mode: "observe_only",
+      reason: "Incident review",
+      appliedBy: "platform",
+    });
+  });
+
+  it("rejects empty emergency control fields", () => {
+    expect(() =>
+      parseEmergencyControl({
+        targetType: "tribe",
+        targetId: "",
+        mode: "pause",
+        reason: "",
+        appliedBy: "",
+      }),
+    ).toThrow(ValidationError);
   });
 });

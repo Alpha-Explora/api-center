@@ -51,7 +51,7 @@ export class TribesController implements OnModuleDestroy {
     gatewayTraffic: GatewayTrafficService,
     quotaEnforcer: TribeQuotaEnforcerService,
     policyEngine: PolicyEngineService,
-    emergencyControls?: EmergencyControlService,
+    emergencyControls: EmergencyControlService,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(

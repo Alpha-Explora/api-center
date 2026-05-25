@@ -11,6 +11,8 @@ import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import {
   EmergencyControl,
   EmergencyControlService,
+  parseEmergencyControl,
+  parseEmergencyControlTarget,
 } from "./emergency-control.service";
 
 @Controller("admin/operations/emergency")
@@ -25,7 +27,7 @@ export class EmergencyControlController {
 
   @Post()
   apply(@Body() input: EmergencyControl) {
-    return { success: true, data: this.controls.apply(input) };
+    return { success: true, data: this.controls.apply(parseEmergencyControl(input)) };
   }
 
   @Delete()
@@ -33,7 +35,8 @@ export class EmergencyControlController {
     @Query("targetType") targetType: EmergencyControl["targetType"],
     @Query("targetId") targetId: string,
   ) {
-    this.controls.clear(targetType, targetId);
-    return { success: true, data: { targetType, targetId, cleared: true } };
+    const target = parseEmergencyControlTarget({ targetType, targetId });
+    this.controls.clear(target.targetType, target.targetId);
+    return { success: true, data: { ...target, cleared: true } };
   }
 }

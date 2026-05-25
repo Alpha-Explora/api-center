@@ -141,7 +141,7 @@ export interface ProxyHandlerDeps {
   sharedServiceEvents?: SharedServiceEventPublisher;
   quotaEnforcer: TribeQuotaEnforcerService;
   policyEngine: PolicyEngineService;
-  emergencyControls?: EmergencyControlService;
+  emergencyControls: EmergencyControlService;
 }
 
 export interface ProxyOptions {
@@ -309,12 +309,12 @@ export class ProxyHandler {
     this.enforcePolicyRules(targetEntry, req, res);
 
     // ── 2. Scope check ─────────────────────────────────────────────────────
-    const emergency = this.deps.emergencyControls?.evaluate({
+    const emergency = this.deps.emergencyControls.evaluate({
       ownerTribeId: tribeId,
       serviceId: targetServiceId,
     });
 
-    if (emergency && !emergency.allowed) {
+    if (!emergency.allowed) {
       throw new ForbiddenError(`Emergency control active: ${emergency.reason}`);
     }
 
