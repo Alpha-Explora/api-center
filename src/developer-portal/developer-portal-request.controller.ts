@@ -20,7 +20,9 @@ export class DeveloperPortalRequestController {
   ) {
     const authenticatedTribeId = req.user?.tribeId ?? req.tribeId;
     if (!authenticatedTribeId) {
-      throw new ForbiddenError("Quota increase requests require a tribe token.");
+      throw new ForbiddenError(
+        "Quota increase requests require a tribe token.",
+      );
     }
     if (input.ownerTribeId && input.ownerTribeId !== authenticatedTribeId) {
       throw new ForbiddenError(

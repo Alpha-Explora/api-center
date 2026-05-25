@@ -45,10 +45,9 @@ export function parseEmergencyControl(input: unknown): EmergencyControl {
   }
 }
 
-export function parseEmergencyControlTarget(input: unknown): Pick<
-  EmergencyControl,
-  "targetType" | "targetId"
-> {
+export function parseEmergencyControlTarget(
+  input: unknown,
+): Pick<EmergencyControl, "targetType" | "targetId"> {
   try {
     return emergencyControlTargetSchema.parse(input);
   } catch (error) {

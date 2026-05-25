@@ -27,7 +27,10 @@ export class EmergencyControlController {
 
   @Post()
   apply(@Body() input: EmergencyControl) {
-    return { success: true, data: this.controls.apply(parseEmergencyControl(input)) };
+    return {
+      success: true,
+      data: this.controls.apply(parseEmergencyControl(input)),
+    };
   }
 
   @Delete()

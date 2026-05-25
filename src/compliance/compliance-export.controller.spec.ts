@@ -5,7 +5,10 @@ describe("ComplianceExportController", () => {
   it("filters audit events by date range and includes evidence bundles", async () => {
     const auditEvents = {
       list: jest.fn().mockResolvedValue([
-        { type: "quota.policy.updated", timestamp: "2026-05-20T00:00:00.000Z" },
+        {
+          type: "quota.policy.updated",
+          timestamp: "2026-05-20T00:00:00.000Z",
+        },
       ]),
     };
     const evidence = {
