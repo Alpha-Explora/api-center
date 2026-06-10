@@ -22,7 +22,7 @@ import { ApprovalsModule } from "../approvals/approvals.module";
   imports: [
     ScheduleModule.forRoot(),
     VaultModule,
-    ApprovalsModule,
+    forwardRef(() => ApprovalsModule),
     DatabaseModule,
     forwardRef(() => AuthModule),
   ],
