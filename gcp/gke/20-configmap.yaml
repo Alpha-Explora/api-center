@@ -34,6 +34,8 @@ data:
 
   # Kafka event bus. Active production path is Confluent Cloud; bootstrap and
   # SASL credentials are secrets loaded from GCP Secret Manager.
+  DATA_PIPELINE_ENABLED: "false"
+  KAFKA_ENABLED: "false"
   KAFKA_TOPIC_PREFIX: "prod."
   KAFKA_SSL_ENABLED: "true"
   KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
