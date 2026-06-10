@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ApprovalsModule } from "../approvals/approvals.module";
+import { AuthModule } from "../auth/auth.module";
 import { DataPipelineModule } from "../data-pipeline/data-pipeline.module";
 import { DatabaseModule } from "../database/database.module";
 import { EntitlementsModule } from "../entitlements/entitlements.module";
@@ -18,6 +19,7 @@ import { RuntimeDependencyMapService } from "./runtime-dependency-map.service";
 
 @Module({
   imports: [
+    AuthModule,
     RegistryModule,
     QuotasModule,
     DatabaseModule,
