@@ -71,6 +71,7 @@ import { CatalogModule } from "./catalog/catalog.module";
 import { ComplianceModule } from "./compliance/compliance.module";
 import { ForecastingModule } from "./forecasting/forecasting.module";
 import { OperationsModule } from "./operations/operations.module";
+import { CapabilitiesModule } from "./capabilities/capabilities.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -114,6 +115,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     OperationsModule, // Drift, dependencies, evidence, emergency, scorecards
     CatalogModule, // API marketplace product projection
     ComplianceModule, // Audit-ready export packets
+    CapabilitiesModule, // Runtime capability snapshot for management and operators
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     KafkaModule, // Audit events, auth events, registry lifecycle events

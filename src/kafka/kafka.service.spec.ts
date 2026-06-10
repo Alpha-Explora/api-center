@@ -32,6 +32,7 @@ jest.mock("kafkajs", () => ({
 describe("KafkaService", () => {
   const mockConfig = {
     kafka: {
+      enabled: true,
       clientId: "api-center-test",
       brokers: ["pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092"],
       groupId: "api-center-group",
@@ -135,6 +136,73 @@ describe("KafkaService", () => {
     expect(service.isConnected()).toBe(false);
     expect(mockLogger.error).toHaveBeenCalled();
     expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(false);
+  });
+
+  it("should not create a Kafka client or connect the producer when Kafka is disabled", async () => {
+    const kafkaModule = jest.requireMock("kafkajs") as {
+      Kafka: jest.Mock;
+    };
+    kafkaModule.Kafka.mockClear();
+
+    const disabledConfig = {
+      kafka: {
+        ...mockConfig.kafka,
+        enabled: false,
+      },
+    } as unknown as ConfigService;
+
+    const disabledService = new KafkaService(
+      disabledConfig,
+      mockLogger,
+      mockMetrics,
+    );
+
+    await disabledService.onModuleInit();
+
+    expect(kafkaModule.Kafka).not.toHaveBeenCalled();
+    expect(disabledService.isConnected()).toBe(false);
+    expect(mockMetrics.setKafkaProducerConnected).toHaveBeenCalledWith(false);
+  });
+
+  it("should reject explicit publish when Kafka is disabled", async () => {
+    const disabledConfig = {
+      kafka: {
+        ...mockConfig.kafka,
+        enabled: false,
+      },
+    } as unknown as ConfigService;
+    const disabledService = new KafkaService(
+      disabledConfig,
+      mockLogger,
+      mockMetrics,
+    );
+
+    await expect(
+      disabledService.publish("custom.topic", { event: "blocked" }),
+    ).rejects.toThrow("Kafka publishing is disabled");
+  });
+
+  it("should no-op non-blocking publish when Kafka is disabled", async () => {
+    const disabledConfig = {
+      kafka: {
+        ...mockConfig.kafka,
+        enabled: false,
+      },
+    } as unknown as ConfigService;
+    const disabledService = new KafkaService(
+      disabledConfig,
+      mockLogger,
+      mockMetrics,
+    );
+
+    disabledService.publishNonBlocking("custom.topic", { event: "ignored" });
+    await Promise.resolve();
+
+    expect(mockProducer.send).not.toHaveBeenCalled();
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("Kafka publishing disabled"),
+      "KafkaService",
+    );
   });
 
   it("should configure Kafka client with TLS and SASL when enabled", () => {

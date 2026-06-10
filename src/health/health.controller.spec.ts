@@ -6,6 +6,7 @@ import { ExternalService } from "../external/external.service";
 import { TokenStoreService } from "../auth/token-store.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
+import { ConfigService } from "../config/config.service";
 import { GovernanceReadinessService } from "./governance-readiness.service";
 
 type IndicatorFn = () => Promise<Record<string, unknown>>;
@@ -33,10 +34,12 @@ describe("HealthController", () => {
   let tokenStore: TokenStoreService;
   let externalService: ExternalService;
   let registry: RegistryService;
+  let kafka: KafkaService;
+  let config: ConfigService;
 
   beforeEach(() => {
     const health = createHealthCheckServiceMock();
-    const kafka = {
+    kafka = {
       isConnected: jest.fn().mockReturnValue(true),
     } as unknown as KafkaService;
     registry = {
@@ -55,6 +58,9 @@ describe("HealthController", () => {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuditEventsService;
     const governanceReadiness = new GovernanceReadinessService();
+    config = {
+      kafka: { enabled: true },
+    } as ConfigService;
 
     controller = new HealthController(
       health,
@@ -65,6 +71,7 @@ describe("HealthController", () => {
       gatewayTraffic,
       auditEvents,
       governanceReadiness,
+      config,
     );
   });
 
@@ -106,6 +113,19 @@ describe("HealthController", () => {
       quotaEnforcer: "up",
       policyEngine: "up",
       approvals: "up",
+    });
+  });
+
+  it("should skip Kafka readiness when Kafka is disabled", async () => {
+    (config.kafka as { enabled: boolean }).enabled = false;
+
+    const result = await controller.readiness();
+
+    expect(kafka.isConnected).not.toHaveBeenCalled();
+    expect((result as any).info.kafka).toEqual({
+      status: "up",
+      skipped: true,
+      reason: "Kafka disabled by configuration",
     });
   });
 });

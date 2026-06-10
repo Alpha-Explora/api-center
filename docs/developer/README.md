@@ -16,6 +16,7 @@ For future Descope human/admin auth usage, see
    - [Health & Readiness](#health--readiness)
    - [dev-jwt Auth Flow](#dev-jwt-auth-flow)
   - [Internal Tribe Token Flow](#internal-tribe-token-flow)
+  - [Core Gateway Without Data Pipeline](#core-gateway-without-data-pipeline)
   - [Descope Validation Fallback](#descope-validation-fallback)
    - [Service Registry](#service-registry)
    - [Tribe-to-Tribe Calls](#tribe-to-tribe-calls)
@@ -298,6 +299,25 @@ API Center validates the plaintext service secret against
 `TRIBE_SECRET_<SERVICE_ID_UPPER>` env hash during migration, and signs an
 internal JWT with registry-derived `tribeId`, `permissions`, and `scopes`. New
 tribes do not need a Descope app for machine-to-machine access.
+
+### Core Gateway Without Data Pipeline
+
+APICenter can run without Confluent Cloud, AWS S3, Athena, or raw-data exports.
+Set `DATA_PIPELINE_ENABLED=false` and `KAFKA_ENABLED=false`.
+
+This does not disable tribe authentication. Tribe services still request tokens
+from `/api/v1/auth/token` with `tribeId` and plaintext `secret`. APICenter hashes
+the plaintext, compares it to the configured tribe secret hash, issues an
+internal JWT, and validates that JWT on proxied calls.
+
+For temporary no-cloud testing, leave `TRIBE_SECRET_SOURCE` unset and store
+secret hashes in environment variables:
+
+```env
+TRIBE_SECRET_LOGISTICS=<sha256-of-plaintext-secret>
+```
+
+Do not store plaintext tribe secrets in committed files.
 
 ### Descope Validation Fallback
 
@@ -660,10 +680,12 @@ only. New tribe M2M tokens are issued by API Center and do not need
 | `REDIS_CACHE_URL` | `redis://localhost:6381` | Registry + token store |
 | `REDIS_RATE_LIMIT_URL` | `redis://localhost:6380` | Rate-limit counters |
 | `REDIS_TOKEN_TTL_SECONDS` | `3600` | Token TTL in Redis |
-| `KAFKA_BROKERS` | `<confluent-bootstrap-server>:9092` | Confluent bootstrap server; store real value in Secret Manager for deployed envs |
-| `KAFKA_SSL_ENABLED` | `true` | Required for Confluent Cloud |
-| `KAFKA_SASL_MECHANISM` | `plain` | Required for Confluent Cloud API keys |
-| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | unset | Confluent API key/secret from Secret Manager |
+| `DATA_PIPELINE_ENABLED` | `false` | Enables governed Kafka/S3/Athena raw export when set to `true` |
+| `KAFKA_ENABLED` | `false` | Enables Kafka client startup; also enabled automatically when `DATA_PIPELINE_ENABLED=true` |
+| `KAFKA_BROKERS` | `<confluent-bootstrap-server>:9092` | Required only when Kafka/data pipeline is enabled |
+| `KAFKA_SSL_ENABLED` | `true` | Required for Confluent Cloud when Kafka/data pipeline is enabled |
+| `KAFKA_SASL_MECHANISM` | `plain` | Required for Confluent Cloud API keys when Kafka/data pipeline is enabled |
+| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | unset | Confluent API key/secret from Secret Manager when Kafka/data pipeline is enabled |
 | `VAULT_ADDR` | `http://localhost:8200` | Vault server |
 | `VAULT_TOKEN` | â€” | Root/dev token (dev only) |
 | `VAULT_ROLE_ID` / `VAULT_SECRET_ID` | â€” | AppRole credentials (production) |
@@ -712,6 +734,8 @@ TRIBE_SECRET_PAYMENT_SERVICE=<sha256hash>
 
 ### Governed Kafka
 
+Required only when `DATA_PIPELINE_ENABLED=true` or `KAFKA_ENABLED=true`.
+
 ```bash
 KAFKA_BROKERS=<confluent-bootstrap-server>:9092
 KAFKA_SSL_ENABLED=true
@@ -729,7 +753,7 @@ KAFKA_SASL_PASSWORD=<confluent-api-secret>
 - [ ] `ALLOWED_ORIGINS` â€” explicit whitelist, **not** `*`
 - [ ] **Vault**: `VAULT_DEV_MODE=false`, AppRole credentials (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`)
 - [ ] **Redis**: sentinel or cluster URLs with TLS (`rediss://`)
-- [ ] **Kafka**: Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
+- [ ] **Kafka/data pipeline**: if `DATA_PIPELINE_ENABLED=true`, Confluent Cloud bootstrap in Secret Manager, SASL/SSL enabled, no self-managed broker address in production env
 - [ ] **Descope**: set `DESCOPE_ISSUER` and `DESCOPE_AUDIENCE`
 - [ ] TLS terminated at NGINX or upstream ingress â€” **never** expose port 3000 directly
 - [ ] Rotate per-tribe `api-center-tribe-secret-<tribe-id>` secrets regularly
@@ -844,9 +868,8 @@ cat > /tmp/api-center-secrets.json <<'EOF'
   "JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----\n...",
   "REDIS_CACHE_URL": "redis://10.x.x.x:6379",
   "REDIS_RATE_LIMIT_URL": "redis://10.x.x.x:6380",
-  "KAFKA_BROKERS": "pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092",
-  "KAFKA_SASL_USERNAME": "<confluent-api-key>",
-  "KAFKA_SASL_PASSWORD": "<confluent-api-secret>",
+  "DATA_PIPELINE_ENABLED": "false",
+  "KAFKA_ENABLED": "false",
   "TRIBE_SECRET_SOURCE": "gcp-secret-manager",
   "TRIBE_SECRET_GCP_PREFIX": "api-center-tribe-secret-",
   "TRIBE_SECRET_CACHE_TTL_SECONDS": "300"
@@ -948,8 +971,9 @@ Set non-sensitive env vars directly on the Cloud Run service. Sensitive values g
 | `PLATFORM_ADMIN_SECRET` | Secret Manager JSON |
 | `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` | Secret Manager JSON |
 | `REDIS_CACHE_URL` | Secret Manager JSON |
-| `KAFKA_BROKERS` | Secret Manager JSON |
-| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | Secret Manager JSON |
+| `DATA_PIPELINE_ENABLED` / `KAFKA_ENABLED` | Cloud Run env var or Secret Manager JSON |
+| `KAFKA_BROKERS` | Secret Manager JSON, only when data pipeline is enabled |
+| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | Secret Manager JSON, only when data pipeline is enabled |
 | `TRIBE_SECRET_SOURCE` / `TRIBE_SECRET_GCP_PREFIX` / `TRIBE_SECRET_CACHE_TTL_SECONDS` | Secret Manager JSON or env var |
 
 ### Adding Per-Service Secrets

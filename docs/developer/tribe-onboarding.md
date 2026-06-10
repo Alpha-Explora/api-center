@@ -79,6 +79,15 @@ Descope remains for human/user identity and future management-console login. Do
 not create one Descope OAuth or Inbound App per tribe unless the deployment is
 explicitly switched back to `AUTH_PROVIDER=descope`.
 
+## Temporary No-Confluent/No-AWS Mode
+
+When `DATA_PIPELINE_ENABLED=false`, onboarding is complete when the service is
+registered, the tribe secret hash is configured, `/api/v1/auth/token` issues a
+token, and at least one allowed proxied call succeeds.
+
+Do not require Confluent topic creation, S3 Sink inclusion, Athena access, or
+raw export validation until `DATA_PIPELINE_ENABLED=true`.
+
 ## Transition Plan: Bootstrap to Self-Registration
 
 1. Enable bootstrap only for temporary non-prod bootstrap:

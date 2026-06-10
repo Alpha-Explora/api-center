@@ -1,11 +1,13 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
+import { ConfigService } from "../config/config.service";
 import { DatabaseModule } from "../database/database.module";
 import { KafkaService } from "../kafka/kafka.service";
 import {
   ATHENA_QUERY_TELEMETRY_OPTIONS,
   AthenaQueryTelemetryService,
 } from "./athena-query-telemetry.service";
+import { createAthenaQueryTelemetryOptions } from "./athena-query-telemetry-options";
 import { EventSchemaRegistryController } from "./event-schema-registry.controller";
 import { EventSchemaRegistryService } from "./event-schema-registry.service";
 import { DecisionSignalsController } from "./decision-signals.controller";
@@ -46,16 +48,8 @@ import { TopicOnboardingStateService } from "./topic-onboarding-state.service";
   providers: [
     {
       provide: ATHENA_QUERY_TELEMETRY_OPTIONS,
-      inject: [KafkaService],
-      useFactory: (kafka: KafkaService) => ({
-        publisher: {
-          publish: (
-            topic: string,
-            payload: Record<string, unknown>,
-            key?: string,
-          ) => kafka.publishPhysicalTopic(topic, payload, key),
-        },
-      }),
+      inject: [KafkaService, ConfigService],
+      useFactory: createAthenaQueryTelemetryOptions,
     },
     AthenaQueryTelemetryService,
     {

@@ -84,7 +84,14 @@ export class ConfigService implements OnApplicationBootstrap {
     devMode: process.env.VAULT_DEV_MODE === "true",
   };
 
+  readonly dataPipeline = {
+    enabled: process.env.DATA_PIPELINE_ENABLED === "true",
+  };
+
   readonly kafka = {
+    enabled:
+      process.env.KAFKA_ENABLED === "true" ||
+      process.env.DATA_PIPELINE_ENABLED === "true",
     clientId: process.env.KAFKA_CLIENT_ID || "api-center",
     topicPrefix: process.env.KAFKA_TOPIC_PREFIX || "",
     brokers: (process.env.KAFKA_BROKERS || "")
@@ -320,7 +327,7 @@ export class ConfigService implements OnApplicationBootstrap {
       );
     }
 
-    if (this.isProduction) {
+    if (this.isProduction && this.kafka.enabled) {
       const hasLocalOrSelfManagedBroker = this.kafka.brokers.some((broker) => {
         const normalizedBroker = broker.toLowerCase();
         return (
@@ -336,21 +343,23 @@ export class ConfigService implements OnApplicationBootstrap {
 
       if (this.kafka.brokers.length === 0) {
         errors.push(
-          "KAFKA_BROKERS must be set for Confluent Cloud in production",
+          "KAFKA_BROKERS must be set when Kafka publishing is enabled",
         );
       } else if (hasLocalOrSelfManagedBroker || !allBrokersAreConfluentCloud) {
         errors.push(
-          "KAFKA_BROKERS must point to Confluent Cloud in production",
+          "KAFKA_BROKERS must point to Confluent Cloud when Kafka publishing is enabled",
         );
       }
 
       if (!this.kafka.sslEnabled) {
-        errors.push("KAFKA_SSL_ENABLED=true is required for Confluent Cloud");
+        errors.push(
+          "KAFKA_SSL_ENABLED=true is required when Kafka publishing is enabled",
+        );
       }
 
       if (this.kafka.saslMechanism !== "plain") {
         errors.push(
-          "KAFKA_SASL_MECHANISM=plain is required for Confluent Cloud",
+          "KAFKA_SASL_MECHANISM=plain is required when Kafka publishing is enabled",
         );
       }
     }

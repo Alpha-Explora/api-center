@@ -174,6 +174,40 @@ describe("ConfigService", () => {
     expect(config.kafka.topicPrefix).toBe("test.");
   });
 
+  it("should allow production core gateway mode without Kafka when data pipeline is disabled", () => {
+    setValidProductionEnv();
+    process.env.AUTH_PROVIDER = "internal-jwt";
+    process.env.JWT_PRIVATE_KEY = "private-key";
+    process.env.JWT_PUBLIC_KEY = "public-key";
+    process.env.DATA_PIPELINE_ENABLED = "false";
+    process.env.KAFKA_ENABLED = "false";
+    process.env.KAFKA_BROKERS = "";
+    process.env.KAFKA_SSL_ENABLED = "false";
+    process.env.KAFKA_SASL_MECHANISM = "";
+    process.env.KAFKA_SASL_USERNAME = "";
+    process.env.KAFKA_SASL_PASSWORD = "";
+
+    const config = new ConfigService();
+    const run = () => config.onApplicationBootstrap();
+
+    expect(run).not.toThrow();
+    expect(config.dataPipeline.enabled).toBe(false);
+    expect(config.kafka.enabled).toBe(false);
+  });
+
+  it("should require Confluent config in production when data pipeline is enabled", () => {
+    setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
+    process.env.KAFKA_BROKERS = "";
+
+    const run = () => new ConfigService().onApplicationBootstrap();
+
+    expect(run).toThrow(
+      "KAFKA_BROKERS must be set when Kafka publishing is enabled",
+    );
+  });
+
   it("should throw when database is enabled without DATABASE_URL", () => {
     setValidProductionEnv();
     process.env.DATABASE_ENABLED = "true";
@@ -195,40 +229,48 @@ describe("ConfigService", () => {
 
   it("should throw in production when Kafka broker points to localhost", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_BROKERS = "localhost:9092";
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_BROKERS must point to Confluent Cloud in production",
+      "KAFKA_BROKERS must point to Confluent Cloud when Kafka publishing is enabled",
     );
   });
 
   it("should throw in production when Kafka broker is missing", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_BROKERS = "";
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_BROKERS must be set for Confluent Cloud in production",
+      "KAFKA_BROKERS must be set when Kafka publishing is enabled",
     );
   });
 
   it("should throw in production when Kafka broker points to a self-managed cluster", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_BROKERS =
       "api-center-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092";
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_BROKERS must point to Confluent Cloud in production",
+      "KAFKA_BROKERS must point to Confluent Cloud when Kafka publishing is enabled",
     );
   });
 
   it("should throw in production when any Kafka broker is not Confluent Cloud", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_BROKERS = [
       "pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092",
       "broker.example.com:9092",
@@ -237,12 +279,14 @@ describe("ConfigService", () => {
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_BROKERS must point to Confluent Cloud in production",
+      "KAFKA_BROKERS must point to Confluent Cloud when Kafka publishing is enabled",
     );
   });
 
   it("should throw in production when any Kafka broker uses a loopback address", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_BROKERS = [
       "pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:9092",
       "127.0.0.1:9092",
@@ -251,29 +295,33 @@ describe("ConfigService", () => {
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_BROKERS must point to Confluent Cloud in production",
+      "KAFKA_BROKERS must point to Confluent Cloud when Kafka publishing is enabled",
     );
   });
 
   it("should throw in production when Kafka TLS is disabled", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_SSL_ENABLED = "false";
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_SSL_ENABLED=true is required for Confluent Cloud",
+      "KAFKA_SSL_ENABLED=true is required when Kafka publishing is enabled",
     );
   });
 
   it("should throw in production when Kafka SASL mechanism is not plain", () => {
     setValidProductionEnv();
+    process.env.DATA_PIPELINE_ENABLED = "true";
+    process.env.KAFKA_ENABLED = "true";
     process.env.KAFKA_SASL_MECHANISM = "scram-sha-512";
 
     const run = () => new ConfigService().onApplicationBootstrap();
 
     expect(run).toThrow(
-      "KAFKA_SASL_MECHANISM=plain is required for Confluent Cloud",
+      "KAFKA_SASL_MECHANISM=plain is required when Kafka publishing is enabled",
     );
   });
 });

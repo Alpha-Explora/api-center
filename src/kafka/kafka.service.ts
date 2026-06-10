@@ -74,10 +74,12 @@ const TOPIC_SCHEMAS: Record<string, ZodSchema> = {
 
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
-  private readonly kafka: Kafka;
-  private readonly producer: Producer;
+  private readonly enabled: boolean;
+  private readonly kafka?: Kafka;
+  private readonly producer?: Producer;
   private readonly consumers: Map<string, Consumer> = new Map();
   private connected = false;
+  private disabledPublishLogged = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -86,9 +88,12 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly gatewayTraffic?: GatewayTrafficService,
     @Optional() private readonly auditEvents?: AuditEventsService,
   ) {
-    this.kafka = this.createKafkaClient();
+    this.enabled = this.config.kafka.enabled !== false;
 
-    this.producer = this.kafka.producer();
+    if (this.enabled) {
+      this.kafka = this.createKafkaClient();
+      this.producer = this.kafka.producer();
+    }
   }
 
   private createKafkaClient(): Kafka {
@@ -163,8 +168,15 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
   /** NestJS lifecycle: connect Kafka producer when the module initializes */
   async onModuleInit() {
+    if (!this.enabled) {
+      this.connected = false;
+      this.metrics?.setKafkaProducerConnected(false);
+      this.logger.log("Kafka producer disabled by configuration", "KafkaService");
+      return;
+    }
+
     try {
-      await this.producer.connect();
+      await this.producer!.connect();
       this.connected = true;
       this.metrics?.setKafkaProducerConnected(true);
       this.logger.log("Kafka producer connected", "KafkaService");
@@ -180,7 +192,13 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
   /** NestJS lifecycle: gracefully disconnect on application shutdown */
   async onModuleDestroy() {
-    await this.producer.disconnect();
+    if (!this.enabled) {
+      this.connected = false;
+      this.metrics?.setKafkaProducerConnected(false);
+      return;
+    }
+
+    await this.producer!.disconnect();
     this.connected = false;
     this.metrics?.setKafkaProducerConnected(false);
     for (const consumer of this.consumers.values()) {
@@ -207,6 +225,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     payload: Record<string, unknown>,
     key?: string,
   ): Promise<void> {
+    if (!this.enabled) {
+      throw this.getDisabledError();
+    }
+
     const physicalTopic = withTopicPrefix(topic, this.config.kafka.topicPrefix);
 
     try {
@@ -221,7 +243,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      await this.producer.send({
+      await this.producer!.send({
         topic: physicalTopic,
         messages: [
           {
@@ -263,10 +285,14 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     payload: Record<string, unknown>,
     key?: string,
   ): Promise<void> {
+    if (!this.enabled) {
+      throw this.getDisabledError();
+    }
+
     const physicalTopic = topic.trim();
 
     try {
-      await this.producer.send({
+      await this.producer!.send({
         topic: physicalTopic,
         messages: [
           {
@@ -321,6 +347,18 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       context = "KafkaService",
       failureLogLevel = "debug",
     } = options || {};
+
+    if (!this.enabled) {
+      if (!this.disabledPublishLogged) {
+        this.logger.debug(
+          "Kafka publishing disabled; dropping non-blocking event publishes",
+          context,
+        );
+        this.disabledPublishLogged = true;
+      }
+      return;
+    }
+
     const physicalTopic = withTopicPrefix(topic, this.config.kafka.topicPrefix);
 
     void this.publish(topic, payload, key).catch((err) => {
@@ -341,8 +379,12 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     topic: string,
     handler: (message: Record<string, unknown>) => Promise<void>,
   ): Promise<void> {
+    if (!this.enabled) {
+      throw this.getDisabledError();
+    }
+
     const physicalTopic = withTopicPrefix(topic, this.config.kafka.topicPrefix);
-    const consumer = this.kafka.consumer({
+    const consumer = this.kafka!.consumer({
       groupId: `${this.config.kafka.groupId}-${physicalTopic}`,
     });
 
@@ -369,5 +411,9 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       `Kafka subscribed to topic: ${physicalTopic}`,
       "KafkaService",
     );
+  }
+
+  private getDisabledError(): Error {
+    return new Error("Kafka publishing is disabled");
   }
 }

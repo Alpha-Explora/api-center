@@ -44,6 +44,10 @@ provider API keys such as PayMongo, Resend, Google Maps, or SMS
 Those belong to API Center, GCP Secret Manager, Confluent Cloud, or the specific
 shared-service runtime.
 
+Pausing Confluent/AWS does not change the Descope boundary. Tribe M2M auth stays
+API Center internal JWT-based, and Confluent/AWS remain optional data-pipeline
+dependencies controlled by `DATA_PIPELINE_ENABLED`.
+
 ## Current API Center Behavior
 
 Production should stay on:

@@ -8,7 +8,9 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
+import { ConfigService } from "../config/config.service";
 import { AuthenticatedRequest } from "../types";
+import { dataPipelineDisabled } from "./data-pipeline-disabled.error";
 import {
   parsePipelineHealthEnvironment,
   parsePipelinePartitionDate,
@@ -25,6 +27,7 @@ export class PipelineHealthController {
     private readonly pipelineHealth: PipelineHealthService,
     private readonly pipelineGovernance: PipelineGovernanceService,
     private readonly rawToSilverRuns: RawToSilverRunService,
+    private readonly config: ConfigService,
   ) {}
 
   @Get("health")
@@ -165,6 +168,9 @@ export class PipelineHealthController {
     );
     if (!partition) {
       throw new Error("year, month, and day are required.");
+    }
+    if (!this.config.dataPipeline.enabled) {
+      dataPipelineDisabled("raw-to-silver runs");
     }
 
     const data = await this.rawToSilverRuns.startRun({

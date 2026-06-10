@@ -18,6 +18,7 @@ import {
 import { KafkaService } from "../kafka/kafka.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
+import { ConfigService } from "../config/config.service";
 import { RegistryService } from "../registry/registry.service";
 import { ExternalService } from "../external/external.service";
 import { TokenStoreService } from "../auth/token-store.service";
@@ -34,6 +35,7 @@ export class HealthController {
     private readonly gatewayTraffic: GatewayTrafficService,
     private readonly auditEvents: AuditEventsService,
     private readonly governanceReadiness: GovernanceReadinessService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -81,6 +83,16 @@ export class HealthController {
   }
 
   private async kafkaCheck(): Promise<HealthIndicatorResult> {
+    if (!this.config.kafka.enabled) {
+      return {
+        kafka: {
+          status: "up",
+          skipped: true,
+          reason: "Kafka disabled by configuration",
+        },
+      };
+    }
+
     try {
       const connected = this.kafka.isConnected();
       if (!connected) this.recordReadinessFailure("kafka");
