@@ -16,6 +16,8 @@ import { PromotionEvidenceBundleController } from "./promotion-evidence-bundle.c
 import { PromotionEvidenceBundleService } from "./promotion-evidence-bundle.service";
 import { RuntimeDependencyMapController } from "./runtime-dependency-map.controller";
 import { RuntimeDependencyMapService } from "./runtime-dependency-map.service";
+import { ServiceLifecycleEvidenceController } from "./service-lifecycle-evidence.controller";
+import { ServiceLifecycleEvidenceService } from "./service-lifecycle-evidence.service";
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { RuntimeDependencyMapService } from "./runtime-dependency-map.service";
     GovernanceDriftController,
     PromotionEvidenceBundleController,
     RuntimeDependencyMapController,
+    ServiceLifecycleEvidenceController,
   ],
   providers: [
     ConsumerScorecardService,
@@ -40,6 +43,7 @@ import { RuntimeDependencyMapService } from "./runtime-dependency-map.service";
     GovernanceDriftService,
     PromotionEvidenceBundleService,
     RuntimeDependencyMapService,
+    ServiceLifecycleEvidenceService,
   ],
   exports: [
     ConsumerScorecardService,
@@ -47,6 +51,7 @@ import { RuntimeDependencyMapService } from "./runtime-dependency-map.service";
     GovernanceDriftService,
     PromotionEvidenceBundleService,
     RuntimeDependencyMapService,
+    ServiceLifecycleEvidenceService,
   ],
 })
 export class OperationsModule {}
