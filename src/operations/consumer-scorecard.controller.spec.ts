@@ -2,6 +2,83 @@ import { ConsumerScorecardController } from "./consumer-scorecard.controller";
 import { ConsumerScorecardService } from "./consumer-scorecard.service";
 
 describe("ConsumerScorecardController", () => {
+  it("loads quota decisions once for distinct owner tribes", async () => {
+    const registry = {
+      getAll: jest.fn().mockReturnValue({
+        orders: {
+          serviceId: "orders",
+          ownerTribeId: "commerce",
+          status: "active",
+        },
+        checkout: {
+          serviceId: "checkout",
+          ownerTribeId: "commerce",
+          status: "active",
+        },
+        logistics: {
+          serviceId: "logistics",
+          status: "active",
+        },
+      }),
+    };
+    const scorecards = {
+      score: jest.fn((input) => ({
+        ownerTribeId: input.ownerTribeId,
+        quotaUsagePercent: input.quotaUsagePercent,
+      })),
+    };
+    const quotaFindMany = jest.fn().mockResolvedValue([
+      { ownerTribeId: "commerce", requestCount: 90, maxRequests: 100 },
+      { ownerTribeId: "logistics", requestCount: 10, maxRequests: 100 },
+    ]);
+    const prisma = {
+      tribeApiQuotaDecision: {
+        findMany: quotaFindMany,
+      },
+    };
+    const gatewayTraffic = {
+      getSummary: jest.fn().mockResolvedValue({
+        totalProxyRequests: 0,
+        status4xx: 0,
+        status5xx: 0,
+      }),
+    };
+
+    const controller = new ConsumerScorecardController(
+      registry as any,
+      scorecards as any,
+      prisma as any,
+      gatewayTraffic as any,
+    );
+
+    const response = await controller.list();
+
+    expect(quotaFindMany).toHaveBeenCalledTimes(1);
+    expect(quotaFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          ownerTribeId: {
+            in: ["commerce", "logistics"],
+          },
+        },
+      }),
+    );
+    expect(response.data).toEqual([
+      expect.objectContaining({
+        ownerTribeId: "commerce",
+        quotaUsagePercent: 90,
+      }),
+      expect.objectContaining({
+        ownerTribeId: "commerce",
+        quotaUsagePercent: 90,
+      }),
+      expect.objectContaining({
+        ownerTribeId: "logistics",
+        quotaUsagePercent: 10,
+      }),
+    ]);
+  });
+
   it("uses explicit sdk metadata and metric-backed scorecard inputs", async () => {
     const registry = {
       getAll: jest.fn().mockReturnValue({
@@ -16,8 +93,8 @@ describe("ConsumerScorecardController", () => {
     const prisma = {
       tribeApiQuotaDecision: {
         findMany: jest.fn().mockResolvedValue([
-          { requestCount: 92, maxRequests: 100 },
-          { requestCount: 25, maxRequests: 100 },
+          { ownerTribeId: "campus-one", requestCount: 92, maxRequests: 100 },
+          { ownerTribeId: "campus-one", requestCount: 25, maxRequests: 100 },
         ]),
       },
     };

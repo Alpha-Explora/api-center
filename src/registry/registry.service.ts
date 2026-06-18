@@ -51,6 +51,8 @@ const REDIS_WRITE_TIMEOUT_MS = 2_000;
 @Injectable()
 export class RegistryService implements OnModuleInit, OnModuleDestroy {
   private readonly services: ServiceRegistryMap = {};
+  private readonly servicesByOwnerTribeId = new Map<string, Set<string>>();
+  private readonly consumersByTargetServiceId = new Map<string, Set<string>>();
   private redis: Redis | null = null;
   private readonly cacheInvalidationListeners = new Set<
     (serviceId: string) => void
@@ -177,6 +179,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     };
 
     this.services[manifest.serviceId] = entry;
+    this.reindexService(entry, existing);
     this.syncMetricsGauge();
 
     // Persist to Redis with a strict timeout. If Postgres dual-write is enabled,
@@ -188,8 +191,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       if (previousEntry) {
         this.services[manifest.serviceId] = previousEntry;
+        this.reindexService(previousEntry, entry);
       } else {
         delete this.services[manifest.serviceId];
+        this.removeServiceFromIndexes(entry);
       }
       this.syncMetricsGauge();
       throw err;
@@ -271,6 +276,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const previousEntry = { ...existing };
 
     delete this.services[serviceId];
+    this.removeServiceFromIndexes(previousEntry);
     this.syncMetricsGauge();
 
     // Remove from Redis with strict timeout; Postgres removal is part of the
@@ -279,6 +285,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       await this.removeRegistryEntryStrict(serviceId, { previousEntry });
     } catch (err) {
       this.services[serviceId] = previousEntry;
+      this.reindexService(previousEntry);
       this.syncMetricsGauge();
       throw err;
     }
@@ -465,9 +472,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
    * Get consumers — services that list the given serviceId in their consumes array.
    */
   getConsumers(serviceId: string): string[] {
-    return Object.values(this.services)
-      .filter((svc) => svc.consumes.includes(serviceId))
-      .map((svc) => svc.serviceId);
+    return [...(this.consumersByTargetServiceId.get(serviceId) ?? [])].sort();
   }
 
   // -------------------------------------------------------------------------
@@ -511,10 +516,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   }
 
   getOwnedServices(tribeId: string): ServiceRegistryEntry[] {
-    return Object.values(this.services).filter((service) => {
-      if ((service.serviceType ?? "tribe") !== "tribe") return false;
-      return (service.ownerTribeId ?? service.serviceId) === tribeId;
-    });
+    return [...(this.servicesByOwnerTribeId.get(tribeId) ?? [])]
+      .map((serviceId) => this.services[serviceId])
+      .filter((service): service is ServiceRegistryEntry => Boolean(service));
   }
 
   getDeveloperPortalServices(tribeId: string) {
@@ -711,6 +715,81 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private reindexService(
+    entry: ServiceRegistryEntry,
+    previous?: ServiceRegistryEntry,
+  ): void {
+    if (previous) {
+      this.removeServiceFromIndexes(previous);
+    }
+
+    if ((entry.serviceType ?? "tribe") === "tribe") {
+      const ownerTribeId = entry.ownerTribeId ?? entry.serviceId;
+      this.addIndexedValue(
+        this.servicesByOwnerTribeId,
+        ownerTribeId,
+        entry.serviceId,
+      );
+    }
+
+    for (const targetServiceId of entry.consumes ?? []) {
+      this.addIndexedValue(
+        this.consumersByTargetServiceId,
+        targetServiceId,
+        entry.serviceId,
+      );
+    }
+  }
+
+  private removeServiceFromIndexes(entry: ServiceRegistryEntry): void {
+    const ownerTribeId = entry.ownerTribeId ?? entry.serviceId;
+    this.removeIndexedValue(
+      this.servicesByOwnerTribeId,
+      ownerTribeId,
+      entry.serviceId,
+    );
+
+    for (const targetServiceId of entry.consumes ?? []) {
+      this.removeIndexedValue(
+        this.consumersByTargetServiceId,
+        targetServiceId,
+        entry.serviceId,
+      );
+    }
+  }
+
+  private addIndexedValue(
+    index: Map<string, Set<string>>,
+    key: string,
+    value: string,
+  ): void {
+    const values = index.get(key) ?? new Set<string>();
+    values.add(value);
+    index.set(key, values);
+  }
+
+  private removeIndexedValue(
+    index: Map<string, Set<string>>,
+    key: string,
+    value: string,
+  ): void {
+    const values = index.get(key);
+    if (!values) return;
+    values.delete(value);
+    if (values.size === 0) {
+      index.delete(key);
+    }
+  }
+
+  private rebuildRegistryIndexes(): void {
+    this.servicesByOwnerTribeId.clear();
+    this.consumersByTargetServiceId.clear();
+
+    for (const entry of Object.values(this.services)) {
+      this.reindexService(entry);
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Metrics sync (private)
   // -------------------------------------------------------------------------
@@ -782,6 +861,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     if (count > 0) {
       this.logger.info(`Registry hydrated ${count} service(s) from Redis`, {});
     }
+    this.rebuildRegistryIndexes();
   }
 
   /**
@@ -802,6 +882,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     for (const [serviceId, entry] of Object.entries(entries)) {
       this.services[serviceId] = entry;
     }
+    this.rebuildRegistryIndexes();
     this.syncMetricsGauge();
 
     const count = Object.keys(entries).length;

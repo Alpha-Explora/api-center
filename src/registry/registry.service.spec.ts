@@ -181,6 +181,71 @@ describe("RegistryService", () => {
       expect(second.previousVersion).toBe("1.0.0");
     });
 
+    it("keeps owner and consumer lookups current after registration updates", async () => {
+      await service.register(
+        baseManifest({
+          serviceId: "commerce",
+          name: "Commerce",
+          ownerTribeId: "commerce",
+          consumes: [],
+        }),
+      );
+      await service.register(
+        baseManifest({
+          serviceId: "fulfillment",
+          name: "Fulfillment",
+          ownerTribeId: "fulfillment",
+          consumes: [],
+        }),
+      );
+      await service.register(
+        baseManifest({
+          serviceId: "orders",
+          name: "Orders",
+          baseUrl: "https://orders.example.test",
+          requiredScopes: ["orders:read"],
+          exposes: ["/orders"],
+          consumes: ["payment"],
+          ownerTribeId: "commerce",
+          serviceType: "tribe",
+        }),
+      );
+      await service.register(
+        baseManifest({
+          serviceId: "checkout",
+          name: "Checkout",
+          baseUrl: "https://checkout.example.test",
+          requiredScopes: ["checkout:read"],
+          exposes: ["/checkout"],
+          consumes: ["payment"],
+          ownerTribeId: "commerce",
+          serviceType: "tribe",
+        }),
+      );
+      await service.register(
+        baseManifest({
+          serviceId: "orders",
+          name: "Orders",
+          baseUrl: "https://orders.example.test",
+          requiredScopes: ["orders:read"],
+          exposes: ["/orders"],
+          consumes: ["email"],
+          ownerTribeId: "fulfillment",
+          serviceType: "tribe",
+          version: "1.1.0",
+        }),
+      );
+
+      expect(
+        service.getOwnedServices("commerce").map((entry) => entry.serviceId),
+      ).toEqual(["commerce", "checkout"]);
+      expect(
+        service.getOwnedServices("fulfillment").map((entry) => entry.serviceId),
+      ).toEqual(["fulfillment", "orders"]);
+      expect(service.getConsumers("payment")).toEqual(["checkout"]);
+      expect(service.getConsumers("email")).toEqual(["orders"]);
+    });
+
     it("rejects re-registration of a retired service", async () => {
       await service.register(baseManifest());
       await service.retire("svc-alpha");
