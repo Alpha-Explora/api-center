@@ -10,7 +10,8 @@ export function resolvePipelineDatasetSource(
   candidates: Array<string | undefined>,
   errorMessage: string,
 ): PipelineDatasetSource {
-  const source = candidates.find((candidate) => candidate !== undefined) ?? "fixture";
+  const source =
+    candidates.find((candidate) => candidate !== undefined) ?? "fixture";
   if (source === "fixture" || source === "athena") return source;
   throw new ValidationError(errorMessage);
 }

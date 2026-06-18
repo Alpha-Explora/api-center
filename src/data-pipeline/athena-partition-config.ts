@@ -38,7 +38,9 @@ export function resolvePartitionDate({
     };
   }
 
-  const envDates = prefixes.map((prefix) => resolveEnvPartitionDate(env, prefix));
+  const envDates = prefixes.map((prefix) =>
+    resolveEnvPartitionDate(env, prefix),
+  );
 
   return {
     year:

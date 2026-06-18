@@ -171,7 +171,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     if (!this.enabled) {
       this.connected = false;
       this.metrics?.setKafkaProducerConnected(false);
-      this.logger.log("Kafka producer disabled by configuration", "KafkaService");
+      this.logger.log(
+        "Kafka producer disabled by configuration",
+        "KafkaService",
+      );
       return;
     }
 

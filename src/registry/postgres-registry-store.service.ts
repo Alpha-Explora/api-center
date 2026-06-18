@@ -270,7 +270,8 @@ function mapRowToRegistryEntry(
     environments:
       environments.length > 0
         ? environments.map((environment) => ({
-            environment: environment.environment as ServiceEnvironmentManifest["environment"],
+            environment:
+              environment.environment as ServiceEnvironmentManifest["environment"],
             baseUrl: environment.baseUrl,
             healthCheck: environment.healthCheckPath ?? undefined,
             status: environment.status as ServiceLifecycleStatus,

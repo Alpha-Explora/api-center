@@ -43,7 +43,9 @@ describe("normalizeServiceEnvironments", () => {
       lastHealthCheckAt: "2026-06-19T00:01:00.000Z",
     };
 
-    expect(normalizeServiceEnvironments(entry, { status: entry.status })).toEqual([
+    expect(
+      normalizeServiceEnvironments(entry, { status: entry.status }),
+    ).toEqual([
       {
         environment: "test",
         baseUrl: "https://orders.test",

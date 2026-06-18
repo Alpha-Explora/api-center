@@ -47,7 +47,9 @@ describe("enforceProxyAuthContext", () => {
     });
 
     expect(() => enforceProxyAuthContext(context)).toThrow(
-      new ForbiddenError("Tribe 'orders-tribe' is not authorised to access 'orders'"),
+      new ForbiddenError(
+        "Tribe 'orders-tribe' is not authorised to access 'orders'",
+      ),
     );
   });
 
@@ -63,7 +65,9 @@ describe("enforceProxyAuthContext", () => {
     });
 
     expect(() => enforceProxyAuthContext(context)).toThrow(
-      new ForbiddenError("Insufficient scopes for 'orders'. Missing: orders:write"),
+      new ForbiddenError(
+        "Insufficient scopes for 'orders'. Missing: orders:write",
+      ),
     );
   });
 });

@@ -422,7 +422,9 @@ function normalizeManifestEnvironments(
   ];
 }
 
-function resolveApprovalTargetEnvironment(manifest: ServiceManifestDto): string {
+function resolveApprovalTargetEnvironment(
+  manifest: ServiceManifestDto,
+): string {
   if (manifest.targetEnvironment) return manifest.targetEnvironment;
   if (
     manifest.environments?.some(

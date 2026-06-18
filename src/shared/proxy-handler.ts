@@ -34,7 +34,11 @@ import {
   ServiceUnavailableError,
 } from "../shared/errors";
 import { requireGovernanceDependency } from "../shared/governance-dependencies";
-import { AuthenticatedRequest, ServiceEnvironmentKey, ServiceType } from "../types";
+import {
+  AuthenticatedRequest,
+  ServiceEnvironmentKey,
+  ServiceType,
+} from "../types";
 import { enforceProxyAuthContext } from "./proxy/proxy-auth-context";
 import { checkProxyQuota } from "./proxy/proxy-quota-context";
 import { createUpstreamProxyOptions } from "./proxy/upstream-request";
@@ -470,7 +474,9 @@ export class ProxyHandler {
     }
 
     this.proxyCache.delete(oldestServiceId);
-    this.circuitBreakers.delete(oldestServiceId.split(":")[0] ?? oldestServiceId);
+    this.circuitBreakers.delete(
+      oldestServiceId.split(":")[0] ?? oldestServiceId,
+    );
 
     this.deps.logger.warn(
       `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,

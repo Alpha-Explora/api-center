@@ -29,16 +29,33 @@ describe("createUpstreamProxyOptions", () => {
       write: jest.fn(),
     };
 
-    options.on?.proxyReq?.(proxyReq as any, {
-      tribeId: "orders-tribe",
-      correlationId: "corr-1",
-      body: { orderId: "ord-1" },
-    } as any, {} as any, {} as any);
+    options.on?.proxyReq?.(
+      proxyReq as any,
+      {
+        tribeId: "orders-tribe",
+        correlationId: "corr-1",
+        body: { orderId: "ord-1" },
+      } as any,
+      {} as any,
+      {} as any,
+    );
 
-    expect(proxyReq.setHeader).toHaveBeenCalledWith("X-Tribe-Id", "orders-tribe");
-    expect(proxyReq.setHeader).toHaveBeenCalledWith("X-Correlation-ID", "corr-1");
-    expect(proxyReq.setHeader).toHaveBeenCalledWith("X-Forwarded-By", "apicenter-gateway");
-    expect(proxyReq.setHeader).toHaveBeenCalledWith("Content-Type", "application/json");
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "X-Tribe-Id",
+      "orders-tribe",
+    );
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "X-Correlation-ID",
+      "corr-1",
+    );
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "X-Forwarded-By",
+      "apicenter-gateway",
+    );
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "Content-Type",
+      "application/json",
+    );
     expect(proxyReq.setHeader).toHaveBeenCalledWith("Content-Length", 19);
     expect(proxyReq.write).toHaveBeenCalledWith('{"orderId":"ord-1"}');
   });
@@ -70,6 +87,8 @@ describe("createUpstreamProxyOptions", () => {
       expect.stringContaining("returned 503"),
       "ProxyHandler",
     );
-    expect(log.error).toHaveBeenCalledWith("Proxy error for orders: ECONNREFUSED");
+    expect(log.error).toHaveBeenCalledWith(
+      "Proxy error for orders: ECONNREFUSED",
+    );
   });
 });

@@ -1,4 +1,7 @@
-import { createRegistryEntry, normalizeRegistryEntry } from "./manifest-normalizer";
+import {
+  createRegistryEntry,
+  normalizeRegistryEntry,
+} from "./manifest-normalizer";
 import type { ServiceManifest, ServiceRegistryEntry } from "../types";
 
 function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {
@@ -43,14 +46,11 @@ describe("createRegistryEntry", () => {
     });
     existing.status = "deprecated";
 
-    const entry = createRegistryEntry(
-      manifest({ version: "2.0.0" }),
-      {
-        existing,
-        now: "2026-06-19T00:00:00.000Z",
-        previousVersion: "1.0.0",
-      },
-    );
+    const entry = createRegistryEntry(manifest({ version: "2.0.0" }), {
+      existing,
+      now: "2026-06-19T00:00:00.000Z",
+      previousVersion: "1.0.0",
+    });
 
     expect(entry.status).toBe("deprecated");
     expect(entry.registeredAt).toBe("2026-06-18T00:00:00.000Z");
