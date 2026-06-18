@@ -62,6 +62,44 @@ describe("RegistryController", () => {
         ownerTribeId: "logistics",
       });
     });
+
+    it("returns environment records in service list responses", () => {
+      (mockRegistry.getAll as jest.Mock).mockReturnValue({
+        trinithrive: {
+          serviceId: "trinithrive",
+          ownerTribeId: "trinithrive",
+          name: "TriniThrive",
+          baseUrl: "https://trinithrive-test.example.com",
+          status: "active",
+          serviceType: "tribe",
+          exposes: ["/health"],
+          requiredScopes: ["service:read"],
+          consumes: [],
+          environments: [
+            {
+              environment: "test",
+              baseUrl: "https://trinithrive-test.example.com",
+              status: "active",
+            },
+          ],
+          registeredAt: "2026-06-18T00:00:00.000Z",
+          updatedAt: "2026-06-18T00:00:00.000Z",
+        },
+      });
+
+      const result = controller.listServices();
+
+      expect(result.data[0]).toMatchObject({
+        serviceId: "trinithrive",
+        environments: [
+          {
+            environment: "test",
+            baseUrl: "https://trinithrive-test.example.com",
+            status: "active",
+          },
+        ],
+      });
+    });
   });
 
   describe("getScopes", () => {
@@ -102,6 +140,81 @@ describe("RegistryController", () => {
   });
 
   describe("approval gates", () => {
+    it("registers one service identity with normalized environment URLs", async () => {
+      (mockRegistry.register as jest.Mock).mockResolvedValue({
+        serviceId: "trinithrive",
+        name: "TriniThrive",
+        baseUrl: "https://trinithrive-test.example.com",
+        requiredScopes: ["service:read"],
+        exposes: ["/health"],
+        consumes: [],
+        ownerTribeId: "trinithrive",
+        serviceType: "tribe",
+        environments: [
+          {
+            environment: "test",
+            baseUrl: "https://trinithrive-test.example.com",
+            healthCheck: "/health",
+            status: "active",
+          },
+          {
+            environment: "staging",
+            baseUrl: "https://trinithrive-staging.example.com",
+            healthCheck: "/health",
+            status: "active",
+          },
+        ],
+        registeredAt: "2026-06-18T00:00:00.000Z",
+        updatedAt: "2026-06-18T00:00:00.000Z",
+        status: "active",
+      });
+
+      await controller.register(
+        {
+          serviceId: "trinithrive",
+          name: "TriniThrive",
+          baseUrl: "https://trinithrive-test.example.com",
+          requiredScopes: ["service:read"],
+          exposes: ["/health"],
+          ownerTribeId: "trinithrive",
+          serviceType: "tribe",
+          healthCheck: "/health",
+          environments: [
+            {
+              environment: "test",
+              baseUrl: "https://trinithrive-test.example.com",
+            },
+            {
+              environment: "staging",
+              baseUrl: "https://trinithrive-staging.example.com",
+            },
+          ],
+        } as any,
+        { correlationId: "corr-env" } as any,
+      );
+
+      expect(mockRegistry.register).toHaveBeenCalledWith(
+        expect.objectContaining({
+          serviceId: "trinithrive",
+          ownerTribeId: "trinithrive",
+          environments: [
+            {
+              environment: "test",
+              baseUrl: "https://trinithrive-test.example.com",
+              healthCheck: "/health",
+              status: "active",
+            },
+            {
+              environment: "staging",
+              baseUrl: "https://trinithrive-staging.example.com",
+              healthCheck: "/health",
+              status: "active",
+            },
+          ],
+        }),
+      );
+    });
+
     it("requires approval before live service registration", async () => {
       const guardedController = new RegistryController(
         mockRegistry,

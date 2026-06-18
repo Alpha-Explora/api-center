@@ -34,6 +34,7 @@ function createMockDeps(): ProxyHandlerDeps {
   return {
     registry: {
       resolveUpstream: jest.fn(),
+      resolveEnvironment: jest.fn(),
       get: jest.fn(),
       getByType: jest.fn().mockReturnValue([]),
       canConsume: jest.fn().mockReturnValue(true),
@@ -169,6 +170,37 @@ describe("ProxyHandler", () => {
         req,
         res,
         expect.any(Function),
+      );
+    });
+
+    it("routes to the requested service environment URL", async () => {
+      (deps.registry.resolveEnvironment as jest.Mock).mockReturnValue({
+        environment: "staging",
+        baseUrl: "https://trinithrive-staging.example.com",
+        status: "active",
+      });
+      (deps.registry.get as jest.Mock).mockReturnValue({
+        serviceId: "trinithrive",
+        serviceType: "tribe",
+        status: "active",
+        requiredScopes: [],
+        consumes: [],
+      });
+
+      await handler.proxyRequest(
+        "trinithrive",
+        fakeReq({
+          headers: {
+            "x-apicenter-target-environment": "staging",
+          } as any,
+        }),
+        fakeRes(),
+      );
+
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: "https://trinithrive-staging.example.com",
+        }),
       );
     });
 
@@ -683,8 +715,8 @@ describe("ProxyHandler", () => {
       await boundedHandler.proxyRequest("svc-a", fakeReq(), fakeRes());
       await boundedHandler.proxyRequest("svc-b", fakeReq(), fakeRes());
 
-      expect((boundedHandler as any).proxyCache.has("svc-a")).toBe(false);
-      expect((boundedHandler as any).proxyCache.has("svc-b")).toBe(true);
+      expect((boundedHandler as any).proxyCache.has("svc-a:test")).toBe(false);
+      expect((boundedHandler as any).proxyCache.has("svc-b:test")).toBe(true);
       expect((boundedHandler as any).circuitBreakers.has("svc-a")).toBe(false);
       expect(deps.logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("Proxy cache size limit reached"),

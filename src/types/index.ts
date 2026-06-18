@@ -61,6 +61,23 @@ export type ServiceLifecycleStatus =
 /** Routing namespace: shared = platform service, tribe = tribe backend */
 export type ServiceType = "shared" | "tribe";
 
+/** Platform-approved runtime environments for one stable service identity */
+export type ServiceEnvironmentKey =
+  | "test"
+  | "staging"
+  | "uat"
+  | "demo"
+  | "live";
+
+export interface ServiceEnvironmentManifest {
+  environment: ServiceEnvironmentKey;
+  baseUrl: string;
+  healthCheck?: string;
+  status?: ServiceLifecycleStatus;
+  healthy?: boolean;
+  lastHealthCheckAt?: string;
+}
+
 /**
  * A service manifest is what a tribe/service sends when registering
  * with the API Center via POST /api/v1/registry/register.
@@ -77,6 +94,7 @@ export interface ServiceManifest {
   /** Routing namespace — 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
   serviceType?: ServiceType;
   healthCheck?: string;
+  environments?: ServiceEnvironmentManifest[];
   version?: string;
   description?: string;
   tags?: string[];
@@ -109,6 +127,7 @@ export interface ServiceRegistryEntry extends ServiceManifest {
   registeredAt: string;
   updatedAt: string;
   status: ServiceLifecycleStatus;
+  environments: ServiceEnvironmentManifest[];
   /** Previous version string — set on update when version changes */
   previousVersion?: string;
   /** Runtime health — `true` (default) when the upstream responds to health checks */

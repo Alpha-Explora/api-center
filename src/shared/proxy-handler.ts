@@ -35,7 +35,7 @@ import {
   ServiceUnavailableError,
 } from "../shared/errors";
 import { requireGovernanceDependency } from "../shared/governance-dependencies";
-import { AuthenticatedRequest, ServiceType } from "../types";
+import { AuthenticatedRequest, ServiceEnvironmentKey, ServiceType } from "../types";
 
 /** Default hard timeout for outgoing proxy requests (ms). */
 const PROXY_TIMEOUT_MS = 30_000;
@@ -228,7 +228,13 @@ export class ProxyHandler {
    * request creates a fresh instance pointing at the latest baseUrl.
    */
   invalidateProxyCache(serviceId: string): void {
-    const existed = this.proxyCache.delete(serviceId);
+    let existed = this.proxyCache.delete(serviceId);
+    for (const cacheKey of [...this.proxyCache.keys()]) {
+      if (cacheKey.startsWith(`${serviceId}:`)) {
+        this.proxyCache.delete(cacheKey);
+        existed = true;
+      }
+    }
     const breakerDeleted = this.circuitBreakers.delete(serviceId);
     if (existed || breakerDeleted) {
       this.deps.logger.info(`Proxy cache invalidated for '${serviceId}'`, {
@@ -287,7 +293,14 @@ export class ProxyHandler {
     const correlationId = req.correlationId;
 
     // ── 1. Resolve upstream ────────────────────────────────────────────────
-    const upstream = this.deps.registry.resolveUpstream(targetServiceId, "");
+    const targetEnvironment = this.resolveTargetEnvironment(req);
+    const serviceEnvironment = this.deps.registry.resolveEnvironment?.(
+      targetServiceId,
+      targetEnvironment,
+    );
+    const upstream =
+      serviceEnvironment?.baseUrl ??
+      this.deps.registry.resolveUpstream(targetServiceId, "");
     if (!upstream) {
       throw new NotFoundError(
         `Service '${targetServiceId}' not found or inactive`,
@@ -360,7 +373,8 @@ export class ProxyHandler {
     }
 
     // ── 4. Get or create proxy ─────────────────────────────────────────────
-    let proxy = this.proxyCache.get(targetServiceId);
+    const proxyCacheKey = `${targetServiceId}:${targetEnvironment}`;
+    let proxy = this.proxyCache.get(proxyCacheKey);
 
     if (!proxy) {
       this.evictOldestProxyEntryIfNeeded();
@@ -423,10 +437,11 @@ export class ProxyHandler {
       const createProxyMiddleware = await loadCreateProxyMiddleware();
       const createdProxy = createProxyMiddleware(proxyOpts) as ProxyMiddleware;
       proxy = createdProxy;
-      this.proxyCache.set(targetServiceId, createdProxy);
+      this.proxyCache.set(proxyCacheKey, createdProxy);
 
       this.deps.logger.info("Created proxy instance", {
         targetServiceId,
+        targetEnvironment,
         upstream,
         namespace: this.opts.namespace,
         proxyTimeoutMs: this.proxyTimeoutMs,
@@ -521,7 +536,7 @@ export class ProxyHandler {
     }
 
     this.proxyCache.delete(oldestServiceId);
-    this.circuitBreakers.delete(oldestServiceId);
+    this.circuitBreakers.delete(oldestServiceId.split(":")[0] ?? oldestServiceId);
 
     this.deps.logger.warn(
       `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,
@@ -712,10 +727,23 @@ export class ProxyHandler {
     }
   }
 
-  private resolveTargetEnvironment(req: AuthenticatedRequest) {
-    return req.headers?.["x-apicenter-target-environment"] === "live"
-      ? "live"
-      : "test";
+  private resolveTargetEnvironment(
+    req: AuthenticatedRequest,
+  ): ServiceEnvironmentKey {
+    const value = req.headers?.["x-apicenter-target-environment"];
+    const requested = Array.isArray(value) ? value[0] : value;
+
+    if (
+      requested === "test" ||
+      requested === "staging" ||
+      requested === "uat" ||
+      requested === "demo" ||
+      requested === "live"
+    ) {
+      return requested;
+    }
+
+    return "test";
   }
 
   private isProviderCostSensitive(targetEntry: object) {

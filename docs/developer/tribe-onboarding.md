@@ -33,6 +33,42 @@ Validation notes:
 - Shared-service manifests may include advisory `quotaHints`; API Center quota
   policies remain the runtime enforcement source.
 
+## Multi-Environment Service Registration
+
+Register one stable service identity and attach one or more environment records.
+The service identity owns governance, contacts, scopes, dependencies, and
+lifecycle state. Each environment owns its runtime URL, health path, event
+topic, tribe secret principal, and promotion evidence.
+
+Supported environment keys are `test`, `staging`, `uat`, `demo`, and `live`.
+Custom keys are not accepted in the first release. `baseUrl` remains required
+as a compatibility mirror of the first/default environment URL.
+
+Example:
+
+```json
+{
+  "serviceId": "trinithrive",
+  "name": "TriniThrive",
+  "ownerTribeId": "trinithrive",
+  "baseUrl": "https://trinithrive-test.example.com",
+  "requiredScopes": ["service:read"],
+  "exposes": ["/health"],
+  "environments": [
+    {
+      "environment": "test",
+      "baseUrl": "https://trinithrive-test.example.com",
+      "healthCheck": "/health"
+    },
+    {
+      "environment": "staging",
+      "baseUrl": "https://trinithrive-staging.example.com",
+      "healthCheck": "/health"
+    }
+  ]
+}
+```
+
 ## Tribe Startup Checklist
 
 1. Create the per-tribe Secret Manager secret:

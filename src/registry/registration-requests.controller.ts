@@ -18,7 +18,12 @@ import {
   RegistrationRequestsService,
   ServiceRegistrationRequest,
 } from "./registration-requests.service";
-import { ServiceManifest, ServiceTier, ServiceType } from "../types";
+import {
+  ServiceEnvironmentKey,
+  ServiceManifest,
+  ServiceTier,
+  ServiceType,
+} from "../types";
 
 @Controller("registry/registration-requests")
 @UseGuards(ScopedAdminGuard)
@@ -88,7 +93,31 @@ function normalizeManifest(
   return {
     ...manifest,
     consumes: manifest.consumes ?? [],
+    environments: normalizeManifestEnvironments(manifest),
     serviceTier: manifest.serviceTier as ServiceTier | undefined,
     serviceType: (manifest.serviceType ?? "tribe") as ServiceType,
   };
+}
+
+function normalizeManifestEnvironments(
+  manifest: CreateRegistrationRequestDto["manifest"],
+): NonNullable<ServiceManifest["environments"]> {
+  if (manifest.environments?.length) {
+    return manifest.environments.map((environment) => ({
+      environment: environment.environment as ServiceEnvironmentKey,
+      baseUrl: environment.baseUrl,
+      healthCheck: environment.healthCheck ?? manifest.healthCheck,
+      status: "active",
+    }));
+  }
+
+  return [
+    {
+      environment: (manifest.targetEnvironment ??
+        "test") as ServiceEnvironmentKey,
+      baseUrl: manifest.baseUrl,
+      healthCheck: manifest.healthCheck,
+      status: "active",
+    },
+  ];
 }

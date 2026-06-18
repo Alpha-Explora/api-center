@@ -26,6 +26,15 @@ function entry(
     updatedAt: "2026-05-15T01:00:00.000Z",
     status: "active",
     healthy: true,
+    environments: [
+      {
+        environment: "test",
+        baseUrl: "http://servease.local",
+        healthCheck: "/health",
+        status: "active",
+        healthy: true,
+      },
+    ],
     ...overrides,
   };
 }
@@ -57,6 +66,10 @@ describe("PostgresRegistryStoreService", () => {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       serviceDependency: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      serviceEnvironment: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
@@ -137,6 +150,48 @@ describe("PostgresRegistryStoreService", () => {
     });
   });
 
+  it("persists environment rows separately from service identity", async () => {
+    await service.upsert(
+      entry({
+        serviceId: "trinithrive",
+        ownerTribeId: "trinithrive",
+        baseUrl: "https://trinithrive-test.example.com",
+        environments: [
+          {
+            environment: "test",
+            baseUrl: "https://trinithrive-test.example.com",
+            healthCheck: "/health",
+            status: "active",
+          },
+          {
+            environment: "staging",
+            baseUrl: "https://trinithrive-staging.example.com",
+            healthCheck: "/health",
+            status: "active",
+          },
+        ],
+      }),
+    );
+
+    expect(tx.serviceEnvironment.deleteMany).toHaveBeenCalledWith({
+      where: { serviceId: "service-1" },
+    });
+    expect(tx.serviceEnvironment.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          serviceId: "service-1",
+          environment: "test",
+          baseUrl: "https://trinithrive-test.example.com",
+        }),
+        expect.objectContaining({
+          serviceId: "service-1",
+          environment: "staging",
+          baseUrl: "https://trinithrive-staging.example.com",
+        }),
+      ],
+    });
+  });
+
   it("loads registry rows into service entries", async () => {
     prisma.service.findMany.mockResolvedValue([
       {
@@ -161,6 +216,16 @@ describe("PostgresRegistryStoreService", () => {
         lastHealthCheckAt: new Date("2026-05-15T01:00:00.000Z"),
         registeredAt: new Date("2026-05-15T00:00:00.000Z"),
         updatedAt: new Date("2026-05-15T01:00:00.000Z"),
+        environments: [
+          {
+            environment: "test",
+            baseUrl: "http://payment-service:4010",
+            healthCheckPath: "/health",
+            status: "active",
+            healthy: true,
+            lastHealthCheckAt: new Date("2026-05-15T01:00:00.000Z"),
+          },
+        ],
         routes: [{ path: "/checkout" }],
         scopes: [{ scope: "payment:write" }],
         dependencies: [
@@ -183,6 +248,12 @@ describe("PostgresRegistryStoreService", () => {
         requiredScopes: ["payment:write"],
         consumes: ["external-bank"],
         tags: ["payments"],
+        environments: [
+          expect.objectContaining({
+            environment: "test",
+            baseUrl: "http://payment-service:4010",
+          }),
+        ],
       }),
     );
   });

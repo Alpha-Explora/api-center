@@ -23,6 +23,8 @@ import {
 } from "@nestjs/common";
 import Redis from "ioredis";
 import {
+  ServiceEnvironmentKey,
+  ServiceEnvironmentManifest,
   ServiceManifest,
   ServiceRegistryEntry,
   ServiceRegistryMap,
@@ -165,6 +167,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const entry: ServiceRegistryEntry = {
       ...manifest,
       serviceType: manifest.serviceType || "tribe",
+      environments: normalizeServiceEnvironments(manifest, {
+        status: existing?.status === "deprecated" ? "deprecated" : "active",
+      }),
       registeredAt: existing?.registeredAt || now,
       updatedAt: now,
       status: existing?.status === "deprecated" ? "deprecated" : "active",
@@ -581,6 +586,25 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     return `${service.baseUrl}${path}`;
   }
 
+  resolveEnvironment(
+    serviceId: string,
+    environment: ServiceEnvironmentKey = "test",
+  ): ServiceEnvironmentManifest | null {
+    const service = this.services[serviceId];
+    if (!service) return null;
+
+    const environments = normalizeServiceEnvironments(service, {
+      status: service.status,
+    });
+
+    return (
+      environments.find((candidate) => candidate.environment === environment) ??
+      environments.find((candidate) => candidate.environment === "test") ??
+      environments[0] ??
+      null
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Secret validation
   // -------------------------------------------------------------------------
@@ -742,7 +766,9 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     for (const [serviceId, json] of Object.entries(entries)) {
       try {
-        const entry: ServiceRegistryEntry = JSON.parse(json);
+        const entry: ServiceRegistryEntry = normalizeRegistryEntry(
+          JSON.parse(json),
+        );
         this.services[serviceId] = entry;
         count++;
       } catch (err) {
@@ -802,7 +828,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     for (const [serviceId, json] of Object.entries(raw)) {
       try {
-        entries[serviceId] = JSON.parse(json);
+        entries[serviceId] = normalizeRegistryEntry(JSON.parse(json));
       } catch {
         this.logger.warn(
           `Failed to parse Redis entry for '${serviceId}' during drift check`,
@@ -976,4 +1002,42 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
+}
+
+function normalizeRegistryEntry(entry: ServiceRegistryEntry): ServiceRegistryEntry {
+  return {
+    ...entry,
+    environments: normalizeServiceEnvironments(entry, {
+      status: entry.status,
+    }),
+  };
+}
+
+function normalizeServiceEnvironments(
+  service: ServiceManifest,
+  defaults: { status: ServiceRegistryEntry["status"] },
+): ServiceEnvironmentManifest[] {
+  const runtimeState = service as Partial<ServiceRegistryEntry>;
+
+  if (service.environments?.length) {
+    return service.environments.map((environment) => ({
+      environment: environment.environment,
+      baseUrl: environment.baseUrl,
+      healthCheck: environment.healthCheck ?? service.healthCheck,
+      status: environment.status ?? defaults.status,
+      healthy: environment.healthy,
+      lastHealthCheckAt: environment.lastHealthCheckAt,
+    }));
+  }
+
+  return [
+    {
+      environment: "test",
+      baseUrl: service.baseUrl,
+      healthCheck: service.healthCheck,
+      status: defaults.status,
+      healthy: runtimeState.healthy,
+      lastHealthCheckAt: runtimeState.lastHealthCheckAt,
+    },
+  ];
 }
