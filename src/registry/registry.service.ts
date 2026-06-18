@@ -42,6 +42,11 @@ import {
 import { TOPICS } from "../kafka/topics";
 import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
 import { PostgresRegistryStoreService } from "./postgres-registry-store.service";
+import { normalizeServiceEnvironments } from "./environment-resolver";
+import {
+  createRegistryEntry,
+  normalizeRegistryEntry,
+} from "./manifest-normalizer";
 
 const REDIS_REGISTRY_KEY = "api-center:registry:services";
 
@@ -166,17 +171,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    const entry: ServiceRegistryEntry = {
-      ...manifest,
-      serviceType: manifest.serviceType || "tribe",
-      environments: normalizeServiceEnvironments(manifest, {
-        status: existing?.status === "deprecated" ? "deprecated" : "active",
-      }),
-      registeredAt: existing?.registeredAt || now,
-      updatedAt: now,
-      status: existing?.status === "deprecated" ? "deprecated" : "active",
-      ...(previousVersion && { previousVersion }),
-    };
+    const entry = createRegistryEntry(manifest, {
+      existing,
+      now,
+      previousVersion,
+    });
 
     this.services[manifest.serviceId] = entry;
     this.reindexService(entry, existing);
@@ -1083,42 +1082,4 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
-}
-
-function normalizeRegistryEntry(entry: ServiceRegistryEntry): ServiceRegistryEntry {
-  return {
-    ...entry,
-    environments: normalizeServiceEnvironments(entry, {
-      status: entry.status,
-    }),
-  };
-}
-
-function normalizeServiceEnvironments(
-  service: ServiceManifest,
-  defaults: { status: ServiceRegistryEntry["status"] },
-): ServiceEnvironmentManifest[] {
-  const runtimeState = service as Partial<ServiceRegistryEntry>;
-
-  if (service.environments?.length) {
-    return service.environments.map((environment) => ({
-      environment: environment.environment,
-      baseUrl: environment.baseUrl,
-      healthCheck: environment.healthCheck ?? service.healthCheck,
-      status: environment.status ?? defaults.status,
-      healthy: environment.healthy,
-      lastHealthCheckAt: environment.lastHealthCheckAt,
-    }));
-  }
-
-  return [
-    {
-      environment: "test",
-      baseUrl: service.baseUrl,
-      healthCheck: service.healthCheck,
-      status: defaults.status,
-      healthy: runtimeState.healthy,
-      lastHealthCheckAt: runtimeState.lastHealthCheckAt,
-    },
-  ];
 }
