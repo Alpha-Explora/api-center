@@ -12,17 +12,20 @@ import {
   IsUrl,
   IsArray,
   ArrayMinSize,
+  ArrayUnique,
   IsOptional,
   IsIn,
   IsDateString,
   IsBoolean,
   Matches,
   Validate,
+  ValidateNested,
   ValidationArguments,
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import { isOwnerTribeIdRequiredForManifest } from "../service-manifest-governance";
 
 @ValidatorConstraint({ name: "ownerTribeId", async: false })
@@ -47,6 +50,35 @@ class OwnerTribeIdConstraint implements ValidatorConstraintInterface {
 
     return "ownerTribeId must be lowercase alphanumeric with hyphens only";
   }
+}
+
+export class ServiceEnvironmentDto {
+  @ApiProperty({
+    example: "test",
+    enum: ["test", "staging", "uat", "demo", "live"],
+  })
+  @IsString()
+  @IsIn(["test", "staging", "uat", "demo", "live"], {
+    message: "environment must be one of test, staging, uat, demo, or live",
+  })
+  environment!: string;
+
+  @ApiProperty({ example: "https://trinithrive-test.example.com" })
+  @IsString()
+  @IsUrl(
+    {
+      require_tld: false,
+      require_protocol: true,
+      protocols: ["http", "https"],
+    },
+    { message: "environment baseUrl must be a valid URL" },
+  )
+  baseUrl!: string;
+
+  @ApiPropertyOptional({ example: "/health" })
+  @IsString()
+  @IsOptional()
+  healthCheck?: string;
 }
 
 export class ServiceManifestDto {
@@ -107,6 +139,17 @@ export class ServiceManifestDto {
   @IsString()
   @IsOptional()
   healthCheck?: string;
+
+  @ApiPropertyOptional({ type: [ServiceEnvironmentDto] })
+  @IsArray()
+  @ArrayUnique(
+    (environment: ServiceEnvironmentDto) => environment.environment,
+    { message: "Environment keys must be unique" },
+  )
+  @ValidateNested({ each: true })
+  @Type(() => ServiceEnvironmentDto)
+  @IsOptional()
+  environments?: ServiceEnvironmentDto[];
 
   @ApiPropertyOptional({ example: "1.0.0" })
   @IsString()

@@ -12,7 +12,9 @@ describe("ScopedAdminGuard module wiring", () => {
   ])("%s imports AuthModule for guard dependencies", (_name, filePath) => {
     const source = moduleSource(filePath);
 
-    expect(source).toContain('import { AuthModule } from "../auth/auth.module"');
+    expect(source).toContain(
+      'import { AuthModule } from "../auth/auth.module"',
+    );
     expect(source).toMatch(/imports:\s*\[[\s\S]*AuthModule/);
   });
 });

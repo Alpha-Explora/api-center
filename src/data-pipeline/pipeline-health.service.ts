@@ -12,6 +12,11 @@ import {
   PipelineHealthResponseSource,
   PipelineHealthRow,
 } from "./pipeline-health.dto";
+import { resolvePartitionDate as resolveAthenaPartitionDate } from "./athena-partition-config";
+import {
+  resolvePipelineDatasetSource,
+  resolvePositiveQueryLimit,
+} from "./pipeline-dataset-provider";
 
 type PipelineHealthSource = "fixture" | "athena";
 
@@ -168,10 +173,8 @@ LIMIT ${this.resolveQueryLimit()}
   }
 
   private resolveSource(): PipelineHealthSource {
-    const source =
-      this.options.source ?? process.env.PIPELINE_HEALTH_SOURCE ?? "fixture";
-    if (source === "fixture" || source === "athena") return source;
-    throw new ValidationError(
+    return resolvePipelineDatasetSource(
+      [this.options.source, process.env.PIPELINE_HEALTH_SOURCE],
       "PIPELINE_HEALTH_SOURCE must be fixture or athena.",
     );
   }
@@ -195,31 +198,21 @@ LIMIT ${this.resolveQueryLimit()}
   }
 
   private resolveQueryLimit(): number {
-    const value =
+    return resolvePositiveQueryLimit(
       this.options.queryLimit ??
-      Number.parseInt(process.env.PIPELINE_HEALTH_QUERY_LIMIT ?? "100", 10);
-    return Number.isFinite(value) && value > 0 ? value : 100;
+        Number.parseInt(process.env.PIPELINE_HEALTH_QUERY_LIMIT ?? "100", 10),
+      100,
+    );
   }
 
   private resolvePartitionDate(
     partitionDate: PipelinePartitionDate | undefined,
   ): PipelinePartitionDate {
-    if (partitionDate) return partitionDate;
-    const now = new Date();
-    return {
-      year:
-        this.options.year ??
-        process.env.PIPELINE_HEALTH_YEAR ??
-        String(now.getUTCFullYear()),
-      month:
-        this.options.month ??
-        process.env.PIPELINE_HEALTH_MONTH ??
-        String(now.getUTCMonth() + 1).padStart(2, "0"),
-      day:
-        this.options.day ??
-        process.env.PIPELINE_HEALTH_DAY ??
-        String(now.getUTCDate()).padStart(2, "0"),
-    };
+    return resolveAthenaPartitionDate({
+      partitionDate,
+      options: this.options,
+      prefixes: ["PIPELINE_HEALTH"],
+    });
   }
 
   private normalizeRow(row: RawPipelineHealthRow): PipelineHealthRow {

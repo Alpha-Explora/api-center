@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import {
+  ServiceEnvironmentManifest,
   ServiceLifecycleStatus,
   ServiceRegistryEntry,
   ServiceRegistryMap,
@@ -12,6 +13,7 @@ import { RegistryStore } from "./registry-store.interface";
 
 type ServiceRowWithRegistryRelations = Prisma.ServiceGetPayload<{
   include: {
+    environments: true;
     routes: true;
     scopes: true;
     dependencies: {
@@ -34,6 +36,7 @@ export class PostgresRegistryStoreService implements RegistryStore {
   async loadAll(): Promise<ServiceRegistryMap> {
     const rows = await this.prisma.service.findMany({
       include: {
+        environments: true,
         routes: true,
         scopes: true,
         dependencies: {
@@ -122,6 +125,29 @@ export class PostgresRegistryStoreService implements RegistryStore {
         await tx.serviceDependency.createMany({ data: dependencies });
       }
 
+      await tx.serviceEnvironment.deleteMany({
+        where: { serviceId: service.id },
+      });
+
+      const environments = normalizeEnvironmentRows(entry);
+      if (environments.length > 0) {
+        await tx.serviceEnvironment.createMany({
+          data: environments.map((environment) => ({
+            serviceId: service.id,
+            environment: environment.environment,
+            baseUrl: environment.baseUrl,
+            healthCheckPath: environment.healthCheck,
+            status: environment.status ?? entry.status,
+            healthy: environment.healthy,
+            lastHealthCheckAt: environment.lastHealthCheckAt
+              ? new Date(environment.lastHealthCheckAt)
+              : undefined,
+            registeredAt: new Date(entry.registeredAt),
+            updatedAt: new Date(entry.updatedAt),
+          })),
+        });
+      }
+
       await tx.serviceLifecycleEvent.create({
         data: {
           serviceId: service.id,
@@ -207,6 +233,8 @@ function mapRegistryEntryToServiceUpdate(
 function mapRowToRegistryEntry(
   row: ServiceRowWithRegistryRelations,
 ): ServiceRegistryEntry {
+  const environments = row.environments ?? [];
+
   return {
     serviceId: row.serviceId,
     name: row.name,
@@ -239,6 +267,27 @@ function mapRowToRegistryEntry(
     previousVersion: row.previousVersion ?? undefined,
     healthy: row.healthy ?? undefined,
     lastHealthCheckAt: row.lastHealthCheckAt?.toISOString(),
+    environments:
+      environments.length > 0
+        ? environments.map((environment) => ({
+            environment:
+              environment.environment as ServiceEnvironmentManifest["environment"],
+            baseUrl: environment.baseUrl,
+            healthCheck: environment.healthCheckPath ?? undefined,
+            status: environment.status as ServiceLifecycleStatus,
+            healthy: environment.healthy ?? undefined,
+            lastHealthCheckAt: environment.lastHealthCheckAt?.toISOString(),
+          }))
+        : [
+            {
+              environment: "test",
+              baseUrl: row.baseUrl,
+              healthCheck: row.healthCheckPath ?? undefined,
+              status: row.status as ServiceLifecycleStatus,
+              healthy: row.healthy ?? undefined,
+              lastHealthCheckAt: row.lastHealthCheckAt?.toISOString(),
+            },
+          ],
   };
 }
 
@@ -254,4 +303,21 @@ function effectiveOwnerTribeId(
   }
 
   return entry.ownerTribeId ?? entry.serviceId;
+}
+
+function normalizeEnvironmentRows(
+  entry: ServiceRegistryEntry,
+): ServiceEnvironmentManifest[] {
+  if (entry.environments?.length) return entry.environments;
+
+  return [
+    {
+      environment: "test",
+      baseUrl: entry.baseUrl,
+      healthCheck: entry.healthCheck,
+      status: entry.status,
+      healthy: entry.healthy,
+      lastHealthCheckAt: entry.lastHealthCheckAt,
+    },
+  ];
 }

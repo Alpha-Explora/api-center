@@ -24,7 +24,6 @@ import { SharedServiceUsageService } from "../analytics/shared-service-usage.ser
 import { SharedServiceEventPublisher } from "../shared-services/shared-service-event-publisher";
 import { EmergencyControlService } from "../operations/emergency-control.service";
 import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
-import { TribeQuotaScope } from "../quotas/tribe-quota-policy.types";
 import { PolicyEngineService } from "../policy/policy-engine.service";
 import { PolicyRuleExplanation } from "../policy/policy-rule.types";
 import { CircuitBreaker } from "../shared/circuit-breaker";
@@ -35,7 +34,14 @@ import {
   ServiceUnavailableError,
 } from "../shared/errors";
 import { requireGovernanceDependency } from "../shared/governance-dependencies";
-import { AuthenticatedRequest, ServiceType } from "../types";
+import {
+  AuthenticatedRequest,
+  ServiceEnvironmentKey,
+  ServiceType,
+} from "../types";
+import { enforceProxyAuthContext } from "./proxy/proxy-auth-context";
+import { checkProxyQuota } from "./proxy/proxy-quota-context";
+import { createUpstreamProxyOptions } from "./proxy/upstream-request";
 
 /** Default hard timeout for outgoing proxy requests (ms). */
 const PROXY_TIMEOUT_MS = 30_000;
@@ -45,9 +51,6 @@ const MAX_PROXY_CACHE_SIZE = 200;
 
 /** Maximum upstream response body bytes captured for sanitized event export. */
 const MAX_CAPTURED_RESPONSE_BYTES = 64_000;
-
-/** HTTP status codes that indicate upstream failure for circuit-breaker tracking. */
-const UPSTREAM_FAILURE_CODES = new Set([502, 503, 504]);
 
 /** HTTP 410 Gone — service has been retired */
 export class GoneError extends NotFoundError {
@@ -228,7 +231,13 @@ export class ProxyHandler {
    * request creates a fresh instance pointing at the latest baseUrl.
    */
   invalidateProxyCache(serviceId: string): void {
-    const existed = this.proxyCache.delete(serviceId);
+    let existed = this.proxyCache.delete(serviceId);
+    for (const cacheKey of [...this.proxyCache.keys()]) {
+      if (cacheKey.startsWith(`${serviceId}:`)) {
+        this.proxyCache.delete(cacheKey);
+        existed = true;
+      }
+    }
     const breakerDeleted = this.circuitBreakers.delete(serviceId);
     if (existed || breakerDeleted) {
       this.deps.logger.info(`Proxy cache invalidated for '${serviceId}'`, {
@@ -287,7 +296,14 @@ export class ProxyHandler {
     const correlationId = req.correlationId;
 
     // ── 1. Resolve upstream ────────────────────────────────────────────────
-    const upstream = this.deps.registry.resolveUpstream(targetServiceId, "");
+    const targetEnvironment = this.resolveTargetEnvironment(req);
+    const serviceEnvironment = this.deps.registry.resolveEnvironment?.(
+      targetServiceId,
+      targetEnvironment,
+    );
+    const upstream =
+      serviceEnvironment?.baseUrl ??
+      this.deps.registry.resolveUpstream(targetServiceId, "");
     if (!upstream) {
       throw new NotFoundError(
         `Service '${targetServiceId}' not found or inactive`,
@@ -309,42 +325,21 @@ export class ProxyHandler {
     this.enforcePolicyRules(targetEntry, req, res);
 
     // ── 2. Scope check ─────────────────────────────────────────────────────
-    const emergency = this.deps.emergencyControls.evaluate({
-      ownerTribeId: tribeId,
-      serviceId: targetServiceId,
+    enforceProxyAuthContext({
+      registry: this.deps.registry,
+      auth: this.deps.auth,
+      emergencyControls: this.deps.emergencyControls,
+      targetServiceId,
+      tribeId,
+      req,
     });
 
-    if (!emergency.allowed) {
-      throw new ForbiddenError(`Emergency control active: ${emergency.reason}`);
-    }
-
-    if (!this.deps.registry.canAccess(tribeId, targetServiceId)) {
-      throw new ForbiddenError(
-        `Tribe '${tribeId}' is not authorised to access '${targetServiceId}'`,
-      );
-    }
-
-    const requiredScopes =
-      this.deps.registry.getRequiredScopes(targetServiceId);
-    if (requiredScopes.length > 0 && req.user) {
-      const missingScopes = this.deps.auth.checkScopes(req, requiredScopes);
-      if (missingScopes.length > 0) {
-        throw new ForbiddenError(
-          `Insufficient scopes for '${targetServiceId}'. Missing: ${missingScopes.join(", ")}`,
-        );
-      }
-    }
-
     // ── 3. Circuit-breaker gate ────────────────────────────────────────────
-    const quotaEnforcer = requireGovernanceDependency(
-      this.deps.quotaEnforcer,
-      "TribeQuotaEnforcerService",
-    );
-    await quotaEnforcer.check({
+    await checkProxyQuota({
+      quotaEnforcer: this.deps.quotaEnforcer,
       ownerTribeId: tribeId,
-      scope: this.opts.namespace as TribeQuotaScope,
+      namespace: this.opts.namespace,
       targetServiceId,
-      routeFamily: `${this.opts.namespace}:${targetServiceId}`,
       correlationId,
     });
 
@@ -360,73 +355,31 @@ export class ProxyHandler {
     }
 
     // ── 4. Get or create proxy ─────────────────────────────────────────────
-    let proxy = this.proxyCache.get(targetServiceId);
+    const proxyCacheKey = `${targetServiceId}:${targetEnvironment}`;
+    let proxy = this.proxyCache.get(proxyCacheKey);
 
     if (!proxy) {
       this.evictOldestProxyEntryIfNeeded();
 
-      const proxyOpts: Options = {
-        target: upstream,
-        changeOrigin: true,
-        proxyTimeout: this.proxyTimeoutMs,
-        timeout: this.proxyTimeoutMs,
-        pathRewrite: {
-          [`^${this.opts.pathPrefix}/${targetServiceId}`]: "",
-        },
-        on: {
-          proxyReq: (proxyReq, _req) => {
-            const authReq = _req as unknown as AuthenticatedRequest;
-            proxyReq.setHeader("X-Tribe-Id", authReq.tribeId || "");
-            proxyReq.setHeader("X-Correlation-ID", authReq.correlationId || "");
-            proxyReq.setHeader("X-Forwarded-By", "apicenter-gateway");
-
-            // NestJS body-parser consumes req stream before the proxy sees it.
-            // Re-stream the parsed body so the upstream actually receives it.
-            if (authReq.body && Object.keys(authReq.body).length > 0) {
-              const bodyData = JSON.stringify(authReq.body);
-              proxyReq.setHeader("Content-Type", "application/json");
-              proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
-              proxyReq.write(bodyData);
-            }
-          },
-          proxyRes: (proxyRes) => {
-            const status = proxyRes.statusCode ?? 0;
-            const cb = this.circuitBreakers.get(targetServiceId);
-            if (cb) {
-              if (UPSTREAM_FAILURE_CODES.has(status)) {
-                cb.recordFailure();
-                this.deps.logger.warn(
-                  `Upstream '${targetServiceId}' returned ${status} — circuit-breaker failure recorded`,
-                  "ProxyHandler",
-                );
-              } else {
-                cb.recordSuccess();
-              }
-            }
-          },
-          error: (err) => {
-            // Record every proxy-level error (timeouts, ECONNREFUSED, etc.)
-            const cb = this.circuitBreakers.get(targetServiceId);
-            if (cb) cb.recordFailure();
-            this.deps.logger.error(
-              `Proxy error for ${targetServiceId}: ${err.message}`,
-            );
-          },
-        },
-        logger: {
-          info: (msg: string) => this.deps.logger.debug(msg),
-          warn: (msg: string) => this.deps.logger.warn(msg),
-          error: (msg: string) => this.deps.logger.error(msg),
-        },
-      };
-
+      const proxyOpts = createUpstreamProxyOptions({
+        targetServiceId,
+        targetEnvironment,
+        upstream,
+        namespace: this.opts.namespace,
+        pathPrefix: this.opts.pathPrefix,
+        proxyTimeoutMs: this.proxyTimeoutMs,
+        correlationId,
+        circuitBreakers: this.circuitBreakers,
+        logger: this.deps.logger,
+      });
       const createProxyMiddleware = await loadCreateProxyMiddleware();
       const createdProxy = createProxyMiddleware(proxyOpts) as ProxyMiddleware;
       proxy = createdProxy;
-      this.proxyCache.set(targetServiceId, createdProxy);
+      this.proxyCache.set(proxyCacheKey, createdProxy);
 
       this.deps.logger.info("Created proxy instance", {
         targetServiceId,
+        targetEnvironment,
         upstream,
         namespace: this.opts.namespace,
         proxyTimeoutMs: this.proxyTimeoutMs,
@@ -521,7 +474,9 @@ export class ProxyHandler {
     }
 
     this.proxyCache.delete(oldestServiceId);
-    this.circuitBreakers.delete(oldestServiceId);
+    this.circuitBreakers.delete(
+      oldestServiceId.split(":")[0] ?? oldestServiceId,
+    );
 
     this.deps.logger.warn(
       `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,
@@ -712,10 +667,23 @@ export class ProxyHandler {
     }
   }
 
-  private resolveTargetEnvironment(req: AuthenticatedRequest) {
-    return req.headers?.["x-apicenter-target-environment"] === "live"
-      ? "live"
-      : "test";
+  private resolveTargetEnvironment(
+    req: AuthenticatedRequest,
+  ): ServiceEnvironmentKey {
+    const value = req.headers?.["x-apicenter-target-environment"];
+    const requested = Array.isArray(value) ? value[0] : value;
+
+    if (
+      requested === "test" ||
+      requested === "staging" ||
+      requested === "uat" ||
+      requested === "demo" ||
+      requested === "live"
+    ) {
+      return requested;
+    }
+
+    return "test";
   }
 
   private isProviderCostSensitive(targetEntry: object) {

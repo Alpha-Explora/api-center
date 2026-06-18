@@ -12,6 +12,13 @@ const baseEntry: ServiceRegistryEntry = {
   registeredAt: "2026-05-11T00:00:00.000Z",
   updatedAt: "2026-05-11T00:00:00.000Z",
   status: "active",
+  environments: [
+    {
+      environment: "test",
+      baseUrl: "http://payment-v1",
+      status: "active",
+    },
+  ],
 };
 
 describe("HealthMonitorService Redis drift reconciliation", () => {

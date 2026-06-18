@@ -36,7 +36,13 @@ import { DeprecateServiceDto } from "../shared/dto/deprecate-service.dto";
 import { getExternalRequiredScopes } from "../external/guards/external-policy.guard";
 import { NotFoundError } from "../shared/errors";
 import { requireGovernanceDependency } from "../shared/governance-dependencies";
-import { AuthenticatedRequest, ServiceTier, ServiceType } from "../types";
+import {
+  AuthenticatedRequest,
+  ServiceEnvironmentKey,
+  ServiceManifest,
+  ServiceTier,
+  ServiceType,
+} from "../types";
 
 const PLATFORM_ADMIN_SCOPE = "platform:admin";
 
@@ -58,10 +64,11 @@ export class RegistryController {
     @Body() dto: ServiceManifestDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    const approvalTargetEnvironment = resolveApprovalTargetEnvironment(dto);
     await this.requireApproval({
       approvalRequestId: dto.approvalRequestId,
       actionType: "service.register_live",
-      targetEnvironment: dto.targetEnvironment ?? "test",
+      targetEnvironment: approvalTargetEnvironment,
       targetId: dto.serviceId,
     });
     const {
@@ -72,6 +79,7 @@ export class RegistryController {
     const manifest = {
       ...manifestDto,
       consumes: manifestDto.consumes ?? [],
+      environments: normalizeManifestEnvironments(dto),
       serviceTier: manifestDto.serviceTier as ServiceTier | undefined,
       serviceType: (manifestDto.serviceType ?? "tribe") as ServiceType,
     };
@@ -126,6 +134,7 @@ export class RegistryController {
         supportChannel: svc.supportChannel,
         documentationUrl: svc.documentationUrl,
         providerCostSensitive: svc.providerCostSensitive,
+        environments: svc.environments,
         registeredAt: svc.registeredAt,
         updatedAt: svc.updatedAt,
       })),
@@ -388,4 +397,42 @@ export class RegistryController {
     );
     await approvals.assertApprovedForAction(input);
   }
+}
+
+function normalizeManifestEnvironments(
+  manifest: ServiceManifestDto,
+): NonNullable<ServiceManifest["environments"]> {
+  if (manifest.environments?.length) {
+    return manifest.environments.map((environment) => ({
+      environment: environment.environment as ServiceEnvironmentKey,
+      baseUrl: environment.baseUrl,
+      healthCheck: environment.healthCheck ?? manifest.healthCheck,
+      status: "active",
+    }));
+  }
+
+  return [
+    {
+      environment: (manifest.targetEnvironment ??
+        "test") as ServiceEnvironmentKey,
+      baseUrl: manifest.baseUrl,
+      healthCheck: manifest.healthCheck,
+      status: "active",
+    },
+  ];
+}
+
+function resolveApprovalTargetEnvironment(
+  manifest: ServiceManifestDto,
+): string {
+  if (manifest.targetEnvironment) return manifest.targetEnvironment;
+  if (
+    manifest.environments?.some(
+      (environment) => environment.environment === "live",
+    )
+  ) {
+    return "live";
+  }
+
+  return "test";
 }

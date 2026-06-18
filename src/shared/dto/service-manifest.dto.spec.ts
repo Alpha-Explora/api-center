@@ -110,6 +110,34 @@ describe("ServiceManifestDto", () => {
     expect(errors).toHaveLength(0);
   });
 
+  it("rejects duplicate service environment keys", async () => {
+    const dto = transform({
+      ...baseManifest,
+      environments: [
+        {
+          environment: "test",
+          baseUrl: "https://demand-test.example.com",
+          healthCheck: "/health",
+        },
+        {
+          environment: "test",
+          baseUrl: "https://demand-test-2.example.com",
+          healthCheck: "/health",
+        },
+      ],
+    });
+
+    const errors = await validate(dto);
+
+    expect(
+      errors.some(
+        (error) =>
+          error.property === "environments" &&
+          error.constraints?.arrayUnique === "Environment keys must be unique",
+      ),
+    ).toBe(true);
+  });
+
   it("rejects invalid ownerTribeId values", async () => {
     const dto = transform({
       ...baseManifest,
