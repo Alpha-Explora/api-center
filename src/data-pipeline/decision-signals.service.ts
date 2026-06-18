@@ -15,6 +15,11 @@ import {
   PipelineHealthResponseSource,
   PipelinePartitionDate,
 } from "./pipeline-health.dto";
+import { resolvePartitionDate as resolveAthenaPartitionDate } from "./athena-partition-config";
+import {
+  resolvePipelineDatasetSource,
+  resolvePositiveQueryLimit,
+} from "./pipeline-dataset-provider";
 
 type DecisionSignalsSource = "fixture" | "athena";
 type RawDecisionSignalRow = Record<string, unknown>;
@@ -185,14 +190,13 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
   }
 
   private resolveSource(): DecisionSignalsSource {
-    const source =
-      this.options.source ??
-      process.env.PIPELINE_DECISION_SIGNALS_SOURCE ??
-      process.env.PIPELINE_GOVERNANCE_SOURCE ??
-      process.env.PIPELINE_HEALTH_SOURCE ??
-      "fixture";
-    if (source === "fixture" || source === "athena") return source;
-    throw new ValidationError(
+    return resolvePipelineDatasetSource(
+      [
+        this.options.source,
+        process.env.PIPELINE_DECISION_SIGNALS_SOURCE,
+        process.env.PIPELINE_GOVERNANCE_SOURCE,
+        process.env.PIPELINE_HEALTH_SOURCE,
+      ],
       "PIPELINE_DECISION_SIGNALS_SOURCE must be fixture or athena.",
     );
   }
@@ -223,40 +227,20 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
       (process.env.PIPELINE_DECISION_SIGNALS_QUERY_LIMIT
         ? Number.parseInt(process.env.PIPELINE_DECISION_SIGNALS_QUERY_LIMIT, 10)
         : undefined);
-    if (
-      typeof configured === "number" &&
-      Number.isFinite(configured) &&
-      configured > 0
-    ) {
-      return configured;
-    }
-
-    const value = windowDays && windowDays > 1 ? 500 : 100;
-    return Number.isFinite(value) && value > 0 ? value : 100;
+    return resolvePositiveQueryLimit(
+      configured,
+      windowDays && windowDays > 1 ? 500 : 100,
+    );
   }
 
   private resolvePartitionDate(
     partitionDate: PipelinePartitionDate | undefined,
   ): PipelinePartitionDate {
-    if (partitionDate) return partitionDate;
-    const now = new Date();
-    return {
-      year:
-        this.options.year ??
-        process.env.PIPELINE_DECISION_SIGNALS_YEAR ??
-        process.env.PIPELINE_GOVERNANCE_YEAR ??
-        String(now.getUTCFullYear()),
-      month:
-        this.options.month ??
-        process.env.PIPELINE_DECISION_SIGNALS_MONTH ??
-        process.env.PIPELINE_GOVERNANCE_MONTH ??
-        String(now.getUTCMonth() + 1).padStart(2, "0"),
-      day:
-        this.options.day ??
-        process.env.PIPELINE_DECISION_SIGNALS_DAY ??
-        process.env.PIPELINE_GOVERNANCE_DAY ??
-        String(now.getUTCDate()).padStart(2, "0"),
-    };
+    return resolveAthenaPartitionDate({
+      partitionDate,
+      options: this.options,
+      prefixes: ["PIPELINE_DECISION_SIGNALS", "PIPELINE_GOVERNANCE"],
+    });
   }
 
   private normalizeRow(row: RawDecisionSignalRow): PipelineDecisionSignalRow {
