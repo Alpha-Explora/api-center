@@ -71,7 +71,7 @@ data is backfilled, and parity checks pass. Keep
 ### 1. Provision GCP resources (one-time)
 
 ```bash
-PROJECT_ID=api-center-496422 \
+PROJECT_ID=apicenter-alpha-20260623 \
 REGION=asia-southeast1 \
 SECRET_NAME=api-center-prod \
 PUBLIC_HOSTNAME=api.example.com \
@@ -127,7 +127,7 @@ in-cluster brokers ending in `.svc.cluster.local:9092`.
 ### 3. Apply
 
 ```bash
-gcloud container clusters get-credentials api-center --region=asia-southeast1 --project=api-center-496422
+gcloud container clusters get-credentials api-center --region=asia-southeast1 --project=apicenter-alpha-20260623
 kubectl apply -f gcp/gke/
 ```
 
@@ -228,3 +228,5 @@ Expected: replicas climb past 2 within ~1 minute, settle, then scale back down ~
 - The active low-credit profile uses HPA min `2`, max `3`, and PDB `minAvailable: 1`. This saves idle spend while keeping one spare pod.
 - **Request-rate-based scaling** (e.g. RPS) requires the Cloud Monitoring custom-metrics adapter and an external metric on the GCLB. Left as a `TODO` in `50-hpa.yaml`.
 - **Cloud Armor** can be attached by uncommenting the `securityPolicy` block in `41-backendconfig.yaml`.
+
+

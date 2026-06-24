@@ -1,5 +1,5 @@
-﻿# =============================================================================
-# test-sandbox.ps1 — Validates the Functional Sandbox (Part 1 Checklist)
+# =============================================================================
+# test-sandbox.ps1 � Validates the Functional Sandbox (Part 1 Checklist)
 # =============================================================================
 # This script automates all 8 checklist items from the Functional Sandbox.
 # Run this after starting containers with: docker compose up -d --build
@@ -13,23 +13,23 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "  APICenter Functional Sandbox Validation" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
-# ── Helper Functions ──────────────────────────────────────────────────────────
+# -- Helper Functions ----------------------------------------------------------
 function Test-Step {
     param([string]$Name, [scriptblock]$Test)
     Write-Host "`n[TEST] $Name" -ForegroundColor Yellow
     try {
         & $Test
-        Write-Host "  ✓ PASS" -ForegroundColor Green
+        Write-Host "  ? PASS" -ForegroundColor Green
         return $true
     } catch {
         # Only report as failure if it's a real error, not just log output
         $errorMsg = $_.Exception.Message
         if ($errorMsg -match "opentelemetry|instrumentation|Processed.*messages") {
             # These are informational messages, not failures
-            Write-Host "  ✓ PASS (with notes)" -ForegroundColor Green
+            Write-Host "  ? PASS (with notes)" -ForegroundColor Green
             return $true
         }
-        Write-Host "  ✗ FAIL: $errorMsg" -ForegroundColor Red
+        Write-Host "  ? FAIL: $errorMsg" -ForegroundColor Red
         return $false
     }
 }
@@ -48,7 +48,7 @@ function Assert-NotNull {
     }
 }
 
-# ── Step 1: Container Health Check ────────────────────────────────────────────
+# -- Step 1: Container Health Check --------------------------------------------
 $step1 = Test-Step "Step 1: Container Health Check" {
     Write-Host "  Checking NGINX health..." -NoNewline
     $nginxHealth = Invoke-RestMethod -Uri "$GatewayUrl/nginx-health" -Method Get
@@ -78,7 +78,7 @@ $step1 = Test-Step "Step 1: Container Health Check" {
     Write-Host " OK" -ForegroundColor Green
 }
 
-# ── Step 2: Register Services in Registry ─────────────────────────────────────
+# -- Step 2: Register Services in Registry -------------------------------------
 $step2 = Test-Step "Step 2: Register Services in Gateway Registry" {
     Write-Host "  Registering logistics-service..." -NoNewline
     $logisticsManifest = Get-Content -Raw "examples/logistics-manifest.json"
@@ -101,7 +101,7 @@ $step2 = Test-Step "Step 2: Register Services in Gateway Registry" {
     Write-Host " OK" -ForegroundColor Green
 }
 
-# ── Step 3: Front Door Validation (Demand -> Gateway -> Logistics) ────────────
+# -- Step 3: Front Door Validation (Demand -> Gateway -> Logistics) ------------
 $step3 = Test-Step "Step 3: Front Door Validation (Demand -> Gateway -> Logistics)" {
     Write-Host "  Calling demand-service (which calls logistics via gateway)..." -NoNewline
     $response = Invoke-RestMethod -Uri "$DemandUrl/demand/ORD-1001" -Method Get
@@ -113,8 +113,8 @@ $step3 = Test-Step "Step 3: Front Door Validation (Demand -> Gateway -> Logistic
     Write-Host "    Correlation ID: $($response.correlationId)" -ForegroundColor Gray
 }
 
-# ── Step 4: NGINX Round-Robin Check (12 requests) ─────────────────────────────
-$step4 = Test-Step "Step 4: NGINX Round-Robin (12 requests → ~4 hits each)" {
+# -- Step 4: NGINX Round-Robin Check (12 requests) -----------------------------
+$step4 = Test-Step "Step 4: NGINX Round-Robin (12 requests ? ~4 hits each)" {
     Write-Host "  Sending 12 requests via demand-service..." -NoNewline
     1..12 | ForEach-Object {
         Invoke-RestMethod -Uri "$DemandUrl/demand/ORD-RR-$_" -Method Get | Out-Null
@@ -141,7 +141,7 @@ $step4 = Test-Step "Step 4: NGINX Round-Robin (12 requests → ~4 hits each)" {
     }
 }
 
-# ── Step 5: Correlation ID Propagation ────────────────────────────────────────
+# -- Step 5: Correlation ID Propagation ----------------------------------------
 $step5 = Test-Step "Step 5: Correlation ID Propagation" {
     $cid = [guid]::NewGuid().ToString()
     Write-Host "  Sending request with Correlation ID: $cid" -ForegroundColor Gray
@@ -171,7 +171,7 @@ $step5 = Test-Step "Step 5: Correlation ID Propagation" {
     }
 }
 
-# ── Step 6: Rate Limiting Check ───────────────────────────────────────────────
+# -- Step 6: Rate Limiting Check -----------------------------------------------
 $step6 = Test-Step "Step 6: Rate Limiting (5 req/min, 6th => 429)" {
     Write-Host "  Sending 6 rapid requests..." -ForegroundColor Gray
     $codes = @()
@@ -197,7 +197,7 @@ $step6 = Test-Step "Step 6: Rate Limiting (5 req/min, 6th => 429)" {
     }
 }
 
-# ── Step 7: Circuit Breaker Check ─────────────────────────────────────────────
+# -- Step 7: Circuit Breaker Check ---------------------------------------------
 $step7 = Test-Step "Step 7: Circuit Breaker (CLOSED -> OPEN)" {
     Write-Host "  Stopping logistics-service to force failures..." -ForegroundColor Gray
     docker stop logistics-service | Out-Null
@@ -255,7 +255,7 @@ $step7 = Test-Step "Step 7: Circuit Breaker (CLOSED -> OPEN)" {
     Write-Host " OK" -ForegroundColor Green
 }
 
-# ── Step 8: Kafka Audit Log Check ─────────────────────────────────────────────
+# -- Step 8: Kafka Audit Log Check ---------------------------------------------
 $step8 = Test-Step "Step 8: Kafka Audit Log (api-center.audit.log)" {
     Write-Host "  Generating audit events..." -ForegroundColor Gray
     1..3 | ForEach-Object {
@@ -267,7 +267,7 @@ $step8 = Test-Step "Step 8: Kafka Audit Log (api-center.audit.log)" {
     Write-Host "  Inspect api-center.audit.log in Confluent Cloud for generated records." -ForegroundColor Yellow
 }
 
-# ── Summary ──────────────────────────────────────────────────────────────────
+# -- Summary ------------------------------------------------------------------
 Write-Host "`n==================================================" -ForegroundColor Cyan
 Write-Host "  Validation Summary" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
@@ -289,7 +289,7 @@ $total = $results.Count
 Write-Host "  Passed: $passed / $total" -ForegroundColor $(if ($passed -eq $total) { "Green" } else { "Yellow" })
 
 foreach ($step in $results.GetEnumerator()) {
-    $icon = if ($step.Value) { "✓" } else { "✗" }
+    $icon = if ($step.Value) { "?" } else { "?" }
     $color = if ($step.Value) { "Green" } else { "Red" }
     Write-Host "  $icon $($step.Key)" -ForegroundColor $color
 }
@@ -301,3 +301,5 @@ if ($passed -eq $total) {
     Write-Host "`n  Some tests failed. Review the logs above." -ForegroundColor Yellow
     exit 1
 }
+
+

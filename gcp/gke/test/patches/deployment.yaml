@@ -8,4 +8,6 @@ spec:
     spec:
       containers:
         - name: api-center
-          image: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:platform-governance-quotas-9052cf5-2026052503
+          image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:migration-5271227-20260623
+
+

@@ -88,6 +88,14 @@ export class ConfigService implements OnApplicationBootstrap {
     enabled: process.env.DATA_PIPELINE_ENABLED === "true",
   };
 
+  readonly paymentWebhooks = {
+    paymongoSecret:
+      process.env.PAYMONGO_WEBHOOK_SECRET ||
+      process.env.PAYMONGO_LIVE_WEBHOOK_SECRET ||
+      process.env.PAYMONGO_TEST_WEBHOOK_SECRET ||
+      "",
+  };
+
   readonly kafka = {
     enabled:
       process.env.KAFKA_ENABLED === "true" ||

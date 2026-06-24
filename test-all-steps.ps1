@@ -433,3 +433,5 @@ if ($failedChecks.Count -gt 0) {
 }
 
 Write-Host "`nAll core features validated. Sandbox is operational." -ForegroundColor Green
+
+

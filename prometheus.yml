@@ -26,3 +26,5 @@ scrape_configs:
           - 'api-center-3:3000'
         labels:
           service: 'api-center'
+
+

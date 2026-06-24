@@ -87,3 +87,5 @@ npm run typecheck
 - File naming in `src/` is mostly kebab-case with Nest suffix patterns (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.guard.ts`, `*.dto.ts`, `*.spec.ts`).
 - Prefer existing path aliases from `tsconfig.json` (`@auth/*`, `@shared/*`, etc.) when appropriate.
 - Keep commit messages short and imperative; optional prefixes (`feat:`, `fix:`, `docs:`) are acceptable but not consistently enforced in this repo.
+
+
