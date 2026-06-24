@@ -9,3 +9,5 @@ export default defineConfig({
       "postgresql://api_center_app:password@localhost:5432/postgres",
   },
 });
+
+

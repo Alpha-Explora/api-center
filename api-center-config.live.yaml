@@ -2,20 +2,20 @@ apiVersion: v1
 data:
   ALLOWED_ORIGINS: '*'
   AUTH_PROVIDER: "descope"
-  GCP_PROJECT_ID: api-center-492808
+  GCP_PROJECT_ID: apicenter-alpha-20260623
   GCP_SECRET_NAME: api-center-prod
   KAFKA_CLIENT_ID: api-center
   KAFKA_GROUP_ID: api-center-group
   KAFKA_SSL_ENABLED: "true"
   KAFKA_SSL_REJECT_UNAUTHORIZED: "true"
-  KAFKA_SASL_MECHANISM: plain
+  KAFKA_SASL_MECHANISM: ""
   NODE_ENV: production
   OTEL_SERVICE_NAME: api-center
   PORT: "3000"
   RATE_LIMIT_MAX: "100"
   RATE_LIMIT_WINDOW_MS: "60000"
-  REDIS_CACHE_URL: redis://10.34.181.131:6379
-  REDIS_RATE_LIMIT_URL: redis://10.34.181.131:6379
+  REDIS_CACHE_URL: redis://10.121.26.59:6379
+  REDIS_RATE_LIMIT_URL: redis://10.121.26.59:6379
 kind: ConfigMap
 metadata:
   creationTimestamp: "2026-04-11T04:39:36Z"
@@ -23,4 +23,6 @@ metadata:
   namespace: api-center
   resourceVersion: "1775882376483039019"
   uid: ce60db51-178c-4a31-9dbc-711eeae55807
+
+
 

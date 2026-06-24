@@ -1,4 +1,4 @@
-﻿# APICenter - Centralized API Gateway
+# APICenter - Centralized API Gateway
 
 APICenter is the **single, centralized API gateway** for the platform. Tribe-to-tribe calls, shared platform services, auth, registry, and governed event publishing route through APICenter. No tribe calls another tribe or provider API directly.
 
@@ -20,9 +20,9 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Quick Start Ã¢â‚¬â€ dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
+2. [Quick Start â€” dev-jwt (zero config)](#quick-start--dev-jwt-zero-config)
 3. [Auth Providers](#auth-providers)
-   - [dev-jwt Ã¢â‚¬â€ Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
+   - [dev-jwt â€” Local Dev & CI](#1-dev-jwt--local-dev--ci-default)
   - [Internal Tribe JWT + Descope Fallback](#2-internal-tribe-jwt--descope-fallback)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
@@ -74,13 +74,13 @@ applied, Redis data is backfilled, and parity checks pass.
 
 ---
 
-## Quick Start Ã¢â‚¬â€ dev-jwt (zero config)
+## Quick Start â€” dev-jwt (zero config)
 
 No external dependencies. All tokens are self-issued by the gateway.
 
 ```bash
 cp .env.example .env
-# AUTH_PROVIDER=dev-jwt is already the default Ã¢â‚¬â€ no changes needed
+# AUTH_PROVIDER=dev-jwt is already the default â€” no changes needed
 docker-compose up -d
 ```
 
@@ -230,7 +230,7 @@ For migration from bootstrap manifests to real tribe startup registration, use t
 
 **Per-service secret** (so the service can authenticate with the gateway):
 ```bash
-# Generate and hash Ã¢â‚¬â€ gateway stores SHA-256, never plaintext
+# Generate and hash â€” gateway stores SHA-256, never plaintext
 echo -n "my-plaintext-secret" | sha256sum | awk '{print $1}'
 
 # Set in .env:
@@ -324,12 +324,12 @@ await client.publishTribeEvent({
 **Error types:**
 ```typescript
 import {
-  AuthenticationError,    // 401 Ã¢â‚¬â€ bad credentials
-  AuthorizationError,     // 403 Ã¢â‚¬â€ missing scopes
-  ServiceNotFoundError,   // 404 Ã¢â‚¬â€ service not in registry
-  RateLimitError,         // 429 Ã¢â‚¬â€ slow down (err.retryAfterMs available)
-  GatewayTimeoutError,    // 504 Ã¢â‚¬â€ upstream too slow
-  ServiceUnavailableError,// 503 Ã¢â‚¬â€ circuit breaker open
+  AuthenticationError,    // 401 â€” bad credentials
+  AuthorizationError,     // 403 â€” missing scopes
+  ServiceNotFoundError,   // 404 â€” service not in registry
+  RateLimitError,         // 429 â€” slow down (err.retryAfterMs available)
+  GatewayTimeoutError,    // 504 â€” upstream too slow
+  ServiceUnavailableError,// 503 â€” circuit breaker open
   NetworkError,           // no response from gateway
 } from '@implementsprint/sdk';
 ```
@@ -340,8 +340,8 @@ import {
 |--------|---------|-------------|
 | `timeout` | `30000` | Request timeout in ms |
 | `maxRetries` | `3` | Retry attempts for transient failures |
-| `retryBaseDelayMs` | `500` | Initial backoff delay (doubles each attempt with Ã‚Â±25% jitter) |
-| `correlationIdFactory` | Ã¢â‚¬â€ | Factory returning a correlation ID threaded across all requests |
+| `retryBaseDelayMs` | `500` | Initial backoff delay (doubles each attempt with Â±25% jitter) |
+| `correlationIdFactory` | â€” | Factory returning a correlation ID threaded across all requests |
 
 ---
 
@@ -454,9 +454,11 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/health/live` | Liveness Ã¢â‚¬â€ is the process running? |
-| `GET` | `/api/v1/health/ready` | Readiness Ã¢â‚¬â€ Redis + Kafka connectivity |
+| `GET` | `/api/v1/health/live` | Liveness â€” is the process running? |
+| `GET` | `/api/v1/health/ready` | Readiness â€” Redis + Kafka connectivity |
 | `GET` | `/nginx-health` | NGINX bypass health check |
 
 ---
+
+
 

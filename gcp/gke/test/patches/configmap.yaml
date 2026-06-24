@@ -7,3 +7,5 @@ data:
   KAFKA_TOPIC_PREFIX: "test."
   ALLOWED_ORIGINS: "https://api-center-test.itsandbox.site"
   INTERNAL_JWT_ISSUER: "https://api-center-test.itsandbox.site"
+
+

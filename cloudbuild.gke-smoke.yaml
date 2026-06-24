@@ -1,9 +1,11 @@
-﻿steps:
+steps:
 - name: gcr.io/cloud-builders/docker
-  args: ['build','-t','us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:e1cb9f7-20260412-005019','-f','docker/Dockerfile.gcp','.']
+  args: ['build','-t','us-central1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:e1cb9f7-20260412-005019','-f','docker/Dockerfile.gcp','.']
 - name: gcr.io/cloud-builders/docker
-  args: ['push','us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:e1cb9f7-20260412-005019']
+  args: ['push','us-central1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:e1cb9f7-20260412-005019']
 images:
-- 'us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:e1cb9f7-20260412-005019'
+- 'us-central1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:e1cb9f7-20260412-005019'
 options:
   logging: CLOUD_LOGGING_ONLY
+
+

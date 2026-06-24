@@ -1,5 +1,5 @@
 substitutions:
-  _IMAGE: asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:manual
+  _IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:manual
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -20,3 +20,5 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+
+
