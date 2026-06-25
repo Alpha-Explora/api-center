@@ -25,9 +25,9 @@ Keep `docs/confluent-cloud-s3-sink-setup.md` as the operational runbook for the 
 
 - `src/kafka/kafka.service.ts` already supports Confluent-compatible KafkaJS config through `KAFKA_BROKERS`, `KAFKA_SSL_ENABLED`, `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, and `KAFKA_SASL_PASSWORD`.
 - `src/kafka/topics.ts`, `src/kafka/schemas/*`, audit publishing, registry events, and `src/kafka-governance/*` should stay.
-- `docker-compose.yml` must not include local Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
-- `gcp/gke/kafka/*`, `docs/kafka-plan.md`, and `docs/kafka-dr-runbook.md` are removed so self-managed Kafka is not available as a fallback path.
-- `gcp/gke/20-configmap.yaml` and `api-center-config.live.yaml` keep only non-secret Confluent runtime settings; brokers and credentials belong in Secret Manager.
+- `deploy/local/docker-compose.yml` must not include local Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
+- `infra/gcp/gke/kafka/*`, `docs/kafka-plan.md`, and `docs/kafka-dr-runbook.md` are removed so self-managed Kafka is not available as a fallback path.
+- `infra/gcp/gke/20-configmap.yaml` and `config/environments/live/api-center-config.yaml` keep only non-secret Confluent runtime settings; brokers and credentials belong in Secret Manager.
 - `api-shared-services/src/TribeClient.ts` exposes governed APICenter Kafka helpers only; direct Kafka REST helpers are removed.
 
 ## Current Confluent Target
@@ -90,9 +90,9 @@ Expected: this file is the active plan; old self-hosted docs are not present.
 
 **Files:**
 - Modify: `C:\Codes\apic\api-center\.env.example`
-- Modify: `C:\Codes\apic\api-center\gcp\gke\20-configmap.yaml`
-- Modify: `C:\Codes\apic\api-center\api-center-config.live.yaml`
-- Modify: `C:\Codes\apic\api-center\docker-compose.yml`
+- Modify: `C:\Codes\apic\api-center\infra\gcp\gke\20-configmap.yaml`
+- Modify: `C:\Codes\apic\api-center\config/environments/live/api-center-config.yaml`
+- Modify: `C:\Codes\apic\api-center\deploy/local/docker-compose.yml`
 - Modify: `C:\Codes\apic\api-center\.gitignore`
 - Modify: `C:\Codes\apic\api-center\docs\confluent-cloud-s3-sink-setup.md`
 - Modify: `C:\Codes\apic\api-center\README.md`
@@ -118,7 +118,7 @@ Do not include localhost or self-managed Kafka examples.
 
 - [x] **Step 1.2: Update GKE ConfigMap**
 
-In `gcp/gke/20-configmap.yaml`, keep only non-secret Confluent values:
+In `infra/gcp/gke/20-configmap.yaml`, keep only non-secret Confluent values:
 
 ```yaml
 KAFKA_CLIENT_ID: "api-center"
@@ -132,7 +132,7 @@ Do not commit `KAFKA_SASL_USERNAME` or `KAFKA_SASL_PASSWORD`. Store them in GCP 
 
 - [x] **Step 1.3: Clean live config**
 
-Remove `KAFKA_BROKERS: localhost:9092` from `api-center-config.live.yaml`.
+Remove `KAFKA_BROKERS: localhost:9092` from `config/environments/live/api-center-config.yaml`.
 
 Use:
 
@@ -175,7 +175,7 @@ In `docs/confluent-cloud-s3-sink-setup.md`, add near the top:
 Run:
 
 ```powershell
-Select-String -Path .env.example,gcp\gke\20-configmap.yaml,api-center-config.live.yaml -Pattern 'localhost:9092|kafka:29092|api-center-kafka-kafka-bootstrap'
+Select-String -Path .env.example,infra\gcp\gke\20-configmap.yaml,config/environments/live/api-center-config.yaml -Pattern 'localhost:9092|kafka:29092|api-center-kafka-kafka-bootstrap'
 ```
 
 Expected: no matches.
@@ -190,7 +190,7 @@ Ignore `.codex/` local agent configuration files and keep Confluent credentials 
 
 - [x] **Step 1.8: Remove docker-compose local Kafka behavior**
 
-Because `.env.example` now documents Confluent SASL/SSL as the deployment path, `docker-compose.yml` no longer starts Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
+Because `.env.example` now documents Confluent SASL/SSL as the deployment path, `deploy/local/docker-compose.yml` no longer starts Kafka, Schema Registry, Kafka REST Proxy, or Kafka UI.
 
 ---
 
@@ -259,12 +259,12 @@ Expected: PASS.
 **Purpose:** Delete self-hosted Kafka paths so Confluent Cloud is the only Kafka runtime target in this repo.
 
 **Files:**
-- Modify: `C:\Codes\apic\api-center\docker-compose.yml`
+- Modify: `C:\Codes\apic\api-center\deploy/local/docker-compose.yml`
 - Delete: `C:\Codes\apic\api-center\docker-compose.local-kafka.yml`
-- Delete: `C:\Codes\apic\api-center\gcp\gke\kafka\*`
-- Delete: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.ps1`
-- Delete: `C:\Codes\apic\api-center\gcp\gke\deploy-kafka-stack.sh`
-- Delete: `C:\Codes\apic\api-center\gcp\gke\run-kafka-rollout.ps1`
+- Delete: `C:\Codes\apic\api-center\infra\gcp\gke\kafka\*`
+- Delete: `C:\Codes\apic\api-center\infra\gcp\gke\deploy-kafka-stack.ps1`
+- Delete: `C:\Codes\apic\api-center\infra\gcp\gke\deploy-kafka-stack.sh`
+- Delete: `C:\Codes\apic\api-center\infra\gcp\gke\run-kafka-rollout.ps1`
 
 - [x] **Step 3.1: Remove local Kafka services**
 
@@ -272,7 +272,7 @@ Delete the `kafka`, `schema-registry`, `kafka-rest`, and `kafka-ui` compose serv
 
 - [x] **Step 3.2: Delete self-hosted Kafka manifests**
 
-Remove `gcp/gke/kafka/*`, including Strimzi, KafkaTopic, observability, and MirrorMaker assets.
+Remove `infra/gcp/gke/kafka/*`, including Strimzi, KafkaTopic, observability, and MirrorMaker assets.
 
 - [x] **Step 3.3: Delete self-hosted rollout scripts**
 

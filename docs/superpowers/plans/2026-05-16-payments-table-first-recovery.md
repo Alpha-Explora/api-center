@@ -51,7 +51,7 @@ If the original event was recorded in `payment_webhook_events` before the parser
 - Modify: `api-shared-services/tests/shared-services/paymongo-provider.test.ts`
   - Add regression tests for duplicate replay repairing `payments`.
   - Add regression tests for checkout-detail fallback creating a `payments` row.
-- Modify after deployment: `api-shared-services/gcp/gke/00-shared-services.yaml`
+- Modify after deployment: `api-shared-services/infra/gcp/gke/00-shared-services.yaml`
   - Record the deployed `shared-payment-service` image tag.
 
 ### API Center
@@ -624,7 +624,7 @@ Use Cloud Build if Docker Desktop is unavailable:
 ```powershell
 gcloud builds submit . `
   --project api-center-496422 `
-  --config C:\tmp\apic-payment-repair-cloudbuild.yaml `
+  --config C:\tmp\apic-payment-repair-infra/gcp/cloud-build/cloudbuild.yaml `
   --timeout=1800s
 ```
 

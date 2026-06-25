@@ -1,10 +1,10 @@
 # api-center — GKE Deployment (Living Document)
 
 > **This file is the living state record for the GKE deployment.**
-> `gcp/gke/README.md` is the stable how-to. This file tracks what is actually running,
+> `infra/gcp/gke/README.md` is the stable how-to. This file tracks what is actually running,
 > why decisions were made, and what changed. Always update this file in the same commit
-> as any change to `gcp/gke/**`, `docker/Dockerfile.gcp`, root `Dockerfile`,
-> `.dockerignore`, `docker-compose.yml`, or CI/CD workflows.
+> as any change to `infra/gcp/gke/**`, `docker/Dockerfile.gcp`, root `Dockerfile`,
+> `.dockerignore`, `deploy/local/docker-compose.yml`, or CI/CD workflows.
 
 ---
 
@@ -54,7 +54,7 @@
 
 ## HPA Configuration
 
-Source of truth: `gcp/gke/50-hpa.yaml`. This section is the "why these numbers" companion.
+Source of truth: `infra/gcp/gke/50-hpa.yaml`. This section is the "why these numbers" companion.
 
 | Parameter | Value | Rationale |
 |---|---|---|
@@ -99,13 +99,13 @@ All probes hit `src/health/` endpoints. Do not change probe paths without updati
 Replace these before applying to a new environment.
 
 ```bash
-grep -rn 'example.com\|example.internal' gcp/gke/
+grep -rn 'example.com\|example.internal' infra/gcp/gke/
 ```
 
 | File | Placeholder | Replace with |
 |---|---|---|
-| `gcp/gke/70-managedcert.yaml` | `api-center.example.com` | Real public hostname |
-| `gcp/gke/80-ingress.yaml` | `api-center.example.com` | Real public hostname |
+| `infra/gcp/gke/70-managedcert.yaml` | `api-center.example.com` | Real public hostname |
+| `infra/gcp/gke/80-ingress.yaml` | `api-center.example.com` | Real public hostname |
 
 ---
 
@@ -135,7 +135,7 @@ PROJECT_ID=api-center-496422 \
 REGION=asia-southeast1 \
 SECRET_NAME=api-center-prod \
 PUBLIC_HOSTNAME=<real-hostname> \
-./gcp/gke/provision.sh
+./infra/gcp/gke/provision.sh
 ```
 
 The script prints Memorystore IPs, static IP, and image registry path. Update the
@@ -147,10 +147,10 @@ Point your DNS A record for `<real-hostname>` at the static IP the script prints
 
 ```bash
 # Verify no unresolved placeholders remain
-grep -rn 'example.com\|example.internal' gcp/gke/
+grep -rn 'example.com\|example.internal' infra/gcp/gke/
 ```
 
-Replace every placeholder in `gcp/gke/*.yaml` (see **Known Placeholders** above).
+Replace every placeholder in `infra/gcp/gke/*.yaml` (see **Known Placeholders** above).
 
 ### 2A. Update Secret Manager payload (internal tribe JWT + Descope fallback)
 
@@ -178,7 +178,7 @@ gcloud secrets versions list api-center-prod --limit=5
 ```
 
 Minimal payload shape for the auth switch. Non-secret values such as
-`AUTH_PROVIDER`, issuer, audience, and TTLs are set in `gcp/gke/20-configmap.yaml`;
+`AUTH_PROVIDER`, issuer, audience, and TTLs are set in `infra/gcp/gke/20-configmap.yaml`;
 include them here only if you intentionally run without that ConfigMap.
 
 ```json
@@ -220,7 +220,7 @@ token smoke test against the per-tribe secret.
 
 ### 2B. Confirm runtime selector
 
-`gcp/gke/20-configmap.yaml` should be set to `AUTH_PROVIDER: "composite"`.
+`infra/gcp/gke/20-configmap.yaml` should be set to `AUTH_PROVIDER: "composite"`.
 Composite mode issues API Center internal JWTs for tribes and validates internal
 JWTs first, then Descope tokens as a migration fallback.
 
@@ -231,7 +231,7 @@ kubectl -n api-center get configmap api-center-config -o jsonpath='{.data.AUTH_P
 
 ### 2C. Configure Kafka client credentials in Secret Manager
 
-The APICenter deployment uses Confluent Cloud Kafka. `gcp/gke/20-configmap.yaml`
+The APICenter deployment uses Confluent Cloud Kafka. `infra/gcp/gke/20-configmap.yaml`
 already enables:
 
 - `KAFKA_SSL_ENABLED=true`
@@ -272,7 +272,7 @@ $brokers = [string]$json.KAFKA_BROKERS
 ### 2D. Configure AWS Athena read credentials in Secret Manager
 
 The data-pipeline dashboard reads curated Gold tables through the API Center
-runtime, not directly from management. `gcp/gke/20-configmap.yaml` sets only
+runtime, not directly from management. `infra/gcp/gke/20-configmap.yaml` sets only
 non-secret Athena selectors such as `PIPELINE_HEALTH_SOURCE=athena`,
 `PIPELINE_GOVERNANCE_SOURCE=athena`, and `AWS_REGION=ap-southeast-2`.
 
@@ -412,7 +412,7 @@ echo "Pushed: $IMAGE"
 **First deploy:**
 
 ```bash
-kubectl apply -f gcp/gke/
+kubectl apply -f infra/gcp/gke/
 kubectl -n api-center rollout status deploy/api-center --timeout=5m
 ```
 
@@ -572,7 +572,7 @@ curl -sS -X POST https://<real-hostname>/api/v1/auth/token/refresh \
 
 ## Architecture Reference
 
-See `gcp/gke/README.md` for the full architecture diagram. Summary:
+See `infra/gcp/gke/README.md` for the full architecture diagram. Summary:
 
 ```
 Internet → GCLB (static IP, HTTPS, ManagedCert)
@@ -582,7 +582,7 @@ Internet → GCLB (static IP, HTTPS, ManagedCert)
         → Confluent Cloud Kafka
 ```
 
-Local development differs intentionally: `docker-compose.yml` uses a standalone
+Local development differs intentionally: `deploy/local/docker-compose.yml` uses a standalone
 `nginx` service with `nginx.conf` as the local entrypoint/load balancer. In GKE,
 there is no nginx pod in the request path; ingress is handled by GCLB + NEG.
 
@@ -618,7 +618,7 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-13 | 9dab869 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:9dab869`; removed legacy API Center Google auth, migrated wildcard routes to Nest 11 named wildcards, and raised the response listener budget | Clear post-upgrade runtime warnings while keeping Google auth in shared services |
 | 2026-05-13 | 5c55833 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:5c55833`; kept Node 24 LTS runtime target with the proxy v4 ESM bridge | Roll out the dependency upgrade on the production LTS runtime |
 | 2026-05-11 | 512702a | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:512702a`; applied corrected ConfigMap, 2-3 HPA, PDB minAvailable 1, and CPU request 150m | Roll out Confluent/GKE reliability changes and restore the intended low-credit GKE profile |
-| 2026-04-18 | pending | Reduced HPA max replicas from 30 to 6 in `gcp/gke/50-hpa.yaml` for current cluster quota envelope | Prevent futile autoscaler scale-up attempts until node CPU/memory/SSD quotas are increased |
+| 2026-04-18 | pending | Reduced HPA max replicas from 30 to 6 in `infra/gcp/gke/50-hpa.yaml` for current cluster quota envelope | Prevent futile autoscaler scale-up attempts until node CPU/memory/SSD quotas are increased |
 | 2026-05-14 | manual-tribe-secret-20260514123048 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:manual-tribe-secret-20260514123048`; enabled per-tribe Secret Manager lookup and verified `smoke-tribe` token issuance from `api-center-tribe-secret-smoke-tribe` | Stop editing `api-center-prod` for ordinary tribe secret onboarding |
 | 2026-05-15 | shared-service-export-20260515184111 | Deployed image `us-central1-docker.pkg.dev/api-center-492808/api-center/api-center:shared-service-export-20260515184111`; added sanitized shared-service export publishing for `sms`, `email`, `payment`, `otp`, `geo`, and `gauth` | Export shared-service usage to dedicated Confluent topics for S3 lake ingestion |
 | 2026-05-16 | migration-20260516 | Created new GCP target project resources in `api-center-496422` / `asia-southeast1`, created fresh Secret Manager versions, deployed API Center and shared services, and verified internal readiness HTTP 200. DNS cutover is still pending. | Move API Center hosting away from the old GCP project while keeping Confluent/S3 external |

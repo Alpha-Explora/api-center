@@ -91,7 +91,7 @@ Completed in the sixth slice:
 - API Center platform setup docs now include subscription wrapper SDK methods, subscription secret/config guidance, and required PayMongo subscription/invoice webhook events.
 - Shared-service export-events docs now list subscription and invoice lifecycle event types and sanitized lifecycle fields.
 - Focused verification passed:
-  - `api-shared-services`: `kubectl kustomize gcp/gke/test --load-restrictor LoadRestrictionsNone`
+  - `api-shared-services`: `kubectl kustomize infra/gcp/gke/test --load-restrictor LoadRestrictionsNone`
   - `api-shared-services`: `npx vitest run tests/TribeClient.test.ts tests/shared-services/payment-store.test.ts tests/shared-services/paymongo-provider.test.ts --pool threads`
   - `api-shared-services`: `npm run check:contracts`
   - `api-center`: `npm test -- src/shared-services/shared-service-event-sanitizer.spec.ts src/kafka/schemas/shared-service-export.schemas.spec.ts`
@@ -108,8 +108,8 @@ Completed in the seventh slice:
 - Focused verification passed:
   - `api-shared-services`: `supabase db push --linked`
   - `api-shared-services`: `supabase migration list --linked`
-  - `api-shared-services`: `gcloud builds submit shared-services --project api-center-496422 --config cloudbuild.payment-service.yaml --substitutions _IMAGE=<test-payment-image>`
-  - `api-shared-services`: `kubectl kustomize gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -`
+  - `api-shared-services`: `gcloud builds submit shared-services --project api-center-496422 --config infra/gcp/cloud-build/payment-service.yaml --substitutions _IMAGE=<test-payment-image>`
+  - `api-shared-services`: `kubectl kustomize infra/gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -`
   - `api-shared-services`: `kubectl -n api-center-test rollout status deploy/payment-service --timeout=5m`
   - `api-shared-services`: direct payment-service smoke over local port-forward
 
@@ -137,7 +137,7 @@ Completed in the ninth slice:
 - API Center shared-service export now captures bounded JSON upstream response bodies at the proxy boundary before publishing sanitized export events.
 - Payment export lifecycle mapping now includes subscription, invoice, refund, customer, price, reference, amount, currency, provider, and provider-mode metadata when present.
 - Payment request redaction now treats `idempotencyKey` as sensitive while still exporting its hash.
-- Added `cloudbuild.api-center-gke.yaml` for GKE image builds that use `docker/Dockerfile.gcp` and run Prisma generation.
+- Added `infra/gcp/cloud-build/api-center-gke.yaml` for GKE image builds that use `docker/Dockerfile.gcp` and run Prisma generation.
 - Built and pushed the test API Center image:
   - `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:proxy-events-29ef3bd-202605171555`
 - Test API Center overlay now pins `api-center-test/api-center` to that image.
@@ -159,8 +159,8 @@ Completed in the ninth slice:
   - `api-center`: `npm test -- src/shared-services/shared-service-event-sanitizer.spec.ts src/kafka/schemas/shared-service-export.schemas.spec.ts src/shared-services/shared-service-event-publisher.spec.ts src/shared/proxy-handler.spec.ts --runInBand`
   - `api-center`: `npm run typecheck`
   - `api-center`: `npx tsc -p tsconfig.build.json --outDir .build-check`
-  - `api-center`: `gcloud builds submit . --project=api-center-496422 --config cloudbuild.api-center-gke.yaml --substitutions _IMAGE=<test-api-center-image>`
-  - `api-center`: `kubectl kustomize gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -`
+  - `api-center`: `gcloud builds submit . --project=api-center-496422 --config infra/gcp/cloud-build/api-center-gke.yaml --substitutions _IMAGE=<test-api-center-image>`
+  - `api-center`: `kubectl kustomize infra/gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -`
   - `api-center`: `kubectl -n api-center-test rollout status deployment/api-center --timeout=5m`
   - `apicenter-management`: `GET /api/local/analytics/shared-service-usage?window=1h`
   - `apicenter-management`: `GET /api/local/analytics/alerts?window=1h`

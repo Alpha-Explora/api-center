@@ -1003,8 +1003,8 @@ State transitions require real evidence fields.
 
 - Modify: `api-shared-services/cloudbuild.payment-service.yaml`
 - Create: `api-shared-services/docs/shared-service-runtime-deployment-matrix.md`
-- Modify: `api-shared-services/gcp/gke/README.md`
-- Modify: `api-center/gcp/gke/README.md`
+- Modify: `api-shared-services/infra/gcp/gke/README.md`
+- Modify: `api-center/infra/gcp/gke/README.md`
 
 - [x] **Step 1: Fix payment Cloud Build context**
 
@@ -1058,7 +1058,7 @@ Shared-service route contracts and SDK package checks pass.
 - Modify: `apicenter-management/README.md`
 - Modify: `apicenter-management/docs/operations/apicenter-management-runbook.md`
 - Modify: `apicenter-management/docs/operations/apicenter-management-deployment-runbook.md`
-- Modify: `apicenter-management/gcp/gke/README.md`
+- Modify: `apicenter-management/infra/gcp/gke/README.md`
 
 - [x] **Step 1: Mark SDK canonical docs**
 

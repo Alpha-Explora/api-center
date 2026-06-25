@@ -196,14 +196,14 @@ GOOGLE_REDIRECT_URI=https://api-center.itsandbox.site/api/v1/shared/gauth/oauth/
 | `api-center` | `src/kafka/topics.ts` | Apply environment prefix to topic names |
 | `api-center` | `src/config/config.service.ts` | Read `KAFKA_TOPIC_PREFIX` |
 | `api-center` | `src/kafka/kafka.service.spec.ts` | Verify prefixed topic publishing |
-| `api-center` | `gcp/gke/20-configmap.yaml` | Prod runtime config |
-| `api-center` | `gcp/gke/20-configmap.test.yaml` | Test runtime config |
-| `api-center` | `gcp/gke/30-deployment.yaml` | Prod deployment secret name and image |
-| `api-center` | `gcp/gke/30-deployment.test.yaml` | Test deployment secret name and image |
-| `api-center` | `gcp/gke/80-ingress.yaml` | Prod hostname |
-| `api-center` | `gcp/gke/80-ingress.test.yaml` | Test hostname |
-| `api-shared-services` | `gcp/gke/00-shared-services.yaml` | Prod shared-service config |
-| `api-shared-services` | `gcp/gke/00-shared-services.test.yaml` | Test shared-service config |
+| `api-center` | `infra/gcp/gke/20-configmap.yaml` | Prod runtime config |
+| `api-center` | `infra/gcp/gke/20-configmap.test.yaml` | Test runtime config |
+| `api-center` | `infra/gcp/gke/30-deployment.yaml` | Prod deployment secret name and image |
+| `api-center` | `infra/gcp/gke/30-deployment.test.yaml` | Test deployment secret name and image |
+| `api-center` | `infra/gcp/gke/80-ingress.yaml` | Prod hostname |
+| `api-center` | `infra/gcp/gke/80-ingress.test.yaml` | Test hostname |
+| `api-shared-services` | `infra/gcp/gke/00-shared-services.yaml` | Prod shared-service config |
+| `api-shared-services` | `infra/gcp/gke/00-shared-services.test.yaml` | Test shared-service config |
 | `apicenter-management` | `.env.example` | Document test/prod operator variables |
 | `apicenter-management` | `src/lib/event-topics.ts` | Show environment-aware topic names |
 | `api-center` | `docs/confluent-cloud-s3-sink-setup.md` | Document test/prod topic and S3 layout |
@@ -361,7 +361,7 @@ Goal: run test/staging beside prod without paying for a second cluster yet.
 
 - [x] **Step 1: Create namespace manifest**
 
-Create `api-center/gcp/gke/test/00-namespace.yaml`.
+Create `api-center/infra/gcp/gke/test/00-namespace.yaml`.
 
 ```yaml
 apiVersion: v1
@@ -372,7 +372,7 @@ metadata:
 
 - [x] **Step 2: Create test service account manifest**
 
-Create `api-center/gcp/gke/test/10-serviceaccount.yaml`.
+Create `api-center/infra/gcp/gke/test/10-serviceaccount.yaml`.
 
 ```yaml
 apiVersion: v1
@@ -389,7 +389,7 @@ metadata:
 Implemented as a Kustomize patch:
 
 ```text
-api-center/gcp/gke/test/patches/configmap.yaml
+api-center/infra/gcp/gke/test/patches/configmap.yaml
 ```
 
 Set:
@@ -406,7 +406,7 @@ NODE_ENV: "production"
 Implemented as a Kustomize patch:
 
 ```text
-api-center/gcp/gke/test/patches/deployment.yaml
+api-center/infra/gcp/gke/test/patches/deployment.yaml
 ```
 
 Use:
@@ -429,14 +429,14 @@ Run:
 
 ```powershell
 cd C:\Codes\apic\api-center
-kubectl apply -f gcp/gke/test/
+kubectl apply -f infra/gcp/gke/test/
 kubectl -n api-center-test rollout status deploy/api-center --timeout=10m
 ```
 
 Actual command used because the overlay references the shared base manifests:
 
 ```powershell
-kubectl kustomize gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -
+kubectl kustomize infra/gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -
 kubectl -n api-center-test rollout status deploy/api-center --timeout=10m
 ```
 
@@ -614,7 +614,7 @@ Actual reserved IP:
 Implemented as a Kustomize patch:
 
 ```text
-api-center/gcp/gke/test/patches/managedcert.yaml
+api-center/infra/gcp/gke/test/patches/managedcert.yaml
 ```
 
 ```yaml
@@ -633,7 +633,7 @@ spec:
 Implemented as a Kustomize patch:
 
 ```text
-api-center/gcp/gke/test/patches/ingress.yaml
+api-center/infra/gcp/gke/test/patches/ingress.yaml
 ```
 
 Set:

@@ -97,9 +97,9 @@ Provisioning complete. Update your manifests with these values:
   Image registry            ${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/api-center
 
 Then:
-  1. Edit gcp/gke/*.yaml — replace every <PLACEHOLDER>
+  1. Edit infra/gcp/gke/*.yaml — replace every <PLACEHOLDER>
   2. Point ${PUBLIC_HOSTNAME} A record at ${STATIC_IP}
-  3. kubectl apply -f gcp/gke/
+  3. kubectl apply -f infra/gcp/gke/
 =============================================================================
 EOF
 

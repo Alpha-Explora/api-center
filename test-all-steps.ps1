@@ -275,7 +275,7 @@ $logisticsStopped = $false
 $restartAttempted = $false
 
 try {
-    docker compose stop logistics-service 2>&1 | Out-Null
+    docker compose -f deploy/local/docker-compose.yml stop logistics-service 2>&1 | Out-Null
     $logisticsStopped = $true
     Start-Sleep -Seconds 2
     
@@ -322,7 +322,7 @@ try {
     if ($logisticsStopped) {
         Write-Host "Restarting logistics service..." -ForegroundColor Cyan
         try {
-            docker compose start logistics-service 2>&1 | Out-Null
+            docker compose -f deploy/local/docker-compose.yml start logistics-service 2>&1 | Out-Null
             $restartAttempted = $true
         } catch {
             Write-Host "[FAIL] Failed to restart logistics service: $_" -ForegroundColor Red

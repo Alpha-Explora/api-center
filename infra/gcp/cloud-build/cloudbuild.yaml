@@ -1,5 +1,5 @@
 # =============================================================================
-# cloudbuild.yaml — Cloud Build CI/CD pipeline for APICenter
+# infra/gcp/cloud-build/cloudbuild.yaml — Cloud Build CI/CD pipeline for APICenter
 # =============================================================================
 #
 # TRIGGERS (configure in Cloud Build console or via gcloud):

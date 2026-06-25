@@ -27,7 +27,7 @@ Scope:
 ## Fixes Applied During Review
 
 - Removed stale self-managed Kafka rollout, smoke, sync, and rollback references
-  from `gcp/gke/README.md` and `docs/deployment-gke.md`.
+  from `infra/gcp/gke/README.md` and `docs/deployment-gke.md`.
 - Corrected `docs/developer/confluent-cloud-migration-plan.md` so current GKE
   config is described as Confluent runtime configuration, not leftover
   self-managed Kafka config.
@@ -186,7 +186,7 @@ Recommended fix:
 
 ### P2: Finish Operational Autoscaling Notes
 
-`api-center/gcp/gke/50-hpa.yaml` still has a TODO for request-rate scaling.
+`api-center/infra/gcp/gke/50-hpa.yaml` still has a TODO for request-rate scaling.
 
 Recommended fix:
 

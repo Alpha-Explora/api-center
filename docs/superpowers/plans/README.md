@@ -12,7 +12,7 @@ active, completed, superseded, historical
 | Status     | Plan                                                                | Current source of truth                                                               |
 | ---------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | completed  | `2026-05-15-apicenter-control-plane-database.md`                    | `docs/developer/registry-persistence-runbook.md` for registry cutover behavior.       |
-| historical | `archive/2026-05-16-gcp-project-redeploy-migration.md`              | `README.md` and `gcp/gke/README.md` for current runtime deployment notes.             |
+| historical | `archive/2026-05-16-gcp-project-redeploy-migration.md`              | `README.md` and `infra/gcp/gke/README.md` for current runtime deployment notes.             |
 | historical | `archive/2026-05-16-hybrid-paymongo-payment-lifecycle.md`           | `api-shared-services/docs/consumer-runbook.md` for SDK consumption.                   |
 | historical | `archive/2026-05-16-multi-merchant-paymongo-routing.md`             | Shared-services payment docs and provider manifests.                                  |
 | completed  | `2026-05-16-payments-table-first-recovery.md`                       | Payment persistence migrations and shared-services payment tests.                     |

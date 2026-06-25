@@ -12,8 +12,8 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 > Cloud Run remains an older/simple deployment option only if the platform
 > deliberately moves away from the current GKE shape.
 >
-> - [GKE Autopilot + HPA](gcp/gke/README.md) - current production shape, min 2 / max 3 API Center pods, Memorystore, GCLB Ingress
-> - [Cloud Run](gcp/cloudrun.yaml) - older/simple deployment option; use only if deliberately moving away from the current GKE shape
+> - [GKE Autopilot + HPA](infra/gcp/gke/README.md) - current production shape, min 2 / max 3 API Center pods, Memorystore, GCLB Ingress
+> - [Cloud Run](infra/gcp/cloud-run/cloudrun.yaml) - older/simple deployment option; use only if deliberately moving away from the current GKE shape
 
 ---
 
@@ -81,13 +81,13 @@ No external dependencies. All tokens are self-issued by the gateway.
 ```bash
 cp .env.example .env
 # AUTH_PROVIDER=dev-jwt is already the default â€” no changes needed
-docker-compose up -d
+docker compose -f deploy/local/docker-compose.yml up -d
 ```
 
 The gateway is available at `http://localhost:3000`. Wait ~30 s for all containers to become healthy:
 
 ```bash
-docker-compose ps   # all services should show "healthy"
+docker compose -f deploy/local/docker-compose.yml ps   # all services should show "healthy"
 ```
 
 ---

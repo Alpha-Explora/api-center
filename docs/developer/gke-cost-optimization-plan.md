@@ -144,7 +144,7 @@ Availability tradeoff:
 Validation after this patch:
 
 ```bash
-kubectl -n api-center apply -f gcp/gke/30-deployment.yaml
+kubectl -n api-center apply -f infra/gcp/gke/30-deployment.yaml
 kubectl -n api-center rollout status deploy/api-center --timeout=10m
 kubectl -n api-center get hpa api-center
 kubectl -n api-center top pods

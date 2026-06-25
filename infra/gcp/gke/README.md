@@ -85,7 +85,7 @@ The script prints the values you need to plug into the manifests.
 Every `<PLACEHOLDER>` in the YAML files. Quick search:
 
 ```bash
-grep -rn '<[A-Z_]*>' gcp/gke/
+grep -rn '<[A-Z_]*>' infra/gcp/gke/
 ```
 
 You will need to replace:
@@ -128,7 +128,7 @@ in-cluster brokers ending in `.svc.cluster.local:9092`.
 
 ```bash
 gcloud container clusters get-credentials api-center --region=asia-southeast1 --project=apicenter-alpha-20260623
-kubectl apply -f gcp/gke/
+kubectl apply -f infra/gcp/gke/
 ```
 
 Restart the deployment after updating the Secret Manager payload:
@@ -144,7 +144,7 @@ The low-cost test/live split keeps the same cluster and deploys the test stack
 into `api-center-test`.
 
 ```powershell
-kubectl kustomize gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -
+kubectl kustomize infra/gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -
 kubectl -n api-center-test rollout status deploy/api-center --timeout=10m
 ```
 

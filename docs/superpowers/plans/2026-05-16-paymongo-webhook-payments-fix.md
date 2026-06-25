@@ -36,7 +36,7 @@ POST /api/v1/shared/payment/webhooks
   - Raw-body support for signed webhook payloads.
 - Modify if needed: `api-center/src/shared-services/shared-services.module.ts`
   - Controller registration.
-- Modify if needed: `api-center/gcp/gke/30-deployment.yaml`
+- Modify if needed: `api-center/infra/gcp/gke/30-deployment.yaml`
   - API Center image tag after deployment.
 
 ### API Shared Services
@@ -51,7 +51,7 @@ POST /api/v1/shared/payment/webhooks
   - DB insert/upsert and row-count diagnostics.
 - Modify if needed: `api-shared-services/tests/shared-services/paymongo-provider.test.ts`
   - Regression coverage for real PayMongo event shapes and persistence outcomes.
-- Modify if needed: `api-shared-services/gcp/gke/00-shared-services.yaml`
+- Modify if needed: `api-shared-services/infra/gcp/gke/00-shared-services.yaml`
   - Payment-service image tag after deployment.
 
 ---
@@ -524,8 +524,8 @@ kubectl -n api-center rollout status deploy/payment-service --timeout=5m
 - [ ] Update manifests after live deployment:
 
 ```text
-api-center/gcp/gke/30-deployment.yaml
-api-shared-services/gcp/gke/00-shared-services.yaml
+api-center/infra/gcp/gke/30-deployment.yaml
+api-shared-services/infra/gcp/gke/00-shared-services.yaml
 ```
 
 - [ ] Run final DB proof in test:

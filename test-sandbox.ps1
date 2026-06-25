@@ -2,7 +2,7 @@
 # test-sandbox.ps1 — Validates the Functional Sandbox (Part 1 Checklist)
 # =============================================================================
 # This script automates all 8 checklist items from the Functional Sandbox.
-# Run this after starting containers with: docker compose up -d --build
+# Run this after starting containers with: docker compose -f deploy/local/docker-compose.yml up -d --build
 # =============================================================================
 
 $ErrorActionPreference = "Stop"

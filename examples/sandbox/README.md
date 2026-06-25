@@ -5,8 +5,8 @@ This runbook validates the local Front Door pattern using dev-jwt only.
 ## 1) Build and start all containers
 
 ```powershell
-docker compose down --remove-orphans
-docker compose up -d --build
+docker compose -f deploy/local/docker-compose.yml down --remove-orphans
+docker compose -f deploy/local/docker-compose.yml up -d --build
 ```
 
 ## 2) Register the mock services in the gateway registry
@@ -39,7 +39,7 @@ Expected:
 Note:
 - Round-robin is done by NGINX across `api-center-1/2/3` (gateway containers), not by `logistics-service`.
 - Ensure `.env` has `RATE_LIMIT_MAX` high enough for this burst (for example `RATE_LIMIT_MAX=100`).
-- If you changed `.env`, restart gateways: `docker-compose up -d --force-recreate api-center-1 api-center-2 api-center-3 nginx`.
+- If you changed `.env`, restart gateways: `docker compose -f deploy/local/docker-compose.yml up -d --force-recreate api-center-1 api-center-2 api-center-3 nginx`.
 
 ```powershell
 docker exec nginx-lb sh -lc ': > /var/log/nginx/access.log'

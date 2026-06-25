@@ -1,8 +1,8 @@
 # =============================================================================
-# gcp/cloudrun.yaml — Cloud Run service definition for APICenter
+# infra/gcp/cloud-run/cloudrun.yaml — Cloud Run service definition for APICenter
 # =============================================================================
 # Deploy with:
-#   gcloud run services replace gcp/cloudrun.yaml --region=REGION
+#   gcloud run services replace infra/gcp/cloud-run/cloudrun.yaml --region=REGION
 #
 # Replace every placeholder wrapped in < > before deploying:
 #   <PROJECT_ID>        your GCP project ID

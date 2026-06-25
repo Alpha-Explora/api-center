@@ -62,7 +62,7 @@ fixed_with_evidence:
 - Modify: `api-center/src/data-pipeline/data-pipeline.module.ts`
 - Modify: `api-center/Dockerfile`
 - Modify: `api-center/docker/Dockerfile.gcp`
-- Modify: `api-center/gcp/gke/20-configmap.yaml`
+- Modify: `api-center/infra/gcp/gke/20-configmap.yaml`
 - Modify: `api-center/docs/deployment-gke.md`
 
 ### APICenter Athena Query Telemetry
@@ -545,13 +545,13 @@ All three suites pass.
 
 **Files:**
 
-- Modify: `api-center/gcp/gke/20-configmap.yaml`
+- Modify: `api-center/infra/gcp/gke/20-configmap.yaml`
 - Modify: `api-center/docs/deployment-gke.md`
 - Modify: `api-center/docs/data-pipeline/actual-pipeline-runbook.md`
 
 - [x] **Step 1: Add non-secret config**
 
-Add these keys to `api-center/gcp/gke/20-configmap.yaml`:
+Add these keys to `api-center/infra/gcp/gke/20-configmap.yaml`:
 
 ```yaml
   PIPELINE_HEALTH_SOURCE: "athena"
@@ -616,7 +616,7 @@ gcloud builds submit `
   --tag asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-athena-sdk-<shortsha>-<timestamp> `
   .
 
-kubectl -n api-center apply -f gcp/gke/20-configmap.yaml
+kubectl -n api-center apply -f infra/gcp/gke/20-configmap.yaml
 
 kubectl -n api-center set image deployment/api-center `
   api-center=asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-athena-sdk-<shortsha>-<timestamp>
@@ -1455,7 +1455,7 @@ gcloud builds submit `
 Run:
 
 ```powershell
-kubectl -n api-center apply -f gcp/gke/20-configmap.yaml
+kubectl -n api-center apply -f infra/gcp/gke/20-configmap.yaml
 kubectl -n api-center set image deployment/api-center `
   api-center=asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-blockers-fixed-<shortsha>-<timestamp>
 kubectl -n api-center rollout status deployment/api-center --timeout=10m

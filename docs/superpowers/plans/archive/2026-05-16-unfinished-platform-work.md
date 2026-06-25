@@ -41,7 +41,7 @@ Excluded:
 
 ### API Center
 
-- Modify: `api-center/gcp/gke/30-deployment.yaml`
+- Modify: `api-center/infra/gcp/gke/30-deployment.yaml`
   - Tracks the API Center image tag deployed to GKE.
 - Modify: `api-center/docs/deployment-gke.md`
   - Records exact restart, smoke, and rollback steps.
@@ -54,7 +54,7 @@ Excluded:
 
 ### API Shared Services
 
-- Modify: `api-shared-services/gcp/gke/00-shared-services.yaml`
+- Modify: `api-shared-services/infra/gcp/gke/00-shared-services.yaml`
   - Tracks shared-service image tags and environment secret names.
 - Modify: `api-shared-services/docs/shared-services-production-readiness-plan.md`
   - Tracks SDK smoke and production traffic controls.
@@ -125,8 +125,8 @@ apicenter-management: main at a760d98, clean.
 
 ```powershell
 cd C:\Codes\apic
-Select-String -Path api-center\gcp\gke\30-deployment.yaml -Pattern "image:"
-Select-String -Path api-shared-services\gcp\gke\00-shared-services.yaml -Pattern "image:"
+Select-String -Path api-center\infra\gcp\gke\30-deployment.yaml -Pattern "image:"
+Select-String -Path api-shared-services\infra\gcp\gke\00-shared-services.yaml -Pattern "image:"
 ```
 
 Expected:
@@ -174,14 +174,14 @@ API Center:
 
 ```powershell
 cd C:\Codes\apic\api-center
-gcloud builds submit --project api-center-496422 --region asia-southeast1 --config C:\tmp\api-center-cloudbuild.yaml .
+gcloud builds submit --project api-center-496422 --region asia-southeast1 --config C:\tmp\api-center-infra/gcp/cloud-build/cloudbuild.yaml .
 ```
 
 Shared payment service:
 
 ```powershell
 cd C:\Codes\apic\api-shared-services
-gcloud builds submit --project api-center-496422 --region asia-southeast1 --config C:\tmp\shared-payment-cloudbuild.yaml .
+gcloud builds submit --project api-center-496422 --region asia-southeast1 --config C:\tmp\shared-payment-infra/gcp/cloud-build/cloudbuild.yaml .
 ```
 
 Expected:
@@ -199,8 +199,8 @@ No new build was needed because both target images already exist with successful
 - [x] **Step 1: Deploy test API Center and test shared services**
 
 ```powershell
-kubectl apply -n api-center-test -f C:\Codes\apic\api-center\gcp\gke
-kubectl apply -n api-center-test -f C:\Codes\apic\api-shared-services\gcp\gke\00-shared-services.yaml
+kubectl apply -n api-center-test -f C:\Codes\apic\api-center\infra\gcp\gke
+kubectl apply -n api-center-test -f C:\Codes\apic\api-shared-services\infra\gcp\gke\00-shared-services.yaml
 kubectl rollout status deployment/api-center -n api-center-test --timeout=180s
 kubectl rollout status deployment/payment-service -n api-center-test --timeout=180s
 ```
@@ -237,8 +237,8 @@ Verified on 2026-05-16: public test readiness returned `status: ok` with Kafka, 
 - [x] **Step 3: Deploy prod only after test readiness passes**
 
 ```powershell
-kubectl apply -n api-center -f C:\Codes\apic\api-center\gcp\gke
-kubectl apply -n api-center -f C:\Codes\apic\api-shared-services\gcp\gke\00-shared-services.yaml
+kubectl apply -n api-center -f C:\Codes\apic\api-center\infra\gcp\gke
+kubectl apply -n api-center -f C:\Codes\apic\api-shared-services\infra\gcp\gke\00-shared-services.yaml
 kubectl rollout status deployment/api-center -n api-center --timeout=180s
 kubectl rollout status deployment/payment-service -n api-center --timeout=180s
 ```
@@ -275,7 +275,7 @@ Verified on 2026-05-16: public prod readiness returned `status: ok` with Kafka, 
 
 ```powershell
 cd C:\Codes\apic\api-center
-git add gcp/gke/30-deployment.yaml docs/deployment-gke.md
+git add infra/gcp/gke/30-deployment.yaml docs/deployment-gke.md
 git commit -m "docs: record latest deployment verification"
 git push
 ```

@@ -34,7 +34,7 @@ npm run typecheck
 npm run check:contracts
 npm run check:boundaries
 npm run smoke:gke:check-config
-kubectl apply --dry-run=client -f gcp/gke/30-deployment.yaml -f gcp/gke/50-hpa.yaml -f gcp/gke/60-pdb.yaml
+kubectl apply --dry-run=client -f infra/gcp/gke/30-deployment.yaml -f infra/gcp/gke/50-hpa.yaml -f infra/gcp/gke/60-pdb.yaml
 ```
 
 Run the live smoke test after the new image is deployed and the correct

@@ -1,5 +1,5 @@
 # =============================================================================
-# docker-compose.yml — APICenter Complete Infrastructure Stack
+# deploy/local/docker-compose.yml — APICenter Complete Infrastructure Stack
 # =============================================================================
 #
 # ARCHITECTURE DIAGRAM (checklist §1–§4, §8):
@@ -39,13 +39,13 @@
 #   └─────────────────────────────────────────────────────────────────┘
 #
 # HOW TO RUN:
-#   docker-compose up -d
+#   docker compose -f deploy/local/docker-compose.yml up -d
 #
 # HOW TO ADD A 4th CONTAINER (checklist §8 — horizontal scaling):
 #   1. Add to this file (copy api-center-3 block, rename to api-center-4)
 #   2. Add  server api-center-4:3000 max_fails=3 fail_timeout=20s;
 #      to the upstream block in nginx.conf
-#   3. docker-compose up -d api-center-4 && docker-compose restart nginx
+#   3. docker compose -f deploy/local/docker-compose.yml up -d api-center-4 && docker compose -f deploy/local/docker-compose.yml restart nginx
 #
 # TRIBE SDK (checklist §5, §6, §7):
 #   Tribes interact with this stack via the shared SDK only.
@@ -62,11 +62,11 @@
 x-api-center-common: &api-center-common
   image: apicenter-gateway:local
   build:
-    context: .
+    context: ../..
     dockerfile: Dockerfile
     target: runner
   env_file:
-    - .env
+    - ../../.env
   environment:
     # All 3 containers get the same env — stateless by design
     GATEWAY_ROLE: apicenter-gateway
@@ -176,7 +176,7 @@ services:
   # ---------------------------------------------------------------------------
   logistics-service:
     build:
-      context: ./examples/sandbox
+      context: ../../examples/sandbox
       dockerfile: logistics-service/Dockerfile
     container_name: logistics-service
     environment:
@@ -204,7 +204,7 @@ services:
   # ---------------------------------------------------------------------------
   demand-service:
     build:
-      context: ./examples/sandbox
+      context: ../../examples/sandbox
       dockerfile: demand-service/Dockerfile
     container_name: demand-service
     environment:
@@ -372,7 +372,7 @@ services:
   # ---------------------------------------------------------------------------
   payment-service:
     build:
-      context: ../api-shared-services/shared-services
+      context: ../../../api-shared-services/shared-services
       dockerfile: paymongo/Dockerfile
     container_name: payment-service
     ports:
@@ -400,7 +400,7 @@ services:
   # ---------------------------------------------------------------------------
   email-service:
     build:
-      context: ../api-shared-services/shared-services
+      context: ../../../api-shared-services/shared-services
       dockerfile: email-gateway/Dockerfile
     container_name: email-service
     ports:
@@ -424,7 +424,7 @@ services:
   # ---------------------------------------------------------------------------
   gauth-service:
     build:
-      context: ../api-shared-services/shared-services
+      context: ../../../api-shared-services/shared-services
       dockerfile: gauth-gateway/Dockerfile
     container_name: gauth-service
     ports:
@@ -449,7 +449,7 @@ services:
   # ---------------------------------------------------------------------------
   sms-service:
     build:
-      context: ../api-shared-services/shared-services
+      context: ../../../api-shared-services/shared-services
       dockerfile: sms-gateway/Dockerfile
     container_name: sms-service
     ports:
@@ -471,7 +471,7 @@ services:
   # ---------------------------------------------------------------------------
   otp-service:
     build:
-      context: ../api-shared-services/shared-services
+      context: ../../../api-shared-services/shared-services
       dockerfile: otp-gateway/Dockerfile
     container_name: otp-service
     ports:
@@ -493,7 +493,7 @@ services:
   # ---------------------------------------------------------------------------
   geo-service:
     build:
-      context: ../api-shared-services/shared-services
+      context: ../../../api-shared-services/shared-services
       dockerfile: geo-gateway/Dockerfile
     container_name: geo-service
     ports:

@@ -124,7 +124,7 @@ api-center-prod
 
 Paste a JSON object shaped like this. Do not put shared-service provider keys here.
 On GKE, non-secret values such as Redis URLs may also be set by
-`gcp/gke/20-configmap.yaml`; ConfigMap environment variables take precedence
+`infra/gcp/gke/20-configmap.yaml`; ConfigMap environment variables take precedence
 because the Secret Manager loader does not overwrite existing `process.env`
 keys. If you keep Redis URLs in this secret, keep them identical to the
 ConfigMap values.
@@ -404,7 +404,7 @@ Use a separate rate-limit Redis only when traffic is high enough that counter ch
 4. Restart or redeploy APICenter only when its own platform secret changed.
 5. In `api-shared-services`, run `scripts/sync-gke-secret.ps1` to copy
    `api-shared-services-prod` into the Kubernetes secret of the same name.
-6. Apply `api-shared-services/gcp/gke/00-shared-services.yaml`.
+6. Apply `api-shared-services/infra/gcp/gke/00-shared-services.yaml`.
 7. Confirm shared services self-register through `PLATFORM_ADMIN_SECRET`.
 8. Register tribe manifests with `consumes` entries for the shared services they need.
 9. Create `api-center-tribe-secret-<tribe-id>` for each tribe secret hash.

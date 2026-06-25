@@ -43,7 +43,7 @@ For future Descope human/admin auth usage, see
 
 ## GKE Deployment with Horizontal Pod Autoscaling
 
-For higher scale, VPC-private dependencies, or long-lived connections, deploy to **GKE Autopilot** instead of Cloud Run. Manifests live in [`gcp/gke/`](../../gcp/gke/) and include:
+For higher scale, VPC-private dependencies, or long-lived connections, deploy to **GKE Autopilot** instead of Cloud Run. Manifests live in [`infra/gcp/gke/`](../../infra/gcp/gke/) and include:
 
 - Deployment + ConfigMap + ClusterIP Service
 - HorizontalPodAutoscaler (2 to 3 pods, CPU 70% / mem 80%)
@@ -63,7 +63,7 @@ For higher scale, VPC-private dependencies, or long-lived connections, deploy to
 | Long-lived connections (gRPC streaming, SSE) | limited | âœ… |
 | Sub-second cold-start matters | cold starts | âœ… always-on min replicas |
 
-See [`gcp/gke/README.md`](../../gcp/gke/README.md) for the full deploy walkthrough,
+See [`infra/gcp/gke/README.md`](../../infra/gcp/gke/README.md) for the full deploy walkthrough,
 [`gke-cost-optimization-plan.md`](./gke-cost-optimization-plan.md) before changing
 requests, HPA limits, or the PDB, and [`../production-costing.md`](../production-costing.md)
 for the current production and maintenance cost model.
@@ -113,10 +113,10 @@ cp .env.example .env
 
 # Start the local sandbox (NGINX + 3 API containers + Redis + Vault + observability).
 # Configure Confluent Cloud Kafka settings in .env before using readiness/publish checks.
-docker-compose up -d
+docker compose -f deploy/local/docker-compose.yml up -d
 
 # Watch container health (~30â€“60 s for all to become healthy)
-watch docker-compose ps
+watch docker compose -f deploy/local/docker-compose.yml ps
 ```
 
 ### Unit tests (outside Docker)
@@ -160,7 +160,7 @@ npm run dev           # nest start --watch (connects to docker-compose infra)
 
 Two edits to add a 4th container:
 
-**`docker-compose.yml`** â€” copy the `api-center-3` block:
+**`deploy/local/docker-compose.yml`** â€” copy the `api-center-3` block:
 ```yaml
 api-center-4:
   <<: *api-center-common
@@ -174,7 +174,7 @@ server api-center-4:3000 max_fails=3 fail_timeout=20s;
 
 Apply:
 ```bash
-docker-compose up -d api-center-4 && docker-compose restart nginx
+docker compose -f deploy/local/docker-compose.yml up -d api-center-4 && docker compose -f deploy/local/docker-compose.yml restart nginx
 ```
 
 ---
@@ -190,10 +190,10 @@ apt-get install jq       # Ubuntu/Debian
 
 # Start the full stack
 cp .env.example .env
-docker-compose up -d
+docker compose -f deploy/local/docker-compose.yml up -d
 
 # Wait for all services to become healthy (~30â€“60 s)
-watch docker-compose ps
+watch docker compose -f deploy/local/docker-compose.yml ps
 ```
 
 ---
@@ -286,7 +286,7 @@ export INTERNAL_JWT_ACCESS_TTL_SECONDS=3600
 export INTERNAL_JWT_REFRESH_TTL_SECONDS=86400
 export JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
 export JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
-docker-compose up -d api-center-1 api-center-2 api-center-3
+docker compose -f deploy/local/docker-compose.yml up -d api-center-1 api-center-2 api-center-3
 
 # Issue an APICenter token through gateway auth endpoint
 curl -s -X POST http://localhost:3000/api/v1/auth/token \
@@ -897,7 +897,7 @@ gcloud secrets add-iam-policy-binding api-center-prod \
 
 ### CI/CD Flow (Cloud Build)
 
-The `cloudbuild.yaml` at the repository root defines the pipeline:
+The `infra/gcp/cloud-build/cloudbuild.yaml` at the repository root defines the pipeline:
 
 1. **`test`** â€” Install deps, lint, run unit tests
 2. **`build`** â€” Build the Docker image from `docker/Dockerfile.gcp`
@@ -912,7 +912,7 @@ gcloud builds triggers create github \
   --repo-name=API_Center \
   --repo-owner=YOUR_GITHUB_ORG \
   --branch-pattern="^main$" \
-  --build-config=cloudbuild.yaml \
+  --build-config=infra/gcp/cloud-build/cloudbuild.yaml \
   --substitutions=\
 _REGION=us-central1,\
 _SERVICE_NAME=api-center,\
@@ -952,8 +952,8 @@ gcloud run deploy api-center \
 Or use the declarative YAML definition:
 
 ```bash
-# Fill in placeholders in gcp/cloudrun.yaml first, then:
-gcloud run services replace gcp/cloudrun.yaml --region=us-central1
+# Fill in placeholders in infra/gcp/cloud-run/cloudrun.yaml first, then:
+gcloud run services replace infra/gcp/cloud-run/cloudrun.yaml --region=us-central1
 ```
 
 ---
@@ -1039,7 +1039,7 @@ below is a legacy rollback path only.
   gcloud auth application-default login
   ```
   The GCP client library picks up Application Default Credentials automatically.
-- The `docker/Dockerfile.gcp` image exposes port `8080` (Cloud Run default). The root `Dockerfile` and `docker-compose.yml` still use port `3000` for local development â€” nothing changes for local dev.
+- The `docker/Dockerfile.gcp` image exposes port `8080` (Cloud Run default). The root `Dockerfile` and `deploy/local/docker-compose.yml` still use port `3000` for local development â€” nothing changes for local dev.
 
 ---
 

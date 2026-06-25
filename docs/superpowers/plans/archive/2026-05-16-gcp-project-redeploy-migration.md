@@ -88,9 +88,9 @@ No code changes are required just to migrate hosting projects. Expected repo edi
 
 | Repo | Files to review or modify |
 |---|---|
-| `api-center` | `docs/deployment-gke.md`, `gcp/gke/*.yaml`, `gcp/gke/provision.sh`, `.env.example`, `docs/production-costing.md` |
-| `api-shared-services` | `gcp/gke/00-shared-services.yaml`, `gcp/gke/README.md`, `scripts/sync-gke-secret.ps1`, `.env.example` |
-| `apicenter-management` | `.env.example`, `gcp/gke/*.yaml` if privately deploying, `docs/operations/apicenter-management-runbook.md` |
+| `api-center` | `docs/deployment-gke.md`, `infra/gcp/gke/*.yaml`, `infra/gcp/gke/provision.sh`, `.env.example`, `docs/production-costing.md` |
+| `api-shared-services` | `infra/gcp/gke/00-shared-services.yaml`, `infra/gcp/gke/README.md`, `scripts/sync-gke-secret.ps1`, `.env.example` |
+| `apicenter-management` | `.env.example`, `infra/gcp/gke/*.yaml` if privately deploying, `docs/operations/apicenter-management-runbook.md` |
 
 ---
 
@@ -255,7 +255,7 @@ Goal: let API Center, shared services, and optional management pods read only th
   Apply the namespace first, then annotate the service account.
 
   ```powershell
-  kubectl apply -f gcp/gke/00-namespace.yaml
+  kubectl apply -f infra/gcp/gke/00-namespace.yaml
   kubectl -n api-center create serviceaccount api-center
   kubectl -n api-center annotate serviceaccount api-center `
     iam.gke.io/gcp-service-account=api-center-gke@<new-project-id>.iam.gserviceaccount.com
@@ -367,11 +367,11 @@ Goal: update Kubernetes manifests for the new project and region.
 
   Modify these files:
 
-  - `api-center/gcp/gke/10-serviceaccount.yaml`
-  - `api-center/gcp/gke/20-configmap.yaml`
-  - `api-center/gcp/gke/30-deployment.yaml`
-  - `api-center/gcp/gke/70-managedcert.yaml`
-  - `api-center/gcp/gke/80-ingress.yaml`
+  - `api-center/infra/gcp/gke/10-serviceaccount.yaml`
+  - `api-center/infra/gcp/gke/20-configmap.yaml`
+  - `api-center/infra/gcp/gke/30-deployment.yaml`
+  - `api-center/infra/gcp/gke/70-managedcert.yaml`
+  - `api-center/infra/gcp/gke/80-ingress.yaml`
 
   Required changes:
 
@@ -385,9 +385,9 @@ Goal: update Kubernetes manifests for the new project and region.
 
   Modify:
 
-  - `api-shared-services/gcp/gke/00-shared-services.yaml`
+  - `api-shared-services/infra/gcp/gke/00-shared-services.yaml`
   - `api-shared-services/scripts/sync-gke-secret.ps1`
-  - `api-shared-services/gcp/gke/README.md`
+  - `api-shared-services/infra/gcp/gke/README.md`
 
   Required changes:
 
@@ -456,7 +456,7 @@ Goal: deploy the new stack without changing public DNS yet.
 
   ```powershell
   cd C:\Codes\apic\api-center
-  kubectl apply -f gcp/gke/
+  kubectl apply -f infra/gcp/gke/
   kubectl -n api-center rollout status deploy/api-center --timeout=10m
   ```
 
@@ -465,7 +465,7 @@ Goal: deploy the new stack without changing public DNS yet.
   ```powershell
   cd C:\Codes\apic\api-shared-services
   .\scripts\sync-gke-secret.ps1
-  kubectl apply -f gcp/gke/00-shared-services.yaml
+  kubectl apply -f infra/gcp/gke/00-shared-services.yaml
   kubectl -n api-center rollout status deploy/payment-service --timeout=5m
   kubectl -n api-center rollout status deploy/sms-service --timeout=5m
   kubectl -n api-center rollout status deploy/email-service --timeout=5m
@@ -657,7 +657,7 @@ Goal: make the new project the documented source of truth.
   - expected cost delta from region change
   - resources left alive during rollback window
 
-- [ ] **Step 3: Update `api-shared-services/gcp/gke/README.md`**
+- [ ] **Step 3: Update `api-shared-services/infra/gcp/gke/README.md`**
 
   Replace:
 
@@ -677,7 +677,7 @@ Goal: make the new project the documented source of truth.
 
   ```powershell
   git status --short
-  git add docs/deployment-gke.md docs/production-costing.md gcp/gke README.md
+  git add docs/deployment-gke.md docs/production-costing.md infra/gcp/gke README.md
   git commit -m "docs: update gcp migration target state"
   ```
 
