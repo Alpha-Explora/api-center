@@ -31,4 +31,65 @@ describe("PipelineHealthController", () => {
     ).rejects.toBeInstanceOf(DataPipelineDisabledError);
     expect(rawToSilverRuns.startRun).not.toHaveBeenCalled();
   });
+  it("adds source metadata to pipeline health responses", async () => {
+    const pipelineHealth = {
+      listHealth: jest.fn().mockResolvedValue([]),
+      getResponseSource: jest.fn().mockReturnValue("athena-proxy"),
+    };
+    const controller = new PipelineHealthController(
+      pipelineHealth as unknown as PipelineHealthService,
+      {} as PipelineGovernanceService,
+      {} as RawToSilverRunService,
+      { dataPipeline: { enabled: true } } as ConfigService,
+    );
+
+    const response = await controller.getHealth(
+      "prod",
+      undefined,
+      undefined,
+      undefined,
+      { correlationId: "corr-health" } as never,
+    );
+
+    expect(response.meta.sourceMetadata).toEqual([
+      expect.objectContaining({
+        sourceType: "external",
+        sourceName: "pipeline-health-athena",
+        durability: "athena",
+        correlationId: "corr-health",
+      }),
+    ]);
+  });
+
+  it("adds volatile source metadata to fixture-backed governance responses", async () => {
+    const pipelineGovernance = {
+      listQuality: jest.fn().mockResolvedValue([]),
+      getResponseSource: jest.fn().mockReturnValue("evidence-file"),
+    };
+    const controller = new PipelineHealthController(
+      {} as PipelineHealthService,
+      pipelineGovernance as unknown as PipelineGovernanceService,
+      {} as RawToSilverRunService,
+      { dataPipeline: { enabled: true } } as ConfigService,
+    );
+
+    const response = await controller.getQuality(
+      "test",
+      undefined,
+      undefined,
+      undefined,
+      "30",
+      { correlationId: "corr-quality" } as never,
+    );
+
+    expect(response.meta.sourceMetadata).toEqual([
+      expect.objectContaining({
+        sourceType: "volatile",
+        sourceName: "pipeline-governance-evidence-file",
+        durability: "none",
+        correlationId: "corr-quality",
+      }),
+    ]);
+  });
+
 });

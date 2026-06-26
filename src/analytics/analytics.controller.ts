@@ -8,6 +8,7 @@ import {
   SharedServiceUsageWindow,
 } from "./shared-service-usage.service";
 import { ValidationError } from "../shared/errors";
+import { computedSourceMetadata } from "./source-metadata";
 import { AuthenticatedRequest } from "../types";
 
 const USAGE_WINDOWS: SharedServiceUsageWindow[] = ["1h", "24h", "7d", "30d"];
@@ -28,15 +29,18 @@ export class AnalyticsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const selectedWindow = this.parseWindow(window);
-    const data = await this.usage.listUsage(selectedWindow);
+    const result = await this.usage.listUsageWithSourceMetadata(selectedWindow);
 
     return {
       success: true,
-      data,
+      data: result.data,
       meta: {
         window: selectedWindow,
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
+        sourceMetadata: [
+          { ...result.sourceMetadata, correlationId: req.correlationId },
+        ],
       },
     };
   }
@@ -47,15 +51,19 @@ export class AnalyticsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const selectedWindow = this.parseWindow(window);
-    const data = await this.gatewayTraffic.getSummary(selectedWindow);
+    const result =
+      await this.gatewayTraffic.getSummaryWithSourceMetadata(selectedWindow);
 
     return {
       success: true,
-      data,
+      data: result.data,
       meta: {
         window: selectedWindow,
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
+        sourceMetadata: [
+          { ...result.sourceMetadata, correlationId: req.correlationId },
+        ],
       },
     };
   }
@@ -66,7 +74,9 @@ export class AnalyticsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const selectedWindow = this.parseWindow(window);
-    const usage = await this.usage.listUsage(selectedWindow);
+    const usageResult =
+      await this.usage.listUsageWithSourceMetadata(selectedWindow);
+    const usage = usageResult.data;
     const grouped = new Map<
       string,
       {
@@ -122,6 +132,9 @@ export class AnalyticsController {
         window: selectedWindow,
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
+        sourceMetadata: [
+          { ...usageResult.sourceMetadata, correlationId: req.correlationId },
+        ],
       },
     };
   }
@@ -132,10 +145,12 @@ export class AnalyticsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const selectedWindow = this.parseWindow(window);
-    const [usage, gateway] = await Promise.all([
-      this.usage.listUsage(selectedWindow),
-      this.gatewayTraffic.getSummary(selectedWindow),
+    const [usageResult, gatewayResult] = await Promise.all([
+      this.usage.listUsageWithSourceMetadata(selectedWindow),
+      this.gatewayTraffic.getSummaryWithSourceMetadata(selectedWindow),
     ]);
+    const usage = usageResult.data;
+    const gateway = gatewayResult.data;
     const registryEntries = Object.values(this.registry.getAll());
     const alerts = [];
 
@@ -234,6 +249,14 @@ export class AnalyticsController {
         total: alerts.length,
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
+        sourceMetadata: [
+          { ...usageResult.sourceMetadata, correlationId: req.correlationId },
+          { ...gatewayResult.sourceMetadata, correlationId: req.correlationId },
+          computedSourceMetadata({
+            sourceName: "registry-alert-projection",
+            correlationId: req.correlationId,
+          }),
+        ],
       },
     };
   }
@@ -247,7 +270,7 @@ export class AnalyticsController {
     @Query("actor") actor: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
-    const data = await this.auditEvents.list({
+    const result = await this.auditEvents.listWithSourceMetadata({
       limit: limit ? Number(limit) : 100,
       serviceId,
       type,
@@ -257,11 +280,14 @@ export class AnalyticsController {
 
     return {
       success: true,
-      data,
+      data: result.data,
       meta: {
-        total: data.length,
+        total: result.data.length,
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
+        sourceMetadata: [
+          { ...result.sourceMetadata, correlationId: req.correlationId },
+        ],
       },
     };
   }

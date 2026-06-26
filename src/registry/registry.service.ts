@@ -78,27 +78,33 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // -------------------------------------------------------------------------
 
   async onModuleInit() {
-    try {
-      this.redis = new Redis(this.config.redis.cacheUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times) => Math.min(times * 200, 3000),
-      });
+    const registrySource = this.config.database.registrySource;
 
+    try {
+      this.redis = this.createRedisClient();
       await this.redis.connect();
       this.logger.info("Registry connected to Redis (cache)", {});
 
-      if (this.config.database.registrySource === "postgres") {
-        await this.loadFromPostgres();
-      } else {
-        await this.loadFromRedis();
-      }
     } catch (err) {
       this.logger.warn(
         `Registry Redis unavailable — running in memory-only mode: ${(err as Error).message}`,
         "RegistryService",
       );
       this.redis = null;
+    }
+
+    if (registrySource === "postgres") {
+      await this.loadFromPostgres();
+      return;
+    }
+
+    try {
+      await this.loadFromRedis();
+    } catch (err) {
+      this.logger.warn(
+        `Registry Redis load failed â€” running in memory-only mode: ${(err as Error).message}`,
+        "RegistryService",
+      );
     }
   }
 
@@ -107,6 +113,14 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       await this.redis.quit();
       this.logger.info("Registry Redis connection closed", {});
     }
+  }
+
+  private createRedisClient(): Redis {
+    return new Redis(this.config.redis.cacheUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 3,
+      retryStrategy: (times) => Math.min(times * 200, 3000),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -642,7 +656,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
         "RegistryService",
       );
     });
-    this.persistToPostgresIfEnabled(entry).catch((err) => {
+    this.persistHealthToPostgresIfEnabled(entry).catch((err) => {
       this.logger.warn(
         `Postgres persist failed for health update '${serviceId}': ${(err as Error).message}`,
         "RegistryService",
@@ -943,6 +957,13 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     if (!this.shouldWritePostgres()) return;
     await this.postgresStore!.upsert(entry);
+  }
+
+  private async persistHealthToPostgresIfEnabled(
+    entry: ServiceRegistryEntry,
+  ): Promise<void> {
+    if (!this.shouldWritePostgres()) return;
+    await this.postgresStore!.updateHealthStatus(entry);
   }
 
   private async removeFromPostgresIfEnabled(serviceId: string): Promise<void> {

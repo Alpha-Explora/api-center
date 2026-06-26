@@ -3,7 +3,7 @@ import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
 
 describe("TribeQuotaPolicyService", () => {
   let prisma: {
-    tribeApiQuotaPolicy: {
+    quotaPolicy: {
       findMany: jest.Mock;
     };
   };
@@ -11,7 +11,7 @@ describe("TribeQuotaPolicyService", () => {
 
   beforeEach(() => {
     prisma = {
-      tribeApiQuotaPolicy: {
+      quotaPolicy: {
         findMany: jest.fn(),
       },
     };
@@ -19,7 +19,7 @@ describe("TribeQuotaPolicyService", () => {
   });
 
   it("chooses the most specific active policy for a tribe target", async () => {
-    prisma.tribeApiQuotaPolicy.findMany.mockResolvedValue([
+    prisma.quotaPolicy.findMany.mockResolvedValue([
       {
         id: "policy-all",
         ownerTribeId: "campus-one",
@@ -62,7 +62,7 @@ describe("TribeQuotaPolicyService", () => {
   });
 
   it("falls back to a namespace policy before an all-scope policy", async () => {
-    prisma.tribeApiQuotaPolicy.findMany.mockResolvedValue([
+    prisma.quotaPolicy.findMany.mockResolvedValue([
       {
         id: "policy-all",
         ownerTribeId: "campus-one",

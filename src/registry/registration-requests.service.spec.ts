@@ -1,7 +1,7 @@
-import { RegistrationRequestsService } from "./registration-requests.service";
 import { PrismaService } from "../database/prisma.service";
-import { RegistryService } from "./registry.service";
 import { ServiceManifest } from "../types";
+import { RegistryService } from "./registry.service";
+import { RegistrationRequestsService } from "./registration-requests.service";
 
 function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {
   return {
@@ -21,28 +21,33 @@ function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {
 function row(overrides: Record<string, unknown> = {}) {
   return {
     id: "00000000-0000-0000-0000-000000000001",
-    service_id: "logistics-orders",
-    owner_tribe_id: "logistics",
+    serviceId: "logistics-orders",
+    ownerTribeId: "logistics",
     status: "pending",
     manifest: manifest(),
-    validation_report: { canApply: true, issues: [] },
-    requested_by: "github:logistics/orders",
-    approved_by: null,
-    rejected_by: null,
-    rejection_reason: null,
-    applied_service_id: null,
-    created_at: new Date("2026-05-20T00:00:00.000Z"),
-    updated_at: new Date("2026-05-20T00:00:00.000Z"),
-    decided_at: null,
-    applied_at: null,
+    validationReport: { canApply: true, issues: [] },
+    requestedBy: "github:logistics/orders",
+    approvedBy: null,
+    rejectedBy: null,
+    rejectionReason: null,
+    appliedServiceId: null,
+    createdAt: new Date("2026-05-20T00:00:00.000Z"),
+    updatedAt: new Date("2026-05-20T00:00:00.000Z"),
+    decidedAt: null,
+    appliedAt: null,
     ...overrides,
   };
 }
 
 describe("RegistrationRequestsService", () => {
   let prisma: {
-    $queryRawUnsafe: jest.Mock;
-    $executeRawUnsafe: jest.Mock;
+    registryChangeRequest: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+    };
   };
   let registry: {
     getAll: jest.Mock;
@@ -52,8 +57,13 @@ describe("RegistrationRequestsService", () => {
 
   beforeEach(() => {
     prisma = {
-      $queryRawUnsafe: jest.fn(),
-      $executeRawUnsafe: jest.fn(),
+      registryChangeRequest: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
     };
     registry = {
       getAll: jest.fn().mockReturnValue({
@@ -77,24 +87,23 @@ describe("RegistrationRequestsService", () => {
   });
 
   it("creates a pending request with owner tribe metadata and validation report", async () => {
-    prisma.$queryRawUnsafe.mockResolvedValueOnce([row()]);
+    prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
 
     const result = await service.createRequest({
       manifest: manifest(),
       requestedBy: "github:logistics/orders",
     });
 
-    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "insert into api_center_ops.service_registration_requests",
-      ),
-      "logistics-orders",
-      "logistics",
-      "pending",
-      expect.stringContaining('"serviceId":"logistics-orders"'),
-      expect.stringContaining('"canApply":true'),
-      "github:logistics/orders",
-    );
+    expect(prisma.registryChangeRequest.create).toHaveBeenCalledWith({
+      data: {
+        serviceId: "logistics-orders",
+        ownerTribeId: "logistics",
+        status: "pending",
+        manifest: expect.objectContaining({ serviceId: "logistics-orders" }),
+        validationReport: { canApply: true, issues: [] },
+        requestedBy: "github:logistics/orders",
+      },
+    });
     expect(result).toMatchObject({
       id: "00000000-0000-0000-0000-000000000001",
       serviceId: "logistics-orders",
@@ -104,17 +113,16 @@ describe("RegistrationRequestsService", () => {
   });
 
   it("approves a pending request by registering the manifest and marking it applied", async () => {
-    prisma.$queryRawUnsafe
-      .mockResolvedValueOnce([row()])
-      .mockResolvedValueOnce([
-        row({
-          status: "applied",
-          approved_by: "platform-admin",
-          applied_service_id: "logistics-orders",
-          decided_at: new Date("2026-05-20T00:05:00.000Z"),
-          applied_at: new Date("2026-05-20T00:05:00.000Z"),
-        }),
-      ]);
+    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
+    prisma.registryChangeRequest.update.mockResolvedValueOnce(
+      row({
+        status: "applied",
+        approvedBy: "platform-admin",
+        appliedServiceId: "logistics-orders",
+        decidedAt: new Date("2026-05-20T00:05:00.000Z"),
+        appliedAt: new Date("2026-05-20T00:05:00.000Z"),
+      }),
+    );
 
     const result = await service.approveRequest(
       "00000000-0000-0000-0000-000000000001",
@@ -124,35 +132,36 @@ describe("RegistrationRequestsService", () => {
     expect(registry.register).toHaveBeenCalledWith(
       expect.objectContaining({ serviceId: "logistics-orders" }),
     );
-    expect(prisma.$queryRawUnsafe).toHaveBeenLastCalledWith(
-      expect.stringContaining("status = 'applied'"),
-      "platform-admin",
-      "logistics-orders",
-      expect.stringContaining('"canApply":true'),
-      "00000000-0000-0000-0000-000000000001",
-    );
+    expect(prisma.registryChangeRequest.update).toHaveBeenCalledWith({
+      where: { id: "00000000-0000-0000-0000-000000000001" },
+      data: expect.objectContaining({
+        status: "applied",
+        approvedBy: "platform-admin",
+        appliedServiceId: "logistics-orders",
+        validationReport: { canApply: true, issues: [] },
+      }),
+    });
     expect(result.status).toBe("applied");
   });
 
   it("recomputes validation at approval time and blocks stale requests", async () => {
     registry.getAll.mockReturnValue({});
-    prisma.$queryRawUnsafe
-      .mockResolvedValueOnce([row()])
-      .mockResolvedValueOnce([
-        row({
-          validation_report: {
-            canApply: false,
-            issues: [
-              {
-                severity: "blocking",
-                code: "owner-tribe-missing",
-                serviceId: "logistics-orders",
-                message: "Owner tribe is missing.",
-              },
-            ],
-          },
-        }),
-      ]);
+    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
+    prisma.registryChangeRequest.update.mockResolvedValueOnce(
+      row({
+        validationReport: {
+          canApply: false,
+          issues: [
+            {
+              severity: "blocking",
+              code: "owner-tribe-missing",
+              serviceId: "logistics-orders",
+              message: "Owner tribe is missing.",
+            },
+          ],
+        },
+      }),
+    );
 
     await expect(
       service.approveRequest(
@@ -164,40 +173,40 @@ describe("RegistrationRequestsService", () => {
     );
 
     expect(registry.register).not.toHaveBeenCalled();
-    expect(prisma.$queryRawUnsafe).toHaveBeenLastCalledWith(
-      expect.stringContaining("set validation_report = cast($1 as jsonb)"),
-      expect.stringContaining('"canApply":false'),
-      "00000000-0000-0000-0000-000000000001",
-    );
+    expect(prisma.registryChangeRequest.update).toHaveBeenCalledWith({
+      where: { id: "00000000-0000-0000-0000-000000000001" },
+      data: {
+        validationReport: expect.objectContaining({ canApply: false }),
+      },
+    });
   });
 
   it("treats kafka consumes as a platform capability instead of an unknown service", async () => {
-    prisma.$queryRawUnsafe.mockResolvedValueOnce([row()]);
+    prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
 
     await service.createRequest({
       manifest: manifest({ consumes: ["kafka"] }),
       requestedBy: "github:logistics/orders",
     });
 
-    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.any(String),
-      "logistics-orders",
-      "logistics",
-      "pending",
-      expect.any(String),
-      expect.not.stringContaining("unknown-consumed-service"),
-      "github:logistics/orders",
-    );
+    expect(prisma.registryChangeRequest.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        validationReport: { canApply: true, issues: [] },
+      }),
+    });
   });
 
   it("rejects a pending request without registering the manifest", async () => {
-    prisma.$queryRawUnsafe.mockResolvedValueOnce([
+    prisma.registryChangeRequest.updateMany.mockResolvedValueOnce({
+      count: 1,
+    });
+    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(
       row({
         status: "rejected",
-        rejected_by: "platform-admin",
-        rejection_reason: "Consumes list not approved.",
+        rejectedBy: "platform-admin",
+        rejectionReason: "Consumes list not approved.",
       }),
-    ]);
+    );
 
     const result = await service.rejectRequest(
       "00000000-0000-0000-0000-000000000001",
@@ -206,6 +215,17 @@ describe("RegistrationRequestsService", () => {
     );
 
     expect(registry.register).not.toHaveBeenCalled();
+    expect(prisma.registryChangeRequest.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "00000000-0000-0000-0000-000000000001",
+        status: "pending",
+      },
+      data: expect.objectContaining({
+        status: "rejected",
+        rejectedBy: "platform-admin",
+        rejectionReason: "Consumes list not approved.",
+      }),
+    });
     expect(result).toMatchObject({
       status: "rejected",
       rejectedBy: "platform-admin",
@@ -214,7 +234,9 @@ describe("RegistrationRequestsService", () => {
   });
 
   it("does not approve a non-pending request", async () => {
-    prisma.$queryRawUnsafe.mockResolvedValueOnce([row({ status: "rejected" })]);
+    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(
+      row({ status: "rejected" }),
+    );
 
     await expect(
       service.approveRequest(

@@ -72,10 +72,16 @@ export class TribeQuotaAdminController {
       createdBy: actor,
       updatedBy: actor,
     });
-    this.recordAudit("quota.policy.updated", body.ownerTribeId, actor, req, {
-      mode: policy.mode,
-      policyId: policy.id,
-    });
+    await this.recordAudit(
+      "quota.policy.created",
+      body.ownerTribeId,
+      actor,
+      req,
+      {
+        mode: policy.mode,
+        policyId: policy.id,
+      },
+    );
 
     return this.response(this.toPolicyResponse(policy), req);
   }
@@ -96,7 +102,7 @@ export class TribeQuotaAdminController {
       ...policyInput,
       updatedBy: this.resolveActor(req),
     });
-    this.recordAudit(
+    await this.recordAudit(
       "quota.policy.updated",
       policy.ownerTribeId,
       this.resolveActor(req),
@@ -115,7 +121,7 @@ export class TribeQuotaAdminController {
     const policy = await this.policies.disablePolicy(policyId, {
       updatedBy: this.resolveActor(req),
     });
-    this.recordAudit(
+    await this.recordAudit(
       "quota.policy.disabled",
       policy.ownerTribeId,
       this.resolveActor(req),
@@ -224,26 +230,33 @@ export class TribeQuotaAdminController {
     return value instanceof Date ? value.toISOString() : value;
   }
 
-  private recordAudit(
+  private async recordAudit(
     type: string,
     ownerTribeId: string,
     actor: string | undefined,
     req: AuthenticatedRequest,
     payload: Record<string, unknown>,
-  ): void {
-    this.auditEvents
-      ?.record({
-        type,
-        actionFamily: "quota",
-        actor: actor ?? "platform",
-        severity: "info",
-        message: `Quota policy updated for ${ownerTribeId}`,
-        payload: {
-          ownerTribeId,
-          correlationId: req.correlationId,
-          ...payload,
-        },
-      })
-      .catch(() => undefined);
+  ): Promise<void> {
+    const auditEvents = requireGovernanceDependency(
+      this.auditEvents,
+      "AuditEventsService",
+    );
+    await auditEvents.recordRequired({
+      type,
+      actionFamily: "quota",
+      actor: actor ?? "platform",
+      resourceType: "quota_policy",
+      resourceId: String(payload.policyId ?? ownerTribeId),
+      environment: "live",
+      correlationId:
+        req.correlationId ?? String(payload.policyId ?? ownerTribeId),
+      severity: "info",
+      message: `Quota policy updated for ${ownerTribeId}`,
+      payload: {
+        ownerTribeId,
+        correlationId: req.correlationId,
+        ...payload,
+      },
+    });
   }
 }

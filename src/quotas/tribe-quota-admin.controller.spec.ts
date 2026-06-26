@@ -1,5 +1,6 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ValidationError } from "../shared/errors";
 import { TribeQuotaAdminController } from "./tribe-quota-admin.controller";
 import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
@@ -15,13 +16,16 @@ describe("TribeQuotaAdminController", () => {
     assertApprovedForAction: jest.fn(),
   };
 
+  let auditEvents: { recordRequired: jest.Mock };
   let controller: TribeQuotaAdminController;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    auditEvents = { recordRequired: jest.fn().mockResolvedValue(undefined) };
     controller = new TribeQuotaAdminController(
       policies as unknown as TribeQuotaPolicyService,
       approvals as any,
+      auditEvents as unknown as AuditEventsService,
     );
   });
 
@@ -67,6 +71,37 @@ describe("TribeQuotaAdminController", () => {
       id: "quota-policy-1",
       status: "disabled",
     });
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith({
+      type: "quota.policy.disabled",
+      actionFamily: "quota",
+      actor: "platform",
+      severity: "info",
+      resourceType: "quota_policy",
+      resourceId: "quota-policy-1",
+      environment: "live",
+      correlationId: "corr-admin",
+      message: "Quota policy updated for campus-one",
+      payload: {
+        ownerTribeId: "campus-one",
+        correlationId: "corr-admin",
+        mode: "observe",
+        policyId: "quota-policy-1",
+      },
+    });
+  });
+
+  it("fails closed when quota policy audit evidence cannot be written", async () => {
+    policies.disablePolicy.mockResolvedValue(policy({ status: "disabled" }));
+    auditEvents.recordRequired.mockRejectedValueOnce(
+      new Error("audit unavailable"),
+    );
+
+    await expect(
+      controller.deletePolicy("quota-policy-1", {
+        user: { tribeId: "platform", scopes: ["platform:admin"] },
+        correlationId: "corr-admin",
+      } as any),
+    ).rejects.toThrow("audit unavailable");
   });
 
   it("returns safe policy metadata when listing policies", async () => {
@@ -98,6 +133,7 @@ describe("TribeQuotaAdminController", () => {
     const guardedController = new TribeQuotaAdminController(
       policies as unknown as TribeQuotaPolicyService,
       approvals as any,
+      auditEvents as unknown as AuditEventsService,
     );
 
     await guardedController.createPolicy(
@@ -121,6 +157,18 @@ describe("TribeQuotaAdminController", () => {
     });
     expect(policies.createPolicy).toHaveBeenCalledWith(
       expect.not.objectContaining({ approvalRequestId: expect.anything() }),
+    );
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "quota.policy.created",
+        actionFamily: "quota",
+        actor: "platform",
+        payload: expect.objectContaining({
+          ownerTribeId: "campus-one",
+          mode: "enforce",
+          policyId: "quota-policy-1",
+        }),
+      }),
     );
   });
 

@@ -169,22 +169,24 @@ describe("PipelineFeedbackService", () => {
     );
   });
 
-  it("persists feedback records through Postgres when a Prisma client is provided", async () => {
+  it("persists feedback records through Prisma when database mode is enabled", async () => {
     const prisma = {
-      $queryRawUnsafe: jest.fn(async () => [
-        dbRow({
-          id: "00000000-0000-0000-0000-000000000001",
-          action: "evidence.reviewed",
-          environment: "test",
-          target_type: "topic",
-          target_id: "test.api-center.pipeline.athena-query-execution",
-          reason: "Reviewed test telemetry evidence",
-          actor_id: "operator@example.com",
-          actor_role: "platform-admin",
-          correlation_id: "corr_postgres_feedback",
-          status: "reviewed",
-        }),
-      ]),
+      pipelineFeedbackActionRecord: {
+        create: jest.fn(async () =>
+          dbRow({
+            id: "00000000-0000-0000-0000-000000000001",
+            action: "evidence.reviewed",
+            environment: "test",
+            targetType: "topic",
+            targetId: "test.api-center.pipeline.athena-query-execution",
+            reason: "Reviewed test telemetry evidence",
+            actorId: "operator@example.com",
+            actorRole: "platform-admin",
+            correlationId: "corr_postgres_feedback",
+            status: "reviewed",
+          }),
+        ),
+      },
     };
     const service = new PipelineFeedbackService(
       {
@@ -209,22 +211,21 @@ describe("PipelineFeedbackService", () => {
       },
     );
 
-    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "insert into api_center_ops.pipeline_feedback_actions",
-      ),
-      "evidence.reviewed",
-      "test",
-      "topic",
-      "test.api-center.pipeline.athena-query-execution",
-      null,
-      null,
-      "Reviewed test telemetry evidence",
-      "operator@example.com",
-      "platform-admin",
-      "corr_postgres_feedback",
-      "reviewed",
-    );
+    expect(prisma.pipelineFeedbackActionRecord.create).toHaveBeenCalledWith({
+      data: {
+        action: "evidence.reviewed",
+        environment: "test",
+        targetType: "topic",
+        targetId: "test.api-center.pipeline.athena-query-execution",
+        ownerTribeId: undefined,
+        evidenceLink: undefined,
+        reason: "Reviewed test telemetry evidence",
+        actorId: "operator@example.com",
+        actorRole: "platform-admin",
+        correlationId: "corr_postgres_feedback",
+        status: "reviewed",
+      },
+    });
     expect(record).toMatchObject({
       id: "00000000-0000-0000-0000-000000000001",
       correlationId: "corr_postgres_feedback",
@@ -232,13 +233,15 @@ describe("PipelineFeedbackService", () => {
     });
   });
 
-  it("lists feedback records from Postgres when a Prisma client is provided", async () => {
+  it("lists feedback records from Prisma when database mode is enabled", async () => {
     const prisma = {
-      $queryRawUnsafe: jest.fn(async () => [
-        dbRow({
-          target_id: "test.api-center.pipeline.athena-query-execution",
-        }),
-      ]),
+      pipelineFeedbackActionRecord: {
+        findMany: jest.fn(async () => [
+          dbRow({
+            targetId: "test.api-center.pipeline.athena-query-execution",
+          }),
+        ]),
+      },
     };
     const service = new PipelineFeedbackService(
       { databaseEnabled: true },
@@ -256,16 +259,22 @@ describe("PipelineFeedbackService", () => {
       }),
     ]);
 
-    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("from api_center_ops.pipeline_feedback_actions"),
-      "test",
-      "test.api-center.pipeline.athena-query-execution",
-    );
+    expect(prisma.pipelineFeedbackActionRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        environment: "test",
+        targetId: "test.api-center.pipeline.athena-query-execution",
+        targetType: undefined,
+      },
+      orderBy: { createdAt: "desc" },
+    });
   });
 
   it("falls back to memory storage when Postgres is not enabled", async () => {
     const prisma = {
-      $queryRawUnsafe: jest.fn(),
+      pipelineFeedbackActionRecord: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+      },
     };
     const service = new PipelineFeedbackService(
       {
@@ -305,7 +314,8 @@ describe("PipelineFeedbackService", () => {
         id: "pfb_memory_mode",
       }),
     ]);
-    expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
+    expect(prisma.pipelineFeedbackActionRecord.create).not.toHaveBeenCalled();
+    expect(prisma.pipelineFeedbackActionRecord.findMany).not.toHaveBeenCalled();
   });
 
   it("fails closed when database mode is enabled without a Prisma client", async () => {
@@ -339,16 +349,16 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     id: "00000000-0000-0000-0000-000000000001",
     action: "validation.rerun.requested",
     environment: "test",
-    target_type: "topic",
-    target_id: "test.tribe.logistics.events",
-    owner_tribe_id: null,
-    evidence_link: null,
+    targetType: "topic",
+    targetId: "test.tribe.logistics.events",
+    ownerTribeId: null,
+    evidenceLink: null,
     reason: "Validate test evidence",
-    actor_id: "platform-admin",
-    actor_role: "platform-admin",
-    correlation_id: null,
+    actorId: "platform-admin",
+    actorRole: "platform-admin",
+    correlationId: null,
     status: "pending",
-    created_at: new Date("2026-05-21T00:00:00.000Z"),
+    createdAt: new Date("2026-05-21T00:00:00.000Z"),
     ...overrides,
   };
 }

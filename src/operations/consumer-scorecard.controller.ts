@@ -30,8 +30,8 @@ export class ConsumerScorecardController {
     @Optional() private readonly gatewayTraffic?: GatewayTrafficService,
   ) {
     this.quotaDecisions = (
-      prisma as unknown as { tribeApiQuotaDecision?: QuotaDecisionDelegate }
-    ).tribeApiQuotaDecision;
+      prisma as unknown as { quotaEvaluation?: QuotaDecisionDelegate }
+    ).quotaEvaluation;
   }
 
   @Get()

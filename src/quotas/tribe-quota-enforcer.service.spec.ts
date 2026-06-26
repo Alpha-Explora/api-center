@@ -1,3 +1,4 @@
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ConfigService } from "../config/config.service";
 import { PrismaService } from "../database/prisma.service";
 import { TribeCostService } from "../costs/tribe-cost.service";
@@ -9,10 +10,11 @@ describe("TribeQuotaEnforcerService", () => {
     resolvePolicy: jest.Mock;
   };
   let prisma: {
-    tribeApiQuotaDecision: {
+    quotaEvaluation: {
       create: jest.Mock;
     };
   };
+  let auditEvents: { record: jest.Mock };
   let service: TribeQuotaEnforcerService;
 
   beforeEach(() => {
@@ -20,10 +22,11 @@ describe("TribeQuotaEnforcerService", () => {
       resolvePolicy: jest.fn(),
     };
     prisma = {
-      tribeApiQuotaDecision: {
+      quotaEvaluation: {
         create: jest.fn().mockResolvedValue({}),
       },
     };
+    auditEvents = { record: jest.fn().mockResolvedValue(undefined) };
     service = new TribeQuotaEnforcerService(
       policies as unknown as TribeQuotaPolicyService,
       prisma as unknown as PrismaService,
@@ -31,6 +34,7 @@ describe("TribeQuotaEnforcerService", () => {
         redis: { rateLimitUrl: "" },
       } as ConfigService,
       new TribeCostService(),
+      auditEvents as unknown as AuditEventsService,
     );
   });
 
@@ -40,8 +44,8 @@ describe("TribeQuotaEnforcerService", () => {
     await expect(service.check(request())).resolves.toBeUndefined();
     await expect(service.check(request())).resolves.toBeUndefined();
 
-    expect(prisma.tribeApiQuotaDecision.create).toHaveBeenCalledTimes(2);
-    expect(prisma.tribeApiQuotaDecision.create).toHaveBeenLastCalledWith({
+    expect(prisma.quotaEvaluation.create).toHaveBeenCalledTimes(2);
+    expect(prisma.quotaEvaluation.create).toHaveBeenLastCalledWith({
       data: expect.objectContaining({
         ownerTribeId: "campus-one",
         requestCount: 2,
@@ -50,6 +54,32 @@ describe("TribeQuotaEnforcerService", () => {
         outcome: "allowed",
       }),
     });
+    expect(auditEvents.record).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "quota.evaluation.allowed",
+        actionFamily: "quota",
+        actor: "campus-one",
+        resourceType: "quota_evaluation",
+        resourceId: "corr-123",
+        environment: "runtime",
+        correlationId: "corr-123",
+        severity: "info",
+        message: "Quota evaluation allowed for campus-one",
+        payload: expect.objectContaining({
+          ownerTribeId: "campus-one",
+          policyId: "policy-payment",
+          scope: "shared",
+          targetServiceId: "payment-service",
+          routeFamily: "shared-service",
+          requestCount: 2,
+          maxRequests: 2,
+          mode: "enforce",
+          outcome: "allowed",
+          actionOutcome: "allowed",
+          correlationId: "corr-123",
+        }),
+      }),
+    );
   });
 
   it("records observed_exceeded without blocking when policy mode is observe", async () => {
@@ -60,7 +90,7 @@ describe("TribeQuotaEnforcerService", () => {
     await service.check(request());
     await expect(service.check(request())).resolves.toBeUndefined();
 
-    expect(prisma.tribeApiQuotaDecision.create).toHaveBeenLastCalledWith({
+    expect(prisma.quotaEvaluation.create).toHaveBeenLastCalledWith({
       data: expect.objectContaining({
         requestCount: 2,
         maxRequests: 1,
@@ -88,6 +118,25 @@ describe("TribeQuotaEnforcerService", () => {
         },
       }),
     });
+    expect(auditEvents.record).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "quota.evaluation.denied",
+        actionFamily: "quota",
+        actor: "campus-one",
+        resourceType: "quota_evaluation",
+        resourceId: "corr-123",
+        environment: "runtime",
+        correlationId: "corr-123",
+        severity: "warning",
+        message: "Quota evaluation denied for campus-one",
+        payload: expect.objectContaining({
+          outcome: "blocked",
+          actionOutcome: "denied",
+          requestCount: 2,
+          maxRequests: 1,
+        }),
+      }),
+    );
   });
 
   it("falls back to memory counters when Redis is not writeable", async () => {
@@ -110,7 +159,7 @@ describe("TribeQuotaEnforcerService", () => {
 
     await expect(service.check(request())).resolves.toBeUndefined();
 
-    expect(prisma.tribeApiQuotaDecision.create).not.toHaveBeenCalled();
+    expect(prisma.quotaEvaluation.create).not.toHaveBeenCalled();
   });
 
   it("estimates chargeback when usage is above 80 percent of quota", () => {

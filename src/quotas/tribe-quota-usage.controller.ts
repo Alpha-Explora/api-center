@@ -48,8 +48,8 @@ export class TribeQuotaUsageController {
     @Optional() private readonly forecasts?: QuotaForecastService,
   ) {
     this.decisions = (
-      prisma as unknown as { tribeApiQuotaDecision: QuotaDecisionDelegate }
-    ).tribeApiQuotaDecision;
+      prisma as unknown as { quotaEvaluation: QuotaDecisionDelegate }
+    ).quotaEvaluation;
   }
 
   @Get()

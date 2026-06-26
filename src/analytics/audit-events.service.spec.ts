@@ -58,4 +58,204 @@ describe("AuditEventsService", () => {
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("quota.policy.updated");
   });
+
+  it("dual-writes audit events to Postgres when database mode is enabled", async () => {
+    const original = process.env.DATABASE_ENABLED;
+    process.env.DATABASE_ENABLED = "true";
+    const prisma = {
+      auditEvent: {
+        create: jest.fn(async () => ({})),
+        findMany: jest.fn(),
+      },
+    };
+    const logger = { info: jest.fn(), warn: jest.fn() };
+    const databaseBackedService = new AuditEventsService(
+      { redis: { cacheUrl: "" } } as any,
+      logger as any,
+      prisma as any,
+    );
+
+    try {
+      const record = await databaseBackedService.record({
+        type: "quota.policy.updated",
+        severity: "warning",
+        message: "Quota policy updated",
+        actor: "platform@example.test",
+        actionFamily: "quota",
+        serviceId: "orders-api",
+        payload: { ownerTribeId: "campus-one" },
+        timestamp: "2026-05-20T12:00:00.000Z",
+      } as any);
+
+      expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          id: record.id,
+          actorType: "human",
+          actorId: "platform@example.test",
+          action: "quota.policy.updated",
+          resourceType: "service",
+          resourceId: "orders-api",
+          outcome: "succeeded",
+          createdAt: new Date("2026-05-20T12:00:00.000Z"),
+          metadata: expect.objectContaining({
+            actionFamily: "quota",
+            severity: "warning",
+            serviceId: "orders-api",
+          }),
+        }),
+      });
+    } finally {
+      if (original === undefined) delete process.env.DATABASE_ENABLED;
+      else process.env.DATABASE_ENABLED = original;
+    }
+  });
+
+  it("recordRequired fails closed when Postgres audit persistence fails in database mode", async () => {
+    const original = process.env.DATABASE_ENABLED;
+    process.env.DATABASE_ENABLED = "true";
+    const prisma = {
+      auditEvent: {
+        create: jest.fn(async () => {
+          throw new Error("database unavailable");
+        }),
+        findMany: jest.fn(),
+      },
+    };
+    const databaseBackedService = new AuditEventsService(
+      { redis: { cacheUrl: "" } } as any,
+      { info: jest.fn(), warn: jest.fn() } as any,
+      prisma as any,
+    );
+
+    try {
+      await expect(
+        databaseBackedService.recordRequired({
+          type: "quota.policy.updated",
+          severity: "warning",
+          message: "Quota policy updated",
+          actor: "platform@example.test",
+          actionFamily: "quota",
+          resourceType: "quota_policy",
+          resourceId: "quota-policy-1",
+          environment: "live",
+          correlationId: "corr-audit",
+        } as any),
+      ).rejects.toThrow("Postgres write failed");
+    } finally {
+      if (original === undefined) delete process.env.DATABASE_ENABLED;
+      else process.env.DATABASE_ENABLED = original;
+    }
+  });
+
+  it("lists durable audit events from Postgres when database mode is enabled", async () => {
+    const original = process.env.DATABASE_ENABLED;
+    process.env.DATABASE_ENABLED = "true";
+    const prisma = {
+      auditEvent: {
+        create: jest.fn(),
+        findMany: jest.fn(async () => [
+          {
+            id: "00000000-0000-0000-0000-000000000001",
+            correlationId: null,
+            actorType: "human",
+            actorId: "platform@example.test",
+            action: "quota.policy.updated",
+            resourceType: "service",
+            resourceId: "orders-api",
+            outcome: "succeeded",
+            metadata: {
+              actionFamily: "quota",
+              severity: "info",
+              message: "Quota policy updated",
+              serviceId: "orders-api",
+              payload: { ownerTribeId: "campus-one" },
+            },
+            createdAt: new Date("2026-05-20T12:00:00.000Z"),
+          },
+        ]),
+      },
+    };
+    const databaseBackedService = new AuditEventsService(
+      { redis: { cacheUrl: "" } } as any,
+      { info: jest.fn(), warn: jest.fn() } as any,
+      prisma as any,
+    );
+
+    try {
+      await expect(
+        databaseBackedService.list({
+          actionFamily: "quota",
+          actor: "platform@example.test",
+          serviceId: "orders-api",
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: "00000000-0000-0000-0000-000000000001",
+          type: "quota.policy.updated",
+          serviceId: "orders-api",
+          actionFamily: "quota",
+        }),
+      ]);
+      expect(prisma.auditEvent.findMany).toHaveBeenCalledWith({
+        orderBy: { createdAt: "desc" },
+        take: 500,
+      });
+    } finally {
+      if (original === undefined) delete process.env.DATABASE_ENABLED;
+      else process.env.DATABASE_ENABLED = original;
+    }
+  });
+
+  it("returns durable source metadata when audit events come from Postgres", async () => {
+    const original = process.env.DATABASE_ENABLED;
+    process.env.DATABASE_ENABLED = "true";
+    const prisma = {
+      auditEvent: {
+        create: jest.fn(),
+        findMany: jest.fn(async () => [
+          {
+            id: "00000000-0000-0000-0000-000000000001",
+            correlationId: null,
+            actorType: "human",
+            actorId: "platform@example.test",
+            action: "quota.policy.updated",
+            resourceType: "service",
+            resourceId: "orders-api",
+            outcome: "succeeded",
+            metadata: {
+              actionFamily: "quota",
+              severity: "info",
+              message: "Quota policy updated",
+              serviceId: "orders-api",
+            },
+            createdAt: new Date("2026-05-20T12:00:00.000Z"),
+          },
+        ]),
+      },
+    };
+    const databaseBackedService = new AuditEventsService(
+      { redis: { cacheUrl: "" } } as any,
+      { info: jest.fn(), warn: jest.fn() } as any,
+      prisma as any,
+    );
+
+    try {
+      const result = await databaseBackedService.listWithSourceMetadata({
+        serviceId: "orders-api",
+      });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.sourceMetadata).toEqual(
+        expect.objectContaining({
+          sourceType: "durable",
+          sourceName: "audit-events-postgres",
+          durability: "postgres",
+          evidenceTable: "apic_audit.audit_events",
+        }),
+      );
+    } finally {
+      if (original === undefined) delete process.env.DATABASE_ENABLED;
+      else process.env.DATABASE_ENABLED = original;
+    }
+  });
 });

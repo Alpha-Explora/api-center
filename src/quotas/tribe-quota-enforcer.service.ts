@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
 import Redis from "ioredis";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ConfigService } from "../config/config.service";
 import { TribeCostService } from "../costs/tribe-cost.service";
 import { PrismaService } from "../database/prisma.service";
@@ -39,7 +40,7 @@ interface QuotaDecisionDelegate {
 }
 
 interface QuotaDecisionPrisma {
-  tribeApiQuotaDecision: QuotaDecisionDelegate;
+  quotaEvaluation: QuotaDecisionDelegate;
 }
 
 @Injectable()
@@ -57,6 +58,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     prisma: PrismaService,
     private readonly config: ConfigService,
     @Optional() private readonly costs?: TribeCostService,
+    @Optional() private readonly auditEvents?: AuditEventsService,
   ) {
     this.quotaPrisma = prisma as unknown as QuotaDecisionPrisma;
   }
@@ -186,7 +188,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     requestCount: number,
     outcome: TribeQuotaDecisionOutcome,
   ): Promise<void> {
-    await this.quotaPrisma.tribeApiQuotaDecision.create({
+    await this.quotaPrisma.quotaEvaluation.create({
       data: {
         ownerTribeId: input.ownerTribeId,
         policyId: policy.id,
@@ -202,8 +204,56 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
         correlationId: input.correlationId,
       },
     });
+    this.recordAudit(
+      policy,
+      input,
+      requestCount,
+      outcome,
+      windowStart,
+      windowEnd,
+    );
   }
 
+  private recordAudit(
+    policy: TribeQuotaPolicy,
+    input: CheckTribeQuotaInput,
+    requestCount: number,
+    outcome: TribeQuotaDecisionOutcome,
+    windowStart: Date,
+    windowEnd: Date,
+  ): void {
+    const actionOutcome = outcome === "blocked" ? "denied" : outcome;
+    this.auditEvents
+      ?.record({
+        type: `quota.evaluation.${actionOutcome}`,
+        actionFamily: "quota",
+        actor: input.ownerTribeId,
+        resourceType: "quota_evaluation",
+        resourceId:
+          input.correlationId ??
+          `${input.ownerTribeId}:${policy.id ?? "unpersisted-policy"}:${windowStart.getTime()}`,
+        environment: "runtime",
+        correlationId: input.correlationId,
+        severity: outcome === "allowed" ? "info" : "warning",
+        message: `Quota evaluation ${actionOutcome} for ${input.ownerTribeId}`,
+        payload: {
+          ownerTribeId: input.ownerTribeId,
+          policyId: policy.id,
+          scope: policy.scope,
+          targetServiceId: policy.targetServiceId ?? null,
+          routeFamily: input.routeFamily,
+          requestCount,
+          maxRequests: policy.maxRequests,
+          mode: policy.mode,
+          outcome,
+          actionOutcome,
+          correlationId: input.correlationId,
+          windowStart: windowStart.toISOString(),
+          windowEnd: windowEnd.toISOString(),
+        },
+      })
+      .catch(() => undefined);
+  }
   private counterKey(
     policy: TribeQuotaPolicy,
     input: CheckTribeQuotaInput,

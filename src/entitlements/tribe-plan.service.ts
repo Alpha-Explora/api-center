@@ -4,6 +4,7 @@ import { ValidationError } from "../shared/errors";
 import {
   AssignTribePlanInput,
   AssignTribePlanResult,
+  UpdateTribePlanAssignmentInput,
   GeneratedQuotaPolicyProposal,
   ListTribePlanAssignmentsInput,
   TribePlanAssignment,
@@ -52,8 +53,12 @@ const PLAN_DEFINITIONS: TribePlanDefinition[] = [
   },
 ];
 
-interface TribePlanAssignmentDelegate {
+interface EntitlementAssignmentDelegate {
   create(args: { data: Record<string, unknown> }): Promise<TribePlanAssignment>;
+  update(args: {
+    where: { id: string };
+    data: Record<string, unknown>;
+  }): Promise<TribePlanAssignment>;
   findMany(args: {
     where: Record<string, unknown>;
     orderBy: { createdAt: "desc" };
@@ -62,7 +67,7 @@ interface TribePlanAssignmentDelegate {
 }
 
 interface TribePlanPrisma {
-  tribePlanAssignment: TribePlanAssignmentDelegate;
+  entitlementAssignment: EntitlementAssignmentDelegate;
 }
 
 @Injectable()
@@ -86,7 +91,7 @@ export class TribePlanService {
     if (input.environment) where.environment = input.environment;
     if (input.status) where.status = input.status;
 
-    return this.planPrisma.tribePlanAssignment.findMany({
+    return this.planPrisma.entitlementAssignment.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -98,7 +103,7 @@ export class TribePlanService {
   ): Promise<AssignTribePlanResult> {
     const definition = this.definitionFor(input.planKey);
     const effectiveAt = input.effectiveAt ?? new Date();
-    const assignment = await this.planPrisma.tribePlanAssignment.create({
+    const assignment = await this.planPrisma.entitlementAssignment.create({
       data: {
         ownerTribeId: input.ownerTribeId,
         planKey: input.planKey,
@@ -114,6 +119,23 @@ export class TribePlanService {
       assignment,
       quotaProposals: this.buildQuotaProposals(definition, input),
     };
+  }
+
+  async updatePlanAssignment(
+    input: UpdateTribePlanAssignmentInput,
+  ): Promise<TribePlanAssignment> {
+    if (!input.assignmentId.trim()) {
+      throw new ValidationError("assignmentId is required");
+    }
+
+    return this.planPrisma.entitlementAssignment.update({
+      where: { id: input.assignmentId },
+      data: {
+        status: input.status,
+        reason: input.reason,
+        assignedBy: input.updatedBy,
+      },
+    });
   }
 
   private definitionFor(planKey: TribePlanKey) {

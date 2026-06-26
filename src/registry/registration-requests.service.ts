@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service";
 import { ConflictError, NotFoundError } from "../shared/errors";
-import { ServiceManifest } from "../types";
 import { isPlatformCapability } from "../shared/platform-capabilities";
 import { isOwnerTribeIdRequiredForManifest } from "../shared/service-manifest-governance";
+import { ServiceManifest } from "../types";
 import { RegistryService } from "./registry.service";
 
 type RegistrationRequestStatus =
@@ -14,20 +14,20 @@ type RegistrationRequestStatus =
 
 type RegistrationRequestRow = {
   id: string;
-  service_id: string;
-  owner_tribe_id: string;
-  status: RegistrationRequestStatus;
+  serviceId: string;
+  ownerTribeId: string;
+  status: string;
   manifest: unknown;
-  validation_report: unknown;
-  requested_by: string | null;
-  approved_by: string | null;
-  rejected_by: string | null;
-  rejection_reason: string | null;
-  applied_service_id: string | null;
-  created_at: Date | string;
-  updated_at: Date | string;
-  decided_at: Date | string | null;
-  applied_at: Date | string | null;
+  validationReport: unknown;
+  requestedBy: string | null;
+  approvedBy: string | null;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
+  appliedServiceId: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  decidedAt: Date | string | null;
+  appliedAt: Date | string | null;
 };
 
 export type RegistrationPlanIssue = {
@@ -46,7 +46,7 @@ export type ServiceRegistrationRequest = {
   id: string;
   serviceId: string;
   ownerTribeId: string;
-  status: RegistrationRequestStatus;
+  status: string;
   manifest: ServiceManifest;
   validationReport: RegistrationValidationReport;
   requestedBy?: string;
@@ -74,44 +74,27 @@ export class RegistrationRequestsService {
     const manifest = normalizeManifest(input.manifest);
     const ownerTribeId = resolveOwnerTribeId(manifest);
     const validationReport = this.buildValidationReport(manifest, ownerTribeId);
-    const rows = await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-      `
-        insert into api_center_ops.service_registration_requests
-          (service_id, owner_tribe_id, status, manifest, validation_report, requested_by)
-        values ($1, $2, $3, cast($4 as jsonb), cast($5 as jsonb), $6)
-        returning *
-      `,
-      manifest.serviceId,
-      ownerTribeId,
-      "pending",
-      JSON.stringify(manifest),
-      JSON.stringify(validationReport),
-      input.requestedBy ?? null,
-    );
+    const row = await this.prisma.registryChangeRequest.create({
+      data: {
+        serviceId: manifest.serviceId,
+        ownerTribeId,
+        status: "pending",
+        manifest: manifest as any,
+        validationReport: validationReport as any,
+        requestedBy: input.requestedBy,
+      },
+    });
 
-    return mapRow(rows[0]);
+    return mapRow(row);
   }
 
   async listRequests(
     status?: RegistrationRequestStatus,
   ): Promise<ServiceRegistrationRequest[]> {
-    const rows = status
-      ? await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-          `
-            select *
-            from api_center_ops.service_registration_requests
-            where status = $1
-            order by created_at desc
-          `,
-          status,
-        )
-      : await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-          `
-            select *
-            from api_center_ops.service_registration_requests
-            order by created_at desc
-          `,
-        );
+    const rows = await this.prisma.registryChangeRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: "desc" },
+    });
 
     return rows.map(mapRow);
   }
@@ -133,17 +116,10 @@ export class RegistrationRequestsService {
     );
 
     if (!validationReport.canApply) {
-      await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-        `
-          update api_center_ops.service_registration_requests
-          set validation_report = cast($1 as jsonb),
-              updated_at = now()
-          where id = cast($2 as uuid)
-          returning *
-        `,
-        JSON.stringify(validationReport),
-        requestId,
-      );
+      await this.prisma.registryChangeRequest.update({
+        where: { id: requestId },
+        data: { validationReport: validationReport as any },
+      });
 
       const blockingMessages = validationReport.issues
         .filter((issue) => issue.severity === "blocking")
@@ -156,26 +132,19 @@ export class RegistrationRequestsService {
     }
 
     const entry = await this.registry.register(request.manifest);
-    const rows = await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-      `
-        update api_center_ops.service_registration_requests
-        set status = 'applied',
-            approved_by = $1,
-            applied_service_id = $2,
-            validation_report = cast($3 as jsonb),
-            decided_at = now(),
-            applied_at = now(),
-            updated_at = now()
-        where id = cast($4 as uuid)
-        returning *
-      `,
-      approvedBy,
-      entry.serviceId,
-      JSON.stringify(validationReport),
-      requestId,
-    );
+    const row = await this.prisma.registryChangeRequest.update({
+      where: { id: requestId },
+      data: {
+        status: "applied",
+        approvedBy,
+        appliedServiceId: entry.serviceId,
+        validationReport: validationReport as any,
+        decidedAt: new Date(),
+        appliedAt: new Date(),
+      },
+    });
 
-    return mapRow(rows[0]);
+    return mapRow(row);
   }
 
   async rejectRequest(
@@ -183,50 +152,40 @@ export class RegistrationRequestsService {
     rejectedBy: string,
     reason: string,
   ): Promise<ServiceRegistrationRequest> {
-    const rows = await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-      `
-        update api_center_ops.service_registration_requests
-        set status = 'rejected',
-            rejected_by = $1,
-            rejection_reason = $2,
-            decided_at = now(),
-            updated_at = now()
-        where id = cast($3 as uuid)
-          and status = 'pending'
-        returning *
-      `,
-      rejectedBy,
-      reason,
-      requestId,
-    );
+    const result = await this.prisma.registryChangeRequest.updateMany({
+      where: {
+        id: requestId,
+        status: "pending",
+      },
+      data: {
+        status: "rejected",
+        rejectedBy,
+        rejectionReason: reason,
+        decidedAt: new Date(),
+      },
+    });
 
-    if (!rows[0]) {
+    if (result.count === 0) {
       throw new ConflictError(
         "Only pending registration requests can be rejected",
       );
     }
 
-    return mapRow(rows[0]);
+    return this.getRequest(requestId);
   }
 
   private async getRequest(
     requestId: string,
   ): Promise<ServiceRegistrationRequest> {
-    const rows = await this.prisma.$queryRawUnsafe<RegistrationRequestRow[]>(
-      `
-        select *
-        from api_center_ops.service_registration_requests
-        where id = cast($1 as uuid)
-        limit 1
-      `,
-      requestId,
-    );
+    const row = await this.prisma.registryChangeRequest.findUnique({
+      where: { id: requestId },
+    });
 
-    if (!rows[0]) {
+    if (!row) {
       throw new NotFoundError(`Registration request '${requestId}' not found`);
     }
 
-    return mapRow(rows[0]);
+    return mapRow(row);
   }
 
   private buildValidationReport(
@@ -301,22 +260,22 @@ function resolveOwnerTribeId(manifest: ServiceManifest): string {
 function mapRow(row: RegistrationRequestRow): ServiceRegistrationRequest {
   return {
     id: row.id,
-    serviceId: row.service_id,
-    ownerTribeId: row.owner_tribe_id,
-    status: row.status,
+    serviceId: row.serviceId,
+    ownerTribeId: row.ownerTribeId,
+    status: row.status as RegistrationRequestStatus,
     manifest: parseJsonField<ServiceManifest>(row.manifest),
     validationReport: parseJsonField<RegistrationValidationReport>(
-      row.validation_report,
+      row.validationReport,
     ),
-    requestedBy: row.requested_by ?? undefined,
-    approvedBy: row.approved_by ?? undefined,
-    rejectedBy: row.rejected_by ?? undefined,
-    rejectionReason: row.rejection_reason ?? undefined,
-    appliedServiceId: row.applied_service_id ?? undefined,
-    createdAt: toIsoString(row.created_at),
-    updatedAt: toIsoString(row.updated_at),
-    decidedAt: row.decided_at ? toIsoString(row.decided_at) : undefined,
-    appliedAt: row.applied_at ? toIsoString(row.applied_at) : undefined,
+    requestedBy: row.requestedBy ?? undefined,
+    approvedBy: row.approvedBy ?? undefined,
+    rejectedBy: row.rejectedBy ?? undefined,
+    rejectionReason: row.rejectionReason ?? undefined,
+    appliedServiceId: row.appliedServiceId ?? undefined,
+    createdAt: toIsoString(row.createdAt),
+    updatedAt: toIsoString(row.updatedAt),
+    decidedAt: row.decidedAt ? toIsoString(row.decidedAt) : undefined,
+    appliedAt: row.appliedAt ? toIsoString(row.appliedAt) : undefined,
   };
 }
 

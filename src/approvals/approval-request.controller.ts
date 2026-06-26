@@ -7,9 +7,12 @@ import {
   Query,
   Req,
   UseGuards,
+  Optional,
 } from "@nestjs/common";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { ValidationError } from "../shared/errors";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import { AuthenticatedRequest } from "../types";
 import { ApprovalRequestService } from "./approval-request.service";
 import {
@@ -44,7 +47,10 @@ interface CreateApprovalRequestBody {
 @Controller("approvals/requests")
 @UseGuards(ScopedAdminGuard)
 export class ApprovalRequestController {
-  constructor(private readonly approvals: ApprovalRequestService) {}
+  constructor(
+    private readonly approvals: ApprovalRequestService,
+    @Optional() private readonly auditEvents?: AuditEventsService,
+  ) {}
 
   @Post()
   async create(
@@ -52,19 +58,18 @@ export class ApprovalRequestController {
     @Req() req: AuthenticatedRequest,
   ) {
     this.validateCreate(body);
-    return this.response(
-      await this.approvals.createRequest({
-        actionType: body.actionType!,
-        targetId: body.targetId ?? null,
-        targetEnvironment: body.targetEnvironment!,
-        before: body.before!,
-        after: body.after!,
-        riskLevel: body.riskLevel!,
-        reason: body.reason!,
-        requestedBy: this.resolveActor(req),
-      }),
-      req,
-    );
+    const request = await this.approvals.createRequest({
+      actionType: body.actionType!,
+      targetId: body.targetId ?? null,
+      targetEnvironment: body.targetEnvironment!,
+      before: body.before!,
+      after: body.after!,
+      riskLevel: body.riskLevel!,
+      reason: body.reason!,
+      requestedBy: this.resolveActor(req),
+    });
+    await this.recordAudit("approval.request.created", request, req);
+    return this.response(request, req);
   }
 
   @Get()
@@ -81,13 +86,12 @@ export class ApprovalRequestController {
     @Param("approvalRequestId") approvalRequestId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.response(
-      await this.approvals.approveRequest(
-        approvalRequestId,
-        this.resolveActor(req),
-      ),
-      req,
+    const request = await this.approvals.approveRequest(
+      approvalRequestId,
+      this.resolveActor(req),
     );
+    await this.recordAudit("approval.request.approved", request, req);
+    return this.response(request, req);
   }
 
   @Post(":approvalRequestId/reject")
@@ -100,14 +104,47 @@ export class ApprovalRequestController {
       throw new ValidationError("rejection reason is required");
     }
 
-    return this.response(
-      await this.approvals.rejectRequest(
-        approvalRequestId,
-        this.resolveActor(req),
-        body.reason,
-      ),
-      req,
+    const request = await this.approvals.rejectRequest(
+      approvalRequestId,
+      this.resolveActor(req),
+      body.reason,
     );
+    await this.recordAudit("approval.request.rejected", request, req, {
+      rejectionReason: body.reason,
+    });
+    return this.response(request, req);
+  }
+
+  private async recordAudit(
+    type: string,
+    request: ApprovalRequest,
+    req: AuthenticatedRequest,
+    extraPayload: Record<string, unknown> = {},
+  ): Promise<void> {
+    const auditEvents = requireGovernanceDependency(
+      this.auditEvents,
+      "AuditEventsService",
+    );
+    await auditEvents.recordRequired({
+      type,
+      actionFamily: "approval",
+      actor: this.resolveActor(req),
+      resourceType: "approval_request",
+      resourceId: request.id,
+      environment: request.targetEnvironment,
+      correlationId: req.correlationId ?? request.id,
+      severity: request.status === "rejected" ? "warning" : "info",
+      message: `${type} for ${request.actionType}`,
+      payload: {
+        approvalRequestId: request.id,
+        actionType: request.actionType,
+        targetId: request.targetId,
+        targetEnvironment: request.targetEnvironment,
+        status: request.status,
+        correlationId: req.correlationId,
+        ...extraPayload,
+      },
+    });
   }
 
   private validateCreate(body: CreateApprovalRequestBody) {

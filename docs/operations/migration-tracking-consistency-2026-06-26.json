@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-06-26T01:26:23.649Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "artifacts": {
+    "plan": {
+      "path": "docs/superpowers/plans/2026-06-25-apicenter-enterprise-supabase-migration.md",
+      "present": true
+    },
+    "tracker": {
+      "path": "docs/visualizations/enterprise-supabase-migration-tracker.html",
+      "present": true
+    },
+    "approvalPacket": {
+      "path": "docs/operations/supabase-migration-approval-packet-2026-06-26.json",
+      "present": true
+    }
+  },
+  "planCounts": {
+    "done": 244,
+    "total": 244,
+    "percent": "100"
+  },
+  "trackerCounts": {
+    "done": 244,
+    "total": 244,
+    "percent": "100"
+  },
+  "packetSummary": {
+    "ready": 16,
+    "total": 16,
+    "blocked": 0,
+    "approvalReady": true,
+    "preApplyReady": true,
+    "preApplyBlocked": 0,
+    "postApplyBlocked": 0
+  },
+  "gateReferences": [
+    {
+      "line": 532,
+      "ready": 16,
+      "total": 16
+    },
+    {
+      "line": 656,
+      "ready": 16,
+      "total": 16
+    },
+    {
+      "line": 891,
+      "ready": 16,
+      "total": 16
+    },
+    {
+      "line": 1321,
+      "ready": 16,
+      "total": 16
+    },
+    {
+      "line": 1713,
+      "ready": 16,
+      "total": 16
+    },
+    {
+      "line": 1759,
+      "ready": 16,
+      "total": 16
+    },
+    {
+      "line": 1792,
+      "ready": 16,
+      "total": 16
+    }
+  ],
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Fix stale gate-count notes in the migration plan.",
+    "Run node scripts/generate-migration-tracker.js after plan checkbox changes.",
+    "Run npm run db:tracking:consistency after regenerating approval packet or tracker artifacts."
+  ]
+}

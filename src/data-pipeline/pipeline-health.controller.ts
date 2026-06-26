@@ -8,6 +8,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
+import {
+  externalSourceMetadata,
+  ManagementSourceMetadata,
+  volatileSourceMetadata,
+} from "../shared/source-metadata";
 import { ConfigService } from "../config/config.service";
 import { AuthenticatedRequest } from "../types";
 import { dataPipelineDisabled } from "./data-pipeline-disabled.error";
@@ -49,6 +54,13 @@ export class PipelineHealthController {
         environment,
         partition,
         source: this.pipelineHealth.getResponseSource(),
+        sourceMetadata: [
+          this.pipelineSourceMetadata(
+            "pipeline-health",
+            this.pipelineHealth.getResponseSource(),
+            req.correlationId,
+          ),
+        ],
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId,
       },
@@ -193,6 +205,29 @@ export class PipelineHealthController {
     };
   }
 
+  private pipelineSourceMetadata(
+    sourceName: "pipeline-health" | "pipeline-governance",
+    source: "athena-proxy" | "evidence-file",
+    correlationId?: string,
+  ): ManagementSourceMetadata {
+    if (source === "athena-proxy") {
+      return externalSourceMetadata({
+        sourceName: sourceName + "-athena",
+        durability: "athena",
+        staleAfterSeconds: 60 * 60,
+        evidenceTable: "gold_platform",
+        correlationId,
+      });
+    }
+
+    return volatileSourceMetadata({
+      sourceName: sourceName + "-evidence-file",
+      degradedReason:
+        "Data-pipeline evidence is fixture/local-file backed until Athena or durable API Center records are configured.",
+      correlationId,
+    });
+  }
+
   private buildGovernanceMeta(
     environment: ReturnType<typeof parsePipelineHealthEnvironment>,
     req: AuthenticatedRequest,
@@ -204,6 +239,13 @@ export class PipelineHealthController {
       partition,
       windowDays,
       source: this.pipelineGovernance.getResponseSource(),
+      sourceMetadata: [
+        this.pipelineSourceMetadata(
+          "pipeline-governance",
+          this.pipelineGovernance.getResponseSource(),
+          req.correlationId,
+        ),
+      ],
       timestamp: new Date().toISOString(),
       correlationId: req.correlationId,
     };

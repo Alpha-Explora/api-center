@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-06-25T22:19:03.727Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "strategy": "compatibility_views",
+  "approvals": {
+    "compatibilityViewsApproved": true
+  },
+  "controlledWindow": {},
+  "compatibilityViews": {
+    "migrationPath": "C:\\Codes\\apic\\api-center\\supabase\\migrations\\20260625162216_enterprise_control_plane_schemas.sql",
+    "present": true,
+    "expectedCount": 23,
+    "found": [
+      "api_center.organizations",
+      "api_center.services",
+      "api_center.service_environments",
+      "api_center.service_routes",
+      "api_center.service_scopes",
+      "api_center.service_dependencies",
+      "api_center.service_lifecycle_events",
+      "api_center.tribe_secret_refs",
+      "api_center.confluent_topics",
+      "api_center.s3_sink_topics",
+      "api_center_ops.service_registration_requests",
+      "api_center_ops.approval_requests",
+      "api_center_ops.tribe_api_quota_policies",
+      "api_center_ops.tribe_plan_definitions",
+      "api_center_ops.tribe_plan_assignments",
+      "api_center_ops.provisioning_jobs",
+      "api_center_ops.topic_onboarding_states",
+      "api_center_ops.health_snapshots",
+      "api_center_ops.smoke_test_runs",
+      "api_center_ops.usage_rollups",
+      "api_center_ops.tribe_api_quota_decisions",
+      "api_center_ops.pipeline_feedback_actions",
+      "api_center_audit.audit_events"
+    ],
+    "missing": [],
+    "missingSecurityInvoker": []
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "For one-release compatibility rollout: set APICENTER_MIGRATION_ROLLOUT_STRATEGY=compatibility_views and APICENTER_COMPATIBILITY_VIEWS_APPROVED=true.",
+    "For a controlled window: set APICENTER_MIGRATION_ROLLOUT_STRATEGY=controlled_window, APICENTER_CONTROLLED_MIGRATION_WINDOW_APPROVED=true, APICENTER_MIGRATION_WINDOW_START, and APICENTER_MIGRATION_WINDOW_END.",
+    "Rerun npm run db:rollout-strategy:evidence -- --out docs/operations/migration-rollout-strategy-<date>.json before approval."
+  ]
+}

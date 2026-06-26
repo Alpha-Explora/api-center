@@ -16,6 +16,21 @@ database cutover and is enabled only by explicit flags.
 | Postgres source with dual-write | `DATABASE_ENABLED=true`, `DATABASE_DUAL_WRITE=true`, `REGISTRY_SOURCE=postgres` | Postgres | Memory plus Redis, then Postgres | Cutover test after Redis and Postgres are reconciled. |
 | Emergency memory only | Redis unavailable during local/dev startup | None | Memory only after startup warning | Local diagnostics only; do not use for shared environments. |
 
+
+## Migration Authority
+
+Supabase SQL migrations under `api-center/supabase/migrations` are the canonical live database history for APICenter control-plane schemas. Prisma migrations are not used as the live deployment mechanism for APICenter control-plane schemas. Keep `prisma/schema.prisma` in sync with Supabase migrations so application code remains typed and generated.
+
+For future control-plane schema changes, use this sequence:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run db:migration:new -- <descriptive_name>
+npm run db:migration:push:dry
+npm run db:generate
+```
+
+Migration filenames must come from the Supabase CLI. Do not invent migration timestamps by hand.
 ## Cutover Sequence
 
 1. Run Redis as the active source and confirm the registry API returns the

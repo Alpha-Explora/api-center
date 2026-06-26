@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-06-26T00:29:14.261Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "supabase": {
+    "configProjectId": "api-center-control-plane",
+    "projectRef": "hguyivbodlrmooayuxwt",
+    "codexMcpProjectRef": "hguyivbodlrmooayuxwt"
+  },
+  "target": {
+    "expectedProjectRef": "hguyivbodlrmooayuxwt",
+    "environmentName": "live"
+  },
+  "environment": {
+    "DATABASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "DATABASE_ENABLED": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "DATABASE_DUAL_WRITE": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "REGISTRY_SOURCE": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "REGISTRY_DUAL_WRITE": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "SUPABASE_DB_PASSWORD": {
+      "present": true,
+      "redactedValue": "<present>"
+    }
+  },
+  "blockers": [],
+  "nextCommands": [
+    "npm run db:migration:list",
+    "npm run db:migration:push:dry",
+    "supabase db advisors",
+    "npm run db:verify:control-plane -- --app-role <discovered-app-role>",
+    "npm run db:verify:control-plane -- --app-role <discovered-app-role> --require-compat-views",
+    "npm run db:verify:control-plane -- --app-role <discovered-app-role> --require-retention-policy"
+  ]
+}

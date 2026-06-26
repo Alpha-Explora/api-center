@@ -17,7 +17,7 @@ describe("RegistryController", () => {
     warn: jest.fn(),
   } as unknown as LoggerService;
   const mockAuditEvents = {
-    record: jest.fn().mockResolvedValue(undefined),
+    recordRequired: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuditEventsService;
   const mockApprovals = {
     assertApprovedForAction: jest.fn(),
@@ -98,6 +98,35 @@ describe("RegistryController", () => {
             status: "active",
           },
         ],
+      });
+    });
+
+    it("returns top-level health fields in service list responses", () => {
+      (mockRegistry.getAll as jest.Mock).mockReturnValue({
+        sms: {
+          serviceId: "sms",
+          name: "SMS Service",
+          baseUrl: "http://sms-service:4011",
+          healthCheck: "/health",
+          healthy: false,
+          lastHealthCheckAt: "2026-06-25T23:00:00.000Z",
+          status: "active",
+          serviceType: "shared",
+          exposes: ["/send"],
+          requiredScopes: ["sms:send"],
+          consumes: [],
+          registeredAt: "2026-06-18T00:00:00.000Z",
+          updatedAt: "2026-06-18T00:00:00.000Z",
+        },
+      });
+
+      const result = controller.listServices();
+
+      expect(result.data[0]).toMatchObject({
+        serviceId: "sms",
+        healthCheck: "/health",
+        healthy: false,
+        lastHealthCheckAt: "2026-06-25T23:00:00.000Z",
       });
     });
   });
@@ -287,6 +316,40 @@ describe("RegistryController", () => {
         targetEnvironment: "live",
         targetId: "orders",
       });
+      expect(mockAuditEvents.recordRequired).toHaveBeenCalledWith({
+        type: "registry.service.archive_requested",
+        actionFamily: "lifecycle",
+        actor: "platform-admin",
+        serviceId: "orders",
+        resourceType: "service",
+        resourceId: "orders",
+        environment: "live",
+        correlationId: "corr-retire",
+        severity: "info",
+        message: "registry.service.archive_requested for orders",
+        payload: {
+          environment: "live",
+          consumers: [],
+          approvalRequestId: "approval-2",
+        },
+      });
+    });
+
+    it("fails closed when registry lifecycle audit evidence cannot be written", async () => {
+      (mockRegistry.getConsumers as jest.Mock).mockReturnValue([]);
+      (mockRegistry.retire as jest.Mock).mockResolvedValue({
+        serviceId: "orders",
+        status: "retired",
+      });
+      (mockAuditEvents.recordRequired as jest.Mock).mockRejectedValueOnce(
+        new Error("audit unavailable"),
+      );
+
+      await expect(
+        controller.retire("orders", { approvalRequestId: "approval-2" }, {
+          correlationId: "corr-retire",
+        } as any),
+      ).rejects.toThrow("audit unavailable");
     });
 
     it("fails closed when live registration has no approval service", async () => {

@@ -137,6 +137,13 @@ export class HealthMonitorService implements OnModuleDestroy {
     this.reconciliationRunning = true;
 
     try {
+      if (this.config.database?.registrySource === "postgres") {
+        this.logger.debug(
+          "Postgres registry source active — skipping Redis drift reconciliation",
+        );
+        return;
+      }
+
       const redisEntries = await this.registry.getRedisEntries();
 
       // Redis unavailable — nothing to reconcile against

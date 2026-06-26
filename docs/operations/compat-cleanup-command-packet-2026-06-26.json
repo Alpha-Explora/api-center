@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-06-26T01:26:08.907Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "readiness": {
+    "path": "docs/operations/compat-cleanup-readiness-2026-06-26.json",
+    "ready": true,
+    "confirmations": {
+      "stableDeploymentConfirmed": true,
+      "cleanupApproved": true
+    },
+    "runtimeLegacyReferences": {
+      "count": 0,
+      "matches": []
+    },
+    "blockers": []
+  },
+  "targetMigration": {
+    "path": "supabase/migrations/20260626002247_drop_legacy_control_plane_views.sql",
+    "present": true,
+    "staticReady": true,
+    "blockers": []
+  },
+  "requiredInputs": [
+    "APICENTER_COMPATIBILITY_CLEANUP_WINDOW_STARTED_AT",
+    "APICENTER_COMPATIBILITY_CLEANUP_WINDOW_ENDED_AT or collector run time after the window completes",
+    "APICENTER_COMPATIBILITY_CLEANUP_DEPLOYMENT_REVISION",
+    "APICENTER_COMPATIBILITY_CLEANUP_STABLE_DEPLOYMENT=true",
+    "APICENTER_COMPATIBILITY_CLEANUP_APPROVED=true",
+    "DATABASE_URL for the approved live Supabase project",
+    "SUPABASE_DB_PASSWORD or linked Supabase CLI auth",
+    "A reviewed dry-run showing only legacy compatibility view drops"
+  ],
+  "phases": [
+    {
+      "id": "confirm_cleanup_readiness",
+      "title": "Confirm compatibility cleanup readiness",
+      "blocked": false,
+      "commands": [
+        "npm run db:compat-cleanup:k8s -- --out docs/operations/compat-cleanup-k8s-2026-06-26.json",
+        "npm run db:compat-cleanup:stability -- --out docs/operations/compat-cleanup-stability-2026-06-26.json",
+        "npm run db:compat-cleanup:readiness -- --out docs/operations/compat-cleanup-readiness-2026-06-26.json --fail-on-blockers",
+        "npm run db:compat-cleanup:migration-static"
+      ]
+    },
+    {
+      "id": "dry_run",
+      "title": "Dry-run compatibility cleanup migration",
+      "blocked": false,
+      "commands": [
+        "npm run db:migration:push:dry",
+        "npm run db:compat-cleanup:readiness -- --out docs/operations/compat-cleanup-readiness-2026-06-26.json --fail-on-blockers"
+      ]
+    },
+    {
+      "id": "apply_cleanup",
+      "title": "Apply compatibility cleanup after dry-run approval",
+      "blocked": false,
+      "commands": [
+        "npm run db:migration:push",
+        "npm run db:verifier:evidence -- --post-compat-cleanup --out docs/operations/supabase-verifier-readiness-2026-06-26.json",
+        "npm run db:readiness:evidence -- --phase new --out docs/operations/readiness-new-2026-06-26.json",
+        "npm run db:logs:missing-table:evidence -- --out docs/operations/missing-table-log-scan-2026-06-26.json",
+        "npm run db:postcutover-errors:evidence -- --out docs/operations/postcutover-error-log-scan-2026-06-26.json"
+      ]
+    }
+  ],
+  "ready": true,
+  "blockers": []
+}

@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { PaymentWebhookController } from "./payment-webhook.controller";
 import { RegistryService } from "../registry/registry.service";
 import { ConfigService } from "../config/config.service";
@@ -20,11 +21,17 @@ describe("PaymentWebhookController", () => {
 
   let controller: PaymentWebhookController;
   let fetchMock: jest.Mock;
+  let auditEvents: { record: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockConfig.paymentWebhooks.paymongoSecret = "test-key";
-    controller = new PaymentWebhookController(mockRegistry, mockConfig);
+    auditEvents = { record: jest.fn().mockResolvedValue(undefined) };
+    controller = new PaymentWebhookController(
+      mockRegistry,
+      mockConfig,
+      auditEvents as unknown as AuditEventsService,
+    );
     fetchMock = jest.fn().mockResolvedValue({
       status: 200,
       headers: {
@@ -62,6 +69,21 @@ describe("PaymentWebhookController", () => {
       "payment",
       "/webhooks",
     );
+    expect(auditEvents.record).toHaveBeenCalledWith({
+      type: "shared_service.webhook.received",
+      actionFamily: "shared_service",
+      sharedServiceId: "payment",
+      severity: "info",
+      message: "PayMongo webhook accepted for payment shared service forwarding",
+      payload: {
+        provider: "paymongo",
+        route: "/webhooks",
+        upstream: "http://payment-service:4010/webhooks",
+        contentType: "application/json",
+        rawBodyBytes: rawBody.length,
+        signaturePresent: true,
+      },
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://payment-service:4010/webhooks",
       expect.objectContaining({
@@ -91,6 +113,7 @@ describe("PaymentWebhookController", () => {
       } as any),
     ).rejects.toBeInstanceOf(NotFoundError);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(auditEvents.record).not.toHaveBeenCalled();
   });
 
   it("rejects PayMongo webhooks before forwarding when the gateway secret is not configured", async () => {
@@ -109,6 +132,7 @@ describe("PaymentWebhookController", () => {
       } as any),
     ).rejects.toBeInstanceOf(ServiceUnavailableError);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(auditEvents.record).not.toHaveBeenCalled();
   });
 
   it("rejects PayMongo webhooks before forwarding when the signature does not match", async () => {
@@ -126,6 +150,7 @@ describe("PaymentWebhookController", () => {
       } as any),
     ).rejects.toBeInstanceOf(UnauthorizedError);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(auditEvents.record).not.toHaveBeenCalled();
   });
 });
 

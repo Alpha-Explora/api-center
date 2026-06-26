@@ -3,10 +3,11 @@ import { TribePlanService } from "./tribe-plan.service";
 describe("TribePlanService", () => {
   const assignments = {
     create: jest.fn(),
+    update: jest.fn(),
     findMany: jest.fn(),
   };
   const prisma = {
-    tribePlanAssignment: assignments,
+    entitlementAssignment: assignments,
   };
   let service: TribePlanService;
 
@@ -97,6 +98,47 @@ describe("TribePlanService", () => {
         reason: "Plan standard default Kafka publish quota for test",
       },
     ]);
+  });
+
+  it("updates a plan assignment status", async () => {
+    assignments.update.mockResolvedValue({
+      id: "assignment-1",
+      ownerTribeId: "campus-one",
+      planKey: "standard",
+      environment: "prod",
+      status: "disabled",
+      effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
+      reason: "Retired service",
+      assignedBy: "platform",
+    });
+
+    const result = await service.updatePlanAssignment({
+      assignmentId: "assignment-1",
+      status: "disabled",
+      reason: "Retired service",
+      updatedBy: "platform",
+    });
+
+    expect(assignments.update).toHaveBeenCalledWith({
+      where: { id: "assignment-1" },
+      data: {
+        status: "disabled",
+        reason: "Retired service",
+        assignedBy: "platform",
+      },
+    });
+    expect(result.status).toBe("disabled");
+  });
+
+  it("rejects plan assignment updates without an assignment id", async () => {
+    await expect(
+      service.updatePlanAssignment({
+        assignmentId: "",
+        status: "disabled",
+        reason: "Retired service",
+        updatedBy: "platform",
+      }),
+    ).rejects.toThrow("assignmentId is required");
   });
 
   it("lists recent plan assignments for management views", async () => {

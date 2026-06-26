@@ -8,7 +8,7 @@ import { TribeQuotaUsageController } from "./tribe-quota-usage.controller";
 
 describe("TribeQuotaUsageController", () => {
   const prisma = {
-    tribeApiQuotaDecision: {
+    quotaEvaluation: {
       findMany: jest.fn(),
     },
   };
@@ -42,7 +42,7 @@ describe("TribeQuotaUsageController", () => {
   });
 
   it("returns safe quota decision history for a tribe", async () => {
-    prisma.tribeApiQuotaDecision.findMany.mockResolvedValue([
+    prisma.quotaEvaluation.findMany.mockResolvedValue([
       {
         id: "decision-1",
         ownerTribeId: "campus-one",
@@ -93,7 +93,7 @@ describe("TribeQuotaUsageController", () => {
       correlationId: "corr-decision",
       createdAt: "2026-05-25T00:00:30.000Z",
     });
-    expect(prisma.tribeApiQuotaDecision.findMany).toHaveBeenCalledWith(
+    expect(prisma.quotaEvaluation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ ownerTribeId: "campus-one" }),
         orderBy: { createdAt: "desc" },

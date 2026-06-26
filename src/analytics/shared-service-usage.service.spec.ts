@@ -64,4 +64,33 @@ describe("SharedServiceUsageService", () => {
       }),
     ]);
   });
+
+  it("labels in-memory usage as volatile source metadata", async () => {
+    await service.record({
+      tribeServiceId: "campusone",
+      sharedServiceId: "paymongo",
+      route: "/api/v1/shared/paymongo/payments",
+      method: "POST",
+      status: 200,
+      ok: true,
+      latencyMs: 100,
+      timestamp: new Date("2026-05-13T14:03:00.000Z"),
+    });
+
+    const result = await service.listUsageWithSourceMetadata(
+      "1h",
+      new Date("2026-05-13T14:30:00.000Z"),
+    );
+
+    expect(result.data).toHaveLength(1);
+    expect(result.sourceMetadata).toEqual(
+      expect.objectContaining({
+        sourceType: "volatile",
+        sourceName: "shared-service-usage-memory-window",
+        durability: "redis-window",
+        window: "1h",
+        degradedReason: expect.stringContaining("Redis unavailable"),
+      }),
+    );
+  });
 });

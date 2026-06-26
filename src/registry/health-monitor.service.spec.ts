@@ -59,4 +59,37 @@ describe("HealthMonitorService Redis drift reconciliation", () => {
       "HealthMonitor",
     );
   });
+
+  it("skips Redis reconciliation when Postgres is the registry source", async () => {
+    const registry = {
+      getRedisEntries: jest.fn(),
+      getAll: jest.fn(),
+      loadFromRedis: jest.fn(),
+    };
+
+    const logger = {
+      debug: jest.fn(),
+      warn: jest.fn(),
+      info: jest.fn(),
+      error: jest.fn(),
+    };
+
+    const service = new HealthMonitorService(
+      registry as any,
+      logger as any,
+      { publishNonBlocking: jest.fn() } as any,
+      {
+        database: { registrySource: "postgres" },
+        health: { checkTimeoutMs: 500 },
+      } as any,
+    );
+
+    await service.handleRedisDriftReconciliation();
+
+    expect(registry.getRedisEntries).not.toHaveBeenCalled();
+    expect(registry.loadFromRedis).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("Postgres registry source active"),
+    );
+  });
 });

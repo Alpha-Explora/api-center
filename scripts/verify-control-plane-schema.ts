@@ -1,0 +1,415 @@
+#!/usr/bin/env ts-node
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { Client } = require("pg");
+
+type QualifiedObject = { schema: string; name: string };
+type Row = Record<string, string | boolean | null>;
+type InventoryObject = {
+  schema: string;
+  name: string;
+  objectType: string;
+  rowCount: string;
+};
+
+const repoRoot = path.resolve(__dirname, "..");
+const controlledSchemas = ["apic_catalog", "apic_governance", "apic_runtime", "apic_audit"];
+const legacySchemas = ["api_center", "api_center_ops", "api_center_audit"];
+
+const requiredTables: QualifiedObject[] = [
+  ["apic_catalog", "organizations"],
+  ["apic_catalog", "services"],
+  ["apic_catalog", "service_environments"],
+  ["apic_catalog", "service_routes"],
+  ["apic_catalog", "service_scopes"],
+  ["apic_catalog", "service_dependencies"],
+  ["apic_catalog", "service_lifecycle_events"],
+  ["apic_catalog", "service_secret_references"],
+  ["apic_governance", "registry_change_requests"],
+  ["apic_governance", "approval_requests"],
+  ["apic_governance", "quota_policies"],
+  ["apic_governance", "entitlement_plans"],
+  ["apic_governance", "entitlement_assignments"],
+  ["apic_runtime", "provisioning_jobs"],
+  ["apic_runtime", "event_topic_onboarding_states"],
+  ["apic_runtime", "confluent_topics"],
+  ["apic_runtime", "s3_sink_topics"],
+  ["apic_runtime", "quota_evaluations"],
+  ["apic_runtime", "health_snapshots"],
+  ["apic_runtime", "smoke_test_runs"],
+  ["apic_runtime", "usage_rollups"],
+  ["apic_runtime", "pipeline_feedback_actions"],
+  ["apic_audit", "audit_events"],
+].map(([schema, name]) => ({ schema, name }));
+
+const compatibilityViews: QualifiedObject[] = [
+  ["api_center", "organizations"],
+  ["api_center", "services"],
+  ["api_center", "service_environments"],
+  ["api_center", "service_routes"],
+  ["api_center", "service_scopes"],
+  ["api_center", "service_dependencies"],
+  ["api_center", "service_lifecycle_events"],
+  ["api_center", "tribe_secret_refs"],
+  ["api_center", "confluent_topics"],
+  ["api_center", "s3_sink_topics"],
+  ["api_center_ops", "service_registration_requests"],
+  ["api_center_ops", "approval_requests"],
+  ["api_center_ops", "tribe_api_quota_policies"],
+  ["api_center_ops", "tribe_plan_definitions"],
+  ["api_center_ops", "tribe_plan_assignments"],
+  ["api_center_ops", "provisioning_jobs"],
+  ["api_center_ops", "topic_onboarding_states"],
+  ["api_center_ops", "health_snapshots"],
+  ["api_center_ops", "smoke_test_runs"],
+  ["api_center_ops", "usage_rollups"],
+  ["api_center_ops", "tribe_api_quota_decisions"],
+  ["api_center_ops", "pipeline_feedback_actions"],
+  ["api_center_audit", "audit_events"],
+].map(([schema, name]) => ({ schema, name }));
+
+const requiredIndexes = [
+  "service_environments_service_id_idx",
+  "service_environments_env_status_idx",
+  "registry_change_requests_status_created_idx",
+  "registry_change_requests_service_idx",
+  "registry_change_requests_owner_idx",
+  "approval_requests_status_created_idx",
+  "approval_requests_action_env_idx",
+  "approval_requests_target_idx",
+  "quota_policies_owner_status_idx",
+  "quota_policies_scope_target_idx",
+  "entitlement_assignments_owner_env_status_idx",
+  "entitlement_assignments_plan_env_idx",
+  "event_topic_onboarding_states_env_owner_idx",
+  "event_topic_onboarding_states_updated_idx",
+  "quota_evaluations_owner_created_idx",
+  "quota_evaluations_outcome_created_idx",
+  "quota_evaluations_correlation_idx",
+  "pipeline_feedback_actions_env_target_idx",
+  "pipeline_feedback_actions_status_created_idx",
+  "pipeline_feedback_actions_owner_idx",
+  "pipeline_feedback_actions_correlation_idx",
+  "audit_events_created_idx",
+  "audit_events_resource_idx",
+  "audit_events_actor_idx",
+];
+
+const requiredCheckConstraints = [
+  "registry_change_requests_status_check",
+  "approval_requests_status_check",
+  "quota_policies_mode_check",
+  "quota_policies_status_check",
+  "entitlement_assignments_status_check",
+  "quota_evaluations_mode_check",
+  "quota_evaluations_outcome_check",
+  "audit_events_actor_type_check",
+  "audit_events_outcome_check",
+];
+
+const forbiddenLegacyObjectNames = [
+  "service_registration_requests_status_created_idx",
+  "service_registration_requests_service_idx",
+  "service_registration_requests_owner_idx",
+  "service_registration_requests_status_check",
+  "tribe_quota_policies_owner_status_idx",
+  "tribe_quota_policies_scope_target_idx",
+  "tribe_quota_decisions_owner_created_idx",
+  "tribe_quota_decisions_outcome_created_idx",
+  "tribe_quota_decisions_correlation_idx",
+  "tribe_plan_assignments_owner_env_status_idx",
+  "tribe_plan_assignments_plan_env_idx",
+  "topic_onboarding_states_env_owner_idx",
+  "topic_onboarding_states_updated_idx",
+];
+
+const retentionManagedTables: QualifiedObject[] = [
+  ["apic_audit", "audit_events"],
+  ["apic_runtime", "quota_evaluations"],
+  ["apic_runtime", "usage_rollups"],
+  ["apic_runtime", "health_snapshots"],
+  ["apic_runtime", "smoke_test_runs"],
+  ["apic_runtime", "pipeline_feedback_actions"],
+].map(([schema, name]) => ({ schema, name }));
+
+const registryChildDeleteTables = new Set([
+  "apic_catalog.service_environments",
+  "apic_catalog.service_routes",
+  "apic_catalog.service_scopes",
+  "apic_catalog.service_dependencies",
+]);
+
+function hasFlag(name: string): boolean {
+  return process.argv.includes(name);
+}
+
+function readArg(name: string): string | undefined {
+  const index = process.argv.indexOf(name);
+  return index === -1 ? undefined : process.argv[index + 1];
+}
+
+function key(object: QualifiedObject): string {
+  return object.schema + "." + object.name;
+}
+
+function missingObjects(required: QualifiedObject[], rows: Row[]): string[] {
+  const found = new Set(rows.map((row) => String(row.schema) + "." + String(row.name)));
+  return required.map(key).filter((name) => !found.has(name));
+}
+
+function addFailure(failures: string[], label: string, values: string[]): void {
+  if (values.length === 0) return;
+  failures.push(label + ":\n" + values.map((value) => "  - " + value).join("\n"));
+}
+
+async function queryRows(client: any, sql: string, params: unknown[] = []): Promise<Row[]> {
+  const result = await client.query(sql, params);
+  return result.rows as Row[];
+}
+
+function quoteIdent(value: string): string {
+  return '"' + value.replace(/"/g, '""') + '"';
+}
+
+async function printRowCountInventory(client: any): Promise<void> {
+  const schemas = [...legacySchemas, ...controlledSchemas];
+  const objects = await queryRows(
+    client,
+    "select table_schema as schema, table_name as name, table_type as object_type from information_schema.tables where table_schema = any($1::text[]) order by table_schema, table_name",
+    [schemas],
+  );
+  const inventory: InventoryObject[] = [];
+
+  for (const object of objects) {
+    const schema = String(object.schema);
+    const name = String(object.name);
+    const objectType = String(object.object_type);
+    let rowCount = "unavailable";
+
+    try {
+      const rows = await queryRows(client, "select count(*)::text as row_count from " + quoteIdent(schema) + "." + quoteIdent(name));
+      rowCount = String(rows[0]?.row_count ?? "0");
+    } catch (error) {
+      rowCount = "error: " + (error instanceof Error ? error.message : String(error));
+    }
+
+    inventory.push({ schema, name, objectType, rowCount });
+  }
+
+  console.log("Control-plane row-count inventory:");
+  if (inventory.length === 0) {
+    console.log("  No APIC legacy or enterprise schema objects found.");
+  } else {
+    for (const object of inventory) {
+      console.log("  " + object.schema + "." + object.name + " (" + object.objectType + "): " + object.rowCount);
+    }
+  }
+
+  const baseTables = objects.filter((object) => object.object_type === "BASE TABLE");
+  const views = objects.filter((object) => object.object_type === "VIEW");
+  console.log("\nMissing enterprise tables:");
+  const missingTables = missingObjects(requiredTables, baseTables);
+  if (missingTables.length === 0) {
+    console.log("  None");
+  } else {
+    for (const objectName of missingTables) console.log("  - " + objectName);
+  }
+
+  console.log("\nMissing compatibility views:");
+  const missingViews = missingObjects(compatibilityViews, views);
+  if (missingViews.length === 0) {
+    console.log("  None");
+  } else {
+    for (const objectName of missingViews) console.log("  - " + objectName);
+  }
+}
+
+function readApiSchemasFromConfig(): string[] {
+  const configPath = path.join(repoRoot, "supabase", "config.toml");
+  const content = fs.readFileSync(configPath, "utf8");
+  const schemas: string[] = [];
+  let inApiSection = false;
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.startsWith("[") && line.endsWith("]")) {
+      inApiSection = line === "[api]";
+      continue;
+    }
+    if (!inApiSection || !line.startsWith("schemas")) continue;
+    for (const match of line.matchAll(/"([^"]+)"/g)) {
+      schemas.push(match[1]);
+    }
+  }
+
+  return schemas;
+}
+
+async function main(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is required to verify the control-plane schema.");
+  }
+
+  const appRole = readArg("--app-role");
+  const failures: string[] = [];
+
+  addFailure(
+    failures,
+    "APIC private schemas exposed through supabase/config.toml [api].schemas",
+    readApiSchemasFromConfig().filter((schema) => controlledSchemas.includes(schema)),
+  );
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+
+  if (hasFlag("--row-counts")) {
+    try {
+      await printRowCountInventory(client);
+    } finally {
+      await client.end();
+    }
+    return;
+  }
+  try {
+    const tableRows = await queryRows(
+      client,
+      "select table_schema as schema, table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema = any($1::text[])",
+      [controlledSchemas],
+    );
+    addFailure(failures, "Missing required enterprise tables", missingObjects(requiredTables, tableRows));
+
+    if (hasFlag("--require-compat-views")) {
+      const viewRows = await queryRows(
+        client,
+        "select table_schema as schema, table_name as name from information_schema.views where table_schema = any($1::text[])",
+        [legacySchemas],
+      );
+      addFailure(failures, "Missing compatibility views", missingObjects(compatibilityViews, viewRows));
+    }
+
+    if (hasFlag("--forbid-legacy-schemas")) {
+      const legacySchemaRows = await queryRows(
+        client,
+        "select nspname as schema from pg_namespace where nspname = any($1::text[]) order by nspname",
+        [legacySchemas],
+      );
+      addFailure(failures, "Legacy compatibility schemas still present", legacySchemaRows.map((row) => String(row.schema)));
+    }
+
+    const indexRows = await queryRows(
+      client,
+      "select schemaname as schema, indexname as name from pg_indexes where schemaname = any($1::text[])",
+      [controlledSchemas],
+    );
+    const indexNames = new Set(indexRows.map((row) => String(row.name)));
+    addFailure(failures, "Missing required indexes", requiredIndexes.filter((name) => !indexNames.has(name)));
+
+    const constraintRows = await queryRows(
+      client,
+      "select n.nspname as schema, c.conname as name from pg_constraint c join pg_class r on r.oid = c.conrelid join pg_namespace n on n.oid = r.relnamespace where c.contype = 'c' and n.nspname = any($1::text[])",
+      [controlledSchemas],
+    );
+    const constraintNames = new Set(constraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required check constraints",
+      requiredCheckConstraints.filter((name) => !constraintNames.has(name)),
+    );
+
+    addFailure(
+      failures,
+      "Legacy index or constraint names still present",
+      forbiddenLegacyObjectNames.filter((name) => indexNames.has(name) || constraintNames.has(name)),
+    );
+
+    if (hasFlag("--require-retention-policy")) {
+      const retentionRows = await queryRows(
+        client,
+        "select n.nspname as schema, c.relname as name, obj_description(c.oid) as comment, (pt.partrelid is not null) as partitioned from pg_class c join pg_namespace n on n.oid = c.relnamespace left join pg_partitioned_table pt on pt.partrelid = c.oid where n.nspname = any($1::text[]) and c.relkind in ('r', 'p')",
+        [controlledSchemas],
+      );
+      const retentionByName = new Map(retentionRows.map((row) => [String(row.schema) + "." + String(row.name), row]));
+      addFailure(
+        failures,
+        "Missing retention comments or partition metadata",
+        retentionManagedTables.map(key).filter((name) => {
+          const row = retentionByName.get(name);
+          return !row || (row.partitioned !== true && !String(row.comment ?? "").includes("retention="));
+        }),
+      );
+    }
+
+    const publicGrantRows = await queryRows(
+      client,
+      "select table_schema as schema, table_name as name, grantee, privilege_type from information_schema.role_table_grants where table_schema = any($1::text[]) and grantee in ('anon', 'authenticated')",
+      [controlledSchemas],
+    );
+    addFailure(
+      failures,
+      "anon/authenticated direct grants on private APIC tables",
+      publicGrantRows.map((row) => String(row.grantee) + " " + String(row.privilege_type) + " on " + String(row.schema) + "." + String(row.name)),
+    );
+
+    if (appRole) {
+      const schemaPrivilegeRows = await queryRows(
+        client,
+        "select nspname as schema, has_schema_privilege($1, nspname, 'USAGE') as has_usage from pg_namespace where nspname = any($2::text[])",
+        [appRole, controlledSchemas],
+      );
+      addFailure(
+        failures,
+        "Missing USAGE grants for app role " + appRole,
+        schemaPrivilegeRows.filter((row) => row.has_usage !== true).map((row) => String(row.schema)),
+      );
+
+      const appGrantRows = await queryRows(
+        client,
+        "select table_schema as schema, table_name as name, privilege_type from information_schema.role_table_grants where grantee = $1 and table_schema = any($2::text[])",
+        [appRole, controlledSchemas],
+      );
+      const grantsByTable = new Map<string, Set<string>>();
+      for (const row of appGrantRows) {
+        const objectName = String(row.schema) + "." + String(row.name);
+        const grants = grantsByTable.get(objectName) ?? new Set<string>();
+        grants.add(String(row.privilege_type));
+        grantsByTable.set(objectName, grants);
+      }
+
+      const missingGrants: string[] = [];
+      for (const table of requiredTables) {
+        const objectName = key(table);
+        const grants = grantsByTable.get(objectName) ?? new Set<string>();
+        const required =
+          table.schema === "apic_audit"
+            ? ["SELECT", "INSERT"]
+            : ["SELECT", "INSERT", "UPDATE"];
+        if (registryChildDeleteTables.has(objectName)) required.push("DELETE");
+        for (const privilege of required) {
+          if (!grants.has(privilege)) missingGrants.push(appRole + " lacks " + privilege + " on " + objectName);
+        }
+      }
+      addFailure(failures, "Missing app-role table grants", missingGrants);
+
+      if ((grantsByTable.get("apic_audit.audit_events") ?? new Set<string>()).has("DELETE")) {
+        failures.push(appRole + " must not have DELETE on apic_audit.audit_events.");
+      }
+    }
+  } finally {
+    await client.end();
+  }
+
+  if (failures.length > 0) {
+    console.error("\nControl-plane schema verification failed:\n");
+    for (const failure of failures) console.error(failure);
+    process.exit(1);
+  }
+
+  console.log("Control-plane schema verification passed.");
+}
+
+main().catch((error: Error) => {
+  console.error(error.message);
+  process.exit(1);
+});

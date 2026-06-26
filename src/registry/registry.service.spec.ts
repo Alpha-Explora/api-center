@@ -78,6 +78,16 @@ function baseManifest(
   };
 }
 
+function registryEntry(overrides: Partial<ReturnType<typeof baseManifest>> = {}) {
+  return {
+    ...baseManifest(overrides),
+    status: "active" as const,
+    registeredAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z",
+    healthy: true,
+  };
+}
+
 // ── Test Suite ───────────────────────────────────────────────────────────────
 
 describe("RegistryService", () => {
@@ -104,6 +114,54 @@ describe("RegistryService", () => {
       mockTribeSecretResolver as TribeSecretResolverService,
       mockPostgresStore as PostgresRegistryStoreService,
     );
+  });
+
+  // =========================================================================
+  // Lifecycle
+  // =========================================================================
+
+  describe("onModuleInit()", () => {
+    it("loads Postgres registry source even when Redis is unavailable", async () => {
+      (mockConfig as any).database = {
+        ...mockConfig.database,
+        enabled: true,
+        registrySource: "postgres",
+      };
+      (mockPostgresStore.loadAll as jest.Mock).mockResolvedValueOnce({
+        "svc-alpha": registryEntry(),
+      });
+      jest.spyOn(service as any, "createRedisClient").mockReturnValueOnce({
+        connect: jest.fn().mockRejectedValue(new Error("redis down")),
+        quit: jest.fn().mockResolvedValue(undefined),
+      });
+
+      await service.onModuleInit();
+
+      expect(mockPostgresStore.loadAll).toHaveBeenCalledTimes(1);
+      expect(service.count()).toBe(1);
+      expect(service.get("svc-alpha")).toMatchObject({
+        serviceId: "svc-alpha",
+        status: "active",
+      });
+    });
+
+    it("fails startup when Postgres registry source cannot load", async () => {
+      (mockConfig as any).database = {
+        ...mockConfig.database,
+        enabled: true,
+        registrySource: "postgres",
+      };
+      (mockPostgresStore.loadAll as jest.Mock).mockRejectedValueOnce(
+        new Error("db down"),
+      );
+      jest.spyOn(service as any, "createRedisClient").mockReturnValueOnce({
+        connect: jest.fn().mockRejectedValue(new Error("redis down")),
+        quit: jest.fn().mockResolvedValue(undefined),
+      });
+
+      await expect(service.onModuleInit()).rejects.toThrow("db down");
+      expect(service.count()).toBe(0);
+    });
   });
 
   // =========================================================================

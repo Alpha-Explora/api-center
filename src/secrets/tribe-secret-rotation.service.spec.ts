@@ -1,15 +1,20 @@
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { TribeSecretRotationService } from "./tribe-secret-rotation.service";
 
 describe("TribeSecretRotationService", () => {
+  let auditEvents: { recordRequired: jest.Mock };
   let service: TribeSecretRotationService;
 
   beforeEach(() => {
-    service = new TribeSecretRotationService();
+    auditEvents = { recordRequired: jest.fn().mockResolvedValue(undefined) };
+    service = new TribeSecretRotationService(
+      auditEvents as unknown as AuditEventsService,
+    );
   });
 
-  it("starts rotation with active_dual_valid state and one-time plaintext secret", () => {
+  it("starts rotation with active_dual_valid state and one-time plaintext secret", async () => {
     const currentHash = service.hashPlaintextSecret("old-secret");
-    const result = service.startRotation({
+    const result = await service.startRotation({
       serviceId: "logistics",
       currentSecretHashSha256: currentHash,
       actor: "platform-admin@example.test",
@@ -35,11 +40,38 @@ describe("TribeSecretRotationService", () => {
         occurredAt: "2026-05-25T01:00:00.000Z",
       },
     ]);
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith({
+      type: "secret.reference.rotated",
+      actionFamily: "secret",
+      actor: "platform-admin@example.test",
+      serviceId: "logistics",
+      resourceType: "secret_reference",
+      resourceId: "logistics",
+      environment: "control-plane",
+      correlationId: "logistics:rotation_started",
+      severity: "info",
+      message: "secret.reference.rotated for logistics",
+      payload: { rotationAction: "rotation_started" },
+    });
   });
 
-  it("validates current and next secrets during the dual-valid window", () => {
+  it("fails closed when secret rotation audit evidence cannot be written", async () => {
+    auditEvents.recordRequired.mockRejectedValueOnce(
+      new Error("audit unavailable"),
+    );
+
+    await expect(
+      service.startRotation({
+        serviceId: "logistics",
+        currentSecretHashSha256: service.hashPlaintextSecret("old-secret"),
+        actor: "operator",
+      }),
+    ).rejects.toThrow("audit unavailable");
+  });
+
+  it("validates current and next secrets during the dual-valid window", async () => {
     const currentHash = service.hashPlaintextSecret("old-secret");
-    const { plaintextSecret, payload } = service.startRotation({
+    const { plaintextSecret, payload } = await service.startRotation({
       serviceId: "logistics",
       currentSecretHashSha256: currentHash,
       actor: "operator",
@@ -57,15 +89,15 @@ describe("TribeSecretRotationService", () => {
     });
   });
 
-  it("moves to old_pending_revoke after the tribe verifies the new secret", () => {
-    const { payload } = service.startRotation({
+  it("moves to old_pending_revoke after the tribe verifies the new secret", async () => {
+    const { payload } = await service.startRotation({
       serviceId: "logistics",
       currentSecretHashSha256: service.hashPlaintextSecret("old-secret"),
       actor: "operator",
       now: new Date("2026-05-25T01:00:00.000Z"),
     });
 
-    const verified = service.markNewSecretVerified(payload, {
+    const verified = await service.markNewSecretVerified(payload, {
       actor: "tribe-owner@example.test",
       now: new Date("2026-05-25T02:00:00.000Z"),
     });
@@ -79,19 +111,19 @@ describe("TribeSecretRotationService", () => {
     });
   });
 
-  it("revokes the old secret and only accepts the replacement secret", () => {
-    const { plaintextSecret, payload } = service.startRotation({
+  it("revokes the old secret and only accepts the replacement secret", async () => {
+    const { plaintextSecret, payload } = await service.startRotation({
       serviceId: "logistics",
       currentSecretHashSha256: service.hashPlaintextSecret("old-secret"),
       actor: "operator",
       now: new Date("2026-05-25T01:00:00.000Z"),
     });
-    const verified = service.markNewSecretVerified(payload, {
+    const verified = await service.markNewSecretVerified(payload, {
       actor: "tribe-owner",
       now: new Date("2026-05-25T02:00:00.000Z"),
     });
 
-    const revoked = service.revokeOldSecret(verified, {
+    const revoked = await service.revokeOldSecret(verified, {
       actor: "operator",
       now: new Date("2026-05-25T03:00:00.000Z"),
     });

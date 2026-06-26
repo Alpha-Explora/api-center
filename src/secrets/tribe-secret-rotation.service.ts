@@ -1,6 +1,7 @@
 import { Injectable, Optional } from "@nestjs/common";
 import crypto from "node:crypto";
 import { AuditEventsService } from "../analytics/audit-events.service";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 
 export type TribeSecretRotationState =
   | "active_current"
@@ -68,7 +69,7 @@ const DEFAULT_ROTATION_STATE: TribeSecretRotationState = "active_current";
 export class TribeSecretRotationService {
   constructor(@Optional() private readonly auditEvents?: AuditEventsService) {}
 
-  startRotation(input: StartRotationInput): StartRotationResult {
+  async startRotation(input: StartRotationInput): Promise<StartRotationResult> {
     const now = (input.now ?? new Date()).toISOString();
     const plaintextSecret = this.generatePlaintextSecret();
     const nextSecretHashSha256 = this.hashPlaintextSecret(plaintextSecret);
@@ -91,14 +92,14 @@ export class TribeSecretRotationService {
         ],
       },
     };
-    this.recordAudit("secret.rotation_started", input.serviceId, input.actor);
+    await this.recordAudit("rotation_started", input.serviceId, input.actor);
     return result;
   }
 
-  markNewSecretVerified(
+  async markNewSecretVerified(
     payload: TribeSecretRotationPayload,
     input: RotationActorInput,
-  ): TribeSecretRotationPayload {
+  ): Promise<TribeSecretRotationPayload> {
     if (!payload.nextSecretHashSha256) {
       throw new Error("Cannot verify rotation without nextSecretHashSha256.");
     }
@@ -117,18 +118,18 @@ export class TribeSecretRotationService {
         },
       ],
     };
-    this.recordAudit(
-      "secret.new_secret_verified",
+    await this.recordAudit(
+      "new_secret_verified",
       payload.serviceId,
       input.actor,
     );
     return result;
   }
 
-  revokeOldSecret(
+  async revokeOldSecret(
     payload: TribeSecretRotationPayload,
     input: RotationActorInput,
-  ): TribeSecretRotationPayload {
+  ): Promise<TribeSecretRotationPayload> {
     if (!payload.nextSecretHashSha256) {
       throw new Error("Cannot revoke old secret without nextSecretHashSha256.");
     }
@@ -150,8 +151,8 @@ export class TribeSecretRotationService {
         },
       ],
     };
-    this.recordAudit(
-      "secret.old_secret_revoked",
+    await this.recordAudit(
+      "old_secret_revoked",
       payload.serviceId,
       input.actor,
     );
@@ -254,16 +255,27 @@ export class TribeSecretRotationService {
     );
   }
 
-  private recordAudit(type: string, serviceId: string, actor: string): void {
-    this.auditEvents
-      ?.record({
-        type,
-        actionFamily: "secret",
-        actor,
-        serviceId,
-        severity: "info",
-        message: `${type} for ${serviceId}`,
-      })
-      .catch(() => undefined);
+  private async recordAudit(
+    rotationAction: TribeSecretRotationAuditEvent["action"],
+    serviceId: string,
+    actor: string,
+  ): Promise<void> {
+    const auditEvents = requireGovernanceDependency(
+      this.auditEvents,
+      "AuditEventsService",
+    );
+    await auditEvents.recordRequired({
+      type: "secret.reference.rotated",
+      actionFamily: "secret",
+      actor,
+      serviceId,
+      resourceType: "secret_reference",
+      resourceId: serviceId,
+      environment: "control-plane",
+      correlationId: `${serviceId}:${rotationAction}`,
+      severity: "info",
+      message: `secret.reference.rotated for ${serviceId}`,
+      payload: { rotationAction },
+    });
   }
 }

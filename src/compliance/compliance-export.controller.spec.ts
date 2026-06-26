@@ -4,17 +4,31 @@ import { ComplianceExportService } from "./compliance-export.service";
 describe("ComplianceExportController", () => {
   it("filters audit events by date range and includes evidence bundles", async () => {
     const auditEvents = {
-      list: jest.fn().mockResolvedValue([
-        {
-          type: "quota.policy.updated",
-          timestamp: "2026-05-20T00:00:00.000Z",
+      listWithSourceMetadata: jest.fn().mockResolvedValue({
+        data: [
+          {
+            type: "quota.policy.updated",
+            timestamp: "2026-05-20T00:00:00.000Z",
+          },
+        ],
+        sourceMetadata: {
+          sourceType: "durable",
+          sourceName: "audit-events-postgres",
+          durability: "postgres",
+          evidenceTable: "apic_audit.audit_events",
         },
-      ]),
+      }),
     };
     const evidence = {
-      listBundles: jest
-        .fn()
-        .mockReturnValue([{ serviceId: "campus-one", ready: true }]),
+      listBundlesWithSourceMetadata: jest.fn().mockReturnValue({
+        data: [{ serviceId: "campus-one", ready: true }],
+        sourceMetadata: {
+          sourceType: "volatile",
+          sourceName: "promotion-evidence-memory-bundles",
+          durability: "none",
+          degradedReason: "memory only",
+        },
+      }),
     };
     const controller = new ComplianceExportController(
       auditEvents as any,
@@ -28,7 +42,7 @@ describe("ComplianceExportController", () => {
       "json",
     );
 
-    expect(auditEvents.list).toHaveBeenCalledWith({
+    expect(auditEvents.listWithSourceMetadata).toHaveBeenCalledWith({
       limit: 500,
       from: "2026-05-01",
       to: "2026-05-25",
@@ -40,15 +54,38 @@ describe("ComplianceExportController", () => {
           evidenceBundleCount: 1,
         },
       },
+      meta: {
+        sourceMetadata: [
+          expect.objectContaining({ sourceName: "audit-events-postgres" }),
+          expect.objectContaining({
+            sourceName: "promotion-evidence-memory-bundles",
+            sourceType: "volatile",
+          }),
+        ],
+      },
     });
   });
 
   it("returns markdown when requested", async () => {
     const auditEvents = {
-      list: jest.fn().mockResolvedValue([]),
+      listWithSourceMetadata: jest.fn().mockResolvedValue({
+        data: [],
+        sourceMetadata: {
+          sourceType: "volatile",
+          sourceName: "audit-events-memory-cache",
+          durability: "redis-window",
+        },
+      }),
     };
     const evidence = {
-      listBundles: jest.fn().mockReturnValue([]),
+      listBundlesWithSourceMetadata: jest.fn().mockReturnValue({
+        data: [],
+        sourceMetadata: {
+          sourceType: "volatile",
+          sourceName: "promotion-evidence-memory-bundles",
+          durability: "none",
+        },
+      }),
     };
     const response = {
       type: jest.fn(),

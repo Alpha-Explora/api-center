@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["api_center", "api_center_ops", "api_center_audit"]
+  schemas  = ["apic_catalog", "apic_governance", "apic_runtime", "apic_audit"]
 }
 
 model Organization {
@@ -18,7 +18,7 @@ model Organization {
   services Service[]
 
   @@map("organizations")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
 model Service {
@@ -53,7 +53,7 @@ model Service {
   dependedOnBy       ServiceDependency[]     @relation("DependsOnService")
   lifecycleEvents    ServiceLifecycleEvent[]
   environments       ServiceEnvironment[]
-  tribeSecretRef     TribeSecretRef?
+  serviceSecretReference ServiceSecretReference?
   confluentTopics    ConfluentTopic[]
   provisioningJobs   ProvisioningJob[]
   healthSnapshots    HealthSnapshot[]
@@ -68,7 +68,7 @@ model Service {
   @@index([organizationId, ownerTribeId, serviceType, status], name: "services_org_owner_type_status_idx")
   @@index([ownerTeam], name: "services_owner_team_idx")
   @@map("services")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
 model ServiceEnvironment {
@@ -88,7 +88,7 @@ model ServiceEnvironment {
   @@unique([serviceId, environment], name: "service_environment_unique")
   @@index([environment, status], name: "service_environments_env_status_idx")
   @@map("service_environments")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
 model ServiceRoute {
@@ -103,7 +103,7 @@ model ServiceRoute {
 
   @@unique([serviceId, method, path])
   @@map("service_routes")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
 model ServiceScope {
@@ -116,7 +116,7 @@ model ServiceScope {
 
   @@unique([serviceId, scope])
   @@map("service_scopes")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
 model ServiceDependency {
@@ -134,7 +134,7 @@ model ServiceDependency {
   @@index([serviceId], name: "service_dependencies_service_idx")
   @@index([dependsOnServiceId], name: "service_dependencies_depends_on_idx")
   @@map("service_dependencies")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
 model ServiceLifecycleEvent {
@@ -153,10 +153,10 @@ model ServiceLifecycleEvent {
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@map("service_lifecycle_events")
-  @@schema("api_center")
+  @@schema("apic_catalog")
 }
 
-model TribeSecretRef {
+model ServiceSecretReference {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId         String    @unique @map("service_id") @db.Uuid
   secretManagerName String    @map("secret_manager_name")
@@ -168,8 +168,8 @@ model TribeSecretRef {
 
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
-  @@map("tribe_secret_refs")
-  @@schema("api_center")
+  @@map("service_secret_references")
+  @@schema("apic_catalog")
 }
 
 model ConfluentTopic {
@@ -190,7 +190,7 @@ model ConfluentTopic {
   s3SinkTopics S3SinkTopic[]
 
   @@map("confluent_topics")
-  @@schema("api_center")
+  @@schema("apic_runtime")
 }
 
 model S3SinkTopic {
@@ -207,7 +207,7 @@ model S3SinkTopic {
 
   @@unique([topicId, connectorName])
   @@map("s3_sink_topics")
-  @@schema("api_center")
+  @@schema("apic_runtime")
 }
 
 model ProvisioningJob {
@@ -229,10 +229,10 @@ model ProvisioningJob {
   @@index([serviceId], name: "provisioning_jobs_service_idx")
   @@index([status, createdAt], name: "provisioning_jobs_status_created_idx")
   @@map("provisioning_jobs")
-  @@schema("api_center_ops")
+  @@schema("apic_runtime")
 }
 
-model ServiceRegistrationRequest {
+model RegistryChangeRequest {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId        String    @map("service_id")
   ownerTribeId     String    @map("owner_tribe_id")
@@ -249,11 +249,11 @@ model ServiceRegistrationRequest {
   decidedAt        DateTime? @map("decided_at") @db.Timestamptz(6)
   appliedAt        DateTime? @map("applied_at") @db.Timestamptz(6)
 
-  @@index([status, createdAt], name: "service_registration_requests_status_created_idx")
-  @@index([serviceId], name: "service_registration_requests_service_idx")
-  @@index([ownerTribeId], name: "service_registration_requests_owner_idx")
-  @@map("service_registration_requests")
-  @@schema("api_center_ops")
+  @@index([status, createdAt], name: "registry_change_requests_status_created_idx")
+  @@index([serviceId], name: "registry_change_requests_service_idx")
+  @@index([ownerTribeId], name: "registry_change_requests_owner_idx")
+  @@map("registry_change_requests")
+  @@schema("apic_governance")
 }
 
 model PipelineFeedbackActionRecord {
@@ -276,10 +276,10 @@ model PipelineFeedbackActionRecord {
   @@index([ownerTribeId, createdAt], name: "pipeline_feedback_actions_owner_idx")
   @@index([correlationId], name: "pipeline_feedback_actions_correlation_idx")
   @@map("pipeline_feedback_actions")
-  @@schema("api_center_ops")
+  @@schema("apic_runtime")
 }
 
-model TopicOnboardingStateRecord {
+model EventTopicOnboardingState {
   physicalTopic String   @id @map("physical_topic")
   environment   String
   ownerTribeId  String?  @map("owner_tribe_id")
@@ -288,10 +288,10 @@ model TopicOnboardingStateRecord {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([environment, ownerTribeId], name: "topic_onboarding_states_env_owner_idx")
-  @@index([updatedAt], name: "topic_onboarding_states_updated_idx")
-  @@map("topic_onboarding_states")
-  @@schema("api_center_ops")
+  @@index([environment, ownerTribeId], name: "event_topic_onboarding_states_env_owner_idx")
+  @@index([updatedAt], name: "event_topic_onboarding_states_updated_idx")
+  @@map("event_topic_onboarding_states")
+  @@schema("apic_runtime")
 }
 
 model AuditEvent {
@@ -310,7 +310,7 @@ model AuditEvent {
   @@index([resourceType, resourceId, createdAt], name: "audit_events_resource_idx")
   @@index([actorType, actorId, createdAt], name: "audit_events_actor_idx")
   @@map("audit_events")
-  @@schema("api_center_audit")
+  @@schema("apic_audit")
 }
 
 model HealthSnapshot {
@@ -325,7 +325,7 @@ model HealthSnapshot {
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@map("health_snapshots")
-  @@schema("api_center_ops")
+  @@schema("apic_runtime")
 }
 
 model SmokeTestRun {
@@ -345,7 +345,7 @@ model SmokeTestRun {
   tribeService Service? @relation("SmokeTestTribe", fields: [tribeServiceId], references: [id], onDelete: SetNull)
 
   @@map("smoke_test_runs")
-  @@schema("api_center_ops")
+  @@schema("apic_runtime")
 }
 
 model UsageRollup {
@@ -368,10 +368,10 @@ model UsageRollup {
 
   @@unique([windowStart, windowEnd, consumerServiceId, targetServiceId, routeFamily])
   @@map("usage_rollups")
-  @@schema("api_center_ops")
+  @@schema("apic_runtime")
 }
 
-model TribeApiQuotaPolicy {
+model QuotaPolicy {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId    String   @map("owner_tribe_id")
   scope           String   @default("all")
@@ -387,13 +387,13 @@ model TribeApiQuotaPolicy {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([ownerTribeId, status], name: "tribe_quota_policies_owner_status_idx")
-  @@index([scope, targetServiceId], name: "tribe_quota_policies_scope_target_idx")
-  @@map("tribe_api_quota_policies")
-  @@schema("api_center_ops")
+  @@index([ownerTribeId, status], name: "quota_policies_owner_status_idx")
+  @@index([scope, targetServiceId], name: "quota_policies_scope_target_idx")
+  @@map("quota_policies")
+  @@schema("apic_governance")
 }
 
-model TribeApiQuotaDecision {
+model QuotaEvaluation {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId    String   @map("owner_tribe_id")
   policyId        String?  @map("policy_id") @db.Uuid
@@ -409,14 +409,14 @@ model TribeApiQuotaDecision {
   correlationId   String?  @map("correlation_id")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([ownerTribeId, createdAt], name: "tribe_quota_decisions_owner_created_idx")
-  @@index([outcome, createdAt], name: "tribe_quota_decisions_outcome_created_idx")
-  @@index([correlationId], name: "tribe_quota_decisions_correlation_idx")
-  @@map("tribe_api_quota_decisions")
-  @@schema("api_center_ops")
+  @@index([ownerTribeId, createdAt], name: "quota_evaluations_owner_created_idx")
+  @@index([outcome, createdAt], name: "quota_evaluations_outcome_created_idx")
+  @@index([correlationId], name: "quota_evaluations_correlation_idx")
+  @@map("quota_evaluations")
+  @@schema("apic_runtime")
 }
 
-model TribePlanDefinition {
+model EntitlementPlan {
   planKey              String   @id @map("plan_key")
   displayName          String   @map("display_name")
   gatewayCallsPerDay   Int?     @map("gateway_calls_per_day")
@@ -427,11 +427,11 @@ model TribePlanDefinition {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@map("tribe_plan_definitions")
-  @@schema("api_center_ops")
+  @@map("entitlement_plans")
+  @@schema("apic_governance")
 }
 
-model TribePlanAssignment {
+model EntitlementAssignment {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId String   @map("owner_tribe_id")
   planKey      String   @map("plan_key")
@@ -443,10 +443,10 @@ model TribePlanAssignment {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([ownerTribeId, environment, status], name: "tribe_plan_assignments_owner_env_status_idx")
-  @@index([planKey, environment], name: "tribe_plan_assignments_plan_env_idx")
-  @@map("tribe_plan_assignments")
-  @@schema("api_center_ops")
+  @@index([ownerTribeId, environment, status], name: "entitlement_assignments_owner_env_status_idx")
+  @@index([planKey, environment], name: "entitlement_assignments_plan_env_idx")
+  @@map("entitlement_assignments")
+  @@schema("apic_governance")
 }
 
 model ApprovalRequest {
@@ -472,5 +472,5 @@ model ApprovalRequest {
   @@index([actionType, targetEnvironment], name: "approval_requests_action_env_idx")
   @@index([targetId], name: "approval_requests_target_idx")
   @@map("approval_requests")
-  @@schema("api_center_ops")
+  @@schema("apic_governance")
 }

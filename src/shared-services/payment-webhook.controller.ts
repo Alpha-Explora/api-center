@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Request, Response } from "express";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ConfigService } from "../config/config.service";
 import { RegistryService } from "../registry/registry.service";
 import {
@@ -22,6 +23,7 @@ export class PaymentWebhookController {
   constructor(
     private readonly registry: RegistryService,
     private readonly config: ConfigService,
+    private readonly auditEvents: AuditEventsService,
   ) {}
 
   @Post()
@@ -42,6 +44,22 @@ export class PaymentWebhookController {
       signatureHeader,
       this.config.paymentWebhooks.paymongoSecret,
     );
+
+    await this.auditEvents.record({
+      type: "shared_service.webhook.received",
+      actionFamily: "shared_service",
+      sharedServiceId: "payment",
+      severity: "info",
+      message: "PayMongo webhook accepted for payment shared service forwarding",
+      payload: {
+        provider: "paymongo",
+        route: "/webhooks",
+        upstream,
+        contentType: getHeader(req, "content-type") || "application/json",
+        rawBodyBytes: rawBody.length,
+        signaturePresent: Boolean(signatureHeader),
+      },
+    });
 
     const response = await fetch(upstream, {
       method: "POST",

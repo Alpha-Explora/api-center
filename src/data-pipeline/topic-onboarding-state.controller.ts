@@ -39,6 +39,7 @@ export class TopicOnboardingStateController {
       physicalTopic,
       dto.record,
       req.user?.sub,
+      req.correlationId,
     );
     return { success: true, data: record };
   }

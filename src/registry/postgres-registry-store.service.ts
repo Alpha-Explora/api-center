@@ -160,6 +160,38 @@ export class PostgresRegistryStoreService implements RegistryStore {
     });
   }
 
+  async updateHealthStatus(entry: ServiceRegistryEntry): Promise<void> {
+    const lastHealthCheckAt = entry.lastHealthCheckAt
+      ? new Date(entry.lastHealthCheckAt)
+      : null;
+    const updatedAt = new Date(entry.updatedAt);
+
+    await this.prisma.$transaction(async (tx) => {
+      const service = await tx.service.findFirst({
+        where: { serviceId: entry.serviceId },
+        select: { id: true },
+      });
+      if (!service) return;
+
+      await tx.service.update({
+        where: { id: service.id },
+        data: {
+          healthy: entry.healthy,
+          lastHealthCheckAt,
+          updatedAt,
+        },
+      });
+      await tx.serviceEnvironment.updateMany({
+        where: { serviceId: service.id },
+        data: {
+          healthy: entry.healthy,
+          lastHealthCheckAt,
+          updatedAt,
+        },
+      });
+    });
+  }
+
   async remove(serviceId: string): Promise<void> {
     await this.prisma.service.updateMany({
       where: { serviceId },
@@ -257,7 +289,7 @@ function mapRowToRegistryEntry(
     ownerTribeId: row.ownerTribeId ?? undefined,
     ownerTeam: row.ownerTeam ?? undefined,
     contact: row.contact ?? undefined,
-    serviceTier: row.serviceTier as ServiceTier | undefined,
+    serviceTier: (row.serviceTier ?? undefined) as ServiceTier | undefined,
     costCenter: row.costCenter ?? undefined,
     sunsetDate: row.sunsetDate?.toISOString(),
     replacementService: row.replacementServiceId ?? undefined,

@@ -1,0 +1,244 @@
+{
+  "generatedAt": "2026-06-26T01:26:00.120Z",
+  "phase": "new",
+  "expectedPhases": [
+    "old",
+    "new"
+  ],
+  "environment": {
+    "API_CENTER_BASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "APICENTER_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "MANAGEMENT_BASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "APICENTER_MANAGEMENT_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    }
+  },
+  "apiCenter": {
+    "baseUrl": "https://api-center.itsandbox.site",
+    "endpoints": [
+      {
+        "name": "live",
+        "url": "https://api-center.itsandbox.site/api/v1/health/live",
+        "status": 200,
+        "ok": true,
+        "durationMs": 474,
+        "body": {
+          "status": "ok",
+          "info": {
+            "process": {
+              "status": "up",
+              "uptime": 134,
+              "memory": {
+                "rss": "198MB",
+                "heapUsed": "79MB",
+                "heapTotal": "89MB"
+              },
+              "pid": 1
+            }
+          },
+          "error": {},
+          "details": {
+            "process": {
+              "status": "up",
+              "uptime": 134,
+              "memory": {
+                "rss": "198MB",
+                "heapUsed": "79MB",
+                "heapTotal": "89MB"
+              },
+              "pid": 1
+            }
+          }
+        }
+      },
+      {
+        "name": "ready",
+        "url": "https://api-center.itsandbox.site/api/v1/health/ready",
+        "status": 200,
+        "ok": true,
+        "durationMs": 362,
+        "body": {
+          "status": "ok",
+          "info": {
+            "process": {
+              "status": "up",
+              "uptime": 134,
+              "memory": {
+                "rss": "198MB",
+                "heapUsed": "79MB",
+                "heapTotal": "89MB"
+              },
+              "pid": 1
+            },
+            "kafka": {
+              "status": "up",
+              "skipped": true,
+              "reason": "Kafka disabled by configuration"
+            },
+            "redis": {
+              "status": "up"
+            },
+            "registry": {
+              "status": "up",
+              "registeredServices": 22
+            },
+            "circuitBreakers": {
+              "status": "up",
+              "total": 0,
+              "open": 0,
+              "breakers": []
+            },
+            "governance": {
+              "status": "up",
+              "quotaEnforcer": "up",
+              "policyEngine": "up",
+              "approvals": "up",
+              "sdkContractVersion": "local",
+              "imageTag": "local"
+            }
+          },
+          "error": {},
+          "details": {
+            "process": {
+              "status": "up",
+              "uptime": 134,
+              "memory": {
+                "rss": "198MB",
+                "heapUsed": "79MB",
+                "heapTotal": "89MB"
+              },
+              "pid": 1
+            },
+            "kafka": {
+              "status": "up",
+              "skipped": true,
+              "reason": "Kafka disabled by configuration"
+            },
+            "redis": {
+              "status": "up"
+            },
+            "registry": {
+              "status": "up",
+              "registeredServices": 22
+            },
+            "circuitBreakers": {
+              "status": "up",
+              "total": 0,
+              "open": 0,
+              "breakers": []
+            },
+            "governance": {
+              "status": "up",
+              "quotaEnforcer": "up",
+              "policyEngine": "up",
+              "approvals": "up",
+              "sdkContractVersion": "local",
+              "imageTag": "local"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "management": {
+    "baseUrl": "https://api-center-management-test.itsandbox.site",
+    "endpoints": [
+      {
+        "name": "home",
+        "url": "https://api-center-management-test.itsandbox.site/",
+        "status": 200,
+        "ok": true,
+        "durationMs": 438,
+        "body": {
+          "raw": "<!DOCTYPE html><html data-dpl-id=\"dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" lang=\"en\" class=\"h-full antialiased\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/0bn9gul_wtyjj.css?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" data-precedence=\"next\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/0yb2wil16uz6h.js?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\"/><script src=\"/_next/static/chunks/0d4xcm5pi5r2s.js?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" async=\"\"></script><script src=\"/_next/static/chunks/0qj5awczw3s91.js?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" async=\"\"></script><script src=\"/_next/static/chunks/12f6q0477q8s3.js?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" async=\"\"></script><script src=\"/_next/static/chunks/0pqt~8bl3ukh4.js?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" async=\"\"></script><script src=\"/_next/static/chunks/turbopack-040ap_y4.w_lq.js?dpl=dpl_A4Quqh9LszkVHN7TrvG67aTDpDhK\" async"
+        }
+      },
+      {
+        "name": "deploymentConfig",
+        "url": "https://api-center-management-test.itsandbox.site/api/local/deployment/config-check",
+        "status": 200,
+        "ok": true,
+        "durationMs": 781,
+        "body": {
+          "checkedAt": "2026-06-26T01:26:02.131Z",
+          "data": {
+            "isDeployed": true,
+            "deployedLocalDevBlocked": false,
+            "authMode": "descope",
+            "managementEnvironment": "test",
+            "managementEnv": "test",
+            "publicBaseUrl": "https://api-center-management-test.itsandbox.site",
+            "apiCenterBaseUrl": "https://api-center.itsandbox.site",
+            "publicApiCenterBaseUrl": "https://api-center.itsandbox.site",
+            "kafkaTopicPrefix": "test",
+            "googleCloudProject": "api-center-496422",
+            "secretManagerAuthMode": "vercel-oidc",
+            "descope": {
+              "projectId": "P3CDYwDpERyUJPEfqnppZM7HLySN",
+              "publicProjectId": "P3CDYwDpERyUJPEfqnppZM7HLySN",
+              "issuerConfigured": true,
+              "allowedTenantConfigured": false
+            },
+            "gcp": {
+              "projectNumber": "684000639729",
+              "serviceAccountEmail": "apicenter-mgmt-provisioner@api-center-496422.iam.gserviceaccount.com",
+              "workloadIdentityPoolId": "vercel",
+              "workloadIdentityPoolProviderId": "vercel"
+            },
+            "confluent": {
+              "environmentId": "env-663z86",
+              "kafkaClusterId": "lkc-850n9q",
+              "kafkaRestEndpoint": "https://pkc-ldvj1.ap-southeast-2.aws.confluent.cloud:443",
+              "s3ConnectorName": "api-center-test-s3-sink",
+              "defaultRetentionMs": "604800000"
+            },
+            "requiredEnv": [
+              "API_CENTER_BASE_URL",
+              "API_CENTER_PLATFORM_ADMIN_SECRET",
+              "NEXT_PUBLIC_API_CENTER_BASE_URL",
+              "MANAGEMENT_AUTH_MODE",
+              "MANAGEMENT_ENVIRONMENT",
+              "NEXT_PUBLIC_MANAGEMENT_ENV",
+              "NEXT_PUBLIC_KAFKA_TOPIC_PREFIX",
+              "GOOGLE_CLOUD_PROJECT",
+              "CONFLUENT_ENVIRONMENT_ID",
+              "CONFLUENT_KAFKA_CLUSTER_ID",
+              "CONFLUENT_KAFKA_REST_ENDPOINT",
+              "CONFLUENT_KAFKA_API_KEY",
+              "CONFLUENT_KAFKA_API_SECRET",
+              "CONFLUENT_CLOUD_API_KEY",
+              "CONFLUENT_CLOUD_API_SECRET",
+              "CONFLUENT_S3_CONNECTOR_NAME",
+              "NEXT_PUBLIC_DESCOPE_PROJECT_ID",
+              "DESCOPE_PROJECT_ID",
+              "DESCOPE_ISSUER",
+              "MANAGEMENT_PUBLIC_BASE_URL",
+              "GCP_PROJECT_NUMBER",
+              "GCP_SERVICE_ACCOUNT_EMAIL",
+              "GCP_WORKLOAD_IDENTITY_POOL_ID",
+              "GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID"
+            ],
+            "missingEnv": []
+          }
+        }
+      }
+    ]
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "npm run db:readiness:evidence -- --phase old --api-center-base-url <old-api-center-url> --management-base-url <old-management-url> --out docs/operations/readiness-old-<date>.json",
+    "npm run db:readiness:evidence -- --phase new --api-center-base-url <new-api-center-url> --management-base-url <new-management-url> --out docs/operations/readiness-new-<date>.json",
+    "Review API Center live/ready and Management deployment config before switching REGISTRY_SOURCE to postgres."
+  ]
+}

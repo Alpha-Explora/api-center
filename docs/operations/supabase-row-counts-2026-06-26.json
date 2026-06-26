@@ -1,0 +1,144 @@
+{
+  "generatedAt": "2026-06-25T23:44:47.381Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "environment": {
+    "DATABASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    }
+  },
+  "plannedCommand": "npm run db:verify:control-plane -- --row-counts",
+  "plannedLinkedCommand": "supabase db query --linked -o json select table_schema, table_name, (xpath('/row/count/text()', query_to_xml(format('select count(*) as count from %I.%I', table_schema, table_name), false, true, '')))[1]::text::bigint as row_count from information_schema.tables where table_schema in ('api_center', 'api_center_ops', 'api_center_audit', 'apic_catalog', 'apic_governance', 'apic_runtime', 'apic_audit') and table_type = 'BASE TABLE' order by table_schema, table_name",
+  "rowCountRun": {
+    "command": "direct postgres row-count query",
+    "status": 0,
+    "stdout": "{\"rows\":[{\"table_schema\":\"apic_audit\",\"table_name\":\"audit_events\",\"row_count\":\"0\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"organizations\",\"row_count\":\"1\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"service_dependencies\",\"row_count\":\"61\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"service_environments\",\"row_count\":\"0\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"service_lifecycle_events\",\"row_count\":\"3434\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"service_routes\",\"row_count\":\"56\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"service_scopes\",\"row_count\":\"32\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"service_secret_references\",\"row_count\":\"0\"},{\"table_schema\":\"apic_catalog\",\"table_name\":\"services\",\"row_count\":\"22\"},{\"table_schema\":\"apic_governance\",\"table_name\":\"approval_requests\",\"row_count\":\"0\"},{\"table_schema\":\"apic_governance\",\"table_name\":\"entitlement_assignments\",\"row_count\":\"0\"},{\"table_schema\":\"apic_governance\",\"table_name\":\"entitlement_plans\",\"row_count\":\"4\"},{\"table_schema\":\"apic_governance\",\"table_name\":\"quota_policies\",\"row_count\":\"0\"},{\"table_schema\":\"apic_governance\",\"table_name\":\"registry_change_requests\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"confluent_topics\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"event_topic_onboarding_states\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"health_snapshots\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"pipeline_feedback_actions\",\"row_count\":\"5\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"provisioning_jobs\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"quota_evaluations\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"s3_sink_topics\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"smoke_test_runs\",\"row_count\":\"0\"},{\"table_schema\":\"apic_runtime\",\"table_name\":\"usage_rollups\",\"row_count\":\"0\"}]}",
+    "stderr": ""
+  },
+  "linkedRows": [
+    {
+      "table_schema": "apic_audit",
+      "table_name": "audit_events",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "organizations",
+      "row_count": "1"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "service_dependencies",
+      "row_count": "61"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "service_environments",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "service_lifecycle_events",
+      "row_count": "3434"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "service_routes",
+      "row_count": "56"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "service_scopes",
+      "row_count": "32"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "service_secret_references",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_catalog",
+      "table_name": "services",
+      "row_count": "22"
+    },
+    {
+      "table_schema": "apic_governance",
+      "table_name": "approval_requests",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_governance",
+      "table_name": "entitlement_assignments",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_governance",
+      "table_name": "entitlement_plans",
+      "row_count": "4"
+    },
+    {
+      "table_schema": "apic_governance",
+      "table_name": "quota_policies",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_governance",
+      "table_name": "registry_change_requests",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "confluent_topics",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "event_topic_onboarding_states",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "health_snapshots",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "pipeline_feedback_actions",
+      "row_count": "5"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "provisioning_jobs",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "quota_evaluations",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "s3_sink_topics",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "smoke_test_runs",
+      "row_count": "0"
+    },
+    {
+      "table_schema": "apic_runtime",
+      "table_name": "usage_rollups",
+      "row_count": "0"
+    }
+  ],
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Set DATABASE_URL in the live operator shell without committing it, or use authenticated supabase db query --linked for inventory evidence.",
+    "npm run db:row-counts:evidence -- --out docs/operations/supabase-row-counts-<date>.json",
+    "npm run db:verify:control-plane -- --row-counts",
+    "supabase db query --linked -o json select table_schema, table_name, (xpath('/row/count/text()', query_to_xml(format('select count(*) as count from %I.%I', table_schema, table_name), false, true, '')))[1]::text::bigint as row_count from information_schema.tables where table_schema in ('api_center', 'api_center_ops', 'api_center_audit', 'apic_catalog', 'apic_governance', 'apic_runtime', 'apic_audit') and table_type = 'BASE TABLE' order by table_schema, table_name",
+    "Attach the generated artifact to the migration approval packet before DDL is applied."
+  ]
+}

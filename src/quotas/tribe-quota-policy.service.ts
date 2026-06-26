@@ -21,7 +21,7 @@ interface QuotaPolicyDelegate {
 }
 
 interface QuotaPolicyPrisma {
-  tribeApiQuotaPolicy: QuotaPolicyDelegate;
+  quotaPolicy: QuotaPolicyDelegate;
 }
 
 @Injectable()
@@ -35,7 +35,7 @@ export class TribeQuotaPolicyService {
   async resolvePolicy(
     input: ResolveTribeQuotaPolicyInput,
   ): Promise<TribeQuotaPolicy | null> {
-    const policies = await this.quotaPrisma.tribeApiQuotaPolicy.findMany({
+    const policies = await this.quotaPrisma.quotaPolicy.findMany({
       where: {
         ownerTribeId: input.ownerTribeId,
         status: "active",
@@ -65,7 +65,7 @@ export class TribeQuotaPolicyService {
   }
 
   async listPolicies(ownerTribeId?: string): Promise<TribeQuotaPolicy[]> {
-    return this.quotaPrisma.tribeApiQuotaPolicy.findMany({
+    return this.quotaPrisma.quotaPolicy.findMany({
       where: {
         ...(ownerTribeId ? { ownerTribeId } : {}),
       },
@@ -76,7 +76,7 @@ export class TribeQuotaPolicyService {
   async listPoliciesForPortal(
     ownerTribeId: string,
   ): Promise<TribeQuotaPolicy[]> {
-    return this.quotaPrisma.tribeApiQuotaPolicy.findMany({
+    return this.quotaPrisma.quotaPolicy.findMany({
       where: { ownerTribeId },
       orderBy: [{ updatedAt: "desc" }],
     });
@@ -85,7 +85,7 @@ export class TribeQuotaPolicyService {
   async createPolicy(
     input: CreateTribeQuotaPolicyInput,
   ): Promise<TribeQuotaPolicy> {
-    return this.quotaPrisma.tribeApiQuotaPolicy.create({
+    return this.quotaPrisma.quotaPolicy.create({
       data: {
         ...input,
         mode: input.mode ?? "observe",
@@ -98,7 +98,7 @@ export class TribeQuotaPolicyService {
     policyId: string,
     input: UpdateTribeQuotaPolicyInput,
   ): Promise<TribeQuotaPolicy> {
-    return this.quotaPrisma.tribeApiQuotaPolicy.update({
+    return this.quotaPrisma.quotaPolicy.update({
       where: { id: policyId },
       data: this.stripUndefined(input),
     });

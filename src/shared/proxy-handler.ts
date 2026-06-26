@@ -21,6 +21,10 @@ import { MetricsService } from "../metrics/metrics.service";
 import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
+import {
+  ServiceCallObservation,
+  ServiceCallOutcome,
+} from "../analytics/service-call-observation";
 import { SharedServiceEventPublisher } from "../shared-services/shared-service-event-publisher";
 import { EmergencyControlService } from "../operations/emergency-control.service";
 import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
@@ -394,6 +398,14 @@ export class ProxyHandler {
     res.on("finish", () => {
       const latencyMs = Date.now() - proxyStart;
       const durationSec = latencyMs / 1000;
+      const observation = this.buildServiceCallObservation({
+        tribeId,
+        targetServiceId,
+        targetEnvironment,
+        req,
+        statusCode: res.statusCode,
+        latencyMs,
+      });
       this.deps.metrics.recordProxyRequest(
         this.opts.namespace,
         tribeId,
@@ -402,20 +414,8 @@ export class ProxyHandler {
         res.statusCode,
         durationSec,
       );
-      this.recordGatewayTraffic(
-        tribeId,
-        targetServiceId,
-        req,
-        res.statusCode,
-        latencyMs,
-      );
-      this.recordSharedServiceUsage(
-        tribeId,
-        targetServiceId,
-        req,
-        res.statusCode,
-        latencyMs,
-      );
+      this.recordGatewayTraffic(observation, req);
+      this.recordSharedServiceUsage(observation, req);
       this.publishSharedServiceExportEvent(
         tribeId,
         targetServiceId,
@@ -485,35 +485,33 @@ export class ProxyHandler {
   }
 
   private recordSharedServiceUsage(
-    tribeId: string,
-    targetServiceId: string,
+    observation: ServiceCallObservation,
     req: AuthenticatedRequest,
-    statusCode: number,
-    latencyMs: number,
   ): void {
     if (this.opts.namespace !== "shared" || !this.deps.sharedServiceUsage) {
       return;
     }
 
+    const sharedServiceId = observation.shared_service_id ?? "unknown";
     this.deps.sharedServiceUsage
       .record({
-        tribeServiceId: tribeId,
-        sharedServiceId: targetServiceId,
+        tribeServiceId: observation.source_service_id,
+        sharedServiceId,
         route: req.originalUrl ?? req.url ?? "",
-        method: req.method,
-        status: statusCode,
-        ok: statusCode < 400,
-        latencyMs,
+        method: observation.http_method,
+        status: observation.status_code,
+        ok: observation.status_code < 400,
+        latencyMs: observation.latency_ms,
         timestamp: new Date(),
+        observation,
       })
       .catch((err) => {
         this.deps.logger.warn(
-          `Failed to record shared-service usage for '${targetServiceId}': ${(err as Error).message}`,
+          `Failed to record shared-service usage for '${sharedServiceId}': ${(err as Error).message}`,
           "ProxyHandler",
         );
       });
   }
-
   private publishSharedServiceExportEvent(
     tribeId: string,
     targetServiceId: string,
@@ -541,21 +539,23 @@ export class ProxyHandler {
   }
 
   private recordGatewayTraffic(
-    tribeId: string,
-    targetServiceId: string,
+    observation: ServiceCallObservation,
     req: AuthenticatedRequest,
-    statusCode: number,
-    latencyMs: number,
   ): void {
+    const targetServiceId =
+      observation.target_service_id ??
+      observation.shared_service_id ??
+      "unknown";
     this.deps.gatewayTraffic
       ?.recordProxyRequest({
         namespace: this.opts.namespace,
-        sourceTribe: tribeId,
+        sourceTribe: observation.source_service_id,
         targetService: targetServiceId,
-        method: req.method,
-        statusCode,
-        latencyMs,
+        method: observation.http_method,
+        statusCode: observation.status_code,
+        latencyMs: observation.latency_ms,
         timestamp: new Date(),
+        observation,
       })
       .catch((err) => {
         this.deps.logger.warn(
@@ -571,18 +571,23 @@ export class ProxyHandler {
             ? "shared_service.call"
             : "tribe_service.call",
         severity:
-          statusCode >= 500 ? "error" : statusCode >= 400 ? "warning" : "info",
+          observation.status_code >= 500
+            ? "error"
+            : observation.status_code >= 400
+              ? "warning"
+              : "info",
         serviceId: targetServiceId,
-        tribeServiceId: tribeId,
+        tribeServiceId: observation.source_service_id,
         ...(this.opts.namespace === "shared" && {
           sharedServiceId: targetServiceId,
         }),
-        message: `${tribeId} called ${targetServiceId} via ${this.opts.namespace} proxy`,
+        message: `${observation.source_service_id} called ${targetServiceId} via ${this.opts.namespace} proxy`,
         payload: {
           route: req.originalUrl ?? req.url ?? "",
-          method: req.method,
-          statusCode,
-          latencyMs,
+          method: observation.http_method,
+          statusCode: observation.status_code,
+          latencyMs: observation.latency_ms,
+          observation,
         },
       })
       .catch((err) => {
@@ -593,6 +598,84 @@ export class ProxyHandler {
       });
   }
 
+  private buildServiceCallObservation(input: {
+    tribeId: string;
+    targetServiceId: string;
+    targetEnvironment: ServiceEnvironmentKey;
+    req: AuthenticatedRequest;
+    statusCode: number;
+    latencyMs: number;
+  }): ServiceCallObservation {
+    const targetType =
+      this.opts.namespace === "shared" ? "shared_service" : "api_service";
+    const targetId = input.targetServiceId || "unknown";
+    const outcome = this.resolveServiceCallOutcome(input.statusCode);
+    const routeFamily = `${this.opts.namespace}:${targetId}`;
+    const requestId = this.resolveRequestId(input.req);
+    const observation: ServiceCallObservation = {
+      correlation_id: input.req.correlationId ?? requestId,
+      request_id: requestId,
+      environment: input.targetEnvironment,
+      caller_type: "tribe",
+      caller_id: input.tribeId || "unknown",
+      source_service_id: input.tribeId || "unknown",
+      target_type: targetType,
+      route_family: routeFamily,
+      http_method: input.req.method,
+      status_code: input.statusCode,
+      outcome,
+      latency_ms: Math.max(0, input.latencyMs),
+      rollup_key: this.buildServiceCallRollupKey({
+        environment: input.targetEnvironment,
+        callerType: "tribe",
+        callerId: input.tribeId || "unknown",
+        targetType,
+        targetId,
+        routeFamily,
+        outcome,
+      }),
+    };
+
+    if (targetType === "shared_service") {
+      observation.shared_service_id = targetId;
+    } else {
+      observation.target_service_id = targetId;
+    }
+
+    return observation;
+  }
+
+  private resolveRequestId(req: AuthenticatedRequest): string {
+    const header = req.headers?.["x-request-id"];
+    const requestId = Array.isArray(header) ? header[0] : header;
+    return requestId || req.correlationId || "unknown";
+  }
+
+  private resolveServiceCallOutcome(statusCode: number): ServiceCallOutcome {
+    if (statusCode >= 500) return "server_error";
+    if (statusCode >= 400) return "client_error";
+    return "success";
+  }
+
+  private buildServiceCallRollupKey(input: {
+    environment: string;
+    callerType: string;
+    callerId: string;
+    targetType: string;
+    targetId: string;
+    routeFamily: string;
+    outcome: ServiceCallOutcome;
+  }): string {
+    return [
+      input.environment,
+      input.callerType,
+      input.callerId,
+      input.targetType,
+      input.targetId,
+      input.routeFamily,
+      input.outcome,
+    ].join(":");
+  }
   /** Reject retired services (410) and set RFC 8594 deprecation headers. */
   private enforceLifecycleGate(
     entry:

@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-06-26T01:03:08.970Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "namespace": "api-center",
+  "deployment": {
+    "name": "api-center",
+    "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:supabase-registry-sourcefix-512551d-20260626075800",
+    "kubernetesRevision": "6",
+    "generation": 6,
+    "observedGeneration": 6,
+    "desiredReplicas": 2,
+    "readyReplicas": 2,
+    "updatedReplicas": 2,
+    "progressedAt": "2026-06-26T00:03:32Z",
+    "revision": "deployment/api-center@6 asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:supabase-registry-sourcefix-512551d-20260626075800"
+  },
+  "pods": [
+    {
+      "name": "api-center-66fc9c5547-jkq6s",
+      "phase": "Running",
+      "ready": true,
+      "startedAt": "2026-06-26T00:02:39.000Z",
+      "restartCount": 0
+    },
+    {
+      "name": "api-center-66fc9c5547-mvrbc",
+      "phase": "Running",
+      "ready": true,
+      "startedAt": "2026-06-26T00:02:39.000Z",
+      "restartCount": 0
+    }
+  ],
+  "window": {
+    "source": "kubernetes_ready_pods",
+    "startedAt": "2026-06-26T00:02:39.000Z",
+    "endedAt": "2026-06-26T01:03:08.970Z",
+    "durationMinutes": 60,
+    "requiredMinutes": 60
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Wait until all ready API Center pods have been running for the required stable window.",
+    "Run npm run db:compat-cleanup:k8s -- --out docs/operations/compat-cleanup-k8s-<date>.json.",
+    "Use the deployment.revision value as APICENTER_COMPATIBILITY_CLEANUP_DEPLOYMENT_REVISION when generating stability evidence."
+  ]
+}

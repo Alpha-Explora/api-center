@@ -727,6 +727,67 @@ describe("ProxyHandler", () => {
     });
   });
 
+  describe("normalized service-call observation recording", () => {
+    beforeEach(() => {
+      (deps.registry.resolveUpstream as jest.Mock).mockReturnValue(
+        "http://localhost:3001",
+      );
+      (deps.registry.get as jest.Mock).mockReturnValue({
+        serviceId: "orders-api",
+        serviceType: "tribe",
+        status: "active",
+        requiredScopes: [],
+        consumes: [],
+      });
+    });
+
+    it("records normalized tribe-to-tribe service-call observations", async () => {
+      const req = fakeReq({
+        tribeId: "campusone",
+        correlationId: "corr-tribe-call",
+        method: "GET",
+        originalUrl: "/api/v1/tribes/orders-api/orders",
+        headers: {
+          "x-apicenter-target-environment": "uat",
+          "x-request-id": "req-tribe-call",
+        },
+      });
+      const res = fakeResWithFinish(200);
+
+      await handler.proxyRequest("orders-api", req, res);
+      res.finishHandlers.forEach((handler: () => void) => handler());
+
+      const expectedObservation = expect.objectContaining({
+        correlation_id: "corr-tribe-call",
+        request_id: "req-tribe-call",
+        environment: "uat",
+        caller_type: "tribe",
+        caller_id: "campusone",
+        source_service_id: "campusone",
+        target_type: "api_service",
+        target_service_id: "orders-api",
+        route_family: "tribe:orders-api",
+        http_method: "GET",
+        status_code: 200,
+        outcome: "success",
+        latency_ms: expect.any(Number),
+        rollup_key:
+          "uat:tribe:campusone:api_service:orders-api:tribe:orders-api:success",
+      });
+
+      expect(deps.gatewayTraffic?.recordProxyRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ observation: expectedObservation }),
+      );
+      expect(deps.auditEvents?.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            observation: expectedObservation,
+          }),
+        }),
+      );
+    });
+  });
+
   describe("shared-service runtime usage recording", () => {
     beforeEach(() => {
       handler = new ProxyHandler(deps, {
@@ -882,6 +943,23 @@ describe("ProxyHandler", () => {
           sharedServiceId: "paymongo",
           status: 502,
           ok: false,
+          observation: expect.objectContaining({
+            correlation_id: "corr-1",
+            request_id: "corr-1",
+            environment: "test",
+            caller_type: "tribe",
+            caller_id: "campusone",
+            source_service_id: "campusone",
+            target_type: "shared_service",
+            shared_service_id: "paymongo",
+            route_family: "shared:paymongo",
+            http_method: "GET",
+            status_code: 502,
+            outcome: "server_error",
+            latency_ms: expect.any(Number),
+            rollup_key:
+              "test:tribe:campusone:shared_service:paymongo:shared:paymongo:server_error",
+          }),
         }),
       );
     });

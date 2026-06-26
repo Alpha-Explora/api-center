@@ -32,7 +32,7 @@ describe("ConsumerScorecardController", () => {
       { ownerTribeId: "logistics", requestCount: 10, maxRequests: 100 },
     ]);
     const prisma = {
-      tribeApiQuotaDecision: {
+      quotaEvaluation: {
         findMany: quotaFindMany,
       },
     };
@@ -91,7 +91,7 @@ describe("ConsumerScorecardController", () => {
       }),
     };
     const prisma = {
-      tribeApiQuotaDecision: {
+      quotaEvaluation: {
         findMany: jest.fn().mockResolvedValue([
           { ownerTribeId: "campus-one", requestCount: 92, maxRequests: 100 },
           { ownerTribeId: "campus-one", requestCount: 25, maxRequests: 100 },
@@ -142,7 +142,7 @@ describe("ConsumerScorecardController", () => {
       }),
     };
     const prisma = {
-      tribeApiQuotaDecision: {
+      quotaEvaluation: {
         findMany: jest.fn().mockResolvedValue([]),
       },
     };

@@ -39,6 +39,13 @@ export interface AssignTribePlanInput {
   assignedBy?: string;
 }
 
+export interface UpdateTribePlanAssignmentInput {
+  assignmentId: string;
+  status: TribePlanAssignmentStatus;
+  reason: string;
+  updatedBy?: string;
+}
+
 export interface ListTribePlanAssignmentsInput {
   ownerTribeId?: string;
   planKey?: TribePlanKey;

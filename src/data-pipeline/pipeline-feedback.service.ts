@@ -55,18 +55,18 @@ export const PIPELINE_FEEDBACK_SERVICE_OPTIONS =
 
 type PipelineFeedbackRow = {
   id: string;
-  action: PipelineFeedbackAction;
-  environment: PipelineHealthEnvironment;
-  target_type: PipelineFeedbackTargetType;
-  target_id: string;
-  owner_tribe_id: string | null;
-  evidence_link: string | null;
+  action: string;
+  environment: string;
+  targetType: string;
+  targetId: string;
+  ownerTribeId: string | null;
+  evidenceLink: string | null;
   reason: string;
-  actor_id: string;
-  actor_role: string;
-  correlation_id: string | null;
-  status: PipelineFeedbackStatus;
-  created_at: Date | string;
+  actorId: string;
+  actorRole: string;
+  correlationId: string | null;
+  status: string;
+  createdAt: Date | string;
 };
 
 @Injectable()
@@ -104,39 +104,23 @@ export class PipelineFeedbackService {
 
     const database = this.databaseClient();
     if (database) {
-      const rows = await database.$queryRawUnsafe<PipelineFeedbackRow[]>(
-        `
-          insert into api_center_ops.pipeline_feedback_actions
-            (
-              action,
-              environment,
-              target_type,
-              target_id,
-              owner_tribe_id,
-              evidence_link,
-              reason,
-              actor_id,
-              actor_role,
-              correlation_id,
-              status
-            )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          returning *
-        `,
-        input.action,
-        input.environment,
-        input.targetType,
-        input.targetId,
-        this.optionalString(input.ownerTribeId) ?? null,
-        this.optionalString(input.evidenceLink) ?? null,
-        reason,
-        actor.actorId,
-        actor.actorRole,
-        this.optionalString(actor.correlationId) ?? null,
-        status,
-      );
+      const row = await database.pipelineFeedbackActionRecord.create({
+        data: {
+          action: input.action,
+          environment: input.environment,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          ownerTribeId: this.optionalString(input.ownerTribeId),
+          evidenceLink: this.optionalString(input.evidenceLink),
+          reason,
+          actorId: actor.actorId,
+          actorRole: actor.actorRole,
+          correlationId: this.optionalString(actor.correlationId),
+          status,
+        },
+      });
 
-      return mapFeedbackRow(rows[0]);
+      return mapFeedbackRow(row);
     }
 
     const record: PipelineFeedbackRecord = {
@@ -164,32 +148,14 @@ export class PipelineFeedbackService {
   ): Promise<PipelineFeedbackRecord[]> {
     const database = this.databaseClient();
     if (database) {
-      const clauses: string[] = [];
-      const values: string[] = [];
-
-      if (filter.environment) {
-        values.push(filter.environment);
-        clauses.push(`environment = $${values.length}`);
-      }
-      if (filter.targetId) {
-        values.push(filter.targetId);
-        clauses.push(`target_id = $${values.length}`);
-      }
-      if (filter.targetType) {
-        values.push(filter.targetType);
-        clauses.push(`target_type = $${values.length}`);
-      }
-
-      const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
-      const rows = await database.$queryRawUnsafe<PipelineFeedbackRow[]>(
-        `
-          select *
-          from api_center_ops.pipeline_feedback_actions
-          ${where}
-          order by created_at desc
-        `,
-        ...values,
-      );
+      const rows = await database.pipelineFeedbackActionRecord.findMany({
+        where: {
+          environment: filter.environment,
+          targetId: filter.targetId,
+          targetType: filter.targetType,
+        },
+        orderBy: { createdAt: "desc" },
+      });
       return rows.map(mapFeedbackRow);
     }
 
@@ -271,20 +237,20 @@ export class PipelineFeedbackService {
 function mapFeedbackRow(row: PipelineFeedbackRow): PipelineFeedbackRecord {
   return {
     id: row.id,
-    action: row.action,
-    environment: row.environment,
-    targetType: row.target_type,
-    targetId: row.target_id,
-    ownerTribeId: row.owner_tribe_id ?? undefined,
-    evidenceLink: row.evidence_link ?? undefined,
+    action: row.action as PipelineFeedbackAction,
+    environment: row.environment as PipelineHealthEnvironment,
+    targetType: row.targetType as PipelineFeedbackTargetType,
+    targetId: row.targetId,
+    ownerTribeId: row.ownerTribeId ?? undefined,
+    evidenceLink: row.evidenceLink ?? undefined,
     reason: row.reason,
-    actorId: row.actor_id,
-    actorRole: row.actor_role,
-    correlationId: row.correlation_id ?? undefined,
+    actorId: row.actorId,
+    actorRole: row.actorRole,
+    correlationId: row.correlationId ?? undefined,
     createdAt:
-      row.created_at instanceof Date
-        ? row.created_at.toISOString()
-        : new Date(row.created_at).toISOString(),
-    status: row.status,
+      row.createdAt instanceof Date
+        ? row.createdAt.toISOString()
+        : new Date(row.createdAt).toISOString(),
+    status: row.status as PipelineFeedbackStatus,
   };
 }

@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-06-26T01:26:23.246Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "workspaceRoot": "C:\\Codes\\apic",
+  "paths": {
+    "readiness": "docs/operations/readiness-new-2026-06-26.json",
+    "missingTableLogs": "docs/operations/missing-table-log-scan-2026-06-26.json",
+    "postcutoverErrors": "docs/operations/postcutover-error-log-scan-2026-06-26.json",
+    "verifier": "docs/operations/supabase-verifier-readiness-2026-06-26.json",
+    "stableWindow": "docs/operations/compat-cleanup-stability-2026-06-26.json"
+  },
+  "confirmations": {
+    "stableDeploymentConfirmed": true,
+    "cleanupApproved": true
+  },
+  "runtimeLegacyReferences": {
+    "count": 0,
+    "matches": []
+  },
+  "artifacts": {
+    "readiness": {
+      "path": "docs/operations/readiness-new-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "missingTableLogs": {
+      "path": "docs/operations/missing-table-log-scan-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "postcutoverErrors": {
+      "path": "docs/operations/postcutover-error-log-scan-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "verifier": {
+      "path": "docs/operations/supabase-verifier-readiness-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": [],
+      "liveModes": [
+        "base",
+        "legacy_schemas_absent",
+        "retention_policy"
+      ]
+    },
+    "stableWindow": {
+      "path": "docs/operations/compat-cleanup-stability-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "migrationStatic": {
+      "path": "supabase/migrations/20260626002247_drop_legacy_control_plane_views.sql",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    }
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Confirm one full stable deployment window with no running API Center or Management deployment querying legacy control-plane schemas.",
+    "Run npm run db:compat-cleanup:stability -- --out docs/operations/compat-cleanup-stability-<date>.json after the window completes.",
+    "Set APICENTER_COMPATIBILITY_CLEANUP_STABLE_DEPLOYMENT=true and APICENTER_COMPATIBILITY_CLEANUP_APPROVED=true only after that confirmation and operator approval.",
+    "Run npm run db:compat-cleanup:readiness -- --out docs/operations/compat-cleanup-readiness-<date>.json --fail-on-blockers before live dry-run/apply."
+  ]
+}

@@ -1,4 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import {
+  ManagementSourceMetadata,
+  volatileSourceMetadata,
+} from "../shared/source-metadata";
 
 export interface PromotionEvidenceSection {
   key: string;
@@ -87,6 +91,24 @@ export class PromotionEvidenceBundleService {
 
   listBundles(): PromotionEvidenceBundle[] {
     return Array.from(this.bundles.values());
+  }
+
+  listBundlesWithSourceMetadata(): {
+    data: PromotionEvidenceBundle[];
+    sourceMetadata: ManagementSourceMetadata;
+  } {
+    return {
+      data: this.listBundles(),
+      sourceMetadata: this.getSourceMetadata(),
+    };
+  }
+
+  getSourceMetadata(): ManagementSourceMetadata {
+    return volatileSourceMetadata({
+      sourceName: "promotion-evidence-memory-bundles",
+      degradedReason:
+        "Promotion evidence bundles are process memory only until apic_governance.promotion_evidence_bundles or apic_audit.evidence_snapshots is implemented.",
+    });
   }
 }
 

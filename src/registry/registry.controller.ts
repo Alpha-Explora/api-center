@@ -89,7 +89,14 @@ export class RegistryController {
       serviceId: entry.serviceId,
       correlationId: req.correlationId,
     });
-    this.recordAudit("service.registered", entry.serviceId, req.correlationId);
+    await this.recordAudit(
+      "registry.service.create_requested",
+      entry.serviceId,
+      req,
+      {
+        environment: approvalTargetEnvironment,
+      },
+    );
 
     return {
       success: true,
@@ -126,6 +133,9 @@ export class RegistryController {
         contact: svc.contact,
         serviceTier: svc.serviceTier,
         costCenter: svc.costCenter,
+        healthCheck: svc.healthCheck,
+        healthy: svc.healthy,
+        lastHealthCheckAt: svc.lastHealthCheckAt,
         sunsetDate: svc.sunsetDate,
         replacementService: svc.replacementService,
         apiProductName: svc.apiProductName,
@@ -218,7 +228,7 @@ export class RegistryController {
       serviceId,
       correlationId: req.correlationId,
     });
-    this.recordAudit("service.deregistered", serviceId, req.correlationId);
+    await this.recordAudit("registry.service.delete_requested", serviceId, req);
 
     return {
       success: true,
@@ -258,11 +268,16 @@ export class RegistryController {
       "RegistryController",
     );
 
-    this.recordAudit("service.deprecated", serviceId, req.correlationId, {
-      consumers,
-      sunsetDate: dto.sunsetDate,
-      replacementService: dto.replacementService,
-    });
+    await this.recordAudit(
+      "registry.service.disable_requested",
+      serviceId,
+      req,
+      {
+        consumers,
+        sunsetDate: dto.sunsetDate,
+        replacementService: dto.replacementService,
+      },
+    );
 
     return {
       success: true,
@@ -301,9 +316,16 @@ export class RegistryController {
       "RegistryController",
     );
 
-    this.recordAudit("service.retired", serviceId, req.correlationId, {
-      consumers,
-    });
+    await this.recordAudit(
+      "registry.service.archive_requested",
+      serviceId,
+      req,
+      {
+        environment: "live",
+        consumers,
+        approvalRequestId: body.approvalRequestId,
+      },
+    );
 
     return {
       success: true,
@@ -333,7 +355,7 @@ export class RegistryController {
       correlationId: req.correlationId,
     });
 
-    this.recordAudit("service.activated", serviceId, req.correlationId);
+    await this.recordAudit("registry.service.update_requested", serviceId, req);
 
     return {
       success: true,
@@ -365,24 +387,31 @@ export class RegistryController {
     };
   }
 
-  private recordAudit(
+  private async recordAudit(
     type: string,
     serviceId: string,
-    correlationId?: string,
-    payload?: Record<string, unknown>,
-  ): void {
-    this.auditEvents
-      .record({
-        type,
-        serviceId,
-        severity: "info",
-        message: `${type} for ${serviceId}`,
-        payload: {
-          correlationId,
-          ...payload,
-        },
-      })
-      .catch(() => undefined);
+    req: AuthenticatedRequest,
+    payload: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.auditEvents.recordRequired({
+      type,
+      actionFamily:
+        type === "registry.service.create_requested"
+          ? "registration"
+          : "lifecycle",
+      actor:
+        req.user?.tribeId ?? req.tribeId ?? req.user?.sub ?? "platform-admin",
+      serviceId,
+      resourceType: "service",
+      resourceId: serviceId,
+      environment: String(payload.environment ?? "live"),
+      correlationId: req.correlationId ?? serviceId,
+      severity: "info",
+      message: `${type} for ${serviceId}`,
+      payload: {
+        ...payload,
+      },
+    });
   }
 
   private async requireApproval(input: {

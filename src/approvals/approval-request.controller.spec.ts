@@ -1,4 +1,5 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { ApprovalRequestController } from "./approval-request.controller";
 import { ApprovalRequestService } from "./approval-request.service";
@@ -10,12 +11,15 @@ describe("ApprovalRequestController", () => {
     listRequests: jest.fn(),
     rejectRequest: jest.fn(),
   };
+  let auditEvents: { recordRequired: jest.Mock };
   let controller: ApprovalRequestController;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    auditEvents = { recordRequired: jest.fn().mockResolvedValue(undefined) };
     controller = new ApprovalRequestController(
       approvals as unknown as ApprovalRequestService,
+      auditEvents as unknown as AuditEventsService,
     );
   });
 
@@ -55,6 +59,38 @@ describe("ApprovalRequestController", () => {
       requestedBy: "platform",
     });
     expect(response.meta.correlationId).toBe("corr-approval");
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith({
+      type: "approval.request.created",
+      actionFamily: "approval",
+      actor: "platform",
+      severity: "info",
+      resourceType: "approval_request",
+      resourceId: "approval-1",
+      environment: "live",
+      correlationId: "corr-approval",
+      message: "approval.request.created for quota.enforce",
+      payload: expect.objectContaining({
+        approvalRequestId: "approval-1",
+        actionType: "quota.enforce",
+        targetEnvironment: "live",
+        correlationId: "corr-approval",
+      }),
+    });
+  });
+
+  it("fails closed when approval decision audit evidence cannot be written", async () => {
+    approvals.approveRequest.mockResolvedValue(
+      request({ status: "approved", approvedBy: "platform" }),
+    );
+    auditEvents.recordRequired.mockRejectedValueOnce(
+      new Error("audit unavailable"),
+    );
+
+    await expect(
+      controller.approve("approval-1", {
+        user: { tribeId: "platform" },
+      } as any),
+    ).rejects.toThrow("audit unavailable");
   });
 
   it("approves and rejects requests", async () => {
@@ -82,6 +118,12 @@ describe("ApprovalRequestController", () => {
       "approval-1",
       "platform",
       "Needs lower blast radius",
+    );
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "approval.request.approved" }),
+    );
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "approval.request.rejected" }),
     );
   });
 });

@@ -5,9 +5,12 @@ import {
   Param,
   Post,
   Query,
+  Optional,
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { AuditEventsService } from "../analytics/audit-events.service";
+import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
 import { AuthenticatedRequest } from "../types";
 import {
@@ -28,14 +31,21 @@ import {
 @Controller("registry/registration-requests")
 @UseGuards(ScopedAdminGuard)
 export class RegistrationRequestsController {
-  constructor(private readonly requests: RegistrationRequestsService) {}
+  constructor(
+    private readonly requests: RegistrationRequestsService,
+    @Optional() private readonly auditEvents?: AuditEventsService,
+  ) {}
 
   @Post()
-  async create(@Body() dto: CreateRegistrationRequestDto) {
+  async create(
+    @Body() dto: CreateRegistrationRequestDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const request = await this.requests.createRequest({
       manifest: normalizeManifest(dto.manifest),
       requestedBy: dto.requestedBy,
     });
+    await this.recordRegistrationRequested(request, req);
 
     return response(request);
   }
@@ -51,10 +61,9 @@ export class RegistrationRequestsController {
     @Param("requestId") requestId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    const request = await this.requests.approveRequest(
-      requestId,
-      req.user?.sub ?? "platform-admin",
-    );
+    const actor = req.user?.sub ?? "platform-admin";
+    const request = await this.requests.approveRequest(requestId, actor);
+    await this.recordRegistrationDecision(request, actor, "approved");
     return response(request);
   }
 
@@ -64,12 +73,78 @@ export class RegistrationRequestsController {
     @Body() dto: RejectRegistrationRequestDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    const actor = req.user?.sub ?? "platform-admin";
     const request = await this.requests.rejectRequest(
       requestId,
-      req.user?.sub ?? "platform-admin",
+      actor,
       dto.reason,
     );
+    await this.recordRegistrationDecision(request, actor, "rejected");
     return response(request);
+  }
+
+  private async recordRegistrationRequested(
+    request: ServiceRegistrationRequest,
+    req: AuthenticatedRequest,
+  ): Promise<void> {
+    const auditEvents = requireGovernanceDependency(
+      this.auditEvents,
+      "AuditEventsService",
+    );
+    await auditEvents.recordRequired({
+      type: "registry.service.create_requested",
+      actionFamily: "registration",
+      actor: req.user?.sub ?? request.requestedBy ?? "platform-admin",
+      serviceId: request.serviceId,
+      resourceType: "registry_change_request",
+      resourceId: request.id,
+      environment: this.resolveRegistrationEnvironment(request),
+      correlationId: req.correlationId ?? request.id,
+      severity: "info",
+      message: `Registry create requested for ${request.serviceId}`,
+      payload: {
+        requestId: request.id,
+        ownerTribeId: request.ownerTribeId,
+        status: request.status,
+        requestedBy: request.requestedBy,
+      },
+    });
+  }
+
+  private async recordRegistrationDecision(
+    request: ServiceRegistrationRequest,
+    actor: string,
+    decision: "approved" | "rejected",
+  ) {
+    const auditEvents = requireGovernanceDependency(
+      this.auditEvents,
+      "AuditEventsService",
+    );
+    await auditEvents.recordRequired({
+      type: `approval.request.${decision}`,
+      actionFamily: "approval",
+      actor,
+      serviceId: request.serviceId,
+      resourceType: "registry_change_request",
+      resourceId: request.id,
+      environment: this.resolveRegistrationEnvironment(request),
+      correlationId: request.id,
+      severity: decision === "approved" ? "info" : "warning",
+      message: `Registration request ${decision} for ${request.serviceId}`,
+      payload: {
+        requestId: request.id,
+        ownerTribeId: request.ownerTribeId,
+        status: request.status,
+        appliedServiceId: request.appliedServiceId,
+        rejectionReason: request.rejectionReason,
+      },
+    });
+  }
+
+  private resolveRegistrationEnvironment(
+    request: ServiceRegistrationRequest,
+  ): string {
+    return request.manifest.environments?.[0]?.environment ?? "test";
   }
 }
 

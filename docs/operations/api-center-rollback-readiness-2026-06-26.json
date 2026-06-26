@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-06-25T22:59:07.202Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "expectedRollbackEnv": {
+    "REGISTRY_SOURCE": "redis",
+    "DATABASE_DUAL_WRITE": "false"
+  },
+  "environment": {
+    "REGISTRY_SOURCE": {
+      "present": true,
+      "redactedValue": "<present>",
+      "expectedValue": "redis",
+      "matchesExpected": true
+    },
+    "DATABASE_DUAL_WRITE": {
+      "present": true,
+      "redactedValue": "<present>",
+      "expectedValue": "false",
+      "matchesExpected": true
+    },
+    "DATABASE_ENABLED": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "REGISTRY_DUAL_WRITE": {
+      "present": true,
+      "redactedValue": "<present>"
+    }
+  },
+  "previousImage": {
+    "present": true,
+    "source": "argument",
+    "value": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:migration-5271227-20260623"
+  },
+  "manifestImage": {
+    "present": true,
+    "value": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:migration-5271227-20260623"
+  },
+  "ready": true,
+  "blockers": [],
+  "rollbackCommands": [
+    "Set REGISTRY_SOURCE=redis in the live API Center environment.",
+    "Set DATABASE_DUAL_WRITE=false in the live API Center environment.",
+    "Redeploy or roll back API Center to image asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:migration-5271227-20260623.",
+    "Run API Center readiness and Management readiness before switching registry source again."
+  ]
+}

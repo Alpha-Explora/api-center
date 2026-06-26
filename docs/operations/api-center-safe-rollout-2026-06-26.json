@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-06-25T22:19:03.727Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "supabase": {
+    "configProjectId": "api-center-control-plane",
+    "projectRef": "hguyivbodlrmooayuxwt"
+  },
+  "expectedSafeRolloutEnv": {
+    "DATABASE_ENABLED": "true",
+    "DATABASE_DUAL_WRITE": "true",
+    "REGISTRY_SOURCE": "redis",
+    "REGISTRY_DUAL_WRITE": "true"
+  },
+  "environment": {
+    "DATABASE_ENABLED": {
+      "present": true,
+      "redactedValue": "<present>",
+      "expectedValue": "true",
+      "matchesExpected": true
+    },
+    "DATABASE_DUAL_WRITE": {
+      "present": true,
+      "redactedValue": "<present>",
+      "expectedValue": "true",
+      "matchesExpected": true
+    },
+    "REGISTRY_SOURCE": {
+      "present": true,
+      "redactedValue": "<present>",
+      "expectedValue": "redis",
+      "matchesExpected": true
+    },
+    "REGISTRY_DUAL_WRITE": {
+      "present": true,
+      "redactedValue": "<present>",
+      "expectedValue": "true",
+      "matchesExpected": true
+    }
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Set DATABASE_ENABLED=true in the live API Center environment.",
+    "Set DATABASE_DUAL_WRITE=true in the live API Center environment.",
+    "Set REGISTRY_SOURCE=redis in the live API Center environment before applying DDL.",
+    "Set REGISTRY_DUAL_WRITE=true in the live API Center environment.",
+    "Rerun npm run db:safe-rollout:evidence -- --out docs/operations/api-center-safe-rollout-<date>.json from the live operator shell."
+  ]
+}

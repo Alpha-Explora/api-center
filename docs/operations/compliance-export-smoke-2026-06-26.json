@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-06-26T01:26:04.692Z",
+  "window": {
+    "from": "2026-01-01",
+    "to": "2026-12-31"
+  },
+  "environment": {
+    "API_CENTER_BASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "APICENTER_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "MANAGEMENT_BASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "APICENTER_MANAGEMENT_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "API_CENTER_PLATFORM_ADMIN_SECRET": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "PLATFORM_ADMIN_SECRET": {
+      "present": false
+    },
+    "MANAGEMENT_AUTH_MODE": {
+      "present": false
+    },
+    "API_CENTER_ADMIN_BEARER_TOKEN": {
+      "present": false
+    },
+    "APICENTER_ADMIN_BEARER_TOKEN": {
+      "present": false
+    },
+    "MANAGEMENT_BEARER_TOKEN": {
+      "present": false
+    },
+    "APICENTER_MANAGEMENT_BEARER_TOKEN": {
+      "present": false
+    }
+  },
+  "apiCenter": {
+    "name": "api_center",
+    "url": "https://api-center.itsandbox.site/api/v1/admin/compliance/export?from=<present>&to=<present>&format=<present>",
+    "status": 200,
+    "ok": true,
+    "durationMs": 1042,
+    "bodyShape": {
+      "success": true,
+      "hasData": true,
+      "summaryKeys": [
+        "auditEventCount",
+        "evidenceBundleCount"
+      ],
+      "metaKeys": [
+        "sourceMetadata"
+      ]
+    },
+    "sourceMetadataPresent": true,
+    "auditDurability": "durable",
+    "sourceMetadata": [
+      {
+        "sourceType": "durable",
+        "sourceName": "audit-events-postgres",
+        "durability": "postgres",
+        "evidenceTable": "apic_audit.audit_events",
+        "degradedReason": ""
+      },
+      {
+        "sourceType": "volatile",
+        "sourceName": "promotion-evidence-memory-bundles",
+        "durability": "none",
+        "evidenceTable": "",
+        "degradedReason": "Promotion evidence bundles are process memory only until apic_governance.promotion_evidence_bundles or apic_audit.evidence_snapshots is implemented."
+      }
+    ]
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Set API_CENTER_BASE_URL and API_CENTER_PLATFORM_ADMIN_SECRET, or set MANAGEMENT_BASE_URL and MANAGEMENT_BEARER_TOKEN.",
+    "Run npm run db:compliance-export:evidence -- --from <yyyy-mm-dd> --to <yyyy-mm-dd> --out docs/operations/compliance-export-smoke-<date>.json.",
+    "Keep compliance export smoke unchecked until this artifact is ready=true against the post-cutover endpoint."
+  ]
+}

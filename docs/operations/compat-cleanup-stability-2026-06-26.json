@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-06-26T01:03:11.304Z",
+  "repoRoot": "C:\\Codes\\apic\\api-center",
+  "workspaceRoot": "C:\\Codes\\apic",
+  "window": {
+    "source": "kubernetes_ready_pods",
+    "startedAt": "2026-06-26T00:02:39.000Z",
+    "endedAt": "2026-06-26T01:03:08.970Z",
+    "durationMinutes": 60,
+    "requiredMinutes": 60,
+    "deploymentRevision": "deployment/api-center@6 asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:supabase-registry-sourcefix-512551d-20260626075800"
+  },
+  "paths": {
+    "readiness": "docs/operations/readiness-new-2026-06-26.json",
+    "missingTableLogs": "docs/operations/missing-table-log-scan-2026-06-26.json",
+    "postcutoverErrors": "docs/operations/postcutover-error-log-scan-2026-06-26.json",
+    "verifier": "docs/operations/supabase-verifier-readiness-2026-06-26.json",
+    "k8s": "docs/operations/compat-cleanup-k8s-2026-06-26.json"
+  },
+  "runtimeLegacyReferences": {
+    "count": 0,
+    "matches": []
+  },
+  "artifacts": {
+    "readiness": {
+      "path": "docs/operations/readiness-new-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "missingTableLogs": {
+      "path": "docs/operations/missing-table-log-scan-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "postcutoverErrors": {
+      "path": "docs/operations/postcutover-error-log-scan-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    },
+    "verifier": {
+      "path": "docs/operations/supabase-verifier-readiness-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": [],
+      "liveModes": [
+        "base",
+        "compat_views",
+        "retention_policy"
+      ]
+    },
+    "k8s": {
+      "path": "docs/operations/compat-cleanup-k8s-2026-06-26.json",
+      "present": true,
+      "ready": true,
+      "blockers": []
+    }
+  },
+  "ready": true,
+  "blockers": [],
+  "nextCommands": [
+    "Set APICENTER_COMPATIBILITY_CLEANUP_WINDOW_STARTED_AT to the beginning of the stable deployment window.",
+    "Set APICENTER_COMPATIBILITY_CLEANUP_WINDOW_ENDED_AT after the window completes, or omit it to use the collector run time.",
+    "Set APICENTER_COMPATIBILITY_CLEANUP_DEPLOYMENT_REVISION to the API Center/Management deployment revision observed during the window.",
+    "Run npm run db:compat-cleanup:stability -- --out docs/operations/compat-cleanup-stability-<date>.json."
+  ]
+}

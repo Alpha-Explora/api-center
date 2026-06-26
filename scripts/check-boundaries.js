@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const repoRoot = path.resolve(__dirname, '..');
+const DEFAULT_REPO_ROOT = path.resolve(__dirname, '..');
 
 const FORBIDDEN_DIRECTORIES = ['src/sdk', 'examples/sandbox/sdk'];
 const FORBIDDEN_IMPORT_PATTERNS = [
@@ -42,6 +42,67 @@ const SDK_RUNTIME_LEAK_PATTERNS = [
   },
 ];
 
+const BOUNDED_CONTEXTS = [
+  {
+    name: 'catalog_registry',
+    paths: ['src/registry', 'src/catalog'],
+    schemas: ['apic_catalog'],
+  },
+  {
+    name: 'governance',
+    paths: [
+      'src/approvals',
+      'src/quotas',
+      'src/entitlements',
+      'src/developer-portal',
+      'src/policy',
+    ],
+    schemas: ['apic_governance'],
+  },
+  {
+    name: 'runtime_operations',
+    paths: ['src/analytics', 'src/health', 'src/forecasting', 'src/operations'],
+    schemas: ['apic_runtime'],
+  },
+  {
+    name: 'audit_evidence',
+    paths: ['src/compliance'],
+    schemas: ['apic_audit'],
+  },
+  {
+    name: 'data_pipeline_governance',
+    paths: ['src/data-pipeline', 'src/kafka-governance'],
+    schemas: [],
+  },
+  {
+    name: 'gateway_control_plane',
+    paths: ['src/gateway-control-plane'],
+    schemas: ['apic_gateway'],
+  },
+  {
+    name: 'shared_service_platform',
+    paths: ['src/shared-services'],
+    schemas: ['shared_core'],
+  },
+  {
+    name: 'auth_identity',
+    paths: ['src/auth', 'src/secrets'],
+    schemas: [],
+  },
+  {
+    name: 'shared_kernel',
+    paths: ['src/shared', 'src/config', 'src/database', 'src/metrics'],
+    schemas: [],
+    public: true,
+  },
+];
+
+const SCHEMA_OWNERS = new Map(
+  BOUNDED_CONTEXTS.flatMap((context) =>
+    context.schemas.map((schema) => [schema, context.name]),
+  ),
+);
+
 const TEXT_FILE_EXTENSIONS = new Set([
   '.ts',
   '.tsx',
@@ -52,21 +113,51 @@ const TEXT_FILE_EXTENSIONS = new Set([
   '.md',
   '.yml',
   '.yaml',
+  '.prisma',
 ]);
 
 const IGNORE_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'coverage']);
 const SHARED_MANIFEST_FORBIDDEN_PREFIXES = ['examples/', 'docs/'];
+const IMPORT_SPECIFIER_PATTERN =
+  /(?:import\s+(?:type\s+)?(?:[^'";]+?\s+from\s+)?|export\s+[^'";]+?\s+from\s+|require\()\s*['"]([^'"]+)['"]/g;
+const APIC_SCHEMA_PATTERN = /\b(apic_[a-z0-9_]+|shared_core)\./g;
+const RAW_SCHEMA_ACCESS_PATTERN = /\b(select\s+.*from|from|join|update|insert\s+into|delete\s+from|\$queryRaw|\$executeRaw)\b/i;
+const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
+  'src/auth/auth.service.ts',
+  'src/auth/guards/jwt-auth.guard.ts',
+  'src/auth/guards/scoped-admin.guard.ts',
+  'src/auth/token-store.service.ts',
+  'src/auth/vault.service.ts',
+  'src/registry/registry.service.ts',
+  'src/approvals/approval-request.service.ts',
+  'src/analytics/audit-events.service.ts',
+  'src/analytics/gateway-traffic.service.ts',
+  'src/analytics/shared-service-usage.service.ts',
+  'src/data-pipeline/pipeline-health.service.ts',
+  'src/entitlements/tribe-plan.service.ts',
+  'src/forecasting/quota-forecast.service.ts',
+  'src/operations/emergency-control.service.ts',
+  'src/operations/promotion-evidence-bundle.service.ts',
+  'src/policy/policy-engine.service.ts',
+  'src/quotas/tribe-quota-enforcer.service.ts',
+  'src/quotas/tribe-quota-policy.service.ts',
+  'src/secrets/tribe-secret-rotation.service.ts',
+]);
 
 function toPosixPath(filePath) {
   return filePath.split(path.sep).join('/');
 }
 
+function normalizeRelPath(relPath) {
+  return relPath.split(path.sep).join('/').replace(/^\.\//, '');
+}
+
 function collectFiles(startDir, results = []) {
+  if (!fs.existsSync(startDir)) return results;
   const entries = fs.readdirSync(startDir, { withFileTypes: true });
 
   for (const entry of entries) {
     const fullPath = path.join(startDir, entry.name);
-    const relPath = toPosixPath(path.relative(repoRoot, fullPath));
 
     if (entry.isDirectory()) {
       if (IGNORE_DIRECTORIES.has(entry.name)) {
@@ -77,18 +168,24 @@ function collectFiles(startDir, results = []) {
     }
 
     if (TEXT_FILE_EXTENSIONS.has(path.extname(entry.name))) {
-      results.push(relPath);
+      results.push(fullPath);
     }
   }
 
   return results;
 }
 
+function collectRepoFiles(repoRoot) {
+  return collectFiles(repoRoot).map((fullPath) =>
+    toPosixPath(path.relative(repoRoot, fullPath)),
+  );
+}
+
 function isLikelySdkCodePath(relPath) {
   return /(^|\/)sdk(\/|$)/.test(relPath) || /(^|\/)api-shared-services(\/|$)/.test(relPath);
 }
 
-function collectDirectoryViolations() {
+function collectDirectoryViolations(repoRoot) {
   const violations = [];
 
   for (const forbiddenDir of FORBIDDEN_DIRECTORIES) {
@@ -104,7 +201,7 @@ function collectDirectoryViolations() {
   return violations;
 }
 
-function collectPatternViolations(files) {
+function collectPatternViolations(files, repoRoot) {
   const violations = [];
 
   for (const relPath of files) {
@@ -145,7 +242,7 @@ function shouldInspectForSharedManifest(relPath) {
   return SHARED_MANIFEST_FORBIDDEN_PREFIXES.some((prefix) => relPath.startsWith(prefix));
 }
 
-function collectSharedManifestViolations(files) {
+function collectSharedManifestViolations(files, repoRoot) {
   const violations = [];
 
   for (const relPath of files) {
@@ -175,6 +272,179 @@ function collectSharedManifestViolations(files) {
   return violations;
 }
 
+function findContextForFile(relPath) {
+  const normalized = normalizeRelPath(relPath);
+  return BOUNDED_CONTEXTS.find((context) =>
+    context.paths.some((contextPath) =>
+      normalized === contextPath || normalized.startsWith(`${contextPath}/`),
+    ),
+  );
+}
+
+function isProductionSourceFile(relPath) {
+  return (
+    relPath.startsWith('src/') &&
+    /\.(ts|tsx|js|mjs|cjs)$/.test(relPath) &&
+    !/\.(spec|test)\.(ts|tsx|js|mjs|cjs)$/.test(relPath)
+  );
+}
+
+function isPublicContractFile(relPath) {
+  const normalized = normalizeRelPath(relPath);
+  return (
+    normalized.endsWith('.module.ts') ||
+    normalized.endsWith('.types.ts') ||
+    normalized.endsWith('.dto.ts') ||
+    normalized.startsWith('src/openapi/') ||
+    normalized.startsWith('src/contracts/') ||
+    normalized.startsWith('src/shared/') ||
+    normalized.startsWith('src/config/') ||
+    normalized === 'src/database/prisma.service.ts' ||
+    PUBLIC_SERVICE_CONTRACT_FILES.has(normalized)
+  );
+}
+
+function resolveImportTarget(importerRelPath, specifier, repoRoot) {
+  if (!specifier.startsWith('.')) return undefined;
+
+  const importerDir = path.dirname(path.join(repoRoot, importerRelPath));
+  const base = path.resolve(importerDir, specifier);
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.js`,
+    `${base}.mjs`,
+    `${base}.cjs`,
+    path.join(base, 'index.ts'),
+    path.join(base, 'index.tsx'),
+    path.join(base, 'index.js'),
+  ];
+
+  const resolved = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!resolved) return undefined;
+
+  const relPath = toPosixPath(path.relative(repoRoot, resolved));
+  return relPath.startsWith('..') ? undefined : relPath;
+}
+
+function readImports(content) {
+  const imports = [];
+  IMPORT_SPECIFIER_PATTERN.lastIndex = 0;
+  let match;
+  while ((match = IMPORT_SPECIFIER_PATTERN.exec(content))) {
+    imports.push(match[1]);
+  }
+  return imports;
+}
+
+function collectBoundedContextImportViolations(files, repoRoot) {
+  const violations = [];
+
+  for (const relPath of files) {
+    if (!isProductionSourceFile(relPath)) continue;
+
+    const sourceContext = findContextForFile(relPath);
+    if (!sourceContext) continue;
+
+    const content = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+    for (const specifier of readImports(content)) {
+      const targetRelPath = resolveImportTarget(relPath, specifier, repoRoot);
+      if (!targetRelPath || !isProductionSourceFile(targetRelPath)) continue;
+
+      const targetContext = findContextForFile(targetRelPath);
+      if (!targetContext || targetContext.name === sourceContext.name) continue;
+      if (targetContext.public || sourceContext.public) continue;
+      if (isPublicContractFile(targetRelPath)) continue;
+
+      violations.push({
+        file: relPath,
+        reason: `Cross-context import from ${sourceContext.name} to internal ${targetContext.name} file ${targetRelPath} is forbidden; import a public module, DTO, type, read model, or event contract instead`,
+      });
+    }
+  }
+
+  return violations;
+}
+
+function collectSchemaAccessViolations(files, repoRoot) {
+  const violations = [];
+
+  for (const relPath of files) {
+    if (!isProductionSourceFile(relPath)) continue;
+    const sourceContext = findContextForFile(relPath);
+    if (!sourceContext || sourceContext.public) continue;
+
+    const content = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+    APIC_SCHEMA_PATTERN.lastIndex = 0;
+    const seen = new Set();
+    let match;
+    while ((match = APIC_SCHEMA_PATTERN.exec(content))) {
+      const schema = match[1];
+      const lineStart = content.lastIndexOf('\n', match.index) + 1;
+      const lineEnd = content.indexOf('\n', match.index);
+      const line = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+      if (!RAW_SCHEMA_ACCESS_PATTERN.test(line)) continue;
+      if (seen.has(schema)) continue;
+      seen.add(schema);
+
+      const owner = SCHEMA_OWNERS.get(schema);
+      if (!owner) {
+        violations.push({
+          file: relPath,
+          reason: `Schema-qualified access to ${schema} is not allowed because no bounded-context owner is defined`,
+        });
+        continue;
+      }
+
+      if (owner !== sourceContext.name) {
+        violations.push({
+          file: relPath,
+          reason: `Schema-qualified access to ${schema} from ${sourceContext.name} is forbidden; owner is ${owner}`,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
+function collectPrismaSchemaOwnershipViolations(files, repoRoot) {
+  const violations = [];
+
+  for (const relPath of files) {
+    if (path.basename(relPath) !== 'schema.prisma') continue;
+    const content = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+    const schemaPattern = /@@schema\("([^"]+)"\)/g;
+    let match;
+    while ((match = schemaPattern.exec(content))) {
+      const schema = match[1];
+      if (!SCHEMA_OWNERS.has(schema)) {
+        violations.push({
+          file: relPath,
+          reason: `No bounded-context owner is defined for schema ${schema}`,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
+function runBoundaryChecks(options = {}) {
+  const repoRoot = path.resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
+  const files = options.files?.map(normalizeRelPath) ?? collectRepoFiles(repoRoot);
+  const violations = collectDirectoryViolations(repoRoot);
+
+  violations.push(...collectPatternViolations(files, repoRoot));
+  violations.push(...collectSharedManifestViolations(files, repoRoot));
+  violations.push(...collectBoundedContextImportViolations(files, repoRoot));
+  violations.push(...collectSchemaAccessViolations(files, repoRoot));
+  violations.push(...collectPrismaSchemaOwnershipViolations(files, repoRoot));
+
+  return violations;
+}
+
 function printViolationsAndExit(violations) {
   if (violations.length === 0) {
     console.log('Boundary check passed.');
@@ -189,13 +459,14 @@ function printViolationsAndExit(violations) {
 }
 
 function main() {
-  const violations = collectDirectoryViolations();
-
-  const files = collectFiles(repoRoot);
-  violations.push(...collectPatternViolations(files));
-  violations.push(...collectSharedManifestViolations(files));
-
-  printViolationsAndExit(violations);
+  printViolationsAndExit(runBoundaryChecks());
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  BOUNDED_CONTEXTS,
+  runBoundaryChecks,
+};

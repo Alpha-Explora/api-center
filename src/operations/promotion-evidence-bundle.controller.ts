@@ -1,5 +1,11 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Optional, Param, Query, UseGuards } from "@nestjs/common";
+import { AuditEventsService } from "../analytics/audit-events.service";
 import { ScopedAdminGuard } from "../auth/guards/scoped-admin.guard";
+import {
+  externalSourceMetadata,
+  ManagementSourceMetadata,
+  volatileSourceMetadata,
+} from "../shared/source-metadata";
 import { ApprovalRequestService } from "../approvals/approval-request.service";
 import { PipelineHealthService } from "../data-pipeline/pipeline-health.service";
 import { TribePlanService } from "../entitlements/tribe-plan.service";
@@ -17,6 +23,7 @@ export class PromotionEvidenceBundleController {
     private readonly plans: TribePlanService,
     private readonly approvals: ApprovalRequestService,
     private readonly pipelineHealth: PipelineHealthService,
+    @Optional() private readonly auditEvents?: AuditEventsService,
   ) {}
 
   @Get(":serviceId")
@@ -58,11 +65,64 @@ export class PromotionEvidenceBundleController {
       pipeline,
     });
 
+    const sourceMetadata = [
+      this.evidence.getSourceMetadata(),
+      this.pipelineSourceMetadata(),
+    ];
+    this.recordPromotionEvidenceAudit(bundle, sourceMetadata);
+
     if (format === "md") {
       return this.toMarkdown(bundle);
     }
 
-    return { success: true, data: bundle };
+    return {
+      success: true,
+      data: bundle,
+      meta: {
+        sourceMetadata,
+      },
+    };
+  }
+
+  private recordPromotionEvidenceAudit(
+    bundle: ReturnType<PromotionEvidenceBundleService["build"]>,
+    sourceMetadata: ManagementSourceMetadata[],
+  ): void {
+    this.auditEvents
+      ?.record({
+        type: "promotion.evidence.generated",
+        actionFamily: "promotion",
+        serviceId: bundle.serviceId,
+        severity: bundle.ready ? "info" : "warning",
+        message: `Promotion evidence generated for ${bundle.serviceId}`,
+        payload: {
+          ready: bundle.ready,
+          generatedAt: bundle.generatedAt,
+          sectionStatuses: Object.fromEntries(
+            bundle.sections.map((section) => [section.key, section.status]),
+          ),
+          sourceMetadata,
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  private pipelineSourceMetadata(): ManagementSourceMetadata {
+    const source = readResponseSource(this.pipelineHealth);
+    if (source === "athena") {
+      return externalSourceMetadata({
+        sourceName: "promotion-pipeline-health-athena",
+        durability: "athena",
+        staleAfterSeconds: 60 * 60,
+        evidenceTable: "gold_platform.pipeline_health_daily",
+      });
+    }
+
+    return volatileSourceMetadata({
+      sourceName: "promotion-pipeline-health-fixture",
+      degradedReason:
+        "Pipeline promotion evidence is fixture/local data until Athena or durable API Center evidence is configured.",
+    });
   }
 
   private async getPipelineEvidence(serviceId: string, ownerTribeId: string) {
@@ -107,4 +167,12 @@ function readOwnerTribeId(entry: unknown): string | undefined {
   if (!entry || typeof entry !== "object") return undefined;
   const value = (entry as { ownerTribeId?: unknown }).ownerTribeId;
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function readResponseSource(service: unknown): "athena" | "fixture" {
+  const maybeService = service as { getResponseSource?: () => unknown };
+  const source = maybeService.getResponseSource?.();
+  return source === "athena" || source === "athena-proxy"
+    ? "athena"
+    : "fixture";
 }

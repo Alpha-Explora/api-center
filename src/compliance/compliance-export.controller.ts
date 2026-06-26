@@ -21,18 +21,17 @@ export class ComplianceExportController {
     @Query("format") format: string | undefined,
     @Res({ passthrough: true }) res?: Response,
   ) {
-    const auditEvents = await this.auditEvents.list({
+    const auditEvents = await this.auditEvents.listWithSourceMetadata({
       limit: 500,
       from,
       to,
     });
+    const evidenceBundles = this.evidence.listBundlesWithSourceMetadata();
     const packet = this.compliance.buildPacket({
       from: from ?? "",
       to: to ?? "",
-      auditEvents,
-      evidenceBundles: this.evidence.listBundles() as Array<
-        Record<string, any>
-      >,
+      auditEvents: auditEvents.data,
+      evidenceBundles: evidenceBundles.data as Array<Record<string, any>>,
     });
 
     if (format === "md") {
@@ -40,6 +39,15 @@ export class ComplianceExportController {
       return this.compliance.toMarkdown(packet);
     }
 
-    return { success: true, data: packet };
+    return {
+      success: true,
+      data: packet,
+      meta: {
+        sourceMetadata: [
+          auditEvents.sourceMetadata,
+          evidenceBundles.sourceMetadata,
+        ],
+      },
+    };
   }
 }
