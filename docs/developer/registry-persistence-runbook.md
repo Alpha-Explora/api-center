@@ -5,73 +5,45 @@ Redis/Postgres registry drift.
 
 ## Current Model
 
-The runtime registry always keeps an in-memory cache for lookups. Redis remains
-the default persistent source. Postgres is available for the control-plane
-database cutover and is enabled only by explicit flags.
+Postgres is the durable registry source of truth through the `apic_catalog`
+schema. The runtime registry still keeps an in-memory cache for fast lookups, and
+Redis remains the hot cache and rollback source.
 
 | Mode | Required flags | Startup source | Write behavior | Use when |
 | --- | --- | --- | --- | --- |
-| Redis only | `DATABASE_ENABLED=false` or `DATABASE_DUAL_WRITE=false`, `REGISTRY_SOURCE=redis` | Redis | Memory plus Redis | Normal fallback or early local testing. |
-| Redis source with Postgres dual-write | `DATABASE_ENABLED=true`, `DATABASE_DUAL_WRITE=true`, `REGISTRY_SOURCE=redis` | Redis | Memory plus Redis, then Postgres | Backfill/cutover validation before switching source. |
-| Postgres source with dual-write | `DATABASE_ENABLED=true`, `DATABASE_DUAL_WRITE=true`, `REGISTRY_SOURCE=postgres` | Postgres | Memory plus Redis, then Postgres | Cutover test after Redis and Postgres are reconciled. |
+| Postgres source with Redis fallback | `DATABASE_ENABLED=true`, `REGISTRY_SOURCE=postgres`, `DATABASE_DUAL_WRITE=true` | Postgres, then Redis fallback when configured | Memory, Redis cache, Postgres durable write | Normal shared environments after parity. |
+| Redis rollback source | `DATABASE_ENABLED=true`, `REGISTRY_SOURCE=redis`, `DATABASE_DUAL_WRITE=true` | Redis | Memory, Redis, then Postgres best effort | Temporary rollback or drift investigation. |
+| Redis only | `DATABASE_ENABLED=false` or `DATABASE_DUAL_WRITE=false`, `REGISTRY_SOURCE=redis` | Redis | Memory plus Redis | Emergency rollback when Postgres writes block registry changes. |
 | Emergency memory only | Redis unavailable during local/dev startup | None | Memory only after startup warning | Local diagnostics only; do not use for shared environments. |
-
 
 ## Migration Authority
 
-Supabase SQL migrations under `api-center/supabase/migrations` are the canonical live database history for APICenter control-plane schemas. Prisma migrations are not used as the live deployment mechanism for APICenter control-plane schemas. Keep `prisma/schema.prisma` in sync with Supabase migrations so application code remains typed and generated.
+Supabase SQL migrations under `api-center/supabase/migrations` are the canonical
+live database history for APICenter control-plane schemas. Prisma migrations are
+not used as the live deployment mechanism. Keep `prisma/schema.prisma` in sync so
+application code remains typed and generated.
 
-For future control-plane schema changes, use this sequence:
+For future control-plane schema changes:
 
 ```powershell
 cd C:\Codes\apic\api-center
 npm run db:migration:new -- <descriptive_name>
 npm run db:migration:push:dry
+npm run db:verify:control-plane -- --app-role <discovered_app_role>
+npm run db:migration:push
 npm run db:generate
 ```
 
-Migration filenames must come from the Supabase CLI. Do not invent migration timestamps by hand.
-## Cutover Sequence
+Migration filenames must come from the Supabase CLI. Do not invent migration
+timestamps by hand.
 
-1. Run Redis as the active source and confirm the registry API returns the
-   expected services.
-2. Enable `DATABASE_ENABLED=true` and `DATABASE_DUAL_WRITE=true` while keeping
-   `REGISTRY_SOURCE=redis`.
-3. Backfill the current Redis registry into Postgres:
+## Drift Checks
 
-   ```powershell
-   cd C:\Codes\apic\api-center
-   npm run db:backfill:registry
-   ```
-
-4. Run the registry drift check endpoint or test helper used by the current
-   release branch.
-5. Switch only the test environment to `REGISTRY_SOURCE=postgres`.
-6. Re-register, deprecate, and deregister a non-production test service.
-7. If reads and writes match, repeat the same flag change for production during
-   an approved maintenance window.
-
-## Rollback
-
-To roll back read source without deleting data:
-
-```text
-REGISTRY_SOURCE=redis
-DATABASE_ENABLED=true
-DATABASE_DUAL_WRITE=true
-```
-
-This keeps Redis as the startup source while Postgres continues receiving writes
-for later inspection. If Postgres writes are failing and blocking registry
-changes, set `DATABASE_DUAL_WRITE=false` and keep `REGISTRY_SOURCE=redis`.
-
-## Verification
-
-Run these after a flag change:
+Run these after a flag change, deployment, or suspected registry mismatch:
 
 ```powershell
 cd C:\Codes\apic\api-center
-npm test -- registry.service.spec.ts
+npm run registry:verify
 npm run check:boundaries
 ```
 
@@ -83,4 +55,27 @@ GET /api/v1/health/ready
 ```
 
 Record the active values of `DATABASE_ENABLED`, `DATABASE_DUAL_WRITE`, and
-`REGISTRY_SOURCE` with the validation evidence.
+`REGISTRY_SOURCE` with validation evidence.
+
+## Rollback
+
+To roll back reads without deleting Postgres data:
+
+```text
+REGISTRY_SOURCE=redis
+DATABASE_ENABLED=true
+DATABASE_DUAL_WRITE=true
+```
+
+This keeps Redis as the startup source while Postgres continues receiving writes
+for later inspection. If Postgres writes are failing and blocking registry
+changes, set `DATABASE_DUAL_WRITE=false` and keep `REGISTRY_SOURCE=redis`.
+
+## Recovery Checks
+
+After rollback or recovery:
+
+1. Register, update, deprecate, and deregister a non-production test service.
+2. Confirm the registry API returns the expected service state.
+3. Run `npm run registry:verify` and inspect any Redis/Postgres drift report.
+4. Switch `REGISTRY_SOURCE=postgres` only after reads and writes match again.

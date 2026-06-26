@@ -102,7 +102,7 @@ async function collectRegistryParityEvidence({
     blockers,
     nextCommands: [
       "Set DATABASE_URL and REDIS_CACHE_URL (or REDIS_URL/CACHE_URL), or set API_CENTER_BASE_URL plus API_CENTER_PLATFORM_ADMIN_SECRET/API_CENTER_ADMIN_BEARER_TOKEN.",
-      "npm run db:registry-parity:evidence -- --out docs/operations/registry-parity-<date>.json",
+      "npm run registry:verify -- --out docs/operations/registry-parity-<date>.json",
       "npm run registry:verify",
       "Do not switch REGISTRY_SOURCE=postgres until the artifact reports ready=true.",
     ],
