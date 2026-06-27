@@ -1992,18 +1992,19 @@ git commit -m "chore: separate runtime environment from pipeline lane naming"
 
 ## Task 13: Migrate Every Legacy Service And Remove Legacy Compatibility Paths
 
-**Scope rule:** this task migrates APICenter-owned control-plane state, not consumer-owned runtimes. For Spark Site, pakiapps, greenovate, shoteam, trinithrive, and other services outside APICenter ownership, do not block completion on logging into their backends, checking runtime health, calling private APIs, changing their app secrets, or running runtime smoke. The required migration is service/control-plane migration: every legacy service, secret, registry, catalog, Management, SDK, env, and active-doc path must be represented in the one-URL environment-aware model or have a documented retired/test-only disposition.
+**Scope rule:** this task migrates APICenter-owned control-plane state, not consumer-owned runtimes. For Spark Site, pakiapps, greenovate, shoteam, trinithrive, and other services outside APICenter ownership, do not block completion on logging into their backends, checking runtime health, calling private APIs, changing their app secrets, or running runtime smoke. The required migration is service/control-plane migration only: every legacy service, secret, registry, catalog, Management, SDK, env, and active-doc path must be represented in the one-URL environment-aware model or have a documented retired/test-only disposition.
 
-**Legacy removal rule:** migration is not complete when the database rows are copied. It includes stored state and code-level legacy removal. Stored legacy service rows must be migrated or retired, legacy Secret Manager records must be copied to scoped targets and disabled/deleted after rollback, and code-level compatibility paths such as missing-environment warn mode, `APICENTER_LEGACY_*`, env-backed tribe hash validation, and legacy SDK/doc aliases must be removed from active paths.
+**Legacy removal rule:** migration is not complete when the database rows are copied. It includes stored state and code-level legacy removal. Stored legacy service rows must be migrated or retired, legacy Secret Manager records must be copied to scoped targets and disabled/deleted after rollback, and code-level compatibility paths such as missing-environment warn mode, `APICENTER_LEGACY_*`, env-backed tribe hash validation, old API Center host aliases, and legacy SDK/doc aliases must be removed from active paths.
 
-**Redundancy rule:** cleanup is broader than `live` versus `prod`. Inventory and remove redundant aliases, duplicate naming, legacy compatibility paths, stale URLs, overlapping env names, provider-specific fallback names, duplicated service/control-plane terminology, and any code/docs examples that make the supported contract ambiguous. Keep only named boundary mappings where they describe a real external system, such as public runtime `live` mapping to physical pipeline lane `prod`.
+**Redundancy rule:** cleanup is broader than `live` versus `prod`. Inventory and remove redundant aliases, duplicate naming, legacy compatibility paths, stale URLs, overlapping env names, provider-specific fallback names, duplicated service/control-plane terminology, duplicate deployment labels, stale schema/table prefixes, and any code/docs examples that make the supported contract ambiguous. Keep only named boundary mappings where they describe a real external system, such as public runtime `live` mapping to physical pipeline lane `prod`.
 
 **Acceptance criteria added 2026-06-28:**
 - Every active service has explicit environment rows or is retired/test-only with a sunset; runtime smoke is not required for services APICenter does not own.
+- Service migration evidence must be APICenter-side evidence: Supabase/catalog rows, registry parity, scoped Secret Manager metadata, Management rendering, audit/approval records, and migration disposition. External backend health is consumer-owned evidence.
 - Every legacy stored record has a disposition: migrated, disabled for rollback, scheduled for deletion, deleted, or retired.
 - Active API Center code cannot issue tokens through legacy missing-environment or env-backed secret fallback.
 - Active SDK, Management, docs, examples, and env files expose one public APICenter URL plus required `APICENTER_ENVIRONMENT=test|live`.
-- Redundancy audit covers all confusing names and aliases, not only `live`/`prod`.
+- Redundancy audit covers all confusing names and aliases, not only `live`/`prod`, and must identify whether each duplicate is removed, isolated behind a named boundary helper, or explicitly retained as external-system vocabulary.
 
 **Files:**
 - Create: `api-center/scripts/inventory-legacy-service-migration.js`

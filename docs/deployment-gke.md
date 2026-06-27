@@ -12,12 +12,12 @@
 
 | Parameter | Value |
 |---|---|
-| GCP Project ID | `api-center-496422` |
+| GCP Project ID | `apicenter-alpha-20260623` |
 | Region | `asia-southeast1` |
 | Cluster name | `api-center` (Autopilot) |
 | Namespace | `api-center` |
-| Artifact Registry | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center` |
-| Static IP name | `api-center-ip` (`34.8.167.159`) |
+| Artifact Registry | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center` |
+| Static IP name | GKE ingress address `136.110.192.169` |
 | Public hostname | `api-center.itsandbox.site` |
 | Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<tribe-id>-<test|live>` secrets |
 | Auth provider | `composite` (`AUTH_PROVIDER=composite` in ConfigMap): API Center-issued tribe JWTs with Descope validation fallback |
@@ -32,23 +32,25 @@
 
 | Field | Value |
 |---|---|
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` |
-| Built from | local workspace based on `d1eb7e6` |
-| Last deployed | `2026-05-22` |
-| Deployed by | Codex-assisted Phase 11 review-fix2 rollout |
-| Validation | GKE rollout succeeded; dated decision-signals smoke for `2026-05-20` returned HTTP 200 with `success=true`, `meta.source=athena-proxy`, and test count=3. False-positive feedback smoke created and listed `decision.false_positive.marked` on `targetType=signal` with `status=closed`; invalid `targetType=event` false-positive smoke was rejected with HTTP 400. Readiness returned `ok`. |
+| Image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:legacy-routing-b9c811f-20260628` |
+| Built from | `b9c811f` |
+| Last deployed | `2026-06-28` |
+| Deployed by | Codex-assisted one-URL legacy routing cleanup rollout |
+| Validation | Cloud Build `9068d412-0628-4f15-ad81-3853cc3d7ac5` succeeded; GKE rollout completed; ConfigMap has no legacy routing keys or `APICENTER_ENVIRONMENT_CONTRACT_MODE`; readiness returned HTTP 200 with `status=ok`, Redis up, registry up, and `registeredServices=22`. |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
-## Current Test Image
+## Legacy Test Namespace Image
+
+This namespace still exists for historical/test runtime cleanup, but it is not the target public topology for the one-URL APICenter contract. Do not use this section as a reason to reintroduce split public API Center URLs.
 
 | Field | Value |
 |---|---|
 | Namespace | `api-center-test` |
-| Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:platform-governance-quotas-9052cf5-2026052503` |
-| Built from | local workspace based on `9052cf5` with platform governance and quota changes |
-| Last deployed | `2026-05-25` |
-| Validation | Historical GKE test rollout succeeded; readiness returned HTTP 200; `npm run smoke:tribe-quotas` created an approved enforced quota policy for `quota-smoke`, returned HTTP 200 for attempts 1 and 2 to `/api/v1/shared/payment/health`, returned HTTP 429 `TRIBE_API_QUOTA_EXCEEDED` for attempt 3, and disabled the test policy. |
+| Image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:audit-actor-27802eb` |
+| Built from | historical `audit-actor-27802eb` rollout |
+| Last verified | `2026-06-28` |
+| Validation | Namespace and deployment still exist. No runtime smoke was run because the current platform gate is APICenter-side service/control-plane migration, not consumer-owned runtime verification. |
 
 ---
 
@@ -644,3 +646,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-22 | test-rollout-d1eb7e6 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` to namespace `api-center-test`; added non-secret Athena data-pipeline ConfigMap settings, created dedicated test AWS runtime principal `api-center-athena-reader-gke-test`, applied feedback table migrations to the test DB, and verified test routes through the deployed management app | Bring the test API Center lane up to the same Phase 11 data-pipeline capability used by the management test deployment |
 | 2026-05-23 | 306ef8a | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:apicenter-platform-window-306ef8a-20260523105623` to namespace `api-center-test`; live `windowDays=30` smoke returned Athena-backed rows for gateway decisions, shared-service usage, Athena cost, and decision signals | Roll out APICenter platform-only 30-day governance windows for synthetic test history |
 | 2026-06-28 | pending | Documented one-URL environment contract rollout flags, environment-scoped tribe secrets, and token smoke requests that include `environment` | Make enforce-mode cutover and warn-mode rollback deterministic |
+| 2026-06-28 | b9c811f | Deployed `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:legacy-routing-b9c811f-20260628`; removed live ConfigMap legacy routing keys; readiness returned HTTP 200 with registry up and 22 services | Roll out stored/code-level legacy routing cleanup while keeping final disabled Secret Manager deletion behind the rollback window |
