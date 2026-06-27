@@ -19,6 +19,7 @@ const allowlist = [
   /infra[/\\]aws-data-pipeline/,
   /src[/\\]entitlements[/\\]/,
   /src[/\\]operations[/\\]service-lifecycle-evidence\.service\.spec\.ts/,
+  /scripts[/\\]check-environment-naming\.js$/,
 ];
 
 const files = execFileSync("git", [
