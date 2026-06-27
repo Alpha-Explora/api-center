@@ -67,7 +67,7 @@ async function collectSparkSiteDeploymentPreflight() {
       ready: false,
       blockers: ['Configuration preview only; run without --check-config in an operator shell.'],
       checks,
-      nextCommands: nextCommands(),
+      nextCommands: nextCommands({ blockers: ['Configuration preview only'] }),
     };
   }
 
@@ -91,11 +91,12 @@ async function collectSparkSiteDeploymentPreflight() {
   }
 
   let secrets;
+  let missingSecrets = [];
   if (options.skipSecretCheck) {
     checks.push(check('secrets.scopedRecords', true, 'Skipped by --skip-secret-check.'));
   } else {
     secrets = await describeExpectedSecrets();
-    const missingSecrets = secrets.filter((secret) => !secret.exists).map((secret) => secret.name);
+    missingSecrets = secrets.filter((secret) => !secret.exists).map((secret) => secret.name);
     checks.push(
       check(
         'secrets.scopedRecords',
@@ -134,7 +135,7 @@ async function collectSparkSiteDeploymentPreflight() {
     ready: blockers.length === 0,
     blockers,
     checks,
-    nextCommands: nextCommands(),
+    nextCommands: nextCommands({ blockers, missingSecrets }),
   };
 }
 
@@ -332,14 +333,20 @@ function expectedSecretNames() {
   );
 }
 
-function nextCommands() {
-  return [
-    'Provision missing scoped tribe secrets through Management so plaintext is handed off once and not logged.',
-    'Add the missing live service environment row through the approved registration or Management workflow.',
-    'Run: npm run smoke:spark-site:preflight -- --out docs/operations/spark-site-deployment-preflight-<date>.json',
-    'After preflight is ready, run SDK read-only smoke with APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_TRIBE_ID, APICENTER_SERVICE_ID, and APICENTER_TRIBE_SECRET.',
-    'Run provider-impacting payment smoke only after explicit operator approval.',
-  ];
+function nextCommands({ blockers = [], missingSecrets = [] } = {}) {
+  const commands = [];
+  if (missingSecrets.length > 0) {
+    commands.push('Provision missing scoped tribe secrets through Management so plaintext is handed off once and not logged.');
+  }
+  if (blockers.some((blocker) => /environment rows/i.test(blocker))) {
+    commands.push('Add the missing live service environment row through the approved registration or Management workflow.');
+  }
+  commands.push('Run: npm run smoke:spark-site:preflight -- --out docs/operations/spark-site-deployment-preflight-<date>.json');
+  if (blockers.length === 0) {
+    commands.push('After preflight is ready, run SDK read-only smoke with APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_TRIBE_ID, APICENTER_SERVICE_ID, and APICENTER_TRIBE_SECRET.');
+  }
+  commands.push('Run provider-impacting payment smoke only after explicit operator approval.');
+  return commands;
 }
 
 function check(name, ok, detail, status = ok ? 'pass' : 'fail') {

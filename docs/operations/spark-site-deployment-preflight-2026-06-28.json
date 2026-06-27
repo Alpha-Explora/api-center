@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-27T18:41:05.717Z",
+  "generatedAt": "2026-06-27T21:07:09.490Z",
   "mode": "preflight",
   "serviceId": "church-donations",
   "tribeId": "church-donations",
@@ -18,7 +18,7 @@
   "environment": {
     "DATABASE_URL": {
       "present": true,
-      "length": 182
+      "length": 114
     },
     "GCLOUD_PROJECT": {
       "present": false,
@@ -61,21 +61,22 @@
   "secrets": [
     {
       "name": "api-center-tribe-secret-church-donations-test",
-      "exists": false,
+      "exists": true,
       "project": "apicenter-alpha-20260623",
-      "error": "NOT_FOUND"
+      "replication": "configured",
+      "createTime": "2026-06-27T21:00:55.178962Z"
     },
     {
       "name": "api-center-tribe-secret-church-donations-live",
-      "exists": false,
+      "exists": true,
       "project": "apicenter-alpha-20260623",
-      "error": "NOT_FOUND"
+      "replication": "configured",
+      "createTime": "2026-06-27T21:02:52.056517Z"
     }
   ],
   "ready": false,
   "blockers": [
-    "church-donations needs environment rows: live.",
-    "Provision missing environment-scoped tribe secrets through Management: api-center-tribe-secret-church-donations-test, api-center-tribe-secret-church-donations-live."
+    "church-donations needs environment rows: live."
   ],
   "checks": [
     {
@@ -110,9 +111,9 @@
     },
     {
       "name": "secrets.scopedRecords",
-      "status": "fail",
-      "ok": false,
-      "detail": "Missing environment-scoped tribe Secret Manager records: api-center-tribe-secret-church-donations-test, api-center-tribe-secret-church-donations-live."
+      "status": "pass",
+      "ok": true,
+      "detail": "All expected environment-scoped tribe Secret Manager records exist."
     },
     {
       "name": "payment.providerApproval",
@@ -122,10 +123,8 @@
     }
   ],
   "nextCommands": [
-    "Provision missing scoped tribe secrets through Management so plaintext is handed off once and not logged.",
     "Add the missing live service environment row through the approved registration or Management workflow.",
     "Run: npm run smoke:spark-site:preflight -- --out docs/operations/spark-site-deployment-preflight-<date>.json",
-    "After preflight is ready, run SDK read-only smoke with APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_TRIBE_ID, APICENTER_SERVICE_ID, and APICENTER_TRIBE_SECRET.",
     "Run provider-impacting payment smoke only after explicit operator approval."
   ]
 }
