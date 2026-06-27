@@ -1992,9 +1992,18 @@ git commit -m "chore: separate runtime environment from pipeline lane naming"
 
 ## Task 13: Migrate Every Legacy Service And Remove Legacy Compatibility Paths
 
-**Scope rule:** this task migrates APICenter-owned control-plane state, not consumer-owned runtimes. For Spark Site, pakiapps, greenovate, shoteam, trinithrive, and other services outside APICenter ownership, do not block completion on logging into their backends or running runtime smoke. The required migration is that every legacy service, secret, registry, catalog, Management, SDK, env, and active-doc path is represented in the one-URL environment-aware model or has a documented retired/test-only disposition.
+**Scope rule:** this task migrates APICenter-owned control-plane state, not consumer-owned runtimes. For Spark Site, pakiapps, greenovate, shoteam, trinithrive, and other services outside APICenter ownership, do not block completion on logging into their backends, checking runtime health, calling private APIs, changing their app secrets, or running runtime smoke. The required migration is service/control-plane migration: every legacy service, secret, registry, catalog, Management, SDK, env, and active-doc path must be represented in the one-URL environment-aware model or have a documented retired/test-only disposition.
 
-**Redundancy rule:** cleanup is broader than `live` versus `prod`. Inventory and remove redundant aliases, duplicate naming, legacy compatibility paths, stale URLs, overlapping env names, provider-specific fallback names, and any code/docs examples that make the supported contract ambiguous. Keep only named boundary mappings where they describe a real external system, such as public runtime `live` mapping to physical pipeline lane `prod`.
+**Legacy removal rule:** migration is not complete when the database rows are copied. It includes stored state and code-level legacy removal. Stored legacy service rows must be migrated or retired, legacy Secret Manager records must be copied to scoped targets and disabled/deleted after rollback, and code-level compatibility paths such as missing-environment warn mode, `APICENTER_LEGACY_*`, env-backed tribe hash validation, and legacy SDK/doc aliases must be removed from active paths.
+
+**Redundancy rule:** cleanup is broader than `live` versus `prod`. Inventory and remove redundant aliases, duplicate naming, legacy compatibility paths, stale URLs, overlapping env names, provider-specific fallback names, duplicated service/control-plane terminology, and any code/docs examples that make the supported contract ambiguous. Keep only named boundary mappings where they describe a real external system, such as public runtime `live` mapping to physical pipeline lane `prod`.
+
+**Acceptance criteria added 2026-06-28:**
+- Every active service has explicit environment rows or is retired/test-only with a sunset; runtime smoke is not required for services APICenter does not own.
+- Every legacy stored record has a disposition: migrated, disabled for rollback, scheduled for deletion, deleted, or retired.
+- Active API Center code cannot issue tokens through legacy missing-environment or env-backed secret fallback.
+- Active SDK, Management, docs, examples, and env files expose one public APICenter URL plus required `APICENTER_ENVIRONMENT=test|live`.
+- Redundancy audit covers all confusing names and aliases, not only `live`/`prod`.
 
 **Files:**
 - Create: `api-center/scripts/inventory-legacy-service-migration.js`
@@ -2205,7 +2214,7 @@ Do not run external runtime smoke for services APICenter does not own. Verify AP
 
 ```text
 acceptable APICenter-side proof: registry parity, service_environments rows, Management service detail rendering, scoped Secret Manager metadata, audit/approval evidence, and migration artifact disposition
-not required for non-owned services: authenticating to their backend, calling their private runtime, changing their app secrets, or running provider-impacting payment smoke
+not required for non-owned services: authenticating to their backend, checking runtime health, calling their private runtime, changing their app secrets, or running provider-impacting payment smoke
 ```
 
 ```powershell
@@ -2245,18 +2254,19 @@ Record every action in `docs/operations/legacy-service-migration-2026-06-28.json
 
 Current status: `npm run registry:migrate-legacy-secrets -- --apply --disable-legacy --out docs/operations/legacy-secret-cleanup-2026-06-28.json` created 8 missing environment-scoped Secret Manager records without printing hashes or plaintext. This includes live scoped targets for `flow-ci`, `greenovate`, `pakiapps`, `shoteam`, `smurf-village`, and `trinithrive`, plus scoped test records for `flow-ci` and `smoke-tribe`. It disabled 33 enabled versions across 14 legacy Secret Manager records for rollback. The regenerated inventory reports `legacyServices=0`, `enabledLegacyVersions=0`, 17 scoped Secret Manager records, and 14 legacy records remaining only as disabled rollback records. Delete those legacy records after `2026-07-04T22:30:06.543Z` if no rollback is needed. Step 3 remains open until that deletion is done.
 
-- [ ] **Step 4: Remove code-level legacy secret fallback after stored migration is complete**
+- [x] **Step 4: Remove code-level legacy secret fallback after scoped records are active**
 
-Only after Step 1 through Step 3 show no active unmigrated legacy services, update API Center:
+Only after Step 1 and Step 2 show no active unmigrated legacy services, and Step 3 shows scoped targets exist with legacy versions disabled for rollback, update API Center. Do not wait for final Secret Manager deletion before removing runtime fallback; final deletion remains a rollback-window cleanup gate.
 
 ```text
-Remove APICENTER_LEGACY_TRIBE_SECRET_FALLBACK.
-Remove APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST.
-Remove APICENTER_LEGACY_ENVIRONMENT_MAP.
+Remove APICENTER_LEGACY_TRIBE_SECRET_FALLBACK from runtime configuration and tests.
+Remove APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST from runtime configuration and tests.
+Remove APICENTER_LEGACY_ENVIRONMENT_MAP from runtime configuration and tests.
 Remove env-backed legacy hash validation from TribeSecretResolverService.
 Make TokenRequestDto.environment required with no warn-mode exception.
 Remove tests that accept missing environment.
 Add tests that missing environment is rejected.
+Keep historical migration artifacts only under allowed docs/operations evidence paths.
 ```
 
 Expected test change in `api-center/src/shared/dto/token-request.dto.spec.ts`:
@@ -2287,7 +2297,9 @@ npm test -- --runInBand src/shared/dto/token-request.dto.spec.ts src/registry/tr
 npm run typecheck
 ```
 
-- [ ] **Step 5: Remove redundant active docs/examples and env aliases**
+Current status: Completed on 2026-06-28. `TokenRequestDto.environment` is required, `AuthController` validates only environment-scoped tribe secrets, token-issued events no longer carry legacy compatibility fields, `ConfigService.environmentContract` is enforce-only, and legacy resolver methods now throw `Legacy tribe secret validation has been removed`. Verification passed: `npm test -- --runInBand src/shared/dto/token-request.dto.spec.ts src/auth/auth.controller.spec.ts src/config/config.service.spec.ts src/registry/tribe-secret-resolver.service.spec.ts src/registry/registry.service.spec.ts` reported 5 suites and 97 tests passing; `npm run typecheck` passed.
+
+- [x] **Step 5: Remove redundant active docs/examples and env aliases**
 
 Active docs and examples must not introduce old URLs or redundant env names:
 
@@ -2311,6 +2323,11 @@ API_CENTER_BASE_URL versus APICENTER_URL/APICENTER_GATEWAY_URL
 MANAGEMENT_ENVIRONMENT versus MANAGEMENT_ENV/NEXT_PUBLIC_MANAGEMENT_ENV
 provider-neutral BI names versus POWERBI_NORTH_STAR_* fallback names
 deployment secret bundle names versus runtime environment names
+service registration URL versus runtime backend URL versus Management API URL
+legacy test Management URL versus one Management deployment URL
+old api-center-test hostnames versus one api-center host plus APICENTER_ENVIRONMENT
+token environment versus caller-selected target environment versus deployment environment
+schema/table names that duplicate ownership, such as apic_runtime_runtime_* or shared_shared_*
 ```
 
 Only remove a duplicate when the repo has a canonical replacement and tests/docs can be updated in the same slice. If a duplicate reflects an unavoidable external system boundary, isolate it behind a named adapter/helper and document why it remains.
@@ -2324,6 +2341,8 @@ npm run check:contracts
 cd C:\Codes\apic\apicenter-management
 npm test -- src/lib/server/deployment-config.test.ts src/lib/management-environment.test.ts src/lib/server/north-star-bi-config.test.ts
 ```
+
+Current status: Completed for `api-center` on 2026-06-28. Active API Center docs, env examples, GKE config, local compose, and operational scripts no longer expose old test hostnames, env-backed tribe secret hashes, or `API_CENTER_BASE_URL`/`APICENTER_GATEWAY_URL` as active contract. The stale GKE test overlay was removed from active infra. Operational scripts now use `APICENTER_URL`, require `APICENTER_ENVIRONMENT`, and send environment in token requests. Verification passed: `npm run check:no-legacy-routing`, focused auth/registry/config tests, `npm run typecheck`, and Node syntax checks for updated scripts.
 
 - [x] **Step 6: Add a no-legacy verifier**
 
@@ -2392,7 +2411,7 @@ npm run check:no-legacy-routing
 
 Expected after cleanup: PASS.
 
-Current status: `npm run check:no-legacy-routing -- --report` runs in report mode and found 50 active violations plus historical matches in allowed plan/operations evidence files. The default `npm run check:no-legacy-routing` remains an enforce-mode gate and is expected to fail until Step 4 and Step 5 remove the remaining code/doc compatibility paths.
+Current status: `npm run check:no-legacy-routing -- --report` reports `ready=true`, 0 active violations, and historical matches only in migration evidence, archived plans, and migration-only scripts. The default `npm run check:no-legacy-routing` enforce-mode gate passed on 2026-06-28.
 
 - [ ] **Step 7: Verify final migration and commit**
 

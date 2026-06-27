@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-const baseUrl = env("API_CENTER_BASE_URL", "http://localhost:3000").replace(
+const baseUrl = requiredEnv("APICENTER_URL").replace(
   /\/$/,
   "",
 );
 const adminSecret = requiredEnv("API_CENTER_PLATFORM_ADMIN_SECRET");
+const runtimeEnvironment = requiredEnv("APICENTER_ENVIRONMENT");
 const ownerTribeId = env("APICENTER_QUOTA_SMOKE_TRIBE_ID", "quota-smoke");
 const targetServiceId = env(
   "APICENTER_QUOTA_SMOKE_TARGET_SERVICE_ID",
@@ -127,6 +128,7 @@ async function requestSmokeToken() {
     body: JSON.stringify({
       tribeId: ownerTribeId,
       secret: tribeSecret,
+      environment: runtimeEnvironment,
     }),
   });
   const body = await readJson(response);

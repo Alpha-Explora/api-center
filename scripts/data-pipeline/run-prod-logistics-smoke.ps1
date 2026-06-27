@@ -8,6 +8,7 @@ param(
   [string]$EventType = "order.created",
   [string]$SchemaVersion = "1.0.0",
   [string]$PlaintextTribeSecret,
+  [string]$RuntimeEnvironment,
   [switch]$RotateSmokeSecret,
   [switch]$DryRun
 )
@@ -102,23 +103,26 @@ function Invoke-JsonRequest {
 }
 
 function Get-ApiCenterBaseUrl {
-  $value = [Environment]::GetEnvironmentVariable("API_CENTER_BASE_URL", "Process")
+  $value = [Environment]::GetEnvironmentVariable("APICENTER_URL", "Process")
   if (-not $value) {
-    $value = [Environment]::GetEnvironmentVariable("APICENTER_URL", "Process")
-  }
-  if (-not $value) {
-    throw "API_CENTER_BASE_URL or APICENTER_URL is required."
+    throw "APICENTER_URL is required."
   }
   $value.TrimEnd("/")
 }
 
 Import-DotEnvFile -Path $EnvFile
 $baseUrl = Get-ApiCenterBaseUrl
+if (-not $RuntimeEnvironment) {
+  $RuntimeEnvironment = [Environment]::GetEnvironmentVariable("APICENTER_ENVIRONMENT", "Process")
+}
+if ($RuntimeEnvironment -ne "live") {
+  throw "APICENTER_ENVIRONMENT or -RuntimeEnvironment must be live for this production smoke."
+}
 $secretPrefix = [Environment]::GetEnvironmentVariable("TRIBE_SECRET_GCP_PREFIX", "Process")
 if (-not $secretPrefix) {
   $secretPrefix = "api-center-tribe-secret-"
 }
-$tribeSecretName = "$secretPrefix$TribeId"
+$tribeSecretName = "$secretPrefix$TribeId-$RuntimeEnvironment"
 $smokeId = "prod-logistics-smoke-$(Get-Date -Format 'yyyyMMddHHmmss')"
 
 $apiCenterPayload = gcloud secrets versions access latest `
@@ -159,7 +163,8 @@ $secretVersionAdded = $false
 if ((-not $secretExists -or $RotateSmokeSecret) -and -not $DryRun) {
   $hash = Get-Sha256Hex -Value $PlaintextTribeSecret
   $payload = @{
-    serviceId = $TribeId
+    tribeId = $TribeId
+    environment = $RuntimeEnvironment
     status = "active"
     secretHashSha256 = $hash
     createdAt = (Get-Date).ToUniversalTime().ToString("o")
@@ -245,6 +250,7 @@ $tokenResponse = Invoke-JsonRequest `
   -Body @{
     tribeId = $TribeId
     secret = $PlaintextTribeSecret
+    environment = $RuntimeEnvironment
   }
 $accessToken = $tokenResponse.data.accessToken
 if (-not $accessToken) {

@@ -233,15 +233,15 @@ For migration from bootstrap manifests to real tribe startup registration, use t
 # Generate and hash â€” gateway stores SHA-256, never plaintext
 echo -n "my-plaintext-secret" | sha256sum | awk '{print $1}'
 
-# Set in .env:
-TRIBE_SECRET_PAYMENT_SERVICE=<sha256-hash>
+# Store the hash in Secret Manager, not in process env.
 ```
 
-Use `TRIBE_SECRET_*` only for local/dev fallback or temporary rollback. In
-deployed environments, create one Secret Manager secret per tribe:
+Runtime token requests must include `environment=test|live`. Create one Secret
+Manager record per tribe and environment:
 
 ```text
-api-center-tribe-secret-<tribe-id>
+api-center-tribe-secret-<tribe-id>-test
+api-center-tribe-secret-<tribe-id>-live
 ```
 
 The payload shape and IAM setup are documented in
@@ -459,6 +459,5 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 | `GET` | `/nginx-health` | NGINX bypass health check |
 
 ---
-
 
 

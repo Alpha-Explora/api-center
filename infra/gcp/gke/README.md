@@ -138,27 +138,11 @@ kubectl -n api-center rollout restart deploy/api-center
 kubectl -n api-center rollout status deploy/api-center --timeout=10m
 ```
 
-### 3a. Apply the test namespace overlay
+### 3a. Environment-aware runtime
 
-The low-cost test/live split keeps the same cluster and deploys the test stack
-into `api-center-test`.
-
-```powershell
-kubectl kustomize infra/gcp/gke/test --load-restrictor LoadRestrictionsNone | kubectl apply -f -
-kubectl -n api-center-test rollout status deploy/api-center --timeout=10m
-```
-
-The test overlay sets:
-
-```text
-GCP_SECRET_NAME=api-center-test
-KAFKA_TOPIC_PREFIX=test.
-api-center-test.itsandbox.site
-api-center-test-ip
-```
-
-Point Cloudflare DNS for `api-center-test.itsandbox.site` to the reserved test
-IP before expecting the managed certificate to become active.
+The standalone test namespace overlay has been retired. Keep one API Center
+runtime and route test/live behavior through explicit `APICENTER_ENVIRONMENT`,
+environment-scoped service rows, and scoped tribe secrets.
 
 Verify API Center is reading Confluent credentials:
 
@@ -228,5 +212,4 @@ Expected: replicas climb past 2 within ~1 minute, settle, then scale back down ~
 - The active low-credit profile uses HPA min `2`, max `3`, and PDB `minAvailable: 1`. This saves idle spend while keeping one spare pod.
 - **Request-rate-based scaling** (e.g. RPS) requires the Cloud Monitoring custom-metrics adapter and an external metric on the GCLB. Left as a `TODO` in `50-hpa.yaml`.
 - **Cloud Armor** can be attached by uncommenting the `securityPolicy` block in `41-backendconfig.yaml`.
-
 

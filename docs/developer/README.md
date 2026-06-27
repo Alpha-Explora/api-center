@@ -234,14 +234,13 @@ curl -s -X POST http://localhost:3000/api/v1/registry/register \
     "version": "1.0.0"
   }' | jq .
 
-# 2. Local dev can still export the legacy env hash.
-#    Deployed envs should use api-center-tribe-secret-test-service instead.
-export TRIBE_SECRET_TEST_SERVICE=$(echo -n "test-secret" | sha256sum | awk '{print $1}')
+# 2. Create api-center-tribe-secret-test-service-test in Secret Manager.
+#    Its JSON payload must include tribeId, environment, secretHashSha256, and status.
 
 # 3. Issue a token
 RESPONSE=$(curl -s -X POST http://localhost:3000/api/v1/auth/token \
   -H "Content-Type: application/json" \
-  -d '{"tribeId": "test-service", "secret": "test-secret"}')
+  -d '{"tribeId": "test-service", "secret": "test-secret", "environment": "test"}')
 echo $RESPONSE | jq .
 
 export ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.data.accessToken')
@@ -309,13 +308,6 @@ This does not disable tribe authentication. Tribe services still request tokens
 from `/api/v1/auth/token` with `tribeId` and plaintext `secret`. APICenter hashes
 the plaintext, compares it to the configured tribe secret hash, issues an
 internal JWT, and validates that JWT on proxied calls.
-
-For temporary no-cloud testing, leave `TRIBE_SECRET_SOURCE` unset and store
-secret hashes in environment variables:
-
-```env
-TRIBE_SECRET_LOGISTICS=<sha256-of-plaintext-secret>
-```
 
 Do not store plaintext tribe secrets in committed files.
 
@@ -726,11 +718,9 @@ Secret name: api-center-tribe-secret-<tribe-id>
 }
 ```
 
-Legacy local/dev fallback:
-
-```bash
-TRIBE_SECRET_PAYMENT_SERVICE=<sha256hash>
-```
+Create `api-center-tribe-secret-payment-service-test` and
+`api-center-tribe-secret-payment-service-live` for scoped test/live token
+requests.
 
 ### Governed Kafka
 
@@ -1051,4 +1041,3 @@ below is a legacy rollback path only.
 | Cloud Build SA | `roles/run.admin` | Deploy Cloud Run services |
 | Cloud Build SA | `roles/iam.serviceAccountUser` | Act as Cloud Run SA during deploy |
 | Cloud Build SA | `roles/artifactregistry.writer` | Push Docker images |
-

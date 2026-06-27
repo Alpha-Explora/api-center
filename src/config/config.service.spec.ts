@@ -330,24 +330,11 @@ describe("ConfigService", () => {
     );
   });
 
-  it("parses one-URL environment contract rollout flags", () => {
-    process.env.APICENTER_ENVIRONMENT_CONTRACT_MODE = "warn";
-    process.env.APICENTER_LEGACY_TRIBE_SECRET_FALLBACK = "true";
-    process.env.APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST =
-      "smoke-tribe, logistics";
-    process.env.APICENTER_LEGACY_ENVIRONMENT_MAP =
-      "smoke-tribe:test,logistics:live,invalid:prod";
-
+  it("keeps the one-URL environment contract in enforce mode", () => {
     const config = new ConfigService();
 
     expect(config.environmentContract).toEqual({
-      mode: "warn",
-      legacyTribeSecretFallback: true,
-      legacyAllowlist: ["smoke-tribe", "logistics"],
-      legacyEnvironmentMap: {
-        "smoke-tribe": "test",
-        logistics: "live",
-      },
+      mode: "enforce",
     });
   });
 });

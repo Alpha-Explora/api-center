@@ -10,7 +10,6 @@ function getArg(name, fallback = "") {
 const options = {
   apiCenterBaseUrl: (
     getArg("--api-center-base-url") ||
-    process.env.API_CENTER_BASE_URL ||
     process.env.APICENTER_URL ||
     ""
   ).replace(/\/+$/g, ""),
@@ -79,7 +78,7 @@ function sourceOf(body) {
 }
 
 async function smokeApiCenter() {
-  requireValue("API_CENTER_BASE_URL or APICENTER_URL", options.apiCenterBaseUrl);
+  requireValue("APICENTER_URL", options.apiCenterBaseUrl);
   requireValue("API_CENTER_PLATFORM_ADMIN_SECRET", options.platformAdminSecret);
   const adminHeaders = { "X-Platform-Secret": options.platformAdminSecret };
 

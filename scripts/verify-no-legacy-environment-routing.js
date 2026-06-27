@@ -6,10 +6,11 @@ const { execFileSync } = require("node:child_process");
 
 const allowHistorical = [
   /^docs\/superpowers\/plans\//,
-  /^docs\/operations\/.*(?:inventory|migration|preflight|smoke|parity).*[.](?:json|md)$/,
+  /^docs\/operations\/.*(?:inventory|migration|cleanup|preflight|smoke|parity).*[.](?:json|md)$/,
   /^docs\/operations\/one-url-environment-migration-inventory\.md$/,
   /^docs\/visualizations\/one-apicenter-environment-aware-routing-tracker\.html$/,
   /^scripts\/inventory-legacy-service-migration\.js$/,
+  /^scripts\/migrate-legacy-.*[.]js$/,
   /^scripts\/verify-no-legacy-environment-routing\.js$/,
 ];
 
@@ -32,13 +33,14 @@ const rules = [
   },
   {
     id: "legacy_env_backed_secret",
-    pattern: /TRIBE_SECRET_[A-Z0-9_]+/g,
+    pattern:
+      /TRIBE_SECRET_(?!(?:SOURCE|GCP_PREFIX|CACHE_TTL_SECONDS|MANAGER_CLIENT)\b)[A-Z0-9_]+/g,
     message: "legacy env-backed tribe secret hashes are removed",
   },
   {
     id: "sdk_url_alias",
-    pattern: /\bAPICENTER_(?:URL|GATEWAY_URL)\b/g,
-    message: "APICENTER_URL/APICENTER_GATEWAY_URL aliases must not appear in active docs/code",
+    pattern: /\b(?:API_CENTER_BASE_URL|APICENTER_GATEWAY_URL)\b/g,
+    message: "active docs/code must use APICENTER_URL plus APICENTER_ENVIRONMENT",
   },
   {
     id: "management_environment_alias",
@@ -86,6 +88,7 @@ function scanForLegacyRouting(repoRoot) {
       "*.json",
       "*.yaml",
       "*.yml",
+      "*.ps1",
       ".env.example",
     ],
     { cwd: repoRoot, encoding: "utf8" },
@@ -99,7 +102,9 @@ function scanForLegacyRouting(repoRoot) {
 
   for (const file of files) {
     if (!shouldScanFile(file)) continue;
-    const text = fs.readFileSync(path.join(repoRoot, file), "utf8");
+    const absolutePath = path.join(repoRoot, file);
+    if (!fs.existsSync(absolutePath)) continue;
+    const text = fs.readFileSync(absolutePath, "utf8");
     const historical = allowHistorical.some((pattern) => pattern.test(file));
     for (const rule of rules) {
       rule.pattern.lastIndex = 0;

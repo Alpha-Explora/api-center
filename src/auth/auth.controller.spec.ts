@@ -40,10 +40,7 @@ const mockKafka: Partial<KafkaService> = {
 const mockConfig = {
   authProvider: "dev-jwt",
   environmentContract: {
-    mode: "enforce" as "enforce" | "warn",
-    legacyTribeSecretFallback: false,
-    legacyAllowlist: [] as string[],
-    legacyEnvironmentMap: {} as Record<string, "test" | "live">,
+    mode: "enforce" as const,
   },
 };
 
@@ -76,10 +73,7 @@ describe("AuthController", () => {
     jest.clearAllMocks();
     (mockRegistry.validateLegacySecret as jest.Mock).mockResolvedValue(false);
     mockConfig.environmentContract = {
-      mode: "enforce" as "enforce" | "warn",
-      legacyTribeSecretFallback: false,
-      legacyAllowlist: [],
-      legacyEnvironmentMap: {},
+      mode: "enforce" as const,
     };
     (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
     (mockRegistry.getEffectiveConsumesForTribe as jest.Mock).mockImplementation(
@@ -186,107 +180,26 @@ describe("AuthController", () => {
       ).rejects.toThrow("environment is required");
     });
 
-    it("maps a missing environment only for warn-mode allowlisted legacy tribes", async () => {
-      (mockRegistry.validateLegacySecret as jest.Mock).mockResolvedValue(false);
-      mockConfig.environmentContract = {
-        mode: "warn" as const,
-        legacyTribeSecretFallback: true,
-        legacyAllowlist: ["svc-alpha"],
-        legacyEnvironmentMap: { "svc-alpha": "test" },
-      };
-      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        true,
-      );
-      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
-        accessToken: "access-jwt",
-        refreshToken: "refresh-jwt",
-        expiresIn: 3600,
-      });
-
-      const result = await controller.issueToken(
-        { tribeId: "svc-alpha", secret: "s3cret" } as typeof dto,
-        fakeReq(),
-      );
-
-      expect(result.data.environment).toBe("test");
-      expect(mockRegistry.validateEnvironmentSecret).toHaveBeenCalledWith(
-        "svc-alpha",
-        "s3cret",
-        "test",
-      );
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Legacy token request accepted without environment for svc-alpha as test",
-        "AuthController",
-      );
-      const [, payload] = (mockKafka.publishNonBlocking as jest.Mock).mock
-        .calls[0];
-      expect(payload).toEqual(
-        expect.objectContaining({
-          environment: "test",
-          legacyCompatibilityWarning: true,
-        }),
-      );
-    });
-
-    it("rejects missing environment in warn mode when no explicit legacy map exists", async () => {
-      (mockRegistry.validateLegacySecret as jest.Mock).mockResolvedValue(false);
-      mockConfig.environmentContract = {
-        mode: "warn" as const,
-        legacyTribeSecretFallback: true,
-        legacyAllowlist: ["svc-alpha"],
-        legacyEnvironmentMap: {},
-      };
-
-      await expect(
-        controller.issueToken(
-          { tribeId: "svc-alpha", secret: "s3cret" } as typeof dto,
-          fakeReq(),
-        ),
-      ).rejects.toThrow("APICENTER_LEGACY_ENVIRONMENT_MAP");
-    });
-
-    it("uses the legacy secret fallback only after mapped environment validation fails", async () => {
-      mockConfig.environmentContract = {
-        mode: "warn" as const,
-        legacyTribeSecretFallback: true,
-        legacyAllowlist: ["svc-alpha"],
-        legacyEnvironmentMap: { "svc-alpha": "test" },
-      };
+    it("does not fall back to legacy secret validation after scoped validation fails", async () => {
       (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
       (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
         false,
       );
       (mockRegistry.validateLegacySecret as jest.Mock).mockResolvedValue(true);
-      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
-        accessToken: "access-jwt",
-        refreshToken: "refresh-jwt",
-        expiresIn: 3600,
-      });
 
-      const result = await controller.issueToken(
-        { tribeId: "svc-alpha", secret: "legacy-secret" } as typeof dto,
-        fakeReq(),
-      );
-
-      expect(result.data.environment).toBe("test");
+      await expect(
+        controller.issueToken(
+          { ...dto, secret: "legacy-secret" },
+          fakeReq(),
+        ),
+      ).rejects.toThrow(UnauthorizedError);
       expect(mockRegistry.validateEnvironmentSecret).toHaveBeenCalledWith(
         "svc-alpha",
         "legacy-secret",
         "test",
       );
-      expect(mockRegistry.validateLegacySecret).toHaveBeenCalledWith(
-        "svc-alpha",
-        "legacy-secret",
-      );
-      const [, payload] = (mockKafka.publishNonBlocking as jest.Mock).mock
-        .calls[0];
-      expect(payload).toEqual(
-        expect.objectContaining({
-          legacyCompatibilityWarning: true,
-          legacySecretFallbackUsed: true,
-        }),
-      );
+      expect(mockRegistry.validateLegacySecret).not.toHaveBeenCalled();
+      expect(mockKafka.publishNonBlocking).not.toHaveBeenCalled();
     });
     it("throws UnauthorizedError for an unknown source service", async () => {
       (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) =>

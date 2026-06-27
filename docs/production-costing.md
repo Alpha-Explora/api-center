@@ -254,7 +254,7 @@ Incremental cost of the current split:
 | --- | ---: |
 | Test API Center pod, min 1 | low Autopilot workload cost |
 | Six test shared-service pods, min 1 each | similar to current shared-service idle cost |
-| Second HTTPS load balancer for `api-center-test.itsandbox.site` | another load-balancer fixed cost plus traffic |
+| Second HTTPS load balancer for a separate API Center test hostname | avoided by the one-URL environment-aware routing model |
 | Extra Kafka topics | no direct topic line item, but more partitions can increase eCKU usage |
 | Same S3 sink connector | no second connector task yet |
 | Same S3 bucket | only extra stored data and requests |

@@ -48,7 +48,7 @@
 | Image | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:platform-governance-quotas-9052cf5-2026052503` |
 | Built from | local workspace based on `9052cf5` with platform governance and quota changes |
 | Last deployed | `2026-05-25` |
-| Validation | GKE rollout succeeded in `api-center-test`; readiness returned HTTP 200; `npm run smoke:tribe-quotas` against `https://api-center-test.itsandbox.site` created an approved enforced quota policy for `quota-smoke`, returned HTTP 200 for attempts 1 and 2 to `/api/v1/shared/payment/health`, returned HTTP 429 `TRIBE_API_QUOTA_EXCEEDED` for attempt 3, and disabled the test policy. |
+| Validation | Historical GKE test rollout succeeded; readiness returned HTTP 200; `npm run smoke:tribe-quotas` created an approved enforced quota policy for `quota-smoke`, returned HTTP 200 for attempts 1 and 2 to `/api/v1/shared/payment/health`, returned HTTP 429 `TRIBE_API_QUOTA_EXCEEDED` for attempt 3, and disabled the test policy. |
 
 ---
 
@@ -207,18 +207,16 @@ with payload:
 
 ```json
 {
-        "serviceId": "smoke-tribe",
+        "tribeId": "smoke-tribe",
+        "environment": "test",
         "secretHashSha256": "<sha256-hash>",
         "status": "active",
         "rotatedAt": "2026-05-14T00:00:00.000Z"
 }
 ```
 
-Legacy rollback path: `TRIBE_SECRET_<SERVICE_ID_UPPER>` in `api-center-prod`
-is now available only through `APICENTER_ENVIRONMENT_CONTRACT_MODE=warn`, explicit
-`APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST`, and explicit
-`APICENTER_LEGACY_ENVIRONMENT_MAP`. Remove those keys after successful token
-smoke tests against the environment-scoped per-tribe secret.
+Rollback path: re-enable only the affected scoped Secret Manager version for the
+specific tribe and environment, then rotate it after recovery.
 
 ### 2B. Confirm runtime selector
 
@@ -322,27 +320,11 @@ $names = $json.PSObject.Properties.Name
 ) | Format-Table -AutoSize
 ```
 
-### 2E. One-URL environment contract controls
+### 2E. One-URL environment contract
 
-`config/environments/live/api-center-config.yaml` and the live ConfigMap should default to enforce mode:
-
-```yaml
-APICENTER_ENVIRONMENT_CONTRACT_MODE: "enforce"
-APICENTER_LEGACY_TRIBE_SECRET_FALLBACK: "false"
-APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST: ""
-APICENTER_LEGACY_ENVIRONMENT_MAP: ""
-```
-
-Use warn mode only for a named legacy rollback window:
-
-```yaml
-APICENTER_ENVIRONMENT_CONTRACT_MODE: "warn"
-APICENTER_LEGACY_TRIBE_SECRET_FALLBACK: "true"
-APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST: "smoke-tribe,logistics"
-APICENTER_LEGACY_ENVIRONMENT_MAP: "smoke-tribe:test,logistics:test"
-```
-
-Do not keep warn mode after SDK `2.0.0`, environment-scoped secrets, and service smoke checks are complete.
+Runtime token requests must include `environment=test|live`, and the resolver
+reads only `api-center-tribe-secret-<tribe-id>-test|live` Secret Manager
+records. Do not add missing-environment fallback keys to the live ConfigMap.
 
 ### 2F. Optional control-plane database keys
 

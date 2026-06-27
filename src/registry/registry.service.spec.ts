@@ -651,13 +651,17 @@ describe("RegistryService", () => {
       );
     });
 
-    it("keeps legacy validation on an explicit method", async () => {
-      (mockTribeSecretResolver.validateLegacySecret as jest.Mock).mockResolvedValue(true);
+    it("rejects legacy validation after scoped secret migration", async () => {
+      (mockTribeSecretResolver.validateLegacySecret as jest.Mock).mockRejectedValue(
+        new Error("Legacy tribe secret validation has been removed"),
+      );
 
       await expect(
         service.validateLegacySecret("svc-alpha", "secret"),
-      ).resolves.toBe(true);
-      await service.validateSecret("svc-alpha", "secret");
+      ).rejects.toThrow("Legacy tribe secret validation has been removed");
+      await expect(
+        service.validateSecret("svc-alpha", "secret"),
+      ).rejects.toThrow("Legacy tribe secret validation has been removed");
 
       expect(mockTribeSecretResolver.validateLegacySecret).toHaveBeenCalledWith(
         "svc-alpha",

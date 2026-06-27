@@ -20,7 +20,7 @@ async function collectRegistryParityEvidence({
   runParity = true,
 } = {}) {
   const redisUrl = firstPresent(env, REDIS_ENV_NAMES);
-  const apiCenterBaseUrl = normalizeBaseUrl(firstPresent(env, ["API_CENTER_BASE_URL", "APICENTER_URL"]));
+  const apiCenterBaseUrl = normalizeBaseUrl(firstPresent(env, ["APICENTER_URL"]));
   const platformSecret = firstPresent(env, ["API_CENTER_PLATFORM_ADMIN_SECRET", "PLATFORM_ADMIN_SECRET"]);
   const adminBearerToken = firstPresent(env, ["API_CENTER_ADMIN_BEARER_TOKEN", "APICENTER_ADMIN_BEARER_TOKEN"]);
   const environment = {
@@ -28,7 +28,6 @@ async function collectRegistryParityEvidence({
     REDIS_CACHE_URL: redactedEnvStatus(env, "REDIS_CACHE_URL"),
     REDIS_URL: redactedEnvStatus(env, "REDIS_URL"),
     CACHE_URL: redactedEnvStatus(env, "CACHE_URL"),
-    API_CENTER_BASE_URL: redactedEnvStatus(env, "API_CENTER_BASE_URL"),
     APICENTER_URL: redactedEnvStatus(env, "APICENTER_URL"),
     API_CENTER_PLATFORM_ADMIN_SECRET: redactedEnvStatus(env, "API_CENTER_PLATFORM_ADMIN_SECRET"),
     PLATFORM_ADMIN_SECRET: redactedEnvStatus(env, "PLATFORM_ADMIN_SECRET"),
@@ -101,7 +100,7 @@ async function collectRegistryParityEvidence({
     ready: blockers.length === 0,
     blockers,
     nextCommands: [
-      "Set DATABASE_URL and REDIS_CACHE_URL (or REDIS_URL/CACHE_URL), or set API_CENTER_BASE_URL plus API_CENTER_PLATFORM_ADMIN_SECRET/API_CENTER_ADMIN_BEARER_TOKEN.",
+      "Set DATABASE_URL and REDIS_CACHE_URL (or REDIS_URL/CACHE_URL), or set APICENTER_URL plus API_CENTER_PLATFORM_ADMIN_SECRET/API_CENTER_ADMIN_BEARER_TOKEN.",
       "npm run registry:verify -- --out docs/operations/registry-parity-<date>.json",
       "npm run registry:verify",
       "Do not switch REGISTRY_SOURCE=postgres until the artifact reports ready=true.",

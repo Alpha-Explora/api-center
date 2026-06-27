@@ -5,13 +5,13 @@ const dto = (input: Partial<TokenRequestDto>) =>
   Object.assign(new TokenRequestDto(), input);
 
 describe("TokenRequestDto", () => {
-  it("allows missing environment so rollout warn mode can map legacy clients", async () => {
+  it("rejects missing environment after legacy migration", async () => {
     const errors = await validate(
       dto({ tribeId: "church-donations", secret: "secret" }),
     );
 
     expect(errors.some((error) => error.property === "environment")).toBe(
-      false,
+      true,
     );
   });
 

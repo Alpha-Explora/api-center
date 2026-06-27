@@ -221,7 +221,13 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function getAccessToken({ baseUrl, plaintextTribeSecret, tribeId, attempts }) {
+async function getAccessToken({
+  attempts,
+  baseUrl,
+  environment,
+  plaintextTribeSecret,
+  tribeId,
+}) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -230,6 +236,7 @@ async function getAccessToken({ baseUrl, plaintextTribeSecret, tribeId, attempts
         body: JSON.stringify({
           tribeId,
           secret: plaintextTribeSecret,
+          environment,
         }),
       });
       const accessToken = tokenResponse.data?.accessToken;
@@ -258,8 +265,9 @@ function smokeSecret() {
 
 function writeTribeSecretVersion({
   gcpProject,
+  environment,
   plaintextTribeSecret,
-  sourceServiceId,
+  tribeId,
   tribeSecretName,
 }) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "apic-trinithrive-backfill-"));
@@ -273,7 +281,8 @@ function writeTribeSecretVersion({
       tmpFile,
       JSON.stringify(
         {
-          serviceId: sourceServiceId,
+          tribeId,
+          environment,
           status: "active",
           secretHashSha256: hash,
           createdAt: new Date().toISOString(),
@@ -467,6 +476,10 @@ async function main() {
       .map((value) => value.trim())
       .filter(Boolean),
     gcpProject: getArg("--gcp-project", "api-center-496422"),
+    environment: getArg(
+      "--environment",
+      process.env.APICENTER_ENVIRONMENT || "",
+    ),
     limit: Number.parseInt(getArg("--limit", "0"), 10),
     onlyKeys: getArg("--only-keys", "")
       .split(",")
@@ -485,11 +498,17 @@ async function main() {
   }
 
   importDotEnv(options.envFile);
+  if (!options.environment) {
+    options.environment = process.env.APICENTER_ENVIRONMENT || "";
+  }
 
-  const baseUrl = (process.env.API_CENTER_BASE_URL || process.env.APICENTER_URL || "").replace(/\/+$/g, "");
-  if (!baseUrl) throw new Error("API_CENTER_BASE_URL or APICENTER_URL is required.");
+  const baseUrl = (process.env.APICENTER_URL || "").replace(/\/+$/g, "");
+  if (!baseUrl) throw new Error("APICENTER_URL is required.");
+  if (options.environment !== "test" && options.environment !== "live") {
+    throw new Error("APICENTER_ENVIRONMENT or --environment must be test or live.");
+  }
   const isProdTarget =
-    !baseUrl.includes("-test.") ||
+    options.environment === "live" ||
     options.topicName.startsWith("prod.") ||
     path.basename(options.envFile).includes("live");
   if (isProdTarget && !options.allowProd) {
@@ -501,8 +520,8 @@ async function main() {
     throw new Error("API_CENTER_PLATFORM_ADMIN_SECRET is required for registration.");
   }
 
-  const secretPrefix = process.env.TRIBE_SECRET_GCP_PREFIX || "api-center-test-tribe-secret-";
-  const tribeSecretName = `${secretPrefix}${options.tribeId}`;
+  const secretPrefix = process.env.TRIBE_SECRET_GCP_PREFIX || "api-center-tribe-secret-";
+  const tribeSecretName = `${secretPrefix}${options.tribeId}-${options.environment}`;
   const built = buildEvents(options);
   const onlyKeySet = new Set(options.onlyKeys);
   const events = filterEventsByKeys(built.events, onlyKeySet);
@@ -516,6 +535,7 @@ async function main() {
           dry_run: true,
           base_url: baseUrl,
           topic: options.topicName,
+          environment: options.environment,
           tribe_id: options.tribeId,
           source_service_id: options.sourceServiceId,
           tribe_secret_name: tribeSecretName,
@@ -543,8 +563,9 @@ async function main() {
     plaintextTribeSecret = smokeSecret();
     writeTribeSecretVersion({
       gcpProject: options.gcpProject,
+      environment: options.environment,
       plaintextTribeSecret,
-      sourceServiceId: options.tribeId,
+      tribeId: options.tribeId,
       tribeSecretName,
     });
     rotatedTestSecret = true;
@@ -562,6 +583,7 @@ async function main() {
   const accessToken = await getAccessToken({
     attempts: rotatedTestSecret ? 12 : 1,
     baseUrl,
+    environment: options.environment,
     plaintextTribeSecret,
     tribeId: options.tribeId,
   });

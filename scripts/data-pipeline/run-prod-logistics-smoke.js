@@ -23,6 +23,7 @@ const options = {
   count: Number.parseInt(getArg("--count", "1"), 10),
   plaintextTribeSecret: getArg("--plaintext-tribe-secret", ""),
   rotateSmokeSecret: args.has("--rotate-smoke-secret"),
+  environment: getArg("--environment", process.env.APICENTER_ENVIRONMENT || ""),
   dryRun: args.has("--dry-run"),
 };
 if (!Number.isInteger(options.count) || options.count < 1 || options.count > 1000) {
@@ -112,13 +113,19 @@ function sleep(ms) {
 
 async function main() {
   importDotEnv(options.envFile);
-  const baseUrl = (process.env.API_CENTER_BASE_URL || process.env.APICENTER_URL || "").replace(/\/+$/g, "");
+  if (!options.environment) {
+    options.environment = process.env.APICENTER_ENVIRONMENT || "";
+  }
+  const baseUrl = (process.env.APICENTER_URL || "").replace(/\/+$/g, "");
   if (!baseUrl) {
-    throw new Error("API_CENTER_BASE_URL or APICENTER_URL is required.");
+    throw new Error("APICENTER_URL is required.");
+  }
+  if (options.environment !== "live") {
+    throw new Error("APICENTER_ENVIRONMENT or --environment must be live for this production smoke.");
   }
 
   const secretPrefix = process.env.TRIBE_SECRET_GCP_PREFIX || "api-center-tribe-secret-";
-  const tribeSecretName = `${secretPrefix}${options.tribeId}`;
+  const tribeSecretName = `${secretPrefix}${options.tribeId}-${options.environment}`;
   const smokeId = `prod-logistics-smoke-${new Date().toISOString().replaceAll(/\D/g, "").slice(0, 14)}`;
 
   const apiCenterPayload = gcloudJson([
@@ -172,7 +179,8 @@ async function main() {
         tmpFile,
         JSON.stringify(
           {
-            serviceId: options.tribeId,
+            tribeId: options.tribeId,
+            environment: options.environment,
             status: "active",
             secretHashSha256: hash,
             createdAt: new Date().toISOString(),
@@ -281,6 +289,7 @@ async function main() {
         body: JSON.stringify({
           tribeId: options.tribeId,
           secret: plaintextTribeSecret,
+          environment: options.environment,
         }),
       });
       break;

@@ -17,7 +17,6 @@ type CachedSecret = {
 };
 
 type TribeSecretPayload = {
-  serviceId?: unknown;
   tribeId?: unknown;
   environment?: unknown;
   secretHashSha256?: unknown;
@@ -32,7 +31,6 @@ type TribeSecretPayload = {
 };
 
 const SHA_256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
-const DEFAULT_SECRET_PREFIX = "api-center-tribe-secret-";
 const DEFAULT_CACHE_TTL_SECONDS = 300;
 export const TRIBE_SECRET_MANAGER_CLIENT = Symbol(
   "TRIBE_SECRET_MANAGER_CLIENT",
@@ -55,18 +53,17 @@ export class TribeSecretResolverService {
   }
 
   async validateSecret(
-    serviceId: string,
-    plaintextSecret: string,
+    _serviceId: string,
+    _plaintextSecret: string,
   ): Promise<boolean> {
-    return this.validateLegacySecret(serviceId, plaintextSecret);
+    return this.validateLegacySecret(_serviceId, _plaintextSecret);
   }
 
   async validateLegacySecret(
-    serviceId: string,
-    plaintextSecret: string,
+    _serviceId: string,
+    _plaintextSecret: string,
   ): Promise<boolean> {
-    const expectedHashes = await this.resolveSecretHashes(serviceId);
-    return this.matchesSecretHashes(plaintextSecret, expectedHashes);
+    throw new Error("Legacy tribe secret validation has been removed");
   }
 
   async validateEnvironmentSecret(
@@ -82,8 +79,8 @@ export class TribeSecretResolverService {
   }
 
   async resolveSecretHash(serviceId: string): Promise<string | null> {
-    const hashes = await this.resolveSecretHashes(serviceId);
-    return hashes[0] ?? null;
+    void serviceId;
+    throw new Error("Legacy tribe secret validation has been removed");
   }
 
   async resolveEnvironmentSecretHash(
@@ -95,40 +92,6 @@ export class TribeSecretResolverService {
       environment,
     );
     return hashes[0] ?? null;
-  }
-
-  private async resolveSecretHashes(serviceId: string): Promise<string[]> {
-    const normalizedServiceId = this.normalizeServiceId(serviceId);
-    if (!normalizedServiceId) {
-      this.logger.warn(
-        `Tribe secret lookup rejected invalid serviceId '${serviceId}'`,
-        "TribeSecretResolverService",
-      );
-      return [];
-    }
-
-    const legacyHash = this.getLegacyEnvHash(normalizedServiceId);
-    if (legacyHash) return [legacyHash];
-
-    if (process.env.TRIBE_SECRET_SOURCE !== "gcp-secret-manager") {
-      return [];
-    }
-
-    const cacheKey = `legacy:${normalizedServiceId}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.hashes;
-    }
-
-    const resolvedHashes = await this.getGcpSecretHashes(normalizedServiceId);
-    if (resolvedHashes.length === 0) return [];
-
-    this.cache.set(cacheKey, {
-      hashes: resolvedHashes,
-      expiresAt: Date.now() + this.getCacheTtlMs(),
-    });
-
-    return resolvedHashes;
   }
 
   private async resolveEnvironmentSecretHashes(
@@ -178,50 +141,9 @@ export class TribeSecretResolverService {
     if (!normalizedServiceId) return;
 
     for (const key of [...this.cache.keys()]) {
-      if (
-        key === normalizedServiceId ||
-        key === `legacy:${normalizedServiceId}` ||
-        key.startsWith(`environment:${normalizedServiceId}:`)
-      ) {
+      if (key.startsWith(`environment:${normalizedServiceId}:`)) {
         this.cache.delete(key);
       }
-    }
-  }
-
-  private getLegacyEnvHash(serviceId: string): string | null {
-    const envKey = `TRIBE_SECRET_${serviceId.toUpperCase().replaceAll("-", "_")}`;
-    const hash = process.env[envKey]?.trim();
-    if (!hash) return null;
-
-    if (!this.isValidHash(hash)) {
-      this.logger.warn(
-        `Tribe secret env '${envKey}' is malformed`,
-        "TribeSecretResolverService",
-      );
-      return null;
-    }
-
-    return hash.toLowerCase();
-  }
-
-  private async getGcpSecretHashes(serviceId: string): Promise<string[]> {
-    const projectId = this.getProjectId();
-    if (!projectId) return [];
-
-    const prefix = process.env.TRIBE_SECRET_GCP_PREFIX || DEFAULT_SECRET_PREFIX;
-    const secretName = `${prefix}${serviceId}`;
-    const resourceName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
-
-    try {
-      const raw = await this.readSecretPayload(resourceName, secretName);
-      if (!raw) return [];
-      return this.parsePayload(serviceId, secretName, raw);
-    } catch (error) {
-      this.logger.warn(
-        `Tribe Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
-        "TribeSecretResolverService",
-      );
-      return [];
     }
   }
 
@@ -284,34 +206,6 @@ export class TribeSecretResolverService {
     return Buffer.isBuffer(rawPayload)
       ? rawPayload.toString("utf8")
       : Buffer.from(rawPayload).toString("utf8");
-  }
-
-  private parsePayload(
-    serviceId: string,
-    secretName: string,
-    rawPayload: string,
-  ): string[] {
-    const normalizedPayload = rawPayload.trim();
-    if (this.isValidHash(normalizedPayload)) {
-      return [normalizedPayload.toLowerCase()];
-    }
-
-    const parsed = this.parseJsonPayload(secretName, normalizedPayload);
-    if (!parsed) return [];
-
-    const payloadServiceId =
-      typeof parsed.serviceId === "string"
-        ? this.normalizeServiceId(parsed.serviceId)
-        : null;
-    if (payloadServiceId && payloadServiceId !== serviceId) {
-      this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' serviceId '${payloadServiceId}' does not match '${serviceId}'`,
-        "TribeSecretResolverService",
-      );
-      return [];
-    }
-
-    return this.extractAcceptedHashes(parsed, secretName);
   }
 
   private parseEnvironmentPayload(

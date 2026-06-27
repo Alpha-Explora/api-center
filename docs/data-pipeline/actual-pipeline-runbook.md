@@ -150,7 +150,7 @@ Management can read through APICenter by setting:
 
 ```text
 PIPELINE_HEALTH_PROVIDER=api-center
-API_CENTER_BASE_URL=<api-center-base-url>
+APICENTER_URL=<api-center-base-url>
 API_CENTER_PLATFORM_ADMIN_SECRET=<server-only-secret>
 ```
 
