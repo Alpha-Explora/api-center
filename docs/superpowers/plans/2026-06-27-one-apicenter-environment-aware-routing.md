@@ -74,6 +74,34 @@ Locked naming decisions:
 6. **Multiple generic parser/helper names make reviews harder.**
    There are repeated helpers such as `readRuntimeEnvironment` and local `environment` variables across API Center, SDK, and Management. Long term, centralize naming helpers per repo and require domain-specific names at boundaries.
 
+## Legacy And Redundancy Findings To Fix
+
+These are broader than `live` versus `prod`. They cover stored legacy records, code-level compatibility paths, duplicate env names, stale docs, and UI/API naming that can make future reviews harder.
+
+1. **Legacy service registry records still exist in the active catalog.**
+   Inventory evidence shows temporary/test-only services such as `codex-owner-20260520024731`, `codex-owner-20260520024731-orders`, `codex-probe`, `codex-smoke-*`, and services with `https://api-center-test.itsandbox.site` backend URLs. Every active legacy service must be migrated to explicit environment rows, marked test-only with a sunset, or retired. Do not gate this on runtime access to third-party services; this is APICenter catalog ownership.
+
+2. **Legacy Secret Manager records are still enabled after scoped copies.**
+   `api-center-test-tribe-secret-*` and unscoped `api-center-tribe-secret-<tribe-id>` records were copied to scoped `api-center-tribe-secret-<tribe-id>-test|live` records for several services. The plan must include the full lifecycle: inventory, scoped copy, verify metadata, remove allowlist/map references, disable old versions for rollback, then delete legacy records after the rollback window.
+
+3. **Code-level legacy secret fallback remains by design but needs a removal slice.**
+   `api-center/src/registry/tribe-secret-resolver.service.ts`, token request DTO tests, `.env.example`, and docs still support `APICENTER_LEGACY_TRIBE_SECRET_FALLBACK`, `APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST`, `APICENTER_LEGACY_ENVIRONMENT_MAP`, and env-backed legacy hash validation. That is acceptable only during warn mode. Add an enforce-mode removal task that fails if these code paths still run when all active services are migrated.
+
+4. **Old endpoint names remain in docs and tests.**
+   `https://api-center-test.itsandbox.site` and `https://api-center-management-test.itsandbox.site` still appear in docs, tests, and archived runbooks. Archive-only references can remain, but active docs, examples, env files, and test fixtures should use the one URL `https://api-center.itsandbox.site` plus `APICENTER_ENVIRONMENT=test|live`.
+
+5. **Deployment env aliases are redundant and should be consolidated.**
+   Management currently reads `MANAGEMENT_ENVIRONMENT`, `MANAGEMENT_ENV`, and `NEXT_PUBLIC_MANAGEMENT_ENV`; API Center and Management also distinguish server/base URL and public/base URL names. Keep compatibility aliases only at process boundaries. Internally use one canonical config object with `managementDeploymentEnvironment`, `apiCenterBaseUrl`, and `publicApiCenterBaseUrl`, then lint against direct `process.env.MANAGEMENT_ENV` reads outside that resolver.
+
+6. **SDK URL aliases should have a deprecation path.**
+   The SDK smoke scripts accept `APICENTER_URL` and `APICENTER_GATEWAY_URL`. Keep `APICENTER_URL` as canonical and mark `APICENTER_GATEWAY_URL` as transitional. Add a contract check so new docs/examples do not introduce more URL aliases.
+
+7. **Provider-specific fallback naming remains from earlier Power BI work.**
+   Management still has legacy `POWERBI_NORTH_STAR_*` fallback support while newer docs describe provider-neutral BI naming. If the current platform no longer needs Power BI fallback, add it to the redundancy cleanup. If it must remain, isolate it in one provider adapter and stop surfacing it in general APICenter docs.
+
+8. **`ownerTribeId` and `sourceServiceId` are not redundant but need clearer naming.**
+   Do not collapse these fields. `ownerTribeId` is the tribe/security/quota boundary; `sourceServiceId` is the calling backend/service attribution. The redundancy to remove is places that default, infer, or present them as interchangeable.
+
 ## Target Consumer Env Shape
 
 ```env
@@ -1599,43 +1627,45 @@ npm run build
 npm run smoke:routes
 ```
 
-- [ ] **Step 5: Deployment smoke expectations**
+- [x] **Step 5: APICenter-side service migration evidence**
 
-Spark Site test env:
+APICenter owns registry, catalog, secret metadata, route policy, audit, usage, and Management visibility. For external tribe services such as Spark Site, pakiapps, greenovate, shoteam, trinithrive, and similar services not owned by this team, completion is not blocked on logging into or smoke-testing their private runtime. The platform gate is that every active service is represented in the new one-URL model and every legacy service record has an explicit migration disposition.
 
-```text
-authenticate(): success
-discovery: returns church-donations with test/live environment rows
-payment test call: routes to payment-test
-payment live route with test token: blocked before provider call
-usage/audit: serviceId=church-donations, environment=test
-```
-
-Spark Site live env:
+Required APICenter-side evidence:
 
 ```text
-authenticate(): success
-discovery: success
-read-only shared-service discovery: success
-payment live mutation: not run unless an approved provider smoke exists
-usage/audit: serviceId=church-donations, environment=live
+registry/catalog: service has explicit environment rows or a documented test-only/retired disposition
+secret metadata: legacy unscoped or test-prefixed Secret Manager records are copied to scoped test/live records when the service remains active
+route policy: one API Center URL is the canonical gateway for registered services
+Management: service detail renders one service with environment rows
+evidence: migration artifact records source legacy records, target scoped records, approvals, and rollback status
+cleanup readiness: legacy allowlist/map entries and legacy secret versions are removable after APICenter-side verification
 ```
 
-Current status: deployment smoke is the only open plan gate. The operator-safe preflight command exists in API Center:
+Consumer-owned runtime smoke is recommended after handoff, but it is not an APICenter plan completion gate for services outside APICenter ownership:
+
+```text
+authenticate(): consumer-owned proof
+discovery: consumer-owned proof
+payment/shared-service call: consumer-owned proof and provider approval
+usage/audit: APICenter should be ready to record it when the consumer runs it
+```
+
+Current APICenter-side evidence command:
 
 ```powershell
 cd C:\Codes\apic\api-center
 npm run smoke:spark-site:preflight -- --out docs/operations/spark-site-deployment-preflight-2026-06-28.json
 ```
 
-The read-only consumer smoke command exists in the SDK and performs SDK auth plus discovery without payment mutations:
+Optional consumer-owned smoke command:
 
 ```powershell
 cd C:\Codes\apic\api-shared-services
 npm run smoke:environment-discovery:sdk
 ```
 
-Live preflight evidence is `docs/operations/spark-site-deployment-preflight-2026-06-28.json`: `church-donations` is active, owned by `church-donations`, declares `email`, `gauth`, `geo`, `otp`, `payment`, and `sms`, and now has both `test` and `live` environment rows. The live row was added through approved API Center registration request `860b4b82-78a3-44c8-944f-f7256f03a7f1`; the preflight artifact reports `ready=true` and no automated blockers. Secret Manager metadata confirms `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` exist in `apicenter-alpha-20260623`; scoped secret migration evidence is `docs/operations/tribe-secret-scope-migration-2026-06-28.json`. Management live is deployed at `https://apicenter-management-live.vercel.app` with Descope auth, live management environment, one API Center URL, Vercel OIDC Secret Manager auth, and `GET /api/local/readiness` returning `ok: true` on 2026-06-28. Management commit `c1b5617` added `POST /api/local/tribe-secrets/migrate-legacy`, and operator CLI migration copied active legacy/test-prefixed Secret Manager hashes into scoped test/live records without printing hash or plaintext values. The `church-donations` test credential was preserved, not rotated. The old duplicate Vercel Management test project `apicenter-management-test` was removed, and `https://api-center-management-test.itsandbox.site` returns `DEPLOYMENT_NOT_FOUND`, leaving one Management site. SDK read-only smoke was attempted from `C:/Codes/apic/api-shared-services` and recorded in `docs/operations/spark-site-sdk-readonly-smoke-2026-06-28.json`; it fails before network auth because `APICENTER_TRIBE_SECRET` is required. Remaining deployment smoke gates: run SDK read-only smoke with the plaintext Spark Site `APICENTER_TRIBE_SECRET` from the consumer runtime; Secret Manager stores only hashes and metadata, so the smoke cannot be run from this workstation without that plaintext or runtime env access. Legacy Secret Manager records are not deleted yet; after scoped SDK smoke and allowlist/map removal, disable migrated legacy versions for a rollback window, then delete the legacy records. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
+Current status: APICenter-side Spark Site preflight evidence is `docs/operations/spark-site-deployment-preflight-2026-06-28.json`: `church-donations` is active, owned by `church-donations`, declares `email`, `gauth`, `geo`, `otp`, `payment`, and `sms`, and now has both `test` and `live` environment rows. The live row was added through approved API Center registration request `860b4b82-78a3-44c8-944f-f7256f03a7f1`; the preflight artifact reports `ready=true` and no automated blockers. Secret Manager metadata confirms `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` exist in `apicenter-alpha-20260623`; scoped secret migration evidence is `docs/operations/tribe-secret-scope-migration-2026-06-28.json`. Management live is deployed at `https://apicenter-management-live.vercel.app` with Descope auth, live management environment, one API Center URL, Vercel OIDC Secret Manager auth, and `GET /api/local/readiness` returning `ok: true` on 2026-06-28. Management commit `c1b5617` added `POST /api/local/tribe-secrets/migrate-legacy`, and operator CLI migration copied active legacy/test-prefixed Secret Manager hashes into scoped test/live records without printing hash or plaintext values. The `church-donations` test credential was preserved, not rotated. The old duplicate Vercel Management test project `apicenter-management-test` was removed, and `https://api-center-management-test.itsandbox.site` returns `DEPLOYMENT_NOT_FOUND`, leaving one Management site. SDK read-only smoke was attempted from `C:/Codes/apic/api-shared-services` and recorded in `docs/operations/spark-site-sdk-readonly-smoke-2026-06-28.json`; it remains useful consumer-owned evidence but is not a platform completion blocker because APICenter cannot recover hash-only plaintext secrets or operate external service runtimes. Remaining platform migration gates are now tracked in Task 13: migrate every legacy stored service/secret/control-plane record to the new environment-scoped model, remove legacy code paths, and delete or disable legacy records after the rollback window. Provider-impacting payment smoke remains operator-approved only.
 
 ## Task 12: Normalize Naming Boundaries And Remove Live/Prod Ambiguity
 
@@ -1958,9 +1988,418 @@ git add src/lib/environment-names.ts src/lib/environment-names.test.ts src/lib/s
 git commit -m "chore: separate runtime environment from pipeline lane naming"
 ```
 
+## Task 13: Migrate Every Legacy Service And Remove Legacy Compatibility Paths
+
+**Files:**
+- Create: `api-center/scripts/inventory-legacy-service-migration.js`
+- Create: `api-center/scripts/verify-no-legacy-environment-routing.js`
+- Create: `api-center/docs/operations/legacy-service-migration-2026-06-28.json`
+- Modify: `api-center/src/registry/tribe-secret-resolver.service.ts`
+- Modify: `api-center/src/registry/tribe-secret-resolver.service.spec.ts`
+- Modify: `api-center/src/shared/dto/token-request.dto.ts`
+- Modify: `api-center/src/shared/dto/token-request.dto.spec.ts`
+- Modify: `api-center/.env.example`
+- Modify: `api-center/docs/database-control-plane.md`
+- Modify: `api-shared-services/scripts/smoke-environment-discovery-sdk.js`
+- Modify: `api-shared-services/scripts/smoke-payment-subscription-sdk.js`
+- Modify: `api-shared-services/docs/consumer-runbook.md`
+- Modify: `api-shared-services/scripts/check-contract-compatibility.js`
+- Modify: `apicenter-management/src/lib/server/deployment-config.ts`
+- Modify: `apicenter-management/src/lib/server/deployment-config.test.ts`
+- Modify: `apicenter-management/src/lib/management-environment.ts`
+- Modify: `apicenter-management/.env.example`
+- Modify: `apicenter-management/docs/operations/apicenter-management-runbook.md`
+- Modify: `api-center/docs/visualizations/one-apicenter-environment-aware-routing-tracker.html`
+
+- [ ] **Step 1: Inventory every stored legacy service and secret record**
+
+Create `api-center/scripts/inventory-legacy-service-migration.js` that reads Supabase/Postgres catalog state and Secret Manager metadata without printing plaintext values:
+
+```js
+#!/usr/bin/env node
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { Client } = require("pg");
+const { execFileSync } = require("node:child_process");
+
+const legacyServicePatterns = [
+  /api-center-test\.itsandbox\.site/i,
+  /^codex-/i,
+  /smoke/i,
+  /probe/i,
+];
+
+async function main() {
+  const databaseUrl = process.env.DATABASE_URL;
+  const project = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
+  const out = process.argv.includes("--out")
+    ? process.argv[process.argv.indexOf("--out") + 1]
+    : "docs/operations/legacy-service-migration-2026-06-28.json";
+  if (!databaseUrl) throw new Error("DATABASE_URL is required.");
+  if (!project) throw new Error("GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT is required.");
+
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const services = await client.query(`
+      select
+        service.id,
+        service.service_id,
+        service.owner_tribe_id,
+        service.service_type,
+        service.base_url,
+        service.status,
+        coalesce(json_agg(
+          json_build_object(
+            'environment', env.environment,
+            'baseUrl', env.base_url,
+            'status', env.status
+          )
+        ) filter (where env.id is not null), '[]'::json) as environments
+      from apic_catalog.services service
+      left join apic_catalog.service_environments env on env.service_id = service.id
+      group by service.id
+      order by service.service_id
+    `);
+
+    const secretNames = listSecretNames(project);
+    const activeServices = services.rows.map((row) => ({
+      serviceId: row.service_id,
+      ownerTribeId: row.owner_tribe_id,
+      serviceType: row.service_type,
+      baseUrl: row.base_url,
+      status: row.status,
+      environments: row.environments,
+      legacySignals: legacySignalsForService(row),
+      migrationDisposition: dispositionForService(row),
+    }));
+
+    const legacySecrets = secretNames
+      .filter((name) =>
+        /^api-center-test-tribe-secret-/.test(name) ||
+        /^api-center-tribe-secret-[a-z0-9-]+$/.test(name),
+      )
+      .sort()
+      .map((name) => ({
+        name,
+        kind: name.startsWith("api-center-test-tribe-secret-")
+          ? "test-prefixed"
+          : "unscoped",
+        targetCandidates: scopedTargetCandidates(name),
+      }));
+
+    const result = {
+      generatedAt: new Date().toISOString(),
+      ready: activeServices.every((service) => service.legacySignals.length === 0),
+      activeServices,
+      legacySecrets,
+      nextActions: [
+        "Add explicit environment rows or retire/test-only disposition for every service with legacySignals.",
+        "Copy legacy secret hashes into scoped test/live records only for services that remain active.",
+        "Remove APICENTER_LEGACY_* allowlist/map entries after scoped records exist.",
+        "Disable legacy Secret Manager versions for a rollback window before deletion.",
+      ],
+    };
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, JSON.stringify(result, null, 2) + "\n");
+    console.log(JSON.stringify({ out, ready: result.ready, legacySecrets: legacySecrets.length }));
+  } finally {
+    await client.end();
+  }
+}
+
+function listSecretNames(project) {
+  return execFileSync("gcloud", [
+    "secrets",
+    "list",
+    `--project=${project}`,
+    "--format=value(name)",
+  ], { encoding: "utf8" })
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function legacySignalsForService(row) {
+  const signals = [];
+  if (legacyServicePatterns.some((pattern) => pattern.test(row.service_id))) {
+    signals.push("legacy_service_id");
+  }
+  if (legacyServicePatterns.some((pattern) => pattern.test(row.base_url ?? ""))) {
+    signals.push("legacy_base_url");
+  }
+  const environments = Array.isArray(row.environments) ? row.environments : [];
+  if (row.status === "active" && environments.length === 0) {
+    signals.push("missing_environment_rows");
+  }
+  return signals;
+}
+
+function dispositionForService(row) {
+  const signals = legacySignalsForService(row);
+  if (signals.length === 0) return "new_model";
+  if (/^codex-|smoke|probe/i.test(row.service_id)) return "retire_or_mark_test_only";
+  return "migrate_to_environment_rows";
+}
+
+function scopedTargetCandidates(name) {
+  if (name.startsWith("api-center-test-tribe-secret-")) {
+    return [name.replace("api-center-test-tribe-secret-", "api-center-tribe-secret-") + "-test"];
+  }
+  return [`${name}-test`, `${name}-live`];
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});
+```
+
+Run:
+
+```powershell
+cd C:\Codes\apic\api-center
+$env:DATABASE_URL="<supabase database url>"
+$env:GOOGLE_CLOUD_PROJECT="apicenter-alpha-20260623"
+node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json
+```
+
+Expected: the artifact lists every active legacy service signal and every legacy/test-prefixed Secret Manager record. No plaintext secret value appears.
+
+- [ ] **Step 2: Migrate active services to explicit environment rows or retire them**
+
+For each row in `legacy-service-migration-2026-06-28.json`:
+
+```text
+new_model: keep
+migrate_to_environment_rows: register through approved API Center registry workflow with explicit test/live rows
+retire_or_mark_test_only: retire if temporary; otherwise mark test-only with no live row and a sunset reason
+```
+
+Use the normal approved registration path for active live-impacting records:
+
+```powershell
+cd C:\Codes\apic\api-center
+# Create/approve service.register_live request, then POST /api/v1/registry/register
+# with all current manifest fields and explicit environments.
+```
+
+Do not run external runtime smoke for services APICenter does not own. Verify APICenter-side state instead:
+
+```powershell
+npm run registry:verify
+node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json
+```
+
+- [ ] **Step 3: Migrate stored legacy secrets, then disable and delete legacy records after rollback**
+
+For each `legacySecrets[]` record:
+
+```text
+1. Confirm target scoped record exists or create it through Management/Secret Manager without printing hash/plaintext.
+2. Confirm target JSON metadata contains tribeId, environment, sourceServiceId/provisionedForServiceIds where applicable, status, rotationState, and secretHashSha256.
+3. Remove any corresponding service from APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST and APICENTER_LEGACY_ENVIRONMENT_MAP.
+4. Disable old legacy secret versions for a rollback window.
+5. Delete legacy secret records only after scoped auth/discovery is proven or the service is retired/test-only.
+```
+
+Record every action in `docs/operations/legacy-service-migration-2026-06-28.json` under:
+
+```json
+{
+  "legacySecretCleanup": [
+    {
+      "legacyName": "api-center-test-tribe-secret-pakiapps",
+      "targetNames": ["api-center-tribe-secret-pakiapps-test"],
+      "status": "disabled_for_rollback",
+      "disabledAt": "2026-06-28T00:00:00.000Z",
+      "deleteAfter": "2026-07-05T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+- [ ] **Step 4: Remove code-level legacy secret fallback after stored migration is complete**
+
+Only after Step 1 through Step 3 show no active unmigrated legacy services, update API Center:
+
+```text
+Remove APICENTER_LEGACY_TRIBE_SECRET_FALLBACK.
+Remove APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST.
+Remove APICENTER_LEGACY_ENVIRONMENT_MAP.
+Remove env-backed legacy hash validation from TribeSecretResolverService.
+Make TokenRequestDto.environment required with no warn-mode exception.
+Remove tests that accept missing environment.
+Add tests that missing environment is rejected.
+```
+
+Expected test change in `api-center/src/shared/dto/token-request.dto.spec.ts`:
+
+```ts
+it("rejects missing environment after legacy migration", async () => {
+  const errors = await validate(dto({ tribeId: "church-donations", secret: "secret" }));
+  expect(errors.some((error) => error.property === "environment")).toBe(true);
+});
+```
+
+Expected resolver test:
+
+```ts
+it("does not validate legacy env-backed tribe secrets after migration", async () => {
+  process.env.TRIBE_SECRET_CHURCH_DONATIONS = hashSecret("legacy-secret");
+  await expect(
+    service.validateLegacySecret("church-donations", "legacy-secret"),
+  ).rejects.toThrow("Legacy tribe secret validation has been removed");
+});
+```
+
+Verify:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm test -- --runInBand src/shared/dto/token-request.dto.spec.ts src/registry/tribe-secret-resolver.service.spec.ts
+npm run typecheck
+```
+
+- [ ] **Step 5: Remove redundant active docs/examples and env aliases**
+
+Active docs and examples must not introduce old URLs or redundant env names:
+
+```text
+Replace active `https://api-center-test.itsandbox.site` examples with:
+APICENTER_URL=https://api-center.itsandbox.site
+APICENTER_ENVIRONMENT=test
+
+Keep old URLs only in archive/history files clearly marked as historical.
+Mark APICENTER_GATEWAY_URL as deprecated and keep only as CLI compatibility alias.
+Consolidate Management internals on MANAGEMENT_ENVIRONMENT and keep MANAGEMENT_ENV/NEXT_PUBLIC_MANAGEMENT_ENV only as boundary aliases until the next major cleanup.
+Keep POWERBI_NORTH_STAR_* only in the BI adapter or remove it if no deployment uses it.
+```
+
+Update contract checks:
+
+```powershell
+cd C:\Codes\apic\api-shared-services
+npm run check:contracts
+
+cd C:\Codes\apic\apicenter-management
+npm test -- src/lib/server/deployment-config.test.ts src/lib/management-environment.test.ts src/lib/server/north-star-bi-config.test.ts
+```
+
+- [ ] **Step 6: Add a no-legacy verifier**
+
+Create `api-center/scripts/verify-no-legacy-environment-routing.js`:
+
+```js
+#!/usr/bin/env node
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { execFileSync } = require("node:child_process");
+
+const root = path.resolve(__dirname, "..");
+const allowArchived = /docs[\\/](superpowers[\\/]plans[\\/]archive|operations[\\/].*inventory|operations[\\/].*migration|operations[\\/].*backup)/;
+const forbidden = [
+  { pattern: /APICENTER_LEGACY_/g, message: "APICENTER_LEGACY_* must be removed after migration" },
+  { pattern: /api-center-test\.itsandbox\.site/g, message: "active docs/code must use one APICenter URL plus APICENTER_ENVIRONMENT" },
+  { pattern: /api-center-test-tribe-secret-/g, message: "test-prefixed tribe secret names are legacy" },
+  { pattern: /TRIBE_SECRET_[A-Z0-9_]+/g, message: "legacy env-backed tribe secret hashes are removed" },
+];
+
+const files = execFileSync("git", [
+  "ls-files",
+  "*.ts",
+  "*.tsx",
+  "*.js",
+  "*.md",
+  "*.json",
+  "*.yaml",
+  "*.yml",
+  ".env.example",
+], { cwd: root, encoding: "utf8" })
+  .split(/\r?\n/)
+  .filter(Boolean);
+
+const violations = [];
+for (const file of files) {
+  if (allowArchived.test(file)) continue;
+  const text = fs.readFileSync(path.join(root, file), "utf8");
+  for (const rule of forbidden) {
+    const matches = [...text.matchAll(rule.pattern)];
+    if (matches.length > 0) {
+      violations.push(`${file}: ${rule.message}`);
+    }
+  }
+}
+
+if (violations.length > 0) {
+  console.error([...new Set(violations)].join("\n"));
+  process.exit(1);
+}
+```
+
+Add to `api-center/package.json`:
+
+```json
+"check:no-legacy-routing": "node scripts/verify-no-legacy-environment-routing.js"
+```
+
+Run:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run check:no-legacy-routing
+```
+
+Expected after cleanup: PASS.
+
+- [ ] **Step 7: Verify final migration and commit**
+
+Final platform migration gates:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run registry:verify
+npm run check:contracts
+npm run check:environment-naming
+npm run check:no-legacy-routing
+npm run typecheck
+npm run build
+
+cd C:\Codes\apic\api-shared-services
+npm run check:contracts
+npm run typecheck
+npm test
+npm run build
+npm run pack:check
+
+cd C:\Codes\apic\apicenter-management
+npm test
+npm run typecheck
+npm run build
+npm run smoke:routes
+```
+
+Commit:
+
+```powershell
+cd C:\Codes\apic\api-center
+git add scripts docs src .env.example package.json
+git commit -m "chore: remove legacy APICenter routing compatibility"
+
+cd C:\Codes\apic\api-shared-services
+git add scripts docs README.md
+git commit -m "docs: remove legacy APICenter URL aliases"
+
+cd C:\Codes\apic\apicenter-management
+git add src docs .env.example
+git commit -m "chore: consolidate management environment naming"
+```
+
 ## Self-Review
 
-- [x] Spec coverage: one URL, required environment, env-scoped tribe secrets, env-keyed cache, source-service ownership validation, refresh-token environment preservation, token-derived backend routing, payment-only runtime split, deterministic payment webhook isolation, trusted same-runtime shared-service headers, database environment constraints without silent defaults, data-pipeline `live`/`prod` mapping, target-environment Management live-action guardrails, enforceable auth-token contracts, SDK major rollout, rollback, break-glass controls, and canonical naming boundaries are covered.
+- [x] Spec coverage: one URL, required environment, env-scoped tribe secrets, env-keyed cache, source-service ownership validation, refresh-token environment preservation, token-derived backend routing, payment-only runtime split, deterministic payment webhook isolation, trusted same-runtime shared-service headers, database environment constraints without silent defaults, data-pipeline `live`/`prod` mapping, target-environment Management live-action guardrails, enforceable auth-token contracts, SDK major rollout, rollback, break-glass controls, canonical naming boundaries, legacy service migration, stored legacy cleanup, code-level legacy removal, and broader redundancy cleanup are covered.
 - [x] Placeholder scan: no placeholder markers or unnamed implementation steps are left in the plan.
 - [x] Type consistency: API Center uses `ServiceEnvironmentKey`; SDK uses `ApicenterEnvironment`; runtime values are consistently `test` and `live`.
 - [x] Scope check: this remains one platform contract despite spanning three repos; tasks are sliced so each produces testable software.
