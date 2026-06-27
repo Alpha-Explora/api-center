@@ -2255,7 +2255,17 @@ Record every action in `docs/operations/legacy-service-migration-2026-06-28.json
 }
 ```
 
-Current status: `npm run registry:migrate-legacy-secrets -- --apply --disable-legacy --out docs/operations/legacy-secret-cleanup-2026-06-28.json` created 8 missing environment-scoped Secret Manager records without printing hashes or plaintext. This includes live scoped targets for `flow-ci`, `greenovate`, `pakiapps`, `shoteam`, `smurf-village`, and `trinithrive`, plus scoped test records for `flow-ci` and `smoke-tribe`. It disabled 33 enabled versions across 14 legacy Secret Manager records for rollback. The regenerated inventory reports `legacyServices=0`, `enabledLegacyVersions=0`, 17 scoped Secret Manager records, and 14 legacy records remaining only as disabled rollback records. Delete those legacy records after `2026-07-04T22:30:06.543Z` if no rollback is needed. Step 3 remains open until that deletion is done.
+Current status: `npm run registry:migrate-legacy-secrets -- --apply --disable-legacy --out docs/operations/legacy-secret-cleanup-2026-06-28.json` created 8 missing environment-scoped Secret Manager records without printing hashes or plaintext. This includes live scoped targets for `flow-ci`, `greenovate`, `pakiapps`, `shoteam`, `smurf-village`, and `trinithrive`, plus scoped test records for `flow-ci` and `smoke-tribe`. It disabled 33 enabled versions across 14 legacy Secret Manager records for rollback. The regenerated inventory reports `legacyServices=0`, `enabledLegacyVersions=0`, 17 scoped Secret Manager records, and 14 legacy records remaining only as disabled rollback records.
+
+Guarded final deletion is now scripted:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run registry:delete-legacy-secrets -- --out docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json
+npm run registry:delete-legacy-secrets -- --apply --confirm-delete-disabled-legacy-secrets --out docs/operations/legacy-secret-cleanup-final-apply-2026-07-05.json
+```
+
+The apply command refuses to delete before the recorded `deleteAfter`, refuses to delete if any legacy secret still has an enabled version, and never reads or prints secret payload values. Dry-run evidence at `docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json` inspected live Secret Manager metadata and reported 14 candidates, 0 ready to delete, 0 already deleted, 14 blocked, 0 deleted, and 0 enabled-version blockers. The only blocker is the rollback window: `2026-07-04T22:30:06.543Z`. Step 3 remains open until the post-window apply deletes the legacy records.
 
 - [x] **Step 4: Remove code-level legacy secret fallback after scoped records are active**
 
@@ -2422,7 +2432,9 @@ Final platform migration gates:
 
 ```powershell
 cd C:\Codes\apic\api-center
+npm run registry:delete-legacy-secrets -- --apply --confirm-delete-disabled-legacy-secrets --out docs/operations/legacy-secret-cleanup-final-apply-2026-07-05.json
 npm run registry:verify
+node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-final-2026-07-05.json
 npm run check:contracts
 npm run check:environment-naming
 npm run check:no-legacy-routing

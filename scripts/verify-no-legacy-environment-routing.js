@@ -11,6 +11,7 @@ const allowHistorical = [
   /^docs\/visualizations\/one-apicenter-environment-aware-routing-tracker\.html$/,
   /^scripts\/inventory-legacy-service-migration\.js$/,
   /^scripts\/migrate-legacy-.*[.]js$/,
+  /^scripts\/delete-legacy-secret-records[.]js$/,
   /^scripts\/verify-no-legacy-environment-routing\.js$/,
 ];
 
