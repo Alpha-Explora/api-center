@@ -640,7 +640,7 @@ git commit -m "feat: resolve tribe secrets by environment"
 - Modify: `api-center/src/shared/proxy-handler.spec.ts`
 - Modify: circuit-breaker, health, and emergency-route helpers that cache or decide by target service
 
-- [ ] **Step 1: Write leak guard tests**
+- [x] **Step 1: Write leak guard tests**
 
 Test cases:
 
@@ -658,7 +658,7 @@ expect(() => proxyWith({ tokenEnvironment: "test", headers: { "x-apicenter-targe
 expect(() => proxyWith({ tokenEnvironment: undefined })).toThrow("APICenter token is missing environment");
 ```
 
-- [ ] **Step 2: Implement guard**
+- [x] **Step 2: Implement guard**
 
 Runtime routing must derive from the validated token claim only. Do not accept `requestedEnvironment`, query params, body params, service URL inference, deployment env, or `X-APICenter-Target-Environment`.
 
@@ -681,15 +681,15 @@ export function enforceEnvironmentAccess(input: {
 }
 ```
 
-- [ ] **Step 3: Wire proxy handler**
+- [x] **Step 3: Wire proxy handler**
 
 Use `req.user.environment` to select the target environment before creating proxy middleware. Cache proxy middleware by `${serviceId}:${environment}`. Strip any inbound `X-APICenter-*` identity headers from the caller before forwarding. Record `environment`, `tribeId`, and `sourceServiceId` on `ServiceCallObservation`.
 
-- [ ] **Step 4: Key runtime state by target environment**
+- [x] **Step 4: Key runtime state by target environment**
 
 Circuit breakers, route health, proxy cache, emergency disablement, smoke-test status, and route telemetry must be keyed by `targetServiceId + environment`. A test failure must never open or disable a live route. Registry invalidation should clear all environment entries for the changed service.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center

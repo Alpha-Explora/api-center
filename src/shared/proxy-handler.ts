@@ -39,11 +39,16 @@ import {
 } from "../shared/errors";
 import { requireGovernanceDependency } from "../shared/governance-dependencies";
 import {
+  ApicenterRuntimeEnvironment,
   AuthenticatedRequest,
-  ServiceEnvironmentKey,
   ServiceType,
 } from "../types";
 import { enforceProxyAuthContext } from "./proxy/proxy-auth-context";
+import {
+  assertNoEnvironmentOverrides,
+  enforceEnvironmentAccess,
+  stripApicenterIdentityHeaders,
+} from "./proxy/environment-leak-guard";
 import { checkProxyQuota } from "./proxy/proxy-quota-context";
 import { createUpstreamProxyOptions } from "./proxy/upstream-request";
 
@@ -242,7 +247,13 @@ export class ProxyHandler {
         existed = true;
       }
     }
-    const breakerDeleted = this.circuitBreakers.delete(serviceId);
+    let breakerDeleted = this.circuitBreakers.delete(serviceId);
+    for (const cacheKey of [...this.circuitBreakers.keys()]) {
+      if (cacheKey.startsWith(`${serviceId}:`)) {
+        this.circuitBreakers.delete(cacheKey);
+        breakerDeleted = true;
+      }
+    }
     if (existed || breakerDeleted) {
       this.deps.logger.info(`Proxy cache invalidated for '${serviceId}'`, {
         serviceId,
@@ -299,23 +310,35 @@ export class ProxyHandler {
     const tribeId = req.tribeId!;
     const correlationId = req.correlationId;
 
-    // ── 1. Resolve upstream ────────────────────────────────────────────────
-    const targetEnvironment = this.resolveTargetEnvironment(req);
-    const serviceEnvironment = this.deps.registry.resolveEnvironment?.(
-      targetServiceId,
-      targetEnvironment,
-    );
-    const upstream =
-      serviceEnvironment?.baseUrl ??
-      this.deps.registry.resolveUpstream(targetServiceId, "");
-    if (!upstream) {
+    // 1. Resolve upstream from the validated token environment only.
+    const targetEntry = this.deps.registry.get(targetServiceId);
+    if (!targetEntry) {
       throw new NotFoundError(
         `Service '${targetServiceId}' not found or inactive`,
       );
     }
 
-    // ── 1b. Validate namespace ─────────────────────────────────────────────
-    const targetEntry = this.deps.registry.get(targetServiceId);
+    const targetEnvironment = this.resolveTargetEnvironment(req);
+    const resolvedEnvironment = this.deps.registry.resolveEnvironment?.(
+      targetServiceId,
+      targetEnvironment,
+    );
+    const serviceEnvironment = enforceEnvironmentAccess({
+      callerEnvironment: targetEnvironment,
+      target: {
+        serviceId: targetServiceId,
+        environments:
+          targetEntry.environments?.length > 0
+            ? targetEntry.environments
+            : resolvedEnvironment
+              ? [resolvedEnvironment]
+              : [],
+      },
+    });
+    const upstream = serviceEnvironment.baseUrl;
+    stripApicenterIdentityHeaders(req.headers as Record<string, unknown> | undefined);
+
+    // 1b. Validate namespace
     const targetType = targetEntry?.serviceType ?? "tribe";
     if (targetType !== this.opts.namespace) {
       const correctPrefix = targetType === "shared" ? "/shared/" : "/tribes/";
@@ -347,7 +370,8 @@ export class ProxyHandler {
       correlationId,
     });
 
-    const breaker = this.getOrCreateCircuitBreaker(targetServiceId);
+    const routeRuntimeKey = `${targetServiceId}:${targetEnvironment}`;
+    const breaker = this.getOrCreateCircuitBreaker(routeRuntimeKey);
     if (!breaker.tryAcquire()) {
       this.deps.logger.warn(
         `Circuit breaker OPEN for '${targetServiceId}' — rejecting request`,
@@ -359,7 +383,7 @@ export class ProxyHandler {
     }
 
     // ── 4. Get or create proxy ─────────────────────────────────────────────
-    const proxyCacheKey = `${targetServiceId}:${targetEnvironment}`;
+    const proxyCacheKey = routeRuntimeKey;
     let proxy = this.proxyCache.get(proxyCacheKey);
 
     if (!proxy) {
@@ -474,9 +498,7 @@ export class ProxyHandler {
     }
 
     this.proxyCache.delete(oldestServiceId);
-    this.circuitBreakers.delete(
-      oldestServiceId.split(":")[0] ?? oldestServiceId,
-    );
+    this.circuitBreakers.delete(oldestServiceId);
 
     this.deps.logger.warn(
       `Proxy cache size limit reached (${this.maxProxyCacheSize}); evicted oldest proxy '${oldestServiceId}'`,
@@ -601,7 +623,7 @@ export class ProxyHandler {
   private buildServiceCallObservation(input: {
     tribeId: string;
     targetServiceId: string;
-    targetEnvironment: ServiceEnvironmentKey;
+    targetEnvironment: ApicenterRuntimeEnvironment;
     req: AuthenticatedRequest;
     statusCode: number;
     latencyMs: number;
@@ -618,7 +640,11 @@ export class ProxyHandler {
       environment: input.targetEnvironment,
       caller_type: "tribe",
       caller_id: input.tribeId || "unknown",
-      source_service_id: input.tribeId || "unknown",
+      source_service_id:
+        input.req.sourceServiceId ??
+        input.req.user?.sourceServiceId ??
+        input.tribeId ??
+        "unknown",
       target_type: targetType,
       route_family: routeFamily,
       http_method: input.req.method,
@@ -752,21 +778,23 @@ export class ProxyHandler {
 
   private resolveTargetEnvironment(
     req: AuthenticatedRequest,
-  ): ServiceEnvironmentKey {
-    const value = req.headers?.["x-apicenter-target-environment"];
-    const requested = Array.isArray(value) ? value[0] : value;
+  ): ApicenterRuntimeEnvironment {
+    assertNoEnvironmentOverrides({
+      headers: req.headers as Record<string, unknown> | undefined,
+      query: req.query as Record<string, unknown> | undefined,
+      body: req.body,
+    });
 
-    if (
-      requested === "test" ||
-      requested === "staging" ||
-      requested === "uat" ||
-      requested === "demo" ||
-      requested === "live"
-    ) {
-      return requested;
-    }
-
-    return "test";
+    return enforceEnvironmentAccess({
+      callerEnvironment: req.user?.environment,
+      target: {
+        serviceId: "APICenter token",
+        environments: [
+          { environment: "test", baseUrl: "token://test", status: "active" },
+          { environment: "live", baseUrl: "token://live", status: "active" },
+        ],
+      },
+    }).environment;
   }
 
   private isProviderCostSensitive(targetEntry: object) {

@@ -34,7 +34,11 @@ function createMockDeps(): ProxyHandlerDeps {
   return {
     registry: {
       resolveUpstream: jest.fn(),
-      resolveEnvironment: jest.fn(),
+      resolveEnvironment: jest.fn().mockReturnValue({
+        environment: "test",
+        baseUrl: "http://localhost:3001",
+        status: "active",
+      }),
       get: jest.fn(),
       getByType: jest.fn().mockReturnValue([]),
       canConsume: jest.fn().mockReturnValue(true),
@@ -90,11 +94,24 @@ const defaultOpts: ProxyOptions = {
 function fakeReq(
   overrides: Partial<AuthenticatedRequest> = {},
 ): AuthenticatedRequest {
+  const tribeId = overrides.tribeId ?? "svc-alpha";
+  const sourceServiceId = overrides.sourceServiceId ?? tribeId;
+  const user = {
+    sub: tribeId,
+    tribeId,
+    sourceServiceId,
+    environment: "test" as const,
+    permissions: [],
+    scopes: [],
+    ...(overrides.user ?? {}),
+  };
+
   return {
-    tribeId: "svc-alpha",
+    tribeId,
+    sourceServiceId,
     correlationId: "corr-1",
     method: "GET",
-    user: { token: { tribeId: "svc-alpha", permissions: [], scopes: [] } },
+    user,
     ...overrides,
   } as unknown as AuthenticatedRequest;
 }
@@ -173,10 +190,10 @@ describe("ProxyHandler", () => {
       );
     });
 
-    it("routes to the requested service environment URL", async () => {
+    it("routes to the token environment URL", async () => {
       (deps.registry.resolveEnvironment as jest.Mock).mockReturnValue({
-        environment: "staging",
-        baseUrl: "https://trinithrive-staging.example.com",
+        environment: "live",
+        baseUrl: "https://trinithrive.example.com",
         status: "active",
       });
       (deps.registry.get as jest.Mock).mockReturnValue({
@@ -190,20 +207,63 @@ describe("ProxyHandler", () => {
       await handler.proxyRequest(
         "trinithrive",
         fakeReq({
-          headers: {
-            "x-apicenter-target-environment": "staging",
-          } as any,
+          user: { environment: "live" } as any,
         }),
         fakeRes(),
       );
 
       expect(mockCreateProxyMiddleware).toHaveBeenCalledWith(
         expect.objectContaining({
-          target: "https://trinithrive-staging.example.com",
+          target: "https://trinithrive.example.com",
         }),
       );
     });
 
+
+    it("rejects caller-controlled environment override headers", async () => {
+      (deps.registry.get as jest.Mock).mockReturnValue({
+        serviceId: "user-svc",
+        serviceType: "tribe",
+        status: "active",
+        requiredScopes: [],
+        consumes: [],
+        environments: [
+          { environment: "test", baseUrl: "http://localhost:3001", status: "active" },
+          { environment: "live", baseUrl: "http://localhost:3002", status: "active" },
+        ],
+      });
+
+      await expect(
+        handler.proxyRequest(
+          "user-svc",
+          fakeReq({
+            headers: { "x-apicenter-target-environment": "live" } as any,
+          }),
+          fakeRes(),
+        ),
+      ).rejects.toThrow("Environment override headers are not allowed");
+    });
+
+    it("rejects proxy requests when the token is missing environment", async () => {
+      (deps.registry.get as jest.Mock).mockReturnValue({
+        serviceId: "user-svc",
+        serviceType: "tribe",
+        status: "active",
+        requiredScopes: [],
+        consumes: [],
+        environments: [
+          { environment: "test", baseUrl: "http://localhost:3001", status: "active" },
+        ],
+      });
+
+      await expect(
+        handler.proxyRequest(
+          "user-svc",
+          fakeReq({ user: { sub: "svc-alpha", tribeId: "svc-alpha" } as any }),
+          fakeRes(),
+        ),
+      ).rejects.toThrow("APICenter token is missing environment");
+    });
     it("checks tribe quota before acquiring proxy resources", async () => {
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
 
@@ -302,11 +362,11 @@ describe("ProxyHandler", () => {
     it("removes matching circuit breaker when invalidating a service", async () => {
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
 
-      expect((handler as any).circuitBreakers.has("user-svc")).toBe(true);
+      expect((handler as any).circuitBreakers.has("user-svc:test")).toBe(true);
 
       handler.invalidateProxyCache("user-svc");
 
-      expect((handler as any).circuitBreakers.has("user-svc")).toBe(false);
+      expect((handler as any).circuitBreakers.has("user-svc:test")).toBe(false);
     });
   });
 
@@ -355,7 +415,7 @@ describe("ProxyHandler", () => {
       await handler.proxyRequest("user-svc", fakeReq(), fakeRes());
 
       // Force the circuit breaker into OPEN state
-      const breaker = (handler as any).circuitBreakers.get("user-svc");
+      const breaker = (handler as any).circuitBreakers.get("user-svc:test");
       // Trip the breaker by recording enough failures
       for (let i = 0; i < 5; i++) {
         breaker.recordFailure();
@@ -388,8 +448,8 @@ describe("ProxyHandler", () => {
       await handler.proxyRequest("svc-b", fakeReq(), fakeRes());
 
       const breakers = (handler as any).circuitBreakers;
-      expect(breakers.has("svc-a")).toBe(true);
-      expect(breakers.has("svc-b")).toBe(true);
+      expect(breakers.has("svc-a:test")).toBe(true);
+      expect(breakers.has("svc-b:test")).toBe(true);
     });
   });
 
@@ -461,6 +521,7 @@ describe("ProxyHandler", () => {
 
     it("throws NotFoundError when service is not in the registry", async () => {
       (deps.registry.resolveUpstream as jest.Mock).mockReturnValue(null);
+      (deps.registry.get as jest.Mock).mockReturnValue(null);
 
       await expect(
         handler.proxyRequest("ghost-svc", fakeReq(), fakeRes()),
@@ -747,8 +808,8 @@ describe("ProxyHandler", () => {
         correlationId: "corr-tribe-call",
         method: "GET",
         originalUrl: "/api/v1/tribes/orders-api/orders",
+        user: { environment: "test" } as any,
         headers: {
-          "x-apicenter-target-environment": "uat",
           "x-request-id": "req-tribe-call",
         },
       });
@@ -760,7 +821,7 @@ describe("ProxyHandler", () => {
       const expectedObservation = expect.objectContaining({
         correlation_id: "corr-tribe-call",
         request_id: "req-tribe-call",
-        environment: "uat",
+        environment: "test",
         caller_type: "tribe",
         caller_id: "campusone",
         source_service_id: "campusone",
@@ -772,7 +833,7 @@ describe("ProxyHandler", () => {
         outcome: "success",
         latency_ms: expect.any(Number),
         rollup_key:
-          "uat:tribe:campusone:api_service:orders-api:tribe:orders-api:success",
+          "test:tribe:campusone:api_service:orders-api:tribe:orders-api:success",
       });
 
       expect(deps.gatewayTraffic?.recordProxyRequest).toHaveBeenCalledWith(

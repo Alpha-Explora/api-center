@@ -56,7 +56,7 @@ export function createUpstreamProxyOptions({
       },
       proxyRes: (proxyRes) => {
         const status = proxyRes.statusCode ?? 0;
-        const breaker = circuitBreakers.get(targetServiceId);
+        const breaker = circuitBreakers.get(`${targetServiceId}:${targetEnvironment}`);
         if (breaker) {
           if (UPSTREAM_FAILURE_CODES.has(status)) {
             breaker.recordFailure();
@@ -71,7 +71,7 @@ export function createUpstreamProxyOptions({
       },
       error: (err) => {
         // Record every proxy-level error (timeouts, ECONNREFUSED, etc.)
-        const breaker = circuitBreakers.get(targetServiceId);
+        const breaker = circuitBreakers.get(`${targetServiceId}:${targetEnvironment}`);
         if (breaker) breaker.recordFailure();
         logger.error(`Proxy error for ${targetServiceId}: ${err.message}`);
       },
