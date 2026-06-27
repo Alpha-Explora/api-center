@@ -33,6 +33,47 @@
 - Runtime routing environment is token-derived only. API Center must reject or strip caller-supplied environment override headers, query params, and body fields before proxying.
 - Tribe secret identity is based on `tribeId` / `ownerTribeId`, not `sourceServiceId`. `sourceServiceId` identifies the registered calling service for routing, audit, usage, and quota evidence.
 
+## Canonical Naming Model
+
+Use these names consistently so `live`, `prod`, deployment labels, provider modes, and database fields do not collapse into one ambiguous `environment` word.
+
+| Concept | Canonical name | Allowed values | Where it may appear | Where it must not appear |
+| --- | --- | --- | --- | --- |
+| Public APICenter runtime identity | `runtimeEnvironment` / `APICENTER_ENVIRONMENT` | `test`, `live` | SDK, token claims, registry environment rows, quota, audit, usage, Management target rows | `prod`, `production`, provider/pipeline storage names |
+| Management deployment label | `managementDeploymentEnvironment` / `MANAGEMENT_ENVIRONMENT` | `local`, `test`, `live` | Management readiness, auth mode, deployment banner | Authorization decisions for a target row without also reading the row's `runtimeEnvironment` |
+| Node/build mode | `nodeEnvironment` / `NODE_ENV` | `development`, `test`, `production` | Build behavior, Next/Nest runtime checks | API Center routing, token claims, service registry rows |
+| Physical data-pipeline lane | `pipelineLane` / `physicalPipelineEnvironment` | `test`, `prod` | Athena topics, S3/Athena partitions that already use `prod`, Confluent topic prefixes | SDK contracts, service manifests, Management live-action UX labels |
+| Payment/provider mode | `providerMode` | `test`, `live` | Payment provider credentials, webhook verification, payment route selection | Data-pipeline topic prefixes, Node build mode |
+| Secret Manager deployment bundle | `deploymentSecretBundleName` | existing names such as `api-center-prod`, `api-shared-services-prod` | GCP/Kubernetes deployment secret bundles only | Tribe handoff, SDK env examples, registry environment rows |
+
+Locked naming decisions:
+
+- `live` is the only public production runtime value. Do not introduce `prod` into SDK requests, token claims, service manifests, registry rows, shared-service usage, quota, audit, or Management target-environment actions.
+- `prod` is allowed only as a physical infrastructure lane where an external system already uses it, primarily Athena/S3/Confluent topic prefixes and legacy deployment secret bundles.
+- Any `live -> prod` conversion must happen in a named boundary helper such as `toPhysicalPipelineEnvironment(runtimeEnvironment)`. Inline string substitutions, generic `environment` variables, or UI labels that expose `prod` for a live APICenter action are not acceptable.
+- Existing `api-center-prod` and `api-shared-services-prod` Secret Manager bundles may remain for deployment compatibility, but docs must describe them as deployment bundles. New tribe/runtime secret names use `-test` or `-live`, not `-prod`.
+- Function and variable names should include the domain when they cross a boundary: use `parseRuntimeEnvironment`, `parsePipelineLane`, `toPhysicalPipelineEnvironment`, `resolveManagementDeploymentEnvironment`, and `resolveProviderMode` instead of repeated generic helpers like `readEnvironment` or `environment`.
+
+## Naming Findings To Fix
+
+1. **Management data-pipeline routes overload `environment`.**
+   `apicenter-management/src/app/api/local/data-pipeline/health/route.ts` and `quality/route.ts` parse `environment=test|prod`. These routes are reading a physical pipeline lane, not APICenter runtime identity. Keep a backwards-compatible `environment` query alias temporarily, but add `pipelineLane=test|prod` and rename internal variables, response metadata, schemas, and tests to `pipelineLane`.
+
+2. **Live promotion UI leaks `prod` terminology.**
+   `apicenter-management/src/components/environment-promotion-panel.tsx` queries plan assignments with `environment: "prod"` and tells operators to assign a plan tier for the prod environment, while the panel is a live promotion workflow. The UI and client helper should request a public `runtimeEnvironment: "live"` and map to any storage `prod` value only inside an API/provider adapter.
+
+3. **Plan-tier and service-detail components mix live and prod.**
+   `apicenter-management/src/components/tribe-plan-tier-panel.tsx` exposes environments `["test", "prod"]`, and `service-detail/service-detail-content.tsx` toggles pipeline rows with `"prod"` while the surrounding service detail uses `test|live`. Rename these UI-facing controls to `test|live`; only the pipeline data source should know the physical `prod` lane.
+
+4. **API Center lifecycle evidence has an ambiguous pipeline boundary.**
+   `api-center/src/operations/service-lifecycle-evidence.controller.ts` calls `pipelineHealth.listHealth("live")`, while historical pipeline health records and several specs use `prod`. Add an explicit `toPhysicalPipelineEnvironment("live") === "prod"` mapping and tests so lifecycle evidence is public `live` but queries physical pipeline `prod`.
+
+5. **Secret bundle names can be mistaken for runtime environments.**
+   Existing GCP bundles such as `api-center-prod` and `api-shared-services-prod` are deployment bundles, not public APICenter runtime values. Add docs and lint coverage so no new SDK, manifest, tribe secret, or registry examples use `prod`.
+
+6. **Multiple generic parser/helper names make reviews harder.**
+   There are repeated helpers such as `readRuntimeEnvironment` and local `environment` variables across API Center, SDK, and Management. Long term, centralize naming helpers per repo and require domain-specific names at boundaries.
+
 ## Target Consumer Env Shape
 
 ```env
@@ -1596,9 +1637,330 @@ npm run smoke:environment-discovery:sdk
 
 Live preflight evidence is `docs/operations/spark-site-deployment-preflight-2026-06-28.json`: `church-donations` is active, owned by `church-donations`, declares `email`, `gauth`, `geo`, `otp`, `payment`, and `sms`, and now has both `test` and `live` environment rows. The live row was added through approved API Center registration request `860b4b82-78a3-44c8-944f-f7256f03a7f1`; the preflight artifact reports `ready=true` and no automated blockers. Secret Manager metadata confirms `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` exist in `apicenter-alpha-20260623`; scoped secret migration evidence is `docs/operations/tribe-secret-scope-migration-2026-06-28.json`. Management live is deployed at `https://apicenter-management-live.vercel.app` with Descope auth, live management environment, one API Center URL, Vercel OIDC Secret Manager auth, and `GET /api/local/readiness` returning `ok: true` on 2026-06-28. Management commit `c1b5617` added `POST /api/local/tribe-secrets/migrate-legacy`, and operator CLI migration copied active legacy/test-prefixed Secret Manager hashes into scoped test/live records without printing hash or plaintext values. The `church-donations` test credential was preserved, not rotated. The old duplicate Vercel Management test project `apicenter-management-test` was removed, and `https://api-center-management-test.itsandbox.site` returns `DEPLOYMENT_NOT_FOUND`, leaving one Management site. SDK read-only smoke was attempted from `C:/Codes/apic/api-shared-services` and recorded in `docs/operations/spark-site-sdk-readonly-smoke-2026-06-28.json`; it fails before network auth because `APICENTER_TRIBE_SECRET` is required. Remaining deployment smoke gates: run SDK read-only smoke with the plaintext Spark Site `APICENTER_TRIBE_SECRET` from the consumer runtime; Secret Manager stores only hashes and metadata, so the smoke cannot be run from this workstation without that plaintext or runtime env access. Legacy Secret Manager records are not deleted yet; after scoped SDK smoke and allowlist/map removal, disable migrated legacy versions for a rollback window, then delete the legacy records. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
 
+## Task 12: Normalize Naming Boundaries And Remove Live/Prod Ambiguity
+
+**Files:**
+- Create: `api-center/src/shared/environment-names.ts`
+- Create: `api-center/src/shared/environment-names.spec.ts`
+- Modify: `api-center/src/operations/service-lifecycle-evidence.controller.ts`
+- Modify: `api-center/src/operations/service-lifecycle-evidence.controller.spec.ts`
+- Create: `apicenter-management/src/lib/environment-names.ts`
+- Create: `apicenter-management/src/lib/environment-names.test.ts`
+- Modify: `apicenter-management/src/lib/schemas.ts`
+- Modify: `apicenter-management/src/app/api/local/data-pipeline/health/route.ts`
+- Modify: `apicenter-management/src/app/api/local/data-pipeline/health/route.test.ts`
+- Modify: `apicenter-management/src/app/api/local/data-pipeline/quality/route.ts`
+- Modify: `apicenter-management/src/app/api/local/data-pipeline/quality/route.test.ts`
+- Modify: `apicenter-management/src/components/environment-promotion-panel.tsx`
+- Modify: `apicenter-management/src/components/environment-promotion-panel.test.tsx`
+- Modify: `apicenter-management/src/components/tribe-plan-tier-panel.tsx`
+- Modify: `apicenter-management/src/components/tribe-plan-tier-panel.test.tsx`
+- Modify: `apicenter-management/src/components/service-detail/service-detail-content.tsx`
+- Modify: `apicenter-management/src/components/service-detail/service-detail-content.test.tsx`
+- Create: `api-center/scripts/check-environment-naming.js`
+- Modify: `api-center/package.json`
+- Modify: `api-center/docs/visualizations/one-apicenter-environment-aware-routing-tracker.html`
+
+- [ ] **Step 1: Add API Center naming boundary tests**
+
+Create `api-center/src/shared/environment-names.spec.ts`:
+
+```ts
+import {
+  assertRuntimeEnvironment,
+  toPhysicalPipelineEnvironment,
+} from "./environment-names";
+
+describe("environment naming boundaries", () => {
+  it.each(["test", "live"])("accepts public runtime environment %s", (value) => {
+    expect(assertRuntimeEnvironment(value)).toBe(value);
+  });
+
+  it.each(["prod", "production", "", undefined])(
+    "rejects %s as a public runtime environment",
+    (value) => {
+      expect(() => assertRuntimeEnvironment(value)).toThrow(
+        "runtimeEnvironment must be one of: test, live",
+      );
+    },
+  );
+
+  it("maps live runtime to the physical prod pipeline lane only at the boundary", () => {
+    expect(toPhysicalPipelineEnvironment("test")).toBe("test");
+    expect(toPhysicalPipelineEnvironment("live")).toBe("prod");
+  });
+});
+```
+
+Run:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm test -- --runInBand src/shared/environment-names.spec.ts
+```
+
+Expected: FAIL because `environment-names.ts` does not exist yet.
+
+- [ ] **Step 2: Implement API Center naming helpers**
+
+Create `api-center/src/shared/environment-names.ts`:
+
+```ts
+import {
+  APICENTER_RUNTIME_ENVIRONMENT_KEYS,
+  ApicenterRuntimeEnvironment,
+  isApicenterRuntimeEnvironment,
+} from "../types";
+
+export type PhysicalPipelineEnvironment = "test" | "prod";
+
+export function assertRuntimeEnvironment(
+  value: unknown,
+): ApicenterRuntimeEnvironment {
+  if (isApicenterRuntimeEnvironment(value)) return value;
+  throw new Error(
+    `runtimeEnvironment must be one of: ${APICENTER_RUNTIME_ENVIRONMENT_KEYS.join(", ")}`,
+  );
+}
+
+export function toPhysicalPipelineEnvironment(
+  runtimeEnvironment: ApicenterRuntimeEnvironment,
+): PhysicalPipelineEnvironment {
+  return runtimeEnvironment === "live" ? "prod" : "test";
+}
+```
+
+Update `api-center/src/operations/service-lifecycle-evidence.controller.ts`:
+
+```ts
+import { toPhysicalPipelineEnvironment } from "../shared/environment-names";
+```
+
+Replace:
+
+```ts
+this.pipelineHealth.listHealth("live")
+```
+
+with:
+
+```ts
+this.pipelineHealth.listHealth(toPhysicalPipelineEnvironment("live"))
+```
+
+- [ ] **Step 3: Add Management naming boundary tests**
+
+Create `apicenter-management/src/lib/environment-names.test.ts`:
+
+```ts
+import {
+  parsePipelineLane,
+  parseRuntimeEnvironment,
+  toPipelineLane,
+} from "./environment-names";
+
+describe("Management environment naming", () => {
+  it.each(["test", "live"])("accepts runtime environment %s", (value) => {
+    expect(parseRuntimeEnvironment(value)).toBe(value);
+  });
+
+  it.each(["prod", "production", undefined])(
+    "rejects %s as runtime environment",
+    (value) => {
+      expect(() => parseRuntimeEnvironment(value)).toThrow(
+        "runtimeEnvironment must be one of: test, live",
+      );
+    },
+  );
+
+  it.each(["test", "prod"])("accepts pipeline lane %s", (value) => {
+    expect(parsePipelineLane(value)).toBe(value);
+  });
+
+  it("maps live runtime to prod pipeline lane at the adapter boundary", () => {
+    expect(toPipelineLane("test")).toBe("test");
+    expect(toPipelineLane("live")).toBe("prod");
+  });
+});
+```
+
+Run:
+
+```powershell
+cd C:\Codes\apic\apicenter-management
+npm test -- src/lib/environment-names.test.ts
+```
+
+Expected: FAIL because `environment-names.ts` does not exist yet.
+
+- [ ] **Step 4: Implement Management naming helpers and keep backward-compatible query aliases**
+
+Create `apicenter-management/src/lib/environment-names.ts`:
+
+```ts
+export type RuntimeEnvironment = "test" | "live";
+export type PipelineLane = "test" | "prod";
+export type ManagementDeploymentEnvironment = "local" | "test" | "live";
+
+export function parseRuntimeEnvironment(value: unknown): RuntimeEnvironment {
+  if (value === "test" || value === "live") return value;
+  throw new Error("runtimeEnvironment must be one of: test, live");
+}
+
+export function parsePipelineLane(value: unknown): PipelineLane {
+  if (value === "test" || value === "prod") return value;
+  throw new Error("pipelineLane must be one of: test, prod");
+}
+
+export function toPipelineLane(
+  runtimeEnvironment: RuntimeEnvironment,
+): PipelineLane {
+  return runtimeEnvironment === "live" ? "prod" : "test";
+}
+
+export function readPipelineLaneQuery(searchParams: URLSearchParams): PipelineLane {
+  return parsePipelineLane(
+    searchParams.get("pipelineLane") ??
+      searchParams.get("environment") ??
+      "test",
+  );
+}
+```
+
+In `apicenter-management/src/app/api/local/data-pipeline/health/route.ts` and `quality/route.ts`, rename local variables from `environment` to `pipelineLane`, read with `readPipelineLaneQuery(searchParams)`, and return metadata with both fields during migration:
+
+```ts
+meta: {
+  pipelineLane,
+  environment: pipelineLane,
+  ...
+}
+```
+
+This preserves existing callers that read `meta.environment` while making the intended physical lane visible.
+
+- [ ] **Step 5: Remove public `prod` wording from live promotion and plan-tier UX**
+
+In `apicenter-management/src/components/environment-promotion-panel.tsx`, replace public `prod` references:
+
+```ts
+queryKey: queryKeys.planAssignments(`${ownerTribeId ?? "none"}:live`),
+queryFn: () =>
+  listTribePlanAssignments({
+    ownerTribeId,
+    environment: "live",
+    status: "active",
+  }),
+```
+
+Replace the plan-tier gate check:
+
+```ts
+assignment.status === "active" && assignment.environment === "live"
+```
+
+Replace the action label:
+
+```ts
+label: "Assign a plan tier for the live environment.",
+```
+
+If the API still stores `prod`, add the mapping inside the API client/provider, not the component:
+
+```ts
+const storageEnvironment = toPipelineLane(input.environment);
+```
+
+Update `tribe-plan-tier-panel.tsx` and `service-detail/service-detail-content.tsx` so operator-facing controls use `test|live`. Any required `prod` mapping must sit behind a named pipeline/provider adapter.
+
+- [ ] **Step 6: Add naming lint**
+
+Create `api-center/scripts/check-environment-naming.js`:
+
+```js
+#!/usr/bin/env node
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { execFileSync } = require("node:child_process");
+
+const root = path.resolve(__dirname, "..");
+const allowlist = [
+  /data-pipeline/,
+  /pipeline/i,
+  /athena/i,
+  /confluent/i,
+  /secret-manager-inventory/,
+  /api-center-prod/,
+  /api-shared-services-prod/,
+  /supabase-live-backup/,
+];
+
+const files = execFileSync("git", [
+  "ls-files",
+  "*.ts",
+  "*.tsx",
+  "*.js",
+  "*.md",
+  "*.json",
+  "*.yaml",
+  "*.yml",
+], { cwd: root, encoding: "utf8" })
+  .split(/\r?\n/)
+  .filter(Boolean);
+
+const violations = [];
+for (const file of files) {
+  const absolute = path.join(root, file);
+  const text = fs.readFileSync(absolute, "utf8");
+  if (!/prod|production/.test(text)) continue;
+  if (allowlist.some((pattern) => pattern.test(file))) continue;
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, index) => {
+    if (/APICENTER_ENVIRONMENT\s*=\s*prod/.test(line)) {
+      violations.push(`${file}:${index + 1} uses APICENTER_ENVIRONMENT=prod`);
+    }
+    if (/environment:\s*["']prod["']/.test(line)) {
+      violations.push(`${file}:${index + 1} exposes environment: "prod"`);
+    }
+  });
+}
+
+if (violations.length > 0) {
+  console.error(violations.join("\n"));
+  process.exit(1);
+}
+```
+
+Add to `api-center/package.json`:
+
+```json
+"check:environment-naming": "node scripts/check-environment-naming.js"
+```
+
+- [ ] **Step 7: Verify, update tracker, and commit**
+
+```powershell
+cd C:\Codes\apic\api-center
+npm test -- --runInBand src/shared/environment-names.spec.ts src/operations/service-lifecycle-evidence.controller.spec.ts
+npm run check:environment-naming
+
+cd C:\Codes\apic\apicenter-management
+npm test -- src/lib/environment-names.test.ts src/app/api/local/data-pipeline/health/route.test.ts src/app/api/local/data-pipeline/quality/route.test.ts src/components/environment-promotion-panel.test.tsx src/components/tribe-plan-tier-panel.test.tsx src/components/service-detail/service-detail-content.test.tsx
+npm run typecheck
+
+cd C:\Codes\apic\api-center
+git add src/shared/environment-names.ts src/shared/environment-names.spec.ts src/operations/service-lifecycle-evidence.controller.ts src/operations/service-lifecycle-evidence.controller.spec.ts scripts/check-environment-naming.js package.json docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md docs/visualizations/one-apicenter-environment-aware-routing-tracker.html
+git commit -m "chore: normalize APICenter environment naming boundaries"
+
+cd C:\Codes\apic\apicenter-management
+git add src/lib/environment-names.ts src/lib/environment-names.test.ts src/lib/schemas.ts src/app/api/local/data-pipeline src/components/environment-promotion-panel.tsx src/components/environment-promotion-panel.test.tsx src/components/tribe-plan-tier-panel.tsx src/components/tribe-plan-tier-panel.test.tsx src/components/service-detail/service-detail-content.tsx src/components/service-detail/service-detail-content.test.tsx
+git commit -m "chore: separate runtime environment from pipeline lane naming"
+```
+
 ## Self-Review
 
-- [x] Spec coverage: one URL, required environment, env-scoped tribe secrets, env-keyed cache, source-service ownership validation, refresh-token environment preservation, token-derived backend routing, payment-only runtime split, deterministic payment webhook isolation, trusted same-runtime shared-service headers, database environment constraints without silent defaults, data-pipeline `live`/`prod` mapping, target-environment Management live-action guardrails, enforceable auth-token contracts, SDK major rollout, rollback, and break-glass controls are covered.
+- [x] Spec coverage: one URL, required environment, env-scoped tribe secrets, env-keyed cache, source-service ownership validation, refresh-token environment preservation, token-derived backend routing, payment-only runtime split, deterministic payment webhook isolation, trusted same-runtime shared-service headers, database environment constraints without silent defaults, data-pipeline `live`/`prod` mapping, target-environment Management live-action guardrails, enforceable auth-token contracts, SDK major rollout, rollback, break-glass controls, and canonical naming boundaries are covered.
 - [x] Placeholder scan: no placeholder markers or unnamed implementation steps are left in the plan.
 - [x] Type consistency: API Center uses `ServiceEnvironmentKey`; SDK uses `ApicenterEnvironment`; runtime values are consistently `test` and `live`.
 - [x] Scope check: this remains one platform contract despite spanning three repos; tasks are sliced so each produces testable software.
