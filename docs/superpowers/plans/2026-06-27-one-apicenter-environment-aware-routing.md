@@ -2243,6 +2243,8 @@ Record every action in `docs/operations/legacy-service-migration-2026-06-28.json
 }
 ```
 
+Current status: `npm run registry:migrate-legacy-secrets -- --apply --disable-legacy --out docs/operations/legacy-secret-cleanup-2026-06-28.json` created 8 missing environment-scoped Secret Manager records without printing hashes or plaintext. This includes live scoped targets for `flow-ci`, `greenovate`, `pakiapps`, `shoteam`, `smurf-village`, and `trinithrive`, plus scoped test records for `flow-ci` and `smoke-tribe`. It disabled 33 enabled versions across 14 legacy Secret Manager records for rollback. The regenerated inventory reports `legacyServices=0`, `enabledLegacyVersions=0`, 17 scoped Secret Manager records, and 14 legacy records remaining only as disabled rollback records. Delete those legacy records after `2026-07-04T22:30:06.543Z` if no rollback is needed. Step 3 remains open until that deletion is done.
+
 - [ ] **Step 4: Remove code-level legacy secret fallback after stored migration is complete**
 
 Only after Step 1 through Step 3 show no active unmigrated legacy services, update API Center:

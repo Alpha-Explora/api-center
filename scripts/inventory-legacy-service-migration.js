@@ -95,14 +95,24 @@ async function main() {
   const activeLegacyServices = catalog.activeServices.filter(
     (service) => service.legacySignals.length > 0,
   );
+  const enabledLegacySecretVersions = (secrets.legacySecrets || []).reduce(
+    (sum, secret) =>
+      sum +
+      (secret.versions || []).filter((version) => version.state === "ENABLED")
+        .length,
+    0,
+  );
   const unmanagedLegacyCodePaths = codeSurface.findings.filter(
     (finding) => finding.requiresCleanup,
   );
   if (activeLegacyServices.length > 0) {
     warnings.push(`${activeLegacyServices.length} active service records still have legacy migration signals.`);
   }
-  if (secrets.legacySecrets.length > 0) {
-    warnings.push(`${secrets.legacySecrets.length} legacy Secret Manager records still need rollback/delete disposition.`);
+  if (enabledLegacySecretVersions > 0) {
+    warnings.push(`${secrets.legacySecrets.length} legacy Secret Manager records have ${enabledLegacySecretVersions} enabled version(s) still needing rollback disablement.`);
+  } else if (secrets.legacySecrets.length > 0) {
+    const cleanup = readLegacySecretCleanupEvidence(repoRoot);
+    warnings.push(`${secrets.legacySecrets.length} legacy Secret Manager records are disabled for rollback and should be deleted after ${cleanup?.deleteAfter ?? "the recorded rollback window"}.`);
   }
   if (unmanagedLegacyCodePaths.length > 0) {
     warnings.push(`${unmanagedLegacyCodePaths.length} code/doc legacy compatibility findings remain.`);
@@ -543,6 +553,30 @@ function readPreviousSecretMigrationEvidence(repoRoot) {
   } catch {
     return {
       path: "docs/operations/tribe-secret-scope-migration-2026-06-28.json",
+      error: "unreadable_json",
+    };
+  }
+}
+
+function readLegacySecretCleanupEvidence(repoRoot) {
+  const evidencePath = path.join(
+    repoRoot,
+    "docs/operations/legacy-secret-cleanup-2026-06-28.json",
+  );
+  if (!fs.existsSync(evidencePath)) return undefined;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+    return {
+      path: "docs/operations/legacy-secret-cleanup-2026-06-28.json",
+      generatedAt: parsed.generatedAt,
+      deleteAfter: parsed.deleteAfter,
+      scopedTargetsCreated: parsed.applied?.scopedTargetsCreated?.length ?? 0,
+      legacyVersionsDisabled:
+        parsed.applied?.legacyVersionsDisabled?.length ?? 0,
+    };
+  } catch {
+    return {
+      path: "docs/operations/legacy-secret-cleanup-2026-06-28.json",
       error: "unreadable_json",
     };
   }

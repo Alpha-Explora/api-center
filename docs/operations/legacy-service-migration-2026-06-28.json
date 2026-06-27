@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-27T22:23:20.188Z",
+  "generatedAt": "2026-06-27T22:39:31.960Z",
   "mode": "apicenter-control-plane-inventory",
   "payloadPolicy": "Secret payload values are not read or printed. Secret Manager checks use names, labels, replication metadata, and version status only.",
   "environment": {
@@ -25,7 +25,7 @@
   "ready": false,
   "blockers": [],
   "warnings": [
-    "14 legacy Secret Manager records still need rollback/delete disposition.",
+    "14 legacy Secret Manager records are disabled for rollback and should be deleted after 2026-07-04T22:30:06.543Z.",
     "50 code/doc legacy compatibility findings remain."
   ],
   "catalog": {
@@ -518,17 +518,17 @@
         "versions": [
           {
             "version": "3",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:31:50.632404Z"
           },
           {
             "version": "2",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:31:41.941563Z"
           },
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:31:33.674116Z"
           }
         ]
@@ -542,7 +542,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:32:04.266928Z"
           }
         ]
@@ -556,7 +556,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:32:18.631493Z"
           }
         ]
@@ -570,7 +570,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:32:32.475230Z"
           }
         ]
@@ -584,7 +584,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:32:46.973428Z"
           }
         ]
@@ -598,7 +598,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:33:01.041523Z"
           }
         ]
@@ -612,12 +612,12 @@
         "versions": [
           {
             "version": "2",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:33:22.885818Z"
           },
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:33:15.445948Z"
           }
         ]
@@ -631,7 +631,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:33:36.878247Z"
           }
         ]
@@ -645,7 +645,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:33:51.262548Z"
           }
         ]
@@ -659,42 +659,42 @@
         "versions": [
           {
             "version": "8",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:55.276343Z"
           },
           {
             "version": "7",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:47.892267Z"
           },
           {
             "version": "6",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:41.302519Z"
           },
           {
             "version": "5",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:34.220211Z"
           },
           {
             "version": "4",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:26.691741Z"
           },
           {
             "version": "3",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:19.378807Z"
           },
           {
             "version": "2",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:12.125750Z"
           },
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:34:04.882147Z"
           }
         ]
@@ -709,7 +709,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-27T12:16:47.206672Z"
           }
         ]
@@ -724,27 +724,27 @@
         "versions": [
           {
             "version": "5",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:35:41.014453Z"
           },
           {
             "version": "4",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:35:33.887159Z"
           },
           {
             "version": "3",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:35:25.439579Z"
           },
           {
             "version": "2",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:35:16.439809Z"
           },
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:35:08.272616Z"
           }
         ]
@@ -759,32 +759,32 @@
         "versions": [
           {
             "version": "6",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:40:28.767469Z"
           },
           {
             "version": "5",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:40:20.359802Z"
           },
           {
             "version": "4",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:40:12.009239Z"
           },
           {
             "version": "3",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:36:11.147019Z"
           },
           {
             "version": "2",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:36:03.816091Z"
           },
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:35:55.982609Z"
           }
         ]
@@ -799,7 +799,7 @@
         "versions": [
           {
             "version": "1",
-            "state": "ENABLED",
+            "state": "DISABLED",
             "createTime": "2026-06-23T13:41:33.299449Z"
           }
         ]
@@ -840,6 +840,39 @@
         ]
       },
       {
+        "name": "api-center-tribe-secret-flow-ci-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:30:24.905390Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-flow-ci-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:30:41.446695Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-greenovate-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:30:58.080006Z"
+          }
+        ]
+      },
+      {
         "name": "api-center-tribe-secret-greenovate-test",
         "environment": "test",
         "versions": [
@@ -862,6 +895,17 @@
         ]
       },
       {
+        "name": "api-center-tribe-secret-pakiapps-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:31:15.746984Z"
+          }
+        ]
+      },
+      {
         "name": "api-center-tribe-secret-pakiapps-test",
         "environment": "test",
         "versions": [
@@ -869,6 +913,17 @@
             "version": "1",
             "state": "ENABLED",
             "createTime": "2026-06-27T21:01:38.343162Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-shoteam-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:31:32.068777Z"
           }
         ]
       },
@@ -884,6 +939,28 @@
         ]
       },
       {
+        "name": "api-center-tribe-secret-smoke-tribe-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:31:49.134980Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-smurf-village-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:32:05.293226Z"
+          }
+        ]
+      },
+      {
         "name": "api-center-tribe-secret-smurf-village-test",
         "environment": "test",
         "versions": [
@@ -891,6 +968,17 @@
             "version": "1",
             "state": "ENABLED",
             "createTime": "2026-06-27T21:02:20.517420Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-trinithrive-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:32:22.018433Z"
           }
         ]
       },
@@ -908,7 +996,7 @@
     ],
     "summaries": {
       "legacySecretCount": 14,
-      "scopedSecretCount": 9,
+      "scopedSecretCount": 17,
       "legacyByKind": {
         "test_prefixed": 10,
         "unscoped": 4
@@ -1097,14 +1185,7 @@
         "file": "docs/operations/legacy-service-migration-2026-06-28.json",
         "rule": "legacy_environment_env",
         "description": "APICENTER_LEGACY_* compatibility env remains",
-        "matches": 10,
-        "requiresCleanup": false
-      },
-      {
-        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
-        "rule": "legacy_test_url",
-        "description": "Active code/docs still reference the old test APICenter URL",
-        "matches": 10,
+        "matches": 13,
         "requiresCleanup": false
       },
       {
@@ -1112,6 +1193,13 @@
         "rule": "legacy_test_secret_name",
         "description": "Active code/docs still reference test-prefixed tribe secret names",
         "matches": 17,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-record-migration-2026-06-28.json",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 20,
         "requiresCleanup": false
       },
       {
@@ -1137,6 +1225,13 @@
       },
       {
         "file": "docs/operations/registry-parity-2026-06-28.json",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate API_CENTER_BASE_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/registry-parity-post-service-migration-2026-06-28.json",
         "rule": "sdk_url_alias",
         "description": "SDK/API URL aliases still duplicate API_CENTER_BASE_URL",
         "matches": 1,
@@ -1634,12 +1729,12 @@
       }
     ],
     "summaries": {
-      "totalFindings": 99,
+      "totalFindings": 100,
       "cleanupFindings": 50,
       "byRule": {
         "legacy_environment_env": 12,
         "legacy_env_backed_secret": 22,
-        "sdk_url_alias": 25,
+        "sdk_url_alias": 26,
         "legacy_test_url": 24,
         "legacy_test_secret_name": 12,
         "management_environment_alias": 3,
