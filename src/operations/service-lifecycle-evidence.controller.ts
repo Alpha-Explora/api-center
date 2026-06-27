@@ -5,6 +5,7 @@ import { PipelineHealthService } from "../data-pipeline/pipeline-health.service"
 import { TribePlanService } from "../entitlements/tribe-plan.service";
 import { TribeQuotaPolicyService } from "../quotas/tribe-quota-policy.service";
 import { RegistryService } from "../registry/registry.service";
+import { LIVE_RUNTIME_ENVIRONMENT } from "../shared/environment-names";
 import { ServiceLifecycleEvidenceService } from "./service-lifecycle-evidence.service";
 
 @Controller("admin/operations/lifecycle")
@@ -27,7 +28,7 @@ export class ServiceLifecycleEvidenceController {
         this.quotaPolicies.listPolicies(),
         this.plans.listPlanAssignments({ status: "active" }),
         this.approvals.listRequests(),
-        this.pipelineHealth.listHealth("live"),
+        this.pipelineHealth.listHealth(LIVE_RUNTIME_ENVIRONMENT),
       ]);
 
     return {

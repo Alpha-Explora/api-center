@@ -11,6 +11,7 @@ import { PipelineHealthService } from "../data-pipeline/pipeline-health.service"
 import { TribePlanService } from "../entitlements/tribe-plan.service";
 import { TribeQuotaPolicyService } from "../quotas/tribe-quota-policy.service";
 import { RegistryService } from "../registry/registry.service";
+import { LIVE_RUNTIME_ENVIRONMENT } from "../shared/environment-names";
 import { PromotionEvidenceBundleService } from "./promotion-evidence-bundle.service";
 
 @Controller("admin/operations/evidence")
@@ -126,7 +127,7 @@ export class PromotionEvidenceBundleController {
   }
 
   private async getPipelineEvidence(serviceId: string, ownerTribeId: string) {
-    const rows = await this.pipelineHealth.listHealth("live");
+    const rows = await this.pipelineHealth.listHealth(LIVE_RUNTIME_ENVIRONMENT);
     const matchingRows = rows.filter(
       (row) =>
         row.tribeId === ownerTribeId || row.sourceServiceId === serviceId,

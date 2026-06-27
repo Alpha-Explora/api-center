@@ -46,6 +46,7 @@
     "db:verify:control-plane": "ts-node scripts/verify-control-plane-schema.ts",
     "check:boundaries:test": "node scripts/check-boundaries.test.js",
     "registry:verify": "node scripts/collect-registry-parity-evidence.js --fail-on-blockers",
+    "check:environment-naming": "node scripts/check-environment-naming.js",
     "smoke:spark-site:preflight": "node scripts/preflight-spark-site-deployment-smoke.js --fail-on-blockers"
   },
   "dependencies": {

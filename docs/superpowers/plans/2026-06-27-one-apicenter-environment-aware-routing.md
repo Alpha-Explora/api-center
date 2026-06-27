@@ -1691,7 +1691,7 @@ Current status: APICenter-side Spark Site preflight evidence is `docs/operations
 - Modify: `api-center/package.json`
 - Modify: `api-center/docs/visualizations/one-apicenter-environment-aware-routing-tracker.html`
 
-- [ ] **Step 1: Add API Center naming boundary tests**
+- [x] **Step 1: Add API Center naming boundary tests**
 
 Create `api-center/src/shared/environment-names.spec.ts`:
 
@@ -1731,7 +1731,7 @@ npm test -- --runInBand src/shared/environment-names.spec.ts
 
 Expected: FAIL because `environment-names.ts` does not exist yet.
 
-- [ ] **Step 2: Implement API Center naming helpers**
+- [x] **Step 2: Implement API Center naming helpers**
 
 Create `api-center/src/shared/environment-names.ts`:
 
@@ -1763,7 +1763,7 @@ export function toPhysicalPipelineEnvironment(
 Update `api-center/src/operations/service-lifecycle-evidence.controller.ts`:
 
 ```ts
-import { toPhysicalPipelineEnvironment } from "../shared/environment-names";
+import { LIVE_RUNTIME_ENVIRONMENT } from "../shared/environment-names";
 ```
 
 Replace:
@@ -1775,10 +1775,12 @@ this.pipelineHealth.listHealth("live")
 with:
 
 ```ts
-this.pipelineHealth.listHealth(toPhysicalPipelineEnvironment("live"))
+this.pipelineHealth.listHealth(LIVE_RUNTIME_ENVIRONMENT)
 ```
 
-- [ ] **Step 3: Add Management naming boundary tests**
+`PipelineHealthService` performs the `live -> prod` Athena/workgroup mapping internally. Do not pass a physical `prod` lane into runtime-only service APIs.
+
+- [x] **Step 3: Add Management naming boundary tests**
 
 Create `apicenter-management/src/lib/environment-names.test.ts`:
 
@@ -1823,7 +1825,7 @@ npm test -- src/lib/environment-names.test.ts
 
 Expected: FAIL because `environment-names.ts` does not exist yet.
 
-- [ ] **Step 4: Implement Management naming helpers and keep backward-compatible query aliases**
+- [x] **Step 4: Implement Management naming helpers and keep backward-compatible query aliases**
 
 Create `apicenter-management/src/lib/environment-names.ts`:
 
@@ -1857,7 +1859,7 @@ export function readPipelineLaneQuery(searchParams: URLSearchParams): PipelineLa
 }
 ```
 
-In `apicenter-management/src/app/api/local/data-pipeline/health/route.ts` and `quality/route.ts`, rename local variables from `environment` to `pipelineLane`, read with `readPipelineLaneQuery(searchParams)`, and return metadata with both fields during migration:
+In `apicenter-management/src/app/api/local/data-pipeline/health/route.ts`, `quality/route.ts`, `cost/route.ts`, `decision-signals/route.ts`, `gateway-decisions/route.ts`, and `shared-service-usage/route.ts`, rename local variables from `environment` to `pipelineLane`, read with `readPipelineLaneQuery(searchParams)`, and return metadata with both fields during migration:
 
 ```ts
 meta: {
@@ -1869,7 +1871,7 @@ meta: {
 
 This preserves existing callers that read `meta.environment` while making the intended physical lane visible.
 
-- [ ] **Step 5: Remove public `prod` wording from live promotion and plan-tier UX**
+- [x] **Step 5: Remove public `prod` wording from live promotion and plan-tier UX**
 
 In `apicenter-management/src/components/environment-promotion-panel.tsx`, replace public `prod` references:
 
@@ -1903,7 +1905,7 @@ const storageEnvironment = toPipelineLane(input.environment);
 
 Update `tribe-plan-tier-panel.tsx` and `service-detail/service-detail-content.tsx` so operator-facing controls use `test|live`. Any required `prod` mapping must sit behind a named pipeline/provider adapter.
 
-- [ ] **Step 6: Add naming lint**
+- [x] **Step 6: Add naming lint**
 
 Create `api-center/scripts/check-environment-naming.js`:
 
@@ -1968,7 +1970,7 @@ Add to `api-center/package.json`:
 "check:environment-naming": "node scripts/check-environment-naming.js"
 ```
 
-- [ ] **Step 7: Verify, update tracker, and commit**
+- [x] **Step 7: Verify, update tracker, and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center

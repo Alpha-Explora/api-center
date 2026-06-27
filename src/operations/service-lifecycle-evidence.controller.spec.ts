@@ -47,6 +47,6 @@ describe("ServiceLifecycleEvidenceController", () => {
       status: "active",
     });
     expect(approvals.listRequests).toHaveBeenCalledWith();
-    expect(pipelineHealth.listHealth).toHaveBeenCalledWith("prod");
+    expect(pipelineHealth.listHealth).toHaveBeenCalledWith("live");
   });
 });
