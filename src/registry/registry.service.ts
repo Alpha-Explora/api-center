@@ -23,6 +23,7 @@ import {
 } from "@nestjs/common";
 import Redis from "ioredis";
 import {
+  ApicenterRuntimeEnvironment,
   ServiceEnvironmentKey,
   ServiceEnvironmentManifest,
   ServiceManifest,
@@ -626,12 +627,24 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // Secret validation
   // -------------------------------------------------------------------------
 
-  async validateSecret(
-    serviceId: string,
+  async validateSecret(serviceId: string, secret: string): Promise<boolean> {
+    return this.validateLegacySecret(serviceId, secret);
+  }
+
+  async validateEnvironmentSecret(
+    tribeId: string,
     secret: string,
-    _environment?: ServiceEnvironmentKey,
+    environment: ApicenterRuntimeEnvironment,
   ): Promise<boolean> {
-    return this.tribeSecretResolver.validateSecret(serviceId, secret);
+    return this.tribeSecretResolver.validateEnvironmentSecret(
+      tribeId,
+      secret,
+      environment,
+    );
+  }
+
+  async validateLegacySecret(tribeId: string, secret: string): Promise<boolean> {
+    return this.tribeSecretResolver.validateLegacySecret(tribeId, secret);
   }
 
   // -------------------------------------------------------------------------

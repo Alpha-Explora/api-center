@@ -66,7 +66,7 @@ export class AuthController {
       environment,
     );
 
-    const isValid = await this.registry.validateSecret(
+    const isValid = await this.registry.validateEnvironmentSecret(
       tribeId,
       secret,
       environment,

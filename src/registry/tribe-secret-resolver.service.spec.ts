@@ -54,6 +54,84 @@ describe("TribeSecretResolverService", () => {
     process.env = originalEnv;
   });
 
+
+  it("reads and caches separate environment-scoped Secret Manager resources", async () => {
+    process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
+    process.env.GCP_PROJECT_ID = "api-center-test";
+    const testHash = hashSecret("test-secret");
+    const liveHash = hashSecret("live-secret");
+    accessSecretVersion
+      .mockReturnValueOnce(
+        secretResponse(
+          JSON.stringify({
+            tribeId: "church-donations",
+            environment: "test",
+            secretHashSha256: testHash,
+            status: "active",
+          }),
+        ),
+      )
+      .mockReturnValueOnce(
+        secretResponse(
+          JSON.stringify({
+            tribeId: "church-donations",
+            environment: "live",
+            secretHashSha256: liveHash,
+            status: "active",
+          }),
+        ),
+      );
+
+    await expect(
+      service.validateEnvironmentSecret("church-donations", "test-secret", "test"),
+    ).resolves.toBe(true);
+    await expect(
+      service.validateEnvironmentSecret("church-donations", "live-secret", "live"),
+    ).resolves.toBe(true);
+    await expect(
+      service.validateEnvironmentSecret("church-donations", "test-secret", "test"),
+    ).resolves.toBe(true);
+
+    expect(accessSecretVersion).toHaveBeenCalledTimes(2);
+    expect(accessSecretVersion).toHaveBeenNthCalledWith(1, {
+      name: "projects/api-center-test/secrets/api-center-tribe-secret-church-donations-test/versions/latest",
+    });
+    expect(accessSecretVersion).toHaveBeenNthCalledWith(2, {
+      name: "projects/api-center-test/secrets/api-center-tribe-secret-church-donations-live/versions/latest",
+    });
+  });
+
+  it("rejects an environment-scoped payload for a different runtime environment", async () => {
+    process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
+    process.env.GCP_PROJECT_ID = "api-center-test";
+    accessSecretVersion.mockReturnValueOnce(
+      secretResponse(
+        JSON.stringify({
+          tribeId: "church-donations",
+          environment: "live",
+          secretHashSha256: hashSecret("live-secret"),
+          status: "active",
+        }),
+      ),
+    );
+
+    await expect(
+      service.validateEnvironmentSecret("church-donations", "live-secret", "test"),
+    ).resolves.toBe(false);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("environment 'live' does not match 'test'"),
+      "TribeSecretResolverService",
+    );
+  });
+
+  it("does not fall back to legacy env vars for environment-scoped validation", async () => {
+    process.env.TRIBE_SECRET_SMOKE_TRIBE = hashSecret("plain-secret");
+
+    await expect(
+      service.validateEnvironmentSecret("smoke-tribe", "plain-secret", "test"),
+    ).resolves.toBe(false);
+    expect(accessSecretVersion).not.toHaveBeenCalled();
+  });
   it("validates a legacy env-backed tribe secret", async () => {
     process.env.TRIBE_SECRET_SMOKE_TRIBE = hashSecret("plain-secret");
 

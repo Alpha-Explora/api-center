@@ -3,6 +3,8 @@ import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import crypto from "node:crypto";
 import { LoggerService } from "../shared/logger.service";
 import { TribeSecretRotationService } from "../secrets/tribe-secret-rotation.service";
+import type { ApicenterRuntimeEnvironment } from "../types";
+import { buildEnvironmentSecretId } from "./environment-secret-name";
 
 export type SecretManagerClientLike = Pick<
   SecretManagerServiceClient,
@@ -16,6 +18,8 @@ type CachedSecret = {
 
 type TribeSecretPayload = {
   serviceId?: unknown;
+  tribeId?: unknown;
+  environment?: unknown;
   secretHashSha256?: unknown;
   nextSecretHashSha256?: unknown;
   previousSecretHashSha256?: unknown;
@@ -54,26 +58,42 @@ export class TribeSecretResolverService {
     serviceId: string,
     plaintextSecret: string,
   ): Promise<boolean> {
+    return this.validateLegacySecret(serviceId, plaintextSecret);
+  }
+
+  async validateLegacySecret(
+    serviceId: string,
+    plaintextSecret: string,
+  ): Promise<boolean> {
     const expectedHashes = await this.resolveSecretHashes(serviceId);
-    if (expectedHashes.length === 0) return false;
+    return this.matchesSecretHashes(plaintextSecret, expectedHashes);
+  }
 
-    const requestHash = crypto
-      .createHash("sha256")
-      .update(plaintextSecret)
-      .digest("hex");
-
-    return expectedHashes.some((expectedHash) => {
-      if (requestHash.length !== expectedHash.length) return false;
-
-      return crypto.timingSafeEqual(
-        Buffer.from(requestHash, "utf8"),
-        Buffer.from(expectedHash, "utf8"),
-      );
-    });
+  async validateEnvironmentSecret(
+    tribeId: string,
+    plaintextSecret: string,
+    environment: ApicenterRuntimeEnvironment,
+  ): Promise<boolean> {
+    const expectedHashes = await this.resolveEnvironmentSecretHashes(
+      tribeId,
+      environment,
+    );
+    return this.matchesSecretHashes(plaintextSecret, expectedHashes);
   }
 
   async resolveSecretHash(serviceId: string): Promise<string | null> {
     const hashes = await this.resolveSecretHashes(serviceId);
+    return hashes[0] ?? null;
+  }
+
+  async resolveEnvironmentSecretHash(
+    tribeId: string,
+    environment: ApicenterRuntimeEnvironment,
+  ): Promise<string | null> {
+    const hashes = await this.resolveEnvironmentSecretHashes(
+      tribeId,
+      environment,
+    );
     return hashes[0] ?? null;
   }
 
@@ -94,7 +114,8 @@ export class TribeSecretResolverService {
       return [];
     }
 
-    const cached = this.cache.get(normalizedServiceId);
+    const cacheKey = `legacy:${normalizedServiceId}`;
+    const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.hashes;
     }
@@ -102,7 +123,44 @@ export class TribeSecretResolverService {
     const resolvedHashes = await this.getGcpSecretHashes(normalizedServiceId);
     if (resolvedHashes.length === 0) return [];
 
-    this.cache.set(normalizedServiceId, {
+    this.cache.set(cacheKey, {
+      hashes: resolvedHashes,
+      expiresAt: Date.now() + this.getCacheTtlMs(),
+    });
+
+    return resolvedHashes;
+  }
+
+  private async resolveEnvironmentSecretHashes(
+    tribeId: string,
+    environment: ApicenterRuntimeEnvironment,
+  ): Promise<string[]> {
+    const normalizedTribeId = this.normalizeServiceId(tribeId);
+    if (!normalizedTribeId) {
+      this.logger.warn(
+        `Tribe secret lookup rejected invalid tribeId '${tribeId}'`,
+        "TribeSecretResolverService",
+      );
+      return [];
+    }
+
+    if (process.env.TRIBE_SECRET_SOURCE !== "gcp-secret-manager") {
+      return [];
+    }
+
+    const cacheKey = `environment:${normalizedTribeId}:${environment}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.hashes;
+    }
+
+    const resolvedHashes = await this.getGcpEnvironmentSecretHashes(
+      normalizedTribeId,
+      environment,
+    );
+    if (resolvedHashes.length === 0) return [];
+
+    this.cache.set(cacheKey, {
       hashes: resolvedHashes,
       expiresAt: Date.now() + this.getCacheTtlMs(),
     });
@@ -117,8 +175,16 @@ export class TribeSecretResolverService {
     }
 
     const normalizedServiceId = this.normalizeServiceId(serviceId);
-    if (normalizedServiceId) {
-      this.cache.delete(normalizedServiceId);
+    if (!normalizedServiceId) return;
+
+    for (const key of [...this.cache.keys()]) {
+      if (
+        key === normalizedServiceId ||
+        key === `legacy:${normalizedServiceId}` ||
+        key.startsWith(`environment:${normalizedServiceId}:`)
+      ) {
+        this.cache.delete(key);
+      }
     }
   }
 
@@ -139,6 +205,50 @@ export class TribeSecretResolverService {
   }
 
   private async getGcpSecretHashes(serviceId: string): Promise<string[]> {
+    const projectId = this.getProjectId();
+    if (!projectId) return [];
+
+    const prefix = process.env.TRIBE_SECRET_GCP_PREFIX || DEFAULT_SECRET_PREFIX;
+    const secretName = `${prefix}${serviceId}`;
+    const resourceName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+
+    try {
+      const raw = await this.readSecretPayload(resourceName, secretName);
+      if (!raw) return [];
+      return this.parsePayload(serviceId, secretName, raw);
+    } catch (error) {
+      this.logger.warn(
+        `Tribe Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
+        "TribeSecretResolverService",
+      );
+      return [];
+    }
+  }
+
+  private async getGcpEnvironmentSecretHashes(
+    tribeId: string,
+    environment: ApicenterRuntimeEnvironment,
+  ): Promise<string[]> {
+    const projectId = this.getProjectId();
+    if (!projectId) return [];
+
+    const secretName = buildEnvironmentSecretId(tribeId, environment);
+    const resourceName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+
+    try {
+      const raw = await this.readSecretPayload(resourceName, secretName);
+      if (!raw) return [];
+      return this.parseEnvironmentPayload(tribeId, environment, secretName, raw);
+    } catch (error) {
+      this.logger.warn(
+        `Tribe Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
+        "TribeSecretResolverService",
+      );
+      return [];
+    }
+  }
+
+  private getProjectId(): string | null {
     const projectId =
       process.env.GCP_PROJECT_ID ||
       process.env.GOOGLE_CLOUD_PROJECT ||
@@ -149,39 +259,31 @@ export class TribeSecretResolverService {
         "Tribe Secret Manager lookup skipped - set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT",
         "TribeSecretResolverService",
       );
-      return [];
+      return null;
     }
 
-    const prefix = process.env.TRIBE_SECRET_GCP_PREFIX || DEFAULT_SECRET_PREFIX;
-    const secretName = `${prefix}${serviceId}`;
-    const resourceName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+    return projectId;
+  }
 
-    try {
-      const [response] =
-        await this.getSecretManagerClient().accessSecretVersion({
-          name: resourceName,
-        });
-      const rawPayload = response.payload?.data;
-      if (!rawPayload) {
-        this.logger.warn(
-          `Tribe Secret Manager secret '${secretName}' returned an empty payload`,
-          "TribeSecretResolverService",
-        );
-        return [];
-      }
-
-      const raw = Buffer.isBuffer(rawPayload)
-        ? rawPayload.toString("utf8")
-        : Buffer.from(rawPayload).toString("utf8");
-
-      return this.parsePayload(serviceId, secretName, raw);
-    } catch (error) {
+  private async readSecretPayload(
+    resourceName: string,
+    secretName: string,
+  ): Promise<string | null> {
+    const [response] = await this.getSecretManagerClient().accessSecretVersion({
+      name: resourceName,
+    });
+    const rawPayload = response.payload?.data;
+    if (!rawPayload) {
       this.logger.warn(
-        `Tribe Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
+        `Tribe Secret Manager secret '${secretName}' returned an empty payload`,
         "TribeSecretResolverService",
       );
-      return [];
+      return null;
     }
+
+    return Buffer.isBuffer(rawPayload)
+      ? rawPayload.toString("utf8")
+      : Buffer.from(rawPayload).toString("utf8");
   }
 
   private parsePayload(
@@ -194,16 +296,8 @@ export class TribeSecretResolverService {
       return [normalizedPayload.toLowerCase()];
     }
 
-    let parsed: TribeSecretPayload;
-    try {
-      parsed = JSON.parse(normalizedPayload) as TribeSecretPayload;
-    } catch {
-      this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' payload is not JSON or a raw SHA-256 hash`,
-        "TribeSecretResolverService",
-      );
-      return [];
-    }
+    const parsed = this.parseJsonPayload(secretName, normalizedPayload);
+    if (!parsed) return [];
 
     const payloadServiceId =
       typeof parsed.serviceId === "string"
@@ -217,6 +311,68 @@ export class TribeSecretResolverService {
       return [];
     }
 
+    return this.extractAcceptedHashes(parsed, secretName);
+  }
+
+  private parseEnvironmentPayload(
+    tribeId: string,
+    environment: ApicenterRuntimeEnvironment,
+    secretName: string,
+    rawPayload: string,
+  ): string[] {
+    const normalizedPayload = rawPayload.trim();
+    const parsed = this.parseJsonPayload(secretName, normalizedPayload);
+    if (!parsed) return [];
+
+    const payloadTribeId =
+      typeof parsed.tribeId === "string"
+        ? this.normalizeServiceId(parsed.tribeId)
+        : null;
+    if (!payloadTribeId) {
+      this.logger.warn(
+        `Tribe Secret Manager secret '${secretName}' tribeId is missing or malformed`,
+        "TribeSecretResolverService",
+      );
+      return [];
+    }
+    if (payloadTribeId !== tribeId) {
+      this.logger.warn(
+        `Tribe Secret Manager secret '${secretName}' tribeId '${payloadTribeId}' does not match '${tribeId}'`,
+        "TribeSecretResolverService",
+      );
+      return [];
+    }
+
+    if (parsed.environment !== environment) {
+      this.logger.warn(
+        `Tribe Secret Manager secret '${secretName}' environment '${String(parsed.environment)}' does not match '${environment}'`,
+        "TribeSecretResolverService",
+      );
+      return [];
+    }
+
+    return this.extractAcceptedHashes(parsed, secretName);
+  }
+
+  private parseJsonPayload(
+    secretName: string,
+    normalizedPayload: string,
+  ): TribeSecretPayload | null {
+    try {
+      return JSON.parse(normalizedPayload) as TribeSecretPayload;
+    } catch {
+      this.logger.warn(
+        `Tribe Secret Manager secret '${secretName}' payload is not JSON or a raw SHA-256 hash`,
+        "TribeSecretResolverService",
+      );
+      return null;
+    }
+  }
+
+  private extractAcceptedHashes(
+    parsed: TribeSecretPayload,
+    secretName: string,
+  ): string[] {
     if (parsed.status && parsed.status !== "active") {
       this.logger.warn(
         `Tribe Secret Manager secret '${secretName}' is inactive`,
@@ -235,6 +391,27 @@ export class TribeSecretResolverService {
     }
 
     return acceptedHashes;
+  }
+
+  private matchesSecretHashes(
+    plaintextSecret: string,
+    expectedHashes: string[],
+  ): boolean {
+    if (expectedHashes.length === 0) return false;
+
+    const requestHash = crypto
+      .createHash("sha256")
+      .update(plaintextSecret)
+      .digest("hex");
+
+    return expectedHashes.some((expectedHash) => {
+      if (requestHash.length !== expectedHash.length) return false;
+
+      return crypto.timingSafeEqual(
+        Buffer.from(requestHash, "utf8"),
+        Buffer.from(expectedHash, "utf8"),
+      );
+    });
   }
 
   private getSecretManagerClient(): SecretManagerClientLike {
@@ -263,7 +440,7 @@ export class TribeSecretResolverService {
 
   private normalizeServiceId(serviceId: string): string | null {
     const normalized = serviceId.trim().toLowerCase();
-    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(normalized)) {
+    if (!/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/.test(normalized)) {
       return null;
     }
     return normalized;

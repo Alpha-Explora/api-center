@@ -53,6 +53,8 @@ const mockMetrics: Partial<MetricsService> = {
 
 const mockTribeSecretResolver: Partial<TribeSecretResolverService> = {
   validateSecret: jest.fn(),
+  validateEnvironmentSecret: jest.fn(),
+  validateLegacySecret: jest.fn(),
 };
 
 const mockPostgresStore: Partial<PostgresRegistryStoreService> = {
@@ -633,6 +635,36 @@ describe("RegistryService", () => {
     });
   });
 
+
+  describe("secret validation", () => {
+    it("delegates environment-scoped validation to the resolver", async () => {
+      (mockTribeSecretResolver.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
+
+      await expect(
+        service.validateEnvironmentSecret("svc-alpha", "secret", "test"),
+      ).resolves.toBe(true);
+
+      expect(mockTribeSecretResolver.validateEnvironmentSecret).toHaveBeenCalledWith(
+        "svc-alpha",
+        "secret",
+        "test",
+      );
+    });
+
+    it("keeps legacy validation on an explicit method", async () => {
+      (mockTribeSecretResolver.validateLegacySecret as jest.Mock).mockResolvedValue(true);
+
+      await expect(
+        service.validateLegacySecret("svc-alpha", "secret"),
+      ).resolves.toBe(true);
+      await service.validateSecret("svc-alpha", "secret");
+
+      expect(mockTribeSecretResolver.validateLegacySecret).toHaveBeenCalledWith(
+        "svc-alpha",
+        "secret",
+      );
+    });
+  });
   // =========================================================================
   // Full lifecycle flow
   // =========================================================================

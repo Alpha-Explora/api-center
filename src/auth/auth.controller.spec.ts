@@ -16,7 +16,7 @@ const mockAuth: Partial<AuthService> = {
 
 const mockRegistry: Partial<RegistryService> = {
   get: jest.fn(),
-  validateSecret: jest.fn(),
+  validateEnvironmentSecret: jest.fn(),
   getOwnedServices: jest.fn(),
   getEffectiveConsumesForTribe: jest.fn(),
 };
@@ -88,7 +88,7 @@ describe("AuthController", () => {
 
     it("returns accessToken, refreshToken, environment, and source service context", async () => {
       (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
+      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",
@@ -108,7 +108,7 @@ describe("AuthController", () => {
           environment: "test",
         }),
       );
-      expect(mockRegistry.validateSecret).toHaveBeenCalledWith(
+      expect(mockRegistry.validateEnvironmentSecret).toHaveBeenCalledWith(
         "svc-alpha",
         "s3cret",
         "test",
@@ -126,7 +126,7 @@ describe("AuthController", () => {
 
     it("returns refreshToken as null when provider omits it", async () => {
       (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
+      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: null,
@@ -147,7 +147,7 @@ describe("AuthController", () => {
 
     it("throws UnauthorizedError for invalid secret", async () => {
       (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(false);
+      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(false);
 
       await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
         UnauthorizedError,
@@ -206,7 +206,7 @@ describe("AuthController", () => {
 
     it("publishes TOKEN_ISSUED Kafka event without raw JWT material", async () => {
       (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
+      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",
@@ -276,7 +276,7 @@ describe("AuthController", () => {
         "payment",
         "kafka",
       ]);
-      (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
+      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",

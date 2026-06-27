@@ -558,7 +558,7 @@ git commit -m "feat: issue environment-scoped APICenter tokens"
 - Modify: `api-center/src/registry/registry.service.ts`
 - Modify: resolver and registry specs
 
-- [ ] **Step 1: Write failing resolver tests**
+- [x] **Step 1: Write failing resolver tests**
 
 Add an explicit cache regression test: resolve `church-donations` in `test`, then resolve `church-donations` in `live`, and assert two different Secret Manager resource names are read or cached under two different keys.
 
@@ -570,7 +570,7 @@ projects/<project>/secrets/api-center-tribe-secret-church-donations-test/version
 
 and reject a live secret submitted for `environment=test`.
 
-- [ ] **Step 2: Run failing resolver tests**
+- [x] **Step 2: Run failing resolver tests**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -579,7 +579,7 @@ npm test -- --runInBand src/registry/tribe-secret-resolver.service.spec.ts
 
 Expected: FAIL because resolver only accepts `serviceId`.
 
-- [ ] **Step 3: Create secret-name helper**
+- [x] **Step 3: Create secret-name helper**
 
 ```ts
 import { ServiceEnvironmentKey } from "../types";
@@ -599,7 +599,7 @@ export function buildEnvironmentSecretId(
 }
 ```
 
-- [ ] **Step 4: Update resolver signatures**
+- [x] **Step 4: Update resolver signatures**
 
 ```ts
 async validateEnvironmentSecret(tribeId: string, secret: string, environment: ApicenterRuntimeEnvironment): Promise<boolean>
@@ -609,7 +609,7 @@ async validateLegacySecret(tribeId: string, secret: string): Promise<boolean>
 
 The environment-scoped API must require `environment` and must never fall back to the legacy secret. Legacy validation is a separate warn-mode path that runs only after allowlist and explicit `APICENTER_LEGACY_ENVIRONMENT_MAP` checks pass. Secret resolver cache keys must include environment, for example `<tribeId>:<environment>`, so a test hash and live hash can never share one cache entry. Secret Manager JSON payloads must include `tribeId` and `environment`, and resolver tests must reject a payload whose environment does not match the requested environment.
 
-- [ ] **Step 5: Update RegistryService**
+- [x] **Step 5: Update RegistryService**
 
 ```ts
 validateEnvironmentSecret(tribeId: string, secret: string, environment: ApicenterRuntimeEnvironment): Promise<boolean> {
@@ -621,7 +621,7 @@ validateLegacySecret(tribeId: string, secret: string): Promise<boolean> {
 }
 ```
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center
