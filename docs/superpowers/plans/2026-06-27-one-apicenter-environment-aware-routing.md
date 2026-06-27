@@ -1255,7 +1255,7 @@ git commit -m "feat: isolate event exports by environment"
 - Modify: `apicenter-management/src/components/service-detail/environment-section.tsx`
 - Modify: related tests
 
-- [ ] **Step 1: Add schema, route, action-policy, and audit tests**
+- [x] **Step 1: Add schema, route, action-policy, and audit tests**
 
 Secret provisioning must require `tribeId`, `sourceServiceId`, and `environment`, and produce secret IDs from `tribeId`:
 
@@ -1275,7 +1275,7 @@ expect(liveRouteChangeWith({ MANAGEMENT_ENVIRONMENT: "local", inputEnvironment: 
 
 Apply the same target-environment authorization requirement to live secret delete/rotation, shared-service route changes, quota disablement, environment disablement, payment provider actions, and break-glass actions.
 
-- [ ] **Step 2: Update schema**
+- [x] **Step 2: Update schema**
 
 ```ts
 tribeId: z.string().min(1),
@@ -1285,7 +1285,7 @@ environment: z.enum(["test", "live"]),
 
 `tribeId` / `ownerTribeId` is the secret identity. `sourceServiceId` is the registered service that will use the secret and appear in SDK handoff, token claims, audit, and usage records.
 
-- [ ] **Step 3: Update provisioning route**
+- [x] **Step 3: Update provisioning route**
 
 Server-side action authorization must key off `input.environment`, not `MANAGEMENT_ENVIRONMENT`:
 
@@ -1313,7 +1313,7 @@ const payload = JSON.stringify({
 });
 ```
 
-- [ ] **Step 4: Update SDK config panel**
+- [x] **Step 4: Update SDK config panel**
 
 Show one URL with per-environment blocks. Use owner tribe ID for `APICENTER_TRIBE_ID` and registered service ID for `APICENTER_SERVICE_ID`:
 
@@ -1333,7 +1333,7 @@ APICENTER_SERVICE_ID=<registered-service-id>
 APICENTER_TRIBE_SECRET=<live-secret-issued-by-platform>
 ```
 
-- [ ] **Step 5: Update service detail environment rows**
+- [x] **Step 5: Update service detail environment rows**
 
 Each row should show backend URL, health, secret status, shared-service route status, quota policy, last smoke run, promotion evidence, and break-glass state.
 
@@ -1347,7 +1347,7 @@ live destructive/provider action: elevated role or approval request before execu
 
 Add tests that live secret rotation, live route changes, live quota disablement, and live environment disablement require the stronger path even when `MANAGEMENT_ENVIRONMENT` is `test` or `local`.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\apicenter-management
