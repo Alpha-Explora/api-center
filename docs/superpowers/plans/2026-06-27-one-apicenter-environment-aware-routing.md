@@ -820,7 +820,7 @@ git commit -m "docs: document environment-scoped shared-service routes"
 - Modify: `api-shared-services/shared-services/paymongo/src/services/paymongo/webhookService.js`
 - Modify: `api-shared-services/tests/shared-services/paymongo-webhooks.test.ts`
 
-- [ ] **Step 1: Add webhook environment tests**
+- [x] **Step 1: Add webhook environment tests**
 
 Payment webhooks are signature-authenticated provider callbacks, not APICenter bearer-token calls, so the environment contract must be deterministic before persistence or event publishing.
 
@@ -838,7 +838,7 @@ expect(result.environment).toBe("test");
 expect(providerEventKey).toEqual(expect.objectContaining({ environment: "test" }));
 ```
 
-- [ ] **Step 2: Split webhook secret resolution**
+- [x] **Step 2: Split webhook secret resolution**
 
 Webhook verification must use environment-specific provider secrets. Each route verifies only its matching secret:
 
@@ -849,7 +849,7 @@ PAYMONGO_LIVE_WEBHOOK_SECRET -> /webhooks/live -> environment=live
 
 Do not infer environment from payload amount, service ID, provider mode, or generic URL path. If a provider later forces one callback URL, implement a separate dual-secret matcher that rejects ambiguous matches and persists nothing until exactly one environment is resolved.
 
-- [ ] **Step 3: Make webhook idempotency environment-aware**
+- [x] **Step 3: Make webhook idempotency environment-aware**
 
 Payment webhook idempotency must include environment:
 
@@ -859,11 +859,11 @@ environment + provider + provider_event_id
 
 A test provider event and a live provider event with the same provider ID must not collide.
 
-- [ ] **Step 4: Forward authoritative environment to payment runtime**
+- [x] **Step 4: Forward authoritative environment to payment runtime**
 
 The API Center webhook controller must resolve the payment runtime through `SharedServiceRoutingService.resolve("payment", environment)`, inject `X-APICenter-Environment`, and reject missing payment routes before provider persistence.
 
-- [ ] **Step 5: Verify and commit webhook routing**
+- [x] **Step 5: Verify and commit webhook routing**
 
 ```powershell
 cd C:\Codes\apic\api-center

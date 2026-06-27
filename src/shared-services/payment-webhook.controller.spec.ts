@@ -3,21 +3,24 @@ import { AuditEventsService } from "../analytics/audit-events.service";
 import { PaymentWebhookController } from "./payment-webhook.controller";
 import { RegistryService } from "../registry/registry.service";
 import { ConfigService } from "../config/config.service";
+import { SharedServiceRoutingService } from "./shared-service-routing.service";
 import {
-  NotFoundError,
   ServiceUnavailableError,
   UnauthorizedError,
 } from "../shared/errors";
 
 describe("PaymentWebhookController", () => {
-  const mockRegistry = {
-    resolveUpstream: jest.fn(),
-  } as unknown as RegistryService;
+  const mockRegistry = {} as RegistryService;
   const mockConfig = {
     paymentWebhooks: {
-      paymongoSecret: "test-key",
+      paymongoTestSecret: "test-key",
+      paymongoLiveSecret: "live-key",
+      paymongoSecret: "legacy-key",
     },
-  } as ConfigService;
+  } as unknown as ConfigService;
+  const mockRouting = {
+    resolve: jest.fn(),
+  } as unknown as SharedServiceRoutingService;
 
   let controller: PaymentWebhookController;
   let fetchMock: jest.Mock;
@@ -25,12 +28,22 @@ describe("PaymentWebhookController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockConfig.paymentWebhooks.paymongoSecret = "test-key";
+    mockConfig.paymentWebhooks.paymongoTestSecret = "test-key";
+    mockConfig.paymentWebhooks.paymongoLiveSecret = "live-key";
+    mockConfig.paymentWebhooks.paymongoSecret = "legacy-key";
+    (mockRouting.resolve as jest.Mock).mockImplementation(
+      (_serviceId: string, environment: string) => ({
+        sharedServiceId: "payment",
+        environment,
+        targetUrl: `http://payment-${environment}:4010`,
+      }),
+    );
     auditEvents = { record: jest.fn().mockResolvedValue(undefined) };
     controller = new PaymentWebhookController(
       mockRegistry,
       mockConfig,
       auditEvents as unknown as AuditEventsService,
+      mockRouting,
     );
     fetchMock = jest.fn().mockResolvedValue({
       status: 200,
@@ -41,6 +54,7 @@ describe("PaymentWebhookController", () => {
         JSON.stringify({
           received: true,
           event: "checkout_session.payment.paid",
+          environment: "test",
           data: { paymentId: "pay_123" },
         }),
       ),
@@ -48,15 +62,12 @@ describe("PaymentWebhookController", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 
-  it("forwards PayMongo webhooks to the payment shared service with the raw body and signature", async () => {
-    (mockRegistry.resolveUpstream as jest.Mock).mockReturnValue(
-      "http://payment-service:4010/webhooks",
-    );
+  it("forwards PayMongo test webhooks to the test payment runtime with environment evidence", async () => {
     const rawBody = Buffer.from('{"data":{"id":"evt_123"}}');
     const timestamp = "1496734173";
-    const signature = signPayMongoPayload(timestamp, rawBody);
+    const signature = signPayMongoPayload(timestamp, rawBody, "test-key");
 
-    const result = await controller.forwardPayMongoWebhook({
+    const result = await controller.forwardPayMongoWebhook("test", {
       rawBody,
       body: { data: { id: "evt_123" } },
       headers: {
@@ -65,97 +76,111 @@ describe("PaymentWebhookController", () => {
       },
     } as any);
 
-    expect(mockRegistry.resolveUpstream).toHaveBeenCalledWith(
-      "payment",
-      "/webhooks",
+    expect(mockRouting.resolve).toHaveBeenCalledWith("payment", "test");
+    expect(auditEvents.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "shared_service.webhook.received",
+        sharedServiceId: "payment",
+        payload: expect.objectContaining({
+          environment: "test",
+          providerEventKey: {
+            environment: "test",
+            provider: "paymongo",
+            providerEventId: "evt_123",
+          },
+          route: "/webhooks/test",
+          upstream: "http://payment-test:4010/webhooks",
+        }),
+      }),
     );
-    expect(auditEvents.record).toHaveBeenCalledWith({
-      type: "shared_service.webhook.received",
-      actionFamily: "shared_service",
-      sharedServiceId: "payment",
-      severity: "info",
-      message: "PayMongo webhook accepted for payment shared service forwarding",
-      payload: {
-        provider: "paymongo",
-        route: "/webhooks",
-        upstream: "http://payment-service:4010/webhooks",
-        contentType: "application/json",
-        rawBodyBytes: rawBody.length,
-        signaturePresent: true,
-      },
-    });
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://payment-service:4010/webhooks",
+      "http://payment-test:4010/webhooks",
       expect.objectContaining({
         method: "POST",
         body: rawBody,
         headers: expect.objectContaining({
           "Content-Type": "application/json",
           "Paymongo-Signature": `t=${timestamp},te=${signature},li=`,
+          "X-APICenter-Environment": "test",
         }),
       }),
     );
-    expect(result).toEqual({
-      received: true,
-      event: "checkout_session.payment.paid",
-      data: { paymentId: "pay_123" },
-    });
-  });
-
-  it("fails clearly when the payment shared service is not registered", async () => {
-    (mockRegistry.resolveUpstream as jest.Mock).mockReturnValue(null);
-
-    await expect(
-      controller.forwardPayMongoWebhook({
-        rawBody: Buffer.from("{}"),
-        body: {},
-        headers: {},
-      } as any),
-    ).rejects.toBeInstanceOf(NotFoundError);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(auditEvents.record).not.toHaveBeenCalled();
-  });
-
-  it("rejects PayMongo webhooks before forwarding when the gateway secret is not configured", async () => {
-    (mockRegistry.resolveUpstream as jest.Mock).mockReturnValue(
-      "http://payment-service:4010/webhooks",
+    expect(result).toEqual(
+      expect.objectContaining({
+        received: true,
+        event: "checkout_session.payment.paid",
+      }),
     );
-    mockConfig.paymentWebhooks.paymongoSecret = "";
-
-    await expect(
-      controller.forwardPayMongoWebhook({
-        rawBody: Buffer.from("{}"),
-        body: {},
-        headers: {
-          "paymongo-signature": "t=1496734173,te=signature",
-        },
-      } as any),
-    ).rejects.toBeInstanceOf(ServiceUnavailableError);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(auditEvents.record).not.toHaveBeenCalled();
   });
 
-  it("rejects PayMongo webhooks before forwarding when the signature does not match", async () => {
-    (mockRegistry.resolveUpstream as jest.Mock).mockReturnValue(
-      "http://payment-service:4010/webhooks",
+  it("forwards PayMongo live webhooks with the live secret and live signature field", async () => {
+    const rawBody = Buffer.from('{"data":{"id":"evt_live"}}');
+    const timestamp = "1496734173";
+    const signature = signPayMongoPayload(timestamp, rawBody, "live-key");
+
+    await controller.forwardPayMongoWebhook("live", {
+      rawBody,
+      body: { data: { id: "evt_live" } },
+      headers: {
+        "content-type": "application/json",
+        "paymongo-signature": `t=${timestamp},te=wrong,li=${signature}`,
+      },
+    } as any);
+
+    expect(mockRouting.resolve).toHaveBeenCalledWith("payment", "live");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://payment-live:4010/webhooks",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-APICenter-Environment": "live",
+          "Paymongo-Signature": `t=${timestamp},te=wrong,li=${signature}`,
+        }),
+      }),
     );
+  });
+
+  it("rejects mismatched live signatures on the test webhook route before forwarding", async () => {
+    const rawBody = Buffer.from('{"data":{"id":"evt_123"}}');
+    const timestamp = "1496734173";
+    const liveSignature = signPayMongoPayload(timestamp, rawBody, "live-key");
 
     await expect(
-      controller.forwardPayMongoWebhook({
-        rawBody: Buffer.from('{"data":{"id":"evt_123"}}'),
+      controller.forwardPayMongoWebhook("test", {
+        rawBody,
         body: { data: { id: "evt_123" } },
         headers: {
-          "paymongo-signature": "t=1496734173,te=bad",
+          "paymongo-signature": `t=${timestamp},te=wrong,li=${liveSignature}`,
         },
       } as any),
     ).rejects.toBeInstanceOf(UnauthorizedError);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(auditEvents.record).not.toHaveBeenCalled();
   });
+
+  it("rejects before forwarding when the matching environment secret is not configured", async () => {
+    mockConfig.paymentWebhooks.paymongoLiveSecret = "";
+    const rawBody = Buffer.from("{}");
+
+    await expect(
+      controller.forwardPayMongoWebhook("live", {
+        rawBody,
+        body: {},
+        headers: {
+          "paymongo-signature": "t=1496734173,li=signature",
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(ServiceUnavailableError);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(auditEvents.record).not.toHaveBeenCalled();
+  });
 });
 
-function signPayMongoPayload(timestamp: string, rawBody: Buffer): string {
-  return createHmac("sha256", "test-key")
+function signPayMongoPayload(
+  timestamp: string,
+  rawBody: Buffer,
+  secret: string,
+): string {
+  return createHmac("sha256", secret)
     .update(`${timestamp}.${rawBody.toString("utf8")}`)
     .digest("hex");
 }

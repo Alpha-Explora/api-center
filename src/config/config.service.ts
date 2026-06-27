@@ -89,6 +89,8 @@ export class ConfigService implements OnApplicationBootstrap {
   };
 
   readonly paymentWebhooks = {
+    paymongoTestSecret: process.env.PAYMONGO_TEST_WEBHOOK_SECRET || "",
+    paymongoLiveSecret: process.env.PAYMONGO_LIVE_WEBHOOK_SECRET || "",
     paymongoSecret:
       process.env.PAYMONGO_WEBHOOK_SECRET ||
       process.env.PAYMONGO_LIVE_WEBHOOK_SECRET ||
