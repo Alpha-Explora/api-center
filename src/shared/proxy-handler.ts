@@ -360,6 +360,7 @@ export class ProxyHandler {
       namespace: this.opts.namespace,
       targetServiceId,
       correlationId,
+      environment: targetEnvironment,
     });
 
     const routeRuntimeKey = `${targetServiceId}:${targetEnvironment}`;
@@ -658,17 +659,18 @@ export class ProxyHandler {
     const outcome = this.resolveServiceCallOutcome(input.statusCode);
     const routeFamily = `${this.opts.namespace}:${targetId}`;
     const requestId = this.resolveRequestId(input.req);
+    const sourceServiceId =
+      input.req.sourceServiceId ??
+      input.req.user?.sourceServiceId ??
+      input.tribeId ??
+      "unknown";
     const observation: ServiceCallObservation = {
       correlation_id: input.req.correlationId ?? requestId,
       request_id: requestId,
       environment: input.targetEnvironment,
       caller_type: "tribe",
       caller_id: input.tribeId || "unknown",
-      source_service_id:
-        input.req.sourceServiceId ??
-        input.req.user?.sourceServiceId ??
-        input.tribeId ??
-        "unknown",
+      source_service_id: sourceServiceId,
       target_type: targetType,
       route_family: routeFamily,
       http_method: input.req.method,
@@ -676,13 +678,10 @@ export class ProxyHandler {
       outcome,
       latency_ms: Math.max(0, input.latencyMs),
       rollup_key: this.buildServiceCallRollupKey({
+        sourceServiceId,
         environment: input.targetEnvironment,
-        callerType: "tribe",
-        callerId: input.tribeId || "unknown",
-        targetType,
         targetId,
         routeFamily,
-        outcome,
       }),
     };
 
@@ -708,22 +707,16 @@ export class ProxyHandler {
   }
 
   private buildServiceCallRollupKey(input: {
+    sourceServiceId: string;
     environment: string;
-    callerType: string;
-    callerId: string;
-    targetType: string;
     targetId: string;
     routeFamily: string;
-    outcome: ServiceCallOutcome;
   }): string {
     return [
+      input.sourceServiceId,
       input.environment,
-      input.callerType,
-      input.callerId,
-      input.targetType,
       input.targetId,
       input.routeFamily,
-      input.outcome,
     ].join(":");
   }
   /** Reject retired services (410) and set RFC 8594 deprecation headers. */

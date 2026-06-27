@@ -65,6 +65,42 @@ describe("SharedServiceUsageService", () => {
     ]);
   });
 
+  it("separates shared-service usage by environment", async () => {
+    await service.record({
+      tribeServiceId: "campusone",
+      sharedServiceId: "paymongo",
+      environment: "test",
+      route: "/api/v1/shared/paymongo/payments",
+      method: "POST",
+      status: 200,
+      ok: true,
+      latencyMs: 100,
+      timestamp: new Date("2026-05-13T14:03:00.000Z"),
+    });
+    await service.record({
+      tribeServiceId: "campusone",
+      sharedServiceId: "paymongo",
+      environment: "live",
+      route: "/api/v1/shared/paymongo/payments",
+      method: "POST",
+      status: 502,
+      ok: false,
+      latencyMs: 300,
+      timestamp: new Date("2026-05-13T14:04:00.000Z"),
+    });
+
+    const result = await service.listUsage(
+      "1h",
+      new Date("2026-05-13T14:30:00.000Z"),
+    );
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ environment: "test", totalRequests: 1 }),
+        expect.objectContaining({ environment: "live", totalRequests: 1 }),
+      ]),
+    );
+  });
   it("labels in-memory usage as volatile source metadata", async () => {
     await service.record({
       tribeServiceId: "campusone",

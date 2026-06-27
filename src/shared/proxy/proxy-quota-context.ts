@@ -9,6 +9,7 @@ export type CheckProxyQuotaInput = {
   namespace: ServiceType;
   targetServiceId: string;
   correlationId?: string;
+  environment?: string;
 };
 
 export async function checkProxyQuota({
@@ -17,6 +18,7 @@ export async function checkProxyQuota({
   namespace,
   targetServiceId,
   correlationId,
+  environment,
 }: CheckProxyQuotaInput): Promise<void> {
   const enforcer = requireGovernanceDependency(
     quotaEnforcer,
@@ -29,5 +31,6 @@ export async function checkProxyQuota({
     targetServiceId,
     routeFamily: `${namespace}:${targetServiceId}`,
     correlationId,
+    environment,
   });
 }

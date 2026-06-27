@@ -273,6 +273,7 @@ describe("ProxyHandler", () => {
         targetServiceId: "user-svc",
         routeFamily: "tribe:user-svc",
         correlationId: "corr-1",
+        environment: "test",
       });
       expect(mockCreateProxyMiddleware).toHaveBeenCalledTimes(1);
     });
@@ -833,7 +834,7 @@ describe("ProxyHandler", () => {
         outcome: "success",
         latency_ms: expect.any(Number),
         rollup_key:
-          "test:tribe:campusone:api_service:orders-api:tribe:orders-api:success",
+          "campusone:test:orders-api:tribe:orders-api",
       });
 
       expect(deps.gatewayTraffic?.recordProxyRequest).toHaveBeenCalledWith(
@@ -1085,7 +1086,7 @@ describe("ProxyHandler", () => {
             outcome: "server_error",
             latency_ms: expect.any(Number),
             rollup_key:
-              "test:tribe:campusone:shared_service:paymongo:shared:paymongo:server_error",
+              "campusone:test:paymongo:shared:paymongo",
           }),
         }),
       );

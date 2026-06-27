@@ -53,4 +53,29 @@ describe("PromotionEvidenceBundleService", () => {
       ]),
     );
   });
+
+  it("includes source and target environment for live promotion evidence", () => {
+    const service = new PromotionEvidenceBundleService();
+
+    const bundle = service.build({
+      serviceId: "campus-one",
+      sourceEnvironment: "test",
+      targetEnvironment: "live",
+      health: { status: "up" },
+      quotaPolicy: { id: "quota-1", mode: "observe" },
+      planAssignment: { id: "plan-1", planKey: "standard" },
+      approval: { id: "approval-1", status: "approved" },
+      smoke: { status: "passed" },
+      manifest: { status: "valid" },
+      pipeline: { topicExists: true, s3SinkIncludesTopic: true },
+    });
+
+    expect(bundle).toEqual(
+      expect.objectContaining({
+        serviceId: "campus-one",
+        sourceEnvironment: "test",
+        targetEnvironment: "live",
+      }),
+    );
+  });
 });

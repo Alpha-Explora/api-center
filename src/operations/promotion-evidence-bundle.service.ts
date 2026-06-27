@@ -12,6 +12,8 @@ export interface PromotionEvidenceSection {
 
 export interface PromotionEvidenceBundleInput {
   serviceId: string;
+  sourceEnvironment?: string;
+  targetEnvironment?: string;
   health?: { status?: string } | null;
   quotaPolicy?: unknown;
   planAssignment?: unknown;
@@ -27,6 +29,8 @@ export interface PromotionEvidenceBundleInput {
 
 export type PromotionEvidenceBundle = {
   serviceId: string;
+  sourceEnvironment?: string;
+  targetEnvironment?: string;
   ready: boolean;
   generatedAt: string;
   sections: PromotionEvidenceSection[];
@@ -81,12 +85,22 @@ export class PromotionEvidenceBundleService {
 
     const bundle = {
       serviceId: input.serviceId,
+      sourceEnvironment: input.sourceEnvironment,
+      targetEnvironment: input.targetEnvironment,
       ready: sections.every((section) => section.status === "pass"),
       generatedAt: new Date().toISOString(),
       sections,
     };
-    this.bundles.set(input.serviceId, bundle);
+    this.bundles.set(this.bundleKey(input), bundle);
     return bundle;
+  }
+
+  private bundleKey(input: PromotionEvidenceBundleInput): string {
+    return [
+      input.serviceId,
+      input.sourceEnvironment ?? "unknown-source",
+      input.targetEnvironment ?? "unknown-target",
+    ].join(":");
   }
 
   listBundles(): PromotionEvidenceBundle[] {

@@ -18,6 +18,7 @@ interface CheckTribeQuotaInput {
   targetServiceId?: string;
   routeFamily: string;
   correlationId?: string;
+  environment?: string;
 }
 
 interface QuotaDecisionDelegate {
@@ -35,6 +36,7 @@ interface QuotaDecisionDelegate {
       mode: string;
       outcome: TribeQuotaDecisionOutcome;
       correlationId?: string;
+      environment?: string;
     };
   }): Promise<unknown>;
 }
@@ -202,6 +204,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
         mode: policy.mode,
         outcome,
         correlationId: input.correlationId,
+        environment: input.environment ?? "unknown",
       },
     });
     this.recordAudit(
@@ -232,7 +235,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
         resourceId:
           input.correlationId ??
           `${input.ownerTribeId}:${policy.id ?? "unpersisted-policy"}:${windowStart.getTime()}`,
-        environment: "runtime",
+        environment: input.environment ?? "unknown",
         correlationId: input.correlationId,
         severity: outcome === "allowed" ? "info" : "warning",
         message: `Quota evaluation ${actionOutcome} for ${input.ownerTribeId}`,
@@ -248,12 +251,14 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
           outcome,
           actionOutcome,
           correlationId: input.correlationId,
+          environment: input.environment ?? "unknown",
           windowStart: windowStart.toISOString(),
           windowEnd: windowEnd.toISOString(),
         },
       })
       .catch(() => undefined);
   }
+
   private counterKey(
     policy: TribeQuotaPolicy,
     input: CheckTribeQuotaInput,
@@ -264,6 +269,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
       input.ownerTribeId,
       policy.scope,
       policy.targetServiceId ?? "all-targets",
+      input.environment ?? "unknown",
       policy.id ?? "unpersisted-policy",
       windowStart.getTime(),
     ].join(":");

@@ -25,6 +25,7 @@ describe("GatewayTrafficService", () => {
       targetService: "orders-api",
       method: "GET",
       statusCode: 200,
+      environment: "test",
       latencyMs: 80,
       timestamp: new Date("2026-05-13T14:03:00.000Z"),
     });
@@ -34,6 +35,7 @@ describe("GatewayTrafficService", () => {
       targetService: "payment",
       method: "POST",
       statusCode: 502,
+      environment: "live",
       latencyMs: 220,
       timestamp: new Date("2026-05-13T14:04:00.000Z"),
     });
@@ -52,6 +54,7 @@ describe("GatewayTrafficService", () => {
         status5xx: 1,
         avgLatencyMs: 150,
         p95LatencyMs: 220,
+        environments: { test: 1, live: 1 },
       }),
     );
   });

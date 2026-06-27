@@ -13,6 +13,7 @@ export type SharedServiceUsageWindow = "1h" | "24h" | "7d" | "30d";
 export interface SharedServiceUsageEvent {
   tribeServiceId: string;
   sharedServiceId: string;
+  environment?: string;
   route: string;
   method: string;
   status: number;
@@ -25,6 +26,7 @@ export interface SharedServiceUsageEvent {
 export interface SharedServiceUsageRecord {
   tribeServiceId: string;
   sharedServiceId: string;
+  environment: string;
   window: SharedServiceUsageWindow;
   totalRequests: number;
   successRequests: number;
@@ -97,9 +99,15 @@ export class SharedServiceUsageService
 
   async record(event: SharedServiceUsageEvent): Promise<void> {
     const hourStart = this.toHourStart(event.timestamp);
-    const pair = this.encodePair(event.tribeServiceId, event.sharedServiceId);
+    const environment = this.resolveEnvironment(event);
+    const pair = this.encodePair(
+      environment,
+      event.tribeServiceId,
+      event.sharedServiceId,
+    );
     const key = this.bucketKey(
       hourStart,
+      environment,
       event.tribeServiceId,
       event.sharedServiceId,
     );
@@ -146,7 +154,8 @@ export class SharedServiceUsageService
       await this.readBucketsWithSource(hours);
 
     const records = [...buckets.entries()].map(([pair, bucket]) => {
-      const [tribeServiceId, sharedServiceId] = this.decodePair(pair);
+      const [environment, tribeServiceId, sharedServiceId] =
+        this.decodePair(pair);
       const totalRequests = bucket.totalRequests;
       const failedRequests = bucket.failedRequests;
       const avgLatencyMs =
@@ -157,6 +166,7 @@ export class SharedServiceUsageService
       return {
         tribeServiceId,
         sharedServiceId,
+        environment,
         window,
         totalRequests,
         successRequests: bucket.successRequests,
@@ -172,8 +182,8 @@ export class SharedServiceUsageService
         if (b.totalRequests !== a.totalRequests) {
           return b.totalRequests - a.totalRequests;
         }
-        return `${a.tribeServiceId}:${a.sharedServiceId}`.localeCompare(
-          `${b.tribeServiceId}:${b.sharedServiceId}`,
+        return `${a.environment}:${a.tribeServiceId}:${a.sharedServiceId}`.localeCompare(
+          `${b.environment}:${b.tribeServiceId}:${b.sharedServiceId}`,
         );
       }),
       sourceMetadata: redisWindowSourceMetadata({
@@ -246,9 +256,10 @@ export class SharedServiceUsageService
     for (const hour of hours) {
       const members = await this.redis!.smembers(this.indexKey(hour));
       for (const pair of members) {
-        const [tribeServiceId, sharedServiceId] = this.decodePair(pair);
+        const [environment, tribeServiceId, sharedServiceId] =
+          this.decodePair(pair);
         const raw = await this.redis!.hgetall(
-          this.bucketKey(hour, tribeServiceId, sharedServiceId),
+          this.bucketKey(hour, environment, tribeServiceId, sharedServiceId),
         );
         this.mergeBucket(aggregate, pair, this.parseBucket(raw));
       }
@@ -336,10 +347,12 @@ export class SharedServiceUsageService
 
   private bucketKey(
     hourStart: Date,
+    environment: string,
     tribeServiceId: string,
     sharedServiceId: string,
   ): string {
     return `${BUCKET_PREFIX}:${hourStart.toISOString()}:${this.encodePair(
+      environment,
       tribeServiceId,
       sharedServiceId,
     )}`;
@@ -349,12 +362,27 @@ export class SharedServiceUsageService
     return `${INDEX_PREFIX}:${hourStart.toISOString()}`;
   }
 
-  private encodePair(tribeServiceId: string, sharedServiceId: string): string {
-    return JSON.stringify([tribeServiceId, sharedServiceId]);
+  private encodePair(
+    environment: string,
+    tribeServiceId: string,
+    sharedServiceId: string,
+  ): string {
+    return JSON.stringify([environment, tribeServiceId, sharedServiceId]);
   }
 
-  private decodePair(pair: string): [string, string] {
-    const parsed = JSON.parse(pair) as [string, string];
-    return [parsed[0], parsed[1]];
+  private decodePair(pair: string): [string, string, string] {
+    const parsed = JSON.parse(pair) as string[];
+    if (parsed.length === 2) {
+      return ["unknown", parsed[0] ?? "unknown", parsed[1] ?? "unknown"];
+    }
+    return [
+      parsed[0] ?? "unknown",
+      parsed[1] ?? "unknown",
+      parsed[2] ?? "unknown",
+    ];
+  }
+
+  private resolveEnvironment(event: SharedServiceUsageEvent): string {
+    return event.environment ?? event.observation?.environment ?? "unknown";
   }
 }

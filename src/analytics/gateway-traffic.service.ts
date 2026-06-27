@@ -15,6 +15,7 @@ export interface GatewayTrafficEvent {
   namespace: GatewayNamespace;
   sourceTribe: string;
   targetService: string;
+  environment?: string;
   method: string;
   statusCode: number;
   latencyMs: number;
@@ -34,6 +35,7 @@ export interface GatewayTrafficSummary {
   avgLatencyMs: number;
   p95LatencyMs: number;
   lastSeenAt?: string;
+  environments: Record<string, number>;
 }
 
 export interface GatewayTrafficSummaryResult {
@@ -103,6 +105,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       status5xx: event.statusCode >= 500 ? 1 : 0,
       kafkaPublishFailures: 0,
       readinessFailures: 0,
+      environments: { [this.resolveEnvironment(event)]: 1 },
       latencyMsTotal: Math.max(0, event.latencyMs),
       maxLatencyMs: Math.max(0, event.latencyMs),
       lastSeenAt: event.timestamp.toISOString(),
@@ -120,6 +123,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       status5xx: 0,
       kafkaPublishFailures: 1,
       readinessFailures: 0,
+      environments: {},
       latencyMsTotal: 0,
       maxLatencyMs: 0,
       lastSeenAt: timestamp.toISOString(),
@@ -136,6 +140,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       status5xx: 0,
       kafkaPublishFailures: 0,
       readinessFailures: 1,
+      environments: {},
       latencyMsTotal: 0,
       maxLatencyMs: 0,
       lastSeenAt: timestamp.toISOString(),
@@ -174,6 +179,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
         status5xx: aggregate.status5xx,
         kafkaPublishFailures: aggregate.kafkaPublishFailures,
         readinessFailures: aggregate.readinessFailures,
+        environments: aggregate.environments,
         avgLatencyMs:
           aggregate.totalProxyRequests > 0
             ? Math.round(
@@ -262,6 +268,16 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       if (increments.maxLatencyMs > Number(currentMax ?? 0)) {
         pipeline.hset(key, "maxLatencyMs", increments.maxLatencyMs);
       }
+      if (Object.keys(increments.environments).length) {
+        const existingEnvironments = this.parseEnvironmentCounts(
+          (await this.redis.hget(key, "environments")) ?? undefined,
+        );
+        for (const [environment, count] of Object.entries(increments.environments)) {
+          existingEnvironments[environment] =
+            (existingEnvironments[environment] ?? 0) + count;
+        }
+        pipeline.hset(key, "environments", JSON.stringify(existingEnvironments));
+      }
       if (increments.lastSeenAt)
         pipeline.hset(key, "lastSeenAt", increments.lastSeenAt);
       pipeline.expire(key, RETENTION_SECONDS);
@@ -283,6 +299,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       status5xx: 0,
       kafkaPublishFailures: 0,
       readinessFailures: 0,
+      environments: {},
       latencyMsTotal: 0,
       maxLatencyMs: 0,
     };
@@ -300,6 +317,10 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
     target.status5xx += source.status5xx;
     target.kafkaPublishFailures += source.kafkaPublishFailures;
     target.readinessFailures += source.readinessFailures;
+    for (const [environment, count] of Object.entries(source.environments)) {
+      target.environments[environment] =
+        (target.environments[environment] ?? 0) + count;
+    }
     target.latencyMsTotal += source.latencyMsTotal;
     target.maxLatencyMs = Math.max(target.maxLatencyMs, source.maxLatencyMs);
     if (
@@ -320,10 +341,26 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       status5xx: this.parseCount(raw.status5xx),
       kafkaPublishFailures: this.parseCount(raw.kafkaPublishFailures),
       readinessFailures: this.parseCount(raw.readinessFailures),
+      environments: this.parseEnvironmentCounts(raw.environments),
       latencyMsTotal: this.parseCount(raw.latencyMsTotal),
       maxLatencyMs: this.parseCount(raw.maxLatencyMs),
       lastSeenAt: raw.lastSeenAt,
     };
+  }
+
+  private parseEnvironmentCounts(value: string | undefined): Record<string, number> {
+    if (!value) return {};
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.entries(parsed).map(([environment, count]) => [
+          environment,
+          typeof count === "number" ? count : this.parseCount(String(count)),
+        ]),
+      );
+    } catch {
+      return {};
+    }
   }
 
   private parseCount(value: string | undefined): number {
@@ -338,6 +375,10 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       hour.setUTCHours(currentHour.getUTCHours() - index);
       return hour;
     });
+  }
+
+  private resolveEnvironment(event: GatewayTrafficEvent): string {
+    return event.environment ?? event.observation?.environment ?? "unknown";
   }
 
   private toHourStart(date: Date): Date {

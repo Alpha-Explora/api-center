@@ -888,7 +888,7 @@ git commit -m "feat: persist payment webhooks by environment"
 - Modify: `api-center/src/operations/promotion-evidence-bundle.service.ts`
 - Modify: matching specs
 
-- [ ] **Step 1: Add focused tests**
+- [x] **Step 1: Add focused tests**
 
 Add assertions that every durable or rollup record includes environment:
 
@@ -910,7 +910,7 @@ expect(bundle).toEqual(
 );
 ```
 
-- [ ] **Step 2: Use one rollup key shape**
+- [x] **Step 2: Use one rollup key shape**
 
 ```ts
 const rollupKey = [
@@ -921,7 +921,7 @@ const rollupKey = [
 ].join(":");
 ```
 
-- [ ] **Step 3: Ensure required audit events include environment**
+- [x] **Step 3: Ensure required audit events include environment**
 
 Required audit events should carry:
 
@@ -937,7 +937,7 @@ Required audit events should carry:
 }
 ```
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -1583,13 +1583,3 @@ usage/audit: serviceId=church-donations, environment=live
 - [x] Type consistency: API Center uses `ServiceEnvironmentKey`; SDK uses `ApicenterEnvironment`; runtime values are consistently `test` and `live`.
 - [x] Scope check: this remains one platform contract despite spanning three repos; tasks are sliced so each produces testable software.
 - [x] Visual tracker coverage: the plan requires a standalone HTML tracker for decisions, risks, slice status, database readiness, rollout gates, and deployment status, updated in the same slice as Markdown checkboxes.
-
-
-
-
-
-
-
-
-
-

@@ -52,6 +52,7 @@ describe("TribeQuotaEnforcerService", () => {
         maxRequests: 2,
         mode: "enforce",
         outcome: "allowed",
+        environment: "test",
       }),
     });
     expect(auditEvents.record).toHaveBeenLastCalledWith(
@@ -61,7 +62,7 @@ describe("TribeQuotaEnforcerService", () => {
         actor: "campus-one",
         resourceType: "quota_evaluation",
         resourceId: "corr-123",
-        environment: "runtime",
+        environment: "test",
         correlationId: "corr-123",
         severity: "info",
         message: "Quota evaluation allowed for campus-one",
@@ -77,6 +78,7 @@ describe("TribeQuotaEnforcerService", () => {
           outcome: "allowed",
           actionOutcome: "allowed",
           correlationId: "corr-123",
+          environment: "test",
         }),
       }),
     );
@@ -125,7 +127,7 @@ describe("TribeQuotaEnforcerService", () => {
         actor: "campus-one",
         resourceType: "quota_evaluation",
         resourceId: "corr-123",
-        environment: "runtime",
+        environment: "test",
         correlationId: "corr-123",
         severity: "warning",
         message: "Quota evaluation denied for campus-one",
@@ -201,5 +203,6 @@ function request() {
     targetServiceId: "payment-service",
     routeFamily: "shared-service",
     correlationId: "corr-123",
+    environment: "test",
   };
 }
