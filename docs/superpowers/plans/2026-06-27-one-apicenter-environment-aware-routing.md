@@ -1546,6 +1546,8 @@ npm run build
 npm run pack:check
 ```
 
+Current status: `check:contracts`, `typecheck`, `test`, `build`, and `pack:check` pass. The payment subscription smoke CLI now requires `APICENTER_ENVIRONMENT` and accepts the documented `APICENTER_URL` alias before live credentials are used.
+
 - [x] **Step 4: Management gates**
 
 ```powershell
