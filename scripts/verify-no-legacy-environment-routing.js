@@ -12,6 +12,7 @@ const allowHistorical = [
   /^scripts\/inventory-legacy-service-migration\.js$/,
   /^scripts\/migrate-legacy-.*[.]js$/,
   /^scripts\/delete-legacy-secret-records[.]js$/,
+  /^scripts\/delete-legacy-secret-records[.]test[.]js$/,
   /^scripts\/verify-no-legacy-environment-routing\.js$/,
 ];
 

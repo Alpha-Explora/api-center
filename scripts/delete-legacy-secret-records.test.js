@@ -129,6 +129,24 @@ run("allows deletion only after window with disabled versions and confirmation",
   assert.deepEqual(decision.blockers, []);
 });
 
+run("treats already-deleted records as non-blocking after rollback window", () => {
+  const decision = evaluateDeletionCandidate({
+    candidate: {
+      deleteAfter: "2026-07-04T22:30:06.543Z",
+    },
+    inspection: {
+      exists: false,
+      versions: [],
+    },
+    now: new Date("2026-07-05T00:00:00.000Z"),
+    apply: true,
+    confirmed: true,
+  });
+
+  assert.equal(decision.readyToDelete, false);
+  assert.deepEqual(decision.blockers, []);
+});
+
 run("summarizes Secret Manager version states", () => {
   assert.deepEqual(
     summarizeVersionStates([
