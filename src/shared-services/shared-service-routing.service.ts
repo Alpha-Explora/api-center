@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { ServiceUnavailableError } from "../shared/errors";
 import type { ApicenterRuntimeEnvironment } from "../types";
 
@@ -10,7 +10,7 @@ export interface SharedServiceRouteResolution {
 
 @Injectable()
 export class SharedServiceRoutingService {
-  constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
+  constructor(@Optional() private readonly env: NodeJS.ProcessEnv = process.env) {}
 
   resolve(
     sharedServiceId: string,

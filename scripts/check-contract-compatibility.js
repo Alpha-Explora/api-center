@@ -13,6 +13,10 @@ const contractPath = path.join(repoRoot, 'docs', 'contracts', 'shared-service-co
 const sharedControllerPath = path.join(repoRoot, 'src', 'shared-services', 'shared-services.controller.ts');
 const kafkaControllerPath = path.join(repoRoot, 'src', 'kafka-governance', 'kafka-governance.controller.ts');
 const externalPolicyPath = path.join(repoRoot, 'src', 'external', 'guards', 'external-policy.guard.ts');
+const openApiPath = path.join(repoRoot, 'docs', 'openapi', 'openapi.json');
+const authTokenContractPath = process.env.APICENTER_AUTH_TOKEN_CONTRACT_PATH
+  ? path.resolve(repoRoot, process.env.APICENTER_AUTH_TOKEN_CONTRACT_PATH)
+  : path.resolve(repoRoot, '..', 'api-shared-services', 'contracts', 'apicenter-auth-token.schema.json');
 
 const violations = [];
 const decoratorPatterns = {
@@ -174,8 +178,129 @@ function runContractChecks() {
   collectManifestDriftViolations();
 }
 
+function resolveOpenApiSchema(schema, doc) {
+  if (!schema) {
+    return null;
+  }
+
+  if (schema.$ref) {
+    const parts = schema.$ref.replace(/^#\//, '').split('/');
+    return resolveOpenApiSchema(
+      parts.reduce((current, part) => current?.[part], doc),
+      doc,
+    );
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    return schema.allOf.reduce(
+      (merged, item) => {
+        const resolved = resolveOpenApiSchema(item, doc) || {};
+        return {
+          ...merged,
+          ...resolved,
+          required: [...new Set([...(merged.required || []), ...(resolved.required || [])])],
+          properties: { ...(merged.properties || {}), ...(resolved.properties || {}) },
+        };
+      },
+      { type: 'object', required: [], properties: {} },
+    );
+  }
+
+  return schema;
+}
+
+function getAuthTokenSchemas(openApi) {
+  const operation = openApi.paths?.['/api/v1/auth/token']?.post;
+  const requestSchema = resolveOpenApiSchema(
+    operation?.requestBody?.content?.['application/json']?.schema,
+    openApi,
+  );
+  const responseContent =
+    operation?.responses?.['201']?.content?.['application/json'] ||
+    operation?.responses?.['200']?.content?.['application/json'];
+  const responseWrapper = resolveOpenApiSchema(responseContent?.schema, openApi);
+  const responseSchema = resolveOpenApiSchema(
+    responseWrapper?.properties?.data || responseWrapper,
+    openApi,
+  );
+
+  return { requestSchema, responseSchema };
+}
+
+function assertRequiredFields(schema, expectedFields, context) {
+  const required = new Set(schema?.required || []);
+  for (const field of expectedFields) {
+    if (!required.has(field)) {
+      violations.push(`${context} is missing required field '${field}'.`);
+    }
+  }
+}
+
+function assertProperties(schema, expectedFields, context) {
+  for (const field of expectedFields) {
+    if (!schema?.properties?.[field]) {
+      violations.push(`${context} is missing property '${field}'.`);
+    }
+  }
+}
+
+function assertEnvironmentEnum(schema, context) {
+  const environment = resolveOpenApiSchema(schema?.properties?.environment, schema) || schema?.properties?.environment;
+  const actual = environment?.enum || [];
+  const expected = ['test', 'live'];
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    violations.push(`${context} environment enum must be ${expected.join(', ')}; got ${actual.join(', ') || 'none'}.`);
+  }
+}
+
+function ensureAuthTokenOpenApiContract() {
+  if (!fs.existsSync(openApiPath)) {
+    violations.push('Missing generated OpenAPI artifact: docs/openapi/openapi.json. Run npm run openapi:generate.');
+    return;
+  }
+  if (!fs.existsSync(authTokenContractPath)) {
+    violations.push(`Missing APICenter auth token contract: ${authTokenContractPath}`);
+    return;
+  }
+
+  const openApi = readJson(openApiPath);
+  const contract = readJson(authTokenContractPath);
+  const { requestSchema, responseSchema } = getAuthTokenSchemas(openApi);
+
+  if (!requestSchema) {
+    violations.push('OpenAPI is missing POST /api/v1/auth/token request schema.');
+    return;
+  }
+  if (!responseSchema) {
+    violations.push('OpenAPI is missing POST /api/v1/auth/token response data schema.');
+    return;
+  }
+
+  const requiredRequest = contract.request?.required || [];
+  const optionalRequest = contract.request?.optional || [];
+  const allowedRequest = new Set([...requiredRequest, ...optionalRequest]);
+  const actualRequestProperties = Object.keys(requestSchema.properties || {});
+
+  assertRequiredFields(requestSchema, requiredRequest, 'Auth token request');
+  assertProperties(requestSchema, [...allowedRequest], 'Auth token request');
+  for (const field of actualRequestProperties) {
+    if (!allowedRequest.has(field)) {
+      violations.push(`Auth token request exposes unexpected field '${field}'.`);
+    }
+  }
+  if ((requestSchema.required || []).includes('sourceServiceId')) {
+    violations.push('Auth token request field sourceServiceId must remain optional.');
+  }
+  assertEnvironmentEnum(requestSchema, 'Auth token request');
+
+  const requiredResponse = contract.response?.required || [];
+  assertRequiredFields(responseSchema, requiredResponse, 'Auth token response data');
+  assertProperties(responseSchema, requiredResponse, 'Auth token response data');
+  assertEnvironmentEnum(responseSchema, 'Auth token response data');
+}
 function main() {
   runContractChecks();
+  ensureAuthTokenOpenApiContract();
 
   if (violations.length === 0) {
     console.log('Contract compatibility check passed.');

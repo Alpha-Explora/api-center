@@ -71,6 +71,669 @@
         ]
       }
     },
+    "/api/v1/quotas/policies": {
+      "get": {
+        "operationId": "TribeQuotaAdminController_listPolicies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribeQuotaAdmin"
+        ]
+      },
+      "post": {
+        "operationId": "TribeQuotaAdminController_createPolicy",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribeQuotaAdmin"
+        ]
+      }
+    },
+    "/api/v1/quotas/policies/{policyId}": {
+      "patch": {
+        "operationId": "TribeQuotaAdminController_updatePolicy",
+        "parameters": [
+          {
+            "name": "policyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribeQuotaAdmin"
+        ]
+      },
+      "delete": {
+        "operationId": "TribeQuotaAdminController_deletePolicy",
+        "parameters": [
+          {
+            "name": "policyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribeQuotaAdmin"
+        ]
+      }
+    },
+    "/api/v1/quotas/usage": {
+      "get": {
+        "operationId": "TribeQuotaUsageController_getUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribeQuotaUsage"
+        ]
+      }
+    },
+    "/api/v1/plans/definitions": {
+      "get": {
+        "operationId": "TribePlanAdminController_listDefinitions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribePlanAdmin"
+        ]
+      }
+    },
+    "/api/v1/plans/assignments": {
+      "get": {
+        "operationId": "TribePlanAdminController_listAssignments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribePlanAdmin"
+        ]
+      },
+      "post": {
+        "operationId": "TribePlanAdminController_assignPlan",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribePlanAdmin"
+        ]
+      }
+    },
+    "/api/v1/plans/assignments/{assignmentId}": {
+      "patch": {
+        "operationId": "TribePlanAdminController_updateAssignment",
+        "parameters": [
+          {
+            "name": "assignmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TribePlanAdmin"
+        ]
+      }
+    },
+    "/api/v1/developer-portal/me": {
+      "get": {
+        "operationId": "DeveloperPortalController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DeveloperPortal"
+        ]
+      }
+    },
+    "/api/v1/developer-portal/services": {
+      "get": {
+        "operationId": "DeveloperPortalController_services",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DeveloperPortal"
+        ]
+      }
+    },
+    "/api/v1/developer-portal/quotas": {
+      "get": {
+        "operationId": "DeveloperPortalController_quotas",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DeveloperPortal"
+        ]
+      }
+    },
+    "/api/v1/developer-portal/topics": {
+      "get": {
+        "operationId": "DeveloperPortalController_topics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DeveloperPortal"
+        ]
+      }
+    },
+    "/api/v1/developer-portal/onboarding": {
+      "get": {
+        "operationId": "DeveloperPortalController_onboarding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DeveloperPortal"
+        ]
+      }
+    },
+    "/api/v1/developer-portal/requests/quota-increase": {
+      "post": {
+        "operationId": "DeveloperPortalRequestController_requestQuotaIncrease",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DeveloperPortalRequest"
+        ]
+      }
+    },
+    "/api/v1/approvals/requests": {
+      "post": {
+        "operationId": "ApprovalRequestController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApprovalRequest"
+        ]
+      },
+      "get": {
+        "operationId": "ApprovalRequestController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApprovalRequest"
+        ]
+      }
+    },
+    "/api/v1/approvals/requests/{approvalRequestId}/approve": {
+      "post": {
+        "operationId": "ApprovalRequestController_approve",
+        "parameters": [
+          {
+            "name": "approvalRequestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApprovalRequest"
+        ]
+      }
+    },
+    "/api/v1/approvals/requests/{approvalRequestId}/reject": {
+      "post": {
+        "operationId": "ApprovalRequestController_reject",
+        "parameters": [
+          {
+            "name": "approvalRequestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApprovalRequest"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/health": {
+      "get": {
+        "operationId": "PipelineHealthController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineHealth"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/quality": {
+      "get": {
+        "operationId": "PipelineHealthController_getQuality",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineHealth"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/shared-service-usage": {
+      "get": {
+        "operationId": "PipelineHealthController_getSharedServiceUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineHealth"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/gateway-decisions": {
+      "get": {
+        "operationId": "PipelineHealthController_getGatewayDecisions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineHealth"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/cost": {
+      "get": {
+        "operationId": "PipelineHealthController_getCost",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineHealth"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/raw-to-silver-runs": {
+      "post": {
+        "operationId": "PipelineHealthController_startRawToSilverRun",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineHealth"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/event-schemas": {
+      "get": {
+        "operationId": "EventSchemaRegistryController_listSchemas",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "EventSchemaRegistry"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/feedback-actions": {
+      "post": {
+        "operationId": "PipelineFeedbackController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineFeedbackActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineFeedback"
+        ]
+      },
+      "get": {
+        "operationId": "PipelineFeedbackController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PipelineFeedback"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/decision-signals": {
+      "get": {
+        "operationId": "DecisionSignalsController_getDecisionSignals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DecisionSignals"
+        ]
+      }
+    },
+    "/api/v1/data-pipeline/topic-onboarding-states/{physicalTopic}": {
+      "get": {
+        "operationId": "TopicOnboardingStateController_get",
+        "parameters": [
+          {
+            "name": "physicalTopic",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TopicOnboardingState"
+        ]
+      },
+      "put": {
+        "operationId": "TopicOnboardingStateController_upsert",
+        "parameters": [
+          {
+            "name": "physicalTopic",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TopicOnboardingState"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/scorecards": {
+      "get": {
+        "operationId": "ConsumerScorecardController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConsumerScorecard"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/emergency": {
+      "get": {
+        "operationId": "EmergencyControlController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "EmergencyControl"
+        ]
+      },
+      "post": {
+        "operationId": "EmergencyControlController_apply",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "EmergencyControl"
+        ]
+      },
+      "delete": {
+        "operationId": "EmergencyControlController_clear",
+        "parameters": [
+          {
+            "name": "targetId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "EmergencyControl"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/drift/compare": {
+      "post": {
+        "operationId": "GovernanceDriftController_compare",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "GovernanceDrift"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/evidence/{serviceId}": {
+      "get": {
+        "operationId": "PromotionEvidenceBundleController_getEvidence",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PromotionEvidenceBundle"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/dependencies": {
+      "get": {
+        "operationId": "RuntimeDependencyMapController_getMap",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "RuntimeDependencyMap"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/lifecycle": {
+      "get": {
+        "operationId": "ServiceLifecycleEvidenceController_getLifecycle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ServiceLifecycleEvidence"
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/products": {
+      "get": {
+        "operationId": "ApiProductController_listProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApiProduct"
+        ]
+      }
+    },
+    "/api/v1/admin/compliance/export": {
+      "get": {
+        "operationId": "ComplianceExportController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ComplianceExport"
+        ]
+      }
+    },
+    "/api/v1/capabilities": {
+      "get": {
+        "operationId": "CapabilitiesController_getCapabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Capabilities"
+        ]
+      }
+    },
     "/api/v1/kafka/governance": {
       "get": {
         "operationId": "KafkaGovernanceController_getGovernanceCatalog",
@@ -139,7 +802,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenIssueResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -407,6 +1077,107 @@
         ]
       }
     },
+    "/api/v1/registry/registration-requests": {
+      "post": {
+        "operationId": "RegistrationRequestsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRegistrationRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "RegistrationRequests"
+        ]
+      },
+      "get": {
+        "operationId": "RegistrationRequestsController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "RegistrationRequests"
+        ]
+      }
+    },
+    "/api/v1/registry/registration-requests/{requestId}/approve": {
+      "post": {
+        "operationId": "RegistrationRequestsController_approve",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "RegistrationRequests"
+        ]
+      }
+    },
+    "/api/v1/registry/registration-requests/{requestId}/reject": {
+      "post": {
+        "operationId": "RegistrationRequestsController_reject",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRegistrationRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "RegistrationRequests"
+        ]
+      }
+    },
     "/api/v1/tribes": {
       "get": {
         "operationId": "TribesController_listServices",
@@ -591,10 +1362,19 @@
         ]
       }
     },
-    "/api/v1/shared/payment/webhooks": {
+    "/api/v1/shared/payment/webhooks/{environment}": {
       "post": {
         "operationId": "PaymentWebhookController_forwardPayMongoWebhook",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "environment",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1378,6 +2158,10 @@
       }
     },
     "schemas": {
+      "PipelineFeedbackActionDto": {
+        "type": "object",
+        "properties": {}
+      },
       "KafkaPublishMessageDto": {
         "type": "object",
         "properties": {
@@ -1397,6 +2181,12 @@
             "example": "order.created",
             "description": "Domain event type for schema governance",
             "maxLength": 120
+          },
+          "schemaVersion": {
+            "type": "string",
+            "example": "1.0.0",
+            "description": "Event schema version approved in the APICenter schema registry. Defaults to 1.0.0 when omitted.",
+            "maxLength": 40
           },
           "payload": {
             "type": "object",
@@ -1434,6 +2224,19 @@
             "example": "payment-service",
             "maxLength": 50
           },
+          "sourceServiceId": {
+            "type": "string",
+            "example": "payment-api",
+            "maxLength": 80
+          },
+          "environment": {
+            "type": "string",
+            "example": "test",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
           "secret": {
             "type": "string",
             "example": "super-secret-value"
@@ -1441,7 +2244,107 @@
         },
         "required": [
           "tribeId",
+          "environment",
           "secret"
+        ]
+      },
+      "TokenIssueDataDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "example": "eyJhbGciOi..."
+          },
+          "refreshToken": {
+            "type": "object",
+            "example": "eyJhbGciOi...",
+            "nullable": true
+          },
+          "expiresIn": {
+            "type": "number",
+            "example": 3600
+          },
+          "tribeId": {
+            "type": "string",
+            "example": "logistics"
+          },
+          "sourceServiceId": {
+            "type": "string",
+            "example": "logistics-orders"
+          },
+          "environment": {
+            "type": "string",
+            "example": "test",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "permissions": {
+            "example": [
+              "tribe:logistics:read"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes": {
+            "example": [
+              "payment:charge"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn",
+          "tribeId",
+          "sourceServiceId",
+          "environment",
+          "permissions",
+          "scopes"
+        ]
+      },
+      "TokenIssueMetaDto": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "example": "2026-06-27T00:00:00.000Z"
+          },
+          "correlationId": {
+            "type": "string",
+            "example": "req_01JZ..."
+          }
+        },
+        "required": [
+          "timestamp",
+          "correlationId"
+        ]
+      },
+      "TokenIssueResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/TokenIssueDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TokenIssueMetaDto"
+          }
+        },
+        "required": [
+          "success",
+          "data",
+          "meta"
         ]
       },
       "RefreshTokenDto": {
@@ -1471,6 +2374,34 @@
         },
         "required": [
           "refreshToken"
+        ]
+      },
+      "ServiceEnvironmentDto": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "example": "test",
+            "enum": [
+              "test",
+              "staging",
+              "uat",
+              "demo",
+              "live"
+            ]
+          },
+          "baseUrl": {
+            "type": "string",
+            "example": "https://trinithrive-test.example.com"
+          },
+          "healthCheck": {
+            "type": "string",
+            "example": "/health"
+          }
+        },
+        "required": [
+          "environment",
+          "baseUrl"
         ]
       },
       "ServiceManifestDto": {
@@ -1527,6 +2458,12 @@
             "type": "string",
             "example": "/health"
           },
+          "environments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceEnvironmentDto"
+            }
+          },
           "version": {
             "type": "string",
             "example": "1.0.0"
@@ -1582,6 +2519,42 @@
               "tribe"
             ],
             "default": "tribe"
+          },
+          "targetEnvironment": {
+            "type": "string",
+            "example": "live",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "approvalRequestId": {
+            "type": "string",
+            "example": "approval-request-id"
+          },
+          "apiProductName": {
+            "type": "string",
+            "example": "Payments API"
+          },
+          "apiProductDescription": {
+            "type": "string",
+            "example": "Checkout and subscription operations."
+          },
+          "slaTier": {
+            "type": "string",
+            "example": "gold"
+          },
+          "supportChannel": {
+            "type": "string",
+            "example": "#payments-support"
+          },
+          "documentationUrl": {
+            "type": "string",
+            "example": "https://docs.example.com/payments"
+          },
+          "providerCostSensitive": {
+            "type": "boolean",
+            "example": true
           }
         },
         "required": [
@@ -1604,6 +2577,33 @@
             "example": "payment-service-v2"
           }
         }
+      },
+      "CreateRegistrationRequestDto": {
+        "type": "object",
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/ServiceManifestDto"
+          },
+          "requestedBy": {
+            "type": "string",
+            "example": "github:logistics/orders-api/.github/workflows/register.yml"
+          }
+        },
+        "required": [
+          "manifest"
+        ]
+      },
+      "RejectRegistrationRequestDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "Consumes list references an unapproved production service."
+          }
+        },
+        "required": [
+          "reason"
+        ]
       }
     }
   }

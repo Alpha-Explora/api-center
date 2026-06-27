@@ -1370,7 +1370,7 @@ git commit -m "feat: manage tribe secrets by environment"
 - Create or modify: `api-shared-services/contracts/apicenter-auth-token.schema.json`
 - Modify: API Center and SDK contract check scripts, for example `api-center/scripts/check-contracts.*` and `api-shared-services/scripts/check-contract-compatibility.*`
 
-- [ ] **Step 1: Update consumer docs**
+- [x] **Step 1: Update consumer docs**
 
 Document new one-URL mode:
 
@@ -1382,7 +1382,7 @@ APICENTER_SERVICE_ID=<registered-service-id>
 APICENTER_TRIBE_SECRET=<environment-scoped-secret-issued-by-platform>
 ```
 
-- [ ] **Step 2: Add migration notes**
+- [x] **Step 2: Add migration notes**
 
 ```text
 Old test URL mode:
@@ -1393,7 +1393,7 @@ APICENTER_URL=https://api-center.itsandbox.site
 APICENTER_ENVIRONMENT=test
 ```
 
-- [ ] **Step 3: Add enforceable auth-token contract checks**
+- [x] **Step 3: Add enforceable auth-token contract checks**
 
 Contract checks must parse the generated API Center OpenAPI/auth schema and fail unless `/api/v1/auth/token` satisfies all of these:
 
@@ -1407,7 +1407,7 @@ no generated SDK/client example omits APICENTER_ENVIRONMENT
 
 The SDK compatibility script must compare its `apicenter-auth-token.schema.json` against the generated API Center contract, not only shared-service or manifest contracts.
 
-- [ ] **Step 4: Verify and commit docs**
+- [x] **Step 4: Verify and commit docs**
 
 ```powershell
 cd C:\Codes\apic

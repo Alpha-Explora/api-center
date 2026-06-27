@@ -92,6 +92,31 @@ where rolname in ('api_center_app', 'shared_services_app');
 
 Any `environment`, `target_environment`, or `source_environment` column in APIC or shared-payment runtime tables must have `column_default is null`.
 
+## Runtime Identity Contract
+
+The one-URL runtime contract is part of control-plane data quality. Service rows, audit evidence, quota decisions, and runtime rollups are only trustworthy when token identity and database rows use the same explicit environment value.
+
+`POST /api/v1/auth/token` must keep this contract in the generated OpenAPI artifact and SDK compatibility checks:
+
+- Request required fields: `tribeId`, `secret`, and `environment`.
+- Request optional field: `sourceServiceId` for microservice attribution inside the owning tribe.
+- `environment` enum: `test`, `live`.
+- Response data fields: `accessToken`, `refreshToken`, `expiresIn`, `tribeId`, `sourceServiceId`, `environment`, `permissions`, and `scopes`.
+
+Consumers must use one gateway URL and set environment explicitly:
+
+```env
+APICENTER_URL=https://api-center.itsandbox.site
+APICENTER_ENVIRONMENT=test
+```
+
+The old test-hostname mode is compatibility-only documentation:
+
+```env
+APICENTER_URL=https://api-center-test.itsandbox.site
+```
+
+Do not introduce database, Prisma, SDK, proxy, or Management defaults that silently classify missing environment as `test`.
 ## Retained Commands
 
 Use these commands for ordinary control-plane database maintenance:

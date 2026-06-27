@@ -14,6 +14,7 @@ import {
   NotFoundException,
   HttpStatus,
 } from "@nestjs/common";
+import { ApiCreatedResponse } from "@nestjs/swagger";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -23,6 +24,7 @@ import { KafkaService } from "../kafka/kafka.service";
 import { TOPICS } from "../kafka/topics";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "../shared/errors";
 import { TokenRequestDto } from "../shared/dto/token-request.dto";
+import { TokenIssueResponseDto } from "../shared/dto/token-response.dto";
 import { RefreshTokenDto } from "../shared/dto/refresh-token.dto";
 import { RevokeTokenDto } from "../shared/dto/revoke-token.dto";
 import { getPlatformCapabilityScopes } from "../shared/platform-capabilities";
@@ -48,6 +50,7 @@ export class AuthController {
   // ---------------------------------------------------------------------------
 
   @Post("token")
+  @ApiCreatedResponse({ type: TokenIssueResponseDto })
   async issueToken(
     @Body() dto: TokenRequestDto,
     @Req() req: AuthenticatedRequest,
