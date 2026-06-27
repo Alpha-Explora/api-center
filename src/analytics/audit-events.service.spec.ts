@@ -90,7 +90,7 @@ describe("AuditEventsService", () => {
       expect(prisma.auditEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           id: record.id,
-          actorType: "human",
+          actorType: "operator",
           actorId: "platform@example.test",
           action: "quota.policy.updated",
           resourceType: "service",
@@ -110,6 +110,47 @@ describe("AuditEventsService", () => {
     }
   });
 
+  it("maps platform-admin audit actors to the database-compatible operator actor type", async () => {
+    const original = process.env.DATABASE_ENABLED;
+    process.env.DATABASE_ENABLED = "true";
+    const prisma = {
+      auditEvent: {
+        create: jest.fn(async () => ({})),
+        findMany: jest.fn(),
+      },
+    };
+    const databaseBackedService = new AuditEventsService(
+      { redis: { cacheUrl: "" } } as any,
+      { info: jest.fn(), warn: jest.fn() } as any,
+      prisma as any,
+    );
+
+    try {
+      await databaseBackedService.recordRequired({
+        type: "registry.service.create_requested",
+        severity: "info",
+        message: "registry.service.create_requested for church-donations",
+        actor: "platform-admin",
+        actionFamily: "registration",
+        serviceId: "church-donations",
+        resourceType: "service",
+        resourceId: "church-donations",
+        environment: "test",
+        correlationId: "corr-register",
+      } as any);
+
+      expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          actorType: "operator",
+          actorId: "platform-admin",
+          action: "registry.service.create_requested",
+        }),
+      });
+    } finally {
+      if (original === undefined) delete process.env.DATABASE_ENABLED;
+      else process.env.DATABASE_ENABLED = original;
+    }
+  });
   it("recordRequired fails closed when Postgres audit persistence fails in database mode", async () => {
     const original = process.env.DATABASE_ENABLED;
     process.env.DATABASE_ENABLED = "true";
@@ -157,7 +198,7 @@ describe("AuditEventsService", () => {
           {
             id: "00000000-0000-0000-0000-000000000001",
             correlationId: null,
-            actorType: "human",
+            actorType: "operator",
             actorId: "platform@example.test",
             action: "quota.policy.updated",
             resourceType: "service",
@@ -216,7 +257,7 @@ describe("AuditEventsService", () => {
           {
             id: "00000000-0000-0000-0000-000000000001",
             correlationId: null,
-            actorType: "human",
+            actorType: "operator",
             actorId: "platform@example.test",
             action: "quota.policy.updated",
             resourceType: "service",

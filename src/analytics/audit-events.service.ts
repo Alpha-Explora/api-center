@@ -270,7 +270,7 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.auditEvent.create({
         data: {
           id: record.id,
-          actorType: record.actor ? "human" : "system",
+          actorType: resolveActorType(record),
           actorId: record.actor,
           action: record.type,
           resourceType: record.resourceType ?? this.resolveResourceType(record),
@@ -384,6 +384,22 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
     const parsed = new Date(timestamp);
     return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
   }
+}
+
+function resolveActorType(record: AuditEventRecord): "system" | "operator" | "tribe" {
+  if (!record.actor?.trim()) return "system";
+
+  const actor = record.actor.toLowerCase();
+  if (
+    actor === "platform-admin" ||
+    actor.includes("@") ||
+    actor.includes("operator") ||
+    actor.includes("admin")
+  ) {
+    return "operator";
+  }
+
+  return "tribe";
 }
 
 function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
