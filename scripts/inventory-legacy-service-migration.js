@@ -181,7 +181,7 @@ async function inventoryCatalog(databaseUrl) {
 function catalogSql() {
   return [
     "select",
-    "s.id, s.service_id, s.name, s.owner_tribe_id, s.service_type, s.base_url, s.health_check_path,",
+    "s.id, s.service_id, s.name, s.owner_tribe_id, s.service_type, s.base_url, s.health_check_path, s.tags,",
     "s.status, s.updated_at, s.sunset_date, s.replacement_service_id,",
     "coalesce((select jsonb_agg(jsonb_build_object(",
     "  'environment', e.environment,",
@@ -214,6 +214,7 @@ function mapCatalogRow(row) {
     serviceType: row.service_type,
     baseUrl: row.base_url,
     healthCheck: row.health_check_path || undefined,
+    tags: normalizeTags(row.tags),
     status: row.status,
     sunsetDate: iso(row.sunset_date),
     replacementServiceId: row.replacement_service_id || undefined,
@@ -248,6 +249,7 @@ function legacySignalsForService(service) {
   const environments = Array.isArray(service.environments)
     ? service.environments
     : [];
+  const isDocumentedTestOnly = service.tags.includes("apic:test-only");
   if (environments.length === 0) signals.push("missing_environment_rows");
   const envValues = environments.map((environment) => environment.environment);
   const invalidEnvValues = envValues.filter(
@@ -265,10 +267,15 @@ function legacySignalsForService(service) {
   if (
     service.serviceType === "tribe" &&
     service.status === "active" &&
+    !isDocumentedTestOnly &&
     !envValues.includes("live") &&
     !signals.some((signal) => signal.includes("temporary") || signal.includes("placeholder"))
   ) {
     signals.push("missing_live_environment_row");
+  }
+  if (isDocumentedTestOnly) {
+    removeSignal(signals, "smoke_temporary");
+    removeSignal(signals, "local_url");
   }
   for (const secret of service.secretReferences || []) {
     const name = secret.secretManagerName || "";
@@ -303,6 +310,15 @@ function summarizeCatalog(activeServices) {
     byDisposition,
     bySignal,
   };
+}
+
+function normalizeTags(tags) {
+  return Array.isArray(tags) ? tags.map(String).sort() : [];
+}
+
+function removeSignal(signals, signal) {
+  const index = signals.indexOf(signal);
+  if (index >= 0) signals.splice(index, 1);
 }
 
 async function inventorySecrets(project, repoRoot) {

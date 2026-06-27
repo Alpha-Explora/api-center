@@ -2181,9 +2181,9 @@ node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-
 
 Expected: the artifact lists every active legacy service signal and every legacy/test-prefixed Secret Manager record. No plaintext secret value appears.
 
-Current status: `node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json` completed on 2026-06-28 with `blockers=0` and no secret payload values recorded. The artifact reports 22 active catalog services; 7 are already in the new model, 6 require explicit environment rows, and 9 should be retired or marked test-only. It also reports 14 legacy Secret Manager records by metadata only (10 test-prefixed, 4 unscoped), 9 scoped target records, and 50 active code/doc compatibility findings. `ready=false` is expected until Step 2 through Step 5 are complete.
+Current status: `node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json` completed on 2026-06-28 with `blockers=0` and no secret payload values recorded. After Step 2 applied, the artifact reports 14 active catalog services and all 14 are `new_model`; `legacyServices=0`. It still reports 14 legacy Secret Manager records by metadata only (10 test-prefixed, 4 unscoped), 9 scoped target records, and 50 active code/doc compatibility findings. `ready=false` is expected until Step 3 through Step 5 are complete.
 
-- [ ] **Step 2: Migrate active services to explicit environment rows or retire them**
+- [x] **Step 2: Migrate active services to explicit environment rows or retire them**
 
 For each row in `legacy-service-migration-2026-06-28.json`:
 
@@ -2212,6 +2212,8 @@ not required for non-owned services: authenticating to their backend, calling th
 npm run registry:verify
 node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json
 ```
+
+Current status: `npm run registry:migrate-legacy-services -- --apply --out docs/operations/legacy-service-record-migration-2026-06-28.json` applied a single Postgres transaction. It added explicit `test` and `live` environment rows for `flow-ci`, `greenovate`, `pakiapps`, `shoteam`, `smurf-village`, and `trinithrive`; retired 8 temporary/placeholder records; and marked `smoke-tribe` as explicit test-only with a sunset. Live API Center was restarted with `kubectl rollout restart deployment/api-center -n api-center`, and `npm run registry:verify -- --out docs/operations/registry-parity-post-service-migration-2026-06-28.json` returned `ready=true`, API snapshot 22, Postgres 22, 0 missing, 0 mismatched.
 
 - [ ] **Step 3: Migrate stored legacy secrets, then disable and delete legacy records after rollback**
 

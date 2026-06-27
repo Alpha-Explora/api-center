@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-27T22:14:46.269Z",
+  "generatedAt": "2026-06-27T22:23:20.188Z",
   "mode": "apicenter-control-plane-inventory",
   "payloadPolicy": "Secret payload values are not read or printed. Secret Manager checks use names, labels, replication metadata, and version status only.",
   "environment": {
@@ -25,7 +25,6 @@
   "ready": false,
   "blockers": [],
   "warnings": [
-    "15 active service records still have legacy migration signals.",
     "14 legacy Secret Manager records still need rollback/delete disposition.",
     "50 code/doc legacy compatibility findings remain."
   ],
@@ -39,6 +38,7 @@
         "serviceType": "shared",
         "baseUrl": "http://email-service:4012",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-25T23:53:30.434Z",
         "environments": [
@@ -62,6 +62,7 @@
         "serviceType": "shared",
         "baseUrl": "http://gauth-service:4013",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-25T23:53:30.361Z",
         "environments": [
@@ -85,6 +86,7 @@
         "serviceType": "shared",
         "baseUrl": "http://geo-service:4015",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-25T23:53:30.534Z",
         "environments": [
@@ -108,6 +110,7 @@
         "serviceType": "shared",
         "baseUrl": "http://otp-service:4014",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-25T23:53:30.326Z",
         "environments": [
@@ -131,6 +134,7 @@
         "serviceType": "shared",
         "baseUrl": "http://payment-service:4010",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-25T23:53:30.827Z",
         "environments": [
@@ -154,6 +158,7 @@
         "serviceType": "shared",
         "baseUrl": "http://sms-service:4011",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-25T23:53:30.168Z",
         "environments": [
@@ -177,6 +182,7 @@
         "serviceType": "tribe",
         "baseUrl": "https://wlcm-website-backend.onrender.com",
         "healthCheck": "/health",
+        "tags": [],
         "status": "active",
         "updatedAt": "2026-06-27T21:18:05.099Z",
         "environments": [
@@ -208,158 +214,33 @@
         "migrationDisposition": "new_model"
       },
       {
-        "serviceId": "codex-owner-20260520024731",
-        "name": "Codex Owner Tribe",
-        "ownerTribeId": "codex-owner-20260520024731",
-        "serviceType": "tribe",
-        "baseUrl": "https://api-center-test.itsandbox.site",
-        "healthCheck": "/api/v1/health/live",
-        "status": "active",
-        "updatedAt": "2026-06-27T12:21:00.456Z",
-        "environments": [
-          {
-            "environment": "test",
-            "baseUrl": "https://api-center-test.itsandbox.site",
-            "healthCheck": "/api/v1/health/live",
-            "status": "active",
-            "updatedAt": "2026-06-27T12:21:00.456Z"
-          }
-        ],
-        "consumes": [
-          "kafka"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "api_center_test_url",
-          "codex_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
-      },
-      {
-        "serviceId": "codex-owner-20260520024731-orders",
-        "name": "Codex Orders Service",
-        "ownerTribeId": "codex-owner-20260520024731",
-        "serviceType": "tribe",
-        "baseUrl": "https://api-center-test.itsandbox.site",
-        "healthCheck": "/api/v1/health/live",
-        "status": "active",
-        "updatedAt": "2026-06-27T12:21:00.416Z",
-        "environments": [
-          {
-            "environment": "test",
-            "baseUrl": "https://api-center-test.itsandbox.site",
-            "healthCheck": "/api/v1/health/live",
-            "status": "active",
-            "updatedAt": "2026-06-27T12:21:00.416Z"
-          }
-        ],
-        "consumes": [
-          "kafka"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "api_center_test_url",
-          "codex_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
-      },
-      {
-        "serviceId": "codex-probe",
-        "name": "Codex Probe",
-        "ownerTribeId": "codex-probe",
-        "serviceType": "tribe",
-        "baseUrl": "https://api-center-test.itsandbox.site",
-        "healthCheck": "/api/v1/health/live",
-        "status": "active",
-        "updatedAt": "2026-06-27T12:21:00.442Z",
-        "environments": [
-          {
-            "environment": "test",
-            "baseUrl": "https://api-center-test.itsandbox.site",
-            "healthCheck": "/api/v1/health/live",
-            "status": "active",
-            "updatedAt": "2026-06-27T12:21:00.442Z"
-          }
-        ],
-        "consumes": [
-          "kafka"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "api_center_test_url",
-          "codex_temporary",
-          "probe_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
-      },
-      {
-        "serviceId": "codex-smoke-20260520022520",
-        "name": "Codex Smoke Pipeline",
-        "ownerTribeId": "codex-smoke-20260520022520",
-        "serviceType": "tribe",
-        "baseUrl": "https://api-center-test.itsandbox.site",
-        "healthCheck": "/api/v1/health/live",
-        "status": "active",
-        "updatedAt": "2026-06-27T12:21:00.380Z",
-        "environments": [
-          {
-            "environment": "test",
-            "baseUrl": "https://api-center-test.itsandbox.site",
-            "healthCheck": "/api/v1/health/live",
-            "status": "active",
-            "updatedAt": "2026-06-27T12:21:00.380Z"
-          }
-        ],
-        "consumes": [
-          "kafka"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "api_center_test_url",
-          "codex_temporary",
-          "smoke_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
-      },
-      {
-        "serviceId": "codex-smoke-20260520022710",
-        "name": "Codex Smoke Pipeline",
-        "ownerTribeId": "codex-smoke-20260520022710",
-        "serviceType": "tribe",
-        "baseUrl": "https://api-center-test.itsandbox.site",
-        "healthCheck": "/api/v1/health/live",
-        "status": "active",
-        "updatedAt": "2026-06-27T12:21:00.146Z",
-        "environments": [
-          {
-            "environment": "test",
-            "baseUrl": "https://api-center-test.itsandbox.site",
-            "healthCheck": "/api/v1/health/live",
-            "status": "active",
-            "updatedAt": "2026-06-27T12:21:00.146Z"
-          }
-        ],
-        "consumes": [
-          "kafka"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "api_center_test_url",
-          "codex_temporary",
-          "smoke_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
-      },
-      {
         "serviceId": "flow-ci",
         "name": "CICD Service",
         "ownerTribeId": "flow-ci",
         "serviceType": "tribe",
         "baseUrl": "https://flow-ci-api.itsandbox.site",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-19T20:40:30.385Z",
-        "environments": [],
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://flow-ci-api.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://flow-ci-api.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -369,12 +250,8 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_live_environment_row",
-          "missing_test_environment_row"
-        ],
-        "migrationDisposition": "migrate_to_environment_rows"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       },
       {
         "serviceId": "greenovate",
@@ -383,9 +260,27 @@
         "serviceType": "tribe",
         "baseUrl": "https://greenovate-be.itsandbox.site",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-21T18:05:34.567Z",
-        "environments": [],
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://greenovate-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://greenovate-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -396,50 +291,8 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_live_environment_row",
-          "missing_test_environment_row"
-        ],
-        "migrationDisposition": "migrate_to_environment_rows"
-      },
-      {
-        "serviceId": "logistics",
-        "name": "Logistics Tribe",
-        "ownerTribeId": "logistics",
-        "serviceType": "tribe",
-        "baseUrl": "https://logistics.example.invalid",
-        "status": "active",
-        "updatedAt": "2026-05-20T18:37:25.735Z",
-        "environments": [],
-        "consumes": [
-          "kafka"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_test_environment_row",
-          "placeholder_invalid_url"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
-      },
-      {
-        "serviceId": "logistics-orders",
-        "name": "Logistics Orders",
-        "ownerTribeId": "logistics",
-        "serviceType": "tribe",
-        "baseUrl": "https://logistics-orders.example.invalid",
-        "status": "active",
-        "updatedAt": "2026-05-20T18:37:29.752Z",
-        "environments": [],
-        "consumes": [],
-        "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_test_environment_row",
-          "placeholder_invalid_url"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       },
       {
         "serviceId": "pakiapps",
@@ -448,9 +301,27 @@
         "serviceType": "tribe",
         "baseUrl": "https://pakiapps-be.itsandbox.site",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-21T18:05:46.831Z",
-        "environments": [],
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://pakiapps-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://pakiapps-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -461,34 +332,8 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_live_environment_row",
-          "missing_test_environment_row"
-        ],
-        "migrationDisposition": "migrate_to_environment_rows"
-      },
-      {
-        "serviceId": "quota-smoke",
-        "name": "Quota Smoke Tribe",
-        "ownerTribeId": "quota-smoke",
-        "serviceType": "tribe",
-        "baseUrl": "https://quota-smoke.invalid",
-        "healthCheck": "/health",
-        "status": "active",
-        "updatedAt": "2026-05-25T00:50:30.212Z",
-        "environments": [],
-        "consumes": [
-          "payment"
-        ],
-        "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_test_environment_row",
-          "placeholder_invalid_url",
-          "smoke_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       },
       {
         "serviceId": "shoteam",
@@ -497,9 +342,27 @@
         "serviceType": "tribe",
         "baseUrl": "https://shoteam-be.itsandbox.site",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-21T18:05:59.522Z",
-        "environments": [],
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://shoteam-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://shoteam-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -510,12 +373,8 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_live_environment_row",
-          "missing_test_environment_row"
-        ],
-        "migrationDisposition": "migrate_to_environment_rows"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       },
       {
         "serviceId": "smoke-tribe",
@@ -524,9 +383,24 @@
         "serviceType": "tribe",
         "baseUrl": "http://smoke-tribe.local",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated",
+          "apic:test-only",
+          "migration",
+          "smoke"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-19T20:54:00.136Z",
-        "environments": [],
+        "sunsetDate": "2026-07-27T22:21:12.515Z",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://smoke-tribe.local",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -537,13 +411,8 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "local_url",
-          "missing_environment_rows",
-          "missing_test_environment_row",
-          "smoke_temporary"
-        ],
-        "migrationDisposition": "retire_or_mark_test_only"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       },
       {
         "serviceId": "smurf-village",
@@ -552,9 +421,27 @@
         "serviceType": "tribe",
         "baseUrl": "https://smurf-village-be.itsandbox.site",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-21T18:15:00.267Z",
-        "environments": [],
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://smurf-village-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://smurf-village-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -565,12 +452,8 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_live_environment_row",
-          "missing_test_environment_row"
-        ],
-        "migrationDisposition": "migrate_to_environment_rows"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       },
       {
         "serviceId": "trinithrive",
@@ -579,9 +462,27 @@
         "serviceType": "tribe",
         "baseUrl": "https://trinithrive.itsandbox.site",
         "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
         "status": "active",
-        "updatedAt": "2026-05-21T18:06:11.116Z",
-        "environments": [],
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://trinithrive.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://trinithrive.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
         "consumes": [
           "email",
           "gauth",
@@ -592,32 +493,16 @@
           "sms"
         ],
         "secretReferences": [],
-        "legacySignals": [
-          "missing_environment_rows",
-          "missing_live_environment_row",
-          "missing_test_environment_row"
-        ],
-        "migrationDisposition": "migrate_to_environment_rows"
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
       }
     ],
     "summaries": {
-      "activeServiceCount": 22,
+      "activeServiceCount": 14,
       "byDisposition": {
-        "new_model": 7,
-        "retire_or_mark_test_only": 9,
-        "migrate_to_environment_rows": 6
+        "new_model": 14
       },
-      "bySignal": {
-        "api_center_test_url": 5,
-        "codex_temporary": 5,
-        "probe_temporary": 1,
-        "smoke_temporary": 4,
-        "missing_environment_rows": 10,
-        "missing_live_environment_row": 6,
-        "missing_test_environment_row": 10,
-        "placeholder_invalid_url": 3,
-        "local_url": 1
-      }
+      "bySignal": {}
     }
   },
   "secrets": {
@@ -1209,6 +1094,27 @@
         "requiresCleanup": true
       },
       {
+        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 10,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 10,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 17,
+        "requiresCleanup": false
+      },
+      {
         "file": "docs/operations/one-url-environment-migration-inventory.md",
         "rule": "legacy_test_url",
         "description": "Active code/docs still reference the old test APICenter URL",
@@ -1573,6 +1479,27 @@
         "requiresCleanup": true
       },
       {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 3,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 5,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "management_environment_alias",
+        "description": "Management deployment env aliases still duplicate MANAGEMENT_ENVIRONMENT",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
         "file": "scripts/post-deploy-smoke.js",
         "rule": "sdk_url_alias",
         "description": "SDK/API URL aliases still duplicate API_CENTER_BASE_URL",
@@ -1599,6 +1526,34 @@
         "description": "SDK/API URL aliases still duplicate API_CENTER_BASE_URL",
         "matches": 2,
         "requiresCleanup": true
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate API_CENTER_BASE_URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "management_environment_alias",
+        "description": "Management deployment env aliases still duplicate MANAGEMENT_ENVIRONMENT",
+        "matches": 3,
+        "requiresCleanup": false
       },
       {
         "file": "src/auth/auth.controller.spec.ts",
@@ -1679,15 +1634,15 @@
       }
     ],
     "summaries": {
-      "totalFindings": 89,
+      "totalFindings": 99,
       "cleanupFindings": 50,
       "byRule": {
-        "legacy_environment_env": 9,
+        "legacy_environment_env": 12,
         "legacy_env_backed_secret": 22,
-        "sdk_url_alias": 24,
-        "legacy_test_url": 23,
-        "legacy_test_secret_name": 9,
-        "management_environment_alias": 1,
+        "sdk_url_alias": 25,
+        "legacy_test_url": 24,
+        "legacy_test_secret_name": 12,
+        "management_environment_alias": 3,
         "powerbi_fallback": 1
       }
     }

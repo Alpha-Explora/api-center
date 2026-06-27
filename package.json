@@ -48,6 +48,7 @@
     "registry:verify": "node scripts/collect-registry-parity-evidence.js --fail-on-blockers",
     "check:environment-naming": "node scripts/check-environment-naming.js",
     "check:no-legacy-routing": "node scripts/verify-no-legacy-environment-routing.js",
+    "registry:migrate-legacy-services": "node scripts/migrate-legacy-service-records.js",
     "smoke:spark-site:preflight": "node scripts/preflight-spark-site-deployment-smoke.js --fail-on-blockers"
   },
   "dependencies": {
