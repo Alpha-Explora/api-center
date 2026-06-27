@@ -51,6 +51,7 @@ import {
 } from "./proxy/environment-leak-guard";
 import { checkProxyQuota } from "./proxy/proxy-quota-context";
 import { createUpstreamProxyOptions } from "./proxy/upstream-request";
+import type { SharedServiceRoutingService } from "../shared-services/shared-service-routing.service";
 
 /** Default hard timeout for outgoing proxy requests (ms). */
 const PROXY_TIMEOUT_MS = 30_000;
@@ -151,6 +152,7 @@ export interface ProxyHandlerDeps {
   gatewayTraffic?: GatewayTrafficService;
   sharedServiceUsage?: SharedServiceUsageService;
   sharedServiceEvents?: SharedServiceEventPublisher;
+  sharedServiceRouting?: Pick<SharedServiceRoutingService, "resolve">;
   quotaEnforcer: TribeQuotaEnforcerService;
   policyEngine: PolicyEngineService;
   emergencyControls: EmergencyControlService;
@@ -319,24 +321,14 @@ export class ProxyHandler {
     }
 
     const targetEnvironment = this.resolveTargetEnvironment(req);
-    const resolvedEnvironment = this.deps.registry.resolveEnvironment?.(
+    const upstream = this.resolveUpstreamForEnvironment(
       targetServiceId,
       targetEnvironment,
+      targetEntry,
     );
-    const serviceEnvironment = enforceEnvironmentAccess({
-      callerEnvironment: targetEnvironment,
-      target: {
-        serviceId: targetServiceId,
-        environments:
-          targetEntry.environments?.length > 0
-            ? targetEntry.environments
-            : resolvedEnvironment
-              ? [resolvedEnvironment]
-              : [],
-      },
-    });
-    const upstream = serviceEnvironment.baseUrl;
-    stripApicenterIdentityHeaders(req.headers as Record<string, unknown> | undefined);
+    stripApicenterIdentityHeaders(
+      req.headers as Record<string, unknown> | undefined,
+    );
 
     // 1b. Validate namespace
     const targetType = targetEntry?.serviceType ?? "tribe";
@@ -471,6 +463,38 @@ export class ProxyHandler {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
+  private resolveUpstreamForEnvironment(
+    targetServiceId: string,
+    targetEnvironment: ApicenterRuntimeEnvironment,
+    targetEntry: ReturnType<RegistryService["get"]>,
+  ): string {
+    if (this.opts.namespace === "shared" && this.deps.sharedServiceRouting) {
+      return this.deps.sharedServiceRouting.resolve(
+        targetServiceId,
+        targetEnvironment,
+      ).targetUrl;
+    }
+
+    const resolvedEnvironment = this.deps.registry.resolveEnvironment?.(
+      targetServiceId,
+      targetEnvironment,
+    );
+    const configuredEnvironments = targetEntry?.environments ?? [];
+    const serviceEnvironment = enforceEnvironmentAccess({
+      callerEnvironment: targetEnvironment,
+      target: {
+        serviceId: targetServiceId,
+        environments:
+          configuredEnvironments.length > 0
+            ? configuredEnvironments
+            : resolvedEnvironment
+              ? [resolvedEnvironment]
+              : [],
+      },
+    });
+
+    return serviceEnvironment.baseUrl;
+  }
   /** Return the existing circuit breaker for a service, or create a new one. */
   private getOrCreateCircuitBreaker(serviceId: string): CircuitBreaker {
     let breaker = this.circuitBreakers.get(serviceId);

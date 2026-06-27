@@ -708,7 +708,7 @@ git commit -m "feat: block cross-environment proxy leaks"
 - Modify: `api-center/src/shared/proxy-handler.ts`
 - Modify: `api-shared-services/docs/shared-service-runtime-deployment-matrix.md`
 
-- [ ] **Step 1: Write routing tests**
+- [x] **Step 1: Write routing tests**
 
 ```ts
 describe("SharedServiceRoutingService", () => {
@@ -729,7 +729,7 @@ describe("SharedServiceRoutingService", () => {
 });
 ```
 
-- [ ] **Step 2: Implement routing service**
+- [x] **Step 2: Implement routing service**
 
 ```ts
 @Injectable()
@@ -747,7 +747,7 @@ export class SharedServiceRoutingService {
 }
 ```
 
-- [ ] **Step 3: Wire shared proxy path and trusted identity headers**
+- [x] **Step 3: Wire shared proxy path and trusted identity headers**
 
 When `ProxyHandler` handles namespace `shared`, resolve target URL from `SharedServiceRoutingService.resolve(serviceId, callerEnvironment)` while still using registry metadata for authorization, scopes, lifecycle, and `consumes`.
 
@@ -762,7 +762,7 @@ X-APICenter-Correlation-Id: <req.correlationId>
 
 Add shared-service proxy tests proving same-runtime services receive distinct `test` and `live` context and that spoofed caller headers are overwritten or rejected.
 
-- [ ] **Step 4: Document runtime env vars**
+- [x] **Step 4: Document runtime env vars**
 
 Add to `shared-service-runtime-deployment-matrix.md`:
 
@@ -797,7 +797,7 @@ apic_catalog.shared_service_runtime_routes
   updated_at
 ```
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center

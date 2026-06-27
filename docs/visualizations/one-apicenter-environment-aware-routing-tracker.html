@@ -14,12 +14,12 @@
   <header>
     <div class="shell topbar">
       <div><h1>One APICenter Environment-Aware Routing Tracker</h1><p>Decision, rollout, database, and verification tracker for the one URL migration.</p></div>
-      <div class="meta"><span class="tag">Updated 2026-06-27</span><span class="tag">Plan: 2026-06-27</span><span class="tag">Slice: Task 5</span><span class="tag">Leak guard verified</span></div>
+      <div class="meta"><span class="tag">Updated 2026-06-27</span><span class="tag">Plan: 2026-06-27</span><span class="tag" data-current-slice>Slice: Task 6</span><span class="tag">Shared routing verified</span></div>
     </div>
   </header>
   <main class="shell">
     <section class="grid">
-            <div class="panel full"><div class="progress-grid"><div class="progress-card primary"><span class="progress-value">39.1%</span><span class="progress-label">Overall goal progress from checked plan steps</span><div class="bar" aria-label="Overall goal progress"><div class="fill" style="width:39.1%"></div></div><div class="progress-foot"><span><strong>34</strong> done</span><span><strong>87</strong> total steps</span></div></div><div class="progress-card"><span class="progress-value">5/15</span><span class="progress-label">Task slices fully complete</span><div class="bar"><div class="fill" style="width:33.3%"></div></div><div class="progress-foot"><span>Task 5 complete; Task 0 gates open</span></div></div><div class="progress-card"><span class="progress-value">5/5</span><span class="progress-label">Latest Task 5 step progress</span><div class="bar"><div class="fill" style="width:100%"></div></div><div class="progress-foot"><span>Cross-environment leak guard</span><span>100%</span></div></div><div class="progress-card"><span class="progress-value">2.0.0</span><span class="progress-label">Required SDK major for environment contract</span><div class="bar"><div class="fill" style="width:0%"></div></div><div class="progress-foot"><span>Release pending</span></div></div></div></div>
+            <div class="panel full"><div class="progress-grid"><div class="progress-card primary"><span class="progress-value" data-progress-percent>0%</span><span class="progress-label">Overall goal progress from mirrored plan checkboxes</span><div class="bar" aria-label="Overall goal progress"><div class="fill" data-progress-fill style="width:0%"></div></div><div class="progress-foot"><span><strong data-steps-done>0</strong> done</span><span><strong data-steps-total>0</strong> total steps</span></div></div><div class="progress-card"><span class="progress-value" data-slices-complete>0/0</span><span class="progress-label">Task slices fully complete</span><div class="bar"><div class="fill" data-slices-fill style="width:0%"></div></div><div class="progress-foot"><span data-slices-note>Calculated from task cards</span></div></div><div class="progress-card"><span class="progress-value" data-latest-progress>0/0</span><span class="progress-label" data-latest-label>Latest slice step progress</span><div class="bar"><div class="fill" data-latest-fill style="width:0%"></div></div><div class="progress-foot"><span data-latest-note>Active implementation slice</span><span data-latest-percent>0%</span></div></div><div class="progress-card"><span class="progress-value">2.0.0</span><span class="progress-label">Required SDK major for environment contract</span><div class="bar"><div class="fill" style="width:0%"></div></div><div class="progress-foot"><span>Release pending</span></div></div></div></div>
       <div class="panel"><h2>Locked Decisions</h2><div class="stack">
         <div class="row"><span class="dot"></span><div><h3>One public gateway URL</h3><p>Consumers call <code>https://api-center.itsandbox.site</code>; environment is explicit identity.</p></div><span class="status done">Locked</span></div>
         <div class="row"><span class="dot"></span><div><h3>Required environment</h3><p><code>APICENTER_ENVIRONMENT=test|live</code> is mandatory except explicit legacy warn mode.</p></div><span class="status done">Locked</span></div>
@@ -30,25 +30,25 @@
       <div class="panel"><h2>Latest Slice Evidence</h2><div class="stack">
         <div class="row"><span class="dot red"></span><div><h3>Registry parity</h3><p>Local <code>npm run registry:verify</code> failed because live env credentials are not loaded.</p></div><span class="status blocked">Blocked</span></div>
         <div class="row"><span class="dot"></span><div><h3>Secret names</h3><p>Runtime and tribe secret names collected without secret payloads.</p></div><span class="status done">Done</span></div>
-        <div class="row"><span class="dot"></span><div><h3>Task 5 leak guard checks</h3><p>Proxy leak guard, proxy handler, auth context, quota context tests, and API Center typecheck passed with token-derived routing.</p></div><span class="status done">Done</span></div>
+        <div class="row"><span class="dot"></span><div><h3>Task 6 shared-service routing checks</h3><p>Routing service, shared-services controller, proxy handler tests, and API Center typecheck passed with environment-scoped shared-service routes.</p></div><span class="status done">Done</span></div>
         <div class="row"><span class="dot amber"></span><div><h3>Live row-level inventory</h3><p>Pending safer operator command for Supabase service/environment/dependency extraction.</p></div><span class="status pending">Pending</span></div>
       </div></div>
       <div class="panel full"><h2>Slice Tracker</h2><div class="tasks">
-        <div class="task current"><div class="num">0</div><div><h3>Inventory current runtime state</h3><p>Owner repo: api-center. Verification: <code>npm run registry:verify</code>. Secret, SDK inventory, tracker, and docs commit done; live row extraction pending.</p></div><span class="status next">In Progress</span></div>
-        <div class="task"><div class="num">1</div><div><h3>Define the environment contract</h3><p>API Center DTO and SDK type contract for required <code>test|live</code>. Verification passed.</p></div><span class="status done">Done</span></div>
-        <div class="task"><div class="num">2</div><div><h3>Update SDK runtime contract</h3><p>Require environment, send token field, and attach observability header. Verification passed.</p></div><span class="status done">Done</span></div>
-        <div class="task"><div class="num">3</div><div><h3>Add environment claims to token issuance</h3><p>Tokens include tribe, source service, environment, permissions, and scopes; refresh metadata preserves them.</p></div><span class="status done">Done</span></div>
-        <div class="task"><div class="num">4</div><div><h3>Resolve tribe secrets by environment</h3><p>Use deterministic <code>api-center-tribe-secret-&lt;tribe-id&gt;-test|live</code> with cache keys separated by environment.</p></div><span class="status done">Done</span></div>
-        <div class="task"><div class="num">5</div><div><h3>Block cross-environment runtime leaks</h3><p>Reject caller override channels, strip APICenter identity headers, and key proxy runtime state by environment.</p></div><span class="status done">Done</span></div>
-        <div class="task"><div class="num">6</div><div><h3>Route shared services by environment</h3><p>Payment splits into test/live runtimes; other shared services keep one runtime with environment evidence.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">6A</div><div><h3>Route payment webhooks by environment</h3><p>Deterministic webhook paths and environment-scoped idempotency.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">7</div><div><h3>Track environment in audit, usage, quota, and evidence</h3><p>Every runtime evidence path includes environment and source service.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">7A</div><div><h3>Add database columns and constraints</h3><p>Composite uniqueness, indexes, views, grants, and Supabase exposure checks.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">7B</div><div><h3>Isolate event and pipeline outputs</h3><p>Map public <code>live</code> to physical pipeline <code>prod</code> where needed.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">8</div><div><h3>Update Management operations</h3><p>Secret provisioning, handoff, target-env authorization, and audit visibility.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">9</div><div><h3>Update docs and contracts</h3><p>Consumer docs, migration notes, and enforceable token snapshots.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">10</div><div><h3>Rollout, compatibility, and break glass</h3><p>Warn mode, legacy map, cutover, rollback, and topology tests.</p></div><span class="status pending">Pending</span></div>
-        <div class="task"><div class="num">11</div><div><h3>Final cross-repo verification</h3><p>API Center, SDK, Management, deployment smoke, and tracker parity gates.</p></div><span class="status pending">Pending</span></div>
+        <div class="task" data-task-id="0" data-steps-done="4" data-steps-total="6"><div class="num">0</div><div><h3>Inventory current runtime state</h3><p>Owner repo: api-center. Verification: <code>npm run registry:verify</code>. Secret, SDK inventory, tracker, and docs commit done; live row extraction pending.</p></div><span class="status next">4/6</span></div>
+        <div class="task" data-task-id="1" data-steps-done="6" data-steps-total="6"><div class="num">1</div><div><h3>Define the environment contract</h3><p>API Center DTO and SDK type contract for required <code>test|live</code>. Verification passed.</p></div><span class="status done">6/6</span></div>
+        <div class="task" data-task-id="2" data-steps-done="5" data-steps-total="5"><div class="num">2</div><div><h3>Update SDK runtime contract</h3><p>Require environment, send token field, and attach observability header. Verification passed.</p></div><span class="status done">5/5</span></div>
+        <div class="task" data-task-id="3" data-steps-done="9" data-steps-total="9"><div class="num">3</div><div><h3>Add environment claims to token issuance</h3><p>Tokens include tribe, source service, environment, permissions, and scopes; refresh metadata preserves them.</p></div><span class="status done">9/9</span></div>
+        <div class="task" data-task-id="4" data-steps-done="6" data-steps-total="6"><div class="num">4</div><div><h3>Resolve tribe secrets by environment</h3><p>Use deterministic <code>api-center-tribe-secret-&lt;tribe-id&gt;-test|live</code> with cache keys separated by environment.</p></div><span class="status done">6/6</span></div>
+        <div class="task" data-task-id="5" data-steps-done="5" data-steps-total="5"><div class="num">5</div><div><h3>Block cross-environment runtime leaks</h3><p>Reject caller override channels, strip APICenter identity headers, and key proxy runtime state by environment.</p></div><span class="status done">5/5</span></div>
+        <div class="task current" data-task-id="6" data-current-task="true" data-steps-done="5" data-steps-total="5"><div class="num">6</div><div><h3>Route shared services by environment</h3><p>Payment splits into test/live runtimes; other shared services keep one runtime with authoritative APICenter identity headers.</p></div><span class="status done">5/5</span></div>
+        <div class="task" data-task-id="6A" data-steps-done="0" data-steps-total="5"><div class="num">6A</div><div><h3>Route payment webhooks by environment</h3><p>Deterministic webhook paths and environment-scoped idempotency.</p></div><span class="status pending">0/5</span></div>
+        <div class="task" data-task-id="7" data-steps-done="0" data-steps-total="4"><div class="num">7</div><div><h3>Track environment in audit, usage, quota, and evidence</h3><p>Every runtime evidence path includes environment and source service.</p></div><span class="status pending">0/4</span></div>
+        <div class="task" data-task-id="7A" data-steps-done="0" data-steps-total="9"><div class="num">7A</div><div><h3>Add database columns and constraints</h3><p>Composite uniqueness, indexes, views, grants, and Supabase exposure checks.</p></div><span class="status pending">0/9</span></div>
+        <div class="task" data-task-id="7B" data-steps-done="0" data-steps-total="5"><div class="num">7B</div><div><h3>Isolate event and pipeline outputs</h3><p>Map public <code>live</code> to physical pipeline <code>prod</code> where needed.</p></div><span class="status pending">0/5</span></div>
+        <div class="task" data-task-id="8" data-steps-done="0" data-steps-total="6"><div class="num">8</div><div><h3>Update Management operations</h3><p>Secret provisioning, handoff, target-env authorization, and audit visibility.</p></div><span class="status pending">0/6</span></div>
+        <div class="task" data-task-id="9" data-steps-done="0" data-steps-total="4"><div class="num">9</div><div><h3>Update docs and contracts</h3><p>Consumer docs, migration notes, and enforceable token snapshots.</p></div><span class="status pending">0/4</span></div>
+        <div class="task" data-task-id="10" data-steps-done="0" data-steps-total="6"><div class="num">10</div><div><h3>Rollout, compatibility, and break glass</h3><p>Warn mode, legacy map, cutover, rollback, and topology tests.</p></div><span class="status pending">0/6</span></div>
+        <div class="task" data-task-id="11" data-steps-done="0" data-steps-total="6"><div class="num">11</div><div><h3>Final cross-repo verification</h3><p>API Center, SDK, Management, deployment smoke, and tracker parity gates.</p></div><span class="status pending">0/6</span></div>
       </div></div>
       <div class="panel"><h2>Critical Risks</h2><div class="stack">
         <div class="row"><span class="dot"></span><div><h3>Environment override channels</h3><p>Headers, query params, and body fields are rejected; runtime routing derives from token claims.</p></div><span class="status done">Done</span></div>
@@ -79,7 +79,49 @@
       </tbody></table></div></div>
     </section>
   </main>
-  <footer class="shell">Static tracker. Update this file in the same commit as each checked Markdown task.</footer>
+  <footer class="shell">Static tracker. Update each task card's step counts in the same commit as checked Markdown tasks; progress cards calculate from those counts.</footer>
+  <script>
+    (() => {
+      const tasks = [...document.querySelectorAll("[data-task-id]")].map((task) => {
+        const done = Number(task.dataset.stepsDone || 0);
+        const total = Number(task.dataset.stepsTotal || 0);
+        const id = task.dataset.taskId || "";
+        return { task, id, done, total };
+      });
+      const totalDone = tasks.reduce((sum, item) => sum + item.done, 0);
+      const totalSteps = tasks.reduce((sum, item) => sum + item.total, 0);
+      const percent = totalSteps ? (totalDone / totalSteps) * 100 : 0;
+      const completeSlices = tasks.filter((item) => item.total > 0 && item.done === item.total).length;
+      const completePercent = tasks.length ? (completeSlices / tasks.length) * 100 : 0;
+      const current = tasks.find((item) => item.task.dataset.currentTask === "true") || tasks.find((item) => item.done < item.total) || tasks.at(-1);
+      const currentPercent = current && current.total ? (current.done / current.total) * 100 : 0;
+
+      const setText = (selector, value) => {
+        const element = document.querySelector(selector);
+        if (element) element.textContent = value;
+      };
+      const setWidth = (selector, value) => {
+        const element = document.querySelector(selector);
+        if (element) element.style.width = `${Math.max(0, Math.min(100, value)).toFixed(1)}%`;
+      };
+
+      setText("[data-progress-percent]", `${percent.toFixed(1)}%`);
+      setText("[data-steps-done]", String(totalDone));
+      setText("[data-steps-total]", String(totalSteps));
+      setWidth("[data-progress-fill]", percent);
+      setText("[data-slices-complete]", `${completeSlices}/${tasks.length}`);
+      setWidth("[data-slices-fill]", completePercent);
+      setText("[data-slices-note]", `${completePercent.toFixed(1)}% of slices are fully checked`);
+      if (current) {
+        setText("[data-current-slice]", `Slice: Task ${current.id}`);
+        setText("[data-latest-progress]", `${current.done}/${current.total}`);
+        setText("[data-latest-label]", `Latest Task ${current.id} step progress`);
+        setText("[data-latest-note]", current.done === current.total ? "Slice complete" : "Active implementation slice");
+        setText("[data-latest-percent]", `${currentPercent.toFixed(1)}%`);
+        setWidth("[data-latest-fill]", currentPercent);
+      }
+    })();
+  </script>
 </body>
 </html>
 

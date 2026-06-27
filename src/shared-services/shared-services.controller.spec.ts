@@ -7,6 +7,7 @@ import { AuditEventsService } from "../analytics/audit-events.service";
 import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
+import { SharedServiceRoutingService } from "./shared-service-routing.service";
 
 describe("SharedServicesController", () => {
   const mockRegistry = {
@@ -22,6 +23,9 @@ describe("SharedServicesController", () => {
   const mockGatewayTraffic = {} as GatewayTrafficService;
   const mockSharedServiceUsage = {} as SharedServiceUsageService;
   const mockSharedServiceEvents = {} as SharedServiceEventPublisher;
+  const mockSharedServiceRouting = {
+    resolve: jest.fn(),
+  } as unknown as SharedServiceRoutingService;
   const mockQuotaEnforcer = { check: jest.fn().mockResolvedValue(undefined) };
   const mockPolicyEngine = { evaluate: jest.fn().mockReturnValue([]) };
   const mockEmergencyControls = { evaluate: jest.fn() };
@@ -44,6 +48,7 @@ describe("SharedServicesController", () => {
       mockGatewayTraffic,
       mockSharedServiceUsage,
       mockSharedServiceEvents,
+      mockSharedServiceRouting,
       mockQuotaEnforcer as any,
       mockPolicyEngine as any,
       mockEmergencyControls as any,

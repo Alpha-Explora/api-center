@@ -41,8 +41,16 @@ export function createUpstreamProxyOptions({
     on: {
       proxyReq: (proxyReq, _req) => {
         const authReq = _req as unknown as AuthenticatedRequest;
+        const sourceServiceId =
+          authReq.sourceServiceId ?? authReq.user?.sourceServiceId ?? authReq.tribeId ?? "";
+        const environment = authReq.user?.environment ?? "";
+        const correlationId = authReq.correlationId || "";
+
+        proxyReq.setHeader("X-APICenter-Environment", environment);
+        proxyReq.setHeader("X-APICenter-Source-Service-Id", sourceServiceId);
+        proxyReq.setHeader("X-APICenter-Correlation-Id", correlationId);
         proxyReq.setHeader("X-Tribe-Id", authReq.tribeId || "");
-        proxyReq.setHeader("X-Correlation-ID", authReq.correlationId || "");
+        proxyReq.setHeader("X-Correlation-ID", correlationId);
         proxyReq.setHeader("X-Forwarded-By", "apicenter-gateway");
 
         // NestJS body-parser consumes req stream before the proxy sees it.

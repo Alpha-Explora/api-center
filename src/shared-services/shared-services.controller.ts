@@ -34,6 +34,7 @@ import { EmergencyControlService } from "../operations/emergency-control.service
 import { ProxyHandler } from "../shared/proxy-handler";
 import { AuthenticatedRequest } from "../types";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
+import { SharedServiceRoutingService } from "./shared-service-routing.service";
 
 @Controller("shared")
 @UseGuards(JwtAuthGuard)
@@ -50,6 +51,7 @@ export class SharedServicesController implements OnModuleDestroy {
     gatewayTraffic: GatewayTrafficService,
     sharedServiceUsage: SharedServiceUsageService,
     sharedServiceEvents: SharedServiceEventPublisher,
+    sharedServiceRouting: SharedServiceRoutingService,
     quotaEnforcer: TribeQuotaEnforcerService,
     policyEngine: PolicyEngineService,
     emergencyControls: EmergencyControlService,
@@ -65,6 +67,7 @@ export class SharedServicesController implements OnModuleDestroy {
         gatewayTraffic,
         sharedServiceUsage,
         sharedServiceEvents,
+        sharedServiceRouting,
         quotaEnforcer,
         policyEngine,
         emergencyControls,

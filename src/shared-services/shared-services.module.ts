@@ -12,6 +12,7 @@ import { QuotasModule } from "../quotas/quotas.module";
 import { PolicyEngineModule } from "../policy/policy-engine.module";
 import { OperationsModule } from "../operations/operations.module";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
+import { SharedServiceRoutingService } from "./shared-service-routing.service";
 
 @Module({
   imports: [
@@ -23,6 +24,6 @@ import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
     OperationsModule,
   ],
   controllers: [PaymentWebhookController, SharedServicesController],
-  providers: [SharedServiceEventPublisher],
+  providers: [SharedServiceEventPublisher, SharedServiceRoutingService],
 })
 export class SharedServicesModule {}

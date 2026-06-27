@@ -851,6 +851,13 @@ describe("ProxyHandler", () => {
 
   describe("shared-service runtime usage recording", () => {
     beforeEach(() => {
+      (deps as any).sharedServiceRouting = {
+        resolve: jest.fn((sharedServiceId: string, environment: string) => ({
+          sharedServiceId,
+          environment,
+          targetUrl: `http://${sharedServiceId}-${environment}:4010`,
+        })),
+      };
       handler = new ProxyHandler(deps, {
         namespace: "shared",
         pathPrefix: "/api/v1/shared",
@@ -867,6 +874,65 @@ describe("ProxyHandler", () => {
       });
     });
 
+
+    it("routes shared-service requests through environment-scoped route settings", async () => {
+      await handler.proxyRequest("paymongo", fakeReq(), fakeRes());
+      await handler.proxyRequest(
+        "paymongo",
+        fakeReq({ user: { environment: "live" } as any }),
+        fakeRes(),
+      );
+
+      expect((deps as any).sharedServiceRouting.resolve).toHaveBeenCalledWith(
+        "paymongo",
+        "test",
+      );
+      expect((deps as any).sharedServiceRouting.resolve).toHaveBeenCalledWith(
+        "paymongo",
+        "live",
+      );
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledWith(
+        expect.objectContaining({ target: "http://paymongo-test:4010" }),
+      );
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledWith(
+        expect.objectContaining({ target: "http://paymongo-live:4010" }),
+      );
+    });
+
+    it("forwards authoritative APICenter identity headers to shared services", async () => {
+      await handler.proxyRequest(
+        "paymongo",
+        fakeReq({
+          tribeId: "campusone",
+          sourceServiceId: "campusone-api",
+          correlationId: "corr-shared-headers",
+        }),
+        fakeRes(),
+      );
+
+      const proxyOptions = (mockCreateProxyMiddleware.mock.calls as any[])[0]?.[0];
+      expect(proxyOptions).toBeDefined();
+      const proxyReq = { setHeader: jest.fn(), write: jest.fn() };
+      proxyOptions.on.proxyReq(proxyReq, fakeReq({
+        tribeId: "campusone",
+        sourceServiceId: "campusone-api",
+        correlationId: "corr-shared-headers",
+      }));
+
+      expect(proxyReq.setHeader).toHaveBeenCalledWith(
+        "X-APICenter-Environment",
+        "test",
+      );
+      expect(proxyReq.setHeader).toHaveBeenCalledWith(
+        "X-APICenter-Source-Service-Id",
+        "campusone-api",
+      );
+      expect(proxyReq.setHeader).toHaveBeenCalledWith("X-Tribe-Id", "campusone");
+      expect(proxyReq.setHeader).toHaveBeenCalledWith(
+        "X-APICenter-Correlation-Id",
+        "corr-shared-headers",
+      );
+    });
     it("records successful shared-service proxy usage", async () => {
       const req = fakeReq({
         tribeId: "campusone",
