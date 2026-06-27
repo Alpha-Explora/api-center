@@ -137,6 +137,22 @@ model ServiceDependency {
   @@schema("apic_catalog")
 }
 
+model SharedServiceRuntimeRoute {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharedServiceId String   @map("shared_service_id")
+  environment     String
+  runtimeUrl      String   @map("runtime_url")
+  status          String   @default("active")
+  providerMode    String?  @map("provider_mode")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([sharedServiceId, environment], name: "shared_service_runtime_routes_service_env_uidx")
+  @@index([environment, status], name: "shared_service_runtime_routes_env_status_idx")
+  @@map("shared_service_runtime_routes")
+  @@schema("apic_catalog")
+}
 model ServiceLifecycleEvent {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId       String   @map("service_id") @db.Uuid
@@ -295,20 +311,27 @@ model EventTopicOnboardingState {
 }
 
 model AuditEvent {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  correlationId String?  @map("correlation_id")
-  actorType     String   @default("system") @map("actor_type")
-  actorId       String?  @map("actor_id")
-  action        String
-  resourceType  String   @map("resource_type")
-  resourceId    String?  @map("resource_id")
-  outcome       String   @default("succeeded")
-  metadata      Json     @default("{}")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correlationId   String?  @map("correlation_id")
+  environment     String
+  sourceServiceId String?  @map("source_service_id")
+  serviceId       String?  @map("service_id")
+  tribeId         String?  @map("tribe_id")
+  actorType       String   @default("system") @map("actor_type")
+  actorId         String?  @map("actor_id")
+  action          String
+  resourceType    String   @map("resource_type")
+  resourceId      String?  @map("resource_id")
+  outcome         String   @default("succeeded")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([createdAt], name: "audit_events_created_idx")
   @@index([resourceType, resourceId, createdAt], name: "audit_events_resource_idx")
   @@index([actorType, actorId, createdAt], name: "audit_events_actor_idx")
+  @@index([environment, resourceType, resourceId, correlationId, createdAt], name: "audit_events_env_resource_correlation_idx")
+  @@index([sourceServiceId, environment, createdAt], name: "audit_events_source_env_created_idx")
+  @@index([tribeId, environment, createdAt], name: "audit_events_tribe_env_created_idx")
   @@map("audit_events")
   @@schema("apic_audit")
 }
@@ -316,6 +339,7 @@ model AuditEvent {
 model HealthSnapshot {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId    String   @map("service_id") @db.Uuid
+  environment  String
   healthy      Boolean
   statusCode   Int?     @map("status_code")
   latencyMs    Int?     @map("latency_ms")
@@ -324,6 +348,7 @@ model HealthSnapshot {
 
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
+  @@index([serviceId, environment, checkedAt], name: "health_snapshots_service_env_checked_idx")
   @@map("health_snapshots")
   @@schema("apic_runtime")
 }
@@ -332,6 +357,7 @@ model SmokeTestRun {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId         String?  @map("service_id") @db.Uuid
   tribeServiceId    String?  @map("tribe_service_id") @db.Uuid
+  environment       String
   testType          String   @map("test_type")
   providerImpacting Boolean  @default(false) @map("provider_impacting")
   status            String
@@ -344,6 +370,8 @@ model SmokeTestRun {
   service      Service? @relation("SmokeTestService", fields: [serviceId], references: [id], onDelete: SetNull)
   tribeService Service? @relation("SmokeTestTribe", fields: [tribeServiceId], references: [id], onDelete: SetNull)
 
+  @@index([serviceId, environment, createdAt], name: "smoke_test_runs_service_env_created_idx")
+  @@index([tribeServiceId, environment, createdAt], name: "smoke_test_runs_tribe_service_env_created_idx")
   @@map("smoke_test_runs")
   @@schema("apic_runtime")
 }
@@ -352,6 +380,7 @@ model UsageRollup {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   windowStart       DateTime @map("window_start") @db.Timestamptz(6)
   windowEnd         DateTime @map("window_end") @db.Timestamptz(6)
+  environment       String
   consumerServiceId String?  @map("consumer_service_id") @db.Uuid
   targetServiceId   String?  @map("target_service_id") @db.Uuid
   routeFamily       String   @map("route_family")
@@ -366,7 +395,8 @@ model UsageRollup {
   consumerService Service? @relation("UsageConsumer", fields: [consumerServiceId], references: [id], onDelete: SetNull)
   targetService   Service? @relation("UsageTarget", fields: [targetServiceId], references: [id], onDelete: SetNull)
 
-  @@unique([windowStart, windowEnd, consumerServiceId, targetServiceId, routeFamily])
+  @@unique([environment, consumerServiceId, targetServiceId, routeFamily, windowStart, windowEnd], name: "usage_rollups_env_service_target_window_uidx")
+  @@index([environment, windowStart], name: "usage_rollups_environment_window_idx")
   @@map("usage_rollups")
   @@schema("apic_runtime")
 }
@@ -396,6 +426,7 @@ model QuotaPolicy {
 model QuotaEvaluation {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId    String   @map("owner_tribe_id")
+  environment     String
   policyId        String?  @map("policy_id") @db.Uuid
   scope           String
   targetServiceId String?  @map("target_service_id")
@@ -412,10 +443,29 @@ model QuotaEvaluation {
   @@index([ownerTribeId, createdAt], name: "quota_evaluations_owner_created_idx")
   @@index([outcome, createdAt], name: "quota_evaluations_outcome_created_idx")
   @@index([correlationId], name: "quota_evaluations_correlation_idx")
+  @@index([environment, ownerTribeId, createdAt], name: "quota_evaluations_environment_owner_created_idx")
+  @@index([environment, ownerTribeId, routeFamily, windowStart], name: "quota_evaluations_env_route_window_idx")
   @@map("quota_evaluations")
   @@schema("apic_runtime")
 }
 
+model PromotionEvidenceBundle {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId         String   @map("service_id")
+  sourceEnvironment String   @map("source_environment")
+  targetEnvironment String   @map("target_environment")
+  correlationId     String?  @map("correlation_id")
+  generatedBy       String?  @map("generated_by")
+  ready             Boolean  @default(false)
+  bundle            Json
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  generatedAt       DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
+
+  @@index([serviceId, sourceEnvironment, targetEnvironment, createdAt], name: "promotion_evidence_service_env_created_idx")
+  @@index([correlationId], name: "promotion_evidence_correlation_idx")
+  @@map("promotion_evidence_bundles")
+  @@schema("apic_governance")
+}
 model EntitlementPlan {
   planKey              String   @id @map("plan_key")
   displayName          String   @map("display_name")

@@ -60,6 +60,38 @@ The enterprise migrations revoke broad `public` access from `apic_catalog`,
 table is later exposed to `anon` or `authenticated`, RLS must be enabled first
 with owner/environment predicates and indexes on the policy columns.
 
+
+## Environment Row Rule
+
+Environment is a required row attribute, not a schema boundary and not a defaulted value. Use owner/domain schemas such as `apic_runtime` and `shared_payment`, add an explicit environment column where records differ by test/live, enforce composite uniqueness that includes environment, and expose clean test/live views only for operator readability. Application code must supply environment on every write; database and Prisma defaults must not silently classify rows as test.
+
+Task 7A uses this table-by-table rule:
+
+| Table | Environment columns | Constraint and index rule | Notes |
+| --- | --- | --- | --- |
+| `apic_catalog.service_environments` | `environment` | New writes constrained to `test|live`; `service_id + environment` remains unique. | Existing non-runtime rows require inventory before constraint validation. |
+| `apic_catalog.shared_service_runtime_routes` | `environment` | `shared_service_id + environment` unique; `environment + status` index. | Runtime target metadata only; no secret material. |
+| `apic_governance.approval_requests` | `target_environment` | New writes constrained to `test|live`; action/environment index. | Live-impacting approvals remain a Management authorization concern. |
+| `apic_governance.entitlement_assignments` | `environment` | Owner/environment/status and plan/environment indexes. | No default plan environment. |
+| `apic_governance.promotion_evidence_bundles` | `source_environment`, `target_environment` | Both constrained to `test|live`; service/source/target/created index. | Durable evidence metadata for compliance and promotion review. |
+| `apic_runtime.event_topic_onboarding_states` | `environment` | New writes constrained to `test|live`; owner/environment index. | Task 7B maps runtime `live` to physical pipeline `prod` if required. |
+| `apic_runtime.pipeline_feedback_actions` | `environment` | New writes constrained to `test|live`; target/environment index. | Pipeline lane exceptions must be named in Task 7B. |
+| `apic_runtime.usage_rollups` | `environment` | `environment + consumer + target + route_family + window` uniqueness; environment/window index. | Gateway and shared-service rollups are durable aggregated evidence, not per-request logs. |
+| `apic_runtime.quota_evaluations` | `environment` | Owner/environment/created and owner/environment/route/window indexes. | Quota decisions are queryable by environment for reliability, cost, and compliance. |
+| `apic_runtime.health_snapshots` | `environment` | Service/environment/checked index. | Promotion readiness queries must not mix test and live health. |
+| `apic_runtime.smoke_test_runs` | `environment` | Service/environment and tribe-service/environment indexes. | Provider-impacting smoke evidence must be environment-scoped. |
+| `apic_audit.audit_events` | `environment`, `source_service_id`, `service_id`, `tribe_id` | Environment/resource/correlation, source/environment, and tribe/environment indexes. | Compliance exports use first-class columns instead of JSON-only metadata. |
+
+Before live migration, run role discovery and verify the real application roles instead of assuming `api_center_app` exists:
+
+```sql
+select rolname, rolinherit, rolcanlogin
+from pg_roles
+where rolname in ('api_center_app', 'shared_services_app');
+```
+
+Any `environment`, `target_environment`, or `source_environment` column in APIC or shared-payment runtime tables must have `column_default is null`.
+
 ## Retained Commands
 
 Use these commands for ordinary control-plane database maintenance:

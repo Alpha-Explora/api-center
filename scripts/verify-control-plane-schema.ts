@@ -24,6 +24,7 @@ const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "service_routes"],
   ["apic_catalog", "service_scopes"],
   ["apic_catalog", "service_dependencies"],
+  ["apic_catalog", "shared_service_runtime_routes"],
   ["apic_catalog", "service_lifecycle_events"],
   ["apic_catalog", "service_secret_references"],
   ["apic_governance", "registry_change_requests"],
@@ -31,6 +32,7 @@ const requiredTables: QualifiedObject[] = [
   ["apic_governance", "quota_policies"],
   ["apic_governance", "entitlement_plans"],
   ["apic_governance", "entitlement_assignments"],
+  ["apic_governance", "promotion_evidence_bundles"],
   ["apic_runtime", "provisioning_jobs"],
   ["apic_runtime", "event_topic_onboarding_states"],
   ["apic_runtime", "confluent_topics"],
@@ -82,11 +84,22 @@ const requiredIndexes = [
   "quota_policies_scope_target_idx",
   "entitlement_assignments_owner_env_status_idx",
   "entitlement_assignments_plan_env_idx",
+  "promotion_evidence_service_env_created_idx",
+  "promotion_evidence_correlation_idx",
+  "shared_service_runtime_routes_service_env_uidx",
+  "shared_service_runtime_routes_env_status_idx",
   "event_topic_onboarding_states_env_owner_idx",
   "event_topic_onboarding_states_updated_idx",
   "quota_evaluations_owner_created_idx",
   "quota_evaluations_outcome_created_idx",
   "quota_evaluations_correlation_idx",
+  "quota_evaluations_environment_owner_created_idx",
+  "quota_evaluations_env_route_window_idx",
+  "health_snapshots_service_env_checked_idx",
+  "smoke_test_runs_service_env_created_idx",
+  "smoke_test_runs_tribe_service_env_created_idx",
+  "usage_rollups_environment_window_idx",
+  "usage_rollups_env_service_target_window_uidx",
   "pipeline_feedback_actions_env_target_idx",
   "pipeline_feedback_actions_status_created_idx",
   "pipeline_feedback_actions_owner_idx",
@@ -94,18 +107,36 @@ const requiredIndexes = [
   "audit_events_created_idx",
   "audit_events_resource_idx",
   "audit_events_actor_idx",
+  "audit_events_env_resource_correlation_idx",
+  "audit_events_source_env_created_idx",
+  "audit_events_tribe_env_created_idx",
 ];
 
 const requiredCheckConstraints = [
   "registry_change_requests_status_check",
   "approval_requests_status_check",
+  "approval_requests_target_environment_check",
   "quota_policies_mode_check",
   "quota_policies_status_check",
   "entitlement_assignments_status_check",
+  "entitlement_assignments_environment_check",
+  "promotion_evidence_source_environment_check",
+  "promotion_evidence_target_environment_check",
+  "promotion_evidence_distinct_environment_check",
+  "shared_service_runtime_routes_environment_check",
+  "shared_service_runtime_routes_status_check",
+  "service_environments_environment_check",
+  "event_topic_onboarding_states_environment_check",
+  "pipeline_feedback_actions_environment_check",
+  "quota_evaluations_environment_check",
+  "health_snapshots_environment_check",
+  "smoke_test_runs_environment_check",
+  "usage_rollups_environment_check",
   "quota_evaluations_mode_check",
   "quota_evaluations_outcome_check",
   "audit_events_actor_type_check",
   "audit_events_outcome_check",
+  "audit_events_environment_check",
 ];
 
 const forbiddenLegacyObjectNames = [
@@ -131,6 +162,7 @@ const retentionManagedTables: QualifiedObject[] = [
   ["apic_runtime", "health_snapshots"],
   ["apic_runtime", "smoke_test_runs"],
   ["apic_runtime", "pipeline_feedback_actions"],
+  ["apic_governance", "promotion_evidence_bundles"],
 ].map(([schema, name]) => ({ schema, name }));
 
 const registryChildDeleteTables = new Set([
@@ -324,6 +356,17 @@ async function main(): Promise<void> {
       forbiddenLegacyObjectNames.filter((name) => indexNames.has(name) || constraintNames.has(name)),
     );
 
+    const environmentDefaultRows = await queryRows(
+      client,
+      "select table_schema as schema, table_name as name, column_name, column_default from information_schema.columns where table_schema = any($1::text[]) and column_name in ('environment', 'target_environment', 'source_environment') and column_default is not null",
+      [controlledSchemas],
+    );
+    addFailure(
+      failures,
+      "Runtime environment columns with database defaults",
+      environmentDefaultRows.map((row) => String(row.schema) + "." + String(row.name) + "." + String(row.column_name) + " default " + String(row.column_default)),
+    );
+
     if (hasFlag("--require-retention-policy")) {
       const retentionRows = await queryRows(
         client,
@@ -353,6 +396,9 @@ async function main(): Promise<void> {
     );
 
     if (appRole) {
+      const appRoleRows = await queryRows(client, "select rolname from pg_roles where rolname = $1", [appRole]);
+      if (appRoleRows.length === 0) failures.push("Configured app role does not exist: " + appRole);
+
       const schemaPrivilegeRows = await queryRows(
         client,
         "select nspname as schema, has_schema_privilege($1, nspname, 'USAGE') as has_usage from pg_namespace where nspname = any($2::text[])",

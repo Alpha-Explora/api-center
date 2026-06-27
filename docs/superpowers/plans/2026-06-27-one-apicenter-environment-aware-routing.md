@@ -958,7 +958,7 @@ git commit -m "feat: track runtime evidence by environment"
 - Modify: `api-shared-services/docs/shared-service-database-schemas.md`
 - Modify or create DB verification scripts that check roles, exposed schemas, grants, constraints, and missing environment defaults
 
-- [ ] **Step 1: Write the database rule into docs first**
+- [x] **Step 1: Write the database rule into docs first**
 
 Add this rule to both database docs:
 
@@ -966,7 +966,7 @@ Add this rule to both database docs:
 Environment is a required row attribute, not a schema boundary and not a defaulted value. Use owner/domain schemas such as apic_runtime and shared_payment, add an explicit environment column where records differ by test/live, enforce composite uniqueness that includes environment, and expose clean test/live views only for operator readability. Application code must supply environment on every write; database and Prisma defaults must not silently classify rows as test.
 ```
 
-- [ ] **Step 2: Preflight runtime roles and Supabase exposure before migrations**
+- [x] **Step 2: Preflight runtime roles and Supabase exposure before migrations**
 
 Before applying or dry-running migrations in test or live, discover and verify the real runtime DB roles. The migration must not fail halfway because `api_center_app` or the shared-services app role is missing.
 
@@ -986,7 +986,7 @@ For live, role creation must be an explicit reviewed operation recorded in the m
 
 Add a verification gate that checks Supabase Data API exposed schemas remain private. If any `apic_*`, `api_center*`, or `shared_*` schema is exposed to browser clients, require RLS on every exposed table plus ownership and environment predicates before any `anon` or `authenticated` grant.
 
-- [ ] **Step 3: Add a table-by-table environment constraint matrix**
+- [x] **Step 3: Add a table-by-table environment constraint matrix**
 
 Document every existing and planned environment-bearing table before writing DDL. At minimum cover:
 
@@ -1008,7 +1008,7 @@ shared_payment.* provider tables: environment check test|live with provider_mode
 
 If any existing table still uses `prod`, Task 7B must either map `live -> prod` at pipeline boundaries or migrate those rows/assets to `live`; do not mix vocabularies without a named mapping.
 
-- [ ] **Step 4: Add APIC control-plane migration**
+- [x] **Step 4: Add APIC control-plane migration**
 
 Create the migration with the repo script:
 
@@ -1055,7 +1055,7 @@ create index if not exists audit_events_env_resource_correlation_idx
 
 If a table cannot receive first-class columns in this slice, document the exception and add a follow-up before compliance export is marked durable.
 
-- [ ] **Step 5: Add clean APIC views only where useful**
+- [x] **Step 5: Add clean APIC views only where useful**
 
 Use views for operator readability, not separate schemas, and keep Supabase-safe security posture:
 
@@ -1078,7 +1078,7 @@ grant select on apic_runtime.test_usage_rollups to api_center_app;
 
 Do not give browser clients direct table or view access unless RLS and grants are explicitly reviewed.
 
-- [ ] **Step 6: Add shared payment environment constraints and views**
+- [x] **Step 6: Add shared payment environment constraints and views**
 
 Create the shared-services migration with its repo script:
 
@@ -1132,7 +1132,7 @@ where environment = 'live';
 
 Do not store raw provider secrets or full webhook payloads unless explicitly approved. Add retention comments for checkout/payment records, webhook/idempotency rows, provider metadata, and audit evidence.
 
-- [ ] **Step 7: Update Prisma models**
+- [x] **Step 7: Update Prisma models**
 
 Add required `environment String` fields to affected models and update unique/index declarations so environment is included where test/live can share provider IDs. Do not use `@default("test")` on runtime/provider tables.
 
@@ -1155,7 +1155,7 @@ model SharedPaymentCheckoutSession {
 }
 ```
 
-- [ ] **Step 8: Verify database migration dry runs**
+- [x] **Step 8: Verify database migration dry runs**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -1180,7 +1180,7 @@ where column_name in ('environment', 'target_environment', 'source_environment')
   and table_schema in ('apic_catalog', 'apic_governance', 'apic_runtime', 'apic_audit', 'shared_payment');
 ```
 
-- [ ] **Step 9: Commit database slice**
+- [x] **Step 9: Commit database slice**
 
 ```powershell
 cd C:\Codes\apic\api-center
