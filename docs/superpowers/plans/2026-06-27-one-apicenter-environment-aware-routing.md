@@ -1538,6 +1538,8 @@ enforce: rejects missing environment and requires environment-scoped secrets.
 8. Remove legacy non-environment secret fallback after all active tribes pass smoke.
 ```
 
+Current status: `@alpha-explora/apicenter@2.0.0` was released from `api-shared` commit `ba11a5c` with tag `v2.0.0`. GitHub Actions run `28305086167` completed successfully on 2026-06-27T23:30:14Z and ran the release workflow through dependency install, release verification, SDK CI, tag creation, and package publish. The release required a self-contained SDK contract snapshot at `contracts/apicenter-openapi.json` so GitHub Actions can run `npm run check:contracts` without a sibling `api-center` checkout.
+
 - [x] **Step 3: Define rollback sequence**
 
 ```text
