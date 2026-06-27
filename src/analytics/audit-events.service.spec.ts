@@ -95,12 +95,14 @@ describe("AuditEventsService", () => {
           action: "quota.policy.updated",
           resourceType: "service",
           resourceId: "orders-api",
+          environment: "unknown",
           outcome: "succeeded",
           createdAt: new Date("2026-05-20T12:00:00.000Z"),
           metadata: expect.objectContaining({
             actionFamily: "quota",
             severity: "warning",
             serviceId: "orders-api",
+            environment: "unknown",
           }),
         }),
       });
@@ -203,6 +205,7 @@ describe("AuditEventsService", () => {
             action: "quota.policy.updated",
             resourceType: "service",
             resourceId: "orders-api",
+            environment: "test",
             outcome: "succeeded",
             metadata: {
               actionFamily: "quota",
@@ -235,6 +238,7 @@ describe("AuditEventsService", () => {
           type: "quota.policy.updated",
           serviceId: "orders-api",
           actionFamily: "quota",
+          environment: "test",
         }),
       ]);
       expect(prisma.auditEvent.findMany).toHaveBeenCalledWith({
@@ -262,6 +266,7 @@ describe("AuditEventsService", () => {
             action: "quota.policy.updated",
             resourceType: "service",
             resourceId: "orders-api",
+            environment: "live",
             outcome: "succeeded",
             metadata: {
               actionFamily: "quota",
@@ -286,6 +291,7 @@ describe("AuditEventsService", () => {
       });
 
       expect(result.data).toHaveLength(1);
+      expect(result.data[0].environment).toBe("live");
       expect(result.sourceMetadata).toEqual(
         expect.objectContaining({
           sourceType: "durable",

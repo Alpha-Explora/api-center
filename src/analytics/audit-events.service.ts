@@ -74,6 +74,7 @@ type AuditRecordOptions = {
 type AuditEventRow = {
   id: string;
   correlationId: string | null;
+  environment?: string;
   actorType: string;
   actorId: string | null;
   action: string;
@@ -266,10 +267,13 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const environment = resolveAuditEnvironment(record);
+
     try {
       await this.prisma.auditEvent.create({
         data: {
           id: record.id,
+          environment,
           actorType: resolveActorType(record),
           actorId: record.actor,
           action: record.type,
@@ -285,7 +289,7 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
             sharedServiceId: record.sharedServiceId,
             resourceType: record.resourceType,
             resourceId: record.resourceId,
-            environment: record.environment,
+            environment,
             correlationId: record.correlationId,
             payload: record.payload ?? {},
           } as any,
@@ -402,6 +406,10 @@ function resolveActorType(record: AuditEventRecord): "system" | "operator" | "tr
   return "tribe";
 }
 
+function resolveAuditEnvironment(record: AuditEventRecord): string {
+  return record.environment?.trim() || "unknown";
+}
+
 function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
   const metadata = asRecord(row.metadata);
   return {
@@ -414,7 +422,7 @@ function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
     sharedServiceId: stringValue(metadata.sharedServiceId),
     resourceType: stringValue(metadata.resourceType) ?? row.resourceType,
     resourceId: stringValue(metadata.resourceId) ?? row.resourceId ?? undefined,
-    environment: stringValue(metadata.environment),
+    environment: stringValue(metadata.environment) ?? row.environment ?? "unknown",
     correlationId:
       stringValue(metadata.correlationId) ?? row.correlationId ?? undefined,
     severity:
