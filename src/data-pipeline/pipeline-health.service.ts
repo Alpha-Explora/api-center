@@ -14,6 +14,10 @@ import {
 } from "./pipeline-health.dto";
 import { resolvePartitionDate as resolveAthenaPartitionDate } from "./athena-partition-config";
 import {
+  toPhysicalPipelineEnvironment,
+  toPublicPipelineEnvironment,
+} from "./pipeline-environment";
+import {
   resolvePipelineDatasetSource,
   resolvePositiveQueryLimit,
 } from "./pipeline-dataset-provider";
@@ -163,7 +167,7 @@ SELECT
   CAST(latest_occurred_at AS varchar) AS latest_occurred_at,
   CAST(latest_ingested_at AS varchar) AS latest_ingested_at
 FROM gold_platform.pipeline_health_daily
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
@@ -193,7 +197,7 @@ LIMIT ${this.resolveQueryLimit()}
     return (
       this.options.athenaWorkgroup ??
       process.env.PIPELINE_HEALTH_ATHENA_WORKGROUP ??
-      `api-center-platform-validation-${environment}`
+      `api-center-platform-validation-${toPhysicalPipelineEnvironment(environment)}`
     );
   }
 
@@ -279,8 +283,7 @@ LIMIT ${this.resolveQueryLimit()}
   }
 
   private readEnvironment(value: unknown): PipelineHealthEnvironment {
-    if (value === "test" || value === "prod") return value;
-    throw new ValidationError("environment must be one of: test, prod");
+    return toPublicPipelineEnvironment(value);
   }
 
   private readRequiredString(value: unknown, fieldName: string): string {

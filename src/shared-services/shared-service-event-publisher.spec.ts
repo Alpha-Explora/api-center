@@ -10,6 +10,7 @@ describe("SharedServiceEventPublisher", () => {
 
     publisher.publishSharedServiceCall({
       tribeId: "smoke-tribe",
+      environment: "test",
       sharedServiceId: "sms",
       route: "/api/v1/shared/sms/send",
       method: "POST",
@@ -35,6 +36,7 @@ describe("SharedServiceEventPublisher", () => {
         eventId: expect.any(String),
         eventType: "shared.sms.call",
         tribeId: "smoke-tribe",
+        environment: "test",
         sharedServiceId: "sms",
         route: "/api/v1/shared/sms/send",
         method: "POST",
@@ -50,7 +52,7 @@ describe("SharedServiceEventPublisher", () => {
         }),
       }),
       {
-        key: "smoke-tribe:sms",
+        key: "smoke-tribe:test:sms",
         context: "SharedServiceEventPublisher",
       },
     );
@@ -64,6 +66,7 @@ describe("SharedServiceEventPublisher", () => {
 
     publisher.publishSharedServiceCall({
       tribeId: "smoke-tribe",
+      environment: "test",
       sharedServiceId: "unknown",
       route: "/api/v1/shared/unknown/send",
       method: "POST",
@@ -83,6 +86,7 @@ describe("SharedServiceEventPublisher", () => {
 
     publisher.publishSharedServiceCall({
       tribeId: "smoke-tribe",
+      environment: "test",
       sharedServiceId: "payment",
       route: "/api/v1/shared/payment/subscriptions",
       method: "POST",
@@ -112,6 +116,7 @@ describe("SharedServiceEventPublisher", () => {
       TOPICS.SHARED_PAYMENT_EVENTS,
       expect.objectContaining({
         eventType: "shared.payment.call",
+        environment: "test",
         lifecycle: expect.objectContaining({
           eventType: "payment.subscription.active",
           subscriptionId: "sub_123",
@@ -126,5 +131,37 @@ describe("SharedServiceEventPublisher", () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it("rejects caller-supplied live targets on test shared-service events", () => {
+    const kafka = {
+      publishNonBlocking: jest.fn(),
+    };
+    const publisher = new SharedServiceEventPublisher(kafka as any);
+
+    expect(() =>
+      publisher.publishSharedServiceCall({
+        tribeId: "smoke-tribe",
+        environment: "test",
+        sharedServiceId: "payment",
+        route: "/api/v1/shared/payment/checkout",
+        method: "POST",
+        statusCode: 201,
+        ok: true,
+        latencyMs: 84,
+        requestBody: {
+          environment: "live",
+          targetEnvironment: "live",
+        },
+        responseBody: {
+          data: {
+            checkoutId: "chk_123",
+            status: "created",
+            providerMode: "test",
+          },
+        },
+      }),
+    ).toThrow("Shared-service event payload cannot override APICenter environment");
+    expect(kafka.publishNonBlocking).not.toHaveBeenCalled();
   });
 });

@@ -128,7 +128,7 @@ describe("RawToSilverRunService", () => {
     const service = new RawToSilverRunService({ athenaRunner });
 
     const result = await service.startRun({
-      environment: "prod",
+      environment: "live",
       tribeId: "logistics",
       partition: { year: "2026", month: "05", day: "20" },
       materialize: true,
@@ -138,5 +138,28 @@ describe("RawToSilverRunService", () => {
     expect(result.blockedReason).toBe("Common Silver returned zero rows.");
     expect(result.materialization?.queryExecutionId).toBeUndefined();
     expect(athenaRunner.run).toHaveBeenCalledTimes(3);
+  });
+  it("maps public live runs to physical prod topics while keeping live partitions", async () => {
+    const service = new RawToSilverRunService({
+      athenaRunner: { run: jest.fn() },
+      now: () => new Date("2026-05-23T01:00:00.000Z"),
+    });
+
+    const result = await service.startRun({
+      environment: "live",
+      tribeId: "greenovate",
+      partition: { year: "2026", month: "05", day: "22" },
+      materialize: true,
+      preview: true,
+    });
+
+    expect(result.environment).toBe("live");
+    expect(result.physicalTopic).toBe("prod.tribe.greenovate.events");
+    expect(result.previewQueries.raw).toContain("physical_topic = 'prod.tribe.greenovate.events'");
+    expect(result.previewQueries.bronze).toContain("environment = 'prod'");
+    expect(result.materialization?.targetTable).toContain("_live_20260522");
+    expect(result.materialization?.externalLocation).toContain(
+      "tribe_id=greenovate/environment=live/year=2026/month=05/day=22/",
+    );
   });
 });

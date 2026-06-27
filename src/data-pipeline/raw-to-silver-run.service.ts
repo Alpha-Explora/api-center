@@ -5,6 +5,10 @@ import {
   PipelineHealthEnvironment,
   PipelinePartitionDate,
 } from "./pipeline-health.dto";
+import {
+  pipelinePhysicalTopicForTribe,
+  toPhysicalPipelineEnvironment,
+} from "./pipeline-environment";
 
 type PipelineAthenaRunner = Pick<AthenaQueryRunner, "run">;
 
@@ -79,7 +83,7 @@ export class RawToSilverRunService {
 
   async startRun(input: RawToSilverRunInput): Promise<RawToSilverRunResult> {
     const tribeId = this.normalizeTribeId(input.tribeId);
-    const physicalTopic = `${input.environment}.tribe.${tribeId}.events`;
+    const physicalTopic = pipelinePhysicalTopicForTribe(input.environment, tribeId);
     const startedAt = this.now().toISOString();
     const materialization = this.buildMaterialization(
       input.environment,
@@ -217,7 +221,7 @@ WHERE physical_topic = '${topic}'
     return `
 SELECT COUNT(*) AS row_count
 FROM bronze.tribe_events
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND tribe_id = '${tribeId}'
   AND source_topic = '${topic}'
   AND year = '${partition.year}'
@@ -235,7 +239,7 @@ WHERE environment = '${environment}'
     return `
 SELECT COUNT(*) AS row_count
 FROM common_silver.tribe_event_envelope
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND tribe_id = '${tribeId}'
   AND source_topic = '${topic}'
   AND year = '${partition.year}'
@@ -260,7 +264,7 @@ WITH (
 ) AS
 SELECT *
 FROM common_silver.tribe_event_envelope
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND tribe_id = '${tribeId}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
@@ -348,7 +352,7 @@ WHERE environment = '${environment}'
     return (
       this.options.validationWorkgroup ??
       process.env.PIPELINE_VALIDATION_ATHENA_WORKGROUP ??
-      `api-center-platform-validation-${environment}`
+      `api-center-platform-validation-${toPhysicalPipelineEnvironment(environment)}`
     );
   }
 
@@ -358,7 +362,7 @@ WHERE environment = '${environment}'
     return (
       this.options.materializationWorkgroup ??
       process.env.PIPELINE_MATERIALIZATION_ATHENA_WORKGROUP ??
-      `api-center-materialization-${environment}`
+      `api-center-materialization-${toPhysicalPipelineEnvironment(environment)}`
     );
   }
 }

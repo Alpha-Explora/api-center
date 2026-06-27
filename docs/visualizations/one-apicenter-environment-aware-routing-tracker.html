@@ -7,14 +7,14 @@
   <style>
     :root{--bg:#f6f7f8;--panel:#fff;--ink:#111827;--muted:#5b6472;--line:#d9dee6;--green:#047857;--amber:#b45309;--red:#b91c1c;--blue:#1d4ed8;--teal:#0f766e;--shadow:0 16px 44px rgba(31,41,55,.08)}
     *{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.45}header{border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}.shell{width:min(1380px,calc(100vw - 32px));margin:0 auto}.topbar{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:24px}h1{margin:0;font-size:24px;font-weight:760;letter-spacing:0}h2{margin:0 0 12px;font-size:15px;font-weight:760;letter-spacing:0}h3{margin:0;font-size:13px;font-weight:720;letter-spacing:0}p{margin:0;color:var(--muted);font-size:13px}.meta{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;color:var(--muted);font-size:12px}.tag{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:#fff;white-space:nowrap;font-size:12px;font-weight:650}main{padding:24px 0 36px}.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start}.full{grid-column:1/-1}.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:16px}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric{border:1px solid var(--line);border-radius:8px;padding:12px;min-height:92px;background:#fbfcfd}.metric strong{display:block;font-size:26px;line-height:1;margin-bottom:8px;letter-spacing:0}.metric span{display:block;color:var(--muted);font-size:12px}.stack{display:grid;gap:8px}.row{display:grid;grid-template-columns:18px 1fr auto;align-items:start;gap:10px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd;min-width:0}.dot{width:9px;height:9px;margin-top:5px;border-radius:999px;background:var(--teal)}.dot.amber{background:var(--amber)}.dot.red{background:var(--red)}.dot.blue{background:var(--blue)}.status{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:760;border:1px solid transparent;white-space:nowrap}.done{color:var(--green);border-color:#a7f3d0;background:#ecfdf5}.pending{color:var(--amber);border-color:#fde68a;background:#fffbeb}.blocked{color:var(--red);border-color:#fecaca;background:#fef2f2}.next{color:var(--blue);border-color:#bfdbfe;background:#eff6ff}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:#475569;font-size:11px;font-weight:760;text-transform:uppercase;letter-spacing:0;background:#fbfcfd}tr:last-child td{border-bottom:0}code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:12px;color:#0f172a;background:#eef2f7;padding:1px 4px;border-radius:4px}.tasks{display:grid;gap:10px}.task{display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd}.num{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:#e5e7eb;color:#111827;font-weight:760;font-size:12px}.task.current .num{background:#dbeafe;color:#1d4ed8}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}footer{padding:20px 0 32px;color:var(--muted);font-size:12px}@media(max-width:980px){.grid,.two,.cards{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column;padding:14px 0}.meta{justify-content:flex-start}.row,.task{grid-template-columns:18px 1fr}.row .status,.task .status{grid-column:2;justify-self:start}}
-      .progress-grid{display:grid;grid-template-columns:1.2fr repeat(3,minmax(0,.8fr));gap:12px;align-items:stretch}.progress-card{border:1px solid var(--line);border-radius:8px;padding:14px;background:#fbfcfd;min-height:112px}.progress-card.primary{background:#f8fbff;border-color:#bfdbfe}.progress-value{display:block;font-size:34px;line-height:1;font-weight:800;letter-spacing:0;margin-bottom:8px}.progress-label{display:block;color:var(--muted);font-size:12px}.bar{height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden;margin:14px 0 8px}.fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#1d4ed8,#0f766e)}.progress-foot{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px}.progress-foot strong{color:var(--ink)}@media(max-width:980px){.progress-grid{grid-template-columns:1fr}}
+      .progress-grid{display:grid;grid-template-columns:1.2fr repeat(3,minmax(0,.8fr));gap:12px;align-items:stretch}.progress-card{border:1px solid var(--line);border-radius:8px;padding:14px;background:#fbfcfd;min-height:112px}.progress-card.primary{background:#f8fbff;border-color:#bfdbfe}.progress-value{display:block;font-size:34px;line-height:1;font-weight:800;letter-spacing:0;margin-bottom:8px}.progress-label{display:block;color:var(--muted);font-size:12px}.bar{height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden;margin:14px 0 8px}.fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#1d4ed8,#0f766e)}.progress-foot{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px}.progress-foot strong{color:var(--ink)}.task-progress{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-top:10px;color:var(--muted);font-size:11px}.mini-bar{height:6px;border-radius:999px;background:#e5e7eb;overflow:hidden}.mini-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#1d4ed8,#0f766e)}@media(max-width:980px){.progress-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <header>
     <div class="shell topbar">
       <div><h1>One APICenter Environment-Aware Routing Tracker</h1><p>Decision, rollout, database, and verification tracker for the one URL migration.</p></div>
-      <div class="meta"><span class="tag">Updated 2026-06-27</span><span class="tag">Plan: 2026-06-27</span><span class="tag" data-current-slice>Slice: Task 7B</span><span class="tag">DB slice committed</span></div>
+      <div class="meta"><span class="tag">Updated 2026-06-27</span><span class="tag">Plan: 2026-06-27</span><span class="tag" data-current-slice>Slice: Task 7B</span><span class="tag">Pipeline isolation verified</span></div>
     </div>
   </header>
   <main class="shell">
@@ -30,7 +30,7 @@
       <div class="panel"><h2>Latest Slice Evidence</h2><div class="stack">
         <div class="row"><span class="dot red"></span><div><h3>Registry parity</h3><p>Local <code>npm run registry:verify</code> failed because live env credentials are not loaded.</p></div><span class="status blocked">Blocked</span></div>
         <div class="row"><span class="dot"></span><div><h3>Secret names</h3><p>Runtime and tribe secret names collected without secret payloads.</p></div><span class="status done">Done</span></div>
-        <div class="row"><span class="dot"></span><div><h3>Task 7 runtime evidence checks</h3><p>Audit, gateway traffic, shared-service usage, promotion evidence, quota, policy, and proxy-handler tests passed; typecheck passed with environment-bearing runtime records.</p></div><span class="status done">Done</span></div>
+        <div class="row"><span class="dot"></span><div><h3>Task 7B pipeline isolation</h3><p>Shared-service events, schema registry, Athena telemetry, health/governance reads, feedback, decision signals, Kafka governance, and raw-to-silver mapping verified; typecheck passed.</p></div><span class="status done">Done</span></div>
         <div class="row"><span class="dot amber"></span><div><h3>Live row-level inventory</h3><p>Pending safer operator command for Supabase service/environment/dependency extraction.</p></div><span class="status pending">Pending</span></div>
       </div></div>
       <div class="panel full"><h2>Slice Tracker</h2><div class="tasks">
@@ -44,8 +44,8 @@
         <div class="task" data-task-id="6A" data-steps-done="5" data-steps-total="5"><div class="num">6A</div><div><h3>Route payment webhooks by environment</h3><p>Deterministic test/live webhook routes, environment-scoped secrets, forwarding headers, and idempotency keys.</p></div><span class="status done">5/5</span></div>
         <div class="task" data-task-id="7" data-steps-done="4" data-steps-total="4"><div class="num">7</div><div><h3>Track environment in audit, usage, quota, and evidence</h3><p>Gateway traffic, shared-service usage, proxy rollup keys, quota decisions, audit payloads, and promotion evidence carry environment.</p></div><span class="status done">4/4</span></div>
         <div class="task" data-task-id="7A" data-steps-done="9" data-steps-total="9"><div class="num">7A</div><div><h3>Add database columns and constraints</h3><p>Environment columns, composite uniqueness, indexes, clean views, grants, docs, Prisma, dry-runs, and slice commit are done. Post-apply live verifier runs after migration approval.</p></div><span class="status done">9/9</span></div>
-        <div class="task current" data-task-id="7B" data-current-task="true" data-steps-done="0" data-steps-total="5"><div class="num">7B</div><div><h3>Isolate event and pipeline outputs</h3><p>Map public <code>live</code> to physical pipeline <code>prod</code> where needed.</p></div><span class="status pending">0/5</span></div>
-        <div class="task" data-task-id="8" data-steps-done="0" data-steps-total="6"><div class="num">8</div><div><h3>Update Management operations</h3><p>Secret provisioning, handoff, target-env authorization, and audit visibility.</p></div><span class="status pending">0/6</span></div>
+        <div class="task" data-task-id="7B" data-steps-done="5" data-steps-total="5"><div class="num">7B</div><div><h3>Isolate event and pipeline outputs</h3><p>Map public <code>live</code> to physical pipeline <code>prod</code> at adapter boundaries while exports and API evidence stay public <code>live</code>.</p></div><span class="status done">5/5</span></div>
+        <div class="task current" data-task-id="8" data-current-task="true" data-steps-done="0" data-steps-total="6"><div class="num">8</div><div><h3>Update Management operations</h3><p>Secret provisioning, handoff, target-env authorization, and audit visibility.</p></div><span class="status pending">0/6</span></div>
         <div class="task" data-task-id="9" data-steps-done="0" data-steps-total="4"><div class="num">9</div><div><h3>Update docs and contracts</h3><p>Consumer docs, migration notes, and enforceable token snapshots.</p></div><span class="status pending">0/4</span></div>
         <div class="task" data-task-id="10" data-steps-done="0" data-steps-total="6"><div class="num">10</div><div><h3>Rollout, compatibility, and break glass</h3><p>Warn mode, legacy map, cutover, rollback, and topology tests.</p></div><span class="status pending">0/6</span></div>
         <div class="task" data-task-id="11" data-steps-done="0" data-steps-total="6"><div class="num">11</div><div><h3>Final cross-repo verification</h3><p>API Center, SDK, Management, deployment smoke, and tracker parity gates.</p></div><span class="status pending">0/6</span></div>
@@ -70,7 +70,7 @@
         <tr><td>Runtime usage</td><td><code>apic_runtime.usage_rollups</code></td><td>Explicit environment on gateway/shared-service rollups.</td><td>Environment, consumer, target, route family, window uniqueness.</td><td><span class="status next">Dry-run</span></td></tr>
         <tr><td>Quota</td><td><code>apic_runtime.quota_evaluations</code></td><td>Quota decisions are scoped by environment.</td><td>Owner tribe, environment, route, window.</td><td><span class="status next">Dry-run</span></td></tr>
         <tr><td>Payment</td><td><code>shared_payment.*</code></td><td>Provider records, webhooks, receipts, invoices, and catalog rows are classified by test/live.</td><td>Provider IDs unique per environment; internal one-to-one receipt relation remains unique by checkout row.</td><td><span class="status next">Dry-run</span></td></tr>
-        <tr><td>Pipeline</td><td><code>apic_runtime.pipeline_*</code></td><td>Public env <code>live</code> maps to physical <code>prod</code> partition where needed.</td><td>Env, target, correlation, query run indexes.</td><td><span class="status pending">Pending</span></td></tr>
+        <tr><td>Pipeline</td><td><code>apic_runtime.pipeline_*</code></td><td>Public env <code>live</code> maps to physical <code>prod</code> only at adapter boundaries; exports keep public <code>live</code>.</td><td>Env, target, correlation, query run indexes.</td><td><span class="status done">Verified</span></td></tr>
       </tbody></table></div>
       <div class="panel full"><h2>Management And SDK Readiness</h2><div class="two"><table><thead><tr><th>Management feature</th><th>Source of truth</th><th>Status</th></tr></thead><tbody>
         <tr><td>Registry detail</td><td>Environment rows from API Center registry</td><td><span class="status pending">Pending</span></td></tr><tr><td>Secret handoff</td><td>Target env, tribe ID, service ID, scoped secret name</td><td><span class="status pending">Pending</span></td></tr><tr><td>Live actions</td><td>Target-env authorization and audit trail</td><td><span class="status pending">Pending</span></td></tr><tr><td>Compliance export</td><td>Durable audit/evidence rows with environment metadata</td><td><span class="status pending">Pending</span></td></tr>
@@ -104,11 +104,35 @@
         const element = document.querySelector(selector);
         if (element) element.style.width = `${Math.max(0, Math.min(100, value)).toFixed(1)}%`;
       };
+      const setAttr = (selector, name, value) => {
+        const element = document.querySelector(selector);
+        if (element) element.setAttribute(name, value);
+      };
+
+      tasks.forEach((item) => {
+        const taskPercent = item.total ? (item.done / item.total) * 100 : 0;
+        const status = item.task.querySelector(".status");
+        const body = item.task.querySelector("div:nth-child(2)");
+        if (status) {
+          status.textContent = `${item.done}/${item.total} (${taskPercent.toFixed(0)}%)`;
+          status.classList.toggle("done", item.total > 0 && item.done === item.total);
+          status.classList.toggle("pending", item.done < item.total);
+        }
+        if (body && !body.querySelector(".task-progress")) {
+          const progress = document.createElement("div");
+          progress.className = "task-progress";
+          progress.innerHTML = `<div class="mini-bar" aria-label="Task ${item.id} progress"><div class="mini-fill" style="width:${Math.max(0, Math.min(100, taskPercent)).toFixed(1)}%"></div></div><span>${taskPercent.toFixed(1)}%</span>`;
+          body.appendChild(progress);
+        }
+      });
 
       setText("[data-progress-percent]", `${percent.toFixed(1)}%`);
       setText("[data-steps-done]", String(totalDone));
       setText("[data-steps-total]", String(totalSteps));
       setWidth("[data-progress-fill]", percent);
+      setAttr("[data-progress-fill]", "aria-valuenow", percent.toFixed(1));
+      setAttr("[data-progress-fill]", "aria-valuemin", "0");
+      setAttr("[data-progress-fill]", "aria-valuemax", "100");
       setText("[data-slices-complete]", `${completeSlices}/${tasks.length}`);
       setWidth("[data-slices-fill]", completePercent);
       setText("[data-slices-note]", `${completePercent.toFixed(1)}% of slices are fully checked`);

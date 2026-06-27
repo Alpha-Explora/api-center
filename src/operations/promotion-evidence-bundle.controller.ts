@@ -126,7 +126,7 @@ export class PromotionEvidenceBundleController {
   }
 
   private async getPipelineEvidence(serviceId: string, ownerTribeId: string) {
-    const rows = await this.pipelineHealth.listHealth("prod");
+    const rows = await this.pipelineHealth.listHealth("live");
     const matchingRows = rows.filter(
       (row) =>
         row.tribeId === ownerTribeId || row.sourceServiceId === serviceId,

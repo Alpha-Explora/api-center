@@ -3,6 +3,11 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { PipelineHealthEnvironment } from "./pipeline-health.dto";
+import {
+  PhysicalPipelineEnvironment,
+  toPhysicalPipelineEnvironment,
+  toPublicPipelineEnvironment,
+} from "./pipeline-environment";
 
 export const EVENT_SCHEMA_COMPATIBILITY_MODES = [
   "backward",
@@ -35,6 +40,7 @@ export interface EventSchemaRecord {
   eventType: string;
   schemaVersion: string;
   environment: PipelineHealthEnvironment;
+  physicalEnvironment: PhysicalPipelineEnvironment;
   owner: string;
   steward: string;
   jsonSchema: EventJsonSchema;
@@ -93,7 +99,7 @@ const RawEventSchemaRecordSchema = z.object({
   event_type: z.string().optional(),
   schemaVersion: z.string().optional(),
   schema_version: z.string().optional(),
-  environment: z.enum(["test", "prod"]),
+  environment: z.enum(["test", "live", "prod"]),
   owner: z.string(),
   steward: z.string(),
   jsonSchema: z.unknown().optional(),
@@ -144,9 +150,10 @@ export class EventSchemaRegistryService {
     const normalizedTribeId = this.normalizeId(input.tribeId);
     const schemaVersion =
       input.schemaVersion?.trim() || DEFAULT_EVENT_SCHEMA_VERSION;
+    const physicalEnvironment = toPhysicalPipelineEnvironment(input.environment);
     const record = registry.records.find(
       (candidate) =>
-        candidate.environment === input.environment &&
+        candidate.physicalEnvironment === physicalEnvironment &&
         candidate.tribeId === normalizedTribeId &&
         candidate.eventType === input.eventType &&
         candidate.schemaVersion === schemaVersion,
@@ -179,7 +186,7 @@ export class EventSchemaRegistryService {
     }
 
     if (
-      input.environment === "prod" &&
+      physicalEnvironment === "prod" &&
       record.compatibilityMode === "none-for-test-only"
     ) {
       return this.reject(
@@ -306,7 +313,8 @@ export class EventSchemaRegistryService {
       tribeId: this.normalizeId(tribeId),
       eventType,
       schemaVersion,
-      environment: parsed.environment,
+      environment: toPublicPipelineEnvironment(parsed.environment),
+      physicalEnvironment: toPhysicalPipelineEnvironment(parsed.environment),
       owner: parsed.owner,
       steward: parsed.steward,
       jsonSchema: this.normalizeJsonSchema(jsonSchema),

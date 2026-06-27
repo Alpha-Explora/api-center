@@ -21,9 +21,9 @@ describe("PipelineGovernanceService", () => {
         qualityErrorCount: 0,
       }),
     ]);
-    await expect(service.listCost("prod")).resolves.toEqual([
+    await expect(service.listCost("live")).resolves.toEqual([
       expect.objectContaining({
-        environment: "prod",
+        environment: "live",
         workgroup: "api-center-platform-validation-prod",
         bytesScanned: 1024,
         estimatedCostUsd: 0.00000477,
@@ -165,7 +165,7 @@ describe("PipelineGovernanceService", () => {
     });
 
     await expect(
-      service.listQuality("prod", {
+      service.listQuality("live", {
         year: "2026",
         month: "05",
         day: "20",

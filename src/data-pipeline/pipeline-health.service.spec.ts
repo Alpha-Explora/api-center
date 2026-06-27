@@ -146,7 +146,7 @@ describe("PipelineHealthService", () => {
     });
 
     await expect(
-      service.listHealth("prod", {
+      service.listHealth("live", {
         year: "2026",
         month: "05",
         day: "20",

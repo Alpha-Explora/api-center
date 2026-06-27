@@ -1,9 +1,11 @@
 import { ValidationError } from "../shared/errors";
+import {
+  PipelineHealthEnvironment,
+  parsePipelineRuntimeEnvironment,
+} from "./pipeline-environment";
 
-export const PIPELINE_HEALTH_ENVIRONMENTS = ["test", "prod"] as const;
-
-export type PipelineHealthEnvironment =
-  (typeof PIPELINE_HEALTH_ENVIRONMENTS)[number];
+export const PIPELINE_HEALTH_ENVIRONMENTS = ["test", "live"] as const;
+export type { PipelineHealthEnvironment } from "./pipeline-environment";
 
 export type PipelineHealthResponseSource = "evidence-file" | "athena-proxy";
 
@@ -129,16 +131,7 @@ export interface PipelineDecisionSignalRow {
 export function parsePipelineHealthEnvironment(
   value: string | undefined,
 ): PipelineHealthEnvironment {
-  const environment = value ?? "test";
-  if (
-    PIPELINE_HEALTH_ENVIRONMENTS.includes(
-      environment as PipelineHealthEnvironment,
-    )
-  ) {
-    return environment as PipelineHealthEnvironment;
-  }
-
-  throw new ValidationError("environment must be one of: test, prod");
+  return parsePipelineRuntimeEnvironment(value);
 }
 
 export function parsePipelinePartitionDate(

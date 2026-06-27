@@ -16,6 +16,7 @@ import {
   PipelinePartitionDate,
 } from "./pipeline-health.dto";
 import { resolvePartitionDate as resolveAthenaPartitionDate } from "./athena-partition-config";
+import { toPublicPipelineEnvironment } from "./pipeline-environment";
 import {
   resolvePipelineDatasetSource,
   resolvePositiveQueryLimit,
@@ -292,8 +293,7 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
   }
 
   private readEnvironment(value: unknown): PipelineHealthEnvironment {
-    if (value === "test" || value === "prod") return value;
-    throw new ValidationError("environment must be one of: test, prod");
+    return toPublicPipelineEnvironment(value);
   }
 
   private readSignalType(value: unknown): PipelineDecisionSignalType {

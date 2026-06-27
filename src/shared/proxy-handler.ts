@@ -573,6 +573,7 @@ export class ProxyHandler {
 
     this.deps.sharedServiceEvents.publishSharedServiceCall({
       tribeId,
+      environment: this.resolveTargetEnvironment(req),
       sharedServiceId: targetServiceId,
       route: req.originalUrl ?? req.url ?? "",
       method: req.method,

@@ -1200,7 +1200,7 @@ git commit -m "feat: add environment constraints to shared payment data"
 - Modify: `api-center/docs/data-pipeline/tribe-event-contract.md`
 - Modify: related data-pipeline and event publisher specs
 
-- [ ] **Step 1: Add event environment tests**
+- [x] **Step 1: Add event environment tests**
 
 Event publishing tests must assert environment is present in every platform event envelope:
 
@@ -1208,7 +1208,7 @@ Event publishing tests must assert environment is present in every platform even
 expect(publishedEvent).toEqual(expect.objectContaining({ environment: "test" }));
 ```
 
-- [ ] **Step 2: Define `live` versus `prod` pipeline lane mapping**
+- [x] **Step 2: Define `live` versus `prod` pipeline lane mapping**
 
 The runtime contract uses `test|live`, while existing data-pipeline code and historical records may use `test|prod`. Choose one of these before implementing exports:
 
@@ -1219,7 +1219,7 @@ Option B: migrate all pipeline topics, S3 prefixes, Athena views, schema registr
 
 For phase 1, prefer Option A if existing Athena/S3 assets are still named `prod`; add tests at publish/export/read boundaries proving `environment=live` in runtime evidence maps to `prod` only at the physical pipeline adapter boundary and never leaks back into API/Management contracts.
 
-- [ ] **Step 3: Add export partition rules**
+- [x] **Step 3: Add export partition rules**
 
 Data-pipeline exports must partition or tag records by environment:
 
@@ -1229,11 +1229,11 @@ tribe_id=<tribeId>/environment=<test|live>/event_date=<yyyy-mm-dd>/...
 
 Test events must never write to live export prefixes, live Athena views, or live BI datasets.
 
-- [ ] **Step 4: Add leak guard for event publishing**
+- [x] **Step 4: Add leak guard for event publishing**
 
 If token environment is `test`, event publish requests must emit `environment=test` and must be blocked from selecting a live topic/export target. If token environment is `live`, event publish requests must emit `environment=live`.
 
-- [ ] **Step 5: Verify and commit data-pipeline isolation**
+- [x] **Step 5: Verify and commit data-pipeline isolation**
 
 ```powershell
 cd C:\Codes\apic\api-center

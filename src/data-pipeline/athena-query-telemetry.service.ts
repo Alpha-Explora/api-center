@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { PipelineHealthEnvironment } from "./pipeline-health.dto";
+import { toPhysicalPipelineEnvironment } from "./pipeline-environment";
 
 export const ATHENA_QUERY_TELEMETRY_OPTIONS = "ATHENA_QUERY_TELEMETRY_OPTIONS";
 
@@ -49,7 +50,7 @@ export class AthenaQueryTelemetryService {
 
     try {
       await publisher.publish(
-        `${input.environment}.${ATHENA_QUERY_TELEMETRY_TOPIC_SUFFIX}`,
+        `${toPhysicalPipelineEnvironment(input.environment)}.${ATHENA_QUERY_TELEMETRY_TOPIC_SUFFIX}`,
         {
           eventType: "athena.query.completed",
           metadata: {

@@ -234,16 +234,15 @@ export class KafkaGovernanceService {
   private resolvePublishEnvironment(topic: string): PipelineHealthEnvironment {
     const cleanTopic = topic.trim();
     if (cleanTopic.startsWith("test.")) return "test";
-    if (cleanTopic.startsWith("prod.")) return "prod";
+    if (cleanTopic.startsWith("prod.")) return "live";
 
     const cleanPrefix = (this.config?.kafka?.topicPrefix ?? "")
       .trim()
       .replace(/\.+$/, "");
-    if (cleanPrefix === "test" || cleanPrefix === "prod") {
-      return cleanPrefix;
-    }
+    if (cleanPrefix === "test") return "test";
+    if (cleanPrefix === "prod") return "live";
 
-    return this.config?.nodeEnv === "production" ? "prod" : "test";
+    return this.config?.nodeEnv === "production" ? "live" : "test";
   }
 
   private normalizeTribeId(tribeId: string): string {

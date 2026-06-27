@@ -5,7 +5,8 @@ describe("EventSchemaRegistryService", () => {
     tribeId: "orders",
     eventType: "order.created",
     schemaVersion: "1.0.0",
-    environment: "prod" as const,
+    environment: "live" as const,
+    physicalEnvironment: "prod" as const,
     owner: "orders-platform",
     steward: "orders-data-steward",
     jsonSchema: {
@@ -29,7 +30,7 @@ describe("EventSchemaRegistryService", () => {
 
     await expect(
       service.validateEvent({
-        environment: "prod",
+        environment: "live",
         tribeId: "orders",
         eventType: "order.created",
         schemaVersion: "1.0.0",
@@ -41,8 +42,35 @@ describe("EventSchemaRegistryService", () => {
         schemaValidationStatus: "approved",
         schemaRegistryVersion: "fixture-registry-v1",
         record: expect.objectContaining({
+          environment: "live",
+          physicalEnvironment: "prod",
           eventType: "order.created",
           schemaVersion: "1.0.0",
+        }),
+      }),
+    );
+  });
+
+  it("maps public live validation to physical prod registry records", async () => {
+    const service = new EventSchemaRegistryService({
+      records: [approvedRecord],
+      registryVersion: "fixture-registry-v1",
+    });
+
+    await expect(
+      service.validateEvent({
+        environment: "live",
+        tribeId: "orders",
+        eventType: "order.created",
+        schemaVersion: "1.0.0",
+        payload: { orderId: "ord_123" },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        accepted: true,
+        record: expect.objectContaining({
+          environment: "live",
+          physicalEnvironment: "prod",
         }),
       }),
     );
@@ -56,7 +84,7 @@ describe("EventSchemaRegistryService", () => {
 
     await expect(
       service.validateEvent({
-        environment: "prod",
+        environment: "live",
         tribeId: "orders",
         eventType: "order.cancelled",
         schemaVersion: "1.0.0",
@@ -134,7 +162,7 @@ describe("EventSchemaRegistryService", () => {
 
     await expect(
       service.validateEvent({
-        environment: "prod",
+        environment: "live",
         tribeId: "orders",
         eventType: "order.created",
         schemaVersion: "2.0.0",

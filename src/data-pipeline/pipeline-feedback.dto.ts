@@ -27,8 +27,8 @@ export class PipelineFeedbackActionDto {
   @IsIn(PIPELINE_FEEDBACK_ACTIONS)
   action!: PipelineFeedbackAction;
 
-  @IsIn(["test", "prod"])
-  environment!: "test" | "prod";
+  @IsIn(["test", "live"])
+  environment!: "test" | "live";
 
   @IsIn(PIPELINE_FEEDBACK_TARGET_TYPES)
   targetType!: PipelineFeedbackTargetType;

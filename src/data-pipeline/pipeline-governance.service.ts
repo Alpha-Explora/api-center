@@ -17,6 +17,10 @@ import {
 } from "./pipeline-health.dto";
 import { resolvePartitionDate as resolveAthenaPartitionDate } from "./athena-partition-config";
 import {
+  toPhysicalPipelineEnvironment,
+  toPublicPipelineEnvironment,
+} from "./pipeline-environment";
+import {
   resolvePipelineDatasetSource,
   resolvePositiveQueryLimit,
 } from "./pipeline-dataset-provider";
@@ -126,7 +130,7 @@ export class PipelineGovernanceService {
       this.resolveSource() === "athena"
         ? await this.readAthenaRows(environment, kind, query)
         : await this.readFixtureRows(kind);
-    return rows.filter((row) => row.environment === environment);
+    return rows.filter((row) => this.readEnvironment(row.environment) === environment);
   }
 
   private async readFixtureRows(kind: MetricKind): Promise<RawMetricRow[]> {
@@ -224,7 +228,7 @@ SELECT
   latest_quality_error,
   CAST(latest_observed_at AS varchar) AS latest_observed_at
 FROM gold_platform.event_quality_daily
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
@@ -254,7 +258,7 @@ SELECT
   CAST(latest_occurred_at AS varchar) AS latest_occurred_at,
   CAST(latest_ingested_at AS varchar) AS latest_ingested_at
 FROM gold_platform.shared_service_usage_daily
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
@@ -286,7 +290,7 @@ SELECT
   CAST(latest_occurred_at AS varchar) AS latest_occurred_at,
   CAST(latest_ingested_at AS varchar) AS latest_ingested_at
 FROM gold_platform.gateway_decision_daily
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
@@ -315,7 +319,7 @@ SELECT
   latest_query_execution_id,
   CAST(latest_completed_at AS varchar) AS latest_completed_at
 FROM gold_platform.athena_query_cost_daily
-WHERE environment = '${environment}'
+WHERE environment = '${toPhysicalPipelineEnvironment(environment)}'
   AND year = '${partition.year}'
   AND month = '${partition.month}'
   AND day = '${partition.day}'
@@ -359,7 +363,7 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
     return (
       this.options.athenaWorkgroup ??
       process.env.PIPELINE_GOVERNANCE_ATHENA_WORKGROUP ??
-      `api-center-platform-validation-${environment}`
+      `api-center-platform-validation-${toPhysicalPipelineEnvironment(environment)}`
     );
   }
 
@@ -553,8 +557,7 @@ LIMIT ${this.resolveQueryLimit(windowDays)}
   }
 
   private readEnvironment(value: unknown): PipelineHealthEnvironment {
-    if (value === "test" || value === "prod") return value;
-    throw new ValidationError("environment must be one of: test, prod");
+    return toPublicPipelineEnvironment(value);
   }
 
   private readRequiredString(value: unknown, fieldName: string): string {

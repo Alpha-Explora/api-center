@@ -41,7 +41,7 @@ describe("PipelineFeedbackService", () => {
     });
   });
 
-  it("rejects prod promotion blocks without a non-empty reason", async () => {
+  it("rejects live promotion blocks without a non-empty reason", async () => {
     const service = new PipelineFeedbackService({
       now: () => new Date("2026-05-21T00:00:00.000Z"),
     });
@@ -50,7 +50,7 @@ describe("PipelineFeedbackService", () => {
       service.createFeedbackAction(
         {
           action: "promotion.blocked",
-          environment: "prod",
+          environment: "live",
           targetType: "topic",
           targetId: "prod.tribe.logistics.events",
           reason: "   ",
@@ -60,7 +60,7 @@ describe("PipelineFeedbackService", () => {
           actorRole: "platform-admin",
         },
       ),
-    ).rejects.toThrow("reason is required for prod promotion.blocked");
+    ).rejects.toThrow("reason is required for live promotion.blocked");
   });
 
   it("lists records filtered by environment and target id", async () => {
@@ -89,10 +89,10 @@ describe("PipelineFeedbackService", () => {
     await service.createFeedbackAction(
       {
         action: "validation.rerun.requested",
-        environment: "prod",
+        environment: "live",
         targetType: "topic",
         targetId: "prod.tribe.logistics.events",
-        reason: "Validate production partition",
+        reason: "Validate live partition",
       },
       {
         actorId: "operator@example.com",

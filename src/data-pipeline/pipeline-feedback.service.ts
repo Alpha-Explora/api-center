@@ -8,6 +8,10 @@ import {
   PipelineFeedbackTargetType,
 } from "./pipeline-feedback.dto";
 import { PipelineHealthEnvironment } from "./pipeline-health.dto";
+import {
+  toPhysicalPipelineEnvironment,
+  toPublicPipelineEnvironment,
+} from "./pipeline-environment";
 
 export type PipelineFeedbackStatus =
   | "pending"
@@ -107,7 +111,7 @@ export class PipelineFeedbackService {
       const row = await database.pipelineFeedbackActionRecord.create({
         data: {
           action: input.action,
-          environment: input.environment,
+          environment: toPhysicalPipelineEnvironment(input.environment),
           targetType: input.targetType,
           targetId: input.targetId,
           ownerTribeId: this.optionalString(input.ownerTribeId),
@@ -150,7 +154,9 @@ export class PipelineFeedbackService {
     if (database) {
       const rows = await database.pipelineFeedbackActionRecord.findMany({
         where: {
-          environment: filter.environment,
+          environment: filter.environment
+            ? toPhysicalPipelineEnvironment(filter.environment)
+            : undefined,
           targetId: filter.targetId,
           targetType: filter.targetType,
         },
@@ -180,9 +186,9 @@ export class PipelineFeedbackService {
   ): string {
     const reason = value?.trim() ?? "";
     if (reason) return reason;
-    if (environment === "prod" && action === "promotion.blocked") {
+    if (environment === "live" && action === "promotion.blocked") {
       throw new ValidationError(
-        "reason is required for prod promotion.blocked",
+        "reason is required for live promotion.blocked",
       );
     }
     throw new ValidationError("reason is required");
@@ -238,7 +244,7 @@ function mapFeedbackRow(row: PipelineFeedbackRow): PipelineFeedbackRecord {
   return {
     id: row.id,
     action: row.action as PipelineFeedbackAction,
-    environment: row.environment as PipelineHealthEnvironment,
+    environment: toPublicPipelineEnvironment(row.environment),
     targetType: row.targetType as PipelineFeedbackTargetType,
     targetId: row.targetId,
     ownerTribeId: row.ownerTribeId ?? undefined,

@@ -58,7 +58,7 @@ describe("AthenaQueryTelemetryService", () => {
     });
 
     await service.emitQueryCompleted({
-      environment: "prod",
+      environment: "live",
       database: "gold_platform",
       workgroup: "api-center-platform-validation-prod",
       resultPurpose: "pipeline-quality",

@@ -11,8 +11,27 @@ Both calls must publish to the owner tribe topic:
 tribe.<ownerTribeId>.events
 ```
 
-APICenter applies the runtime environment prefix, such as `test.` or `prod.`,
-when writing to Kafka.
+APICenter applies the authenticated runtime environment when writing platform envelopes. Public API and SDK contracts use `test|live`; consumers must not send `prod`.
+
+Physical pipeline lanes may still use the historical `prod` name. In that case APICenter maps public `live` to physical `prod` only inside the data-pipeline adapter boundary:
+
+```text
+public API/SDK environment: test -> physical topic/query lane: test
+public API/SDK environment: live -> physical topic/query lane: prod
+```
+
+Kafka topic examples:
+
+```text
+test.tribe.<ownerTribeId>.events
+prod.tribe.<ownerTribeId>.events   # physical lane for public live
+```
+
+Exported partitions keep the public runtime environment so Management, compliance, and BI evidence never expose `prod` as a consumer-facing environment:
+
+```text
+tribe_id=<tribeId>/environment=<test|live>/event_date=<yyyy-mm-dd>/...
+```
 
 ## Required Shape
 

@@ -27,7 +27,7 @@ export class ServiceLifecycleEvidenceController {
         this.quotaPolicies.listPolicies(),
         this.plans.listPlanAssignments({ status: "active" }),
         this.approvals.listRequests(),
-        this.pipelineHealth.listHealth("prod"),
+        this.pipelineHealth.listHealth("live"),
       ]);
 
     return {
