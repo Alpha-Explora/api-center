@@ -2017,7 +2017,7 @@ git commit -m "chore: separate runtime environment from pipeline lane naming"
 - Modify: `apicenter-management/docs/operations/apicenter-management-runbook.md`
 - Modify: `api-center/docs/visualizations/one-apicenter-environment-aware-routing-tracker.html`
 
-- [ ] **Step 1: Inventory every stored legacy service and secret record**
+- [x] **Step 1: Inventory every stored legacy service and secret record**
 
 Create `api-center/scripts/inventory-legacy-service-migration.js` that reads Supabase/Postgres catalog state and Secret Manager metadata without printing plaintext values. This inventory must include every stored legacy control-plane record, not only services already visible in Management:
 
@@ -2181,6 +2181,8 @@ node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-
 
 Expected: the artifact lists every active legacy service signal and every legacy/test-prefixed Secret Manager record. No plaintext secret value appears.
 
+Current status: `node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json` completed on 2026-06-28 with `blockers=0` and no secret payload values recorded. The artifact reports 22 active catalog services; 7 are already in the new model, 6 require explicit environment rows, and 9 should be retired or marked test-only. It also reports 14 legacy Secret Manager records by metadata only (10 test-prefixed, 4 unscoped), 9 scoped target records, and 50 active code/doc compatibility findings. `ready=false` is expected until Step 2 through Step 5 are complete.
+
 - [ ] **Step 2: Migrate active services to explicit environment rows or retire them**
 
 For each row in `legacy-service-migration-2026-06-28.json`:
@@ -2319,7 +2321,7 @@ cd C:\Codes\apic\apicenter-management
 npm test -- src/lib/server/deployment-config.test.ts src/lib/management-environment.test.ts src/lib/server/north-star-bi-config.test.ts
 ```
 
-- [ ] **Step 6: Add a no-legacy verifier**
+- [x] **Step 6: Add a no-legacy verifier**
 
 Create `api-center/scripts/verify-no-legacy-environment-routing.js`:
 
@@ -2385,6 +2387,8 @@ npm run check:no-legacy-routing
 ```
 
 Expected after cleanup: PASS.
+
+Current status: `npm run check:no-legacy-routing -- --report` runs in report mode and found 50 active violations plus historical matches in allowed plan/operations evidence files. The default `npm run check:no-legacy-routing` remains an enforce-mode gate and is expected to fail until Step 4 and Step 5 remove the remaining code/doc compatibility paths.
 
 - [ ] **Step 7: Verify final migration and commit**
 
