@@ -1508,7 +1508,7 @@ git commit -m "docs: add management environment handoff settings"
 **Files:**
 - No planned source edits unless verification exposes a defect.
 
-- [ ] **Step 0: Tracker parity check**
+- [x] **Step 0: Tracker parity check**
 
 Verify `api-center/docs/visualizations/one-apicenter-environment-aware-routing-tracker.html` mirrors the Markdown plan status, latest decisions, critical risks, and completed slice evidence.
 
@@ -1516,7 +1516,7 @@ Verify `api-center/docs/visualizations/one-apicenter-environment-aware-routing-t
 cd C:\Codes\apic\api-center
 rg -n "Last updated|Task 0|Task 11|No silent defaults|target environment|SDK 2.0.0" docs/visualizations/one-apicenter-environment-aware-routing-tracker.html
 ```
-- [ ] **Step 1: API Center focused tests**
+- [x] **Step 1: API Center focused tests**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -1533,7 +1533,9 @@ npm run check:contracts
 npm run registry:verify
 ```
 
-- [ ] **Step 3: SDK gates**
+Current status: `typecheck`, `build`, and `check:contracts` pass. `registry:verify` remains blocked because direct Redis registry parity timed out from this workstation and no API Center admin snapshot credential is available for fallback.
+
+- [x] **Step 3: SDK gates**
 
 ```powershell
 cd C:\Codes\apic\api-shared-services
@@ -1544,7 +1546,7 @@ npm run build
 npm run pack:check
 ```
 
-- [ ] **Step 4: Management gates**
+- [x] **Step 4: Management gates**
 
 ```powershell
 cd C:\Codes\apic\apicenter-management
