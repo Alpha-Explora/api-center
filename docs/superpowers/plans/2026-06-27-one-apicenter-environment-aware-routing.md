@@ -177,7 +177,7 @@ git commit -m "docs: inventory one-url environment migration state"
 - Create: `api-center/src/shared/dto/token-request.dto.spec.ts`
 - Modify: `api-shared-services/src/types.ts`
 
-- [ ] **Step 1: Write failing API Center DTO tests**
+- [x] **Step 1: Write failing API Center DTO tests**
 
 Add tests that prove `environment` is required, `test` and `live` are accepted, and `production` is rejected.
 
@@ -206,7 +206,7 @@ describe("TokenRequestDto", () => {
 });
 ```
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -215,7 +215,7 @@ npm test -- --runInBand src/shared/dto/token-request.dto.spec.ts
 
 Expected: FAIL because `environment` is not implemented.
 
-- [ ] **Step 3: Add API Center environment type**
+- [x] **Step 3: Add API Center environment type**
 
 In `api-center/src/types.ts`:
 
@@ -231,7 +231,7 @@ export function isApicenterRuntimeEnvironment(value: unknown): value is Apicente
 // Token issuance, gateway routing, provider routing, usage, quota, and evidence must use ApicenterRuntimeEnvironment.
 ```
 
-- [ ] **Step 4: Add DTO fields**
+- [x] **Step 4: Add DTO fields**
 
 In `token-request.dto.ts`, add `environment` and `sourceServiceId`:
 
@@ -249,7 +249,7 @@ environment!: ServiceEnvironmentKey;
 sourceServiceId?: string;
 ```
 
-- [ ] **Step 5: Add SDK public type**
+- [x] **Step 5: Add SDK public type**
 
 In `api-shared-services/src/types.ts`:
 
@@ -259,7 +259,7 @@ export type ApicenterEnvironment = "test" | "live";
 
 Add `environment: ApicenterEnvironment` and `sourceServiceId?: string` to `TokenResponse`.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -1583,6 +1583,7 @@ usage/audit: serviceId=church-donations, environment=live
 - [x] Type consistency: API Center uses `ServiceEnvironmentKey`; SDK uses `ApicenterEnvironment`; runtime values are consistently `test` and `live`.
 - [x] Scope check: this remains one platform contract despite spanning three repos; tasks are sliced so each produces testable software.
 - [x] Visual tracker coverage: the plan requires a standalone HTML tracker for decisions, risks, slice status, database readiness, rollout gates, and deployment status, updated in the same slice as Markdown checkboxes.
+
 
 
 

@@ -1,9 +1,9 @@
-// =============================================================================
-// Unit tests — AuthController
+﻿// =============================================================================
+// Unit tests â€” AuthController
 // =============================================================================
 // Verifies token issuance and refresh endpoints, including the fix
 // that both responses now include `refreshToken`.
-// Tests are provider-agnostic — they mock AuthService, not Descope directly.
+// Tests are provider-agnostic â€” they mock AuthService, not Descope directly.
 // =============================================================================
 
 import { AuthController } from "./auth.controller";
@@ -15,7 +15,7 @@ import { ConfigService } from "../config/config.service";
 import { NotFoundError, UnauthorizedError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
 
-// ── Mocks ────────────────────────────────────────────────────────────────────
+// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const mockAuth: Partial<AuthService> = {
   issueTribeToken: jest.fn(),
@@ -51,7 +51,7 @@ function fakeReq(
   return { correlationId: "corr-1", ...overrides } as AuthenticatedRequest;
 }
 
-// ── Tests ────────────────────────────────────────────────────────────────────
+// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("AuthController", () => {
   let controller: AuthController;
@@ -72,7 +72,7 @@ describe("AuthController", () => {
   // =========================================================================
 
   describe("issueToken()", () => {
-    const dto = { tribeId: "svc-alpha", secret: "s3cret" };
+    const dto = { tribeId: "svc-alpha", secret: "s3cret", environment: "test" as const };
 
     beforeEach(() => {
       (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
@@ -221,7 +221,7 @@ describe("AuthController", () => {
       });
 
       await controller.issueToken(
-        { tribeId: "logistics", secret: "s3cret" },
+        { tribeId: "logistics", secret: "s3cret", environment: "test" },
         fakeReq(),
       );
 
@@ -304,3 +304,4 @@ describe("AuthController", () => {
     });
   });
 });
+

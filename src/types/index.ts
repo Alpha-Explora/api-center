@@ -1,5 +1,5 @@
-// =============================================================================
-// src/types/index.ts — Shared TypeScript type definitions for the API Center
+﻿// =============================================================================
+// src/types/index.ts â€” Shared TypeScript type definitions for the API Center
 // =============================================================================
 // All shared interfaces and types used across the application are defined here.
 // Import from '../types' in other modules.
@@ -56,11 +56,25 @@ export type ServiceLifecycleStatus =
   | "proposed" // Submitted but not yet approved for traffic
   | "active" // Live and serving traffic
   | "deprecated" // Still live but consumers should migrate
-  | "retired"; // No longer routable — kept for audit history
+  | "retired"; // No longer routable â€” kept for audit history
 
 /** Routing namespace: shared = platform service, tribe = tribe backend */
 export type ServiceType = "shared" | "tribe";
 
+export const APICENTER_RUNTIME_ENVIRONMENT_KEYS = ["test", "live"] as const;
+
+export type ApicenterRuntimeEnvironment = (typeof APICENTER_RUNTIME_ENVIRONMENT_KEYS)[number];
+
+export function isApicenterRuntimeEnvironment(value: unknown): value is ApicenterRuntimeEnvironment {
+  return (
+    typeof value === "string" &&
+    APICENTER_RUNTIME_ENVIRONMENT_KEYS.includes(value as ApicenterRuntimeEnvironment)
+  );
+}
+
+// Token issuance, gateway routing, provider routing, usage, quota, and evidence
+// use ApicenterRuntimeEnvironment. The broader ServiceEnvironmentKey remains
+// while migrating existing staging/uat/demo registry rows.
 /** Platform-approved runtime environments for one stable service identity */
 export type ServiceEnvironmentKey =
   | "test"
@@ -91,7 +105,7 @@ export interface ServiceManifest {
   consumes: string[];
   /** Tribe that owns this service. Defaults to serviceId for legacy tribe entries. */
   ownerTribeId?: string;
-  /** Routing namespace — 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
+  /** Routing namespace â€” 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
   serviceType?: ServiceType;
   healthCheck?: string;
   environments?: ServiceEnvironmentManifest[];
@@ -99,7 +113,7 @@ export interface ServiceManifest {
   description?: string;
   tags?: string[];
 
-  // ── Governance fields ────────────────────────────────────────────────────
+  // â”€â”€ Governance fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   /** Team or squad that owns and operates this service */
   ownerTeam?: string;
   /** Primary contact email / Slack channel for incidents */
@@ -128,15 +142,15 @@ export interface ServiceRegistryEntry extends ServiceManifest {
   updatedAt: string;
   status: ServiceLifecycleStatus;
   environments: ServiceEnvironmentManifest[];
-  /** Previous version string — set on update when version changes */
+  /** Previous version string â€” set on update when version changes */
   previousVersion?: string;
-  /** Runtime health — `true` (default) when the upstream responds to health checks */
+  /** Runtime health â€” `true` (default) when the upstream responds to health checks */
   healthy?: boolean;
   /** ISO-8601 timestamp of the last successful or failed health check */
   lastHealthCheckAt?: string;
 }
 
-/** Map of service ID → ServiceRegistryEntry */
+/** Map of service ID â†’ ServiceRegistryEntry */
 export interface ServiceRegistryMap {
   [serviceId: string]: ServiceRegistryEntry;
 }
@@ -252,3 +266,4 @@ export interface ApiErrorResponse {
     correlationId?: string;
   };
 }
+
