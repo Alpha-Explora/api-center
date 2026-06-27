@@ -19,7 +19,7 @@
 | Artifact Registry | `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center` |
 | Static IP name | `api-center-ip` (`34.8.167.159`) |
 | Public hostname | `api-center.itsandbox.site` |
-| Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<tribe-id>` secrets |
+| Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<tribe-id>-<test|live>` secrets |
 | Auth provider | `composite` (`AUTH_PROVIDER=composite` in ConfigMap): API Center-issued tribe JWTs with Descope validation fallback |
 | Memorystore cache host | `10.88.197.107:6379` |
 | Memorystore rate-limit host | `10.88.197.107:6379` (shared low-traffic Redis) |
@@ -200,7 +200,7 @@ Per-tribe secret hashes no longer belong in `api-center-prod`. Create one Secret
 Manager secret per tribe, for example:
 
 ```text
-api-center-tribe-secret-smoke-tribe
+api-center-tribe-secret-smoke-tribe-test
 ```
 
 with payload:
@@ -215,8 +215,10 @@ with payload:
 ```
 
 Legacy rollback path: `TRIBE_SECRET_<SERVICE_ID_UPPER>` in `api-center-prod`
-still takes precedence during migration. Remove those keys after a successful
-token smoke test against the per-tribe secret.
+is now available only through `APICENTER_ENVIRONMENT_CONTRACT_MODE=warn`, explicit
+`APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST`, and explicit
+`APICENTER_LEGACY_ENVIRONMENT_MAP`. Remove those keys after successful token
+smoke tests against the environment-scoped per-tribe secret.
 
 ### 2B. Confirm runtime selector
 
@@ -320,7 +322,29 @@ $names = $json.PSObject.Properties.Name
 ) | Format-Table -AutoSize
 ```
 
-### 2E. Optional control-plane database keys
+### 2E. One-URL environment contract controls
+
+`config/environments/live/api-center-config.yaml` and the live ConfigMap should default to enforce mode:
+
+```yaml
+APICENTER_ENVIRONMENT_CONTRACT_MODE: "enforce"
+APICENTER_LEGACY_TRIBE_SECRET_FALLBACK: "false"
+APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST: ""
+APICENTER_LEGACY_ENVIRONMENT_MAP: ""
+```
+
+Use warn mode only for a named legacy rollback window:
+
+```yaml
+APICENTER_ENVIRONMENT_CONTRACT_MODE: "warn"
+APICENTER_LEGACY_TRIBE_SECRET_FALLBACK: "true"
+APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST: "smoke-tribe,logistics"
+APICENTER_LEGACY_ENVIRONMENT_MAP: "smoke-tribe:test,logistics:test"
+```
+
+Do not keep warn mode after SDK `2.0.0`, environment-scoped secrets, and service smoke checks are complete.
+
+### 2F. Optional control-plane database keys
 
 Do not add these until a Postgres database exists and the initial migration has
 been deployed. Redis remains the active registry source during the migration
@@ -360,13 +384,14 @@ Those keys belong in `api-shared-services-prod`, not `api-center-prod`.
 export PUBLIC_HOSTNAME=<real-hostname>
 export GATEWAY_TRIBE_ID=<registered-service-id>
 export GATEWAY_TRIBE_SECRET=<registered-service-secret>
+export GATEWAY_ENVIRONMENT=test
 
 # A) Gateway token flow via /api/v1/auth/token.
 # This should be issued by API Center internal JWT mode and should not call
 # Descope /oauth2/v1/apps/token.
 GATEWAY_RESPONSE=$(curl -sS -X POST "https://${PUBLIC_HOSTNAME}/api/v1/auth/token" \
         -H "Content-Type: application/json" \
-        -d "{\"tribeId\":\"${GATEWAY_TRIBE_ID}\",\"secret\":\"${GATEWAY_TRIBE_SECRET}\"}")
+        -d "{\"tribeId\":\"${GATEWAY_TRIBE_ID}\",\"secret\":\"${GATEWAY_TRIBE_SECRET}\",\"environment\":\"${GATEWAY_ENVIRONMENT}\"}")
 echo "$GATEWAY_RESPONSE" | jq .
 GATEWAY_ACCESS_TOKEN=$(echo "$GATEWAY_RESPONSE" | jq -r '.data.accessToken // empty')
 GATEWAY_REFRESH_TOKEN=$(echo "$GATEWAY_RESPONSE" | jq -r '.data.refreshToken // empty')
@@ -464,6 +489,7 @@ values:
 export APICENTER_URL=https://api-center.itsandbox.site
 export APICENTER_TRIBE_ID=<owning-tribe-id>
 export APICENTER_TRIBE_SECRET=<registered-service-secret>
+export APICENTER_ENVIRONMENT=test
 export APICENTER_PLATFORM_ADMIN_TOKEN=<token-with-platform-admin>
 # or:
 export APICENTER_PLATFORM_ADMIN_SECRET=<platform-admin-secret>
@@ -635,3 +661,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-05-22 | 9a6b5a94-ac35-4efc-aff3-d2a0a7a3cc84 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353`; live smoke confirmed valid false-positive signal feedback succeeds and invalid false-positive event feedback is rejected with HTTP 400 | Enforce the signal-only false-positive contract at API and database boundaries |
 | 2026-05-22 | test-rollout-d1eb7e6 | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:data-pipeline-decision-reviewfix2-d1eb7e6-20260522003353` to namespace `api-center-test`; added non-secret Athena data-pipeline ConfigMap settings, created dedicated test AWS runtime principal `api-center-athena-reader-gke-test`, applied feedback table migrations to the test DB, and verified test routes through the deployed management app | Bring the test API Center lane up to the same Phase 11 data-pipeline capability used by the management test deployment |
 | 2026-05-23 | 306ef8a | Deployed `asia-southeast1-docker.pkg.dev/api-center-496422/api-center/api-center:apicenter-platform-window-306ef8a-20260523105623` to namespace `api-center-test`; live `windowDays=30` smoke returned Athena-backed rows for gateway decisions, shared-service usage, Athena cost, and decision signals | Roll out APICenter platform-only 30-day governance windows for synthetic test history |
+| 2026-06-28 | pending | Documented one-URL environment contract rollout flags, environment-scoped tribe secrets, and token smoke requests that include `environment` | Make enforce-mode cutover and warn-mode rollback deterministic |

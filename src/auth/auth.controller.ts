@@ -22,7 +22,12 @@ import { RegistryService } from "../registry/registry.service";
 import { LoggerService } from "../shared/logger.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { TOPICS } from "../kafka/topics";
-import { ForbiddenError, NotFoundError, UnauthorizedError } from "../shared/errors";
+import {
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "../shared/errors";
 import { TokenRequestDto } from "../shared/dto/token-request.dto";
 import { TokenIssueResponseDto } from "../shared/dto/token-response.dto";
 import { RefreshTokenDto } from "../shared/dto/refresh-token.dto";
@@ -55,8 +60,13 @@ export class AuthController {
     @Body() dto: TokenRequestDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const { tribeId, secret, environment } = dto;
+    const { tribeId, secret } = dto;
     const sourceServiceId = dto.sourceServiceId ?? tribeId;
+    const environmentResolution = this.resolveTokenEnvironment(
+      tribeId,
+      dto.environment,
+    );
+    const { environment } = environmentResolution;
 
     const service = this.registry.get(tribeId);
     if (!service) {
@@ -69,11 +79,16 @@ export class AuthController {
       environment,
     );
 
-    const isValid = await this.registry.validateEnvironmentSecret(
+    let isValid = await this.registry.validateEnvironmentSecret(
       tribeId,
       secret,
       environment,
     );
+    let legacySecretFallbackUsed = false;
+    if (!isValid && environmentResolution.legacyWarning) {
+      isValid = await this.registry.validateLegacySecret(tribeId, secret);
+      legacySecretFallbackUsed = isValid;
+    }
     if (!isValid) {
       throw new UnauthorizedError("Invalid credentials");
     }
@@ -115,6 +130,13 @@ export class AuthController {
       { environment, sourceServiceId },
     );
 
+    if (environmentResolution.legacyWarning) {
+      this.logger.warn(
+        `Legacy token request accepted without environment for ${tribeId} as ${environment}`,
+        "AuthController",
+      );
+    }
+
     this.logger.info("Token issued", {
       serviceId: tribeId,
       sourceServiceId: sourceService.serviceId,
@@ -135,6 +157,8 @@ export class AuthController {
         expiresIn: token.expiresIn,
         correlationId: req.correlationId,
         timestamp: new Date().toISOString(),
+        legacyCompatibilityWarning: environmentResolution.legacyWarning,
+        legacySecretFallbackUsed,
       },
       {
         key: `${environment}:${sourceServiceId}`,
@@ -261,6 +285,41 @@ export class AuthController {
     return jwks;
   }
 
+  private resolveTokenEnvironment(
+    tribeId: string,
+    requestedEnvironment?: ApicenterRuntimeEnvironment,
+  ): {
+    environment: ApicenterRuntimeEnvironment;
+    legacyWarning: boolean;
+  } {
+    if (requestedEnvironment) {
+      return { environment: requestedEnvironment, legacyWarning: false };
+    }
+
+    const contract = this.config.environmentContract;
+    if (!contract || contract.mode !== "warn") {
+      throw new ValidationError("environment is required");
+    }
+
+    if (!contract.legacyTribeSecretFallback) {
+      throw new ValidationError("environment is required");
+    }
+
+    if (!contract.legacyAllowlist.includes(tribeId)) {
+      throw new ValidationError(
+        `Legacy environment fallback is not allowed for '${tribeId}'`,
+      );
+    }
+
+    const mappedEnvironment = contract.legacyEnvironmentMap[tribeId];
+    if (mappedEnvironment !== "test" && mappedEnvironment !== "live") {
+      throw new ValidationError(
+        `Legacy environment fallback requires APICENTER_LEGACY_ENVIRONMENT_MAP for '${tribeId}'`,
+      );
+    }
+
+    return { environment: mappedEnvironment, legacyWarning: true };
+  }
   private validateTokenSourceService(
     tribeId: string,
     sourceServiceId: string,

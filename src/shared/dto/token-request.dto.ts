@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // src/shared/dto/token-request.dto.ts - DTO for POST /api/v1/auth/token
 // =============================================================================
 // NestJS uses class-validator decorators instead of Zod schemas.
@@ -7,7 +7,13 @@
 // =============================================================================
 
 import { ApiProperty } from "@nestjs/swagger";
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from "class-validator";
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
 import {
   APICENTER_RUNTIME_ENVIRONMENT_KEYS,
   ApicenterRuntimeEnvironment,
@@ -27,10 +33,12 @@ export class TokenRequestDto {
   sourceServiceId?: string;
 
   @ApiProperty({ example: "test", enum: APICENTER_RUNTIME_ENVIRONMENT_KEYS })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: "environment is required" })
-  @IsIn(APICENTER_RUNTIME_ENVIRONMENT_KEYS, { message: "environment must be one of: test, live" })
-  environment!: ApicenterRuntimeEnvironment;
+  @IsIn(APICENTER_RUNTIME_ENVIRONMENT_KEYS, {
+    message: "environment must be one of: test, live",
+  })
+  environment?: ApicenterRuntimeEnvironment;
 
   @ApiProperty({ example: "super-secret-value" })
   @IsString()

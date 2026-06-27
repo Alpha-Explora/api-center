@@ -150,6 +150,20 @@ export class ConfigService implements OnApplicationBootstrap {
       process.env.REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION === "true",
     manifestPaths: this.parseRegistryBootstrapManifestPaths(),
   };
+  readonly environmentContract = {
+    mode:
+      process.env.APICENTER_ENVIRONMENT_CONTRACT_MODE === "warn"
+        ? "warn"
+        : "enforce",
+    legacyTribeSecretFallback:
+      process.env.APICENTER_LEGACY_TRIBE_SECRET_FALLBACK === "true",
+    legacyAllowlist: this.parseCsv(
+      process.env.APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST,
+    ),
+    legacyEnvironmentMap: this.parseLegacyEnvironmentMap(
+      process.env.APICENTER_LEGACY_ENVIRONMENT_MAP,
+    ),
+  } as const;
 
   readonly rateLimit = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
@@ -434,6 +448,28 @@ export class ConfigService implements OnApplicationBootstrap {
     }
   }
 
+  private parseCsv(value: string | undefined): string[] {
+    return (value || "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  private parseLegacyEnvironmentMap(
+    value: string | undefined,
+  ): Record<string, "test" | "live"> {
+    const result: Record<string, "test" | "live"> = {};
+    for (const entry of this.parseCsv(value)) {
+      const [serviceId, environment] = entry
+        .split(":")
+        .map((part) => part.trim());
+      if (!serviceId || (environment !== "test" && environment !== "live")) {
+        continue;
+      }
+      result[serviceId] = environment;
+    }
+    return result;
+  }
   private parseAllowedOrigins(): string | string[] {
     const rawOrigins = process.env.ALLOWED_ORIGINS;
     if (!rawOrigins || rawOrigins.trim() === "*") {

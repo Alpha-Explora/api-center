@@ -117,6 +117,63 @@ APICENTER_URL=https://api-center-test.itsandbox.site
 ```
 
 Do not introduce database, Prisma, SDK, proxy, or Management defaults that silently classify missing environment as `test`.
+
+## Environment Contract Rollout Controls
+
+API Center supports a short compatibility window for legacy token clients while the SDK major rollout is in progress. The default and long-term mode is enforce.
+
+```env
+APICENTER_ENVIRONMENT_CONTRACT_MODE=enforce
+APICENTER_LEGACY_TRIBE_SECRET_FALLBACK=false
+APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST=
+APICENTER_LEGACY_ENVIRONMENT_MAP=
+```
+
+Use warn mode only for inventoried legacy clients that cannot yet send `environment`:
+
+```env
+APICENTER_ENVIRONMENT_CONTRACT_MODE=warn
+APICENTER_LEGACY_TRIBE_SECRET_FALLBACK=true
+APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST=smoke-tribe,logistics
+APICENTER_LEGACY_ENVIRONMENT_MAP=smoke-tribe:test,logistics:test
+```
+
+Warn mode accepts missing-environment token requests only when all of these are true:
+
+- the service is named in `APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST`
+- the service has an explicit `serviceId:test|live` entry in `APICENTER_LEGACY_ENVIRONMENT_MAP`
+- the mapped environment-scoped secret is tried first
+- the legacy secret fallback is used only after the mapped environment-scoped secret fails
+- the token-issued event records `legacyCompatibilityWarning` and whether `legacySecretFallbackUsed`
+
+Cutover sequence:
+
+1. Deploy API Center in warn mode only if inventoried legacy clients still omit `environment`.
+2. Publish SDK major version `2.0.0` with required `environment` and one URL.
+3. Create test/live environment-scoped tribe secrets using `tribeId` or `ownerTribeId` as Secret Manager identity.
+4. Update Management handoff blocks and tribe repos to use `APICENTER_ENVIRONMENT`.
+5. Run auth, read-only discovery, shared-service smoke, payment test smoke, and registry detail checks per target environment.
+6. Switch API Center to enforce mode.
+7. Remove legacy non-environment secret fallback after all active tribes pass smoke.
+
+Rollback sequence:
+
+1. Set `APICENTER_ENVIRONMENT_CONTRACT_MODE=warn`.
+2. Set `APICENTER_LEGACY_TRIBE_SECRET_FALLBACK=true`.
+3. Keep the environment-scoped secrets in Secret Manager and keep one-URL SDK clients unchanged.
+4. Add only named affected legacy services to the allowlist and explicit environment map.
+5. Investigate by `serviceId`, `sourceServiceId`, `environment`, and `correlationId`.
+6. Return to enforce mode after the affected callers send explicit environment again.
+
+Break-glass actions must stay scoped to one service and one environment wherever possible:
+
+- disable one service environment row
+- revoke or rotate one `api-center-tribe-secret-<tribe-id>-<test|live>` secret
+- disable one shared-service route for one environment
+- force quota to zero for one service and environment
+- roll one shared-service route back to the previous known-good runtime
+- export audit evidence by `serviceId + environment + correlationId`
+
 ## Retained Commands
 
 Use these commands for ordinary control-plane database maintenance:

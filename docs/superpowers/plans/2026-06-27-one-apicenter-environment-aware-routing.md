@@ -1440,7 +1440,7 @@ git commit -m "docs: update environment-scoped handoff"
 - Modify: `apicenter-management/src/lib/feature-flags.ts` and tests
 - Modify: `apicenter-management/docs/operations/apicenter-management-runbook.md`
 
-- [ ] **Step 1: Add transition flags**
+- [x] **Step 1: Add transition flags**
 
 ```env
 APICENTER_ENVIRONMENT_CONTRACT_MODE=warn
@@ -1456,7 +1456,7 @@ warn: accepts legacy token requests only for allowlisted services with explicit 
 enforce: rejects missing environment and requires environment-scoped secrets.
 ```
 
-- [ ] **Step 2: Define cutover sequence**
+- [x] **Step 2: Define cutover sequence**
 
 ```text
 1. Deploy API Center in warn mode.
@@ -1469,7 +1469,7 @@ enforce: rejects missing environment and requires environment-scoped secrets.
 8. Remove legacy non-environment secret fallback after all active tribes pass smoke.
 ```
 
-- [ ] **Step 3: Define rollback sequence**
+- [x] **Step 3: Define rollback sequence**
 
 ```text
 1. Set APICENTER_ENVIRONMENT_CONTRACT_MODE=warn.
@@ -1480,15 +1480,15 @@ enforce: rejects missing environment and requires environment-scoped secrets.
 6. Investigate failures by serviceId, environment, and correlationId.
 ```
 
-- [ ] **Step 4: Preserve break-glass controls**
+- [x] **Step 4: Preserve break-glass controls**
 
 The implementation must allow operators to disable one service environment, revoke only one environment secret, disable one shared-service route, force quota to zero for one service/environment, roll a shared-service route back, and export audit evidence by `serviceId + environment + correlationId`.
 
-- [ ] **Step 5: Add one-Management deployment topology tests**
+- [x] **Step 5: Add one-Management deployment topology tests**
 
 Add tests proving one Management deployment can display/manage both `test` and `live` environment rows while all write routes authorize against the target row environment and all API Center calls use the single `API_CENTER_BASE_URL=https://api-center.itsandbox.site`.
 
-- [ ] **Step 6: Verify and commit rollout docs/config**
+- [x] **Step 6: Verify and commit rollout docs/config**
 
 ```powershell
 cd C:\Codes\apic\api-center

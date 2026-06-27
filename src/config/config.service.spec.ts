@@ -147,6 +147,11 @@ describe("ConfigService", () => {
   });
 
   it("should expose database defaults with Postgres disabled", () => {
+    delete process.env.DATABASE_ENABLED;
+    delete process.env.DATABASE_PROVIDER;
+    delete process.env.DATABASE_URL;
+    delete process.env.REGISTRY_DUAL_WRITE;
+
     const config = new ConfigService();
 
     expect(config.database).toEqual({
@@ -323,5 +328,26 @@ describe("ConfigService", () => {
     expect(run).toThrow(
       "KAFKA_SASL_MECHANISM=plain is required when Kafka publishing is enabled",
     );
+  });
+
+  it("parses one-URL environment contract rollout flags", () => {
+    process.env.APICENTER_ENVIRONMENT_CONTRACT_MODE = "warn";
+    process.env.APICENTER_LEGACY_TRIBE_SECRET_FALLBACK = "true";
+    process.env.APICENTER_LEGACY_ENVIRONMENT_ALLOWLIST =
+      "smoke-tribe, logistics";
+    process.env.APICENTER_LEGACY_ENVIRONMENT_MAP =
+      "smoke-tribe:test,logistics:live,invalid:prod";
+
+    const config = new ConfigService();
+
+    expect(config.environmentContract).toEqual({
+      mode: "warn",
+      legacyTribeSecretFallback: true,
+      legacyAllowlist: ["smoke-tribe", "logistics"],
+      legacyEnvironmentMap: {
+        "smoke-tribe": "test",
+        logistics: "live",
+      },
+    });
   });
 });
