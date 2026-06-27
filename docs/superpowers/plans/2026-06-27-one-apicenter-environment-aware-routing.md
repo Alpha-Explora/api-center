@@ -1594,7 +1594,7 @@ cd C:\Codes\apic\api-shared-services
 npm run smoke:environment-discovery:sdk
 ```
 
-Live preflight evidence is `docs/operations/spark-site-deployment-preflight-2026-06-28.json`: `church-donations` is active, owned by `church-donations`, and declares `email`, `gauth`, `geo`, `otp`, `payment`, and `sms`, but it still has only a `test` environment row, no `live` row. Secret Manager metadata checks confirm `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` are `NOT_FOUND`. Those records must be provisioned through Management with a one-time plaintext handoff before SDK authentication smoke can run. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
+Live preflight evidence is `docs/operations/spark-site-deployment-preflight-2026-06-28.json`: `church-donations` is active, owned by `church-donations`, and declares `email`, `gauth`, `geo`, `otp`, `payment`, and `sms`, but it still has only a `test` environment row, no `live` row. Secret Manager metadata checks confirm `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` are `NOT_FOUND`. Management now has route/client/UI guardrails requiring live confirmation for live registry registration and registration-request approval before those live rows can be applied. Deploy Management before executing the live-row approval path. The scoped secret records must still be provisioned through Management with a one-time plaintext handoff before SDK authentication smoke can run. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
 
 ## Self-Review
 
