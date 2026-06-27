@@ -115,7 +115,7 @@ Create a static, browser-openable HTML tracker so the plan is easy to digest and
 - Create: `api-center/docs/operations/one-url-environment-migration-inventory.md`
 - Create: `api-center/docs/visualizations/one-apicenter-environment-aware-routing-tracker.html`
 
-- [ ] **Step 1: Inventory active services and environments**
+- [x] **Step 1: Inventory active services and environments**
 
 Record every active service with `serviceId`, `ownerTribeId`, current backend URLs, declared environment rows, lifecycle status, and current consumers.
 
@@ -138,7 +138,7 @@ api-center-tribe-secret-<tribe-id>-live
 
 Do not record plaintext secrets in the inventory document.
 
-- [ ] **Step 3: Inventory shared-service consumers and payment records**
+- [x] **Step 3: Inventory shared-service consumers and payment records**
 
 Record which services consume `payment`, `email`, `sms`, `otp`, `gauth`, and `geo`. For payment, record whether existing provider records can be classified as `test` or `live` before database backfill.
 
@@ -1523,7 +1523,7 @@ cd C:\Codes\apic\api-center
 npm test -- --runInBand src/shared/dto/token-request.dto.spec.ts src/auth/auth.controller.spec.ts src/auth/auth.service.spec.ts src/registry/tribe-secret-resolver.service.spec.ts src/shared/proxy/environment-leak-guard.spec.ts src/shared/proxy-handler.spec.ts src/shared-services/shared-service-routing.service.spec.ts src/analytics/gateway-traffic.service.spec.ts src/analytics/shared-service-usage.service.spec.ts src/quotas/tribe-quota-enforcer.service.spec.ts
 ```
 
-- [ ] **Step 2: API Center package gates**
+- [x] **Step 2: API Center package gates**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -1533,7 +1533,7 @@ npm run check:contracts
 npm run registry:verify
 ```
 
-Current status: `typecheck`, `build`, and `check:contracts` pass. `registry:verify` remains blocked because direct Redis registry parity timed out from this workstation and no API Center admin snapshot credential is available for fallback.
+Current status: `typecheck`, `build`, `check:contracts`, and `registry:verify` pass. `registry:verify` used live Secret Manager runtime env plus API Center admin snapshot fallback because direct local Redis access to private Memorystore timed out; evidence is `docs/operations/registry-parity-2026-06-28.json` with `ready=true`, API snapshot 22, Postgres 22, 0 missing, 0 mismatched.
 
 - [x] **Step 3: SDK gates**
 
@@ -1579,6 +1579,8 @@ read-only shared-service discovery: success
 payment live mutation: not run unless an approved provider smoke exists
 usage/audit: serviceId=church-donations, environment=live
 ```
+
+Current status: deployment smoke is the only open plan gate. Live inventory shows `church-donations` has only a `test` environment row, no `live` row, and only the legacy unscoped `api-center-tribe-secret-church-donations` hash exists. The required `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` records must be provisioned through Management with a one-time plaintext handoff before SDK authentication smoke can run. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
 
 ## Self-Review
 
