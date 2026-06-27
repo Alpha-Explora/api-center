@@ -52,33 +52,21 @@ async function main(argv = process.argv.slice(2)) {
 
   for (const candidate of candidates) {
     const inspection = inspectSecret(project, candidate.name);
-    const enabledVersions = inspection.versions.filter(
-      (version) => version.state === "ENABLED",
-    );
-    const deleteAfter = new Date(candidate.deleteAfter || cleanup.deleteAfter);
-    const beforeWindow = Number.isFinite(deleteAfter.getTime()) && now < deleteAfter;
-    const blockers = [];
+    const decision = evaluateDeletionCandidate({
+      candidate,
+      inspection,
+      now,
+      fallbackDeleteAfter: cleanup.deleteAfter,
+      apply,
+      confirmed,
+    });
 
-    if (!inspection.exists) {
-      evidence.summary.alreadyDeleted += 1;
-    }
-    if (beforeWindow) {
-      blockers.push(`rollback window is open until ${deleteAfter.toISOString()}`);
-    }
-    if (enabledVersions.length > 0) {
-      blockers.push(`${enabledVersions.length} enabled version(s) still exist`);
-    }
-    if (apply && !confirmed) {
-      blockers.push(
-        "apply mode requires --confirm-delete-disabled-legacy-secrets",
-      );
-    }
-
-    const readyToDelete = inspection.exists && blockers.length === 0;
+    if (!inspection.exists) evidence.summary.alreadyDeleted += 1;
+    const readyToDelete = decision.readyToDelete;
     if (readyToDelete) evidence.summary.readyToDelete += 1;
-    if (blockers.length > 0) {
+    if (decision.blockers.length > 0) {
       evidence.summary.blocked += 1;
-      evidence.blockers.push(`${candidate.name}: ${blockers.join("; ")}`);
+      evidence.blockers.push(`${candidate.name}: ${decision.blockers.join("; ")}`);
     }
 
     evidence.deletionPlan.push({
@@ -87,9 +75,9 @@ async function main(argv = process.argv.slice(2)) {
       disposition: candidate.disposition,
       exists: inspection.exists,
       versionStates: summarizeVersionStates(inspection.versions),
-      deleteAfter: deleteAfter.toISOString(),
+      deleteAfter: decision.deleteAfter,
       readyToDelete,
-      blockers,
+      blockers: decision.blockers,
     });
 
     if (apply && readyToDelete) {
@@ -152,6 +140,40 @@ function collectLegacySecretCandidates(cleanup) {
   return [...byName.values()].sort((left, right) =>
     left.name.localeCompare(right.name),
   );
+}
+
+function evaluateDeletionCandidate({
+  candidate,
+  inspection,
+  now,
+  fallbackDeleteAfter,
+  apply = false,
+  confirmed = false,
+}) {
+  const deleteAfter = new Date(candidate.deleteAfter || fallbackDeleteAfter);
+  const deleteAfterIso = Number.isFinite(deleteAfter.getTime())
+    ? deleteAfter.toISOString()
+    : String(candidate.deleteAfter || fallbackDeleteAfter || "");
+  const enabledVersions = inspection.versions.filter(
+    (version) => version.state === "ENABLED",
+  );
+  const blockers = [];
+
+  if (Number.isFinite(deleteAfter.getTime()) && now < deleteAfter) {
+    blockers.push(`rollback window is open until ${deleteAfterIso}`);
+  }
+  if (enabledVersions.length > 0) {
+    blockers.push(`${enabledVersions.length} enabled version(s) still exist`);
+  }
+  if (apply && !confirmed) {
+    blockers.push("apply mode requires --confirm-delete-disabled-legacy-secrets");
+  }
+
+  return {
+    deleteAfter: deleteAfterIso,
+    blockers,
+    readyToDelete: inspection.exists && blockers.length === 0,
+  };
 }
 
 function inspectSecret(project, name) {
@@ -223,6 +245,7 @@ function readArg(argv, name) {
 
 module.exports = {
   collectLegacySecretCandidates,
+  evaluateDeletionCandidate,
   summarizeVersionStates,
 };
 

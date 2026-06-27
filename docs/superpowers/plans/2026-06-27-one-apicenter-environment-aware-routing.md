@@ -2265,7 +2265,7 @@ npm run registry:delete-legacy-secrets -- --out docs/operations/legacy-secret-cl
 npm run registry:delete-legacy-secrets -- --apply --confirm-delete-disabled-legacy-secrets --out docs/operations/legacy-secret-cleanup-final-apply-2026-07-05.json
 ```
 
-The apply command refuses to delete before the recorded `deleteAfter`, refuses to delete if any legacy secret still has an enabled version, and never reads or prints secret payload values. Dry-run evidence at `docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json` inspected live Secret Manager metadata and reported 14 candidates, 0 ready to delete, 0 already deleted, 14 blocked, 0 deleted, and 0 enabled-version blockers. The only blocker is the rollback window: `2026-07-04T22:30:06.543Z`. Step 3 remains open until the post-window apply deletes the legacy records.
+The apply command refuses to delete before the recorded `deleteAfter`, refuses to delete if any legacy secret still has an enabled version, and never reads or prints secret payload values. Dry-run evidence at `docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json` inspected live Secret Manager metadata and reported 14 candidates, 0 ready to delete, 0 already deleted, 14 blocked, 0 deleted, and 0 enabled-version blockers. The only blocker is the rollback window: `2026-07-04T22:30:06.543Z`. `npm run check:legacy-secret-deletion:test` covers candidate de-duplication, rollback-window blocking, enabled-version blocking, apply confirmation, and the post-window ready-to-delete path. Step 3 remains open until the post-window apply deletes the legacy records.
 
 - [x] **Step 4: Remove code-level legacy secret fallback after scoped records are active**
 
