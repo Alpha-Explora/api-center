@@ -1580,7 +1580,21 @@ payment live mutation: not run unless an approved provider smoke exists
 usage/audit: serviceId=church-donations, environment=live
 ```
 
-Current status: deployment smoke is the only open plan gate. Live inventory shows `church-donations` has only a `test` environment row, no `live` row, and only the legacy unscoped `api-center-tribe-secret-church-donations` hash exists. The required `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` records must be provisioned through Management with a one-time plaintext handoff before SDK authentication smoke can run. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
+Current status: deployment smoke is the only open plan gate. The operator-safe preflight command exists in API Center:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run smoke:spark-site:preflight -- --out docs/operations/spark-site-deployment-preflight-2026-06-28.json
+```
+
+The read-only consumer smoke command exists in the SDK and performs SDK auth plus discovery without payment mutations:
+
+```powershell
+cd C:\Codes\apic\api-shared-services
+npm run smoke:environment-discovery:sdk
+```
+
+Live preflight evidence is `docs/operations/spark-site-deployment-preflight-2026-06-28.json`: `church-donations` is active, owned by `church-donations`, and declares `email`, `gauth`, `geo`, `otp`, `payment`, and `sms`, but it still has only a `test` environment row, no `live` row. Secret Manager metadata checks confirm `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` are `NOT_FOUND`. Those records must be provisioned through Management with a one-time plaintext handoff before SDK authentication smoke can run. Provider-impacting payment smoke also requires explicit operator approval after shared-services provider records are verified.
 
 ## Self-Review
 

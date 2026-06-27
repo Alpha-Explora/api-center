@@ -19,7 +19,7 @@
   </header>
   <main class="shell">
     <section class="grid">
-            <div class="panel full"><div class="progress-grid"><div class="progress-card primary"><span class="progress-value" data-progress-percent aria-live="polite">Calculating</span><span class="progress-label">Goal done, calculated from task slice progress</span><div class="bar" aria-label="Overall goal progress"><div class="fill" data-progress-fill style="width:0%"></div></div><div class="progress-foot"><span><strong data-task-progress-total>0.0</strong> effective tasks</span><span><strong data-task-total>0</strong> task slices</span></div><p class="progress-equation">Goal percentage = average of every task card's completion: <strong data-task-progress-total-inline>0.0</strong> effective done / <strong data-task-total-inline>0</strong> tasks = <strong data-progress-percent-inline>0.0%</strong>. Task cards are the source of truth; update each card's <code>data-steps-done</code> and <code>data-steps-total</code> when plan checkboxes change.</p></div><div class="progress-card"><span class="progress-value" data-step-progress aria-live="polite">Calculating</span><span class="progress-label">Step-weighted checklist progress</span><div class="bar"><div class="fill" data-step-fill style="width:0%"></div></div><div class="progress-foot"><span><strong data-steps-done>0</strong> done</span><span><strong data-steps-total>0</strong> total</span></div></div><div class="progress-card"><span class="progress-value" data-slices-complete aria-live="polite">0/0</span><span class="progress-label">Task slices fully complete</span><div class="bar"><div class="fill" data-slices-fill style="width:0%"></div></div><div class="progress-foot"><span data-slices-note>0.0% of slices are fully checked</span></div></div><div class="progress-card"><span class="progress-value" data-latest-progress aria-live="polite">0/0</span><span class="progress-label" data-latest-label>Latest task step progress</span><div class="bar"><div class="fill" data-latest-fill style="width:0%"></div></div><div class="progress-foot"><span data-latest-note>Waiting for task data</span><span data-latest-percent>0.0%</span></div></div><div class="progress-card"><span class="progress-value">2.0.0</span><span class="progress-label">Required SDK 2.0.0 major for environment contract</span><div class="bar"><div class="fill" style="width:0%"></div></div><div class="progress-foot"><span>Release pending</span></div></div></div></div>
+            <div class="panel full"><div class="progress-grid"><div class="progress-card primary"><span class="progress-value" data-progress-percent aria-live="polite">Calculating</span><span class="progress-label">Goal done, calculated from task slice progress</span><div class="bar" aria-label="Overall goal progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" data-progress-fill style="width:0%"></div></div><div class="progress-foot"><span><strong data-task-progress-total>0.0</strong> effective tasks</span><span><strong data-task-total>0</strong> task slices</span></div><p class="progress-equation">Goal percentage = average of every task card's completion: <strong data-task-progress-total-inline>0.0</strong> effective done / <strong data-task-total-inline>0</strong> tasks = <strong data-progress-percent-inline>0.0%</strong>. Task cards are the source of truth; update each card's <code>data-steps-done</code> and <code>data-steps-total</code> when plan checkboxes change.</p></div><div class="progress-card"><span class="progress-value" data-step-progress aria-live="polite">Calculating</span><span class="progress-label">Step-weighted checklist progress</span><div class="bar" aria-label="Step-weighted checklist progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" data-step-fill style="width:0%"></div></div><div class="progress-foot"><span><strong data-progress-steps-done>0</strong> done</span><span><strong data-progress-steps-total>0</strong> total</span></div></div><div class="progress-card"><span class="progress-value" data-slices-complete aria-live="polite">0/0</span><span class="progress-label">Task slices fully complete</span><div class="bar" aria-label="Fully complete task slices" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" data-slices-fill style="width:0%"></div></div><div class="progress-foot"><span data-slices-note>0.0% of slices are fully checked</span></div></div><div class="progress-card"><span class="progress-value" data-latest-progress aria-live="polite">0/0</span><span class="progress-label" data-latest-label>Latest task step progress</span><div class="bar" aria-label="Current task progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" data-latest-fill style="width:0%"></div></div><div class="progress-foot"><span data-latest-note>Waiting for task data</span><span data-latest-percent>0.0%</span></div></div><div class="progress-card"><span class="progress-value">2.0.0</span><span class="progress-label">Required SDK 2.0.0 major for environment contract</span><div class="bar"><div class="fill" style="width:0%"></div></div><div class="progress-foot"><span>Release pending</span></div></div></div></div>
       <div class="panel"><h2>Locked Decisions</h2><div class="stack">
         <div class="row"><span class="dot"></span><div><h3>One public gateway URL</h3><p>Consumers call <code>https://api-center.itsandbox.site</code>; environment is explicit identity.</p></div><span class="status done">Locked</span></div>
         <div class="row"><span class="dot"></span><div><h3>Required environment</h3><p><code>APICENTER_ENVIRONMENT=test|live</code> is mandatory except explicit legacy warn mode.</p></div><span class="status done">Locked</span></div>
@@ -34,7 +34,7 @@
         <div class="row"><span class="dot"></span><div><h3>Task 8 Management guardrails</h3><p>Secret provisioning, delete, SDK handoff, environment rows, shared-service smoke authorization, and target-env route helper verified; focused tests, typecheck, and build passed.</p></div><span class="status done">Done</span></div>
         <div class="row"><span class="dot"></span><div><h3>Task 9 docs and contracts</h3><p>One-URL consumer handoff, environment-scoped secret docs, generated OpenAPI token response schema, and API Center/SDK contract checks verified.</p></div><span class="status done">Done</span></div>
         <div class="row"><span class="dot"></span><div><h3>Task 10 rollout controls</h3><p>Warn/enforce flags, legacy map behavior, cutover, rollback, break-glass docs, one-Management topology tests, OpenAPI contract, and typechecks verified.</p></div><span class="status done">Done</span></div>
-        <div class="row"><span class="dot amber"></span><div><h3>Task 11 verification status</h3><p>Tracker parity, API focused tests, API typecheck/build/contracts/registry parity, SDK contracts/typecheck/tests/build/pack plus smoke CLI env guard, and Management tests/typecheck/build/route smoke passed. Deployment smoke remains open.</p></div><span class="status pending">Partial</span></div>
+        <div class="row"><span class="dot amber"></span><div><h3>Task 11 verification status</h3><p>Tracker parity, API focused tests, API typecheck/build/contracts/registry parity, SDK contracts/typecheck/tests/build/pack plus smoke CLI env guard, Management tests/typecheck/build/route smoke, and Spark Site preflight tooling passed. Deployment smoke remains open until live row and scoped secrets are provisioned.</p></div><span class="status pending">Partial</span></div>
         <div class="row"><span class="dot"></span><div><h3>Live row-level inventory</h3><p>Live Supabase extraction found 22 active services: 6 shared and 16 tribe. Several tribe services still need explicit test/live environment rows before enforce mode.</p></div><span class="status done">Done</span></div>
       </div></div>
       <div class="panel full"><h2>Slice Tracker</h2><div class="tasks">
@@ -52,7 +52,7 @@
         <div class="task" data-task-id="8" data-steps-done="6" data-steps-total="6"><div class="num">8</div><div><h3>Update Management operations</h3><p>Secret provisioning, SDK handoff, target-env authorization, and audit visibility now use explicit target environment.</p></div><span class="status done">6/6 (100%)</span></div>
         <div class="task" data-task-id="9" data-steps-done="4" data-steps-total="4"><div class="num">9</div><div><h3>Update docs and contracts</h3><p>Consumer docs, migration notes, generated OpenAPI response schema, and enforceable token snapshots are complete.</p></div><span class="status done">4/4 (100%)</span></div>
         <div class="task" data-task-id="10" data-steps-done="6" data-steps-total="6"><div class="num">10</div><div><h3>Rollout, compatibility, and break glass</h3><p>Warn mode, legacy map, cutover, rollback, and topology tests.</p></div><span class="status done">6/6 (100%)</span></div>
-        <div class="task current" data-task-id="11" data-current-task="true" data-steps-done="5" data-steps-total="6"><div class="num">11</div><div><h3>Final cross-repo verification</h3><p>API Center focused tests, registry parity, SDK gates, SDK smoke CLI env guard, Management gates, and tracker parity passed; live deployment smoke remains open.</p></div><span class="status pending">5/6 (83%)</span></div>
+        <div class="task current" data-task-id="11" data-current-task="true" data-steps-done="5" data-steps-total="6"><div class="num">11</div><div><h3>Final cross-repo verification</h3><p>API Center focused tests, registry parity, SDK gates, SDK smoke CLI env guard, Management gates, tracker parity, SDK read-only smoke tooling, and Spark Site preflight passed; live deployment smoke remains open.</p></div><span class="status pending">5/6 (83%)</span></div>
       </div></div>
       <div class="panel"><h2>Critical Risks</h2><div class="stack">
         <div class="row"><span class="dot"></span><div><h3>Environment override channels</h3><p>Headers, query params, and body fields are rejected; runtime routing derives from token claims.</p></div><span class="status done">Done</span></div>
@@ -65,7 +65,7 @@
         <div class="row"><span class="dot amber"></span><div><h3>Warn mode</h3><p>Allowlisted legacy clients only; missing environment is logged and attributed.</p></div><span class="status pending">Pending</span></div>
         <div class="row"><span class="dot amber"></span><div><h3>Secret provisioning</h3><p>`church-donations` still needs `api-center-tribe-secret-church-donations-test` and `api-center-tribe-secret-church-donations-live` provisioned through Management with one-time plaintext handoff.</p></div><span class="status pending">Pending</span></div>
         <div class="row"><span class="dot amber"></span><div><h3>SDK major release</h3><p>Publish <code>@alpha-explora/apicenter@2.0.0</code> after contract checks pass.</p></div><span class="status pending">Pending</span></div>
-        <div class="row"><span class="dot amber"></span><div><h3>Service smoke</h3><p>Open: Spark Site SDK auth/discovery/usage smoke. Current blockers are missing live environment row and missing test/live scoped tribe secrets; payment mutation smoke needs operator approval.</p></div><span class="status pending">Pending</span></div>
+        <div class="row"><span class="dot amber"></span><div><h3>Service smoke</h3><p>Open: Spark Site SDK auth/discovery/usage smoke. API Center preflight artifact exists at docs/operations/spark-site-deployment-preflight-2026-06-28.json and confirms the remaining blockers: missing live environment row and missing test/live scoped tribe secrets; payment mutation smoke needs operator approval.</p></div><span class="status pending">Pending</span></div>
         <div class="row"><span class="dot amber"></span><div><h3>Enforce mode</h3><p>Only after registry parity, SDK adoption, secrets, DB constraints, and rollback path are proven.</p></div><span class="status pending">Pending</span></div>
       </div></div>
       <div class="panel full"><h2>Database Constraint Matrix</h2><table><thead><tr><th>Area</th><th>Tables</th><th>Environment rule</th><th>Index / uniqueness rule</th><th>Status</th></tr></thead><tbody>
@@ -117,6 +117,14 @@
         const element = document.querySelector(selector);
         if (element) element.setAttribute(name, value);
       };
+      const setProgress = (selector, value) => {
+        const fill = document.querySelector(selector);
+        if (!fill) return;
+        const bounded = Math.max(0, Math.min(100, value));
+        fill.style.width = `${bounded.toFixed(1)}%`;
+        const bar = fill.closest("[role='progressbar']");
+        if (bar) bar.setAttribute("aria-valuenow", bounded.toFixed(1));
+      };
 
       tasks.forEach((item) => {
         const taskPercent = item.total ? (item.done / item.total) * 100 : 0;
@@ -139,21 +147,18 @@
 
       setText("[data-progress-percent]", `${percent.toFixed(1)}%`);
       setText("[data-header-progress]", `Goal done: ${percent.toFixed(1)}%`);
-      setText("[data-steps-done]", String(totalDone));
-      setText("[data-steps-total]", String(totalSteps));
+      setText("[data-progress-steps-done]", String(totalDone));
+      setText("[data-progress-steps-total]", String(totalSteps));
       setText("[data-progress-percent-inline]", `${percent.toFixed(1)}%`);
       setText("[data-task-progress-total]", taskProgressTotal.toFixed(1));
       setText("[data-task-total]", String(tasks.length));
       setText("[data-task-progress-total-inline]", taskProgressTotal.toFixed(1));
       setText("[data-task-total-inline]", String(tasks.length));
-      setWidth("[data-progress-fill]", percent);
-      setAttr("[data-progress-fill]", "aria-valuenow", percent.toFixed(1));
-      setAttr("[data-progress-fill]", "aria-valuemin", "0");
-      setAttr("[data-progress-fill]", "aria-valuemax", "100");
+      setProgress("[data-progress-fill]", percent);
       setText("[data-step-progress]", `${stepPercent.toFixed(1)}%`);
-      setWidth("[data-step-fill]", stepPercent);
+      setProgress("[data-step-fill]", stepPercent);
       setText("[data-slices-complete]", `${completeSlices}/${tasks.length}`);
-      setWidth("[data-slices-fill]", completePercent);
+      setProgress("[data-slices-fill]", completePercent);
       setText("[data-slices-note]", `${completePercent.toFixed(1)}% of slices are fully checked`);
       if (current) {
         setText("[data-current-slice]", `Slice: Task ${current.id}`);
@@ -161,7 +166,7 @@
         setText("[data-latest-label]", `Latest Task ${current.id} step progress`);
         setText("[data-latest-note]", current.done === current.total ? "Slice complete" : "Active implementation slice");
         setText("[data-latest-percent]", `${currentPercent.toFixed(1)}%`);
-        setWidth("[data-latest-fill]", currentPercent);
+        setProgress("[data-latest-fill]", currentPercent);
       }
     })();
   </script>

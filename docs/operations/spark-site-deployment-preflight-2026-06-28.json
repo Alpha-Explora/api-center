@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-06-27T18:41:05.717Z",
+  "mode": "preflight",
+  "serviceId": "church-donations",
+  "tribeId": "church-donations",
+  "requiredEnvironments": [
+    "test",
+    "live"
+  ],
+  "requiredSharedServices": [
+    "email",
+    "gauth",
+    "geo",
+    "otp",
+    "payment",
+    "sms"
+  ],
+  "environment": {
+    "DATABASE_URL": {
+      "present": true,
+      "length": 182
+    },
+    "GCLOUD_PROJECT": {
+      "present": false,
+      "length": 0
+    },
+    "GOOGLE_CLOUD_PROJECT": {
+      "present": true,
+      "length": 24
+    },
+    "GOOGLE_CLOUD_QUOTA_PROJECT": {
+      "present": false,
+      "length": 0
+    }
+  },
+  "catalog": {
+    "serviceId": "church-donations",
+    "name": "Spark Site",
+    "status": "active",
+    "ownerTribeId": "church-donations",
+    "serviceType": "tribe",
+    "baseUrl": "https://wlcm-website-backend.onrender.com",
+    "updatedAt": "2026-06-27T11:52:44.359Z",
+    "environments": [
+      {
+        "environment": "test",
+        "baseUrl": "https://wlcm-website-backend.onrender.com",
+        "status": "active",
+        "healthy": null
+      }
+    ],
+    "consumes": [
+      "email",
+      "gauth",
+      "geo",
+      "otp",
+      "payment",
+      "sms"
+    ]
+  },
+  "secrets": [
+    {
+      "name": "api-center-tribe-secret-church-donations-test",
+      "exists": false,
+      "project": "apicenter-alpha-20260623",
+      "error": "NOT_FOUND"
+    },
+    {
+      "name": "api-center-tribe-secret-church-donations-live",
+      "exists": false,
+      "project": "apicenter-alpha-20260623",
+      "error": "NOT_FOUND"
+    }
+  ],
+  "ready": false,
+  "blockers": [
+    "church-donations needs environment rows: live.",
+    "Provision missing environment-scoped tribe secrets through Management: api-center-tribe-secret-church-donations-test, api-center-tribe-secret-church-donations-live."
+  ],
+  "checks": [
+    {
+      "name": "catalog.database",
+      "status": "pass",
+      "ok": true,
+      "detail": "Loaded church-donations from apic_catalog."
+    },
+    {
+      "name": "catalog.serviceActive",
+      "status": "pass",
+      "ok": true,
+      "detail": "church-donations status is active."
+    },
+    {
+      "name": "catalog.ownerTribe",
+      "status": "pass",
+      "ok": true,
+      "detail": "church-donations is owned by church-donations."
+    },
+    {
+      "name": "catalog.environmentRows",
+      "status": "fail",
+      "ok": false,
+      "detail": "church-donations is missing environment rows: live. Found: test."
+    },
+    {
+      "name": "catalog.requiredSharedServiceDependencies",
+      "status": "pass",
+      "ok": true,
+      "detail": "church-donations declares required shared-service dependencies."
+    },
+    {
+      "name": "secrets.scopedRecords",
+      "status": "fail",
+      "ok": false,
+      "detail": "Missing environment-scoped tribe Secret Manager records: api-center-tribe-secret-church-donations-test, api-center-tribe-secret-church-donations-live."
+    },
+    {
+      "name": "payment.providerApproval",
+      "status": "manual",
+      "ok": false,
+      "detail": "Provider-impacting payment mutation smoke is intentionally not approved by this preflight."
+    }
+  ],
+  "nextCommands": [
+    "Provision missing scoped tribe secrets through Management so plaintext is handed off once and not logged.",
+    "Add the missing live service environment row through the approved registration or Management workflow.",
+    "Run: npm run smoke:spark-site:preflight -- --out docs/operations/spark-site-deployment-preflight-<date>.json",
+    "After preflight is ready, run SDK read-only smoke with APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_TRIBE_ID, APICENTER_SERVICE_ID, and APICENTER_TRIBE_SECRET.",
+    "Run provider-impacting payment smoke only after explicit operator approval."
+  ]
+}
