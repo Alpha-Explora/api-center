@@ -1992,6 +1992,10 @@ git commit -m "chore: separate runtime environment from pipeline lane naming"
 
 ## Task 13: Migrate Every Legacy Service And Remove Legacy Compatibility Paths
 
+**Scope rule:** this task migrates APICenter-owned control-plane state, not consumer-owned runtimes. For Spark Site, pakiapps, greenovate, shoteam, trinithrive, and other services outside APICenter ownership, do not block completion on logging into their backends or running runtime smoke. The required migration is that every legacy service, secret, registry, catalog, Management, SDK, env, and active-doc path is represented in the one-URL environment-aware model or has a documented retired/test-only disposition.
+
+**Redundancy rule:** cleanup is broader than `live` versus `prod`. Inventory and remove redundant aliases, duplicate naming, legacy compatibility paths, stale URLs, overlapping env names, provider-specific fallback names, and any code/docs examples that make the supported contract ambiguous. Keep only named boundary mappings where they describe a real external system, such as public runtime `live` mapping to physical pipeline lane `prod`.
+
 **Files:**
 - Create: `api-center/scripts/inventory-legacy-service-migration.js`
 - Create: `api-center/scripts/verify-no-legacy-environment-routing.js`
@@ -2015,7 +2019,15 @@ git commit -m "chore: separate runtime environment from pipeline lane naming"
 
 - [ ] **Step 1: Inventory every stored legacy service and secret record**
 
-Create `api-center/scripts/inventory-legacy-service-migration.js` that reads Supabase/Postgres catalog state and Secret Manager metadata without printing plaintext values:
+Create `api-center/scripts/inventory-legacy-service-migration.js` that reads Supabase/Postgres catalog state and Secret Manager metadata without printing plaintext values. This inventory must include every stored legacy control-plane record, not only services already visible in Management:
+
+```text
+service records: legacy service IDs, stale base URLs, missing environment rows, duplicate test/live rows, retired/test-only candidates
+service environment rows: explicit test/live rows, old prod/production values, empty or inferred environment
+secret records: unscoped tribe secrets, test-prefixed tribe secrets, scoped test/live target candidates, rollback/delete status
+code-level compatibility paths: APICENTER_LEGACY_* envs, env-backed tribe secret validation, missing-environment warn-mode DTO behavior
+docs/examples/config: active one-URL docs, SDK smoke aliases, Management env aliases, provider fallback names, stale test-management URLs
+```
 
 ```js
 #!/usr/bin/env node
@@ -2189,6 +2201,11 @@ cd C:\Codes\apic\api-center
 
 Do not run external runtime smoke for services APICenter does not own. Verify APICenter-side state instead:
 
+```text
+acceptable APICenter-side proof: registry parity, service_environments rows, Management service detail rendering, scoped Secret Manager metadata, audit/approval evidence, and migration artifact disposition
+not required for non-owned services: authenticating to their backend, calling their private runtime, changing their app secrets, or running provider-impacting payment smoke
+```
+
 ```powershell
 npm run registry:verify
 node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-service-migration-2026-06-28.json
@@ -2278,6 +2295,19 @@ Mark APICENTER_GATEWAY_URL as deprecated and keep only as CLI compatibility alia
 Consolidate Management internals on MANAGEMENT_ENVIRONMENT and keep MANAGEMENT_ENV/NEXT_PUBLIC_MANAGEMENT_ENV only as boundary aliases until the next major cleanup.
 Keep POWERBI_NORTH_STAR_* only in the BI adapter or remove it if no deployment uses it.
 ```
+
+Also scan for other redundant naming beyond live/prod:
+
+```text
+environment versus runtimeEnvironment versus pipelineLane versus providerMode
+ownerTribeId versus sourceServiceId
+API_CENTER_BASE_URL versus APICENTER_URL/APICENTER_GATEWAY_URL
+MANAGEMENT_ENVIRONMENT versus MANAGEMENT_ENV/NEXT_PUBLIC_MANAGEMENT_ENV
+provider-neutral BI names versus POWERBI_NORTH_STAR_* fallback names
+deployment secret bundle names versus runtime environment names
+```
+
+Only remove a duplicate when the repo has a canonical replacement and tests/docs can be updated in the same slice. If a duplicate reflects an unavoidable external system boundary, isolate it behind a named adapter/helper and document why it remains.
 
 Update contract checks:
 
