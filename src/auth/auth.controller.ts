@@ -1,11 +1,5 @@
 // =============================================================================
-// src/auth/auth.controller.ts — Token issuance, refresh, revocation + JWKS
-// =============================================================================
-// ENDPOINTS:
-//   POST /api/v1/auth/token                    — issue a scoped M2M token
-//   POST /api/v1/auth/token/refresh            — refresh an expiring token
-//   POST /api/v1/auth/token/revoke             — revoke a refresh token (Redis + Kafka)
-//   GET  /api/v1/auth/.well-known/jwks.json    — JWKS document for local issuers
+// src/auth/auth.controller.ts - Token issuance, refresh, revocation + JWKS
 // =============================================================================
 
 import {
@@ -27,12 +21,16 @@ import { RegistryService } from "../registry/registry.service";
 import { LoggerService } from "../shared/logger.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { TOPICS } from "../kafka/topics";
-import { NotFoundError, UnauthorizedError } from "../shared/errors";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../shared/errors";
 import { TokenRequestDto } from "../shared/dto/token-request.dto";
 import { RefreshTokenDto } from "../shared/dto/refresh-token.dto";
 import { RevokeTokenDto } from "../shared/dto/revoke-token.dto";
 import { getPlatformCapabilityScopes } from "../shared/platform-capabilities";
-import { AuthenticatedRequest } from "../types";
+import {
+  ApicenterRuntimeEnvironment,
+  AuthenticatedRequest,
+  ServiceRegistryEntry,
+} from "../types";
 import { ConfigService } from "../config/config.service";
 
 @Controller("auth")
@@ -46,7 +44,7 @@ export class AuthController {
   ) {}
 
   // ---------------------------------------------------------------------------
-  // POST /api/v1/auth/token — Issue M2M JWT
+  // POST /api/v1/auth/token - Issue M2M JWT
   // ---------------------------------------------------------------------------
 
   @Post("token")
@@ -54,19 +52,29 @@ export class AuthController {
     @Body() dto: TokenRequestDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const { tribeId, secret } = dto;
+    const { tribeId, secret, environment } = dto;
+    const sourceServiceId = dto.sourceServiceId ?? tribeId;
 
     const service = this.registry.get(tribeId);
     if (!service) {
       throw new NotFoundError(`Unknown service: ${tribeId}`);
     }
 
-    const isValid = await this.registry.validateSecret(tribeId, secret);
+    const sourceService = this.validateTokenSourceService(
+      tribeId,
+      sourceServiceId,
+      environment,
+    );
+
+    const isValid = await this.registry.validateSecret(
+      tribeId,
+      secret,
+      environment,
+    );
     if (!isValid) {
       throw new UnauthorizedError("Invalid credentials");
     }
 
-    // Build scopes: own + owned microservices + consumable targets + external APIs.
     const ownScopes = service.requiredScopes || [];
     const ownedServiceScopes = this.registry
       .getOwnedServices(tribeId)
@@ -97,10 +105,17 @@ export class AuthController {
       "external:read",
     ];
 
-    const token = await this.auth.issueTribeToken(tribeId, permissions, scopes);
+    const token = await this.auth.issueTribeToken(
+      tribeId,
+      permissions,
+      scopes,
+      { environment, sourceServiceId },
+    );
 
     this.logger.info("Token issued", {
       serviceId: tribeId,
+      sourceServiceId: sourceService.serviceId,
+      environment,
       scopes,
       correlationId: req.correlationId,
     });
@@ -109,6 +124,8 @@ export class AuthController {
       TOPICS.TOKEN_ISSUED,
       {
         tribeId,
+        sourceServiceId,
+        environment,
         sub: tribeId,
         scopes,
         permissions,
@@ -117,7 +134,7 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       },
       {
-        key: tribeId,
+        key: `${environment}:${sourceServiceId}`,
         context: "AuthController",
       },
     );
@@ -129,6 +146,8 @@ export class AuthController {
         refreshToken: token.refreshToken ?? null,
         expiresIn: token.expiresIn,
         tribeId,
+        sourceServiceId,
+        environment,
         permissions,
         scopes,
       },
@@ -140,7 +159,7 @@ export class AuthController {
   }
 
   // ---------------------------------------------------------------------------
-  // POST /api/v1/auth/token/refresh — Refresh access token
+  // POST /api/v1/auth/token/refresh - Refresh access token
   // ---------------------------------------------------------------------------
 
   @Post("token/refresh")
@@ -155,7 +174,7 @@ export class AuthController {
     this.kafka.publishNonBlocking(
       TOPICS.TOKEN_REFRESHED,
       {
-        sub: "unknown", // sub extracted inside AuthService; event still useful for audit
+        sub: "unknown",
         expiresIn: resp.expiresIn,
         correlationId: req.correlationId,
         timestamp: new Date().toISOString(),
@@ -180,7 +199,7 @@ export class AuthController {
   }
 
   // ---------------------------------------------------------------------------
-  // POST /api/v1/auth/token/revoke — Revoke refresh token
+  // POST /api/v1/auth/token/revoke - Revoke refresh token
   // Requires a valid Bearer access token (JWT guard)
   // ---------------------------------------------------------------------------
 
@@ -222,7 +241,7 @@ export class AuthController {
   }
 
   // ---------------------------------------------------------------------------
-  // GET /api/v1/auth/.well-known/jwks.json — JWKS for API Center-signed tokens
+  // GET /api/v1/auth/.well-known/jwks.json - JWKS for API Center-signed tokens
   // ---------------------------------------------------------------------------
 
   @Get(".well-known/jwks.json")
@@ -237,5 +256,33 @@ export class AuthController {
       );
     }
     return jwks;
+  }
+
+  private validateTokenSourceService(
+    tribeId: string,
+    sourceServiceId: string,
+    environment: ApicenterRuntimeEnvironment,
+  ): ServiceRegistryEntry {
+    const sourceService = this.registry.get(sourceServiceId);
+    if (!sourceService) {
+      throw new UnauthorizedError(`Unknown source service: ${sourceServiceId}`);
+    }
+
+    if ((sourceService.ownerTribeId ?? sourceService.serviceId) !== tribeId) {
+      throw new ForbiddenError(
+        `Source service '${sourceServiceId}' is not owned by tribe '${tribeId}'`,
+      );
+    }
+
+    const sourceEnvironment = sourceService.environments?.find(
+      (row) => row.environment === environment,
+    );
+    if (!sourceEnvironment || sourceEnvironment.status !== "active") {
+      throw new ForbiddenError(
+        `Source service '${sourceServiceId}' is not active in '${environment}'`,
+      );
+    }
+
+    return sourceService;
   }
 }

@@ -1,16 +1,7 @@
 // =============================================================================
-// src/auth/providers/dev-jwt.provider.ts — Lightweight RS256 JWT provider
+// src/auth/providers/dev-jwt.provider.ts - Lightweight RS256 JWT provider
 // =============================================================================
 // Purpose-built for local development and CI environments.
-//
-// KEY PRIORITY ORDER:
-//   1. Vault Transit engine (VAULT_TRANSIT_KEY configured) — signs via Vault,
-//      verifies locally with the exported public key. Closest to production.
-//   2. Vault KV v2 (secret contains jwt_private_key) — loads PEM key from Vault.
-//   3. JWT_PRIVATE_KEY env var — PEM key from environment (simplest local setup).
-//   4. Ephemeral in-memory key pair — generated at startup (default; lost on restart).
-//
-// DO NOT use this provider in production. Use composite or internal-jwt.
 // =============================================================================
 
 import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
@@ -28,6 +19,7 @@ import {
   AuthProvider,
   IssuedToken,
   JwtClaims,
+  TokenIssueContext,
 } from "../auth-provider.interface";
 import { ConfigService } from "../../config/config.service";
 import { VaultService } from "../vault.service";
@@ -46,7 +38,6 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
 
   constructor(
     private readonly config: ConfigService,
-    // VaultService is optional — DevJwtProvider works without it
     @Optional() private readonly vault: VaultService,
   ) {
     this.issuer = config.devJwt.issuer;
@@ -57,7 +48,6 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
       return;
     }
 
-    // Priority 1: Vault Transit key (sign in Vault, verify locally)
     if (this.vault?.isAvailable && this.config.vault.transitKey) {
       const pubKeyPem = await this.vault.getPublicKey();
       if (pubKeyPem) {
@@ -66,7 +56,6 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
         this.publicJwk.kid = KEY_ID;
         this.publicJwk.use = "sig";
         this.publicJwk.alg = "RS256";
-        // privateKey stays undefined — signing will go through Vault Transit
         this.logger.log(
           "DevJwtProvider: Using Vault Transit engine for signing, local key for verification",
         );
@@ -74,7 +63,6 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
       }
     }
 
-    // Priority 2: PEM key from Vault KV
     if (this.vault?.isAvailable) {
       const privatePem = await this.vault.readSecret(
         this.config.vault.secretPath,
@@ -96,7 +84,6 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
       }
     }
 
-    // Priority 3: PEM key from env var
     const envPrivateKey = process.env.JWT_PRIVATE_KEY;
     const envPublicKey = process.env.JWT_PUBLIC_KEY;
     if (envPrivateKey && envPublicKey) {
@@ -118,7 +105,6 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
       return;
     }
 
-    // Priority 4: Ephemeral in-memory key pair (default)
     const { privateKey, publicKey } = await generateKeyPair("RS256");
     this.privateKey = privateKey;
     this.publicKey = publicKey;
@@ -148,6 +134,8 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
     return {
       sub: payload.sub ?? "",
       tribeId: payload["tribeId"] as string | undefined,
+      sourceServiceId: payload["sourceServiceId"] as string | undefined,
+      environment: payload["environment"] as JwtClaims["environment"],
       permissions: (payload["permissions"] as string[] | undefined) ?? [],
       scopes: (payload["scopes"] as string[] | undefined) ?? [],
       exp: payload.exp,
@@ -159,18 +147,24 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
     serviceId: string,
     permissions: string[],
     scopes: string[],
+    context: TokenIssueContext = {},
   ): Promise<IssuedToken> {
     const ttl = this.config.devJwt.tokenTtlSeconds ?? DEFAULT_TTL_SECONDS;
+    const tribeId = context.tribeId ?? serviceId;
+    const sourceServiceId = context.sourceServiceId ?? tribeId;
+    const commonClaims = {
+      tribeId,
+      sourceServiceId,
+      environment: context.environment,
+      permissions,
+      scopes,
+    };
 
-    const accessToken = await this.signJwt(
-      { tribeId: serviceId, permissions, scopes },
-      serviceId,
-      ttl,
-    );
+    const accessToken = await this.signJwt(commonClaims, serviceId, ttl);
 
     const refreshMultiplier = this.config.devJwt.refreshTtlMultiplier;
     const refreshToken = await this.signJwt(
-      { tribeId: serviceId, type: "refresh" },
+      { ...commonClaims, type: "refresh" },
       serviceId,
       ttl * refreshMultiplier,
     );
@@ -192,7 +186,14 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
     const permissions = (payload["permissions"] as string[] | undefined) ?? [];
     const scopes = (payload["scopes"] as string[] | undefined) ?? [];
 
-    return this.issueToken(serviceId, permissions, scopes);
+    return this.issueToken(serviceId, permissions, scopes, {
+      tribeId: (payload["tribeId"] as string | undefined) ?? serviceId,
+      sourceServiceId:
+        (payload["sourceServiceId"] as string | undefined) ??
+        (payload["tribeId"] as string | undefined) ??
+        serviceId,
+      environment: payload["environment"] as JwtClaims["environment"],
+    });
   }
 
   getJwksJson(): Record<string, unknown> {
@@ -215,14 +216,10 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
       .setIssuedAt()
       .setExpirationTime(`${ttlSeconds}s`);
 
-    // If Vault Transit is configured, we would ideally sign via vault.sign()
-    // and construct the JWT manually. For now we fall back to the local key
-    // (privateKey is set in all non-Transit paths). Transit signing requires
-    // a custom JWT assembly which is left as a production hardening step.
     if (!this.privateKey) {
       throw new Error(
         "DevJwtProvider: No private key available for signing. " +
-          "Vault Transit key export is not supported — ensure JWT_PRIVATE_KEY is set or Vault KV has jwt_private_key.",
+          "Vault Transit key export is not supported - ensure JWT_PRIVATE_KEY is set or Vault KV has jwt_private_key.",
       );
     }
 

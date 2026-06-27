@@ -1,4 +1,4 @@
-﻿# One APICenter Environment-Aware Routing Implementation Plan
+# One APICenter Environment-Aware Routing Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -409,7 +409,7 @@ git commit -m "feat: require APICenter environment in SDK"
 - Modify: `api-center/src/auth/dev-jwt.provider.ts`
 - Modify: related auth specs
 
-- [ ] **Step 1: Write failing auth controller test**
+- [x] **Step 1: Write failing auth controller test**
 
 Add a test proving the token response and `issueTribeToken` context include `environment` and `sourceServiceId`.
 
@@ -425,7 +425,7 @@ expect(result.data).toEqual(
 );
 ```
 
-- [ ] **Step 2: Run failing auth tests**
+- [x] **Step 2: Run failing auth tests**
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -434,7 +434,7 @@ npm test -- --runInBand src/auth/auth.controller.spec.ts src/auth/auth.service.s
 
 Expected: FAIL because auth context is not passed yet.
 
-- [ ] **Step 3: Add token issue context**
+- [x] **Step 3: Add token issue context**
 
 In `auth-provider.interface.ts`:
 
@@ -459,7 +459,7 @@ export interface TokenIssueContext {
 
 Update provider method signatures to accept optional `context?: TokenIssueContext`.
 
-- [ ] **Step 4: Pass context through AuthService and refresh-token storage**
+- [x] **Step 4: Pass context through AuthService and refresh-token storage**
 
 ```ts
 async issueTribeToken(
@@ -478,7 +478,7 @@ Persist `environment`, `tribeId`, and `sourceServiceId` with refresh token metad
 
 Add refresh tests proving a `test` refresh token mints a `test` access token and a `live` refresh token mints a `live` access token.
 
-- [ ] **Step 5: Sign claims in JWT providers**
+- [x] **Step 5: Sign claims in JWT providers**
 
 In internal/dev JWT providers, include:
 
@@ -493,7 +493,7 @@ In internal/dev JWT providers, include:
 }
 ```
 
-- [ ] **Step 6: Validate source service ownership before issuing tokens**
+- [x] **Step 6: Validate source service ownership before issuing tokens**
 
 Before issuing a token, API Center must prove `sourceServiceId` is safe to put into token claims:
 
@@ -514,7 +514,7 @@ if (!sourceEnvironment || sourceEnvironment.status !== "active") {
 
 Add tests for unknown source service, wrong owner tribe, and inactive/missing source environment.
 
-- [ ] **Step 7: Update AuthController**
+- [x] **Step 7: Update AuthController**
 
 ```ts
 const { tribeId, secret, environment, sourceServiceId } = dto;
@@ -528,7 +528,7 @@ const token = await this.auth.issueTribeToken(tribeId, permissions, scopes, {
 
 Return `environment` and `sourceServiceId` in the response data and token-issued event payload.
 
-- [ ] **Step 7A: Attach source-service context in JwtAuthGuard**
+- [x] **Step 7A: Attach source-service context in JwtAuthGuard**
 
 Extend `AuthenticatedRequest` with `sourceServiceId?: string` and set it from validated claims:
 
@@ -540,7 +540,7 @@ req.user = claims;
 
 All downstream proxy, usage, quota, audit, and shared-service code must use `req.sourceServiceId` as the calling service identity and `req.tribeId` as the owner/quota identity. Add guard tests that a token with `tribeId=church-donations` and `sourceServiceId=church-api` exposes both values distinctly.
 
-- [ ] **Step 8: Verify and commit**
+- [x] **Step 8: Verify and commit**
 
 ```powershell
 cd C:\Codes\apic\api-center

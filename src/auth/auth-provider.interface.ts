@@ -16,12 +16,18 @@
 //   AUTH_PROVIDER=dev-jwt      -> DevJwtProvider (default)
 // =============================================================================
 
+import type { ApicenterRuntimeEnvironment } from "../types";
+
 /** Normalised JWT claims extracted from a validated access token. */
 export interface JwtClaims {
   /** Token subject - typically the service/user ID */
   sub: string;
   /** Custom claim: tribe / service identifier embedded in the JWT */
   tribeId?: string;
+  /** Service that initiated the token request. Defaults to the tribe service. */
+  sourceServiceId?: string;
+  /** API Center runtime environment represented by this token. */
+  environment?: ApicenterRuntimeEnvironment;
   /** Permission strings embedded in the token */
   permissions?: string[];
   /** Service scopes embedded in the token */
@@ -32,6 +38,13 @@ export interface JwtClaims {
   [key: string]: unknown;
 }
 
+
+/** Runtime context embedded when issuing API Center M2M tokens. */
+export interface TokenIssueContext {
+  tribeId?: string;
+  sourceServiceId?: string;
+  environment?: ApicenterRuntimeEnvironment;
+}
 /** Token bundle returned after a successful issuance or refresh */
 export interface IssuedToken {
   /** Short-lived access JWT (Bearer token) */
@@ -74,6 +87,7 @@ export interface AuthProvider {
     serviceId: string,
     permissions: string[],
     scopes: string[],
+    context?: TokenIssueContext,
   ): Promise<IssuedToken>;
 
   /**

@@ -23,6 +23,8 @@ describe("TokenStoreService", () => {
     jti: "jti-1",
     sub: "svc-alpha",
     tribeId: "svc-alpha",
+    sourceServiceId: "svc-alpha-worker",
+    environment: "test",
     issuedAt: 1,
     expiresAt: 2,
     scopes: ["scope:read"],

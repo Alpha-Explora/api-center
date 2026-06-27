@@ -626,7 +626,11 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // Secret validation
   // -------------------------------------------------------------------------
 
-  async validateSecret(serviceId: string, secret: string): Promise<boolean> {
+  async validateSecret(
+    serviceId: string,
+    secret: string,
+    _environment?: ServiceEnvironmentKey,
+  ): Promise<boolean> {
     return this.tribeSecretResolver.validateSecret(serviceId, secret);
   }
 

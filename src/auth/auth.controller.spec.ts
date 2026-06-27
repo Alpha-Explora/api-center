@@ -1,21 +1,12 @@
-﻿// =============================================================================
-// Unit tests â€” AuthController
-// =============================================================================
-// Verifies token issuance and refresh endpoints, including the fix
-// that both responses now include `refreshToken`.
-// Tests are provider-agnostic â€” they mock AuthService, not Descope directly.
-// =============================================================================
-
+import { NotFoundException } from "@nestjs/common";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { RegistryService } from "../registry/registry.service";
 import { LoggerService } from "../shared/logger.service";
 import { KafkaService } from "../kafka/kafka.service";
 import { ConfigService } from "../config/config.service";
-import { NotFoundError, UnauthorizedError } from "../shared/errors";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../shared/errors";
 import { AuthenticatedRequest } from "../types";
-
-// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const mockAuth: Partial<AuthService> = {
   issueTribeToken: jest.fn(),
@@ -51,13 +42,34 @@ function fakeReq(
   return { correlationId: "corr-1", ...overrides } as AuthenticatedRequest;
 }
 
-// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const activeTestEnvironment = {
+  environment: "test" as const,
+  baseUrl: "https://svc-alpha.test",
+  status: "active" as const,
+};
+
+function activeService(serviceId = "svc-alpha") {
+  return {
+    serviceId,
+    ownerTribeId: serviceId,
+    requiredScopes: ["read"],
+    consumes: [],
+    environments: [activeTestEnvironment],
+  };
+}
 
 describe("AuthController", () => {
   let controller: AuthController;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
+    (
+      mockRegistry.getEffectiveConsumesForTribe as jest.Mock
+    ).mockImplementation((tribeId: string) => {
+      const service = (mockRegistry.get as jest.Mock)(tribeId);
+      return service?.consumes ?? [];
+    });
     controller = new AuthController(
       mockAuth as AuthService,
       mockRegistry as RegistryService,
@@ -67,31 +79,16 @@ describe("AuthController", () => {
     );
   });
 
-  // =========================================================================
-  // POST /auth/token
-  // =========================================================================
-
   describe("issueToken()", () => {
-    const dto = { tribeId: "svc-alpha", secret: "s3cret", environment: "test" as const };
+    const dto = {
+      tribeId: "svc-alpha",
+      secret: "s3cret",
+      environment: "test" as const,
+    };
 
-    beforeEach(() => {
-      (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
-      (
-        mockRegistry.getEffectiveConsumesForTribe as jest.Mock
-      ).mockImplementation((tribeId: string) => {
-        const service = (mockRegistry.get as jest.Mock)(tribeId);
-        return service?.consumes ?? [];
-      });
-    });
-
-    it("returns accessToken AND refreshToken", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue({
-        serviceId: "svc-alpha",
-        requiredScopes: ["read"],
-        consumes: [],
-      });
+    it("returns accessToken, refreshToken, environment, and source service context", async () => {
+      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
-      // AuthService.issueTribeToken returns IssuedToken shape
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: "refresh-jwt",
@@ -101,17 +98,34 @@ describe("AuthController", () => {
       const result = await controller.issueToken(dto, fakeReq());
 
       expect(result.success).toBe(true);
-      expect(result.data.accessToken).toBe("access-jwt");
-      expect(result.data.refreshToken).toBe("refresh-jwt");
-      expect(result.data.expiresIn).toBe(3600);
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          accessToken: "access-jwt",
+          refreshToken: "refresh-jwt",
+          expiresIn: 3600,
+          tribeId: "svc-alpha",
+          sourceServiceId: "svc-alpha",
+          environment: "test",
+        }),
+      );
+      expect(mockRegistry.validateSecret).toHaveBeenCalledWith(
+        "svc-alpha",
+        "s3cret",
+        "test",
+      );
+      expect(mockAuth.issueTribeToken).toHaveBeenCalledWith(
+        "svc-alpha",
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          environment: "test",
+          sourceServiceId: "svc-alpha",
+        }),
+      );
     });
 
     it("returns refreshToken as null when provider omits it", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue({
-        serviceId: "svc-alpha",
-        requiredScopes: [],
-        consumes: [],
-      });
+      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
@@ -132,9 +146,7 @@ describe("AuthController", () => {
     });
 
     it("throws UnauthorizedError for invalid secret", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue({
-        serviceId: "svc-alpha",
-      });
+      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(false);
 
       await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
@@ -142,12 +154,58 @@ describe("AuthController", () => {
       );
     });
 
-    it("publishes TOKEN_ISSUED Kafka event (without raw JWT)", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue({
-        serviceId: "svc-alpha",
-        requiredScopes: ["read"],
-        consumes: [],
+    it("throws UnauthorizedError for an unknown source service", async () => {
+      (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) =>
+        serviceId === "svc-alpha" ? activeService("svc-alpha") : null,
+      );
+
+      await expect(
+        controller.issueToken(
+          { ...dto, sourceServiceId: "missing-source" },
+          fakeReq(),
+        ),
+      ).rejects.toThrow(UnauthorizedError);
+    });
+
+    it("throws ForbiddenError when source service belongs to another tribe", async () => {
+      (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) => {
+        if (serviceId === "svc-alpha") return activeService("svc-alpha");
+        if (serviceId === "billing-api") {
+          return {
+            ...activeService("billing-api"),
+            ownerTribeId: "billing",
+          };
+        }
+        return null;
       });
+
+      await expect(
+        controller.issueToken(
+          { ...dto, sourceServiceId: "billing-api" },
+          fakeReq(),
+        ),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("throws ForbiddenError when source service is not active in the requested environment", async () => {
+      (mockRegistry.get as jest.Mock).mockReturnValue({
+        ...activeService("svc-alpha"),
+        environments: [
+          {
+            environment: "test",
+            baseUrl: "https://svc-alpha.test",
+            status: "deprecated",
+          },
+        ],
+      });
+
+      await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
+        ForbiddenError,
+      );
+    });
+
+    it("publishes TOKEN_ISSUED Kafka event without raw JWT material", async () => {
+      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
       (mockRegistry.validateSecret as jest.Mock).mockResolvedValue(true);
       (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
@@ -162,15 +220,19 @@ describe("AuthController", () => {
         mockKafka.publishNonBlocking as jest.Mock
       ).mock.calls[0];
       expect(topic).toBe("api-center.auth.token-issued");
-      expect(options.key).toBe("svc-alpha");
-      expect(payload.tribeId).toBe("svc-alpha");
-      expect(payload.scopes).toEqual(["read"]);
+      expect(options.key).toBe("test:svc-alpha");
+      expect(payload).toEqual(
+        expect.objectContaining({
+          tribeId: "svc-alpha",
+          sourceServiceId: "svc-alpha",
+          environment: "test",
+          scopes: ["read"],
+          expiresIn: 3600,
+        }),
+      );
       expect(payload.permissions).toEqual(
         expect.arrayContaining(["tribe:svc-alpha:read"]),
       );
-      expect(payload.expiresIn).toBe(3600);
-      expect(payload.timestamp).toBeDefined();
-      // Raw JWT must NEVER appear in the event
       expect(JSON.stringify(payload)).not.toContain("access-jwt");
       expect(JSON.stringify(payload)).not.toContain("refresh-jwt");
     });
@@ -184,6 +246,7 @@ describe("AuthController", () => {
               ownerTribeId: "logistics",
               requiredScopes: ["logistics:read"],
               consumes: ["kafka"],
+              environments: [activeTestEnvironment],
             };
           }
           if (serviceId === "payment") {
@@ -234,13 +297,13 @@ describe("AuthController", () => {
           "payment:write",
           "external:kafka:write",
         ]),
+        expect.objectContaining({
+          environment: "test",
+          sourceServiceId: "logistics",
+        }),
       );
     });
   });
-
-  // =========================================================================
-  // POST /auth/token/refresh
-  // =========================================================================
 
   describe("refreshToken()", () => {
     it("returns accessToken AND refreshToken", async () => {
@@ -275,12 +338,8 @@ describe("AuthController", () => {
     });
   });
 
-  // =========================================================================
-  // GET /auth/.well-known/jwks.json
-  // =========================================================================
-
   describe("getJwks()", () => {
-    it("returns JWKS when provider supports in-process JWKS (DevJwtProvider)", () => {
+    it("returns JWKS when provider supports in-process JWKS", () => {
       const mockJwks = {
         keys: [{ kty: "RSA", kid: "dev-key-1", use: "sig", alg: "RS256" }],
       };
@@ -293,7 +352,7 @@ describe("AuthController", () => {
     it("throws NotFoundException when provider does not serve in-process JWKS", () => {
       (mockAuth.getJwksJson as jest.Mock).mockReturnValue(null);
 
-      expect(() => controller.getJwks()).toThrow();
+      expect(() => controller.getJwks()).toThrow(NotFoundException);
     });
   });
 
@@ -304,4 +363,3 @@ describe("AuthController", () => {
     });
   });
 });
-

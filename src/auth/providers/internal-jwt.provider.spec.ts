@@ -114,12 +114,15 @@ describe("InternalJwtProvider", () => {
       "smoke-tribe",
       ["tribe:smoke-tribe:read"],
       ["geo:read"],
+      { environment: "test", sourceServiceId: "smoke-api" },
     );
 
     const claims = await provider.validateToken(issued.accessToken);
 
     expect(claims.sub).toBe("smoke-tribe");
     expect(claims.tribeId).toBe("smoke-tribe");
+    expect(claims.sourceServiceId).toBe("smoke-api");
+    expect(claims.environment).toBe("test");
     expect(claims.permissions).toContain("tribe:smoke-tribe:read");
     expect(claims.scopes).toContain("geo:read");
     expect(claims.jti).toEqual(expect.any(String));
@@ -134,6 +137,7 @@ describe("InternalJwtProvider", () => {
       "smoke-tribe",
       ["tribe:smoke-tribe:read"],
       ["geo:read"],
+      { environment: "test", sourceServiceId: "smoke-api" },
     );
 
     const refreshed = await provider.refreshToken(issued.refreshToken!);

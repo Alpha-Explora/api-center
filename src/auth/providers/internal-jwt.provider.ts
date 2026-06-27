@@ -13,6 +13,7 @@ import {
   AuthProvider,
   IssuedToken,
   JwtClaims,
+  TokenIssueContext,
 } from "../auth-provider.interface";
 import { ConfigService } from "../../config/config.service";
 
@@ -58,6 +59,8 @@ export class InternalJwtProvider implements AuthProvider, OnModuleInit {
     return {
       sub: payload.sub ?? "",
       tribeId: payload["tribeId"] as string | undefined,
+      sourceServiceId: payload["sourceServiceId"] as string | undefined,
+      environment: payload["environment"] as JwtClaims["environment"],
       permissions,
       scopes,
       exp: payload.exp,
@@ -69,12 +72,21 @@ export class InternalJwtProvider implements AuthProvider, OnModuleInit {
     serviceId: string,
     permissions: string[],
     scopes: string[],
+    context: TokenIssueContext = {},
   ): Promise<IssuedToken> {
+    const tribeId = context.tribeId ?? serviceId;
+    const sourceServiceId = context.sourceServiceId ?? tribeId;
+    const commonClaims = {
+      tribeId,
+      sourceServiceId,
+      environment: context.environment,
+      permissions,
+      scopes,
+    };
+
     const accessToken = await this.signJwt(
       {
-        tribeId: serviceId,
-        permissions,
-        scopes,
+        ...commonClaims,
         tokenType: "access",
       },
       serviceId,
@@ -83,9 +95,7 @@ export class InternalJwtProvider implements AuthProvider, OnModuleInit {
 
     const refreshToken = await this.signJwt(
       {
-        tribeId: serviceId,
-        permissions,
-        scopes,
+        ...commonClaims,
         tokenType: "refresh",
       },
       serviceId,
@@ -112,6 +122,11 @@ export class InternalJwtProvider implements AuthProvider, OnModuleInit {
       claims.sub,
       claims.permissions ?? [],
       claims.scopes ?? [],
+      {
+        tribeId: claims.tribeId ?? claims.sub,
+        sourceServiceId: claims.sourceServiceId ?? claims.tribeId ?? claims.sub,
+        environment: claims.environment,
+      },
     );
   }
 

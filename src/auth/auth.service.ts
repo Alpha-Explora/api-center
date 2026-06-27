@@ -1,10 +1,8 @@
 // =============================================================================
-// src/auth/auth.service.ts — Provider-agnostic authentication service
+// src/auth/auth.service.ts - Provider-agnostic authentication service
 // =============================================================================
 // Thin orchestration layer that delegates JWT operations to the injected
-// AuthProvider (DescopeProvider, InternalJwtProvider, CompositeAuthProvider, or
-// DevJwtProvider) and manages refresh
-// token lifecycle via TokenStoreService.
+// AuthProvider and manages refresh token lifecycle via TokenStoreService.
 // =============================================================================
 
 import { Inject, Injectable } from "@nestjs/common";
@@ -14,11 +12,12 @@ import {
   AuthProvider,
   IssuedToken,
   JwtClaims,
+  TokenIssueContext,
 } from "./auth-provider.interface";
 import { TokenStoreService, RefreshTokenRecord } from "./token-store.service";
 import { LoggerService } from "../shared/logger.service";
-import { ForbiddenError, UnauthorizedError } from "../shared/errors";
-import { AuthenticatedRequest } from "../types";
+import { ForbiddenError, UnauthorizedError, ValidationError } from "../shared/errors";
+import { AuthenticatedRequest, ApicenterRuntimeEnvironment } from "../types";
 
 @Injectable()
 export class AuthService {
@@ -47,16 +46,24 @@ export class AuthService {
     serviceId: string,
     permissions: string[] = [],
     scopes: string[] = [],
+    context: TokenIssueContext = {},
   ): Promise<IssuedToken> {
+    const resolvedContext = this.resolveIssueContext(serviceId, context);
     const issued = await this.provider.issueToken(
       serviceId,
       permissions,
       scopes,
+      resolvedContext,
     );
 
-    // Persist the refresh token in Redis for revocation support
     if (issued.refreshToken) {
-      await this.persistRefreshToken(issued, serviceId, permissions, scopes);
+      await this.persistRefreshToken(
+        issued,
+        serviceId,
+        permissions,
+        scopes,
+        resolvedContext,
+      );
     }
 
     return issued;
@@ -66,8 +73,17 @@ export class AuthService {
     tribeId: string,
     permissions: string[] = [],
     scopes: string[] = [],
+    context: TokenIssueContext,
   ): Promise<IssuedToken> {
-    return this.issueToken(tribeId, permissions, scopes);
+    if (!context?.environment) {
+      throw new ValidationError("Token environment is required");
+    }
+
+    return this.issueToken(tribeId, permissions, scopes, {
+      ...context,
+      tribeId,
+      sourceServiceId: context.sourceServiceId ?? tribeId,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -79,19 +95,20 @@ export class AuthService {
    * Validates that the refresh token exists in the Redis store (not revoked).
    */
   async refreshToken(refreshToken: string): Promise<IssuedToken> {
-    // Extract the JTI from the refresh token claims (best-effort — works for DevJwt)
+    let claims: JwtClaims | undefined;
     let jti: string | undefined;
     let sub: string | undefined;
+    let storedRecord: RefreshTokenRecord | null = null;
+
     try {
-      const claims = await this.provider.validateToken(refreshToken);
-      jti = claims["jti"] as string | undefined;
+      claims = await this.provider.validateToken(refreshToken);
+      jti = claims.jti as string | undefined;
       sub = claims.sub;
     } catch {
       // Provider-backed opaque refresh tokens cannot be pre-validated here;
       // the selected provider's token endpoint will reject invalid tokens.
     }
 
-    // If we have a JTI, verify the token hasn't been revoked in Redis
     if (jti) {
       const valid = await this.tokenStore.isValid(jti);
       if (!valid) {
@@ -99,16 +116,27 @@ export class AuthService {
           "Refresh token has been revoked or expired",
         );
       }
+
+      storedRecord = await this.tokenStore.get(jti);
+      if (!storedRecord) {
+        throw new UnauthorizedError("Refresh token metadata is unavailable");
+      }
     }
 
     const issued = await this.provider.refreshToken(refreshToken);
 
-    // Rotate: revoke old refresh token, persist new one
     if (jti) {
       await this.tokenStore.revoke(jti);
     }
+
     if (issued.refreshToken && sub) {
-      await this.persistRefreshToken(issued, sub, [], []);
+      await this.persistRefreshToken(
+        issued,
+        sub,
+        storedRecord?.permissions ?? claims?.permissions ?? [],
+        storedRecord?.scopes ?? claims?.scopes ?? [],
+        this.contextFromRefresh(storedRecord, claims, sub),
+      );
     }
 
     return issued;
@@ -128,21 +156,20 @@ export class AuthService {
     refreshToken: string,
     revokeAll = false,
   ): Promise<{ revokedCount: number; sub: string }> {
-    // Parse the refresh token to extract jti + sub
     let jti: string | undefined;
     let sub: string | undefined;
 
     try {
       const claims = await this.provider.validateToken(refreshToken);
-      jti = claims["jti"] as string | undefined;
+      jti = claims.jti as string | undefined;
       sub = claims.sub;
     } catch {
-      // Token may already be expired — attempt lookup by raw value
+      // Token may already be expired - attempt lookup by raw value
     }
 
     if (!sub && !jti) {
       throw new UnauthorizedError(
-        "Cannot parse refresh token — it may already be expired or invalid",
+        "Cannot parse refresh token - it may already be expired or invalid",
       );
     }
 
@@ -198,13 +225,47 @@ export class AuthService {
   // Private helpers
   // ---------------------------------------------------------------------------
 
+  private resolveIssueContext(
+    serviceId: string,
+    context: TokenIssueContext = {},
+  ): TokenIssueContext {
+    const tribeId = context.tribeId ?? serviceId;
+    return {
+      ...context,
+      tribeId,
+      sourceServiceId: context.sourceServiceId ?? tribeId,
+    };
+  }
+
+  private contextFromRefresh(
+    record: RefreshTokenRecord | null,
+    claims: JwtClaims | undefined,
+    sub: string,
+  ): TokenIssueContext {
+    return {
+      tribeId: record?.tribeId ?? claims?.tribeId ?? sub,
+      sourceServiceId:
+        record?.sourceServiceId ?? claims?.sourceServiceId ?? claims?.tribeId ?? sub,
+      environment: record?.environment ?? claims?.environment,
+    };
+  }
+
   private async persistRefreshToken(
     issued: IssuedToken,
     sub: string,
     permissions: string[],
     scopes: string[],
+    context: TokenIssueContext,
   ): Promise<void> {
     if (!issued.refreshToken) return;
+
+    const environment = await this.resolveRefreshEnvironment(
+      issued.refreshToken,
+      context.environment,
+    );
+    if (!environment) {
+      throw new ValidationError("Refresh token environment is required");
+    }
 
     let jti: string = randomUUID();
     try {
@@ -219,11 +280,14 @@ export class AuthService {
 
     const now = Math.floor(Date.now() / 1000);
     const refreshExpiresIn = issued.refreshExpiresIn ?? issued.expiresIn * 24;
+    const tribeId = context.tribeId ?? sub;
 
     const record: RefreshTokenRecord = {
       jti,
       sub,
-      tribeId: sub,
+      tribeId,
+      sourceServiceId: context.sourceServiceId ?? tribeId,
+      environment,
       issuedAt: now,
       expiresAt: now + refreshExpiresIn,
       scopes,
@@ -236,5 +300,19 @@ export class AuthService {
         "AuthService",
       );
     });
+  }
+
+  private async resolveRefreshEnvironment(
+    refreshToken: string,
+    environment?: ApicenterRuntimeEnvironment,
+  ): Promise<ApicenterRuntimeEnvironment | undefined> {
+    if (environment) return environment;
+
+    try {
+      const claims = await this.provider.validateToken(refreshToken);
+      return claims.environment;
+    } catch {
+      return undefined;
+    }
   }
 }

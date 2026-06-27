@@ -1,5 +1,5 @@
-﻿// =============================================================================
-// src/types/index.ts â€” Shared TypeScript type definitions for the API Center
+// =============================================================================
+// src/types/index.ts — Shared TypeScript type definitions for the API Center
 // =============================================================================
 // All shared interfaces and types used across the application are defined here.
 // Import from '../types' in other modules.
@@ -10,7 +10,7 @@
 // =============================================================================
 
 import { Request } from "express";
-import { JwtClaims } from "../auth/auth-provider.interface";
+import type { JwtClaims } from "../auth/auth-provider.interface";
 
 // ---------------------------------------------------------------------------
 // Express request extensions (used inside NestJS's Express adapter)
@@ -27,6 +27,8 @@ export interface AuthenticatedRequest extends Request {
   user?: JwtClaims;
   /** The service/tribe ID extracted from the JWT's tribeId claim */
   tribeId?: string;
+  /** The source service ID extracted from the JWT sourceServiceId claim */
+  sourceServiceId?: string;
   /** Unique correlation ID for distributed request tracing */
   correlationId?: string;
 }
@@ -56,7 +58,7 @@ export type ServiceLifecycleStatus =
   | "proposed" // Submitted but not yet approved for traffic
   | "active" // Live and serving traffic
   | "deprecated" // Still live but consumers should migrate
-  | "retired"; // No longer routable â€” kept for audit history
+  | "retired"; // No longer routable — kept for audit history
 
 /** Routing namespace: shared = platform service, tribe = tribe backend */
 export type ServiceType = "shared" | "tribe";
@@ -105,7 +107,7 @@ export interface ServiceManifest {
   consumes: string[];
   /** Tribe that owns this service. Defaults to serviceId for legacy tribe entries. */
   ownerTribeId?: string;
-  /** Routing namespace â€” 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
+  /** Routing namespace — 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
   serviceType?: ServiceType;
   healthCheck?: string;
   environments?: ServiceEnvironmentManifest[];
@@ -113,7 +115,7 @@ export interface ServiceManifest {
   description?: string;
   tags?: string[];
 
-  // â”€â”€ Governance fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Governance fields ────────────────────────────────────────────────────
   /** Team or squad that owns and operates this service */
   ownerTeam?: string;
   /** Primary contact email / Slack channel for incidents */
@@ -142,15 +144,15 @@ export interface ServiceRegistryEntry extends ServiceManifest {
   updatedAt: string;
   status: ServiceLifecycleStatus;
   environments: ServiceEnvironmentManifest[];
-  /** Previous version string â€” set on update when version changes */
+  /** Previous version string — set on update when version changes */
   previousVersion?: string;
-  /** Runtime health â€” `true` (default) when the upstream responds to health checks */
+  /** Runtime health — `true` (default) when the upstream responds to health checks */
   healthy?: boolean;
   /** ISO-8601 timestamp of the last successful or failed health check */
   lastHealthCheckAt?: string;
 }
 
-/** Map of service ID â†’ ServiceRegistryEntry */
+/** Map of service ID → ServiceRegistryEntry */
 export interface ServiceRegistryMap {
   [serviceId: string]: ServiceRegistryEntry;
 }

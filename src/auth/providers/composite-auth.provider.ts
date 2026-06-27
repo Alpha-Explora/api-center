@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { AuthProvider, JwtClaims } from "../auth-provider.interface";
+import { AuthProvider, JwtClaims, TokenIssueContext } from "../auth-provider.interface";
 import { DescopeProvider } from "./descope.provider";
 import { InternalJwtProvider } from "./internal-jwt.provider";
 
@@ -12,8 +12,13 @@ export class CompositeAuthProvider implements AuthProvider {
     private readonly descope: DescopeProvider,
   ) {}
 
-  issueToken(serviceId: string, permissions: string[], scopes: string[]) {
-    return this.internalJwt.issueToken(serviceId, permissions, scopes);
+  issueToken(
+    serviceId: string,
+    permissions: string[],
+    scopes: string[],
+    context?: TokenIssueContext,
+  ) {
+    return this.internalJwt.issueToken(serviceId, permissions, scopes, context);
   }
 
   async validateToken(token: string): Promise<JwtClaims> {

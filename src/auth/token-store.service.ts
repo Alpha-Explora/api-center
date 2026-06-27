@@ -16,12 +16,15 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import Redis from "ioredis";
 import { LoggerService } from "../shared/logger.service";
 import { ConfigService } from "../config/config.service";
+import type { ApicenterRuntimeEnvironment } from "../types";
 
 /** Stored refresh token payload */
 export interface RefreshTokenRecord {
   jti: string;
   sub: string;
   tribeId: string;
+  sourceServiceId: string;
+  environment: ApicenterRuntimeEnvironment;
   issuedAt: number;
   expiresAt: number;
   scopes: string[];

@@ -46,8 +46,11 @@ export class JwtAuthGuard implements CanActivate {
       const claims = await this.auth.validateToken(token);
 
       // Attach normalised claims so controllers and downstream guards can read them
-      (request as AuthenticatedRequest).user = claims;
-      (request as AuthenticatedRequest).tribeId = claims.tribeId;
+      const authenticatedRequest = request as AuthenticatedRequest;
+      authenticatedRequest.user = claims;
+      authenticatedRequest.tribeId = claims.tribeId ?? claims.sub;
+      authenticatedRequest.sourceServiceId =
+        claims.sourceServiceId ?? authenticatedRequest.tribeId;
       return true;
     } catch (_err) {
       this.logger.warn(

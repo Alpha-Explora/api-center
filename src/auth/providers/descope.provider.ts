@@ -17,6 +17,7 @@ import {
   AuthProvider,
   IssuedToken,
   JwtClaims,
+  TokenIssueContext,
 } from "../auth-provider.interface";
 import { ConfigService } from "../../config/config.service";
 
@@ -157,6 +158,7 @@ export class DescopeProvider implements AuthProvider, OnModuleInit {
     serviceId: string,
     _permissions: string[],
     scopes: string[],
+    _context?: TokenIssueContext,
   ): Promise<IssuedToken> {
     const clientSecretEnvKey = `DESCOPE_CLIENT_SECRET_${serviceId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
     const clientSecret =
