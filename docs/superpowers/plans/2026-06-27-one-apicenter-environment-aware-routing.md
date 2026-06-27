@@ -283,7 +283,7 @@ git commit -m "feat: expose APICenter environment type"
 - Modify: `api-shared-services/tests/fixtures/tribe-client.ts` and every `tests/TribeClient*.test.ts` fixture/helper that constructs `TribeClient`
 - Modify: SDK README and consumer examples in the same slice so examples compile with the required `environment`
 
-- [ ] **Step 1: Write failing SDK tests**
+- [x] **Step 1: Write failing SDK tests**
 
 Add tests that constructor validation fails without `environment`, and `authenticate()` posts environment and source service ID.
 
@@ -319,7 +319,7 @@ it("sends environment during authentication", async () => {
 });
 ```
 
-- [ ] **Step 2: Run failing SDK tests**
+- [x] **Step 2: Run failing SDK tests**
 
 ```powershell
 cd C:\Codes\apic\api-shared-services
@@ -328,7 +328,7 @@ npm test -- tests/TribeClient.auth.test.ts
 
 Expected: FAIL because `TribeClientOptions.environment` is not implemented.
 
-- [ ] **Step 3: Implement SDK option and header**
+- [x] **Step 3: Implement SDK option and header**
 
 In `TribeClient.ts`:
 
@@ -379,7 +379,7 @@ const response = await this.http.post("/api/v1/auth/token", {
 });
 ```
 
-- [ ] **Step 4: Verify SDK**
+- [x] **Step 4: Verify SDK**
 
 ```powershell
 cd C:\Codes\apic\api-shared-services
@@ -391,7 +391,7 @@ npm run pack:check
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit SDK slice**
+- [x] **Step 5: Commit SDK slice**
 
 ```powershell
 cd C:\Codes\apic\api-shared-services
@@ -1583,6 +1583,7 @@ usage/audit: serviceId=church-donations, environment=live
 - [x] Type consistency: API Center uses `ServiceEnvironmentKey`; SDK uses `ApicenterEnvironment`; runtime values are consistently `test` and `live`.
 - [x] Scope check: this remains one platform contract despite spanning three repos; tasks are sliced so each produces testable software.
 - [x] Visual tracker coverage: the plan requires a standalone HTML tracker for decisions, risks, slice status, database readiness, rollout gates, and deployment status, updated in the same slice as Markdown checkboxes.
+
 
 
 
