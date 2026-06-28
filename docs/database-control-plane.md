@@ -121,18 +121,18 @@ API Center now enforces the one-URL environment contract:
 - service, usage, audit, quota, and evidence rows must persist explicit environment
 - the runtime must not infer `test` from a missing environment
 
-Cutover sequence:
+Completed cutover sequence:
 
-1. Publish SDK major version `2.0.0` with required `environment` and one URL.
-2. Create test/live environment-scoped tribe secrets using `tribeId` or `ownerTribeId` as Secret Manager identity.
-3. Update Management handoff blocks and tribe repos to use `APICENTER_ENVIRONMENT`.
-4. Run auth, read-only discovery, shared-service smoke, payment test smoke, and registry detail checks per target environment.
-5. Remove disabled legacy secret records after the rollback window if no rollback is needed.
+1. Published SDK major version `2.0.0` with required `environment` and one URL.
+2. Created test/live environment-scoped tribe secrets using `tribeId` or `ownerTribeId` as Secret Manager identity.
+3. Updated Management handoff blocks and tribe repos to use `APICENTER_ENVIRONMENT`.
+4. Verified API Center registry parity, SDK contract gates, Management route smoke, and active no-legacy scanning.
+5. Deleted the disabled legacy Secret Manager records after operator-approved rollback-waiver cleanup. New rollback work must use the scoped `api-center-tribe-secret-<tribe-id>-test|live` records only.
 
 Rollback sequence:
 
 1. Keep the environment-scoped secrets in Secret Manager and keep one-URL SDK clients unchanged.
-2. Re-enable only the disabled scoped or source secret version needed for the affected service/environment.
+2. Re-enable only the disabled scoped secret version needed for the affected service/environment.
 3. Investigate by `serviceId`, `sourceServiceId`, `environment`, and `correlationId`.
 4. Rotate the affected scoped secret after recovery.
 
@@ -158,6 +158,8 @@ npm run db:verify:control-plane -- --app-role <discovered_app_role>
 npm run db:generate
 npm run db:backfill:registry
 npm run registry:verify
+npm run check:no-legacy-routing
+npm run check:environment-naming
 ```
 
 Use `npm run db:verify:control-plane -- --forbid-legacy-schemas` when checking

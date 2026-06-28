@@ -153,9 +153,9 @@ JWT_PRIVATE_KEY="<persistent-rs256-private-key-pem>"
 JWT_PUBLIC_KEY="<persistent-rs256-public-key-pem>"
 ```
 
-Use `composite` first in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes need one per-tribe GCP Secret Manager secret named `api-center-tribe-secret-<tribe-id>`; they do not need one Descope app per tribe.
+Use `composite` in production. API Center issues tribe M2M tokens itself and validates Descope tokens as a fallback for human/admin flows. New tribes need environment-scoped GCP Secret Manager records named `api-center-tribe-secret-<tribe-id>-test` and `api-center-tribe-secret-<tribe-id>-live`; they do not need one Descope app per tribe.
 
-Legacy Descope-only M2M mode:
+Descope-only M2M mode is retained only for historical local testing and should not be used for new tribe onboarding:
 
 ```bash
 AUTH_PROVIDER=descope
@@ -168,7 +168,7 @@ DESCOPE_AUDIENCE=api-center
 DESCOPE_DEFAULT_CLIENT_SECRET=<m2m-client-secret>
 ```
 
-Per-service secret overrides are only for legacy Descope-only M2M mode:
+Per-service Descope secret overrides are not part of the current APICenter tribe M2M contract:
 
 ```bash
 DESCOPE_CLIENT_SECRET_PAYMENT_SERVICE=<service-secret>
@@ -459,5 +459,4 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 | `GET` | `/nginx-health` | NGINX bypass health check |
 
 ---
-
 
