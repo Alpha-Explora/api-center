@@ -18,7 +18,7 @@ and where the data landed?
 | Athena catalog          | Partition projection over approved physical topics                           | `infra/aws-data-pipeline/README.md`, `infra/aws-data-pipeline/catalog/raw-topic-tables.sql` |
 | Event schema governance | Approved `event_type` and `schema_version` decisions before prod publish     | `event-schema-governance.md`, `infra/aws-data-pipeline/catalog/event-schema-registry.sql`   |
 | Athena results          | Governed result prefixes by purpose, environment, and tribe                  | `athena-results-runbook.md`                                                                 |
-| Tribe AWS access        | IAM Identity Center and Athena handoff for tribe analytics/BI readers        | `tribe-platform-aws-access-handoff.md`, `athena-account-next-steps.md`, `bi-handoff-runbook.md` |
+| Tribe AWS access        | IAM Identity Center, least-privilege Athena/S3 provisioning, and handoff for tribe analytics/BI readers | `new-tribe-s3-onboarding-runbook.md`, `tribe-platform-aws-access-handoff.md`, `athena-account-next-steps.md`, `bi-handoff-runbook.md` |
 | Curated views           | Bronze lanes, common silver, gold platform health                            | `silver-gold-ownership-runbook.md`, `metric-dictionary.md`                                  |
 | Tribe data products     | Repeatable Tribe Silver/Gold generation from Common Silver                   | `tribe-curated-data-product-runbook.md`, `tribe-data-governance-checklist.md`               |
 | Tribe-facing manual     | Detailed product-tribe guide from setup and SDK publish through Common Silver, Silver/Gold, and BI handoff | `tribe-data-pipeline-manual.md`                                                            |

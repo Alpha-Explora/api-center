@@ -171,6 +171,36 @@ validator_command:
 validator_output_link:
 ```
 
+## Tribe AWS Access Provisioning
+
+When a tribe needs direct Athena/S3 validation access, use the dedicated
+provisioning helper instead of hand-writing IAM policy JSON. It creates a
+least-privilege plan by default and applies only with `-Apply`.
+
+Dry-run:
+
+```powershell
+cd C:\Codes\apic\api-center
+.\scripts\data-pipeline\provision-tribe-s3-athena-user.ps1 `
+  -Environment test `
+  -TribeId <ownerTribeId> `
+  -DryRun
+```
+
+Apply:
+
+```powershell
+.\scripts\data-pipeline\provision-tribe-s3-athena-user.ps1 `
+  -Environment test `
+  -TribeId <ownerTribeId> `
+  -Profile <aws-profile> `
+  -Apply
+```
+
+Use `-CreateAccessKey` only when the handoff explicitly requires CLI access.
+The helper does not grant delete permissions, broad raw S3 access, or Confluent
+administration.
+
 ## Athena Validation
 
 Parameterize by physical topic or S3 prefix:
