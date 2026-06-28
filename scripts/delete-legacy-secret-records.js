@@ -18,6 +18,9 @@ async function main(argv = process.argv.slice(2)) {
   const apply = argv.includes("--apply");
   const failOnBlockers = argv.includes("--fail-on-blockers");
   const confirmed = argv.includes("--confirm-delete-disabled-legacy-secrets");
+  const earlyDeleteWaiver = argv.includes(
+    "--confirm-early-delete-before-rollback-window",
+  );
   const project =
     readArg(argv, "--project") ||
     process.env.GOOGLE_CLOUD_PROJECT ||
@@ -33,6 +36,9 @@ async function main(argv = process.argv.slice(2)) {
     project,
     payloadPolicy:
       "Secret payload values are not read or printed. This final cleanup uses only Secret Manager metadata and version states.",
+    rollbackWindowPolicy: earlyDeleteWaiver
+      ? "Operator explicitly waived the rollback-window wait with --confirm-early-delete-before-rollback-window. Enabled legacy versions and missing apply confirmation still block deletion."
+      : "Deletion is blocked until each candidate deleteAfter timestamp unless an operator explicitly waives the rollback-window wait.",
     cleanupPath: path.relative(repoRoot, cleanupPath).replace(/\\/g, "/"),
     deleteAfter: cleanup.deleteAfter,
     summary: {
@@ -59,6 +65,7 @@ async function main(argv = process.argv.slice(2)) {
       fallbackDeleteAfter: cleanup.deleteAfter,
       apply,
       confirmed,
+      earlyDeleteWaiver,
     });
 
     if (!inspection.exists) evidence.summary.alreadyDeleted += 1;
@@ -78,6 +85,7 @@ async function main(argv = process.argv.slice(2)) {
       deleteAfter: decision.deleteAfter,
       readyToDelete,
       blockers: decision.blockers,
+      waivedBlockers: decision.waivedBlockers,
     });
 
     if (apply && readyToDelete) {
@@ -96,6 +104,11 @@ async function main(argv = process.argv.slice(2)) {
     evidence.nextActions.push(
       "After deleteAfter and after confirming no rollback is needed, rerun with --apply --confirm-delete-disabled-legacy-secrets.",
     );
+    if (!earlyDeleteWaiver) {
+      evidence.nextActions.push(
+        "To intentionally waive the rollback wait, rerun with --confirm-early-delete-before-rollback-window; this does not bypass enabled-version checks.",
+      );
+    }
   }
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -149,6 +162,7 @@ function evaluateDeletionCandidate({
   fallbackDeleteAfter,
   apply = false,
   confirmed = false,
+  earlyDeleteWaiver = false,
 }) {
   const deleteAfter = new Date(candidate.deleteAfter || fallbackDeleteAfter);
   const deleteAfterIso = Number.isFinite(deleteAfter.getTime())
@@ -159,8 +173,14 @@ function evaluateDeletionCandidate({
   );
   const blockers = [];
 
+  const waivedBlockers = [];
+
   if (Number.isFinite(deleteAfter.getTime()) && now < deleteAfter) {
-    blockers.push(`rollback window is open until ${deleteAfterIso}`);
+    if (earlyDeleteWaiver) {
+      waivedBlockers.push(`rollback window is open until ${deleteAfterIso}`);
+    } else {
+      blockers.push(`rollback window is open until ${deleteAfterIso}`);
+    }
   }
   if (enabledVersions.length > 0) {
     blockers.push(`${enabledVersions.length} enabled version(s) still exist`);
@@ -172,6 +192,7 @@ function evaluateDeletionCandidate({
   return {
     deleteAfter: deleteAfterIso,
     blockers,
+    waivedBlockers,
     readyToDelete: inspection.exists && blockers.length === 0,
   };
 }

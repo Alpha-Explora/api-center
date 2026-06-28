@@ -70,6 +70,53 @@ run("blocks deletion before rollback window closes", () => {
   ]);
 });
 
+run("allows early deletion waiver only for the rollback-window blocker", () => {
+  const decision = evaluateDeletionCandidate({
+    candidate: {
+      deleteAfter: "2026-07-04T22:30:06.543Z",
+    },
+    inspection: {
+      exists: true,
+      versions: [{ version: "1", state: "DISABLED" }],
+    },
+    now: new Date("2026-06-28T00:00:00.000Z"),
+    apply: true,
+    confirmed: true,
+    earlyDeleteWaiver: true,
+  });
+
+  assert.equal(decision.readyToDelete, true);
+  assert.deepEqual(decision.blockers, []);
+  assert.deepEqual(decision.waivedBlockers, [
+    "rollback window is open until 2026-07-04T22:30:06.543Z",
+  ]);
+});
+
+run("early deletion waiver does not bypass enabled-version blocker", () => {
+  const decision = evaluateDeletionCandidate({
+    candidate: {
+      deleteAfter: "2026-07-04T22:30:06.543Z",
+    },
+    inspection: {
+      exists: true,
+      versions: [
+        { version: "1", state: "DISABLED" },
+        { version: "2", state: "ENABLED" },
+      ],
+    },
+    now: new Date("2026-06-28T00:00:00.000Z"),
+    apply: true,
+    confirmed: true,
+    earlyDeleteWaiver: true,
+  });
+
+  assert.equal(decision.readyToDelete, false);
+  assert.deepEqual(decision.blockers, ["1 enabled version(s) still exist"]);
+  assert.deepEqual(decision.waivedBlockers, [
+    "rollback window is open until 2026-07-04T22:30:06.543Z",
+  ]);
+});
+
 run("blocks deletion when any legacy version is still enabled", () => {
   const decision = evaluateDeletionCandidate({
     candidate: {

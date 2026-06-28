@@ -421,10 +421,13 @@ function inventoryCodeSurface(repoRoot) {
   const trackedFiles = listTrackedFiles(repoRoot);
   const allowed = [
     /^docs\/superpowers\/plans\//,
-    /^docs\/operations\/.*(?:inventory|migration|preflight|smoke|parity).*[.](?:json|md)$/,
+    /^docs\/operations\/.*(?:inventory|migration|cleanup|preflight|smoke|parity).*[.](?:json|md)$/,
     /^docs\/operations\/one-url-environment-migration-inventory\.md$/,
     /^docs\/visualizations\/one-apicenter-environment-aware-routing-tracker\.html$/,
     /^scripts\/inventory-legacy-service-migration\.js$/,
+    /^scripts\/migrate-legacy-.*[.]js$/,
+    /^scripts\/delete-legacy-secret-records[.]js$/,
+    /^scripts\/delete-legacy-secret-records[.]test[.]js$/,
     /^scripts\/verify-no-legacy-environment-routing\.js$/,
   ];
   const rules = [
@@ -445,13 +448,14 @@ function inventoryCodeSurface(repoRoot) {
     },
     {
       id: "legacy_env_backed_secret",
-      pattern: /TRIBE_SECRET_[A-Z0-9_]+/g,
+      pattern:
+        /TRIBE_SECRET_(?!(?:SOURCE|GCP_PREFIX|CACHE_TTL_SECONDS|MANAGER_CLIENT)\b)[A-Z0-9_]+/g,
       description: "Env-backed tribe secret hash support remains",
     },
     {
       id: "sdk_url_alias",
-      pattern: /\bAPICENTER_(?:URL|GATEWAY_URL)\b/g,
-      description: "SDK/API URL aliases still duplicate API_CENTER_BASE_URL",
+      pattern: /\b(?:API_CENTER_BASE_URL|APICENTER_GATEWAY_URL)\b/g,
+      description: "SDK/API URL aliases still duplicate APICENTER_URL",
     },
     {
       id: "management_environment_alias",

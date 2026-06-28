@@ -2231,7 +2231,7 @@ node scripts/inventory-legacy-service-migration.js --out docs/operations/legacy-
 
 Current status: `npm run registry:migrate-legacy-services -- --apply --out docs/operations/legacy-service-record-migration-2026-06-28.json` applied a single Postgres transaction. It added explicit `test` and `live` environment rows for `flow-ci`, `greenovate`, `pakiapps`, `shoteam`, `smurf-village`, and `trinithrive`; retired 8 temporary/placeholder records; and marked `smoke-tribe` as explicit test-only with a sunset. Live API Center was restarted with `kubectl rollout restart deployment/api-center -n api-center`, and `npm run registry:verify -- --out docs/operations/registry-parity-post-service-migration-2026-06-28.json` returned `ready=true`, API snapshot 22, Postgres 22, 0 missing, 0 mismatched.
 
-- [ ] **Step 3: Migrate stored legacy secrets, then disable and delete legacy records after rollback**
+- [x] **Step 3: Migrate stored legacy secrets, then disable and delete legacy records after rollback**
 
 For each `legacySecrets[]` record:
 
@@ -2269,7 +2269,9 @@ npm run registry:delete-legacy-secrets -- --out docs/operations/legacy-secret-cl
 npm run registry:delete-legacy-secrets -- --apply --confirm-delete-disabled-legacy-secrets --out docs/operations/legacy-secret-cleanup-final-apply-2026-07-05.json
 ```
 
-The apply command refuses to delete before the recorded `deleteAfter`, refuses to delete if any legacy secret still has an enabled version, and never reads or prints secret payload values. Dry-run evidence at `docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json` inspected live Secret Manager metadata and reported 14 candidates, 0 ready to delete, 0 already deleted, 14 blocked, 0 deleted, and 0 enabled-version blockers. The only blocker is the rollback window: `2026-07-04T22:30:06.543Z`. `npm run check:legacy-secret-deletion:test` covers candidate de-duplication, rollback-window blocking, enabled-version blocking, apply confirmation, and the post-window ready-to-delete path. Step 3 remains open until the post-window apply deletes the legacy records.
+The apply command refuses to delete before the recorded `deleteAfter`, refuses to delete if any legacy secret still has an enabled version, and never reads or prints secret payload values. Dry-run evidence at `docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json` inspected live Secret Manager metadata and reported 14 candidates, 0 ready to delete, 0 already deleted, 14 blocked, 0 deleted, and 0 enabled-version blockers. The only blocker was the rollback window: `2026-07-04T22:30:06.543Z`.
+
+Current status: Completed on 2026-06-28 after the operator explicitly waived the remaining rollback wait. `npm run registry:delete-legacy-secrets -- --confirm-early-delete-before-rollback-window --out docs/operations/legacy-secret-cleanup-final-waived-dry-run-2026-06-28.json` reported 14 candidates, 14 ready, 0 blocked, and 0 deleted in dry-run mode. `npm run registry:delete-legacy-secrets -- --apply --confirm-delete-disabled-legacy-secrets --confirm-early-delete-before-rollback-window --out docs/operations/legacy-secret-cleanup-final-apply-2026-06-28.json` deleted all 14 disabled legacy Secret Manager records without reading or printing secret payloads. A post-apply metadata check at `docs/operations/legacy-secret-cleanup-final-post-timeout-check-2026-06-28.json` reported 14 candidates, 14 already deleted, 0 ready, 0 blocked, and 0 deleted in dry-run mode. `npm run check:legacy-secret-deletion:test` covers candidate de-duplication, rollback-window blocking, early-delete waiver behavior, enabled-version blocking, apply confirmation, and the post-window ready-to-delete path.
 
 - [x] **Step 4: Remove code-level legacy secret fallback after scoped records are active**
 
@@ -2430,7 +2432,7 @@ Expected after cleanup: PASS.
 
 Current status: `npm run check:no-legacy-routing -- --report` reports `ready=true`, 0 active violations, and historical matches only in migration evidence, archived plans, and migration-only scripts. The default `npm run check:no-legacy-routing` enforce-mode gate passed on 2026-06-28.
 
-- [ ] **Step 7: Verify final migration and commit**
+- [x] **Step 7: Verify final migration and commit**
 
 Final platform migration gates:
 
@@ -2458,6 +2460,8 @@ npm run typecheck
 npm run build
 npm run smoke:routes
 ```
+
+Current status: Completed on 2026-06-28. API Center verification passed: final registry parity evidence at `docs/operations/registry-parity-final-2026-06-28.json` reports `ready=true`, source `api_center_registry`, API snapshot 22, Postgres 22, 0 missing, and 0 mismatched; final inventory at `docs/operations/legacy-service-migration-final-2026-06-28.json` reports `ready=true`, 0 blockers, 0 warnings, `legacyServices=0`, `legacySecrets=0`, and `codeFindings=0`; `npm run check:legacy-secret-deletion:test`, `npm run check:no-legacy-routing`, `npm run check:environment-naming`, `npm run check:contracts`, `npm run typecheck`, and `npm run build` passed. SDK verification passed in `C:\Codes\apic\api-shared-services`: `npm run check:contracts`, `npm run typecheck`, `npm test` (19 files, 112 tests), `npm run build`, and `npm run pack:check`. Management verification passed in `C:\Codes\apic\apicenter-management`: `npm test` (143 files, 446 tests), `npm run typecheck`, `npm run build`, and `npm run smoke:routes -- --base-url http://127.0.0.1:3000`; the smoke script accepted expected local proxy 500s for live-backend-dependent API routes.
 
 Commit:
 

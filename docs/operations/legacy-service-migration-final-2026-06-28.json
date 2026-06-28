@@ -1,0 +1,1149 @@
+{
+  "generatedAt": "2026-06-28T00:43:29.202Z",
+  "mode": "apicenter-control-plane-inventory",
+  "payloadPolicy": "Secret payload values are not read or printed. Secret Manager checks use names, labels, replication metadata, and version status only.",
+  "environment": {
+    "DATABASE_URL": {
+      "present": true,
+      "redactedValue": "<present>"
+    },
+    "GOOGLE_CLOUD_PROJECT": {
+      "present": false
+    },
+    "GCLOUD_PROJECT": {
+      "present": false
+    },
+    "GCP_PROJECT_ID": {
+      "present": false
+    },
+    "gcloudProjectPresent": true
+  },
+  "scope": {
+    "platformGate": "Migrate APICenter-owned registry/catalog/secret/code/docs state to one-URL environment-aware routing.",
+    "excludedGate": "Do not block on runtime smoke or backend access for consumer-owned services such as Spark Site, pakiapps, greenovate, shoteam, or trinithrive."
+  },
+  "ready": true,
+  "blockers": [],
+  "warnings": [],
+  "catalog": {
+    "source": "postgres",
+    "activeServices": [
+      {
+        "serviceId": "email",
+        "name": "Email Service",
+        "ownerTribeId": null,
+        "serviceType": "shared",
+        "baseUrl": "http://email-service:4012",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-25T23:53:30.434Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://email-service:4012",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-25T23:53:30.434Z"
+          }
+        ],
+        "consumes": [],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "gauth",
+        "name": "Google Authentication Service",
+        "ownerTribeId": null,
+        "serviceType": "shared",
+        "baseUrl": "http://gauth-service:4013",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-25T23:53:30.361Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://gauth-service:4013",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-25T23:53:30.361Z"
+          }
+        ],
+        "consumes": [],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "geo",
+        "name": "Geo Service",
+        "ownerTribeId": null,
+        "serviceType": "shared",
+        "baseUrl": "http://geo-service:4015",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-25T23:53:30.534Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://geo-service:4015",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-25T23:53:30.534Z"
+          }
+        ],
+        "consumes": [],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "otp",
+        "name": "OTP Gateway",
+        "ownerTribeId": null,
+        "serviceType": "shared",
+        "baseUrl": "http://otp-service:4014",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-25T23:53:30.326Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://otp-service:4014",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-25T23:53:30.326Z"
+          }
+        ],
+        "consumes": [],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "payment",
+        "name": "Payment Gateway",
+        "ownerTribeId": null,
+        "serviceType": "shared",
+        "baseUrl": "http://payment-service:4010",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-25T23:53:30.827Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://payment-service:4010",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-25T23:53:30.827Z"
+          }
+        ],
+        "consumes": [],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "sms",
+        "name": "SMS Service",
+        "ownerTribeId": null,
+        "serviceType": "shared",
+        "baseUrl": "http://sms-service:4011",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-25T23:53:30.168Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://sms-service:4011",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-25T23:53:30.168Z"
+          }
+        ],
+        "consumes": [],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "church-donations",
+        "name": "Spark Site",
+        "ownerTribeId": "church-donations",
+        "serviceType": "tribe",
+        "baseUrl": "https://wlcm-website-backend.onrender.com",
+        "healthCheck": "/health",
+        "tags": [],
+        "status": "active",
+        "updatedAt": "2026-06-27T21:18:05.099Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://wlcm-website-backend.onrender.com",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T21:18:05.099Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://wlcm-website-backend.onrender.com",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T21:18:05.099Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "flow-ci",
+        "name": "CICD Service",
+        "ownerTribeId": "flow-ci",
+        "serviceType": "tribe",
+        "baseUrl": "https://flow-ci-api.itsandbox.site",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
+        "status": "active",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://flow-ci-api.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://flow-ci-api.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "greenovate",
+        "name": "Greenovate",
+        "ownerTribeId": "greenovate",
+        "serviceType": "tribe",
+        "baseUrl": "https://greenovate-be.itsandbox.site",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
+        "status": "active",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://greenovate-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://greenovate-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "kafka",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "pakiapps",
+        "name": "pakiAPPS",
+        "ownerTribeId": "pakiapps",
+        "serviceType": "tribe",
+        "baseUrl": "https://pakiapps-be.itsandbox.site",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
+        "status": "active",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://pakiapps-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://pakiapps-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "kafka",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "shoteam",
+        "name": "ShoTeam",
+        "ownerTribeId": "shoteam",
+        "serviceType": "tribe",
+        "baseUrl": "https://shoteam-be.itsandbox.site",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
+        "status": "active",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://shoteam-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://shoteam-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "kafka",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "smoke-tribe",
+        "name": "Smoke Tribe",
+        "ownerTribeId": "smoke-tribe",
+        "serviceType": "tribe",
+        "baseUrl": "http://smoke-tribe.local",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated",
+          "apic:test-only",
+          "migration",
+          "smoke"
+        ],
+        "status": "active",
+        "sunsetDate": "2026-07-27T22:21:12.515Z",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "test",
+            "baseUrl": "http://smoke-tribe.local",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "kafka",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "smurf-village",
+        "name": "Blues Clues",
+        "ownerTribeId": "smurf-village",
+        "serviceType": "tribe",
+        "baseUrl": "https://smurf-village-be.itsandbox.site",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
+        "status": "active",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://smurf-village-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://smurf-village-be.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "kafka",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      },
+      {
+        "serviceId": "trinithrive",
+        "name": "TriniThrive",
+        "ownerTribeId": "trinithrive",
+        "serviceType": "tribe",
+        "baseUrl": "https://trinithrive.itsandbox.site",
+        "healthCheck": "/health",
+        "tags": [
+          "apic:environment-migrated"
+        ],
+        "status": "active",
+        "updatedAt": "2026-06-27T22:21:12.515Z",
+        "environments": [
+          {
+            "environment": "live",
+            "baseUrl": "https://trinithrive.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          },
+          {
+            "environment": "test",
+            "baseUrl": "https://trinithrive.itsandbox.site",
+            "healthCheck": "/health",
+            "status": "active",
+            "updatedAt": "2026-06-27T22:21:12.515Z"
+          }
+        ],
+        "consumes": [
+          "email",
+          "gauth",
+          "geo",
+          "kafka",
+          "otp",
+          "payment",
+          "sms"
+        ],
+        "secretReferences": [],
+        "legacySignals": [],
+        "migrationDisposition": "new_model"
+      }
+    ],
+    "summaries": {
+      "activeServiceCount": 14,
+      "byDisposition": {
+        "new_model": 14
+      },
+      "bySignal": {}
+    }
+  },
+  "secrets": {
+    "source": "gcloud_secret_manager_metadata",
+    "project": "apicenter-alpha-20260623",
+    "legacySecrets": [],
+    "scopedSecrets": [
+      {
+        "name": "api-center-tribe-secret-aping-api-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:00:42.462509Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-church-donations-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:02:57.401340Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-church-donations-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:01:01.807364Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-flow-ci-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:30:24.905390Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-flow-ci-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:30:41.446695Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-greenovate-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:30:58.080006Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-greenovate-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:01:20.727016Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-logistics-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:03:16.807550Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-pakiapps-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:31:15.746984Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-pakiapps-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:01:38.343162Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-shoteam-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:31:32.068777Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-shoteam-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:02:01.091508Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-smoke-tribe-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:31:49.134980Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-smurf-village-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:32:05.293226Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-smurf-village-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:02:20.517420Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-trinithrive-live",
+        "environment": "live",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T22:32:22.018433Z"
+          }
+        ]
+      },
+      {
+        "name": "api-center-tribe-secret-trinithrive-test",
+        "environment": "test",
+        "versions": [
+          {
+            "version": "1",
+            "state": "ENABLED",
+            "createTime": "2026-06-27T21:02:39.404132Z"
+          }
+        ]
+      }
+    ],
+    "summaries": {
+      "legacySecretCount": 0,
+      "scopedSecretCount": 17,
+      "legacyByKind": {}
+    },
+    "previousMigrationEvidence": {
+      "path": "docs/operations/tribe-secret-scope-migration-2026-06-28.json",
+      "generatedAt": "2026-06-27T21:07:40.1527289Z",
+      "migratedCount": 9,
+      "notMigratedReviewCandidateCount": 5,
+      "scopedTargetsExist": true,
+      "removalPolicy": {
+        "immediateDelete": false,
+        "nextStep": "After each service passes scoped SDK auth/discovery smoke and legacy allowlist/map entries are removed, disable migrated legacy versions for a rollback window before deleting the legacy Secret Manager records.",
+        "migratedLegacyDisableCandidates": [
+          "api-center-test-tribe-secret-aping-api",
+          "api-center-test-tribe-secret-church-donations",
+          "api-center-test-tribe-secret-greenovate",
+          "api-center-test-tribe-secret-pakiapps",
+          "api-center-test-tribe-secret-shoteam",
+          "api-center-test-tribe-secret-smurf-village",
+          "api-center-test-tribe-secret-trinithrive",
+          "api-center-tribe-secret-church-donations",
+          "api-center-tribe-secret-logistics"
+        ]
+      }
+    }
+  },
+  "codeSurface": {
+    "findings": [
+      {
+        "file": "docs/operations/legacy-secret-cleanup-2026-06-28.json",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-secret-cleanup-2026-06-28.json",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 44,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-secret-cleanup-final-dry-run-2026-06-28.json",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 20,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 13,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 17,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-migration-2026-06-28.json",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 26,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/legacy-service-record-migration-2026-06-28.json",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 20,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/one-url-environment-migration-inventory.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 11,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/one-url-environment-migration-inventory.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 10,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/one-url-environment-migration-inventory.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/registry-parity-2026-06-28.json",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/registry-parity-post-service-migration-2026-06-28.json",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/secret-manager-inventory-2026-05-22.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 32,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/operations/tribe-secret-scope-migration-2026-06-28.json",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 17,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-16-payments-table-first-recovery.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-16-paymongo-webhook-payments-fix.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-16-test-live-environment-split.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 13,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-16-test-live-environment-split.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-19-tribe-boundary-events-sdk.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 6,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-19-tribe-boundary-events-sdk.md",
+        "rule": "legacy_env_backed_secret",
+        "description": "Env-backed tribe secret hash support remains",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-19-tribe-boundary-events-sdk.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-20-apicenter-tribe-registration-rollout-phased-plan.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 6,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-22-secret-manager-migration-cleanup.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 17,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-25-apicenter-platform-wide-governance-and-tribe-quotas.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-05-25-apicenter-platform-wide-governance-and-tribe-quotas.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-10-feature-flag-confluent-aws-and-keep-auth.md",
+        "rule": "legacy_env_backed_secret",
+        "description": "Env-backed tribe secret hash support remains",
+        "matches": 4,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 21,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 4,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 7,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "legacy_env_backed_secret",
+        "description": "Env-backed tribe secret hash support remains",
+        "matches": 5,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 8,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "management_environment_alias",
+        "description": "Management deployment env aliases still duplicate MANAGEMENT_ENVIRONMENT",
+        "matches": 7,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/2026-06-27-one-apicenter-environment-aware-routing.md",
+        "rule": "powerbi_fallback",
+        "description": "Power BI fallback names still duplicate provider-neutral BI naming",
+        "matches": 3,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-gcp-project-redeploy-migration.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-hybrid-paymongo-payment-lifecycle.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-multi-merchant-paymongo-routing.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-supabase-live-test-database-cutover.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 4,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-supabase-live-test-database-cutover.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-supabase-prod-database-migration.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 3,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-supabase-prod-database-migration.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-unfinished-platform-work.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 5,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-16-unfinished-platform-work.md",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-17-payment-sdk-production-rollout-next-phases.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 4,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-17-payment-sdk-production-rollout-next-phases.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-17-stripe-like-paymongo-checkout-subscriptions.md",
+        "rule": "legacy_test_url",
+        "description": "Active code/docs still reference the old test APICenter URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "docs/superpowers/plans/archive/2026-05-20-apicenter-system-cleanup-improvement-plan.md",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/delete-legacy-secret-records.test.js",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 3,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 3,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 5,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/inventory-legacy-service-migration.js",
+        "rule": "management_environment_alias",
+        "description": "Management deployment env aliases still duplicate MANAGEMENT_ENVIRONMENT",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/migrate-legacy-secret-records.js",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/migrate-legacy-secret-records.js",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 3,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "legacy_environment_env",
+        "description": "APICENTER_LEGACY_* compatibility env remains",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "legacy_test_secret_name",
+        "description": "Active code/docs still reference test-prefixed tribe secret names",
+        "matches": 1,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "sdk_url_alias",
+        "description": "SDK/API URL aliases still duplicate APICENTER_URL",
+        "matches": 2,
+        "requiresCleanup": false
+      },
+      {
+        "file": "scripts/verify-no-legacy-environment-routing.js",
+        "rule": "management_environment_alias",
+        "description": "Management deployment env aliases still duplicate MANAGEMENT_ENVIRONMENT",
+        "matches": 3,
+        "requiresCleanup": false
+      }
+    ],
+    "summaries": {
+      "totalFindings": 57,
+      "cleanupFindings": 0,
+      "byRule": {
+        "legacy_environment_env": 6,
+        "legacy_test_secret_name": 15,
+        "sdk_url_alias": 13,
+        "legacy_test_url": 16,
+        "legacy_env_backed_secret": 3,
+        "management_environment_alias": 3,
+        "powerbi_fallback": 1
+      }
+    }
+  },
+  "nextActions": [
+    "Migrate or retire every active service with legacySignals; verify using registry parity and service_environments rows.",
+    "Create scoped test/live Secret Manager records only for active services that remain registered.",
+    "Disable migrated legacy Secret Manager versions for a rollback window before deleting old records.",
+    "Remove APICENTER_LEGACY_* and env-backed TRIBE_SECRET_* validation after stored migration has no active gaps.",
+    "Replace redundant active docs/env aliases with the canonical one-URL APICenter contract."
+  ]
+}
