@@ -46,7 +46,7 @@ npm run test
 Run a single test file:
 
 ```bash
-npm run test -- src/auth/auth.controller.spec.ts
+npm run test -- tests/unit/src/auth/auth.controller.spec.ts
 ```
 
 Coverage:
@@ -80,11 +80,11 @@ npm run typecheck
 - Root module: `src/app.module.ts`
 - Domain modules: `src/auth`, `src/external`, `src/registry`, `src/tribes`, `src/health`, `src/kafka`, `src/metrics`
 - Shared infrastructure: `src/shared`, `src/shared-services`, `src/config`, `src/types`
-- Tests are primarily colocated as `*.spec.ts` in `src/`, with e2e config in `tests/jest-e2e.json`
+- Tests live under `tests/`: unit specs mirror source paths under `tests/unit/src/`, integration script tests live under `tests/integration/`, and e2e specs/config live under `tests/e2e/`
 
 ## Conventions
 
-- File naming in `src/` is mostly kebab-case with Nest suffix patterns (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.guard.ts`, `*.dto.ts`, `*.spec.ts`).
+- File naming in `src/` is mostly kebab-case with Nest suffix patterns (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.guard.ts`, `*.dto.ts`).
 - Prefer existing path aliases from `tsconfig.json` (`@auth/*`, `@shared/*`, etc.) when appropriate.
 - Keep commit messages short and imperative; optional prefixes (`feat:`, `fix:`, `docs:`) are acceptable but not consistently enforced in this repo.
 
