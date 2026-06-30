@@ -1,6 +1,6 @@
 param(
   [string]$EnvFile = "..\apicenter-management\.env.live",
-  [string]$GcpProject = "api-center-496422",
+  [string]$GcpProject = "apicenter-alpha-20260623",
   [string]$ApiCenterSecretName = "api-center-prod",
   [string]$TribeId = "logistics",
   [string]$SourceServiceId = "logistics-orders",

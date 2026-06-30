@@ -36,21 +36,53 @@
 | Built from | `b9c811f` |
 | Last deployed | `2026-06-28` |
 | Deployed by | Codex-assisted one-URL legacy routing cleanup rollout |
-| Validation | Cloud Build `9068d412-0628-4f15-ad81-3853cc3d7ac5` succeeded; GKE rollout completed; ConfigMap has no legacy routing keys or `APICENTER_ENVIRONMENT_CONTRACT_MODE`; readiness returned HTTP 200 with `status=ok`, Redis up, registry up, and `registeredServices=22`. Final cleanup evidence reports 0 legacy services, 0 legacy Secret Manager records, and 0 active no-legacy violations. |
+| Validation | Cloud Build `9068d412-0628-4f15-ad81-3853cc3d7ac5` succeeded; GKE rollout completed; ConfigMap has no legacy routing keys or `APICENTER_ENVIRONMENT_CONTRACT_MODE`; readiness returned HTTP 200 with `status=ok`, Redis up, registry up, and `registeredServices=22`. On 2026-06-30 the active ConfigMap had `SHARED_SERVICE_ROUTE_PAYMENT_TEST=http://payment-test.api-center.svc.cluster.local:4010` and `SHARED_SERVICE_ROUTE_PAYMENT_LIVE=http://payment-live.api-center.svc.cluster.local:4010`. Final cleanup evidence reports 0 legacy services, 0 legacy Secret Manager records, and 0 active no-legacy violations. |
 
 > After each deploy, update the rows above with the full image tag (use git SHA, not `:latest`) and commit.
 
-## Legacy Test Namespace Image
+## Shared Payment Runtimes
 
-This namespace still exists for historical/test runtime cleanup, but it is not the target public topology for the one-URL APICenter contract. Do not use this section as a reason to reintroduce split public API Center URLs.
+Payment is the first shared service with separate test/live runtime isolation
+inside the single public API Center topology. Both runtimes live in namespace
+`api-center`; API Center selects the target from the validated token
+environment.
 
 | Field | Value |
 |---|---|
-| Namespace | `api-center-test` |
-| Image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:audit-actor-27802eb` |
-| Built from | historical `audit-actor-27802eb` rollout |
-| Last verified | `2026-06-28` |
-| Validation | Namespace and deployment still exist. No runtime smoke was run because the current platform gate is APICenter-side service/control-plane migration, not consumer-owned runtime verification. |
+| Test deployment | `api-center/payment-test` |
+| Live deployment | `api-center/payment-live` |
+| Image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/shared-payment-service:payment-tribe-fix-50f5ee6-202605162310` |
+| Test route | `SHARED_SERVICE_ROUTE_PAYMENT_TEST=http://payment-test.api-center.svc.cluster.local:4010` |
+| Live route | `SHARED_SERVICE_ROUTE_PAYMENT_LIVE=http://payment-live.api-center.svc.cluster.local:4010` |
+| Test secret source | Secret Manager `api-shared-services-test` synced to Kubernetes secret `api-shared-services-payment-test` |
+| Live secret source | Secret Manager `api-shared-services-prod` synced to Kubernetes secret `api-shared-services-payment-live` |
+| Last verified | `2026-06-30` |
+| Validation | `payment-test` and `payment-live` were ready. In-pod `/health` returned `providerMode=test` and `providerMode=live` respectively. |
+
+## Retired Test Namespace
+
+The old public test lane is retired. Do not deploy new work to
+`api-center-test`, and do not point Management or consumers at
+`https://api-center-test.itsandbox.site`.
+
+On 2026-06-30, `api-center-test` was deleted after a live registry check returned
+no active service entries pointing at `api-center-test.itsandbox.site`. Before
+deletion it contained `api-center` deployment/service/HPA,
+`api-center-config`, ingress `api-center-test.itsandbox.site`, managed
+certificate, PDB, and service account.
+
+ConfigMaps are not versioned. Deleting `api-center-test` removed its old
+ConfigMap with the namespace. Secret Manager cleanup was completed after active
+consumers were confirmed.
+
+Current Secret Manager version policy:
+
+| Secret | Active use | Keep enabled | Disable after approval |
+| --- | --- | --- | --- |
+| `api-center-prod` | Active API Center runtime bundle | version `10` | versions `1`-`9` disabled |
+| `api-shared-services-prod` | Active live shared-service/payment source | version `11` | versions `1`-`10` disabled |
+| `api-shared-services-test` | Active payment-test source | version `10` | versions `1`-`9` disabled |
+| `api-center-test` | Retired API Center test runtime bundle | none | versions `1`-`5` disabled |
 
 ---
 

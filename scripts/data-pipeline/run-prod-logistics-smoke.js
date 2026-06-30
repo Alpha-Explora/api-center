@@ -13,7 +13,7 @@ const getArg = (name, fallback) => {
 
 const options = {
   envFile: getArg("--env-file", "..\\apicenter-management\\.env.live"),
-  gcpProject: getArg("--gcp-project", "api-center-496422"),
+  gcpProject: getArg("--gcp-project", "apicenter-alpha-20260623"),
   apiCenterSecretName: getArg("--api-center-secret-name", "api-center-prod"),
   tribeId: getArg("--tribe-id", "logistics"),
   sourceServiceId: getArg("--source-service-id", "logistics-orders"),

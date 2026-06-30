@@ -18,8 +18,8 @@ Scope: Task 0 inventory for moving consumers to one API Center URL with required
 
 | Runtime | URL | Known state |
 | --- | --- | --- |
-| Live API Center | `https://api-center.itsandbox.site` | Earlier rollout verification showed readiness `200`, namespace `api-center` ready, and 22 registered services. Re-run with live env loaded before enforcement. |
-| Test API Center | `https://api-center-test.itsandbox.site` | Earlier rollout verification showed readiness `200`, namespace `api-center-test` ready, and 24 registered services. Re-run with test env loaded before enforcement. |
+| API Center | `https://api-center.itsandbox.site` | Single public API Center URL. Namespace `api-center` is active. As of 2026-06-30, payment routes resolve to internal `payment-test` and `payment-live` services in the same namespace. |
+| Retired test API Center | `https://api-center-test.itsandbox.site` | Old split public test lane. Namespace `api-center-test` was deleted on 2026-06-30 after active registry verification found no services pointing at the retired host. |
 | Management | Vercel deployment | Must be verified against one-URL environment-aware registry, secret handoff, and action guardrails before live cutover. |
 | Supabase | `apic_*` control-plane schemas | Current Prisma schema includes `apic_catalog`, `apic_governance`, `apic_runtime`, and `apic_audit`. Environment constraints are still a future slice. |
 
@@ -89,10 +89,10 @@ Collected metadata only. No plaintext secret payloads were read or recorded.
 
 | Secret name | Classification | Action |
 | --- | --- | --- |
-| `api-center-prod` | Live API Center runtime bundle | Keep. Source for live runtime env only. |
-| `api-center-test` | Test API Center runtime bundle | Keep. Source for test runtime env only. |
-| `api-shared-services-prod` | Live shared-service runtime bundle | Keep. Payment live provider keys must stay here. |
-| `api-shared-services-test` | Test shared-service runtime bundle | Keep. Payment test provider keys must stay here. |
+| `api-center-prod` | Active API Center runtime bundle | Version `10` remains enabled; versions `1`-`9` disabled on 2026-06-30. |
+| `api-center-test` | Retired API Center test runtime bundle | Versions `1`-`5` disabled on 2026-06-30 after namespace deletion. |
+| `api-shared-services-prod` | Active live shared-service runtime bundle | Version `11` remains enabled; versions `1`-`10` disabled on 2026-06-30. |
+| `api-shared-services-test` | Active payment-test source bundle | Version `10` remains enabled; versions `1`-`9` disabled on 2026-06-30. |
 
 ### Existing Tribe Secrets
 
