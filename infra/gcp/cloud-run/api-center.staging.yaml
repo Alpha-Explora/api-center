@@ -1,0 +1,48 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: api-center-staging
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/service-account: api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com
+        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:cloud-run-staging
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: GCP_PROJECT_ID
+              value: apicenter-alpha-20260623
+            - name: GCP_SECRET_NAME
+              value: api-center-prod
+            - name: CLOUD_RUN_AUTH_ENABLED
+              value: "true"
+            - name: APICENTER_RUNTIME_TARGET
+              value: cloud-run-staging
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /api/v1/health/ready
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+            periodSeconds: 15

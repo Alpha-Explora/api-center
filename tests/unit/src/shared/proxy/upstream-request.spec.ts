@@ -1,6 +1,12 @@
 import { createUpstreamProxyOptions } from "../../../../../src/shared/proxy/upstream-request";
 import type { LoggerService } from "../../../../../src/shared/logger.service";
 
+jest.mock("../../../../../src/shared/proxy/cloud-run-auth", () => ({
+  getCloudRunAuthorizationHeader: jest.fn(async (upstream: string) =>
+    upstream.includes(".run.app") ? "Bearer cloud-run-token" : undefined,
+  ),
+}));
+
 function logger(): LoggerService {
   return {
     debug: jest.fn(),
@@ -12,8 +18,8 @@ function logger(): LoggerService {
 }
 
 describe("createUpstreamProxyOptions", () => {
-  it("sets gateway headers and re-streams parsed JSON request bodies", () => {
-    const options = createUpstreamProxyOptions({
+  it("sets gateway headers and re-streams parsed JSON request bodies", async () => {
+    const options = await createUpstreamProxyOptions({
       targetServiceId: "orders",
       targetEnvironment: "test",
       upstream: "https://orders.test",
@@ -60,13 +66,47 @@ describe("createUpstreamProxyOptions", () => {
     expect(proxyReq.write).toHaveBeenCalledWith('{"orderId":"ord-1"}');
   });
 
-  it("records circuit-breaker success and failure from upstream responses", () => {
+  it("adds Cloud Run IAM Authorization when the upstream requires it", async () => {
+    const options = await createUpstreamProxyOptions({
+      targetServiceId: "payment",
+      targetEnvironment: "live",
+      upstream: "https://payment-live-abc.a.run.app",
+      namespace: "shared",
+      pathPrefix: "/api/v1/shared",
+      proxyTimeoutMs: 30_000,
+      circuitBreakers: new Map(),
+      logger: logger(),
+    });
+    const proxyReq = {
+      setHeader: jest.fn(),
+      write: jest.fn(),
+    };
+
+    options.on?.proxyReq?.(
+      proxyReq as any,
+      {
+        tribeId: "orders-tribe",
+        correlationId: "corr-1",
+        body: {},
+        user: { environment: "live" },
+      } as any,
+      {} as any,
+      {} as any,
+    );
+
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "Authorization",
+      "Bearer cloud-run-token",
+    );
+  });
+
+  it("records circuit-breaker success and failure from upstream responses", async () => {
     const breaker = {
       recordFailure: jest.fn(),
       recordSuccess: jest.fn(),
     };
     const log = logger();
-    const options = createUpstreamProxyOptions({
+    const options = await createUpstreamProxyOptions({
       targetServiceId: "orders",
       targetEnvironment: "test",
       upstream: "https://orders.test",

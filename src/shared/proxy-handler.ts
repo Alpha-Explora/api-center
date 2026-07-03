@@ -382,7 +382,7 @@ export class ProxyHandler {
     if (!proxy) {
       this.evictOldestProxyEntryIfNeeded();
 
-      const proxyOpts = createUpstreamProxyOptions({
+      const proxyOpts = await createUpstreamProxyOptions({
         targetServiceId,
         targetEnvironment,
         upstream,
@@ -454,9 +454,10 @@ export class ProxyHandler {
           );
         }
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       this.deps.logger.error(
-        `Proxy throw error [${targetServiceId}]: ${error.message}`,
+        `Proxy throw error [${targetServiceId}]: ${message}`,
       );
       throw new BadGatewayError(`Upstream '${targetServiceId}' unreachable`);
     }

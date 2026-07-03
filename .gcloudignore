@@ -19,8 +19,13 @@ logs/
 .idea/
 
 docs/
+!docs/
+!docs/contracts/
+!docs/contracts/**
 examples/
 tests/
+!tests/
+!tests/**
 
 README.md
 CONTRIBUTING.md
