@@ -9,6 +9,14 @@ import {
   UnauthorizedError,
 } from "../../../../src/shared/errors";
 
+jest.mock("../../../../src/shared/proxy/cloud-run-auth", () => ({
+  getCloudRunAuthorizationHeader: jest.fn(async (upstream: string) =>
+    upstream.includes(".run.app")
+      ? "Bearer webhook-cloud-run-token"
+      : undefined,
+  ),
+}));
+
 describe("PaymentWebhookController", () => {
   const mockRegistry = {} as RegistryService;
   const mockConfig = {
@@ -134,6 +142,36 @@ describe("PaymentWebhookController", () => {
         headers: expect.objectContaining({
           "X-APICenter-Environment": "live",
           "Paymongo-Signature": `t=${timestamp},te=wrong,li=${signature}`,
+        }),
+      }),
+    );
+  });
+
+  it("adds Cloud Run IAM Authorization when forwarding to private payment Cloud Run", async () => {
+    (mockRouting.resolve as jest.Mock).mockReturnValue({
+      sharedServiceId: "payment",
+      environment: "live",
+      targetUrl: "https://payment-live-abc.a.run.app",
+    });
+    const rawBody = Buffer.from('{"data":{"id":"evt_live"}}');
+    const timestamp = "1496734173";
+    const signature = signPayMongoPayload(timestamp, rawBody, "live-key");
+
+    await controller.forwardPayMongoWebhook("live", {
+      rawBody,
+      body: { data: { id: "evt_live" } },
+      headers: {
+        "content-type": "application/json",
+        "paymongo-signature": `t=${timestamp},te=wrong,li=${signature}`,
+      },
+    } as any);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://payment-live-abc.a.run.app/webhooks",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer webhook-cloud-run-token",
+          "X-APICenter-Environment": "live",
         }),
       }),
     );

@@ -22,6 +22,7 @@ import {
   ApicenterRuntimeEnvironment,
   isApicenterRuntimeEnvironment,
 } from "../types";
+import { getCloudRunAuthorizationHeader } from "../shared/proxy/cloud-run-auth";
 import { SharedServiceRoutingService } from "./shared-service-routing.service";
 
 @Controller("shared/payment/webhooks")
@@ -63,7 +64,8 @@ export class PaymentWebhookController {
       actionFamily: "shared_service",
       sharedServiceId: "payment",
       severity: "info",
-      message: "PayMongo webhook accepted for payment shared service forwarding",
+      message:
+        "PayMongo webhook accepted for payment shared service forwarding",
       payload: {
         environment: targetEnvironment,
         provider: "paymongo",
@@ -76,13 +78,20 @@ export class PaymentWebhookController {
       },
     });
 
+    const cloudRunAuthorization =
+      await getCloudRunAuthorizationHeader(upstream);
+    const headers: Record<string, string> = {
+      "Content-Type": getHeader(req, "content-type") || "application/json",
+      "Paymongo-Signature": signatureHeader,
+      "X-APICenter-Environment": targetEnvironment,
+    };
+    if (cloudRunAuthorization) {
+      headers.Authorization = cloudRunAuthorization;
+    }
+
     const response = await fetch(upstream, {
       method: "POST",
-      headers: {
-        "Content-Type": getHeader(req, "content-type") || "application/json",
-        "Paymongo-Signature": signatureHeader,
-        "X-APICenter-Environment": targetEnvironment,
-      },
+      headers,
       body: rawBody,
     }).catch((err) => {
       throw new BadGatewayError(
@@ -108,7 +117,10 @@ export class PaymentWebhookController {
   private resolvePaymentWebhookUpstream(
     environment: ApicenterRuntimeEnvironment,
   ): string {
-    const targetUrl = this.sharedServiceRouting.resolve("payment", environment).targetUrl;
+    const targetUrl = this.sharedServiceRouting.resolve(
+      "payment",
+      environment,
+    ).targetUrl;
     if (!targetUrl) {
       throw new NotFoundError("Payment shared service is not registered");
     }
@@ -152,9 +164,10 @@ function assertValidPayMongoSignature(
   environment: ApicenterRuntimeEnvironment,
 ): void {
   if (!secret) {
-    const expectedKey = environment === "live"
-      ? "PAYMONGO_LIVE_WEBHOOK_SECRET"
-      : "PAYMONGO_TEST_WEBHOOK_SECRET";
+    const expectedKey =
+      environment === "live"
+        ? "PAYMONGO_LIVE_WEBHOOK_SECRET"
+        : "PAYMONGO_TEST_WEBHOOK_SECRET";
     throw new ServiceUnavailableError(`${expectedKey} is not configured`);
   }
 
@@ -171,7 +184,9 @@ function assertValidPayMongoSignature(
     .update(`${timestamp}.${rawBody.toString("utf8")}`)
     .digest("hex");
 
-  if (!signatures.some((signature) => timingSafeHexEqual(signature, expected))) {
+  if (
+    !signatures.some((signature) => timingSafeHexEqual(signature, expected))
+  ) {
     throw new UnauthorizedError("Invalid PayMongo webhook signature");
   }
 }

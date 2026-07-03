@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LoggerService } from "../logger.service";
 import type { CircuitBreaker } from "../circuit-breaker";
 import type { AuthenticatedRequest, ServiceType } from "../../types";
+import { getCloudRunAuthorizationHeader } from "./cloud-run-auth";
 
 /** HTTP status codes that indicate upstream failure for circuit-breaker tracking. */
 const UPSTREAM_FAILURE_CODES = new Set([502, 503, 504]);
@@ -19,17 +20,19 @@ export type UpstreamProxyOptionsInput = {
   logger: LoggerService;
 };
 
-export function createUpstreamProxyOptions({
+export async function createUpstreamProxyOptions({
   targetServiceId,
   targetEnvironment,
   upstream,
-  namespace,
   pathPrefix,
   proxyTimeoutMs,
-  correlationId,
   circuitBreakers,
   logger,
-}: UpstreamProxyOptionsInput): Options<IncomingMessage, ServerResponse> {
+}: UpstreamProxyOptionsInput): Promise<
+  Options<IncomingMessage, ServerResponse>
+> {
+  const cloudRunAuthorization = await getCloudRunAuthorizationHeader(upstream);
+
   return {
     target: upstream,
     changeOrigin: true,
@@ -42,7 +45,10 @@ export function createUpstreamProxyOptions({
       proxyReq: (proxyReq, _req) => {
         const authReq = _req as unknown as AuthenticatedRequest;
         const sourceServiceId =
-          authReq.sourceServiceId ?? authReq.user?.sourceServiceId ?? authReq.tribeId ?? "";
+          authReq.sourceServiceId ??
+          authReq.user?.sourceServiceId ??
+          authReq.tribeId ??
+          "";
         const environment = authReq.user?.environment ?? "";
         const correlationId = authReq.correlationId || "";
 
@@ -52,6 +58,9 @@ export function createUpstreamProxyOptions({
         proxyReq.setHeader("X-Tribe-Id", authReq.tribeId || "");
         proxyReq.setHeader("X-Correlation-ID", correlationId);
         proxyReq.setHeader("X-Forwarded-By", "apicenter-gateway");
+        if (cloudRunAuthorization) {
+          proxyReq.setHeader("Authorization", cloudRunAuthorization);
+        }
 
         // NestJS body-parser consumes req stream before the proxy sees it.
         // Re-stream the parsed body so the upstream actually receives it.
@@ -64,7 +73,9 @@ export function createUpstreamProxyOptions({
       },
       proxyRes: (proxyRes) => {
         const status = proxyRes.statusCode ?? 0;
-        const breaker = circuitBreakers.get(`${targetServiceId}:${targetEnvironment}`);
+        const breaker = circuitBreakers.get(
+          `${targetServiceId}:${targetEnvironment}`,
+        );
         if (breaker) {
           if (UPSTREAM_FAILURE_CODES.has(status)) {
             breaker.recordFailure();
@@ -79,7 +90,9 @@ export function createUpstreamProxyOptions({
       },
       error: (err) => {
         // Record every proxy-level error (timeouts, ECONNREFUSED, etc.)
-        const breaker = circuitBreakers.get(`${targetServiceId}:${targetEnvironment}`);
+        const breaker = circuitBreakers.get(
+          `${targetServiceId}:${targetEnvironment}`,
+        );
         if (breaker) breaker.recordFailure();
         logger.error(`Proxy error for ${targetServiceId}: ${err.message}`);
       },
