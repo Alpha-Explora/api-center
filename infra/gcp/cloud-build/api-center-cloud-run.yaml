@@ -1,7 +1,9 @@
 substitutions:
   _PROJECT_ID: apicenter-alpha-20260623
   _REGION: asia-southeast1
-  _IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:cloud-run-staging
+  _SERVICE_NAME: api-center-staging
+  _IMAGE_REPOSITORY: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center
+  _STABLE_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:cloud-run-staging
   _MANIFEST: infra/gcp/cloud-run/api-center.staging.yaml
 
 steps:
@@ -21,7 +23,9 @@ steps:
     args:
       - build
       - -t
-      - ${_IMAGE}
+      - ${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+      - -t
+      - ${_STABLE_IMAGE}
       - -f
       - docker/Dockerfile.gcp
       - .
@@ -31,11 +35,18 @@ steps:
     id: push
     args:
       - push
-      - ${_IMAGE}
+      - ${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+    waitFor: [build]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-stable
+    args:
+      - push
+      - ${_STABLE_IMAGE}
     waitFor: [build]
 
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: deploy
+    id: apply-manifest
     entrypoint: gcloud
     args:
       - run
@@ -44,10 +55,24 @@ steps:
       - ${_MANIFEST}
       - --project=${_PROJECT_ID}
       - --region=${_REGION}
-    waitFor: [push]
+    waitFor: [push, push-stable]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-image
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - ${_SERVICE_NAME}
+      - --image=${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+      - --project=${_PROJECT_ID}
+      - --region=${_REGION}
+    waitFor: [apply-manifest]
 
 images:
-  - ${_IMAGE}
+  - ${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+  - ${_STABLE_IMAGE}
 
 options:
   logging: CLOUD_LOGGING_ONLY

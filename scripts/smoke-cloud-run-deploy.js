@@ -1,4 +1,5 @@
 const baseUrl = process.env.APICENTER_CLOUD_RUN_BASE_URL;
+const bearerToken = process.env.APICENTER_CLOUD_RUN_BEARER_TOKEN;
 const spikeConcurrency = Number.parseInt(
   process.env.APICENTER_CLOUD_RUN_SPIKE_CONCURRENCY || "10",
   10,
@@ -11,6 +12,10 @@ const spikeP95LimitMs = Number.parseInt(
   process.env.APICENTER_CLOUD_RUN_SPIKE_P95_MS || "1500",
   10,
 );
+const spikeCooldownMs = Number.parseInt(
+  process.env.APICENTER_CLOUD_RUN_SPIKE_COOLDOWN_MS || "0",
+  10,
+);
 
 if (!baseUrl) {
   throw new Error(
@@ -20,7 +25,15 @@ if (!baseUrl) {
 
 async function timedFetch(path, options = {}) {
   const started = Date.now();
-  const response = await fetch(`${baseUrl}${path}`, options);
+  const headers = new Headers(options.headers || {});
+  if (bearerToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${bearerToken}`);
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    headers,
+  });
   const ms = Date.now() - started;
   const text = await response.text();
   if (!response.ok) {
@@ -29,6 +42,12 @@ async function timedFetch(path, options = {}) {
     );
   }
   return { status: response.status, ms, text };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function percentile(values, percentileValue) {
@@ -85,6 +104,12 @@ async function runSpikeCheck() {
   ]);
 
   if (failures.length > 0) {
+    console.table(
+      failures.slice(0, 5).map((item) => ({
+        requestNumber: item.requestNumber,
+        error: item.error,
+      })),
+    );
     throw new Error(`Spike check had ${failures.length} failed request(s)`);
   }
   if (p95 > spikeP95LimitMs) {
@@ -118,6 +143,11 @@ async function main() {
     throw new Error(
       `Cloud Run smoke had ${slow.length} response(s) over 1000ms`,
     );
+  }
+
+  if (spikeCooldownMs > 0) {
+    console.log(`Waiting ${spikeCooldownMs}ms before bounded spike check`);
+    await sleep(spikeCooldownMs);
   }
 
   await runSpikeCheck();
