@@ -29,8 +29,24 @@ spec:
               value: apicenter-alpha-20260623
             - name: GCP_SECRET_NAME
               value: api-center-prod
+            - name: AUTH_PROVIDER
+              value: composite
+            - name: ALLOWED_ORIGINS
+              value: https://api-center.itsandbox.site
+            - name: REDIS_CACHE_URL
+              value: redis://10.121.26.59:6379
+            - name: REDIS_RATE_LIMIT_URL
+              value: redis://10.121.26.59:6379
+            - name: DATA_PIPELINE_ENABLED
+              value: "false"
+            - name: KAFKA_ENABLED
+              value: "false"
             - name: CLOUD_RUN_AUTH_ENABLED
               value: "true"
+            - name: SHARED_SERVICE_ROUTE_PAYMENT_TEST
+              value: https://payment-test-mvrs6gmtgq-as.a.run.app
+            - name: SHARED_SERVICE_ROUTE_PAYMENT_LIVE
+              value: https://payment-live-mvrs6gmtgq-as.a.run.app
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-prod
           resources:
