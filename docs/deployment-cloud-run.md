@@ -111,18 +111,19 @@ Public DNS authority checked at `2026-07-04T02:24Z`:
 Cutover must be executed in Cloudflare for zone `itsandbox.site`:
 
 1. Configure an operator-scoped Cloudflare API token with DNS edit access for zone `itsandbox.site`.
-2. Export the token and zone ID:
+2. Export the Cloudflare values and a live-scoped APICenter token:
 
 ```powershell
 $env:CLOUDFLARE_API_TOKEN = "<cloudflare-dns-edit-token>"
 $env:CLOUDFLARE_ZONE_ID = "<itsandbox-site-zone-id>"
+$env:APICENTER_CLOUD_RUN_BEARER_TOKEN = "<live-scoped APICenter token>"
 ```
 
-3. Dry-run the change from the API Center repo:
+3. Dry-run the end-to-end orchestration from the API Center repo:
 
 ```powershell
 cd C:\Codes\apic\api-center
-npm run dns:cloud-run:cutover -- --dry-run
+npm run cutover:cloud-run:execute -- --dry-run
 ```
 
 Expected dry-run:
@@ -133,13 +134,27 @@ afterIp: 136.68.196.7
 dryRun: true
 ```
 
-4. Execute the cutover:
+4. Execute the orchestrated cutover:
+
+```powershell
+npm run cutover:cloud-run:execute
+```
+
+The orchestration command runs the Cloudflare DNS cutover, waits until `api-center.itsandbox.site` resolves to `136.68.196.7`, runs `smoke:cloud-run`, runs `smoke:tribe-boundary`, and records the first seven-day retention evidence row. Use this path for the production cutover unless you need to recover from a partial manual DNS change.
+
+Manual fallback:
 
 ```powershell
 npm run dns:cloud-run:cutover
 ```
 
-The command preserves the existing Cloudflare TTL and proxy mode. It refuses to write unless the current A record is still `136.110.192.169`; use `-- --force` only after manually confirming the DNS state.
+The DNS command preserves the existing Cloudflare TTL and proxy mode. It refuses to write unless the current A record is still `136.110.192.169`; use `-- --force` only after manually confirming the DNS state.
+
+If DNS was already changed outside the helper, resume verification and evidence recording with:
+
+```powershell
+npm run cutover:cloud-run:execute -- --skip-dns-cutover
+```
 
 5. Record the timestamp and command output in this document.
 6. Verify public DNS:
