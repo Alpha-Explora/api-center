@@ -8,12 +8,12 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 >
 > **Deploying?** Pick one:
 >
-> Current production uses GKE Autopilot with API Center HPA min 2 / max 3.
-> Cloud Run remains an older/simple deployment option only if the platform
-> deliberately moves away from the current GKE shape.
+> Current production uses Cloud Run. GKE Autopilot manifests and the former
+> GKE load balancer are retained as rollback infrastructure during the
+> seven-day post-cutover retention window.
 >
-> - [GKE Autopilot + HPA](infra/gcp/gke/README.md) - current production shape, min 2 / max 3 API Center pods, Memorystore, GCLB Ingress
-> - [Cloud Run](infra/gcp/cloud-run/cloudrun.yaml) - older/simple deployment option; use only if deliberately moving away from the current GKE shape
+> - [Cloud Run deployment record](docs/deployment-cloud-run.md) - current production runtime, cutover evidence, gates, and rollback commands
+> - [GKE Autopilot rollback reference](infra/gcp/gke/README.md) - retained rollback manifests, HPA min 2 / max 3, Memorystore, and former GCLB Ingress
 
 ---
 
@@ -459,4 +459,3 @@ To add reusable platform functionality, prefer a shared service manifest and SDK
 | `GET` | `/nginx-health` | NGINX bypass health check |
 
 ---
-
