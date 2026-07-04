@@ -89,6 +89,7 @@ Checked at `2026-07-04T01:44Z`:
 - Local forced-resolution smoke against `https://api-center.itsandbox.site` on `136.68.196.7` returned HTTP 200 for `/api/v1/health/live` and `/api/v1/health/ready`.
 - Bounded forced-resolution spike smoke passed: 100 `/api/v1/health/ready` requests, concurrency 10, 0 failures, p95 `359ms`, p99 `516ms`, max `586ms`.
 - Warm forced-resolution health check passed after one warm-up miss: 20 consecutive `/api/v1/health/ready` requests returned HTTP 200 and stayed under 500 ms, max `348ms`.
+- Thirty-minute periodic forced-resolution check passed at `2026-07-04T02:18Z`: 30 API Center readiness calls and 30 live payment health calls through `https://api-center.itsandbox.site` on `136.68.196.7` all returned HTTP 200. API Center readiness max was `513ms` with one sample over 500 ms; payment-live max was `1030ms` with zero samples over 1500 ms.
 - The first LB spike attempt before revision `api-center-00004-9sw` found that health checks were throttled by the global application throttler. Revision `api-center-00004-9sw` bypasses global throttling for health check routes so public LB readiness probes and cutover smoke do not consume tribe/API rate-limit buckets.
 
 Cutover remains gated on operator approval to change DNS for `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
@@ -107,13 +108,19 @@ Configured at `2026-07-04T01:43Z` in project `apicenter-alpha-20260623`:
 | `APICenter Redis memory pressure` | `projects/apicenter-alpha-20260623/alertPolicies/4062726626645936498` |
 | `APICenter shared provider failures` | `projects/apicenter-alpha-20260623/alertPolicies/8675777201395846856` |
 
+Notification channel configured at `2026-07-04T01:48Z`:
+
+| Channel | Resource | Status |
+| --- | --- | --- |
+| `APICenter operator email` | `projects/apicenter-alpha-20260623/notificationChannels/2456658562778314432` | Attached to all APICenter cutover alert policies |
+
 Provider failures use log-based metric `apicenter_shared_provider_failures` with this filter:
 
 ```text
 resource.type="cloud_run_revision" AND resource.labels.service_name=~"payment-(live|test)" AND (severity>=ERROR OR textPayload=~"(?i)(provider|paymongo).*(fail|error|timeout|circuit)" OR jsonPayload.message=~"(?i)(provider|paymongo).*(fail|error|timeout|circuit)")
 ```
 
-No notification channel was discoverable through the Monitoring API during this pass. The policies are enabled and will create Cloud Monitoring incidents; attach email, Chat, PagerDuty, or another operator channel before declaring production operations fully wired.
+The email notification channel targets the active operator account `abtorres.it@alphaexplora.com`. If the channel requires email verification in Google Cloud Monitoring, complete that verification before relying on email delivery for production incidents.
 
 The project exposes Redis CPU, memory, connection, and rejected-connection metrics, but no native Redis latency metric descriptor was found. Redis cutover coverage currently uses rejected connections and memory pressure plus API Center readiness checks.
 
