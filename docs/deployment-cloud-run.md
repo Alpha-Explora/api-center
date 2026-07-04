@@ -137,10 +137,10 @@ dryRun: true
 4. Execute the orchestrated cutover:
 
 ```powershell
-npm run cutover:cloud-run:execute
+npm run cutover:cloud-run:execute -- --rollback-on-failure
 ```
 
-The orchestration command runs the Cloudflare DNS cutover, waits until `api-center.itsandbox.site` resolves to `136.68.196.7`, runs `smoke:cloud-run`, runs `smoke:tribe-boundary`, and records the first seven-day retention evidence row. Use this path for the production cutover unless you need to recover from a partial manual DNS change.
+The orchestration command runs the Cloudflare DNS cutover, waits until `api-center.itsandbox.site` resolves to `136.68.196.7`, runs `smoke:cloud-run`, runs `smoke:tribe-boundary`, and records the first seven-day retention evidence row. With `--rollback-on-failure`, it points DNS back to `136.110.192.169` if DNS moved but smoke or evidence recording fails. Use this path for the production cutover unless you need to recover from a partial manual DNS change.
 
 Manual fallback:
 
