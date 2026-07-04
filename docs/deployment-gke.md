@@ -6,6 +6,11 @@
 > as any change to `infra/gcp/gke/**`, `docker/Dockerfile.gcp`, root `Dockerfile`,
 > `.dockerignore`, `deploy/local/docker-compose.yml`, or CI/CD workflows.
 
+> Current production traffic for `api-center.itsandbox.site` uses Cloud Run as of
+> 2026-07-04. Keep this GKE deployment, ingress, static IP `136.110.192.169`,
+> manifests, and related rollback records for the seven-day Cloud Run retention
+> window.
+
 ---
 
 ## Current Environment
@@ -680,3 +685,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-06-28 | pending | Documented one-URL environment contract rollout flags, environment-scoped tribe secrets, and token smoke requests that include `environment` | Make enforce-mode cutover and warn-mode rollback deterministic |
 | 2026-06-28 | b9c811f | Deployed `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:legacy-routing-b9c811f-20260628`; removed live ConfigMap legacy routing keys; readiness returned HTTP 200 with registry up and 22 services; final cleanup evidence reports 0 legacy Secret Manager records | Roll out and complete stored/code-level legacy routing cleanup |
 | 2026-07-04 | 76c9ef6c-205e-41bf-93d2-c6eb5235a85f | Created parallel Cloud Run external Application Load Balancer on `136.68.196.7` while keeping `api-center.itsandbox.site` DNS on GKE IP `136.110.192.169`; forced-resolution Cloud Run LB smoke passed with 100 requests, concurrency 10, 0 failures, p95 `359ms` | Prepare DNS cutover without modifying the live GKE ingress or losing the GKE rollback path |
+| 2026-07-04 | c0c145c5-df6d-4018-9c64-c1ff5bc1b093 | Moved `api-center.itsandbox.site` DNS to Cloud Run LB IP `136.68.196.7`; Cloud Run revision `api-center-00006-wqc` passed public smoke and first retention evidence | Make Cloud Run the active production front door while retaining GKE as rollback infrastructure |

@@ -2,7 +2,8 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { promises: dns } = require("node:dns");
+const nodeDns = require("node:dns");
+const { promises: dns } = nodeDns;
 
 const DEFAULT_BASE_URL = "https://api-center.itsandbox.site";
 const DEFAULT_EXPECTED_IP = "136.68.196.7";
@@ -27,6 +28,8 @@ function buildEvidenceConfig(env = process.env, argv = process.argv.slice(2)) {
     baseUrl,
     host,
     expectedIp: env.APICENTER_CUTOVER_EXPECTED_IP || DEFAULT_EXPECTED_IP,
+    dnsServers: parseCsv(env.APICENTER_CUTOVER_DNS_SERVERS),
+    resolve4: buildResolve4(env.APICENTER_CUTOVER_DNS_SERVERS),
     bearerToken: env.APICENTER_CLOUD_RUN_BEARER_TOKEN,
     evidenceFile: env.APICENTER_CUTOVER_EVIDENCE_FILE || DEFAULT_EVIDENCE_FILE,
     skipPayment: args.has("--skip-payment"),
@@ -37,12 +40,13 @@ function buildEvidenceConfig(env = process.env, argv = process.argv.slice(2)) {
 async function collectCutoverEvidence({
   env = process.env,
   argv = process.argv.slice(2),
-  resolve4 = defaultResolve4,
+  resolve4,
   fetchImpl = globalThis.fetch,
   now = () => new Date(),
   measure = timed,
 } = {}) {
   const config = buildEvidenceConfig(env, argv);
+  const resolveHost = resolve4 || config.resolve4;
   if (!fetchImpl) {
     throw new Error("This script requires global fetch or an injected fetch implementation.");
   }
@@ -52,7 +56,7 @@ async function collectCutoverEvidence({
     );
   }
 
-  const ips = await resolve4(config.host);
+  const ips = await resolveHost(config.host);
   if (!ips.includes(config.expectedIp)) {
     throw new Error(
       `${config.host} DNS does not include expected Cloud Run IP ${config.expectedIp}; got ${ips.join(", ") || "none"}.`,
@@ -89,6 +93,40 @@ async function defaultResolve4(host, lookup = dns.lookup) {
   return results
     .filter((result) => result.family === 4)
     .map((result) => result.address);
+}
+
+function buildResolve4(dnsServers) {
+  const servers = parseCsv(dnsServers);
+  if (servers.length === 0) return defaultResolve4;
+
+  return (host, dependencies = {}) =>
+    resolve4WithServers(host, servers, dependencies);
+}
+
+function parseCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resolve4WithServers(
+  host,
+  servers,
+  { Resolver = nodeDns.Resolver } = {},
+) {
+  const resolver = new Resolver();
+  resolver.setServers(servers);
+
+  return new Promise((resolve, reject) => {
+    resolver.resolve4(host, (error, addresses) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(addresses);
+    });
+  });
 }
 
 async function requestJson(fetchImpl, config, requestPath, headers = {}) {
@@ -189,9 +227,12 @@ async function main() {
 module.exports = {
   appendRetentionEvidence,
   buildEvidenceConfig,
+  buildResolve4,
   collectCutoverEvidence,
   defaultResolve4,
   formatRetentionRow,
+  parseCsv,
+  resolve4WithServers,
 };
 
 if (require.main === module) main();

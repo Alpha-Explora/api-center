@@ -35,8 +35,9 @@ export async function getCloudRunAuthorizationHeader(
   }
 
   const client = await auth.getIdTokenClient(audience);
-  const headers = await client.getRequestHeaders(audience);
-  const raw = readAuthorizationHeader(headers);
+  const raw =
+    (await fetchIdTokenDirectly(client, audience)) ??
+    readAuthorizationHeader(await client.getRequestHeaders(audience));
   if (!raw) return undefined;
 
   const token = raw.replace(/^Bearer\s+/i, "");
@@ -83,4 +84,22 @@ function readAuthorizationHeader(headers: unknown): string | undefined {
   }
 
   return value === undefined ? undefined : String(value);
+}
+
+async function fetchIdTokenDirectly(
+  client: unknown,
+  audience: string,
+): Promise<string | undefined> {
+  const provider = (client as { idTokenProvider?: unknown }).idTokenProvider;
+  if (
+    !provider ||
+    typeof (provider as { fetchIdToken?: unknown }).fetchIdToken !== "function"
+  ) {
+    return undefined;
+  }
+
+  const token = await (
+    provider as { fetchIdToken(targetAudience: string): Promise<string> }
+  ).fetchIdToken(audience);
+  return token ? `Bearer ${token}` : undefined;
 }

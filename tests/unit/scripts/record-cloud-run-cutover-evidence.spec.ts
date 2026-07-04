@@ -129,6 +129,34 @@ describe("record-cloud-run-cutover-evidence", () => {
     });
   });
 
+  it("builds an explicit resolver when DNS servers are configured", async () => {
+    const resolve4 = jest.fn().mockImplementation((host, callback) => {
+      callback(null, ["136.68.196.7"]);
+    });
+    const setServers = jest.fn();
+    const Resolver = jest.fn().mockImplementation(() => ({
+      resolve4,
+      setServers,
+    }));
+
+    const config = buildEvidenceConfig(
+      {
+        ...baseEnv,
+        APICENTER_CUTOVER_DNS_SERVERS: "1.1.1.1,8.8.8.8",
+      },
+      [],
+    );
+
+    await expect(config.resolve4("api-center.itsandbox.site", { Resolver })).resolves.toEqual([
+      "136.68.196.7",
+    ]);
+    expect(setServers).toHaveBeenCalledWith(["1.1.1.1", "8.8.8.8"]);
+    expect(resolve4).toHaveBeenCalledWith(
+      "api-center.itsandbox.site",
+      expect.any(Function),
+    );
+  });
+
   it("formats and appends the seven-day retention evidence table", () => {
     const evidence = {
       date: "2026-07-04",

@@ -13,6 +13,8 @@ steps:
     args:
       - -c
       - |
+        apt-get update
+        apt-get install -y --no-install-recommends git
         npm ci
         npm run db:generate
         npm run typecheck

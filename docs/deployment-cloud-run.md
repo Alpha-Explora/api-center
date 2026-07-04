@@ -27,6 +27,7 @@
 | `0ff351db-fb06-4239-b79a-fba2a5758008` | succeeded | Passed 121 Jest suites / 581 tests, fixed headers-like Google auth token extraction, and rolled staging to revision `api-center-staging-00007-sdp`. |
 | `1ee3fb64-9588-47b5-8254-b9e224346c28` | succeeded | Passed full Cloud Build verification, added `X-Serverless-Authorization` for private Cloud Run upstreams, and rolled staging to revision `api-center-staging-00009-x9d`. |
 | `76c9ef6c-205e-41bf-93d2-c6eb5235a85f` | succeeded | Passed Cloud Build verification, deployed production-shaped `api-center` revision `api-center-00004-9sw`, preserved load-balancer-only ingress, and bypassed global throttling for health checks. |
+| `c0c145c5-df6d-4018-9c64-c1ff5bc1b093` | succeeded | Passed 125 Jest suites / 603 tests, installed `git` in the Cloud Build test container, deployed production `api-center` revision `api-center-00006-wqc`, and fixed Cloud Run ID-token acquisition for private payment invocation. |
 
 ## Verification
 
@@ -50,16 +51,16 @@
 
 ## Production Cloud Run Preparation
 
-Production DNS still points at the current GKE front door. The production-shaped Cloud Run service is deployed behind a parallel Cloud Run external Application Load Balancer for pre-cutover validation.
+Production DNS now points at the Cloud Run external Application Load Balancer. GKE remains deployed as rollback infrastructure for the seven-day retention window.
 
 | Parameter | Value |
 | --- | --- |
 | Service | `api-center` |
 | Service URL | `https://api-center-mvrs6gmtgq-as.a.run.app` |
-| Latest ready revision | `api-center-00004-9sw` |
-| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-76c9ef6c-205e-41bf-93d2-c6eb5235a85f` |
-| Deployed digest | `sha256:8753950092c12374c266e7007ca9715b09e2088a6cad34c049cdee09852c0380` |
-| Build | `76c9ef6c-205e-41bf-93d2-c6eb5235a85f` |
+| Latest ready revision | `api-center-00006-wqc` |
+| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-c0c145c5-df6d-4018-9c64-c1ff5bc1b093` |
+| Deployed digest | `sha256:1bea6a1f0a31ac697d6f54814b17043959e73deef0fce8921d348cc110e037d4` |
+| Build | `c0c145c5-df6d-4018-9c64-c1ff5bc1b093` |
 | Runtime target | `cloud-run-prod` |
 | Min/max instances | `1` / `10` |
 | Public posture | `run.googleapis.com/ingress=internal-and-cloud-load-balancing`, `run.googleapis.com/invoker-iam-disabled=true` |
@@ -71,15 +72,14 @@ Verification at `2026-07-04T00:47Z`:
 - `/api/v1/shared/payment/health`: HTTP 200 through `payment-test` using a test-scoped token.
 - `/api/v1/shared/payment/health`: HTTP 200 through `payment-live` using a live-scoped token at `2026-07-04T00:55Z`.
 
-Do not move `api-center.itsandbox.site` to this service until the public front door is approved and all cutover gates pass.
+`api-center.itsandbox.site` was moved to this service after the public front door and cutover gates passed.
 
 ## Public Front Door Status
 
-Checked at `2026-07-04T01:44Z`:
+Checked before cutover at `2026-07-04T01:44Z` and after cutover at `2026-07-04T03:45Z`:
 
-- `api-center.itsandbox.site` resolves to `136.110.192.169`.
-- `https://api-center.itsandbox.site/api/v1/health/ready` returns HTTP 200 through the existing public front door.
-- Current public DNS still points at the GKE load balancer IP `136.110.192.169`; DNS has not moved.
+- `api-center.itsandbox.site` resolved to `136.110.192.169` before cutover and now resolves to `136.68.196.7` through Cloudflare authoritative nameservers and public resolvers `1.1.1.1` and `8.8.8.8`.
+- `https://api-center.itsandbox.site/api/v1/health/ready` returns HTTP 200 through the Cloud Run public front door.
 - `itsandbox.site` is not hosted in this GCP project's Cloud DNS. The only managed zone in `apicenter-alpha-20260623` is private `cluster.local.`, so the DNS cutover must be executed in the external DNS provider for `itsandbox.site`.
 - Parallel Cloud Run HTTPS load balancer is provisioned on test IP `136.68.196.7` using forwarding rule `apicenter-cloud-run-https`.
 - Parallel Cloud Run HTTP forwarding rule `apicenter-cloud-run-http` exists on port 80 for routing diagnostics only. Production cutover remains HTTPS.
@@ -91,9 +91,12 @@ Checked at `2026-07-04T01:44Z`:
 - Warm forced-resolution health check passed after one warm-up miss: 20 consecutive `/api/v1/health/ready` requests returned HTTP 200 and stayed under 500 ms, max `348ms`.
 - Thirty-minute periodic forced-resolution check passed at `2026-07-04T02:18Z`: 30 API Center readiness calls and 30 live payment health calls through `https://api-center.itsandbox.site` on `136.68.196.7` all returned HTTP 200. API Center readiness max was `513ms` with one sample over 500 ms; payment-live max was `1030ms` with zero samples over 1500 ms.
 - Pre-cutover recheck at `2026-07-04T02:36Z`: public DNS still resolved `api-center.itsandbox.site` to `136.110.192.169`; forced-resolution Cloud Run LB checks against `136.68.196.7` returned HTTP 200 for `/api/v1/health/live` in `0.222s` and `/api/v1/health/ready` in `0.226s`; certificate `mcrt-531dd8af-4b3d-4ee5-9099-774c27bfa8cc` remained `ACTIVE` for `api-center.itsandbox.site`.
+- DNS cutover executed through the authenticated Cloudflare MCP at `2026-07-04T03:15Z`: record `eb94fd8801501ffd0d4bcce4dce99ce2` changed from `136.110.192.169` to `136.68.196.7`, `proxied=false`, TTL automatic/300s authoritative. Cloudflare API read-back, `guy.ns.cloudflare.com`, `kia.ns.cloudflare.com`, `1.1.1.1`, and `8.8.8.8` returned `136.68.196.7`.
+- Post-cutover production revision `api-center-00006-wqc` passed public Cloud Run smoke at `2026-07-04T03:45Z`: `/api/v1/health/live` HTTP 200 in `418ms`, `/api/v1/health/ready` HTTP 200 in `194ms`, five warm readiness checks under `133ms`, and bounded spike smoke with 100 requests at concurrency 10, 0 failures, p95 `369ms`, p99 `481ms`.
+- First seven-day retention evidence row recorded at `2026-07-04T03:46Z`: live health HTTP 200 in `441ms`, ready HTTP 200 in `214ms`, Redis `up`, and live payment health HTTP 200 in `948ms`.
 - The first LB spike attempt before revision `api-center-00004-9sw` found that health checks were throttled by the global application throttler. Revision `api-center-00004-9sw` bypasses global throttling for health check routes so public LB readiness probes and cutover smoke do not consume tribe/API rate-limit buckets.
 
-Cutover remains gated on operator approval and Cloudflare DNS access to change `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. This workspace currently has no configured Cloudflare DNS management token or CLI; use the Cloudflare zone owner path in the runbook below. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
+Cutover is complete. Keep GKE available for rollback during the seven-day retention window. Do not grant `allUsers` directly; the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
 
 ## DNS Cutover Runbook
 
@@ -188,6 +191,7 @@ npm run smoke:tribe-boundary
 ```powershell
 $env:APICENTER_CLOUD_RUN_BASE_URL = "https://api-center.itsandbox.site"
 $env:APICENTER_CLOUD_RUN_BEARER_TOKEN = "<live-scoped APICenter token>"
+$env:APICENTER_CUTOVER_DNS_SERVERS = "1.1.1.1,8.8.8.8"
 npm run cutover:cloud-run:evidence
 ```
 
@@ -276,6 +280,7 @@ Run this once immediately after cutover smoke, then once per day while GKE remai
 cd C:\Codes\apic\api-center
 $env:APICENTER_CLOUD_RUN_BASE_URL = "https://api-center.itsandbox.site"
 $env:APICENTER_CLOUD_RUN_BEARER_TOKEN = "<live-scoped APICenter token>"
+$env:APICENTER_CUTOVER_DNS_SERVERS = "1.1.1.1,8.8.8.8"
 npm run cutover:cloud-run:evidence
 ```
 
@@ -317,3 +322,9 @@ Then verify:
 ```powershell
 Invoke-WebRequest -Uri "https://api-center.itsandbox.site/api/v1/health/ready" -UseBasicParsing -TimeoutSec 20
 ```
+
+## Seven-Day Cloud Run Retention Evidence
+
+| Date | Health | Payment live | Redis | Error notes | Decision |
+| --- | --- | --- | --- | --- | --- |
+| 2026-07-04 | pass: live 200 441ms, ready 200 214ms | pass: 200 948ms | up | none | keep Cloud Run |
