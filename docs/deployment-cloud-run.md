@@ -32,7 +32,7 @@
 - `/api/v1/health/live`: HTTP 200 with authenticated Cloud Run invocation.
 - `/api/v1/health/ready`: HTTP 200 with Redis `up`, registry `up`, and `registeredServices=30`.
 - Kafka readiness: `up` with `skipped=true` because Kafka is disabled by configuration for this staging check.
-- Bounded smoke: 100 `/api/v1/health/ready` requests at concurrency 10, zero failures, p95 `166ms`, p99 `243ms`.
+- Bounded smoke: 100 `/api/v1/health/ready` requests at concurrency 10, zero failures, p95 `235ms`, p99 `249ms` on revision `api-center-staging-00009-x9d`.
 
 ## Payment Route Verification
 
