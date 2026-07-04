@@ -31,6 +31,7 @@ function buildOrchestratorConfig(env = process.env, argv = process.argv.slice(2)
     bearerToken: env.APICENTER_CLOUD_RUN_BEARER_TOKEN,
     skipDnsCutover: args.has("--skip-dns-cutover"),
     skipTribeBoundary: args.has("--skip-tribe-boundary"),
+    rollbackOnFailure: args.has("--rollback-on-failure"),
     dryRun: args.has("--dry-run"),
   };
 }
@@ -65,16 +66,6 @@ async function executeCloudRunCutover({
     }
   }
 
-  await waitForDnsTarget({
-    host: config.host,
-    targetIp: config.targetIp,
-    timeoutMs: config.dnsTimeoutMs,
-    pollMs: config.dnsPollMs,
-    resolve4,
-    sleep,
-    log,
-  });
-
   const commandEnv = {
     ...env,
     APICENTER_CLOUD_RUN_BASE_URL: config.baseUrl,
@@ -84,19 +75,41 @@ async function executeCloudRunCutover({
     commandEnv.APICENTER_CLOUD_RUN_BEARER_TOKEN = config.bearerToken;
   }
 
-  await runCommand("npm", ["run", "smoke:cloud-run"], { env: commandEnv });
-  if (!config.skipTribeBoundary) {
-    await runCommand("npm", ["run", "smoke:tribe-boundary"], {
-      env: commandEnv,
+  try {
+    await waitForDnsTarget({
+      host: config.host,
+      targetIp: config.targetIp,
+      timeoutMs: config.dnsTimeoutMs,
+      pollMs: config.dnsPollMs,
+      resolve4,
+      sleep,
+      log,
     });
-  }
 
-  const evidence = await collectCutoverEvidence({
-    env: commandEnv,
-    argv: [],
-    resolve4,
-  });
-  await appendEvidence({ evidence });
+    await runCommand("npm", ["run", "smoke:cloud-run"], { env: commandEnv });
+    if (!config.skipTribeBoundary) {
+      await runCommand("npm", ["run", "smoke:tribe-boundary"], {
+        env: commandEnv,
+      });
+    }
+
+    const evidence = await collectCutoverEvidence({
+      env: commandEnv,
+      argv: [],
+      resolve4,
+    });
+    await appendEvidence({ evidence });
+  } catch (error) {
+    if (config.rollbackOnFailure && !config.skipDnsCutover && !config.dryRun) {
+      log(`Cutover verification failed; rolling DNS back: ${error.message}`);
+      await runCloudflareDnsCutover({
+        env,
+        argv: ["--rollback"],
+        log,
+      });
+    }
+    throw error;
+  }
 
   return {
     dnsReady: true,

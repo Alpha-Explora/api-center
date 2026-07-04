@@ -138,6 +138,44 @@ describe("execute-cloud-run-cutover", () => {
     expect(runCommand).toHaveBeenCalledTimes(1);
   });
 
+  it("rolls DNS back when post-cutover smoke fails and rollback is enabled", async () => {
+    const runCloudflareDnsCutover = jest.fn().mockResolvedValue({
+      beforeIp: "136.110.192.169",
+      afterIp: "136.68.196.7",
+    });
+    const smokeError = new Error("smoke failed");
+    const runCommand = jest.fn().mockRejectedValueOnce(smokeError);
+
+    await expect(
+      executeCloudRunCutover({
+        env: baseEnv,
+        argv: ["--rollback-on-failure"],
+        runCloudflareDnsCutover,
+        collectCutoverEvidence: jest.fn(),
+        appendEvidence: jest.fn(),
+        runCommand,
+        resolve4: jest.fn().mockResolvedValue(["136.68.196.7"]),
+        sleep: jest.fn(),
+        log: jest.fn(),
+      }),
+    ).rejects.toThrow("smoke failed");
+
+    expect(runCloudflareDnsCutover).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        env: baseEnv,
+        argv: [],
+      }),
+    );
+    expect(runCloudflareDnsCutover).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        env: baseEnv,
+        argv: ["--rollback"],
+      }),
+    );
+  });
+
   it("times out while waiting for DNS target", async () => {
     await expect(
       waitForDnsTarget({
