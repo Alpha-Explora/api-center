@@ -90,9 +90,10 @@ Checked at `2026-07-04T01:44Z`:
 - Bounded forced-resolution spike smoke passed: 100 `/api/v1/health/ready` requests, concurrency 10, 0 failures, p95 `359ms`, p99 `516ms`, max `586ms`.
 - Warm forced-resolution health check passed after one warm-up miss: 20 consecutive `/api/v1/health/ready` requests returned HTTP 200 and stayed under 500 ms, max `348ms`.
 - Thirty-minute periodic forced-resolution check passed at `2026-07-04T02:18Z`: 30 API Center readiness calls and 30 live payment health calls through `https://api-center.itsandbox.site` on `136.68.196.7` all returned HTTP 200. API Center readiness max was `513ms` with one sample over 500 ms; payment-live max was `1030ms` with zero samples over 1500 ms.
+- Pre-cutover recheck at `2026-07-04T02:36Z`: public DNS still resolved `api-center.itsandbox.site` to `136.110.192.169`; forced-resolution Cloud Run LB checks against `136.68.196.7` returned HTTP 200 for `/api/v1/health/live` in `0.222s` and `/api/v1/health/ready` in `0.226s`; certificate `mcrt-531dd8af-4b3d-4ee5-9099-774c27bfa8cc` remained `ACTIVE` for `api-center.itsandbox.site`.
 - The first LB spike attempt before revision `api-center-00004-9sw` found that health checks were throttled by the global application throttler. Revision `api-center-00004-9sw` bypasses global throttling for health check routes so public LB readiness probes and cutover smoke do not consume tribe/API rate-limit buckets.
 
-Cutover remains gated on operator approval to change DNS for `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
+Cutover remains gated on operator approval and Cloudflare DNS access to change `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. This workspace currently has no configured Cloudflare DNS management token or CLI; use the Cloudflare zone owner path in the runbook below. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
 
 ## DNS Cutover Runbook
 

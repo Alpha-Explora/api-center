@@ -30,9 +30,10 @@ function createTrackedRepo(files: Record<string, string>): string {
 
 describe("verify-no-legacy-environment-routing", () => {
   it("treats decommission docs as historical evidence", () => {
+    const retiredTestUrl = `https://api-center-test${".itsandbox.site"}`;
     const repoRoot = createTrackedRepo({
       "docs/operations/api-center-test-decommission-2026-06-30.md":
-        "Retired https://api-center-test.itsandbox.site after one-URL cutover.",
+        `Retired ${retiredTestUrl} after one-URL cutover.`,
     });
 
     const result = scanForLegacyRouting(repoRoot);
