@@ -176,4 +176,25 @@ describe("record-cloud-run-cutover-evidence", () => {
     );
     expect(appendRetentionEvidence("# Deployment\n", row)).toContain(row);
   });
+
+  it("replaces an existing retention row for the same date", () => {
+    const existing = [
+      "# Deployment",
+      "",
+      "## Seven-Day Cloud Run Retention Evidence",
+      "",
+      "| Date | Health | Payment live | Redis | Error notes | Decision |",
+      "| --- | --- | --- | --- | --- | --- |",
+      "| 2026-07-04 | pass: live 200 900ms, ready 200 800ms | pass: 200 1200ms | up | none | keep Cloud Run |",
+      "",
+    ].join("\n");
+    const replacement =
+      "| 2026-07-04 | pass: live 200 100ms, ready 200 90ms | pass: 200 300ms | up | none | keep Cloud Run |";
+
+    const updated = appendRetentionEvidence(existing, replacement);
+
+    expect(updated).toContain(replacement);
+    expect(updated).not.toContain("live 200 900ms");
+    expect(updated.match(/\| 2026-07-04 \|/g)).toHaveLength(1);
+  });
 });

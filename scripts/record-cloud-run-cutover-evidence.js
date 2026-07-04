@@ -193,12 +193,33 @@ function appendRetentionEvidence(markdown, row) {
     return markdown;
   }
 
+  const rowDate = retentionRowDate(row);
   const sectionIndex = markdown.indexOf(RETENTION_SECTION);
   const nextSectionIndex = markdown.indexOf("\n## ", sectionIndex + 1);
   const insertIndex = nextSectionIndex === -1 ? markdown.length : nextSectionIndex;
+  const section = markdown.slice(sectionIndex, insertIndex);
+  const existingDatePattern = new RegExp(
+    `^\\|\\s*${escapeRegExp(rowDate)}\\s*\\|.*$`,
+    "m",
+  );
+  if (rowDate && existingDatePattern.test(section)) {
+    return `${markdown.slice(0, sectionIndex)}${section.replace(existingDatePattern, row)}${markdown.slice(insertIndex)}`;
+  }
+
   const before = markdown.slice(0, insertIndex).trimEnd();
   const after = markdown.slice(insertIndex);
   return `${before}\n${row}\n${after}`;
+}
+
+function retentionRowDate(row) {
+  return row
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean)[0];
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function main() {
@@ -230,8 +251,10 @@ module.exports = {
   buildResolve4,
   collectCutoverEvidence,
   defaultResolve4,
+  escapeRegExp,
   formatRetentionRow,
   parseCsv,
+  retentionRowDate,
   resolve4WithServers,
 };
 

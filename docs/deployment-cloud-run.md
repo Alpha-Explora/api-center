@@ -195,7 +195,7 @@ $env:APICENTER_CUTOVER_DNS_SERVERS = "1.1.1.1,8.8.8.8"
 npm run cutover:cloud-run:evidence
 ```
 
-The evidence command refuses to record if public DNS does not resolve to `136.68.196.7`. It checks `/api/v1/health/live`, `/api/v1/health/ready`, Redis readiness, and `/api/v1/shared/payment/health`, then appends a row under `Seven-Day Cloud Run Retention Evidence`.
+The evidence command refuses to record if public DNS does not resolve to `136.68.196.7`. It checks `/api/v1/health/live`, `/api/v1/health/ready`, Redis readiness, and `/api/v1/shared/payment/health`, then records one row per date under `Seven-Day Cloud Run Retention Evidence`.
 
 Rollback if smoke fails or Cloud Run error/latency alerts fire:
 
@@ -290,7 +290,7 @@ For a non-writing preflight:
 npm run cutover:cloud-run:evidence -- --dry-run
 ```
 
-The command verifies that `api-center.itsandbox.site` resolves to the Cloud Run load balancer IP `136.68.196.7` before writing evidence.
+The command verifies that `api-center.itsandbox.site` resolves to the Cloud Run load balancer IP `136.68.196.7` before writing evidence. Rerunning it on the same date replaces that date's row instead of adding a duplicate.
 
 ## Production Cutover Gates
 
