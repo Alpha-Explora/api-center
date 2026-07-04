@@ -72,6 +72,19 @@ Verification at `2026-07-04T00:47Z`:
 
 Do not move `api-center.itsandbox.site` to this service until the public front door is approved and all cutover gates pass.
 
+## Public Front Door Status
+
+Checked at `2026-07-04T00:58Z`:
+
+- `api-center.itsandbox.site` resolves to `136.110.192.169`.
+- `https://api-center.itsandbox.site/api/v1/health/ready` returns HTTP 200 through the existing public front door.
+- The current HTTPS forwarding rule, target HTTPS proxy, URL map, backend services, and network endpoint groups are GKE-managed resources.
+- No Cloud Run serverless NEG is present in the project output from `gcloud compute network-endpoint-groups list`.
+- The installed GA `gcloud run domain-mappings` command reports that managed Cloud Run domain mappings require the beta command group; the beta component is not installed in this non-interactive environment.
+- `api-center` and `api-center-staging` Cloud Run IAM policies grant `roles/run.invoker` only to `user:abtorres.it@alphaexplora.com`.
+
+Cutover remains gated on an approved public Cloud Run front door for `api-center.itsandbox.site`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging.
+
 ## IAM Posture
 
 `api-center-staging` has public ingress but is not anonymously invokable. The organization policy rejected `allUsers` on `roles/run.invoker`, so direct `run.app` smoke uses an operator identity token for now.
