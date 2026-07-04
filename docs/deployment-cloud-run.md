@@ -46,6 +46,30 @@
 - Response: `paymongo-gateway`, provider mode `test`, provider name `paymongo`.
 - Note: shared services use `run.googleapis.com/ingress: all` with IAM-only invocation. No `allUsers` invoker binding is granted; `api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com` invokes payment services with Google-signed identity via `X-Serverless-Authorization`.
 
+## Production Cloud Run Preparation
+
+Production DNS still points at the current GKE front door. The production-shaped Cloud Run service exists for authenticated pre-cutover validation only.
+
+| Parameter | Value |
+| --- | --- |
+| Service | `api-center` |
+| Service URL | `https://api-center-mvrs6gmtgq-as.a.run.app` |
+| Latest ready revision | `api-center-00002-g2s` |
+| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-2606d791-2e7d-4779-b2f7-32175149c25d` |
+| Deployed digest | `sha256:b0bd0be8b7061bed20da96a78b3b54de4c8b971e01b89ddec5bd2e9873a954d6` |
+| Build | `2606d791-2e7d-4779-b2f7-32175149c25d` |
+| Runtime target | `cloud-run-prod` |
+| Min/max instances | `1` / `10` |
+| Direct invoker | `user:abtorres.it@alphaexplora.com` for authenticated pre-cutover smoke only |
+
+Verification at `2026-07-04T00:47Z`:
+
+- `/api/v1/health/live`: HTTP 200 with authenticated Cloud Run invocation.
+- `/api/v1/health/ready`: HTTP 200 with authenticated Cloud Run invocation.
+- `/api/v1/shared/payment/health`: HTTP 200 through `payment-test` using a test-scoped token.
+
+Do not move `api-center.itsandbox.site` to this service until the public front door is approved and all cutover gates pass.
+
 ## IAM Posture
 
 `api-center-staging` has public ingress but is not anonymously invokable. The organization policy rejected `allUsers` on `roles/run.invoker`, so direct `run.app` smoke uses an operator identity token for now.
