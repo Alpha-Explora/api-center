@@ -26,6 +26,7 @@
 | `75926ac4-e6fc-4be3-81b4-11360eafd250` | succeeded | Passed 121 Jest suites / 580 tests, pushed stable and unique image tags, and rolled staging to revision `api-center-staging-00003-rqb`. |
 | `0ff351db-fb06-4239-b79a-fba2a5758008` | succeeded | Passed 121 Jest suites / 581 tests, fixed headers-like Google auth token extraction, and rolled staging to revision `api-center-staging-00007-sdp`. |
 | `1ee3fb64-9588-47b5-8254-b9e224346c28` | succeeded | Passed full Cloud Build verification, added `X-Serverless-Authorization` for private Cloud Run upstreams, and rolled staging to revision `api-center-staging-00009-x9d`. |
+| `76c9ef6c-205e-41bf-93d2-c6eb5235a85f` | succeeded | Passed Cloud Build verification, deployed production-shaped `api-center` revision `api-center-00004-9sw`, preserved load-balancer-only ingress, and bypassed global throttling for health checks. |
 
 ## Verification
 
@@ -49,19 +50,19 @@
 
 ## Production Cloud Run Preparation
 
-Production DNS still points at the current GKE front door. The production-shaped Cloud Run service exists for authenticated pre-cutover validation only.
+Production DNS still points at the current GKE front door. The production-shaped Cloud Run service is deployed behind a parallel Cloud Run external Application Load Balancer for pre-cutover validation.
 
 | Parameter | Value |
 | --- | --- |
 | Service | `api-center` |
 | Service URL | `https://api-center-mvrs6gmtgq-as.a.run.app` |
-| Latest ready revision | `api-center-00002-g2s` |
-| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-2606d791-2e7d-4779-b2f7-32175149c25d` |
-| Deployed digest | `sha256:b0bd0be8b7061bed20da96a78b3b54de4c8b971e01b89ddec5bd2e9873a954d6` |
-| Build | `2606d791-2e7d-4779-b2f7-32175149c25d` |
+| Latest ready revision | `api-center-00004-9sw` |
+| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-76c9ef6c-205e-41bf-93d2-c6eb5235a85f` |
+| Deployed digest | `sha256:8753950092c12374c266e7007ca9715b09e2088a6cad34c049cdee09852c0380` |
+| Build | `76c9ef6c-205e-41bf-93d2-c6eb5235a85f` |
 | Runtime target | `cloud-run-prod` |
 | Min/max instances | `1` / `10` |
-| Direct invoker | `user:abtorres.it@alphaexplora.com` for authenticated pre-cutover smoke only |
+| Public posture | `run.googleapis.com/ingress=internal-and-cloud-load-balancing`, `run.googleapis.com/invoker-iam-disabled=true` |
 
 Verification at `2026-07-04T00:47Z`:
 
@@ -74,16 +75,21 @@ Do not move `api-center.itsandbox.site` to this service until the public front d
 
 ## Public Front Door Status
 
-Checked at `2026-07-04T00:58Z`:
+Checked at `2026-07-04T01:31Z`:
 
 - `api-center.itsandbox.site` resolves to `136.110.192.169`.
 - `https://api-center.itsandbox.site/api/v1/health/ready` returns HTTP 200 through the existing public front door.
-- The current HTTPS forwarding rule, target HTTPS proxy, URL map, backend services, and network endpoint groups are GKE-managed resources.
-- No Cloud Run serverless NEG is present in the project output from `gcloud compute network-endpoint-groups list`.
-- The installed GA `gcloud run domain-mappings` command reports that managed Cloud Run domain mappings require the beta command group; the beta component is not installed in this non-interactive environment.
-- `api-center` and `api-center-staging` Cloud Run IAM policies grant `roles/run.invoker` only to `user:abtorres.it@alphaexplora.com`.
+- Current public DNS still points at the GKE load balancer IP `136.110.192.169`; DNS has not moved.
+- Parallel Cloud Run HTTPS load balancer is provisioned on test IP `136.68.196.7` using forwarding rule `apicenter-cloud-run-https`.
+- Parallel Cloud Run HTTP forwarding rule `apicenter-cloud-run-http` exists on port 80 for routing diagnostics only. Production cutover remains HTTPS.
+- Backend service `apicenter-cloud-run-backend` is global `EXTERNAL_MANAGED`, protocol HTTP, logging enabled, and points to serverless NEG `apicenter-cloud-run-neg` in `asia-southeast1`.
+- Target HTTPS proxy `apicenter-cloud-run-https-proxy` uses active managed certificate `mcrt-531dd8af-4b3d-4ee5-9099-774c27bfa8cc` for `api-center.itsandbox.site`.
+- `api-center` direct `run.app` anonymous access is blocked by `ingress=internal-and-cloud-load-balancing`; public access is through the Cloud Run load balancer only.
+- Local forced-resolution smoke against `https://api-center.itsandbox.site` on `136.68.196.7` returned HTTP 200 for `/api/v1/health/live` and `/api/v1/health/ready`.
+- Bounded forced-resolution spike smoke passed: 100 `/api/v1/health/ready` requests, concurrency 10, 0 failures, p95 `359ms`, p99 `516ms`, max `586ms`.
+- The first LB spike attempt before revision `api-center-00004-9sw` found that health checks were throttled by the global application throttler. Revision `api-center-00004-9sw` bypasses global throttling for health check routes so public LB readiness probes and cutover smoke do not consume tribe/API rate-limit buckets.
 
-Cutover remains gated on an approved public Cloud Run front door for `api-center.itsandbox.site`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging.
+Cutover remains gated on operator approval to change DNS for `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
 
 ## IAM Posture
 

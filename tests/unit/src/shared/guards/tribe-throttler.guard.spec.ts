@@ -8,6 +8,30 @@ class TestTribeThrottlerGuard extends TribeThrottlerGuard {
   }
 }
 
+class ExplodingTrackerGuard extends TribeThrottlerGuard {
+  protected async getTracker(): Promise<string> {
+    throw new Error("health checks should not reach throttler tracking");
+  }
+}
+
+function createHttpContext(path: string): any {
+  return {
+    getClass: () => class TestController {},
+    getHandler: () => function testHandler() {},
+    switchToHttp: () => ({
+      getRequest: () => ({
+        headers: {},
+        ip: "127.0.0.1",
+        originalUrl: path,
+        url: path,
+      }),
+      getResponse: () => ({
+        header: jest.fn(),
+      }),
+    }),
+  };
+}
+
 describe("TribeThrottlerGuard", () => {
   const auth = {
     validateToken: jest.fn(),
@@ -70,5 +94,18 @@ describe("TribeThrottlerGuard", () => {
         ip: "127.0.0.1",
       }),
     ).resolves.toBe("127.0.0.1");
+  });
+
+  it("skips throttling for health check routes", async () => {
+    const healthGuard = new ExplodingTrackerGuard(
+      [{ ttl: 60000, limit: 100 }],
+      {} as any,
+      new Reflector(),
+      auth,
+    );
+
+    await expect(
+      healthGuard.canActivate(createHttpContext("/api/v1/health/ready")),
+    ).resolves.toBe(true);
   });
 });

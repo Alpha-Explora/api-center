@@ -11,7 +11,7 @@
 //  3. Client IP          (anonymous / unauthenticated fallback)
 // =============================================================================
 
-import { Injectable } from "@nestjs/common";
+import { ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import {
   InjectThrottlerOptions,
@@ -21,6 +21,7 @@ import {
   ThrottlerStorage,
 } from "@nestjs/throttler";
 import { AuthService } from "../../auth/auth.service";
+import { isHealthCheckPath } from "../health-path";
 
 @Injectable()
 export class TribeThrottlerGuard extends ThrottlerGuard {
@@ -31,6 +32,15 @@ export class TribeThrottlerGuard extends ThrottlerGuard {
     private readonly auth: AuthService,
   ) {
     super(options, storageService, reflector);
+  }
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<Record<string, any>>();
+    if (isHealthCheckPath(req.originalUrl ?? req.url ?? req.path)) {
+      return true;
+    }
+
+    return super.canActivate(context);
   }
 
   /**

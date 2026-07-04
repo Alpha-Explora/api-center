@@ -38,4 +38,13 @@ describe("api-center Cloud Run manifests", () => {
       expect(manifest).not.toMatch(/name: PORT/);
     },
   );
+
+  it("keeps production ingress restricted to the Cloud Run load balancer", () => {
+    const manifest = readManifest("api-center.prod.yaml");
+
+    expect(manifest).toMatch(
+      /run.googleapis.com\/ingress: internal-and-cloud-load-balancing/,
+    );
+    expect(manifest).toMatch(/run.googleapis.com\/invoker-iam-disabled: "true"/);
+  });
 });
