@@ -168,6 +168,16 @@ npm run smoke:cloud-run
 npm run smoke:tribe-boundary
 ```
 
+8. Record the first seven-day retention evidence row:
+
+```powershell
+$env:APICENTER_CLOUD_RUN_BASE_URL = "https://api-center.itsandbox.site"
+$env:APICENTER_CLOUD_RUN_BEARER_TOKEN = "<live-scoped APICenter token>"
+npm run cutover:cloud-run:evidence
+```
+
+The evidence command refuses to record if public DNS does not resolve to `136.68.196.7`. It checks `/api/v1/health/live`, `/api/v1/health/ready`, Redis readiness, and `/api/v1/shared/payment/health`, then appends a row under `Seven-Day Cloud Run Retention Evidence`.
+
 Rollback if smoke fails or Cloud Run error/latency alerts fire:
 
 1. Revert the Cloudflare A record:
@@ -242,6 +252,25 @@ npm run smoke:cloud-run
 ```
 
 The cooldown keeps the warm-up checks from consuming the same 100-request throttling window as the bounded spike.
+
+## Seven-Day Retention Evidence Command
+
+Run this once immediately after cutover smoke, then once per day while GKE remains available for rollback:
+
+```powershell
+cd C:\Codes\apic\api-center
+$env:APICENTER_CLOUD_RUN_BASE_URL = "https://api-center.itsandbox.site"
+$env:APICENTER_CLOUD_RUN_BEARER_TOKEN = "<live-scoped APICenter token>"
+npm run cutover:cloud-run:evidence
+```
+
+For a non-writing preflight:
+
+```powershell
+npm run cutover:cloud-run:evidence -- --dry-run
+```
+
+The command verifies that `api-center.itsandbox.site` resolves to the Cloud Run load balancer IP `136.68.196.7` before writing evidence.
 
 ## Production Cutover Gates
 
