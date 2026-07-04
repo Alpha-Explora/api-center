@@ -44,6 +44,7 @@
 - Route: `/api/v1/shared/payment/health`.
 - Result: HTTP 200.
 - Response: `paymongo-gateway`, provider mode `test`, provider name `paymongo`.
+- Live-scoped verification at `2026-07-04T00:55Z`: `api-center-staging` called `/api/v1/shared/payment/health` through `payment-live` and received HTTP 200 from `paymongo-gateway`, provider mode `live`.
 - Note: shared services use `run.googleapis.com/ingress: all` with IAM-only invocation. No `allUsers` invoker binding is granted; `api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com` invokes payment services with Google-signed identity via `X-Serverless-Authorization`.
 
 ## Production Cloud Run Preparation
@@ -67,6 +68,7 @@ Verification at `2026-07-04T00:47Z`:
 - `/api/v1/health/live`: HTTP 200 with authenticated Cloud Run invocation.
 - `/api/v1/health/ready`: HTTP 200 with authenticated Cloud Run invocation.
 - `/api/v1/shared/payment/health`: HTTP 200 through `payment-test` using a test-scoped token.
+- `/api/v1/shared/payment/health`: HTTP 200 through `payment-live` using a live-scoped token at `2026-07-04T00:55Z`.
 
 Do not move `api-center.itsandbox.site` to this service until the public front door is approved and all cutover gates pass.
 
