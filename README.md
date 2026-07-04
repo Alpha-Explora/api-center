@@ -8,12 +8,12 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
 >
 > **Deploying?** Pick one:
 >
-> Current production uses Cloud Run. GKE Autopilot manifests and the former
-> GKE load balancer are retained as rollback infrastructure during the
-> seven-day post-cutover retention window.
+> Current production uses Cloud Run. The old GKE Autopilot cluster and former
+> GKE load balancer IP were removed after all shared services migrated to Cloud
+> Run and passed public API Center route verification.
 >
 > - [Cloud Run deployment record](docs/deployment-cloud-run.md) - current production runtime, cutover evidence, gates, and rollback commands
-> - [GKE Autopilot rollback reference](infra/gcp/gke/README.md) - retained rollback manifests, HPA min 2 / max 3, Memorystore, and former GCLB Ingress
+> - [GKE Autopilot historical reference](infra/gcp/gke/README.md) - retired manifests, HPA min 2 / max 3, Memorystore, and former GCLB Ingress
 
 ---
 

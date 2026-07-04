@@ -10,7 +10,7 @@
 | Service URL | `https://api-center-staging-mvrs6gmtgq-as.a.run.app` |
 | Runtime target | `cloud-run-staging` |
 | Runtime service account | `api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com` |
-| Latest ready revision | `api-center-staging-00009-x9d` |
+| Latest ready revision | `api-center-staging-00010-vpb` |
 | Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-1ee3fb64-9588-47b5-8254-b9e224346c28` |
 | Deployed digest | `sha256:d4e5c20c16d5f69dec3d280d0146aa17baf95f211d7df6fb31d756b703fb4c27` |
 | Redis | Existing Memorystore `api-center-cache` at `10.121.26.59:6379` through VPC egress |
@@ -51,13 +51,13 @@
 
 ## Production Cloud Run Preparation
 
-Production DNS now points at the Cloud Run external Application Load Balancer. GKE remains deployed as rollback infrastructure for the seven-day retention window.
+Production DNS now points at the Cloud Run external Application Load Balancer. The old GKE rollback stack was removed after all shared services migrated to Cloud Run and passed public API Center route verification.
 
 | Parameter | Value |
 | --- | --- |
 | Service | `api-center` |
 | Service URL | `https://api-center-mvrs6gmtgq-as.a.run.app` |
-| Latest ready revision | `api-center-00006-wqc` |
+| Latest ready revision | `api-center-00007-s4t` |
 | Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-c0c145c5-df6d-4018-9c64-c1ff5bc1b093` |
 | Deployed digest | `sha256:1bea6a1f0a31ac697d6f54814b17043959e73deef0fce8921d348cc110e037d4` |
 | Build | `c0c145c5-df6d-4018-9c64-c1ff5bc1b093` |
@@ -96,7 +96,7 @@ Checked before cutover at `2026-07-04T01:44Z` and after cutover at `2026-07-04T0
 - First seven-day retention evidence row recorded at `2026-07-04T03:46Z`: live health HTTP 200 in `441ms`, ready HTTP 200 in `214ms`, Redis `up`, and live payment health HTTP 200 in `948ms`.
 - The first LB spike attempt before revision `api-center-00004-9sw` found that health checks were throttled by the global application throttler. Revision `api-center-00004-9sw` bypasses global throttling for health check routes so public LB readiness probes and cutover smoke do not consume tribe/API rate-limit buckets.
 
-Cutover is complete. Keep GKE available for rollback during the seven-day retention window. Do not grant `allUsers` directly; the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
+API Center front-door cutover is complete. The old GKE rollback stack was decommissioned after every shared-service route migrated to Cloud Run and passed public API Center verification. Do not grant `allUsers` directly; the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
 
 ## DNS Cutover Runbook
 
@@ -308,7 +308,10 @@ Production DNS must not move to Cloud Run until all gates pass:
   - `api-center`: `min-instances=1`, `max-instances=10`
   - `payment-live`: `min-instances=1`, `max-instances=5`
   - `payment-test`: `min-instances=0`, `max-instances=3`
-  - email, SMS, OTP, Google Auth, and geo: `min-instances=0`, `max-instances=3`
+- Non-payment shared services are not part of the first production Cloud Run
+  cutover. Before moving email, SMS, OTP, Google Auth, or geo routes to Cloud
+  Run, deploy and verify each service with `min-instances=0`,
+  `max-instances=3`, IAM-only invocation, and provider guardrails enabled.
 - Alerts exist for Cloud Run 5xx, Cloud Run 429, p95 latency, Redis latency, provider failures, and max-instance saturation.
 - GKE production remains unchanged during staging verification.
 - Rollback command is documented and tested.
@@ -323,8 +326,58 @@ Then verify:
 Invoke-WebRequest -Uri "https://api-center.itsandbox.site/api/v1/health/ready" -UseBasicParsing -TimeoutSec 20
 ```
 
+Operator approval to remove the old APICenter/GKE rollback stack was exercised
+on 2026-07-04 after all shared-service routes migrated to Cloud Run, API Center
+Cloud Run smoke passed, environment naming/no-legacy-routing/contract checks
+passed, and every shared-service health route passed through the public API
+Center Cloud Run front door.
+
 ## Seven-Day Cloud Run Retention Evidence
 
 | Date | Health | Payment live | Redis | Error notes | Decision |
 | --- | --- | --- | --- | --- | --- |
 | 2026-07-04 | pass: live 200 441ms, ready 200 214ms | pass: 200 948ms | up | none | keep Cloud Run |
+
+## Full Shared-Service Cloud Run Migration Evidence
+
+Recorded on `2026-07-04`:
+
+| Service | Cloud Run revision | Public API Center route check |
+| --- | --- | --- |
+| payment-test | `payment-test-00002-4ft` | `/api/v1/shared/payment/health` HTTP 200 in `970ms` |
+| payment-live | `payment-live-00002-hl8` | live `/api/v1/shared/payment/health` HTTP 200 in `906ms` |
+| email | `email-00004-87j` | `/api/v1/shared/email/health` HTTP 200 in `689ms` |
+| sms | `sms-00004-tlh` | `/api/v1/shared/sms/health` HTTP 200 in `313ms` |
+| otp | `otp-00004-xgs` | `/api/v1/shared/otp/health` HTTP 200 in `408ms` |
+| gauth | `gauth-00004-lml` | `/api/v1/shared/gauth/health` HTTP 200 in `306ms` |
+| geo | `geo-00004-4rz` | `/api/v1/shared/geo/health` HTTP 200 in `294ms` |
+
+API Center production revision `api-center-00007-s4t` routes all shared-service
+test/live environment variables to Cloud Run. Staging revision
+`api-center-staging-00010-vpb` has the same shared-service Cloud Run route
+values for parity.
+
+Fresh shared-services Cloud Build `d5c9f33c-025c-4b08-a664-9715c87e5328`
+completed successfully at `2026-07-04T05:00:38Z`, building and deploying all
+seven shared-service images. Live environment route verification also passed
+through API Center with `church-donations`: payment HTTP 200 in `906ms`, email
+HTTP 200 in `268ms`, SMS HTTP 200 in `278ms`, OTP HTTP 200 in `262ms`, GAuth
+HTTP 200 in `368ms`, and geo HTTP 200 in `262ms`.
+
+## GKE Decommission Evidence
+
+Recorded on `2026-07-04` after full shared-service Cloud Run verification:
+
+- GKE inventory before deletion: cluster `api-center` was `RUNNING` with one
+  Autopilot node; namespace `api-center` contained deployments `api-center`,
+  `payment-live`, and `payment-test`, plus the old ingress on `136.110.192.169`.
+- Deleted cluster: `gcloud container clusters delete api-center --project=apicenter-alpha-20260623 --region=asia-southeast1 --quiet`.
+- Post-delete cluster list for `asia-southeast1`: empty.
+- Released former GKE global static IP `api-center-ip` (`136.110.192.169`).
+- Remaining public front door: Cloud Run load balancer IP `136.68.196.7`
+  through forwarding rules `apicenter-cloud-run-http` and
+  `apicenter-cloud-run-https`.
+- Post-delete public Cloud Run smoke passed through
+  `https://api-center.itsandbox.site`: live HTTP 200 in `394ms`, ready HTTP 200
+  in `107ms`, bounded spike 100 requests at concurrency 10 with zero failures,
+  p95 `218ms`, p99 `238ms`.

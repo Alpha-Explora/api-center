@@ -7,9 +7,10 @@
 > `.dockerignore`, `deploy/local/docker-compose.yml`, or CI/CD workflows.
 
 > Current production traffic for `api-center.itsandbox.site` uses Cloud Run as of
-> 2026-07-04. Keep this GKE deployment, ingress, static IP `136.110.192.169`,
-> manifests, and related rollback records for the seven-day Cloud Run retention
-> window.
+> 2026-07-04. The old GKE cluster `api-center` and former GKE static IP
+> `136.110.192.169` were removed on 2026-07-04 after all shared-service routes
+> migrated to Cloud Run and passed public API Center route verification. This
+> file is now a historical record, not an active rollback runbook.
 
 ---
 
@@ -19,10 +20,10 @@
 |---|---|
 | GCP Project ID | `apicenter-alpha-20260623` |
 | Region | `asia-southeast1` |
-| Cluster name | `api-center` (Autopilot) |
-| Namespace | `api-center` |
+| Cluster name | `api-center` (Autopilot, deleted 2026-07-04) |
+| Namespace | `api-center` (deleted with cluster 2026-07-04) |
 | Artifact Registry | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center` |
-| Static IP name | GKE ingress address `136.110.192.169` |
+| Static IP name | Former GKE ingress address `136.110.192.169` (`api-center-ip`, released 2026-07-04) |
 | Public hostname | `api-center.itsandbox.site` |
 | Secret Manager secret | `api-center-prod` plus per-tribe `api-center-tribe-secret-<tribe-id>-<test|live>` secrets |
 | Auth provider | `composite` (`AUTH_PROVIDER=composite` in ConfigMap): API Center-issued tribe JWTs with Descope validation fallback |
@@ -686,3 +687,4 @@ The pod KSA `api-center` is Workload Identity-bound to
 | 2026-06-28 | b9c811f | Deployed `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:legacy-routing-b9c811f-20260628`; removed live ConfigMap legacy routing keys; readiness returned HTTP 200 with registry up and 22 services; final cleanup evidence reports 0 legacy Secret Manager records | Roll out and complete stored/code-level legacy routing cleanup |
 | 2026-07-04 | 76c9ef6c-205e-41bf-93d2-c6eb5235a85f | Created parallel Cloud Run external Application Load Balancer on `136.68.196.7` while keeping `api-center.itsandbox.site` DNS on GKE IP `136.110.192.169`; forced-resolution Cloud Run LB smoke passed with 100 requests, concurrency 10, 0 failures, p95 `359ms` | Prepare DNS cutover without modifying the live GKE ingress or losing the GKE rollback path |
 | 2026-07-04 | c0c145c5-df6d-4018-9c64-c1ff5bc1b093 | Moved `api-center.itsandbox.site` DNS to Cloud Run LB IP `136.68.196.7`; Cloud Run revision `api-center-00006-wqc` passed public smoke and first retention evidence | Make Cloud Run the active production front door while retaining GKE as rollback infrastructure |
+| 2026-07-04 | gke-decommission | Deleted GKE Autopilot cluster `api-center` and released former global address `api-center-ip` (`136.110.192.169`) after all shared-service routes moved to Cloud Run and public API Center health checks passed | Retire the old rollback stack once migration verification completed |
