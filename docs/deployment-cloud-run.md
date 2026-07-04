@@ -94,6 +94,65 @@ Checked at `2026-07-04T01:44Z`:
 
 Cutover remains gated on operator approval to change DNS for `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
 
+## DNS Cutover Runbook
+
+Public DNS authority checked at `2026-07-04T02:24Z`:
+
+| Record | Value |
+| --- | --- |
+| Nameservers | `guy.ns.cloudflare.com`, `kia.ns.cloudflare.com` |
+| SOA primary | `guy.ns.cloudflare.com` |
+| Current `api-center.itsandbox.site` A record | `136.110.192.169` |
+| Current resolver TTL | `1s` from `Resolve-DnsName` |
+| Cloud Run target A record | `136.68.196.7` |
+| Rollback A record | `136.110.192.169` |
+
+Cutover must be executed in Cloudflare for zone `itsandbox.site`:
+
+1. Open Cloudflare DNS for `itsandbox.site`.
+2. Locate the `A` record for `api-center`.
+3. Record the current value and proxy mode before editing.
+4. Change the `A` record content from `136.110.192.169` to `136.68.196.7`.
+5. Keep the existing proxy mode unless an operator explicitly chooses otherwise.
+6. Save the change and record the timestamp in this document.
+7. Verify public DNS:
+
+```powershell
+Resolve-DnsName api-center.itsandbox.site -Type A
+nslookup api-center.itsandbox.site 1.1.1.1
+nslookup api-center.itsandbox.site 8.8.8.8
+```
+
+Expected:
+
+```text
+api-center.itsandbox.site -> 136.68.196.7
+```
+
+8. Run post-cutover smoke:
+
+```powershell
+cd C:\Codes\apic\api-center
+$env:APICENTER_CLOUD_RUN_BASE_URL = "https://api-center.itsandbox.site"
+$env:APICENTER_CLOUD_RUN_SPIKE_REQUESTS = "100"
+$env:APICENTER_CLOUD_RUN_SPIKE_CONCURRENCY = "10"
+$env:APICENTER_CLOUD_RUN_SPIKE_P95_MS = "1500"
+npm run smoke:cloud-run
+npm run smoke:tribe-boundary
+```
+
+Rollback if smoke fails or Cloud Run error/latency alerts fire:
+
+1. In Cloudflare, change `api-center` A record back to `136.110.192.169`.
+2. Verify public DNS resolves to `136.110.192.169`.
+3. Verify GKE health:
+
+```powershell
+Invoke-WebRequest -Uri "https://api-center.itsandbox.site/api/v1/health/ready" -UseBasicParsing -TimeoutSec 20
+```
+
+4. Record the rollback timestamp, smoke failure, and decision in this document.
+
 ## Monitoring And Alert Policies
 
 Configured at `2026-07-04T01:43Z` in project `apicenter-alpha-20260623`:

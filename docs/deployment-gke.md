@@ -63,13 +63,13 @@ environment.
 
 The old public test lane is retired. Do not deploy new work to
 `api-center-test`, and do not point Management or consumers at
-`https://api-center-test.itsandbox.site`.
+the retired test hostname.
 
 On 2026-06-30, `api-center-test` was deleted after a live registry check returned
-no active service entries pointing at `api-center-test.itsandbox.site`. Before
+no active service entries pointing at the retired test hostname. Before
 deletion it contained `api-center` deployment/service/HPA,
-`api-center-config`, ingress `api-center-test.itsandbox.site`, managed
-certificate, PDB, and service account.
+`api-center-config`, ingress for the retired test hostname, managed certificate,
+PDB, and service account.
 
 ConfigMaps are not versioned. Deleting `api-center-test` removed its old
 ConfigMap with the namespace. Secret Manager cleanup was completed after active
