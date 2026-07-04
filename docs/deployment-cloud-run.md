@@ -10,9 +10,9 @@
 | Service URL | `https://api-center-staging-mvrs6gmtgq-as.a.run.app` |
 | Runtime target | `cloud-run-staging` |
 | Runtime service account | `api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com` |
-| Latest ready revision | `api-center-staging-00003-rqb` |
-| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-75926ac4-e6fc-4be3-81b4-11360eafd250` |
-| Deployed digest | `sha256:493f3fde7b46dab71c169f6ea6bf1d697a7fa282fedaffeea264b316f912843a` |
+| Latest ready revision | `api-center-staging-00009-x9d` |
+| Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-1ee3fb64-9588-47b5-8254-b9e224346c28` |
+| Deployed digest | `sha256:d4e5c20c16d5f69dec3d280d0146aa17baf95f211d7df6fb31d756b703fb4c27` |
 | Redis | Existing Memorystore `api-center-cache` at `10.121.26.59:6379` through VPC egress |
 | Payment test route | `https://payment-test-mvrs6gmtgq-as.a.run.app` |
 | Payment live route | `https://payment-live-mvrs6gmtgq-as.a.run.app` |
@@ -24,6 +24,8 @@
 | `43d8c296-c03d-4488-aaa8-d00ea9b02c55` | failed | First deploy reached Cloud Run but startup failed because production-safe non-secret env overrides were missing. |
 | `746208d1-f23b-4860-8de0-66307ff84895` | succeeded | Tests/build/push/deploy succeeded, but static image-tag deployment did not roll a new revision. |
 | `75926ac4-e6fc-4be3-81b4-11360eafd250` | succeeded | Passed 121 Jest suites / 580 tests, pushed stable and unique image tags, and rolled staging to revision `api-center-staging-00003-rqb`. |
+| `0ff351db-fb06-4239-b79a-fba2a5758008` | succeeded | Passed 121 Jest suites / 581 tests, fixed headers-like Google auth token extraction, and rolled staging to revision `api-center-staging-00007-sdp`. |
+| `1ee3fb64-9588-47b5-8254-b9e224346c28` | succeeded | Passed full Cloud Build verification, added `X-Serverless-Authorization` for private Cloud Run upstreams, and rolled staging to revision `api-center-staging-00009-x9d`. |
 
 ## Verification
 
@@ -31,6 +33,18 @@
 - `/api/v1/health/ready`: HTTP 200 with Redis `up`, registry `up`, and `registeredServices=30`.
 - Kafka readiness: `up` with `skipped=true` because Kafka is disabled by configuration for this staging check.
 - Bounded smoke: 100 `/api/v1/health/ready` requests at concurrency 10, zero failures, p95 `166ms`, p99 `243ms`.
+
+## Payment Route Verification
+
+- Verified at: `2026-07-04T00:30:38Z`.
+- Token environment: `test`.
+- API Center runtime: `api-center-staging`, revision `api-center-staging-00009-x9d`.
+- Payment runtime: `payment-test`, URL `https://payment-test-mvrs6gmtgq-as.a.run.app`.
+- Expected path: API Center Cloud Run -> IAM-authenticated `payment-test` Cloud Run.
+- Route: `/api/v1/shared/payment/health`.
+- Result: HTTP 200.
+- Response: `paymongo-gateway`, provider mode `test`, provider name `paymongo`.
+- Note: shared services use `run.googleapis.com/ingress: all` with IAM-only invocation. No `allUsers` invoker binding is granted; `api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com` invokes payment services with Google-signed identity via `X-Serverless-Authorization`.
 
 ## IAM Posture
 
@@ -87,4 +101,3 @@ Then verify:
 ```powershell
 Invoke-WebRequest -Uri "https://api-center.itsandbox.site/api/v1/health/ready" -UseBasicParsing -TimeoutSec 20
 ```
-

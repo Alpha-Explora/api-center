@@ -33,6 +33,8 @@ describe("api-center Cloud Run manifests", () => {
       );
       expectEnvValue(manifest, "DATA_PIPELINE_ENABLED", '"false"');
       expectEnvValue(manifest, "KAFKA_ENABLED", '"false"');
+      expect(manifest).toMatch(/startupProbe:\s+httpGet:\s+path: \/api\/v1\/health\/live/s);
+      expect(manifest).toMatch(/timeoutSeconds: 5/);
       expect(manifest).not.toMatch(/name: PORT/);
     },
   );

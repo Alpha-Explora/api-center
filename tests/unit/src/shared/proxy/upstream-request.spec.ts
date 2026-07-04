@@ -95,6 +95,10 @@ describe("createUpstreamProxyOptions", () => {
     );
 
     expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "X-Serverless-Authorization",
+      "Bearer cloud-run-token",
+    );
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
       "Authorization",
       "Bearer cloud-run-token",
     );
