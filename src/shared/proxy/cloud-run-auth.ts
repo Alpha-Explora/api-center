@@ -61,6 +61,21 @@ function readAuthorizationHeader(headers: unknown): string | undefined {
     );
   }
 
+  if (
+    typeof headers === "object" &&
+    "get" in headers &&
+    typeof (headers as { get?: unknown }).get === "function"
+  ) {
+    const headersLike = headers as {
+      get(name: string): string | null | undefined;
+    };
+    return (
+      headersLike.get("authorization") ??
+      headersLike.get("Authorization") ??
+      undefined
+    );
+  }
+
   const record = headers as HeaderRecord;
   const value = record.Authorization ?? record.authorization;
   if (Array.isArray(value)) {

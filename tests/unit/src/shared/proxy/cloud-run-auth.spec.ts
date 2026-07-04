@@ -79,4 +79,18 @@ describe("cloud-run-auth", () => {
       "https://payment-live-abc.a.run.app",
     );
   });
+
+  it("reads authorization from headers-like objects returned by Google auth", async () => {
+    process.env.CLOUD_RUN_AUTH_ENABLED = "true";
+    mockGetRequestHeaders.mockResolvedValue({
+      get: (name: string) =>
+        name.toLowerCase() === "authorization"
+          ? "Bearer id-token-from-headers-like"
+          : null,
+    });
+
+    await expect(
+      getCloudRunAuthorizationHeader("https://payment-test-abc.a.run.app"),
+    ).resolves.toBe("Bearer id-token-from-headers-like");
+  });
 });

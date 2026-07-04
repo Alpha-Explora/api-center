@@ -55,10 +55,12 @@ spec:
               memory: 512Mi
           startupProbe:
             httpGet:
-              path: /api/v1/health/ready
+              path: /api/v1/health/live
             periodSeconds: 5
+            timeoutSeconds: 5
             failureThreshold: 24
           livenessProbe:
             httpGet:
               path: /api/v1/health/live
+            timeoutSeconds: 5
             periodSeconds: 15

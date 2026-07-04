@@ -59,6 +59,7 @@ export async function createUpstreamProxyOptions({
         proxyReq.setHeader("X-Correlation-ID", correlationId);
         proxyReq.setHeader("X-Forwarded-By", "apicenter-gateway");
         if (cloudRunAuthorization) {
+          proxyReq.setHeader("X-Serverless-Authorization", cloudRunAuthorization);
           proxyReq.setHeader("Authorization", cloudRunAuthorization);
         }
 
