@@ -371,6 +371,15 @@ Payment result pages use the hybrid model:
 
 If each tribe gets its own domain later, add each tribe callback URL to the same OAuth client or create separate OAuth clients per domain. The shared service can accept a per-request `redirectUri`, but Google must already allow that exact URI.
 
+For tenant-branded Google login, keep APICenter's shared OAuth client as the
+fallback client and add tenant-specific clients through
+`GOOGLE_OAUTH_TENANT_CLIENTS_JSON` in the shared-services Secret Manager
+payload. Tenant auth projects live under
+`20-customer-runtime/apicenter/dedicated/tenant-<slug>/<auth-project-id>`, but
+the runtime client ID and client secret stay centrally in APICenter Secret
+Manager so `gauth` can resolve credentials without cross-project secret reads.
+See `docs/operations/tenant-branded-google-oauth.md`.
+
 ### Google Maps Platform
 
 1. Open Google Cloud Console.
