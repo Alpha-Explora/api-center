@@ -75,11 +75,12 @@ Do not move `api-center.itsandbox.site` to this service until the public front d
 
 ## Public Front Door Status
 
-Checked at `2026-07-04T01:31Z`:
+Checked at `2026-07-04T01:44Z`:
 
 - `api-center.itsandbox.site` resolves to `136.110.192.169`.
 - `https://api-center.itsandbox.site/api/v1/health/ready` returns HTTP 200 through the existing public front door.
 - Current public DNS still points at the GKE load balancer IP `136.110.192.169`; DNS has not moved.
+- `itsandbox.site` is not hosted in this GCP project's Cloud DNS. The only managed zone in `apicenter-alpha-20260623` is private `cluster.local.`, so the DNS cutover must be executed in the external DNS provider for `itsandbox.site`.
 - Parallel Cloud Run HTTPS load balancer is provisioned on test IP `136.68.196.7` using forwarding rule `apicenter-cloud-run-https`.
 - Parallel Cloud Run HTTP forwarding rule `apicenter-cloud-run-http` exists on port 80 for routing diagnostics only. Production cutover remains HTTPS.
 - Backend service `apicenter-cloud-run-backend` is global `EXTERNAL_MANAGED`, protocol HTTP, logging enabled, and points to serverless NEG `apicenter-cloud-run-neg` in `asia-southeast1`.
@@ -87,9 +88,34 @@ Checked at `2026-07-04T01:31Z`:
 - `api-center` direct `run.app` anonymous access is blocked by `ingress=internal-and-cloud-load-balancing`; public access is through the Cloud Run load balancer only.
 - Local forced-resolution smoke against `https://api-center.itsandbox.site` on `136.68.196.7` returned HTTP 200 for `/api/v1/health/live` and `/api/v1/health/ready`.
 - Bounded forced-resolution spike smoke passed: 100 `/api/v1/health/ready` requests, concurrency 10, 0 failures, p95 `359ms`, p99 `516ms`, max `586ms`.
+- Warm forced-resolution health check passed after one warm-up miss: 20 consecutive `/api/v1/health/ready` requests returned HTTP 200 and stayed under 500 ms, max `348ms`.
 - The first LB spike attempt before revision `api-center-00004-9sw` found that health checks were throttled by the global application throttler. Revision `api-center-00004-9sw` bypasses global throttling for health check routes so public LB readiness probes and cutover smoke do not consume tribe/API rate-limit buckets.
 
 Cutover remains gated on operator approval to change DNS for `api-center.itsandbox.site` from `136.110.192.169` to `136.68.196.7`. Do not grant `allUsers` directly; the organization policy already rejected anonymous invoker on staging, and the approved Cloud Run path uses the Invoker IAM check disablement plus load-balancer-only ingress.
+
+## Monitoring And Alert Policies
+
+Configured at `2026-07-04T01:43Z` in project `apicenter-alpha-20260623`:
+
+| Policy | Resource |
+| --- | --- |
+| `APICenter Cloud Run 5xx responses` | `projects/apicenter-alpha-20260623/alertPolicies/5667206945393348967` |
+| `APICenter Cloud Run 429 responses` | `projects/apicenter-alpha-20260623/alertPolicies/4798178057687587581` |
+| `APICenter Cloud Run p95 latency high` | `projects/apicenter-alpha-20260623/alertPolicies/4798178057687586042` |
+| `APICenter Cloud Run max instance saturation` | `projects/apicenter-alpha-20260623/alertPolicies/16663360317057013483` |
+| `APICenter Redis rejected connections` | `projects/apicenter-alpha-20260623/alertPolicies/3304923804898671563` |
+| `APICenter Redis memory pressure` | `projects/apicenter-alpha-20260623/alertPolicies/4062726626645936498` |
+| `APICenter shared provider failures` | `projects/apicenter-alpha-20260623/alertPolicies/8675777201395846856` |
+
+Provider failures use log-based metric `apicenter_shared_provider_failures` with this filter:
+
+```text
+resource.type="cloud_run_revision" AND resource.labels.service_name=~"payment-(live|test)" AND (severity>=ERROR OR textPayload=~"(?i)(provider|paymongo).*(fail|error|timeout|circuit)" OR jsonPayload.message=~"(?i)(provider|paymongo).*(fail|error|timeout|circuit)")
+```
+
+No notification channel was discoverable through the Monitoring API during this pass. The policies are enabled and will create Cloud Monitoring incidents; attach email, Chat, PagerDuty, or another operator channel before declaring production operations fully wired.
+
+The project exposes Redis CPU, memory, connection, and rejected-connection metrics, but no native Redis latency metric descriptor was found. Redis cutover coverage currently uses rejected connections and memory pressure plus API Center readiness checks.
 
 ## IAM Posture
 
@@ -127,6 +153,7 @@ Production DNS must not move to Cloud Run until all gates pass:
 - Payment test route succeeds through private Cloud Run.
 - Payment live health route succeeds through private Cloud Run using a live-scoped token.
 - Warm health latency is under 500 ms for at least 20 consecutive checks from the operator machine.
+- No Cloud Run cold start on `api-center` or `payment-live` during 30 minutes of periodic checks.
 - Bounded spike smoke sends 100 `/api/v1/health/ready` requests at concurrency 10 with zero failures and p95 under 1500 ms.
 - Cloud Run service limits are set before DNS cutover:
   - `api-center`: `min-instances=1`, `max-instances=10`
