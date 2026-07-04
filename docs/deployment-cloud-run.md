@@ -110,13 +110,39 @@ Public DNS authority checked at `2026-07-04T02:24Z`:
 
 Cutover must be executed in Cloudflare for zone `itsandbox.site`:
 
-1. Open Cloudflare DNS for `itsandbox.site`.
-2. Locate the `A` record for `api-center`.
-3. Record the current value and proxy mode before editing.
-4. Change the `A` record content from `136.110.192.169` to `136.68.196.7`.
-5. Keep the existing proxy mode unless an operator explicitly chooses otherwise.
-6. Save the change and record the timestamp in this document.
-7. Verify public DNS:
+1. Configure an operator-scoped Cloudflare API token with DNS edit access for zone `itsandbox.site`.
+2. Export the token and zone ID:
+
+```powershell
+$env:CLOUDFLARE_API_TOKEN = "<cloudflare-dns-edit-token>"
+$env:CLOUDFLARE_ZONE_ID = "<itsandbox-site-zone-id>"
+```
+
+3. Dry-run the change from the API Center repo:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run dns:cloud-run:cutover -- --dry-run
+```
+
+Expected dry-run:
+
+```text
+beforeIp: 136.110.192.169
+afterIp: 136.68.196.7
+dryRun: true
+```
+
+4. Execute the cutover:
+
+```powershell
+npm run dns:cloud-run:cutover
+```
+
+The command preserves the existing Cloudflare TTL and proxy mode. It refuses to write unless the current A record is still `136.110.192.169`; use `-- --force` only after manually confirming the DNS state.
+
+5. Record the timestamp and command output in this document.
+6. Verify public DNS:
 
 ```powershell
 Resolve-DnsName api-center.itsandbox.site -Type A
@@ -130,7 +156,7 @@ Expected:
 api-center.itsandbox.site -> 136.68.196.7
 ```
 
-8. Run post-cutover smoke:
+7. Run post-cutover smoke:
 
 ```powershell
 cd C:\Codes\apic\api-center
@@ -144,7 +170,14 @@ npm run smoke:tribe-boundary
 
 Rollback if smoke fails or Cloud Run error/latency alerts fire:
 
-1. In Cloudflare, change `api-center` A record back to `136.110.192.169`.
+1. Revert the Cloudflare A record:
+
+```powershell
+cd C:\Codes\apic\api-center
+npm run dns:cloud-run:rollback
+```
+
+The rollback command refuses to write unless the current A record is `136.68.196.7`.
 2. Verify public DNS resolves to `136.110.192.169`.
 3. Verify GKE health:
 

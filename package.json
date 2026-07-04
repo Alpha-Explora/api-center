@@ -32,6 +32,8 @@
     "smoke:gke": "node scripts/smoke-gke-deploy.js",
     "smoke:gke:check-config": "node scripts/smoke-gke-deploy.js --check-config",
     "smoke:cloud-run": "node scripts/smoke-cloud-run-deploy.js",
+    "dns:cloud-run:cutover": "node scripts/cloudflare-dns-cutover.js",
+    "dns:cloud-run:rollback": "node scripts/cloudflare-dns-cutover.js --rollback",
     "smoke:tribe-boundary": "node scripts/smoke-tribe-boundary.js",
     "smoke:tribe-boundary:check-config": "node scripts/smoke-tribe-boundary.js --check-config",
     "smoke:tribe-quotas": "node scripts/smoke-tribe-quota.js",
