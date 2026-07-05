@@ -6,6 +6,8 @@ substitutions:
   _STABLE_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:cloud-run-staging
   _MANIFEST: infra/gcp/cloud-run/api-center.staging.yaml
 
+serviceAccount: projects/apicenter-alpha-20260623/serviceAccounts/apicenter-cloudbuild-deployer@apicenter-alpha-20260623.iam.gserviceaccount.com
+
 steps:
   - name: node:24-bookworm-slim
     id: test
