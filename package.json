@@ -56,7 +56,8 @@
     "check:environment-naming": "node scripts/check-environment-naming.js",
     "check:no-legacy-routing": "node scripts/verify-no-legacy-environment-routing.js",
     "build:gateway": "nest build",
-    "turbo:check": "turbo run typecheck test lint"
+    "turbo:check": "turbo run typecheck test lint",
+    "gcp:provision-payment-events": "node scripts/gcp/provision-payment-events.js"
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.1051.0",

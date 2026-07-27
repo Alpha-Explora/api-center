@@ -1,0 +1,82 @@
+substitutions:
+  _PROJECT_ID: apicenter-alpha-20260623
+  _REGION: asia-southeast1
+  _SERVICE_NAME: apicenter-payments-test
+  _IMAGE_REPOSITORY: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments
+  _STABLE_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-test
+  _MANIFEST: infra/gcp/cloud-run/apicenter-payments.test.yaml
+
+serviceAccount: projects/apicenter-alpha-20260623/serviceAccounts/apicenter-cloudbuild-deployer@apicenter-alpha-20260623.iam.gserviceaccount.com
+
+steps:
+  - name: node:24-bookworm-slim
+    id: verify
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        npm ci
+        npm run contracts:validate
+        npm run typecheck
+        npm --workspace @apicenter/payments run db:validate
+        node --check apps/payments/src/server.js
+        node --check scripts/gcp/provision-payment-events.js
+
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - -t
+      - ${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+      - -t
+      - ${_STABLE_IMAGE}
+      - -f
+      - docker/Dockerfile.payments.gcp
+      - .
+    waitFor: [verify]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    args:
+      - push
+      - ${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+    waitFor: [build]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-stable
+    args:
+      - push
+      - ${_STABLE_IMAGE}
+    waitFor: [build]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: apply-manifest
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - replace
+      - ${_MANIFEST}
+      - --project=${_PROJECT_ID}
+      - --region=${_REGION}
+    waitFor: [push, push-stable]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-image
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - ${_SERVICE_NAME}
+      - --image=${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+      - --project=${_PROJECT_ID}
+      - --region=${_REGION}
+    waitFor: [apply-manifest]
+
+images:
+  - ${_IMAGE_REPOSITORY}:build-${BUILD_ID}
+  - ${_STABLE_IMAGE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

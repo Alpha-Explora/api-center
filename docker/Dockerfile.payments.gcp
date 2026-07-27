@@ -1,0 +1,35 @@
+# Private APICenter payments runtime image.
+# The image is built from the monorepo root so workspace packages resolve
+# exactly as they do in local development.
+
+FROM node:24-bookworm-slim AS dependencies
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY apps/docs/package.json apps/docs/package.json
+COPY apps/gateway/package.json apps/gateway/package.json
+COPY apps/management/package.json apps/management/package.json
+COPY apps/payments/package.json apps/payments/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/runtime/package.json packages/runtime/package.json
+COPY packages/sdk/package.json packages/sdk/package.json
+RUN npm ci --omit=dev --no-fund --no-audit
+
+FROM node:24-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY apps/payments/package.json apps/payments/package.json
+COPY apps/payments/src apps/payments/src
+COPY apps/payments/prisma apps/payments/prisma
+COPY packages/runtime/package.json packages/runtime/package.json
+COPY packages/runtime/src packages/runtime/src
+
+WORKDIR /app/apps/payments
+
+USER node
+ENV PORT=8080
+EXPOSE 8080
+CMD ["node", "src/server.js"]
