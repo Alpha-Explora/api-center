@@ -63,3 +63,5 @@ docs/superpowers/plans/2026-06-22-aws-data-pipeline-shutdown-migration.md
 
 # ---- Next.js workspace output ----
 **/.next/
+
+apps/docs/out/

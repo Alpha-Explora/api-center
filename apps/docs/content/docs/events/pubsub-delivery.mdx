@@ -1,0 +1,17 @@
+# Pub/Sub delivery
+
+APICenter delivers normalized payment events to a registered HTTPS Cloud Run endpoint through Google Pub/Sub. Delivery uses an OIDC token minted for the configured service account and an audience matching the endpoint.
+
+## Envelope
+
+Every event includes `eventId`, `contractVersion`, `eventType`, `ownerTribeId`, `consumerServiceId`, `referenceId`, `aggregateType`, `aggregateId`, `aggregateVersion`, `occurredAt`, and normalized `data`.
+
+The `consumerServiceId` attribute is used to filter the subscription. A consumer must acknowledge only after validating the OIDC identity, parsing the envelope, applying duplicate protection by `eventId`, and committing its projection.
+
+## Delivery states
+
+Provisioning creates a filtered subscription, a dead-letter topic, a dead-letter subscription, and a 20-attempt delivery policy. Operators can inspect `pending_validation`, `active`, `delivery_failed`, and `revoked` from Management.
+
+## Replay discipline
+
+Do not publish directly to APICenter topics. For a dead-letter replay, preserve the original event ID and use an explicitly approved repair workflow so the consumer’s duplicate handling remains effective.

@@ -1,0 +1,23 @@
+# Authentication
+
+Every public payment request uses an APICenter consumer key issued for one service, one environment, and an explicit scope set.
+
+```http
+Authorization: Bearer apic_test_...
+```
+
+The key identifies the consumer to APICenter. It does not grant access to PayMongo, Pub/Sub, or any other provider account.
+
+## Keep credentials server-side
+
+Use Secret Manager, a workload identity-backed secret store, or the deployment platform’s encrypted runtime configuration. Do not expose `APICENTER_API_KEY` through `NEXT_PUBLIC_*`, mobile bundles, logs, or client-side telemetry.
+
+## Rotate without sharing provider access
+
+Operators rotate keys from the APICenter Management console. The new value is displayed once; APICenter retains only a hash, prefix, scopes, and lifecycle timestamps. Deploy the replacement, verify traffic, then revoke the previous key.
+
+## Common failures
+
+- `401`: the key is missing, expired, revoked, or belongs to another environment.
+- `403`: the consumer is not allowed to use the requested service or scope.
+- `404`: the resource is not visible to this consumer identity.

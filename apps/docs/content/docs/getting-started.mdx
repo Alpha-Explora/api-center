@@ -1,0 +1,39 @@
+# Start with a registered service
+
+APICenter is for registered backend services. Before making a request, an operator records the owner tribe, consumer service ID, environment, scopes, and the service endpoint that will receive payment events.
+
+## Configure the runtime
+
+Keep the consumer key in the backend runtime secret manager. Never put it in a browser bundle, source control, or an npm package.
+
+```env
+APICENTER_BASE_URL=https://api-center.itsandbox.site
+APICENTER_CONSUMER_SERVICE_ID=orders-api
+APICENTER_ENVIRONMENT=test
+APICENTER_API_KEY=apic_test_replace_me
+```
+
+## Make the first request
+
+```ts
+const response = await fetch(`${process.env.APICENTER_BASE_URL}/api/v1/payments/checkouts`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.APICENTER_API_KEY}`,
+    "Content-Type": "application/json",
+    "Idempotency-Key": "order-123-checkout-v1",
+  },
+  body: JSON.stringify({
+    referenceId: "order-123",
+    amount: { amountMinor: 39900, currency: "PHP" },
+    successUrl: "https://orders.example.test/payment/success",
+    cancelUrl: "https://orders.example.test/payment/cancel",
+  }),
+});
+```
+
+Registered success and cancel URLs are part of the integration boundary. Treat the returned checkout resource as pending until the authoritative payment event confirms the state.
+
+## Continue
+
+Read Authentication, then Idempotency and Retries before enabling live traffic.

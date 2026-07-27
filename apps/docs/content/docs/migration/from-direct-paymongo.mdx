@@ -1,0 +1,19 @@
+# From direct PayMongo
+
+Move provider access behind APICenter without changing your application’s domain references or customer return flow.
+
+## 1. Replace the boundary
+
+Replace direct PayMongo calls with the APICenter SDK or the documented `/api/v1/payments/*` routes. Keep your existing `referenceId`, order IDs, and success/cancel URLs.
+
+## 2. Move credentials
+
+Remove PayMongo secrets from the consumer service runtime after APICenter traffic is verified. The consumer receives only an APICenter key. PayMongo credentials belong to the APICenter payment runtime.
+
+## 3. Make events authoritative
+
+A redirect or synchronous provider response is not a final business decision. Project payment state from `payment.checkout.paid`, `payment.checkout.failed`, refund, and subscription events. Store the event ID and aggregate version for duplicate suppression and ordering checks.
+
+## 4. Cut over deliberately
+
+Run test traffic first, compare normalized resources and event projections, then enable the APICenter adapter behind the service’s rollout flag. Production cutover and direct-provider secret removal require release evidence and an operator approval.

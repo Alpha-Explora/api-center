@@ -61,7 +61,9 @@
     "contracts:sync-json": "node scripts/contracts/generate-public-contract-json.cjs",
     "sdk:test": "npm run test --workspace @alpha-explora/apicenter-sdk",
     "sdk:build": "npm run build --workspace @alpha-explora/apicenter-sdk",
-    "check:sdk-contracts": "node scripts/check-sdk-contracts.js"
+    "check:sdk-contracts": "node scripts/check-sdk-contracts.js",
+    "docs:build": "npm run build --workspace @apicenter/docs",
+    "docs:test": "npm test --workspace @apicenter/docs"
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.1051.0",

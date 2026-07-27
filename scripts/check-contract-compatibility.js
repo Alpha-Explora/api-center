@@ -9,6 +9,8 @@ const sharedServicesRoot = process.env.API_SHARED_SERVICES_ROOT
   : path.resolve(repoRoot, '..', 'api-shared-services');
 const allowMissingExternalManifests =
   process.env.ALLOW_MISSING_EXTERNAL_MANIFESTS === 'true';
+const allowMissingExternalContracts =
+  process.env.ALLOW_MISSING_EXTERNAL_CONTRACTS === 'true';
 const contractPath = path.join(repoRoot, 'docs', 'contracts', 'shared-service-contract.json');
 const sharedControllerPath = path.join(repoRoot, 'src', 'shared-services', 'shared-services.controller.ts');
 const kafkaControllerPath = path.join(repoRoot, 'src', 'kafka-governance', 'kafka-governance.controller.ts');
@@ -259,6 +261,10 @@ function ensureAuthTokenOpenApiContract() {
     return;
   }
   if (!fs.existsSync(authTokenContractPath)) {
+    if (allowMissingExternalContracts) {
+      console.warn(`Skipping unavailable external auth token contract: ${authTokenContractPath}`);
+      return;
+    }
     violations.push(`Missing APICenter auth token contract: ${authTokenContractPath}`);
     return;
   }

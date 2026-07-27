@@ -1,0 +1,55 @@
+name: Public Contracts and Docs
+
+on:
+  pull_request:
+    paths:
+      - "contracts/public/**"
+      - "apps/docs/**"
+      - "packages/sdk/**"
+      - "scripts/contracts/**"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    tags:
+      - "sdk-v*"
+      - "contract-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run contracts:validate
+      - run: npm run contracts:test
+      - run: npm run check:contracts
+        env:
+          ALLOW_MISSING_EXTERNAL_MANIFESTS: "true"
+          ALLOW_MISSING_EXTERNAL_CONTRACTS: "true"
+      - run: npm run build --workspace @apicenter/docs
+      - run: npm test --workspace @apicenter/docs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apicenter-docs-${{ github.sha }}
+          path: apps/docs/out
+
+  publish-release-artifact:
+    if: startsWith(github.ref, 'refs/tags/sdk-v') || startsWith(github.ref, 'refs/tags/contract-v')
+    needs: verify-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apicenter-docs-${{ github.sha }}
+          path: public-docs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apicenter-public-docs-${{ github.ref_name }}
+          path: public-docs

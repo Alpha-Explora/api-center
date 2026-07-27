@@ -1,0 +1,23 @@
+# Payments overview
+
+APICenter exposes provider-neutral payment resources. Your service sends domain references and amounts; provider-specific identifiers, secret keys, and raw provider payloads remain inside the platform boundary.
+
+## Checkout
+
+Create a checkout with a stable `referenceId`, a PHP amount in minor units, and registered return URLs.
+
+```http
+POST /api/v1/payments/checkouts
+```
+
+Use the returned `checkoutUrl` for the customer redirect. A return to your application is not proof of payment; wait for `payment.checkout.paid`.
+
+## Intents, customers, refunds, and subscriptions
+
+Use payment intents when your application owns confirmation state, customers and payment-method setups for reusable billing identities, refunds for a completed payment, and subscriptions/invoices for recurring billing.
+
+All provider-impacting creates, confirmations, cancellations, and refunds use `Idempotency-Key`. Resources expose normalized statuses and aggregate versions rather than raw PayMongo fields.
+
+## Capabilities
+
+Call `GET /api/v1/payments/capabilities` during onboarding to discover enabled operations and supported payment methods for the selected environment. Treat capabilities as runtime configuration, not as a license to bypass authorization or business rules.

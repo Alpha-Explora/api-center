@@ -1,0 +1,19 @@
+# Idempotency and Retries
+
+Send an `Idempotency-Key` on every provider-impacting write. Use a stable key derived from your operation identity, not a random value generated for each retry.
+
+```http
+Idempotency-Key: order-123-checkout-v1
+```
+
+The same key must represent the same operation and request body. Reusing it with a different payload is rejected so a network retry cannot silently change intent.
+
+## Retry policy
+
+Retry transport failures and `202 Pending` responses with the same key. Use bounded exponential backoff and stop when the operation reaches a terminal resource state or your business deadline expires.
+
+Do not retry authentication, validation, permission, or conflict responses without changing the request or resolving the underlying configuration.
+
+## Confirm from the resource and event
+
+The HTTP response tells you what APICenter accepted. The event stream is authoritative for provider lifecycle transitions such as paid, failed, refunded, or cancelled.
