@@ -37,6 +37,9 @@ jobs:
       - name: Build SDK
         run: npm run sdk:build
 
+      - name: Create pack directory
+        run: mkdir -p artifacts
+
       - name: Pack SDK
         run: npm pack --workspace @alpha-explora/apicenter-sdk --pack-destination artifacts
 
