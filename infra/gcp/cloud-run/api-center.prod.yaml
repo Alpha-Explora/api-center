@@ -45,9 +45,9 @@ spec:
             - name: CLOUD_RUN_AUTH_ENABLED
               value: "true"
             - name: SHARED_SERVICE_ROUTE_PAYMENT_TEST
-              value: https://payment-test-mvrs6gmtgq-as.a.run.app
+              value: https://apicenter-payments-test-mvrs6gmtgq-as.a.run.app
             - name: SHARED_SERVICE_ROUTE_PAYMENT_LIVE
-              value: https://payment-live-mvrs6gmtgq-as.a.run.app
+              value: https://apicenter-payments-live-mvrs6gmtgq-as.a.run.app
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-prod
           resources:

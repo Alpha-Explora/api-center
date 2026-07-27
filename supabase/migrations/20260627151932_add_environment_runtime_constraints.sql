@@ -243,6 +243,11 @@ set source_service_id = coalesce(event.source_service_id, event.metadata ->> 'so
     tribe_id = coalesce(event.tribe_id, event.metadata ->> 'tribeId', event.metadata ->> 'ownerTribeId', event.metadata ->> 'tribe_id', event.metadata ->> 'owner_tribe_id')
 where event.metadata <> '{}'::jsonb;
 
+-- Approved historical backfill: legacy audit rows with no environment marker are test history.
+update apic_audit.audit_events
+set environment = 'test'
+where environment = 'unknown';
+
 do $$
 begin
   if exists (select 1 from apic_audit.audit_events where environment is null) then
