@@ -24,7 +24,7 @@ describe("api-center Cloud Run manifests", () => {
       const manifest = readManifest(manifestName);
 
       expectEnvValue(manifest, "AUTH_PROVIDER", "composite");
-      expectEnvValue(manifest, "ALLOWED_ORIGINS", "https://api-center.itsandbox.site");
+      expectEnvValue(manifest, "ALLOWED_ORIGINS", "https://api-center-management-test.itsandbox.site");
       expectEnvValue(manifest, "REDIS_CACHE_URL", "redis://10.121.26.59:6379");
       expectEnvValue(
         manifest,

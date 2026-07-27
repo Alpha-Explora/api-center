@@ -239,7 +239,7 @@ Use one shared secret payload for provider-backed shared services if they run to
   "PAYMONGO_TEST_WEBHOOK_SECRET": "<paymongo-test-webhook-secret>",
   "PAYMONGO_LIVE_WEBHOOK_SECRET": "<paymongo-live-webhook-secret>",
   "RESEND_API_KEY": "<resend-api-key>",
-  "EMAIL_FROM_ADDRESS": "noreply@itsandbox.site",
+  "EMAIL_FROM_ADDRESS": "noreply@alphaexplora.com",
   "GOOGLE_CLIENT_ID": "<oauth-client-id>",
   "GOOGLE_CLIENT_SECRET": "<oauth-client-secret>",
   "GOOGLE_REDIRECT_URI": "https://api-center.itsandbox.site/api/v1/shared/gauth/oauth/callback",
@@ -355,7 +355,7 @@ Payment result pages use the hybrid model:
 2. Add and verify your sending domain.
 3. Create an API key.
 4. Set `RESEND_API_KEY`.
-5. Choose a sender address on the verified domain, for example `noreply@itsandbox.site`, and set `EMAIL_FROM_ADDRESS`.
+5. Choose a sender address on the verified domain, for example `noreply@alphaexplora.com`, and set `EMAIL_FROM_ADDRESS`.
 
 ### Google OAuth
 

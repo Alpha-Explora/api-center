@@ -33,7 +33,7 @@ spec:
             - name: AUTH_PROVIDER
               value: composite
             - name: ALLOWED_ORIGINS
-              value: https://api-center.itsandbox.site
+              value: https://api-center-management-test.itsandbox.site
             - name: REDIS_CACHE_URL
               value: redis://10.121.26.59:6379
             - name: REDIS_RATE_LIMIT_URL

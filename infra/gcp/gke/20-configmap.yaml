@@ -44,7 +44,7 @@ data:
   KAFKA_GROUP_ID: "api-center-group"
 
   # CORS — NGINX is gone in GKE, so the Node app handles preflight directly
-  ALLOWED_ORIGINS: "https://api-center.itsandbox.site"
+  ALLOWED_ORIGINS: "https://api-center-management-test.itsandbox.site"
 
   # Auth provider - composite / internal-jwt / descope / dev-jwt
   AUTH_PROVIDER: "composite"
