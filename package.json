@@ -59,8 +59,8 @@
     "turbo:check": "turbo run typecheck test lint",
     "gcp:provision-payment-events": "node scripts/gcp/provision-payment-events.js",
     "contracts:sync-json": "node scripts/contracts/generate-public-contract-json.cjs",
-    "sdk:test": "npm run test --workspace @apicenter/sdk",
-    "sdk:build": "npm run build --workspace @apicenter/sdk",
+    "sdk:test": "npm run test --workspace @alpha-explora/apicenter-sdk",
+    "sdk:build": "npm run build --workspace @alpha-explora/apicenter-sdk",
     "check:sdk-contracts": "node scripts/check-sdk-contracts.js"
   },
   "dependencies": {

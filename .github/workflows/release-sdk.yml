@@ -1,4 +1,4 @@
-name: Publish APICenter SDK
+name: Publish APICenter SDK to GitHub Packages
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   publish:
@@ -20,7 +21,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.pkg.github.com
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -37,9 +38,9 @@ jobs:
         run: npm run sdk:build
 
       - name: Pack SDK
-        run: npm pack --workspace @apicenter/sdk --pack-destination artifacts
+        run: npm pack --workspace @alpha-explora/apicenter-sdk --pack-destination artifacts
 
-      - name: Publish SDK
+      - name: Publish SDK to GitHub Packages
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish artifacts/*.tgz --access public
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish artifacts/*.tgz --registry=https://npm.pkg.github.com
