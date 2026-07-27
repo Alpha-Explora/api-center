@@ -2,6 +2,12 @@
 
 import dynamic from "next/dynamic";
 
+export const PaymentConsumerServicePanel = dynamic(() =>
+  import("@/components/payment-consumer-service-panel").then(
+    (module) => module.PaymentConsumerServicePanel,
+  ),
+);
+
 export const ContractTesterPanel = dynamic(() =>
   import("@/components/contract-tester-panel").then(
     (module) => module.ContractTesterPanel,

@@ -62,3 +62,12 @@ Secret Manager references. Create these secrets before replacing the service:
 The service is internal-only and publishes the outbox only when
 `PUBSUB_DISPATCHER_ENABLED=true`. Build and deploy it through
 `infra/gcp/cloud-build/apicenter-payments-cloud-run.yaml`.
+
+## Management provisioning path
+
+The APICenter Management payment-consumer flow is the normal production path.
+It calls the gateway to create the filtered subscription and then applies the
+required Pub/Sub service-agent, delivery-service-account, and Cloud Run invoker
+IAM bindings when `PAYMENT_PUBSUB_IAM_ENABLED=true`. The `gcloud` script below
+remains a dry-run/apply repair tool for operators and does not replace the
+Management audit path.

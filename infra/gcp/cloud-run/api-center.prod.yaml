@@ -42,6 +42,8 @@ spec:
               value: "false"
             - name: KAFKA_ENABLED
               value: "false"
+            - name: PAYMENT_PUBSUB_IAM_ENABLED
+              value: "true"
             - name: CLOUD_RUN_AUTH_ENABLED
               value: "true"
             - name: SHARED_SERVICE_ROUTE_PAYMENT_TEST

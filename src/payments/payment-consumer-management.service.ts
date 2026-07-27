@@ -12,9 +12,22 @@ const ConsumerInput = z.object({
     .url()
     .refine((value) => value.startsWith("https://"), "eventEndpointUrl must use HTTPS")
     .optional(),
+  scopes: z
+    .array(z.enum(["payments:read", "payments:write"]))
+    .min(1)
+    .max(2)
+    .default(["payments:read", "payments:write"]),
 });
 
 type ConsumerInput = z.infer<typeof ConsumerInput>;
+
+type KeyRow = {
+  key_prefix: string;
+  scopes: string[];
+  created_at: Date;
+  expires_at: Date | null;
+  revoked_at: Date | null;
+};
 
 @Injectable()
 export class PaymentConsumerManagementService {
@@ -25,6 +38,12 @@ export class PaymentConsumerManagementService {
     ownerTribeId: string;
     environment: "test" | "live";
     apiKey: string;
+    keyPrefix: string;
+    scopes: string[];
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    status: "active";
   }> {
     const parsed = this.parseInput(input);
     this.requireDatabase();
@@ -53,31 +72,35 @@ export class PaymentConsumerManagementService {
           "WHERE consumer_service_id = $1 AND revoked_at IS NULL",
         service.id,
       );
-      await tx.$executeRawUnsafe(
+      const keys = await tx.$queryRawUnsafe<KeyRow[]>(
         "INSERT INTO apic_governance.payment_api_keys " +
-          "(consumer_service_id, key_prefix, key_hash, scopes) " +
-          "VALUES ($1, $2, $3, $4)",
+          "(consumer_service_id, key_prefix, key_hash, scopes, expires_at) " +
+          "VALUES ($1, $2, $3, $4, now() + interval '365 days') " +
+          "RETURNING key_prefix, scopes, created_at, expires_at, revoked_at",
         service.id,
         apiKey.slice(0, 16),
         keyHash,
-        ["payments:read", "payments:write"],
+        parsed.scopes,
       );
+      const key = keys[0];
+      if (!key) throw new Error("Payment consumer key creation returned no key");
 
       return {
         consumerServiceId: parsed.consumerServiceId,
         ownerTribeId: parsed.ownerTribeId,
         environment: parsed.environment,
         apiKey,
+        keyPrefix: key.key_prefix,
+        scopes: key.scopes,
+        createdAt: key.created_at.toISOString(),
+        expiresAt: key.expires_at?.toISOString() ?? null,
+        revokedAt: key.revoked_at?.toISOString() ?? null,
+        status: "active",
       };
     });
   }
 
-  async rotate(input: unknown): Promise<{
-    consumerServiceId: string;
-    ownerTribeId: string;
-    environment: "test" | "live";
-    apiKey: string;
-  }> {
+  async rotate(input: unknown): Promise<Awaited<ReturnType<PaymentConsumerManagementService["register"]>>> {
     return this.register(input);
   }
 
@@ -125,4 +148,3 @@ export class PaymentConsumerManagementService {
     return createHash("sha256").update(key).digest("hex");
   }
 }
-

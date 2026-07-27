@@ -1,54 +1,39 @@
 import { ConsumerRunbookActions } from "@/components/consumer-runbook-actions";
 import { PageHeading } from "@/components/page-heading";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const runbookSections = [
   {
-    title: "API Center endpoint",
-    description:
-      "Use the test API Center endpoint from the portal packet while onboarding. Move to the live endpoint only after readiness and quota review are complete.",
+    title: "Canonical API documentation",
+    description: "Use the APICenter developer documentation for public payment endpoints, authentication, idempotency, SDK usage, and event payloads.",
+    href: "https://api-center.itsandbox.site/docs",
+    action: "Open APICenter docs",
   },
   {
-    title: "SDK setup",
-    description:
-      "Install @implementsprint/sdk, configure the tribe service ID, and keep runtime credentials in the service environment rather than browser bundles.",
+    title: "Operator provisioning",
+    description: "Register the consumer from Payment consumers, choose the minimum scopes, provide its Cloud Run delivery identity, and verify the Pub/Sub subscription status.",
   },
   {
-    title: "Allowed services",
-    description:
-      "Call only shared services listed in the portal packet. Missing services should be requested through registry or quota review before use.",
+    title: "One-time secret handling",
+    description: "Copy the generated APICenter key once into the consumer service's Secret Manager. Management never stores plaintext keys and consumers never receive PayMongo credentials.",
   },
   {
-    title: "Event topics",
-    description:
-      "Publish events to the tribe topic prefix shown in the portal packet so ingestion, audit, and data quality checks can trace ownership.",
+    title: "Delivery troubleshooting",
+    description: "Review the delivery status, last delivery timestamp, dead-letter count, and Cloud Run invoker/OIDC configuration before retrying a failed subscription.",
   },
 ];
 
 export default function ConsumerRunbookPage() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeading
-        title="SDK runbook"
-        description="Consumer setup guidance for the Developer Portal onboarding packet."
-      />
+      <PageHeading title="Consumer runbook" description="Operator setup and security guidance for APICenter consumers." />
       <ConsumerRunbookActions />
       <div className="grid gap-4 md:grid-cols-2">
         {runbookSections.map((section) => (
           <Card key={section.title}>
-            <CardHeader>
-              <CardTitle>{section.title}</CardTitle>
-              <CardDescription>{section.description}</CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>{section.title}</CardTitle><CardDescription>{section.description}</CardDescription></CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Keep this step complete before moving the tribe packet to live
-              readiness review.
+              {section.href ? <a className="font-semibold text-primary underline" href={section.href} target="_blank" rel="noreferrer">{section.action}</a> : "Keep this step complete before live readiness review."}
             </CardContent>
           </Card>
         ))}

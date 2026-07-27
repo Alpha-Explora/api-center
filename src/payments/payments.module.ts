@@ -9,6 +9,7 @@ import { PaymentCatalogManagementService } from "./payment-catalog-management.se
 import { PaymentConsumerManagementController } from "./payment-consumer-management.controller";
 import { PaymentConsumerManagementService } from "./payment-consumer-management.service";
 import { PaymentIdempotencyService } from "./payment-idempotency.service";
+import { PaymentPubSubIamProvisioningService } from "./payment-pubsub-iam-provisioning.service";
 import { PaymentPubSubProvisioningController } from "./payment-pubsub-provisioning.controller";
 import { PaymentPubSubProvisioningService } from "./payment-pubsub-provisioning.service";
 
@@ -26,6 +27,7 @@ import { PaymentPubSubProvisioningService } from "./payment-pubsub-provisioning.
     PaymentCatalogManagementService,
     PaymentConsumerManagementService,
     PaymentIdempotencyService,
+    PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
   ],
 })

@@ -1025,86 +1025,51 @@ Expected result:
   `/api/v1/auth/token` through the SDK.
 - Token failure means the API Center runtime environment, tribe ID, service ID, or secret value is wrong. It is not a GitHub Packages problem.
 
-## Feature 20: Consume Shared Services Through The SDK
+## Feature 20: Consume Shared Services Through APICenter
 
-Use this when a tribe needs platform-owned services such as payment, email,
-SMS, Google auth, OTP, or geo.
+Consumer-facing endpoint, authentication, idempotency, SDK, and payment event
+contracts are maintained in the canonical APICenter developer documentation:
 
-Operator setup:
+- https://api-center.itsandbox.site/docs
 
-1. Open `/tribes/<service-id>/edit`.
-2. Add the shared service IDs to `consumes`.
-3. Confirm required scopes include the scopes needed by the target services.
-4. Save the manifest.
-5. Open `/shared-services` and confirm the target shared services are
-   registered as `serviceType: "shared"`.
-6. Run safe smoke checks from `/smoke-tests?tribeId=<service-id>`.
+This Management runbook intentionally keeps only operator controls and security
+boundaries. Do not copy provider-specific payment instructions into consumer
+repositories.
 
-Tribe implementation examples:
+Operator setup for a payment consumer:
 
-```ts
-await apiCenter.emailSend({
-  to: "customer@example.com",
-  subject: "Welcome",
-  body: "Thanks for joining.",
-});
-```
+1. Open **Payment consumers** from the shared-service setup or payment service
+   detail page.
+2. Register the stable owner tribe and consumer service ID, selecting only the
+   scopes the service needs.
+3. If events are required, provide the consumer Cloud Run endpoint, project,
+   region, service name, and delivery service account. APICenter creates the
+   Pub/Sub topic, filtered push subscription, dead-letter resources, and the
+   production-gated IAM bindings.
+4. Copy the generated APICenter key exactly once into the consumer service's
+   Secret Manager. Management and APICenter never persist the plaintext value.
+5. Confirm the delivery status, last delivery signal, and dead-letter count
+   before approving live readiness. A `pending_validation` or
+   `delivery_failed` state requires operator investigation; it is not a signal
+   to add PayMongo credentials to the consumer.
 
-```ts
-const checkout = await apiCenter.paymentCreateCheckoutSession({
-  referenceId: "order-123",
-  successUrl: "https://app.example.com/payment/success",
-  cancelUrl: "https://app.example.com/payment/cancel",
-  paymentMethods: ["card", "gcash", "maya", "grabpay", "qrph"],
-  lineItems: [
-    {
-      name: "Starter Plan",
-      quantity: 1,
-      amount: { value: 99900, currency: "PHP" },
-    },
-  ],
-});
-```
+Security rules:
 
-```ts
-const location = await apiCenter.geoReverseGeocode({
-  latitude: 14.5995,
-  longitude: 120.9842,
-});
-```
-
-Generic fallback when a typed wrapper does not exist yet:
-
-```ts
-await apiCenter.callSharedService("email", "/send", {
-  method: "POST",
-  data: {
-    to: "customer@example.com",
-    subject: "Hello",
-    body: "Message body",
-  },
-});
-```
+- Consumers receive an APICenter key, never PayMongo, Pub/Sub, or provider keys.
+- Keep operator tokens and platform secrets server-side; do not expose them in
+  browser bundles or GitHub Packages configuration.
+- Scope consumer manifests and API keys to the minimum required payment
+  operations and rotate keys through Management when ownership changes.
 
 Runtime path:
 
 ```text
-tribe backend
-  -> @alpha-explora/apicenter
-  -> API Center /api/v1/shared/<shared-service-id>/*
-  -> auth, registry, consumes, scope, rate-limit, and proxy checks
-  -> shared-service runtime
-  -> provider API or platform implementation
+consumer backend
+  -> APICenter SDK and public docs contract
+  -> API Center authenticated payment facade
+  -> provider-neutral payment runtime
+  -> PayMongo adapter owned by APICenter
 ```
-
-Expected result:
-
-- Shared-service calls return through API Center.
-- Runtime usage appears in shared usage, audit, cost, and alerts after
-  analytics data is recorded.
-- A `403` means the tribe manifest is missing the target service in `consumes`
-  or the token is missing the required scope.
-
 ## Feature 21: Expose A Tribe Service For Other Tribes
 
 Use this when a tribe owns a backend API that other registered tribes should

@@ -2,6 +2,7 @@ import {
   ContractTesterPanel,
   EventMappingPanel,
   OnboardingChecklistPanel,
+  PaymentConsumerServicePanel,
   SdkConfigPanel,
   ServiceActionsPanel,
   ServiceIdentityPanel,
@@ -319,6 +320,7 @@ export function ServiceDetailContent({
         title="Safe actions"
         description="Preview, export, rotate, and lifecycle controls that require deliberate confirmation."
       />
+      {service.serviceId === "payment" ? <PaymentConsumerServicePanel /> : null}
       {isTribe ? (
         <>
           <TribeOnboardingFlow

@@ -22,6 +22,12 @@ describe("PaymentConsumerService", () => {
               consumerServiceId: "alphaci-backend",
               environment: "test",
               apiKey: "apic_test_secret",
+              keyPrefix: "apic_test_secret",
+              scopes: ["payments:read", "payments:write"],
+              createdAt: "2026-07-28T00:00:00.000Z",
+              expiresAt: "2027-07-28T00:00:00.000Z",
+              revokedAt: null,
+              status: "active",
             },
           }
         : {
@@ -54,7 +60,7 @@ describe("PaymentConsumerService", () => {
       consumerServiceId: "alphaci-backend",
       environment: "test",
       keyPrefix: "apic_test_secret",
-      eventDelivery: { status: "active" },
+      eventDelivery: { status: "pending_validation" },
     });
 
     expect(calls).toHaveLength(2);
