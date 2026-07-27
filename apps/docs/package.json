@@ -1,0 +1,7 @@
+{
+  "name": "@apicenter/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "APICenter developer documentation workspace",
+  "scripts": {}
+}

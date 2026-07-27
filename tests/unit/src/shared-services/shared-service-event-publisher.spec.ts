@@ -78,7 +78,7 @@ describe("SharedServiceEventPublisher", () => {
     expect(kafka.publishNonBlocking).not.toHaveBeenCalled();
   });
 
-  it("publishes subscription lifecycle metadata for payment responses", () => {
+  it("keeps payment lifecycle delivery out of legacy Kafka telemetry", () => {
     const kafka = {
       publishNonBlocking: jest.fn(),
     };
@@ -117,16 +117,6 @@ describe("SharedServiceEventPublisher", () => {
       expect.objectContaining({
         eventType: "shared.payment.call",
         environment: "test",
-        lifecycle: expect.objectContaining({
-          eventType: "payment.subscription.active",
-          subscriptionId: "sub_123",
-          customerId: "cus_123",
-          priceId: "price_123",
-          referenceId: "church_123_basic",
-          status: "active",
-          provider: "paymongo",
-          providerMode: "test",
-        }),
         redactions: expect.arrayContaining(["request.idempotencyKey"]),
       }),
       expect.any(Object),

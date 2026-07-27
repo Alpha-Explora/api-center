@@ -1,0 +1,24 @@
+{
+  "eventId": "evt_checkout_created_01",
+  "contractVersion": "1.0",
+  "eventType": "payment.checkout.created",
+  "ownerTribeId": "tribe_alpha",
+  "consumerServiceId": "svc_alphaci",
+  "referenceId": "ACI-20260727-EXAMPLE01",
+  "aggregateType": "checkout",
+  "aggregateId": "chk_example_01",
+  "aggregateVersion": 1,
+  "occurredAt": "2026-07-27T10:00:00.000Z",
+  "correlationId": "corr_checkout_example_01",
+  "data": {
+    "environment": "test",
+    "checkoutId": "chk_example_01",
+    "referenceId": "ACI-20260727-EXAMPLE01",
+    "status": "pending",
+    "amount": {
+      "amountMinor": 39900,
+      "currency": "PHP"
+    },
+    "aggregateVersion": 1
+  }
+}

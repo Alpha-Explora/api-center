@@ -2,6 +2,10 @@
 
 APICenter is the **single, centralized API gateway** for the platform. Tribe-to-tribe calls, shared platform services, auth, registry, and governed event publishing route through APICenter. No tribe calls another tribe or provider API directly.
 
+> **Current payment platform boundary (2026-07-27):** APICenter is the Turborepo source of truth. The TypeScript gateway exposes `/api/v1/payments/*`; the private `apps/payments` runtime owns PayMongo credentials, provider calls, webhook verification, canonical `shared_payment` state, and the outbox. Payment lifecycle delivery uses APICenter-owned Google Pub/Sub. `api-shared` is frozen migration source and is not a new feature target.
+
+The private payments app is configured with `APICENTER_PAYMENTS_URL` and `APICENTER_PAYMENTS_INTERNAL_TOKEN`. Set `PUBSUB_DISPATCHER_ENABLED=true` only in a GCP runtime with Pub/Sub permissions; the dispatcher publishes pending outbox rows to `APICENTER_PAYMENT_EVENTS_TOPIC_TEST` or `APICENTER_PAYMENT_EVENTS_TOPIC_LIVE`.
+
 > **For platform operators and contributors:** see [docs/developer/README.md](docs/developer/README.md) for local dev setup, testing, CI/CD, and GCP deployment.
 >
 > **Full platform setup:** see [docs/apicenter-platform-setup.md](docs/apicenter-platform-setup.md) for the current APICenter + shared services + provider secrets runbook.
@@ -26,7 +30,7 @@ APICenter is the **single, centralized API gateway** for the platform. Tribe-to-
   - [Internal Tribe JWT + Descope Fallback](#2-internal-tribe-jwt--descope-fallback)
 4. [Service Registration](#service-registration)
 5. [SDK Usage](#sdk-usage)
-6. [Shared Geo and Governed Kafka](#shared-geo-and-governed-kafka)
+6. [Shared Geo and Payment Events](#shared-geo-and-payment-events)
 7. [API Reference](#api-reference)
 
 ---
@@ -51,7 +55,8 @@ until Supabase migrations and cutover checks are complete.
 | Path | What it proxies |
 |------|----------------|
 | `/api/v1/tribes/:serviceId/*` | Tribe-to-tribe calls |
-| `/api/v1/shared/:serviceId/*` | Shared platform services (email, SMS, payments) |
+| `/api/v1/shared/:serviceId/*` | Legacy shared-service proxy namespace |
+| `/api/v1/payments/*` | Authenticated provider-neutral payments facade |
 | `/api/v1/external/:apiName/*` | Legacy external proxy namespace; current provider-backed functionality should be exposed as shared services or governed Kafka routes |
 | `/api/v1/auth/*` | Token issuance / refresh / revocation |
 | `/api/v1/registry/*` | Service self-registration |
@@ -68,8 +73,8 @@ applied, Redis data is backfilled, and parity checks pass.
 | --- | --- |
 | Redis / Memorystore | Active registry source, token state, rate-limit counters, short-window analytics |
 | API Center Postgres schemas | Optional durable control-plane state, disabled by default |
-| Shared-service Postgres schemas | Optional provider/domain records owned by `api-shared-services`, disabled by default |
-| Confluent Cloud + S3 | Raw event export and analytics lake |
+| APICenter payments Postgres schema | Canonical payment state owned by `apps/payments` |
+| Google Pub/Sub | Payment lifecycle event delivery and consumer subscriptions |
 | Secret Manager | Platform secrets, per-tribe secret hashes, provider secrets |
 
 ---
@@ -253,10 +258,9 @@ The payload shape and IAM setup are documented in
 
 Every tribe **must** use the shared SDK. Direct HTTP to the gateway is not permitted.
 
-SDK source of truth now lives in the dedicated `api-shared-services` repository.
-The gateway repository is runtime-only and no longer publishes SDK artifacts.
-Use `../api-shared-services/docs/consumer-runbook.md` as the canonical install,
-GitHub Packages auth, runtime env, and S3 validation guide.
+The TypeScript SDK source of truth is `packages/sdk` in this APICenter monorepo.
+It calls only the gateway, never PayMongo. `AlphaCI` stores an APICenter API key
+and keeps its own billing projection; it does not receive a PayMongo secret.
 
 ```typescript
 import { TribeClient } from '@implementsprint/sdk';
@@ -269,6 +273,21 @@ const client = new TribeClient({
 });
 
 await client.authenticate();   // auto-refreshes before expiry
+
+For payments, use the provider-neutral client from the same package:
+
+```typescript
+import { PaymentsClient } from "@apicenter/sdk";
+
+const payments = new PaymentsClient({
+  baseUrl: process.env.APICENTER_URL!,
+  apiKey: process.env.APICENTER_API_KEY!,
+  tribeId: process.env.APICENTER_TRIBE_ID!,
+  environment: "test",
+});
+
+const checkout = await payments.createCheckout(input, "checkout-order-123");
+```
 
 // Tribe-to-tribe
 const user = await client.callService('user-service', '/users/123');
@@ -345,14 +364,14 @@ import {
 
 ---
 
-## Shared Geo and Governed Kafka
+## Shared Geo and Payment Events
 
-Provider API credentials live in platform-owned shared services; tribe services never hold them.
+Provider API credentials live in platform-owned runtimes; tribe services never hold them. Payment lifecycle events use APICenter-owned Google Pub/Sub and authenticated consumer push subscriptions. Kafka/Confluent is not part of the payment path.
 
 Geo is not exposed through `/api/v1/external/*`. It is a platform-owned shared
 service registered as `geo`, and tribes call it through `/api/v1/shared/geo/*`.
 
-Kafka is not exposed through `/api/v1/external/*`. Tribe event publishing goes through governed SDK helpers and the API Center producer connection to Confluent Cloud.
+**Legacy non-payment Kafka:** The governed Kafka section below is retained only as historical guidance for non-payment platform events. Do not provision Confluent for the payment platform.
 
 ```bash
 # Confluent Cloud producer used by governed Kafka publishing

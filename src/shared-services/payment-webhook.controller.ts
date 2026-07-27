@@ -88,6 +88,9 @@ export class PaymentWebhookController {
     if (cloudRunAuthorization) {
       headers.Authorization = cloudRunAuthorization;
     }
+    if (process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN) {
+      headers["X-APICenter-Internal-Token"] = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+    }
 
     const response = await fetch(upstream, {
       method: "POST",
@@ -117,12 +120,17 @@ export class PaymentWebhookController {
   private resolvePaymentWebhookUpstream(
     environment: ApicenterRuntimeEnvironment,
   ): string {
+    const configuredTarget = process.env.APICENTER_PAYMENTS_URL;
+    if (configuredTarget) {
+      return `${configuredTarget.replace(/\/+$/, "")}/webhooks`;
+    }
+
     const targetUrl = this.sharedServiceRouting.resolve(
       "payment",
       environment,
     ).targetUrl;
     if (!targetUrl) {
-      throw new NotFoundError("Payment shared service is not registered");
+      throw new NotFoundError("Payment runtime is not configured");
     }
 
     return `${targetUrl.replace(/\/+$/, "")}/webhooks`;

@@ -1,0 +1,12 @@
+{
+  "name": "@apicenter/gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "APICenter gateway workspace (temporary compatibility wrapper while root source is moved)",
+  "scripts": {
+    "build": "npm --prefix ../.. run build:gateway",
+    "typecheck": "npm --prefix ../.. run typecheck",
+    "test": "npm --prefix ../.. run test",
+    "lint": "npm --prefix ../.. run lint"
+  }
+}

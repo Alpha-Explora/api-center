@@ -1,0 +1,23 @@
+{
+  "name": "@apicenter/payments",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private APICenter payments runtime and PayMongo adapter.",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "typecheck": "node -e \"console.log('payments runtime uses JavaScript source; contract/type checks run at the gateway boundary')\"",
+    "test": "node -e \"console.log('payments runtime tests deferred to migration parity gate')\"",
+    "lint": "node -e \"console.log('payments runtime lint deferred to migration parity gate')\"",
+    "db:validate": "prisma validate --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@apicenter/runtime": "1.0.0",
+    "@google-cloud/pubsub": "^5.2.1",
+    "express": "^5.2.1",
+    "postgres": "^3.4.7"
+  }
+}
+

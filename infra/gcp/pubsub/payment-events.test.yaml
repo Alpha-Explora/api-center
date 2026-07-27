@@ -1,0 +1,29 @@
+apiVersion: apicenter.itsandbox.site/v1
+kind: PaymentEventDeliveryPlan
+metadata:
+  name: apicenter.payment-events.test
+spec:
+  projectId: ${APICENTER_GCP_PROJECT_ID}
+  environment: test
+  topic:
+    name: apicenter.payment-events.test
+    messageRetentionDuration: 31d
+  deadLetter:
+    topicName: apicenter.payment-events.test.dead-letter
+    subscriptionName: apicenter.payment-events.test.dead-letter.subscription
+    messageRetentionDuration: 31d
+  delivery:
+    maxDeliveryAttempts: 20
+    ackDeadlineSeconds: 30
+    serviceAccountEmail: apicenter-payment-events-delivery@${APICENTER_GCP_PROJECT_ID}.iam.gserviceaccount.com
+  consumers:
+    - consumerServiceId: alphaci-backend
+      pushEndpoint: ${ALPHACI_PAYMENT_EVENTS_TEST_ENDPOINT}
+      filter: attributes.consumerServiceId = "alphaci-backend"
+      oidcAudience: ${ALPHACI_PAYMENT_EVENTS_TEST_ENDPOINT}
+  monitoring:
+    alertPolicyName: apicenter.payment-events.test.delivery-failures
+    condition: dead_letter_delivery_or_unacked_messages
+  iam:
+    invokerRole: roles/run.invoker
+    scope: registered_consumer_endpoint

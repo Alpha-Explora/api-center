@@ -1,0 +1,452 @@
+openapi: 3.2.0
+info:
+  title: APICenter Payments API
+  version: 1.0.0
+  description: Provider-neutral payment API for registered consumer services.
+servers:
+  - url: https://api-center.itsandbox.site
+security:
+  - ApiKeyAuth: []
+tags:
+  - name: Payments
+paths:
+  /api/v1/payments/checkouts:
+    post:
+      operationId: createCheckout
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/headers/Idempotency-Key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckoutCreateRequest' }
+            example:
+              referenceId: ACI-20260727-EXAMPLE01
+              amount: { amountMinor: 39900, currency: PHP }
+              successUrl: https://app.example.test/billing/success
+              cancelUrl: https://app.example.test/billing/cancel
+              metadata: { planId: starter }
+      responses:
+        '201':
+          description: Checkout created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Checkout' }
+              example:
+                checkoutId: chk_example_01
+                referenceId: ACI-20260727-EXAMPLE01
+                status: pending
+                amount: { amountMinor: 39900, currency: PHP }
+                checkoutUrl: https://checkout.example.test/chk_example_01
+                aggregateVersion: 1
+        '202': { $ref: '#/components/responses/Pending' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/v1/payments/checkouts/{checkoutId}:
+    get:
+      operationId: getCheckout
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/parameters/CheckoutId'
+      responses:
+        '200':
+          description: Checkout
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Checkout' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/payments/checkouts/by-reference/{referenceId}:
+    get:
+      operationId: getCheckoutByReference
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/parameters/ReferenceId'
+      responses:
+        '200':
+          description: Checkout
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Checkout' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/payments/checkouts/{checkoutId}/cancel:
+    post:
+      operationId: cancelCheckout
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/parameters/CheckoutId'
+        - $ref: '#/components/headers/Idempotency-Key'
+      responses:
+        '200':
+          description: Checkout cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Checkout' }
+  /api/v1/payments/intents:
+    post:
+      operationId: createPaymentIntent
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/headers/Idempotency-Key' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentIntentCreateRequest' }
+      responses:
+        '201':
+          description: Payment intent created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntent' }
+  /api/v1/payments/intents/{paymentIntentId}:
+    get:
+      operationId: getPaymentIntent
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/parameters/PaymentIntentId' }]
+      responses:
+        '200':
+          description: Payment intent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntent' }
+  /api/v1/payments/intents/{paymentIntentId}/confirm:
+    post:
+      operationId: confirmPaymentIntent
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/parameters/PaymentIntentId'
+        - $ref: '#/components/headers/Idempotency-Key'
+      responses:
+        '200':
+          description: Payment intent confirmed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntent' }
+  /api/v1/payments/intents/{paymentIntentId}/cancel:
+    post:
+      operationId: cancelPaymentIntent
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/parameters/PaymentIntentId'
+        - $ref: '#/components/headers/Idempotency-Key'
+      responses:
+        '200':
+          description: Payment intent cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntent' }
+  /api/v1/payments/customers:
+    post:
+      operationId: createCustomer
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/headers/Idempotency-Key' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerCreateRequest' }
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+  /api/v1/payments/customers/{customerId}:
+    get:
+      operationId: getCustomer
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/parameters/CustomerId' }]
+      responses:
+        '200':
+          description: Customer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+  /api/v1/payments/payment-method-setups:
+    post:
+      operationId: createPaymentMethodSetup
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/headers/Idempotency-Key' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentMethodSetupRequest' }
+      responses:
+        '201':
+          description: Payment method setup created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethodSetup' }
+  /api/v1/payments/refunds:
+    post:
+      operationId: createRefund
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/headers/Idempotency-Key' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefundCreateRequest' }
+      responses:
+        '201':
+          description: Refund created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Refund' }
+  /api/v1/payments/refunds/{refundId}:
+    get:
+      operationId: getRefund
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/parameters/RefundId' }]
+      responses:
+        '200':
+          description: Refund
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Refund' }
+  /api/v1/payments/subscriptions:
+    post:
+      operationId: createSubscription
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/headers/Idempotency-Key' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubscriptionCreateRequest' }
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /api/v1/payments/subscriptions/{subscriptionId}:
+    get:
+      operationId: getSubscription
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/parameters/SubscriptionId' }]
+      responses:
+        '200':
+          description: Subscription
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /api/v1/payments/subscriptions/{subscriptionId}/cancel:
+    post:
+      operationId: cancelSubscription
+      tags: [Payments]
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+        - $ref: '#/components/headers/Idempotency-Key'
+      responses:
+        '200':
+          description: Subscription cancellation scheduled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /api/v1/payments/subscriptions/{subscriptionId}/invoices:
+    get:
+      operationId: listSubscriptionInvoices
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/parameters/SubscriptionId' }]
+      responses:
+        '200':
+          description: Subscription invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invoice' }
+  /api/v1/payments/invoices/{invoiceId}:
+    get:
+      operationId: getInvoice
+      tags: [Payments]
+      parameters: [{ $ref: '#/components/parameters/InvoiceId' }]
+      responses:
+        '200':
+          description: Invoice
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+  /api/v1/payments/capabilities:
+    get:
+      operationId: getPaymentCapabilities
+      tags: [Payments]
+      responses:
+        '200':
+          description: Payment capabilities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentCapabilities' }
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: APICenterApiKey
+  headers:
+    Idempotency-Key:
+      description: Unique key for safely retrying this mutation.
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 255
+  parameters:
+    CheckoutId: { name: checkoutId, in: path, required: true, schema: { type: string, pattern: '^chk_[A-Za-z0-9_]+$' } }
+    PaymentIntentId: { name: paymentIntentId, in: path, required: true, schema: { type: string, pattern: '^pi_[A-Za-z0-9_]+$' } }
+    CustomerId: { name: customerId, in: path, required: true, schema: { type: string, pattern: '^cus_[A-Za-z0-9_]+$' } }
+    RefundId: { name: refundId, in: path, required: true, schema: { type: string, pattern: '^ref_[A-Za-z0-9_]+$' } }
+    SubscriptionId: { name: subscriptionId, in: path, required: true, schema: { type: string, pattern: '^sub_[A-Za-z0-9_]+$' } }
+    InvoiceId: { name: invoiceId, in: path, required: true, schema: { type: string, pattern: '^inv_[A-Za-z0-9_]+$' } }
+    ReferenceId: { name: referenceId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 255 } }
+  responses:
+    BadRequest:
+      description: Invalid request
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Resource not found
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Pending:
+      description: Provider outcome is pending confirmation
+      content: { application/json: { schema: { $ref: '#/components/schemas/PendingResource' } } }
+  schemas:
+    Money:
+      type: object
+      required: [amountMinor, currency]
+      properties:
+        amountMinor: { type: integer, minimum: 1, description: Final gross amount in minor PHP units. }
+        currency: { type: string, enum: [PHP] }
+    CheckoutCreateRequest:
+      type: object
+      required: [referenceId, amount, successUrl, cancelUrl]
+      properties:
+        referenceId: { type: string, minLength: 1, maxLength: 255 }
+        amount: { $ref: '#/components/schemas/Money' }
+        successUrl: { type: string, format: uri }
+        cancelUrl: { type: string, format: uri }
+        customerId: { type: string }
+        metadata:
+          type: object
+          additionalProperties: { type: string }
+          description: Consumer-owned correlation metadata. Do not include secrets.
+    PaymentIntentCreateRequest:
+      type: object
+      required: [referenceId, amount]
+      properties:
+        referenceId: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        customerId: { type: string }
+
+    CustomerCreateRequest:
+      type: object
+      required: [customerReference]
+      properties:
+        customerReference: { type: string, minLength: 1, maxLength: 255 }
+        email: { type: string, format: email }
+        name: { type: string, maxLength: 255 }
+    PaymentMethodSetupRequest:
+      type: object
+      required: [customerId, referenceId]
+      properties:
+        customerId: { type: string }
+
+        referenceId: { type: string }
+        returnUrl: { type: string, format: uri }
+    RefundCreateRequest:
+      type: object
+      required: [paymentId, amount]
+      properties:
+        paymentId: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        reason: { type: string }
+    SubscriptionCreateRequest:
+      type: object
+      required: [customerId, referenceId, priceId]
+      properties:
+        customerId: { type: string }
+
+        referenceId: { type: string }
+        priceId: { type: string, description: APICenter-managed recurring price reference. }
+        cancelAtPeriodEnd: { type: boolean, default: false }
+    Checkout:
+      type: object
+      required: [checkoutId, referenceId, status, amount]
+      properties:
+        checkoutId: { type: string }
+        referenceId: { type: string }
+        status: { type: string, enum: [created, pending, paid, failed, cancelled, expired] }
+        amount: { $ref: '#/components/schemas/Money' }
+        checkoutUrl: { type: string, format: uri }
+        aggregateVersion: { type: integer, minimum: 1 }
+    PaymentIntent:
+      type: object
+      required: [paymentIntentId, referenceId, status, amount]
+      properties:
+        paymentIntentId: { type: string }
+        referenceId: { type: string }
+        status: { type: string, enum: [requires_action, pending, succeeded, failed, cancelled] }
+        amount: { $ref: '#/components/schemas/Money' }
+        aggregateVersion: { type: integer, minimum: 1 }
+    Customer:
+      type: object
+      required: [customerId, customerReference]
+      properties:
+        customerId: { type: string }
+
+        customerReference: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+    PaymentMethodSetup:
+      type: object
+      required: [setupId, customerId, status]
+      properties:
+        setupId: { type: string }
+        customerId: { type: string }
+
+        status: { type: string, enum: [pending, succeeded, failed] }
+        returnUrl: { type: string, format: uri }
+    Refund:
+      type: object
+      required: [refundId, paymentId, status, amount]
+      properties:
+        refundId: { type: string }
+        paymentId: { type: string }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        amount: { $ref: '#/components/schemas/Money' }
+    Subscription:
+      type: object
+      required: [subscriptionId, customerId, status]
+      properties:
+        subscriptionId: { type: string }
+        customerId: { type: string }
+
+        status: { type: string, enum: [active, past_due, cancelled, pending] }
+        currentPeriodEnd: { type: string, format: date-time }
+    Invoice:
+      type: object
+      required: [invoiceId, status, amount]
+      properties:
+        invoiceId: { type: string }
+        status: { type: string, enum: [draft, open, paid, past_due, void] }
+        amount: { $ref: '#/components/schemas/Money' }
+    PaymentCapabilities:
+      type: object
+      required: [currency, paymentMethods, resources]
+      properties:
+        currency: { type: string, enum: [PHP] }
+        paymentMethods: { type: array, items: { type: string } }
+        resources: { type: array, items: { type: string } }
+    PendingResource:
+      type: object
+      required: [status, resourceId]
+      properties:
+        status: { type: string, enum: [pending] }
+        resourceId: { type: string }
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }

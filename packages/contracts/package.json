@@ -1,0 +1,7 @@
+{
+  "name": "@apicenter/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "APICenter public HTTP and event contract workspace",
+  "scripts": {}
+}

@@ -72,6 +72,7 @@ import { ComplianceModule } from "./compliance/compliance.module";
 import { ForecastingModule } from "./forecasting/forecasting.module";
 import { OperationsModule } from "./operations/operations.module";
 import { CapabilitiesModule } from "./capabilities/capabilities.module";
+import { PaymentsModule } from "./payments/payments.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -116,6 +117,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     CatalogModule, // API marketplace product projection
     ComplianceModule, // Audit-ready export packets
     CapabilitiesModule, // Runtime capability snapshot for management and operators
+    PaymentsModule, // Provider-neutral payments facade backed by private apps/payments
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     KafkaModule, // Audit events, auth events, registry lifecycle events
