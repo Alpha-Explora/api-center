@@ -24,7 +24,7 @@ npm run gcp:provision-payment-events -- \
   --consumer-service-id alphaci-backend \
   --cloud-run-service-name alphaci-be-test \
   --endpoint https://alphaci-be-test-<hash>-as.a.run.app/payment-events \
-  --delivery-service-account apicenter-payment-events-delivery@apicenter-alpha-20260623.iam.gserviceaccount.com
+  --delivery-service-account apicenter-pay-events-delivery@apicenter-alpha-20260623.iam.gserviceaccount.com
 ```
 
 The command validates HTTPS Cloud Run endpoints, environment safety, exact

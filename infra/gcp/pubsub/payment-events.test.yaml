@@ -15,7 +15,7 @@ spec:
   delivery:
     maxDeliveryAttempts: 20
     ackDeadlineSeconds: 30
-    serviceAccountEmail: apicenter-payment-events-delivery@${APICENTER_GCP_PROJECT_ID}.iam.gserviceaccount.com
+    serviceAccountEmail: apicenter-pay-events-delivery@${APICENTER_GCP_PROJECT_ID}.iam.gserviceaccount.com
   consumers:
     - consumerServiceId: alphaci-backend
       pushEndpoint: ${ALPHACI_PAYMENT_EVENTS_TEST_ENDPOINT}

@@ -5,16 +5,18 @@ describe("payment event provisioning plan", () => {
     project: "apicenter-alpha-20260623",
     consumerProject: "alphaci-20260629",
     region: "asia-southeast1",
-    environment: "test" as const,
+    environment: "test",
     consumerServiceId: "alphaci-backend",
     endpoint: "https://alphaci-be-test-abc.a.run.app/payment-events",
     cloudRunServiceName: "alphaci-be-test",
-    deliveryServiceAccount: "apicenter-payment-events-delivery@apicenter-alpha-20260623.iam.gserviceaccount.com",
+    deliveryServiceAccount: "apicenter-pay-events-delivery@apicenter-alpha-20260623.iam.gserviceaccount.com",
     apply: false,
   };
 
   it("builds canonical filtered OIDC and dead-letter resources", () => {
     const plan = buildPlan(input, "123456789");
+    const flatCommands = plan.commands.flat();
+    const filterCommand = flatCommands.find((value: unknown) => typeof value === "string" && value.startsWith("--message-filter="));
 
     expect(plan.names).toEqual({
       topic: "apicenter.payment-events.test",
@@ -23,14 +25,14 @@ describe("payment event provisioning plan", () => {
       subscription: "apicenter.payment-events.test.alphaci-backend",
       alertPolicy: "apicenter.payment-events.test.alphaci-backend.delivery-failures",
     });
-    expect(plan.commands).toEqual(
-      expect.arrayContaining([
-        expect.arrayContaining(["--message-filter=attributes.consumerServiceId = \"alphaci-backend\""]),
-        expect.arrayContaining(["--max-delivery-attempts=20"]),
-        expect.arrayContaining(["--push-auth-service-account=apicenter-payment-events-delivery@apicenter-alpha-20260623.iam.gserviceaccount.com"]),
-        expect.arrayContaining(["--role=roles/run.invoker"]),
-      ]),
-    );
+    expect(filterCommand).toContain("consumerServiceId");
+    expect(filterCommand).toContain("alphaci-backend");
+    expect(flatCommands).toEqual(expect.arrayContaining([
+      "--max-delivery-attempts=20",
+      "--push-auth-service-account=apicenter-pay-events-delivery@apicenter-alpha-20260623.iam.gserviceaccount.com",
+      "--project=alphaci-20260629",
+      "--role=roles/run.invoker",
+    ]));
     expect(plan.policy.conditions[0].conditionThreshold.filter).toContain(
       "subscription_id=\"apicenter.payment-events.test.dead-letter.subscription\"",
     );

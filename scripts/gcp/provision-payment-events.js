@@ -6,6 +6,8 @@ const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { z } = require('zod');
 
+const GCLOUD_COMMAND = process.platform === 'win32' ? 'gcloud.cmd' : 'gcloud';
+
 const DAY_SECONDS = 31 * 24 * 60 * 60;
 const argsSchema = z.object({
   project: z.string().min(1),
@@ -74,16 +76,17 @@ function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
   const pubsubAgent = `service-${projectNumber}@gcp-sa-pubsub.iam.gserviceaccount.com`;
   const deliveryServiceAccountId = input.deliveryServiceAccount.split('@')[0];
   const member = `serviceAccount:${input.deliveryServiceAccount}`;
+  const consumerFilter = `--message-filter=attributes.consumerServiceId=\\"${input.consumerServiceId}\\"`;
   const deadLetterTopicResource = `projects/${input.project}/topics/${names.deadLetterTopic}`;
   const commands = [
-    ['iam', 'service-accounts', 'create', deliveryServiceAccountId, `--project=${input.project}`, '--display-name=APICenter payment event delivery'],
+    ['iam', 'service-accounts', 'create', deliveryServiceAccountId, `--project=${input.project}`, '--display-name=APICenter-payment-event-delivery'],
     ['pubsub', 'topics', 'create', names.topic, `--project=${input.project}`],
     ['pubsub', 'topics', 'update', names.topic, `--project=${input.project}`, `--message-retention-duration=${DAY_SECONDS}s`],
     ['pubsub', 'topics', 'create', names.deadLetterTopic, `--project=${input.project}`],
     ['pubsub', 'topics', 'update', names.deadLetterTopic, `--project=${input.project}`, `--message-retention-duration=${DAY_SECONDS}s`],
     ['pubsub', 'subscriptions', 'create', names.deadLetterSubscription, `--project=${input.project}`, `--topic=${names.deadLetterTopic}`, '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
-    ['pubsub', 'subscriptions', 'create', names.subscription, `--project=${input.project}`, `--topic=${names.topic}`, `--message-filter=attributes.consumerServiceId = "${input.consumerServiceId}"`, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${endpoint}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
-    ['pubsub', 'subscriptions', 'update', names.subscription, `--project=${input.project}`, `--message-filter=attributes.consumerServiceId = "${input.consumerServiceId}"`, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${endpoint}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
+    ['pubsub', 'subscriptions', 'create', names.subscription, `--project=${input.project}`, `--topic=${names.topic}`, consumerFilter, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${endpoint}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
+    ['pubsub', 'subscriptions', 'update', names.subscription, `--project=${input.project}`, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${endpoint}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
     ['pubsub', 'topics', 'add-iam-policy-binding', names.deadLetterTopic, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/pubsub.publisher'],
     ['pubsub', 'subscriptions', 'add-iam-policy-binding', names.subscription, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/pubsub.subscriber'],
     ['iam', 'service-accounts', 'add-iam-policy-binding', input.deliveryServiceAccount, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/iam.serviceAccountTokenCreator'],
@@ -104,14 +107,14 @@ function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
     }],
     notificationChannels: input.notificationChannel ? [input.notificationChannel] : [],
     alertStrategy: { autoClose: '604800s' },
-    documentation: { content: `APICenter ${input.environment} payment event delivery has dead-letter messages for ${input.consumerServiceId}.` },
+    documentation: { content: `APICenter ${input.environment} payment event delivery has dead-letter messages for ${input.consumerServiceId}.`, mimeType: 'text/markdown' },
   };
   return { names, endpoint, commands, policy, projectNumber };
 }
 
 function runGcloud(args, { allowAlreadyExists = false } = {}) {
   try {
-    return execFileSync('gcloud', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    return execFileSync(GCLOUD_COMMAND, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: process.platform === 'win32' });
   } catch (error) {
     const output = `${error.stdout || ''}${error.stderr || ''}${error.message || ''}`;
     if (allowAlreadyExists && /already exists|ALREADY_EXISTS|already exists/i.test(output)) return '';
