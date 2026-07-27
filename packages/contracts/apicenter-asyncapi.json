@@ -1,0 +1,312 @@
+{
+  "asyncapi": "3.1.0",
+  "info": {
+    "title": "APICenter Payment Events",
+    "version": "1.0.0",
+    "description": "Normalized payment lifecycle events delivered through Google Pub/Sub."
+  },
+  "defaultContentType": "application/json",
+  "servers": {
+    "test": {
+      "host": "pubsub.googleapis.com",
+      "protocol": "googlepubsub",
+      "description": "APICenter test project Pub/Sub"
+    },
+    "live": {
+      "host": "pubsub.googleapis.com",
+      "protocol": "googlepubsub",
+      "description": "APICenter live project Pub/Sub"
+    }
+  },
+  "channels": {
+    "apicenter.payment-events.{environment}": {
+      "address": "apicenter.payment-events.{environment}",
+      "description": "Filtered payment events for registered consumer services.",
+      "x-apicenter-consumer-filter": {
+        "attribute": "consumerServiceId",
+        "source": "control_plane.consumer_services"
+      },
+      "x-apicenter-push-delivery": {
+        "authentication": "oidc",
+        "audience": "Cloud Run event endpoint",
+        "deadLetterTopic": "apicenter.payment-events.{environment}.dead-letter",
+        "maxDeliveryAttempts": 20
+      },
+      "parameters": {
+        "environment": {
+          "description": "APICenter environment.",
+          "enum": [
+            "test",
+            "live"
+          ]
+        }
+      },
+      "messages": {
+        "PaymentCheckoutCreated": {
+          "$ref": "#/components/messages/PaymentCheckoutCreated"
+        },
+        "PaymentCheckoutPaid": {
+          "$ref": "#/components/messages/PaymentCheckoutPaid"
+        },
+        "PaymentCheckoutFailed": {
+          "$ref": "#/components/messages/PaymentCheckoutFailed"
+        },
+        "PaymentRefunded": {
+          "$ref": "#/components/messages/PaymentRefunded"
+        },
+        "PaymentMethodSetupSucceeded": {
+          "$ref": "#/components/messages/PaymentMethodSetupSucceeded"
+        },
+        "PaymentSubscriptionActive": {
+          "$ref": "#/components/messages/PaymentSubscriptionActive"
+        },
+        "PaymentSubscriptionPastDue": {
+          "$ref": "#/components/messages/PaymentSubscriptionPastDue"
+        },
+        "PaymentSubscriptionCancelled": {
+          "$ref": "#/components/messages/PaymentSubscriptionCancelled"
+        }
+      }
+    }
+  },
+  "operations": {
+    "receivePaymentEvent": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/apicenter.payment-events.{environment}"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PaymentCheckoutPaid"
+        }
+      ]
+    }
+  },
+  "components": {
+    "messages": {
+      "PaymentCheckoutCreated": {
+        "name": "payment.checkout.created",
+        "title": "Checkout created",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      },
+      "PaymentCheckoutPaid": {
+        "name": "payment.checkout.paid",
+        "title": "Checkout paid",
+        "payload": {
+          "type": "object",
+          "required": [
+            "eventId",
+            "contractVersion",
+            "eventType",
+            "ownerTribeId",
+            "consumerServiceId",
+            "referenceId",
+            "aggregateType",
+            "aggregateId",
+            "aggregateVersion",
+            "occurredAt",
+            "data"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string"
+            },
+            "contractVersion": {
+              "type": "string",
+              "const": "1.0"
+            },
+            "eventType": {
+              "type": "string",
+              "const": "payment.checkout.paid"
+            },
+            "ownerTribeId": {
+              "type": "string"
+            },
+            "consumerServiceId": {
+              "type": "string"
+            },
+            "referenceId": {
+              "type": "string"
+            },
+            "aggregateType": {
+              "type": "string",
+              "const": "checkout"
+            },
+            "aggregateId": {
+              "type": "string"
+            },
+            "aggregateVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "data": {
+              "$ref": "#/components/schemas/CheckoutSnapshot"
+            }
+          }
+        }
+      },
+      "PaymentCheckoutFailed": {
+        "name": "payment.checkout.failed",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      },
+      "PaymentRefunded": {
+        "name": "payment.refunded",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      },
+      "PaymentMethodSetupSucceeded": {
+        "name": "payment_method_setup.succeeded",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      },
+      "PaymentSubscriptionActive": {
+        "name": "subscription.active",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      },
+      "PaymentSubscriptionPastDue": {
+        "name": "subscription.past_due",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      },
+      "PaymentSubscriptionCancelled": {
+        "name": "subscription.cancelled",
+        "payload": {
+          "$ref": "#/components/schemas/PaymentEvent"
+        }
+      }
+    },
+    "schemas": {
+      "PaymentEvent": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "contractVersion",
+          "eventType",
+          "ownerTribeId",
+          "consumerServiceId",
+          "referenceId",
+          "aggregateType",
+          "aggregateId",
+          "aggregateVersion",
+          "occurredAt",
+          "data"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "contractVersion": {
+            "type": "string",
+            "const": "1.0"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "ownerTribeId": {
+            "type": "string"
+          },
+          "consumerServiceId": {
+            "type": "string"
+          },
+          "referenceId": {
+            "type": "string"
+          },
+          "aggregateType": {
+            "type": "string",
+            "enum": [
+              "checkout",
+              "payment_intent",
+              "refund",
+              "subscription",
+              "invoice"
+            ]
+          },
+          "aggregateId": {
+            "type": "string"
+          },
+          "aggregateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "CheckoutSnapshot": {
+        "type": "object",
+        "required": [
+          "checkoutId",
+          "referenceId",
+          "status",
+          "amount",
+          "aggregateVersion"
+        ],
+        "properties": {
+          "checkoutId": {
+            "type": "string"
+          },
+          "referenceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "pending",
+              "paid",
+              "failed",
+              "cancelled",
+              "expired"
+            ]
+          },
+          "amount": {
+            "type": "object",
+            "required": [
+              "amountMinor",
+              "currency"
+            ],
+            "properties": {
+              "amountMinor": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "currency": {
+                "type": "string",
+                "const": "PHP"
+              }
+            }
+          },
+          "aggregateVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

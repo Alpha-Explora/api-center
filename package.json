@@ -26,7 +26,7 @@
     "db:studio": "supabase status",
     "db:backfill:registry": "ts-node scripts/backfill-registry-to-postgres.ts",
     "check:boundaries": "node scripts/check-boundaries.js",
-    "check:contracts": "node scripts/check-contract-compatibility.js",
+    "check:contracts": "node scripts/check-contract-compatibility.js && node scripts/check-sdk-contracts.js",
     "contracts:validate": "ts-node scripts/contracts/validate-public-contracts.ts",
     "contracts:test": "jest --runInBand tests/unit/contracts/public-payment-contract.spec.ts",
     "check:data-pipeline-projection": "node scripts/data-pipeline/resolve-athena-topic-projection.js --check -TopicsFile infra/aws-data-pipeline/topic-projection-values.txt -RawTopicTablesSql infra/aws-data-pipeline/catalog/raw-topic-tables.sql --onboarding-state-file .local-state/topic-onboarding-states.json",
@@ -57,7 +57,11 @@
     "check:no-legacy-routing": "node scripts/verify-no-legacy-environment-routing.js",
     "build:gateway": "nest build",
     "turbo:check": "turbo run typecheck test lint",
-    "gcp:provision-payment-events": "node scripts/gcp/provision-payment-events.js"
+    "gcp:provision-payment-events": "node scripts/gcp/provision-payment-events.js",
+    "contracts:sync-json": "node scripts/contracts/generate-public-contract-json.cjs",
+    "sdk:test": "npm run test --workspace @apicenter/sdk",
+    "sdk:build": "npm run build --workspace @apicenter/sdk",
+    "check:sdk-contracts": "node scripts/check-sdk-contracts.js"
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.1051.0",
