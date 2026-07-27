@@ -97,9 +97,9 @@ export class PaymentPubSubProvisioningService {
       deadLetterTopicName,
       subscriptionName,
       deliveryServiceAccountEmail: delivery.deliveryServiceAccountEmail,
-      consumerProjectId: delivery.consumerProjectId || projectId,
-      cloudRunRegion: delivery.cloudRunRegion || "asia-southeast1",
-      cloudRunServiceName: delivery.cloudRunServiceName || this.serviceNameFromEndpoint(delivery.pushEndpoint),
+      consumerProjectId: delivery.consumerProjectId,
+      cloudRunRegion: delivery.cloudRunRegion,
+      cloudRunServiceName: delivery.cloudRunServiceName,
     });
 
     return {
@@ -172,11 +172,6 @@ export class PaymentPubSubProvisioningService {
     }
 
     return delivery;
-  }
-
-  private serviceNameFromEndpoint(endpoint: string): string {
-    const host = new URL(endpoint).hostname;
-    return host.split("-")[0] || "consumer";
   }
 
   private alreadyExists(error: unknown): boolean {
