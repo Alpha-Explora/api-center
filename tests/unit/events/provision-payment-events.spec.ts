@@ -3,6 +3,7 @@ const { buildPlan, validateEndpoint } = require("../../../scripts/gcp/provision-
 describe("payment event provisioning plan", () => {
   const input = {
     project: "apicenter-alpha-20260623",
+    consumerProject: "alphaci-20260629",
     region: "asia-southeast1",
     environment: "test" as const,
     consumerServiceId: "alphaci-backend",

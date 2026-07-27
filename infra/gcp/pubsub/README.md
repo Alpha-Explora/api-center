@@ -18,6 +18,7 @@ Each environment has:
 ```bash
 npm run gcp:provision-payment-events -- \
   --project apicenter-alpha-20260623 \
+  --consumer-project alphaci-20260629 \
   --region asia-southeast1 \
   --environment test \
   --consumer-service-id alphaci-backend \
@@ -41,7 +42,7 @@ gcloud config set project apicenter-alpha-20260623
 npm run gcp:provision-payment-events -- <same arguments> --apply
 ```
 
-The Pub/Sub service agent receives publisher access on the dead-letter topic
+Pub/Sub resources stay in the APICenter project. The `--consumer-project` receives the Cloud Run invoker binding for the registered AlphaCI service. The Pub/Sub service agent receives publisher access on the dead-letter topic
 and subscriber access on the source subscription. The delivery service account
 receives `roles/run.invoker` only on the supplied consumer Cloud Run service.
 

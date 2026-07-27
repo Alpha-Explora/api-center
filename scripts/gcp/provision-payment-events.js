@@ -9,6 +9,7 @@ const { z } = require('zod');
 const DAY_SECONDS = 31 * 24 * 60 * 60;
 const argsSchema = z.object({
   project: z.string().min(1),
+  consumerProject: z.string().min(1).optional(),
   region: z.string().min(1),
   environment: z.enum(['test', 'live']),
   consumerServiceId: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
@@ -64,6 +65,7 @@ function resourceNames(environment, consumerServiceId) {
 
 function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
   const endpoint = validateEndpoint(input.endpoint, input.environment);
+  const consumerProject = input.consumerProject || input.project;
   const projectDomain = `${input.project}.iam.gserviceaccount.com`;
   if (!input.deliveryServiceAccount.endsWith(`@${projectDomain}`)) {
     throw new Error(`Delivery service account must belong to ${projectDomain}.`);
@@ -85,7 +87,7 @@ function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
     ['pubsub', 'topics', 'add-iam-policy-binding', names.deadLetterTopic, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/pubsub.publisher'],
     ['pubsub', 'subscriptions', 'add-iam-policy-binding', names.subscription, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/pubsub.subscriber'],
     ['iam', 'service-accounts', 'add-iam-policy-binding', input.deliveryServiceAccount, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/iam.serviceAccountTokenCreator'],
-    ['run', 'services', 'add-iam-policy-binding', input.cloudRunServiceName, `--project=${input.project}`, `--region=${input.region}`, `--member=${member}`, '--role=roles/run.invoker'],
+    ['run', 'services', 'add-iam-policy-binding', input.cloudRunServiceName, `--project=${consumerProject}`, `--region=${input.region}`, `--member=${member}`, '--role=roles/run.invoker'],
   ];
   const policy = {
     displayName: names.alertPolicy,
