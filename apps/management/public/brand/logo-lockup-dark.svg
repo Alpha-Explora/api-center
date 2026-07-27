@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 244 64" role="img" aria-labelledby="title desc">
+  <title id="title">API Center</title>
+  <desc id="desc">Dark-mode API Center wordmark with secure routing hub icon.</desc>
+  <rect width="244" height="64" rx="16" fill="#043F3A"/>
+  <g transform="translate(8 8)">
+    <rect width="48" height="48" rx="12" fill="#050807"/>
+    <path d="M13.5 17.2C17.2 17.2 19.5 14.6 24 11.2C28.5 14.6 30.8 17.2 34.5 17.2V25.5C34.5 32.2 29.6 36.4 24 38.2C18.4 36.4 13.5 32.2 13.5 25.5V17.2Z" fill="#FFFFFF" stroke="#22D3A6" stroke-width="1.8"/>
+    <path d="M24 18V24M24 24L18.8 29.2M24 24L29.2 29.2" fill="none" stroke="#043F3A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="24" cy="18" r="3" fill="#22D3A6"/>
+    <circle cx="18.8" cy="29.2" r="2.7" fill="#22D3A6"/>
+    <circle cx="29.2" cy="29.2" r="2.7" fill="#22D3A6"/>
+  </g>
+  <text x="72" y="39" fill="#FFFFFF" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="650" letter-spacing="0">API Center</text>
+</svg>

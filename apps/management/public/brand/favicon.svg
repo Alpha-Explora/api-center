@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">API Center icon</title>
+  <desc id="desc">A central secure routing hub connected to service nodes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#043F3A"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M18 23C23 23 26 19.5 32 15C38 19.5 41 23 46 23V34C46 43 39.5 48.5 32 51C24.5 48.5 18 43 18 34V23Z" fill="#FFFFFF" stroke="#22D3A6" stroke-width="2"/>
+  <path d="M32 24V32M32 32L25 39M32 32L39 39" fill="none" stroke="#043F3A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="24" r="4" fill="#22D3A6"/>
+  <circle cx="25" cy="39" r="3.5" fill="#22D3A6"/>
+  <circle cx="39" cy="39" r="3.5" fill="#22D3A6"/>
+</svg>

@@ -2,6 +2,11 @@
 
 APICenter is the **single, centralized API gateway** for the platform. Tribe-to-tribe calls, shared platform services, auth, registry, and governed event publishing route through APICenter. No tribe calls another tribe or provider API directly.
 
+> **Management console location:** The operator console formerly maintained in
+> the standalone apicenter-management repository now lives at
+> apps/management in this repository. Its existing registry, auth, onboarding,
+> and operational routes are preserved; payment consumer registration and
+> Pub/Sub delivery provisioning are exposed from the Shared Services setup page.
 > **Current payment platform boundary (2026-07-27):** APICenter is the Turborepo source of truth. The TypeScript gateway exposes `/api/v1/payments/*`; the private `apps/payments` runtime owns PayMongo credentials, provider calls, webhook verification, canonical `shared_payment` state, and the outbox. Payment lifecycle delivery uses APICenter-owned Google Pub/Sub. `api-shared` is frozen migration source and is not a new feature target.
 
 The private payments app is configured with `APICENTER_PAYMENTS_URL` and `APICENTER_PAYMENTS_INTERNAL_TOKEN`. Set `PUBSUB_DISPATCHER_ENABLED=true` only in a GCP runtime with Pub/Sub permissions; the dispatcher publishes pending outbox rows to `APICENTER_PAYMENT_EVENTS_TOPIC_TEST` or `APICENTER_PAYMENT_EVENTS_TOPIC_LIVE`.

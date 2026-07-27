@@ -1,12 +1,14 @@
+import { describe, expect, it, vi } from "vitest";
+
 import {
   PaymentConsumerManagementError,
   PaymentConsumerService,
-} from "./payment-consumer-service";
+} from "@/lib/payment-consumer-service";
 
 describe("PaymentConsumerService", () => {
   it("registers a consumer, provisions delivery, and exposes the key once", async () => {
     const calls: Array<{ url: string; body: unknown; headers: Record<string, string> }> = [];
-    const fetchImpl = jest.fn(async (input: string | URL, init?: RequestInit) => {
+    const fetchImpl = vi.fn(async (input: string | URL, init?: RequestInit) => {
       calls.push({
         url: String(input),
         body: JSON.parse(String(init?.body)),
@@ -63,7 +65,7 @@ describe("PaymentConsumerService", () => {
   });
 
   it("rejects non-HTTPS delivery endpoints before making a request", async () => {
-    const fetchImpl = jest.fn();
+    const fetchImpl = vi.fn();
     const service = new PaymentConsumerService({
       gatewayBaseUrl: "https://api-center.example.test",
       operatorToken: "operator-token",
@@ -83,7 +85,7 @@ describe("PaymentConsumerService", () => {
   });
 
   it("surfaces operator API failures without returning credentials", async () => {
-    const fetchImpl = jest.fn(async () => new Response(
+    const fetchImpl = vi.fn(async () => new Response(
       JSON.stringify({ success: false, error: { code: "INVALID_PAYMENT_CONSUMER" } }),
       { status: 400 },
     ));

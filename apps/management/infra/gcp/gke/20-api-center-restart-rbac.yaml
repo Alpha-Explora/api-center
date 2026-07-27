@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apicenter-management-api-center-restarter
+  namespace: api-center
+rules:
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    resourceNames:
+      - api-center
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apicenter-management-api-center-restarter
+  namespace: api-center
+subjects:
+  - kind: ServiceAccount
+    name: apicenter-management
+    namespace: api-center
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apicenter-management-api-center-restarter
+
+

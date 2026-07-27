@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apicenter-management
+  namespace: api-center
+  labels:
+    app.kubernetes.io/name: apicenter-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apicenter-management
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: apicenter-management
+    spec:
+      serviceAccountName: apicenter-management
+      containers:
+        - name: apicenter-management
+          image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:replace-me
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: API_CENTER_BASE_URL
+              value: https://api-center.itsandbox.site
+            - name: NEXT_PUBLIC_API_CENTER_BASE_URL
+              value: https://api-center.itsandbox.site
+            - name: GOOGLE_CLOUD_PROJECT
+              value: apicenter-alpha-20260623
+            - name: TRIBE_SECRET_GCP_PREFIX
+              value: api-center-tribe-secret-
+            - name: ALLOW_DEPLOYMENT_RESTARTS
+              value: "true"
+            - name: K8S_NAMESPACE
+              value: api-center
+            - name: K8S_API_CENTER_DEPLOYMENT
+              value: api-center
+            - name: API_CENTER_PLATFORM_ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-management
+                  key: API_CENTER_PLATFORM_ADMIN_SECRET
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+
+

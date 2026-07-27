@@ -5,7 +5,7 @@ export async function POST(
   context: { params: Promise<{ serviceId: string }> },
 ): Promise<Response> {
   try {
-    const service = requireManagementService(request);
+    const service = await requireManagementService(request);
     if (service instanceof Response) return service;
     const { serviceId } = await context.params;
     const body = await request.json();
