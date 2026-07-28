@@ -1,5 +1,5 @@
-import { ConfigService } from "../../../../../src/config/config.service";
-import { buildExternalApis } from "../../../../../src/external/apis/index";
+import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
+import { buildExternalApis } from "../../../../../apps/gateway/src/external/apis/index";
 
 describe("external api builders", () => {
   const config = {} as unknown as ConfigService;

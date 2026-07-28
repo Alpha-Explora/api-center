@@ -2,7 +2,7 @@
 
 Keep all tests under this folder.
 
-- `unit/` mirrors production source paths from `src/`.
+- `unit/` mirrors production source paths from `apps/gateway/src/`.
 - `integration/` holds script and runtime-adjacent tests.
 - `e2e/` holds API flow specs and the e2e Jest config.
 

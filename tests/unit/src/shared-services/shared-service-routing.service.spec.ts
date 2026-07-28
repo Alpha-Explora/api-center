@@ -1,5 +1,5 @@
-import { SharedServiceRoutingService } from "../../../../src/shared-services/shared-service-routing.service";
-import { ServiceUnavailableError } from "../../../../src/shared/errors";
+import { SharedServiceRoutingService } from "../../../../apps/gateway/src/shared-services/shared-service-routing.service";
+import { ServiceUnavailableError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("SharedServiceRoutingService", () => {
   it("resolves payment test and live targets", () => {

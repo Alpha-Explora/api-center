@@ -8,7 +8,7 @@ require("ts-node/register");
 const { planProductionPilotProjectionPromotion } = require(
   path.resolve(
     __dirname,
-    "../../src/data-pipeline/production-pilot-projection-promoter.ts",
+    "../../apps/gateway/src/data-pipeline/production-pilot-projection-promoter.ts",
   ),
 );
 

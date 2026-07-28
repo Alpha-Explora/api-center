@@ -1,4 +1,4 @@
-import { isHealthCheckPath } from "../../../../src/shared/health-path";
+import { isHealthCheckPath } from "../../../../apps/gateway/src/shared/health-path";
 
 describe("isHealthCheckPath", () => {
   it("matches global-prefixed health routes", () => {

@@ -1,5 +1,5 @@
-import { HealthMonitorService } from "../../../../src/registry/health-monitor.service";
-import { ServiceRegistryEntry } from "../../../../src/types";
+import { HealthMonitorService } from "../../../../apps/gateway/src/registry/health-monitor.service";
+import { ServiceRegistryEntry } from "../../../../apps/gateway/src/types";
 
 const baseEntry: ServiceRegistryEntry = {
   serviceId: "payment-service",

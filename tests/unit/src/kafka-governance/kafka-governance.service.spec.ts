@@ -1,10 +1,10 @@
-import { ConfigService } from "../../../../src/config/config.service";
-import { EventSchemaRegistryService } from "../../../../src/data-pipeline/event-schema-registry.service";
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
-import { ForbiddenError, ValidationError } from "../../../../src/shared/errors";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { KafkaGovernanceService } from "../../../../src/kafka-governance/kafka-governance.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { EventSchemaRegistryService } from "../../../../apps/gateway/src/data-pipeline/event-schema-registry.service";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
+import { ForbiddenError, ValidationError } from "../../../../apps/gateway/src/shared/errors";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { KafkaGovernanceService } from "../../../../apps/gateway/src/kafka-governance/kafka-governance.service";
 
 describe("KafkaGovernanceService", () => {
   const mockKafka = {

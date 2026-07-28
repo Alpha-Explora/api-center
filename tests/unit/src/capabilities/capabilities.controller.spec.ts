@@ -1,5 +1,5 @@
-import { CapabilitiesController } from "../../../../src/capabilities/capabilities.controller";
-import { CapabilitiesSnapshot } from "../../../../src/capabilities/capabilities.service";
+import { CapabilitiesController } from "../../../../apps/gateway/src/capabilities/capabilities.controller";
+import { CapabilitiesSnapshot } from "../../../../apps/gateway/src/capabilities/capabilities.service";
 
 describe("CapabilitiesController", () => {
   it("wraps the capabilities snapshot in the standard API envelope", () => {

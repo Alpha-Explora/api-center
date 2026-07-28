@@ -1,8 +1,8 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { ScopedAdminGuard } from "../../../../src/auth/guards/scoped-admin.guard";
-import { ApprovalRequestController } from "../../../../src/approvals/approval-request.controller";
-import { ApprovalRequestService } from "../../../../src/approvals/approval-request.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { ScopedAdminGuard } from "../../../../apps/gateway/src/auth/guards/scoped-admin.guard";
+import { ApprovalRequestController } from "../../../../apps/gateway/src/approvals/approval-request.controller";
+import { ApprovalRequestService } from "../../../../apps/gateway/src/approvals/approval-request.service";
 
 describe("ApprovalRequestController", () => {
   const approvals = {

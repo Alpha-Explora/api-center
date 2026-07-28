@@ -1,7 +1,7 @@
 import {
   resolveEnvPartitionDate,
   resolvePartitionDate,
-} from "../../../../src/data-pipeline/athena-partition-config";
+} from "../../../../apps/gateway/src/data-pipeline/athena-partition-config";
 
 describe("athena partition config", () => {
   it("reads environment partition keys by prefix", () => {

@@ -1,6 +1,6 @@
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { TopicOnboardingStateRecord } from "../../../../src/data-pipeline/topic-onboarding-state.dto";
-import { TopicOnboardingStateService } from "../../../../src/data-pipeline/topic-onboarding-state.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { TopicOnboardingStateRecord } from "../../../../apps/gateway/src/data-pipeline/topic-onboarding-state.dto";
+import { TopicOnboardingStateService } from "../../../../apps/gateway/src/data-pipeline/topic-onboarding-state.service";
 
 describe("TopicOnboardingStateService", () => {
   const originalDatabaseEnabled = process.env.DATABASE_ENABLED;

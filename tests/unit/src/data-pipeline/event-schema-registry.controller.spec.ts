@@ -1,6 +1,6 @@
-import { EventSchemaRegistryController } from "../../../../src/data-pipeline/event-schema-registry.controller";
-import { EventSchemaRegistryService } from "../../../../src/data-pipeline/event-schema-registry.service";
-import { AuthenticatedRequest } from "../../../../src/types";
+import { EventSchemaRegistryController } from "../../../../apps/gateway/src/data-pipeline/event-schema-registry.controller";
+import { EventSchemaRegistryService } from "../../../../apps/gateway/src/data-pipeline/event-schema-registry.service";
+import { AuthenticatedRequest } from "../../../../apps/gateway/src/types";
 
 describe("EventSchemaRegistryController", () => {
   const registry = {

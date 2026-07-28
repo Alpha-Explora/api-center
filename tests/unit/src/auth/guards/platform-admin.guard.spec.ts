@@ -1,8 +1,8 @@
 import { ExecutionContext } from "@nestjs/common";
-import { PlatformAdminGuard } from "../../../../../src/auth/guards/platform-admin.guard";
-import { ConfigService } from "../../../../../src/config/config.service";
-import { LoggerService } from "../../../../../src/shared/logger.service";
-import { UnauthorizedError } from "../../../../../src/shared/errors";
+import { PlatformAdminGuard } from "../../../../../apps/gateway/src/auth/guards/platform-admin.guard";
+import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
+import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 
 function createContext(request: Record<string, unknown>): ExecutionContext {
   return {

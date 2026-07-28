@@ -3,7 +3,7 @@ import {
   clearCloudRunAuthCacheForTesting,
   getCloudRunAuthorizationHeader,
   shouldUseCloudRunAuth,
-} from "../../../../../src/shared/proxy/cloud-run-auth";
+} from "../../../../../apps/gateway/src/shared/proxy/cloud-run-auth";
 
 const mockGetRequestHeaders = jest.fn();
 const mockGetIdTokenClient = jest.fn();

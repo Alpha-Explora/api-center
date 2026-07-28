@@ -1,8 +1,8 @@
 import { ExecutionContext } from "@nestjs/common";
 import { lastValueFrom, of, throwError } from "rxjs";
-import { KafkaService } from "../../../../../src/kafka/kafka.service";
-import { TOPICS } from "../../../../../src/kafka/topics";
-import { AuditLogInterceptor } from "../../../../../src/shared/interceptors/audit-log.interceptor";
+import { KafkaService } from "../../../../../apps/gateway/src/kafka/kafka.service";
+import { TOPICS } from "../../../../../apps/gateway/src/kafka/topics";
+import { AuditLogInterceptor } from "../../../../../apps/gateway/src/shared/interceptors/audit-log.interceptor";
 
 function createContext(
   request: Record<string, unknown>,

@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
-import { LoggerService } from "../../../../src/shared/logger.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import {
   SecretManagerClientLike,
   TribeSecretResolverService,
-} from "../../../../src/registry/tribe-secret-resolver.service";
+} from "../../../../apps/gateway/src/registry/tribe-secret-resolver.service";
 
 const mockLogger: Partial<LoggerService> = {
   warn: jest.fn(),

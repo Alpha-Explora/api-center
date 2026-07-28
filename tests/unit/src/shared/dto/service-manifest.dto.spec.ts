@@ -1,11 +1,11 @@
 // =============================================================================
-// Unit tests — ServiceManifestDto URL validation
+// Unit tests â€” ServiceManifestDto URL validation
 // =============================================================================
 
 import { validate } from "class-validator";
 import { describe, expect, it } from "@jest/globals";
 import { plainToInstance } from "class-transformer";
-import { ServiceManifestDto } from "../../../../../src/shared/dto/service-manifest.dto";
+import { ServiceManifestDto } from "../../../../../apps/gateway/src/shared/dto/service-manifest.dto";
 
 describe("ServiceManifestDto", () => {
   const baseManifest = {

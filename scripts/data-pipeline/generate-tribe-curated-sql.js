@@ -7,7 +7,7 @@ require("ts-node/register");
 const { generateTribeCuratedSql } = require(
   path.resolve(
     __dirname,
-    "../../src/data-pipeline/tribe-curated-sql-generator.ts",
+    "../../apps/gateway/src/data-pipeline/tribe-curated-sql-generator.ts",
   ),
 );
 

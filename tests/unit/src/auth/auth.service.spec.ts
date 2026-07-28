@@ -1,13 +1,13 @@
-import { AuthService } from "../../../../src/auth/auth.service";
+import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
 import {
   AuthProvider,
   IssuedToken,
   JwtClaims,
-} from "../../../../src/auth/auth-provider.interface";
-import { RefreshTokenRecord, TokenStoreService } from "../../../../src/auth/token-store.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { ForbiddenError, UnauthorizedError, ValidationError } from "../../../../src/shared/errors";
-import { AuthenticatedRequest } from "../../../../src/types";
+} from "../../../../apps/gateway/src/auth/auth-provider.interface";
+import { RefreshTokenRecord, TokenStoreService } from "../../../../apps/gateway/src/auth/token-store.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { ForbiddenError, UnauthorizedError, ValidationError } from "../../../../apps/gateway/src/shared/errors";
+import { AuthenticatedRequest } from "../../../../apps/gateway/src/types";
 
 jest.mock("node:crypto", () => ({
   randomUUID: jest.fn(() => "uuid-fixed"),

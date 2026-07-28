@@ -1,4 +1,4 @@
-import { TribePlanService } from "../../../../src/entitlements/tribe-plan.service";
+import { TribePlanService } from "../../../../apps/gateway/src/entitlements/tribe-plan.service";
 
 describe("TribePlanService", () => {
   const assignments = {

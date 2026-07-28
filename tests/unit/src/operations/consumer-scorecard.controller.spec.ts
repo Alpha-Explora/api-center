@@ -1,5 +1,5 @@
-import { ConsumerScorecardController } from "../../../../src/operations/consumer-scorecard.controller";
-import { ConsumerScorecardService } from "../../../../src/operations/consumer-scorecard.service";
+import { ConsumerScorecardController } from "../../../../apps/gateway/src/operations/consumer-scorecard.controller";
+import { ConsumerScorecardService } from "../../../../apps/gateway/src/operations/consumer-scorecard.service";
 
 describe("ConsumerScorecardController", () => {
   it("loads quota decisions once for distinct owner tribes", async () => {

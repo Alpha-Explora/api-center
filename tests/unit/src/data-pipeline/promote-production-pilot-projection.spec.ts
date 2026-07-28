@@ -1,4 +1,4 @@
-import { planProductionPilotProjectionPromotion } from "../../../../src/data-pipeline/production-pilot-projection-promoter";
+import { planProductionPilotProjectionPromotion } from "../../../../apps/gateway/src/data-pipeline/production-pilot-projection-promoter";
 
 describe("planProductionPilotProjectionPromotion", () => {
   const approval = {

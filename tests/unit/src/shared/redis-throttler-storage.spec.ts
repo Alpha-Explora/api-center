@@ -1,10 +1,10 @@
 // =============================================================================
-// Unit tests — RedisThrottlerStorage (in-memory fallback path)
+// Unit tests â€” RedisThrottlerStorage (in-memory fallback path)
 // =============================================================================
 
-import { RedisThrottlerStorage } from "../../../../src/shared/redis-throttler-storage";
-import { ConfigService } from "../../../../src/config/config.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
+import { RedisThrottlerStorage } from "../../../../apps/gateway/src/shared/redis-throttler-storage";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 
 const mockConfig = {
   redis: { rateLimitUrl: "redis://localhost:6380" },
@@ -25,7 +25,7 @@ describe("RedisThrottlerStorage (in-memory fallback)", () => {
       mockConfig as ConfigService,
       mockLogger as LoggerService,
     );
-    // Don't call onModuleInit — this simulates Redis being unavailable
+    // Don't call onModuleInit â€” this simulates Redis being unavailable
   });
 
   it("should allow requests within the limit", async () => {

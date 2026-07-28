@@ -1,5 +1,5 @@
-import { InternalJwtProvider } from "../../../../../src/auth/providers/internal-jwt.provider";
-import { ConfigService } from "../../../../../src/config/config.service";
+import { InternalJwtProvider } from "../../../../../apps/gateway/src/auth/providers/internal-jwt.provider";
+import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
 
 const tokenPayloads = new Map<string, Record<string, unknown>>();
 let tokenCounter = 0;

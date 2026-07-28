@@ -1,5 +1,5 @@
 // =============================================================================
-// Unit tests — ProxyHandler
+// Unit tests â€” ProxyHandler
 // =============================================================================
 // Covers proxy creation/caching, cache invalidation, circuit-breaker gating,
 // lifecycle enforcement (deprecated headers, retired rejection), and scope
@@ -12,17 +12,17 @@ import {
   ProxyOptions,
   GoneError,
   setCreateProxyMiddlewareForTesting,
-} from "../../../../src/shared/proxy-handler";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { AuthService } from "../../../../src/auth/auth.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
+} from "../../../../apps/gateway/src/shared/proxy-handler";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 import {
   NotFoundError,
   ForbiddenError,
   ServiceUnavailableError,
-} from "../../../../src/shared/errors";
-import { AuthenticatedRequest } from "../../../../src/types";
+} from "../../../../apps/gateway/src/shared/errors";
+import { AuthenticatedRequest } from "../../../../apps/gateway/src/types";
 
 // ---- Mock http-proxy-middleware ----
 const mockProxyMiddleware = jest.fn((_req: any, _res: any, _next: any) => {});
@@ -455,7 +455,7 @@ describe("ProxyHandler", () => {
   });
 
   // =========================================================================
-  // Lifecycle gate — retired and deprecated services
+  // Lifecycle gate â€” retired and deprecated services
   // =========================================================================
   describe("lifecycle gate", () => {
     it("throws GoneError (410) for retired service", async () => {

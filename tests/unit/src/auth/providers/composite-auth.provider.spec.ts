@@ -1,6 +1,6 @@
-import { CompositeAuthProvider } from "../../../../../src/auth/providers/composite-auth.provider";
-import { DescopeProvider } from "../../../../../src/auth/providers/descope.provider";
-import { InternalJwtProvider } from "../../../../../src/auth/providers/internal-jwt.provider";
+import { CompositeAuthProvider } from "../../../../../apps/gateway/src/auth/providers/composite-auth.provider";
+import { DescopeProvider } from "../../../../../apps/gateway/src/auth/providers/descope.provider";
+import { InternalJwtProvider } from "../../../../../apps/gateway/src/auth/providers/internal-jwt.provider";
 
 jest.mock("jose", () => ({
   createRemoteJWKSet: jest.fn(() => jest.fn()),

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 
-import { ConfigService } from "../../../../src/config/config.service";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { ServiceManifest } from "../../../../src/types";
-import { RegistryBootstrapService } from "../../../../src/registry/registry-bootstrap.service";
-import { RegistryService } from "../../../../src/registry/registry.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { ServiceManifest } from "../../../../apps/gateway/src/types";
+import { RegistryBootstrapService } from "../../../../apps/gateway/src/registry/registry-bootstrap.service";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
 
 jest.mock("node:fs/promises", () => ({
   readFile: jest.fn(),

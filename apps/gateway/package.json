@@ -2,11 +2,11 @@
   "name": "@apicenter/gateway",
   "version": "1.0.0",
   "private": true,
-  "description": "APICenter gateway workspace (temporary compatibility wrapper while root source is moved)",
+  "description": "APICenter public gateway runtime",
   "scripts": {
-    "build": "npm --prefix ../.. run build:gateway",
-    "typecheck": "npm --prefix ../.. run typecheck",
+    "build": "nest build",
+    "typecheck": "tsc --noEmit --incremental false -p tsconfig.json",
     "test": "npm --prefix ../.. run test",
-    "lint": "npm --prefix ../.. run lint"
+    "lint": "npm --prefix ../.. run lint:gateway"
   }
 }

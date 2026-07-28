@@ -1,4 +1,4 @@
-import { PromotionEvidenceBundleService } from "../../../../src/operations/promotion-evidence-bundle.service";
+import { PromotionEvidenceBundleService } from "../../../../apps/gateway/src/operations/promotion-evidence-bundle.service";
 
 describe("PromotionEvidenceBundleService", () => {
   it("builds a complete promotion evidence bundle", () => {

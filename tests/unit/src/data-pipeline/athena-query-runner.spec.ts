@@ -5,7 +5,7 @@ import {
   StartQueryExecutionCommand,
   StopQueryExecutionCommand,
 } from "@aws-sdk/client-athena";
-import { AthenaQueryRunner } from "../../../../src/data-pipeline/athena-query-runner";
+import { AthenaQueryRunner } from "../../../../apps/gateway/src/data-pipeline/athena-query-runner";
 
 describe("AthenaQueryRunner", () => {
   it("starts, polls, and maps Athena rows", async () => {

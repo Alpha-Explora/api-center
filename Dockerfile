@@ -43,9 +43,10 @@ COPY package.json package-lock.json* ./
 
 # Copy source and compile TypeScript (NestJS uses nest build)
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY apps/gateway/tsconfig.json apps/gateway/tsconfig.build.json apps/gateway/nest-cli.json ./apps/gateway/
 COPY config/ ./config/
 COPY prisma/ ./prisma/
-COPY src/ ./src/
+COPY apps/gateway/src/ ./apps/gateway/src/
 RUN npm run db:generate && \
     npm run build && \
     npm prune --omit=dev && \
@@ -61,7 +62,7 @@ ENV NODE_ENV=production
 # Copy runtime dependencies and app build output from builder
 COPY --chown=node:node package.json package-lock.json* ./
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/apps/gateway/dist ./dist
 COPY --from=builder --chown=node:node /app/config ./config
 
 # Create logs directory

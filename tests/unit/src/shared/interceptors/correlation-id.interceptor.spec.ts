@@ -1,7 +1,7 @@
 import { ExecutionContext } from "@nestjs/common";
 import { of, lastValueFrom } from "rxjs";
 import { trace } from "@opentelemetry/api";
-import { CorrelationIdInterceptor } from "../../../../../src/shared/interceptors/correlation-id.interceptor";
+import { CorrelationIdInterceptor } from "../../../../../apps/gateway/src/shared/interceptors/correlation-id.interceptor";
 
 function createContext(
   request: Record<string, unknown>,

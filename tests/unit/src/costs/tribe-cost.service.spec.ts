@@ -1,4 +1,4 @@
-import { TribeCostService } from "../../../../src/costs/tribe-cost.service";
+import { TribeCostService } from "../../../../apps/gateway/src/costs/tribe-cost.service";
 
 describe("TribeCostService", () => {
   it("calculates estimated monthly chargeback from usage units", () => {

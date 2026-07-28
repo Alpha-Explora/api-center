@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { PaymentsController } from '../../../../src/payments/payments.controller';
-import { PaymentIdempotencyService } from '../../../../src/payments/payment-idempotency.service';
+import { PaymentsController } from '../../../../apps/gateway/src/payments/payments.controller';
+import { PaymentIdempotencyService } from '../../../../apps/gateway/src/payments/payment-idempotency.service';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;

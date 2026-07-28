@@ -1,8 +1,8 @@
 import { ExecutionContext } from "@nestjs/common";
-import { JwtAuthGuard } from "../../../../../src/auth/guards/jwt-auth.guard";
-import { AuthService } from "../../../../../src/auth/auth.service";
-import { LoggerService } from "../../../../../src/shared/logger.service";
-import { UnauthorizedError } from "../../../../../src/shared/errors";
+import { JwtAuthGuard } from "../../../../../apps/gateway/src/auth/guards/jwt-auth.guard";
+import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
+import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
+import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 
 function createContext(request: Record<string, unknown>): ExecutionContext {
   return {

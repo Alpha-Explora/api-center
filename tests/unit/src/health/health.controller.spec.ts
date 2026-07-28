@@ -1,13 +1,13 @@
 import { HealthCheckService } from "@nestjs/terminus";
-import { HealthController } from "../../../../src/health/health.controller";
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { ExternalService } from "../../../../src/external/external.service";
-import { TokenStoreService } from "../../../../src/auth/token-store.service";
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { GatewayTrafficService } from "../../../../src/analytics/gateway-traffic.service";
-import { ConfigService } from "../../../../src/config/config.service";
-import { GovernanceReadinessService } from "../../../../src/health/governance-readiness.service";
+import { HealthController } from "../../../../apps/gateway/src/health/health.controller";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { ExternalService } from "../../../../apps/gateway/src/external/external.service";
+import { TokenStoreService } from "../../../../apps/gateway/src/auth/token-store.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { GatewayTrafficService } from "../../../../apps/gateway/src/analytics/gateway-traffic.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { GovernanceReadinessService } from "../../../../apps/gateway/src/health/governance-readiness.service";
 
 type IndicatorFn = () => Promise<Record<string, unknown>>;
 

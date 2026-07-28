@@ -1,19 +1,19 @@
 // =============================================================================
-// Unit tests — ScopedAdminGuard (dual-mode admin authentication)
+// Unit tests â€” ScopedAdminGuard (dual-mode admin authentication)
 // =============================================================================
-// Tests are provider-agnostic — they mock AuthService, not Descope directly.
+// Tests are provider-agnostic â€” they mock AuthService, not Descope directly.
 // This ensures the guard works identically regardless of whether the active
 // provider is DescopeProvider, InternalJwtProvider, or DevJwtProvider.
 // =============================================================================
 
 import { ExecutionContext } from "@nestjs/common";
-import { ScopedAdminGuard } from "../../../../../src/auth/guards/scoped-admin.guard";
-import { ConfigService } from "../../../../../src/config/config.service";
-import { AuthService } from "../../../../../src/auth/auth.service";
-import { LoggerService } from "../../../../../src/shared/logger.service";
-import { UnauthorizedError } from "../../../../../src/shared/errors";
+import { ScopedAdminGuard } from "../../../../../apps/gateway/src/auth/guards/scoped-admin.guard";
+import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
+import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
+import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
+import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 
-// ── Mocks ────────────────────────────────────────────────────────────────────
+// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const mockConfig = {
   platformAdminSecret: "test-secret-123",
 } as Partial<ConfigService>;
@@ -47,7 +47,7 @@ function createMockContext(
   } as unknown as ExecutionContext;
 }
 
-// ── Tests ────────────────────────────────────────────────────────────────────
+// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("ScopedAdminGuard", () => {
   let guard: ScopedAdminGuard;
 
@@ -60,7 +60,7 @@ describe("ScopedAdminGuard", () => {
     );
   });
 
-  // ── Legacy secret path ─────────────────────────────────────────────────
+  // â”€â”€ Legacy secret path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it("should allow access with valid X-Platform-Secret", async () => {
     const ctx = createMockContext({ "x-platform-secret": "test-secret-123" });
@@ -73,7 +73,7 @@ describe("ScopedAdminGuard", () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedError);
   });
 
-  // ── JWT scope path ─────────────────────────────────────────────────────
+  // â”€â”€ JWT scope path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it("should allow access with valid JWT containing platform:admin scope", async () => {
     // AuthService.validateToken returns flat JwtClaims (not nested Descope shape)
@@ -124,7 +124,7 @@ describe("ScopedAdminGuard", () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedError);
   });
 
-  // ── Dual-mode behaviour ────────────────────────────────────────────────
+  // â”€â”€ Dual-mode behaviour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it("should prefer JWT when both secret and JWT are provided", async () => {
     (mockAuth.validateToken as jest.Mock).mockResolvedValue({
@@ -149,7 +149,7 @@ describe("ScopedAdminGuard", () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedError);
   });
 
-  // ── Edge case: unconfigured secret ─────────────────────────────────────
+  // â”€â”€ Edge case: unconfigured secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it("should not allow empty secret to match unconfigured platformAdminSecret", async () => {
     const guardNoSecret = new ScopedAdminGuard(

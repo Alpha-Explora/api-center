@@ -1,6 +1,6 @@
-import { ConfigService } from "../../../../src/config/config.service";
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { createAthenaQueryTelemetryOptions } from "../../../../src/data-pipeline/athena-query-telemetry-options";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { createAthenaQueryTelemetryOptions } from "../../../../apps/gateway/src/data-pipeline/athena-query-telemetry-options";
 
 describe("DataPipelineModule", () => {
   it("does not configure an Athena telemetry publisher when the data pipeline is disabled", () => {

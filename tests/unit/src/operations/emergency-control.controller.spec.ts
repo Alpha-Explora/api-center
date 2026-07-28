@@ -1,6 +1,6 @@
-import { EmergencyControlController } from "../../../../src/operations/emergency-control.controller";
-import { EmergencyControlService } from "../../../../src/operations/emergency-control.service";
-import { ValidationError } from "../../../../src/shared/errors";
+import { EmergencyControlController } from "../../../../apps/gateway/src/operations/emergency-control.controller";
+import { EmergencyControlService } from "../../../../apps/gateway/src/operations/emergency-control.service";
+import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("EmergencyControlController", () => {
   it("applies and lists emergency controls", () => {

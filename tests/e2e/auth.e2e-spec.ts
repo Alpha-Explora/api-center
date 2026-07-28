@@ -1,13 +1,13 @@
 import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 
-import { AuthController } from "../../src/auth/auth.controller";
-import { AuthService } from "../../src/auth/auth.service";
-import { RegistryService } from "../../src/registry/registry.service";
-import { LoggerService } from "../../src/shared/logger.service";
-import { KafkaService } from "../../src/kafka/kafka.service";
-import { ConfigService } from "../../src/config/config.service";
-import { JwtAuthGuard } from "../../src/auth/guards/jwt-auth.guard";
+import { AuthController } from "../../apps/gateway/src/auth/auth.controller";
+import { AuthService } from "../../apps/gateway/src/auth/auth.service";
+import { RegistryService } from "../../apps/gateway/src/registry/registry.service";
+import { LoggerService } from "../../apps/gateway/src/shared/logger.service";
+import { KafkaService } from "../../apps/gateway/src/kafka/kafka.service";
+import { ConfigService } from "../../apps/gateway/src/config/config.service";
+import { JwtAuthGuard } from "../../apps/gateway/src/auth/guards/jwt-auth.guard";
 
 describe("AuthController (e2e)", () => {
   let app: INestApplication;

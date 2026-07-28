@@ -1,5 +1,5 @@
-import { PaymentIdempotencyService } from "../../../../src/payments/payment-idempotency.service";
-import { PaymentPrincipal } from "../../../../src/payments/payment-api-key.service";
+import { PaymentIdempotencyService } from "../../../../apps/gateway/src/payments/payment-idempotency.service";
+import { PaymentPrincipal } from "../../../../apps/gateway/src/payments/payment-api-key.service";
 
 describe("PaymentIdempotencyService", () => {
   const principal: PaymentPrincipal = {

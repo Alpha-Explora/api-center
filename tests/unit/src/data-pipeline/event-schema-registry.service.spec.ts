@@ -1,4 +1,4 @@
-import { EventSchemaRegistryService } from "../../../../src/data-pipeline/event-schema-registry.service";
+import { EventSchemaRegistryService } from "../../../../apps/gateway/src/data-pipeline/event-schema-registry.service";
 
 describe("EventSchemaRegistryService", () => {
   const approvedRecord = {

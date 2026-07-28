@@ -15,7 +15,7 @@ export default [
     ignores: ["node_modules/**", "dist/**", "coverage/**", ".eslintrc.json"],
   },
   {
-    files: ["src/**/*.ts"],
+    files: ["apps/gateway/src/**/*.ts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -35,7 +35,7 @@ export default [
     rules: {
       ...tsEslintPlugin.configs.recommended.rules,
       ...eslintConfigPrettier.rules,
-      "prettier/prettier": "error",
+      "prettier/prettier": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",

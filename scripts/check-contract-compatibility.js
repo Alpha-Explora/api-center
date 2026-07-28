@@ -122,13 +122,13 @@ function runContractChecks() {
 
   const contract = readJson(contractPath);
 
-  if (!assertFileExists('src/shared-services/shared-services.controller.ts')) {
+  if (!assertFileExists('apps/gateway/src/shared-services/shared-services.controller.ts')) {
     return;
   }
-  if (!assertFileExists('src/kafka-governance/kafka-governance.controller.ts')) {
+  if (!assertFileExists('apps/gateway/src/kafka-governance/kafka-governance.controller.ts')) {
     return;
   }
-  if (!assertFileExists('src/external/guards/external-policy.guard.ts')) {
+  if (!assertFileExists('apps/gateway/src/external/guards/external-policy.guard.ts')) {
     return;
   }
 

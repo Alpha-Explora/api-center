@@ -1,4 +1,4 @@
-import { SharedServiceExportEventSchema } from "../../../../../src/kafka/schemas/shared-service-export.schemas";
+import { SharedServiceExportEventSchema } from "../../../../../apps/gateway/src/kafka/schemas/shared-service-export.schemas";
 
 describe("SharedServiceExportEventSchema", () => {
   it("accepts a sanitized shared-service export event", () => {

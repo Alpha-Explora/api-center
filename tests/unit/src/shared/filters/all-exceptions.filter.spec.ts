@@ -1,8 +1,8 @@
 import { ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
-import { AllExceptionsFilter } from "../../../../../src/shared/filters/all-exceptions.filter";
-import { LoggerService } from "../../../../../src/shared/logger.service";
-import { ConfigService } from "../../../../../src/config/config.service";
-import { QuotaExceededError, UnauthorizedError } from "../../../../../src/shared/errors";
+import { AllExceptionsFilter } from "../../../../../apps/gateway/src/shared/filters/all-exceptions.filter";
+import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
+import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
+import { QuotaExceededError, UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 
 function createHost(
   request: Record<string, unknown>,

@@ -1,4 +1,4 @@
-import { GovernanceDriftService } from "../../../../src/operations/governance-drift.service";
+import { GovernanceDriftService } from "../../../../apps/gateway/src/operations/governance-drift.service";
 
 describe("GovernanceDriftService", () => {
   it("flags management intent that is not active in runtime", () => {

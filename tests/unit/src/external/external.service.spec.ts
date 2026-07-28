@@ -1,9 +1,9 @@
-import { ExternalService } from "../../../../src/external/external.service";
-import { ConfigService } from "../../../../src/config/config.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
-import { NotFoundError, ServiceUnavailableError } from "../../../../src/shared/errors";
+import { ExternalService } from "../../../../apps/gateway/src/external/external.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
+import { NotFoundError, ServiceUnavailableError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("ExternalService", () => {
   let service: ExternalService;

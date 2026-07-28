@@ -1,5 +1,5 @@
-import { SharedServiceEventPublisher } from "../../../../src/shared-services/shared-service-event-publisher";
-import { TOPICS } from "../../../../src/kafka/topics";
+import { SharedServiceEventPublisher } from "../../../../apps/gateway/src/shared-services/shared-service-event-publisher";
+import { TOPICS } from "../../../../apps/gateway/src/kafka/topics";
 
 describe("SharedServiceEventPublisher", () => {
   it("publishes sanitized shared-service calls to the matching export topic", () => {

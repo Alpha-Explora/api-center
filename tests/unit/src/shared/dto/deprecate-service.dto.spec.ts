@@ -1,10 +1,10 @@
 // =============================================================================
-// Unit tests — DeprecateServiceDto validation
+// Unit tests â€” DeprecateServiceDto validation
 // =============================================================================
 
 import { validate } from "class-validator";
 import { plainToInstance } from "class-transformer";
-import { DeprecateServiceDto } from "../../../../../src/shared/dto/deprecate-service.dto";
+import { DeprecateServiceDto } from "../../../../../apps/gateway/src/shared/dto/deprecate-service.dto";
 
 describe("DeprecateServiceDto", () => {
   const transform = (plain: Record<string, unknown>) =>

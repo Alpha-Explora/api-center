@@ -1,9 +1,9 @@
-import { AnalyticsController } from "../../../../src/analytics/analytics.controller";
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { GatewayTrafficService } from "../../../../src/analytics/gateway-traffic.service";
-import { SharedServiceUsageService } from "../../../../src/analytics/shared-service-usage.service";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { ValidationError } from "../../../../src/shared/errors";
+import { AnalyticsController } from "../../../../apps/gateway/src/analytics/analytics.controller";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { GatewayTrafficService } from "../../../../apps/gateway/src/analytics/gateway-traffic.service";
+import { SharedServiceUsageService } from "../../../../apps/gateway/src/analytics/shared-service-usage.service";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("AnalyticsController", () => {
   const usage = {

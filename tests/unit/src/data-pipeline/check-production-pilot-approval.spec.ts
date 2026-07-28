@@ -1,4 +1,4 @@
-import { checkProductionPilotApproval } from "../../../../src/data-pipeline/production-pilot-approval-checker";
+import { checkProductionPilotApproval } from "../../../../apps/gateway/src/data-pipeline/production-pilot-approval-checker";
 
 describe("check-production-pilot-approval", () => {
   it("accepts a complete production pilot approval record", () => {

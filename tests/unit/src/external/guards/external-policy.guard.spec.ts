@@ -1,8 +1,8 @@
 import { ExecutionContext } from "@nestjs/common";
-import { ExternalPolicyGuard } from "../../../../../src/external/guards/external-policy.guard";
-import { AuthService } from "../../../../../src/auth/auth.service";
-import { LoggerService } from "../../../../../src/shared/logger.service";
-import { ForbiddenError } from "../../../../../src/shared/errors";
+import { ExternalPolicyGuard } from "../../../../../apps/gateway/src/external/guards/external-policy.guard";
+import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
+import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
+import { ForbiddenError } from "../../../../../apps/gateway/src/shared/errors";
 
 function createContext(request: Record<string, unknown>): ExecutionContext {
   return {

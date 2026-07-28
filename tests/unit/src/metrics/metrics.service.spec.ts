@@ -1,11 +1,11 @@
 // =============================================================================
-// Unit tests — MetricsService
+// Unit tests â€” MetricsService
 // =============================================================================
 // Covers: showback metrics (tribeRequestsTotal, tribeRequestDuration)
 // and the setRegistryServicesCount method.
 // =============================================================================
 
-import { MetricsService } from "../../../../src/metrics/metrics.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 import { register as promRegister } from "prom-client";
 
 describe("MetricsService", () => {

@@ -1,8 +1,8 @@
 import {
   createRegistryEntry,
   normalizeRegistryEntry,
-} from "../../../../src/registry/manifest-normalizer";
-import type { ServiceManifest, ServiceRegistryEntry } from "../../../../src/types";
+} from "../../../../apps/gateway/src/registry/manifest-normalizer";
+import type { ServiceManifest, ServiceRegistryEntry } from "../../../../apps/gateway/src/types";
 
 function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {
   return {

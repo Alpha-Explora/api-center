@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { DecisionSignalsService } from "../../../../src/data-pipeline/decision-signals.service";
+import { DecisionSignalsService } from "../../../../apps/gateway/src/data-pipeline/decision-signals.service";
 
 describe("DecisionSignalsService", () => {
   it("reads deterministic decision signals from fixture rows by environment", async () => {

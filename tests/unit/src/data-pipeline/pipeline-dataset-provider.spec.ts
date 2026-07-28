@@ -1,8 +1,8 @@
 import {
   resolvePipelineDatasetSource,
   resolvePositiveQueryLimit,
-} from "../../../../src/data-pipeline/pipeline-dataset-provider";
-import { ValidationError } from "../../../../src/shared/errors";
+} from "../../../../apps/gateway/src/data-pipeline/pipeline-dataset-provider";
+import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("pipeline dataset provider helpers", () => {
   it("selects the first configured fixture or Athena source", () => {

@@ -1,4 +1,4 @@
-import { generateTribeCuratedSql } from "../../../../src/data-pipeline/tribe-curated-sql-generator";
+import { generateTribeCuratedSql } from "../../../../apps/gateway/src/data-pipeline/tribe-curated-sql-generator";
 
 describe("generate-tribe-curated-sql", () => {
   it("prints tribe Silver, Gold, and bounded validation SQL in dry-run mode", () => {

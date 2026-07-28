@@ -1,10 +1,10 @@
-import { TribesController } from "../../../../src/tribes/tribes.controller";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { AuthService } from "../../../../src/auth/auth.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { GatewayTrafficService } from "../../../../src/analytics/gateway-traffic.service";
+import { TribesController } from "../../../../apps/gateway/src/tribes/tribes.controller";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { GatewayTrafficService } from "../../../../apps/gateway/src/analytics/gateway-traffic.service";
 
 describe("TribesController", () => {
   const mockRegistry = {

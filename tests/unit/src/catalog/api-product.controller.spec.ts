@@ -1,6 +1,6 @@
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { ApiProductController } from "../../../../src/catalog/api-product.controller";
-import { ApiProductService } from "../../../../src/catalog/api-product.service";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { ApiProductController } from "../../../../apps/gateway/src/catalog/api-product.controller";
+import { ApiProductService } from "../../../../apps/gateway/src/catalog/api-product.service";
 
 describe("ApiProductController", () => {
   it("returns projected marketplace products", () => {

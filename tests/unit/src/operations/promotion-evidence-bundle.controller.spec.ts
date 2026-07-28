@@ -1,7 +1,7 @@
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { PromotionEvidenceBundleController } from "../../../../src/operations/promotion-evidence-bundle.controller";
-import { PromotionEvidenceBundleService } from "../../../../src/operations/promotion-evidence-bundle.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { PromotionEvidenceBundleController } from "../../../../apps/gateway/src/operations/promotion-evidence-bundle.controller";
+import { PromotionEvidenceBundleService } from "../../../../apps/gateway/src/operations/promotion-evidence-bundle.service";
 
 describe("PromotionEvidenceBundleController", () => {
   const registry = {

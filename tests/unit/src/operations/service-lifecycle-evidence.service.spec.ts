@@ -1,4 +1,4 @@
-import { ServiceLifecycleEvidenceService } from "../../../../src/operations/service-lifecycle-evidence.service";
+import { ServiceLifecycleEvidenceService } from "../../../../apps/gateway/src/operations/service-lifecycle-evidence.service";
 
 describe("ServiceLifecycleEvidenceService", () => {
   const service = new ServiceLifecycleEvidenceService();

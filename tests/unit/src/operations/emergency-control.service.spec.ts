@@ -1,8 +1,8 @@
 import {
   EmergencyControlService,
   parseEmergencyControl,
-} from "../../../../src/operations/emergency-control.service";
-import { ValidationError } from "../../../../src/shared/errors";
+} from "../../../../apps/gateway/src/operations/emergency-control.service";
+import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("EmergencyControlService", () => {
   it("blocks traffic when a tribe is paused", () => {

@@ -1,4 +1,4 @@
-import { checkProxyQuota } from "../../../../../src/shared/proxy/proxy-quota-context";
+import { checkProxyQuota } from "../../../../../apps/gateway/src/shared/proxy/proxy-quota-context";
 
 describe("checkProxyQuota", () => {
   it("checks quota using namespace-scoped route family", async () => {

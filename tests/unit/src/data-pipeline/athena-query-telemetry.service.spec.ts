@@ -1,7 +1,7 @@
 import {
   AthenaQueryTelemetryService,
   ATHENA_QUERY_TELEMETRY_TOPIC_SUFFIX,
-} from "../../../../src/data-pipeline/athena-query-telemetry.service";
+} from "../../../../apps/gateway/src/data-pipeline/athena-query-telemetry.service";
 
 describe("AthenaQueryTelemetryService", () => {
   it("publishes measured Athena query telemetry to the exact environment topic", async () => {

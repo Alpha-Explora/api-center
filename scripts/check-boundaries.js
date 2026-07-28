@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const DEFAULT_REPO_ROOT = path.resolve(__dirname, '..');
 
-const FORBIDDEN_DIRECTORIES = ['src/sdk', 'examples/sandbox/sdk'];
+const FORBIDDEN_DIRECTORIES = ['apps/gateway/src/sdk', 'examples/sandbox/sdk'];
 const FORBIDDEN_IMPORT_PATTERNS = [
   {
     description:
@@ -45,53 +45,53 @@ const SDK_RUNTIME_LEAK_PATTERNS = [
 const BOUNDED_CONTEXTS = [
   {
     name: 'catalog_registry',
-    paths: ['src/registry', 'src/catalog'],
+    paths: ['apps/gateway/src/registry', 'apps/gateway/src/catalog'],
     schemas: ['apic_catalog'],
   },
   {
     name: 'governance',
     paths: [
-      'src/approvals',
-      'src/quotas',
-      'src/entitlements',
-      'src/developer-portal',
-      'src/policy',
+      'apps/gateway/src/approvals',
+      'apps/gateway/src/quotas',
+      'apps/gateway/src/entitlements',
+      'apps/gateway/src/developer-portal',
+      'apps/gateway/src/policy',
     ],
     schemas: ['apic_governance'],
   },
   {
     name: 'runtime_operations',
-    paths: ['src/analytics', 'src/health', 'src/forecasting', 'src/operations'],
+    paths: ['apps/gateway/src/analytics', 'apps/gateway/src/health', 'apps/gateway/src/forecasting', 'apps/gateway/src/operations'],
     schemas: ['apic_runtime'],
   },
   {
     name: 'audit_evidence',
-    paths: ['src/compliance'],
+    paths: ['apps/gateway/src/compliance'],
     schemas: ['apic_audit'],
   },
   {
     name: 'data_pipeline_governance',
-    paths: ['src/data-pipeline', 'src/kafka-governance'],
+    paths: ['apps/gateway/src/data-pipeline', 'apps/gateway/src/kafka-governance'],
     schemas: [],
   },
   {
     name: 'gateway_control_plane',
-    paths: ['src/gateway-control-plane'],
+    paths: ['apps/gateway/src/gateway-control-plane'],
     schemas: ['apic_gateway'],
   },
   {
     name: 'shared_service_platform',
-    paths: ['src/shared-services'],
+    paths: ['apps/gateway/src/shared-services'],
     schemas: ['shared_core'],
   },
   {
     name: 'auth_identity',
-    paths: ['src/auth', 'src/secrets'],
+    paths: ['apps/gateway/src/auth', 'apps/gateway/src/secrets'],
     schemas: [],
   },
   {
     name: 'shared_kernel',
-    paths: ['src/shared', 'src/config', 'src/database', 'src/metrics'],
+    paths: ['apps/gateway/src/shared', 'apps/gateway/src/config', 'apps/gateway/src/database', 'apps/gateway/src/metrics'],
     schemas: [],
     public: true,
   },
@@ -123,25 +123,25 @@ const IMPORT_SPECIFIER_PATTERN =
 const APIC_SCHEMA_PATTERN = /\b(apic_[a-z0-9_]+|shared_core)\./g;
 const RAW_SCHEMA_ACCESS_PATTERN = /\b(select\s+.*from|from|join|update|insert\s+into|delete\s+from|\$queryRaw|\$executeRaw)\b/i;
 const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
-  'src/auth/auth.service.ts',
-  'src/auth/guards/jwt-auth.guard.ts',
-  'src/auth/guards/scoped-admin.guard.ts',
-  'src/auth/token-store.service.ts',
-  'src/auth/vault.service.ts',
-  'src/registry/registry.service.ts',
-  'src/approvals/approval-request.service.ts',
-  'src/analytics/audit-events.service.ts',
-  'src/analytics/gateway-traffic.service.ts',
-  'src/analytics/shared-service-usage.service.ts',
-  'src/data-pipeline/pipeline-health.service.ts',
-  'src/entitlements/tribe-plan.service.ts',
-  'src/forecasting/quota-forecast.service.ts',
-  'src/operations/emergency-control.service.ts',
-  'src/operations/promotion-evidence-bundle.service.ts',
-  'src/policy/policy-engine.service.ts',
-  'src/quotas/tribe-quota-enforcer.service.ts',
-  'src/quotas/tribe-quota-policy.service.ts',
-  'src/secrets/tribe-secret-rotation.service.ts',
+  'apps/gateway/src/auth/auth.service.ts',
+  'apps/gateway/src/auth/guards/jwt-auth.guard.ts',
+  'apps/gateway/src/auth/guards/scoped-admin.guard.ts',
+  'apps/gateway/src/auth/token-store.service.ts',
+  'apps/gateway/src/auth/vault.service.ts',
+  'apps/gateway/src/registry/registry.service.ts',
+  'apps/gateway/src/approvals/approval-request.service.ts',
+  'apps/gateway/src/analytics/audit-events.service.ts',
+  'apps/gateway/src/analytics/gateway-traffic.service.ts',
+  'apps/gateway/src/analytics/shared-service-usage.service.ts',
+  'apps/gateway/src/data-pipeline/pipeline-health.service.ts',
+  'apps/gateway/src/entitlements/tribe-plan.service.ts',
+  'apps/gateway/src/forecasting/quota-forecast.service.ts',
+  'apps/gateway/src/operations/emergency-control.service.ts',
+  'apps/gateway/src/operations/promotion-evidence-bundle.service.ts',
+  'apps/gateway/src/policy/policy-engine.service.ts',
+  'apps/gateway/src/quotas/tribe-quota-enforcer.service.ts',
+  'apps/gateway/src/quotas/tribe-quota-policy.service.ts',
+  'apps/gateway/src/secrets/tribe-secret-rotation.service.ts',
 ]);
 
 function toPosixPath(filePath) {
@@ -283,7 +283,7 @@ function findContextForFile(relPath) {
 
 function isProductionSourceFile(relPath) {
   return (
-    relPath.startsWith('src/') &&
+    relPath.startsWith('apps/gateway/src/') &&
     /\.(ts|tsx|js|mjs|cjs)$/.test(relPath) &&
     !/\.(spec|test)\.(ts|tsx|js|mjs|cjs)$/.test(relPath)
   );
@@ -295,11 +295,11 @@ function isPublicContractFile(relPath) {
     normalized.endsWith('.module.ts') ||
     normalized.endsWith('.types.ts') ||
     normalized.endsWith('.dto.ts') ||
-    normalized.startsWith('src/openapi/') ||
-    normalized.startsWith('src/contracts/') ||
-    normalized.startsWith('src/shared/') ||
-    normalized.startsWith('src/config/') ||
-    normalized === 'src/database/prisma.service.ts' ||
+    normalized.startsWith('apps/gateway/src/openapi/') ||
+    normalized.startsWith('apps/gateway/src/contracts/') ||
+    normalized.startsWith('apps/gateway/src/shared/') ||
+    normalized.startsWith('apps/gateway/src/config/') ||
+    normalized === 'apps/gateway/src/database/prisma.service.ts' ||
     PUBLIC_SERVICE_CONTRACT_FILES.has(normalized)
   );
 }

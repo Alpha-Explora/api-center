@@ -1,7 +1,7 @@
-import { createUpstreamProxyOptions } from "../../../../../src/shared/proxy/upstream-request";
-import type { LoggerService } from "../../../../../src/shared/logger.service";
+import { createUpstreamProxyOptions } from "../../../../../apps/gateway/src/shared/proxy/upstream-request";
+import type { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 
-jest.mock("../../../../../src/shared/proxy/cloud-run-auth", () => ({
+jest.mock("../../../../../apps/gateway/src/shared/proxy/cloud-run-auth", () => ({
   getCloudRunAuthorizationHeader: jest.fn(async (upstream: string) =>
     upstream.includes(".run.app") ? "Bearer cloud-run-token" : undefined,
   ),

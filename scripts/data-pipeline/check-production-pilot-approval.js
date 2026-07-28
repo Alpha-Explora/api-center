@@ -8,7 +8,7 @@ require("ts-node/register");
 const { checkProductionPilotApproval } = require(
   path.resolve(
     __dirname,
-    "../../src/data-pipeline/production-pilot-approval-checker.ts",
+    "../../apps/gateway/src/data-pipeline/production-pilot-approval-checker.ts",
   ),
 );
 

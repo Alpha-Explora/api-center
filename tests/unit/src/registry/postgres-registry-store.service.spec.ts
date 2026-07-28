@@ -1,6 +1,6 @@
-import { PostgresRegistryStoreService } from "../../../../src/registry/postgres-registry-store.service";
-import { PrismaService } from "../../../../src/database/prisma.service";
-import { ServiceRegistryEntry } from "../../../../src/types";
+import { PostgresRegistryStoreService } from "../../../../apps/gateway/src/registry/postgres-registry-store.service";
+import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
+import { ServiceRegistryEntry } from "../../../../apps/gateway/src/types";
 
 function entry(
   overrides: Partial<ServiceRegistryEntry> = {},

@@ -1,4 +1,4 @@
-import { PrismaService } from "../../../../src/database/prisma.service";
+import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 
 describe("PrismaService", () => {
   const originalEnv = process.env;

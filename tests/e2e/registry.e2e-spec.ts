@@ -1,13 +1,13 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { RegistryController } from '../../src/registry/registry.controller';
-import { RegistryService } from '../../src/registry/registry.service';
-import { LoggerService } from '../../src/shared/logger.service';
-import { ScopedAdminGuard } from '../../src/auth/guards/scoped-admin.guard';
-import { ConfigService } from '../../src/config/config.service';
-import { AuthService } from '../../src/auth/auth.service';
-import { AuditEventsService } from '../../src/analytics/audit-events.service';
-import { ApprovalRequestService } from '../../src/approvals/approval-request.service';
+import { RegistryController } from '../../apps/gateway/src/registry/registry.controller';
+import { RegistryService } from '../../apps/gateway/src/registry/registry.service';
+import { LoggerService } from '../../apps/gateway/src/shared/logger.service';
+import { ScopedAdminGuard } from '../../apps/gateway/src/auth/guards/scoped-admin.guard';
+import { ConfigService } from '../../apps/gateway/src/config/config.service';
+import { AuthService } from '../../apps/gateway/src/auth/auth.service';
+import { AuditEventsService } from '../../apps/gateway/src/analytics/audit-events.service';
+import { ApprovalRequestService } from '../../apps/gateway/src/approvals/approval-request.service';
 
 describe('RegistryController scopes (e2e)', () => {
   let app: INestApplication;

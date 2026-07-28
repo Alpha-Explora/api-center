@@ -1,15 +1,15 @@
 import { createHmac } from "node:crypto";
-import { AuditEventsService } from "../../../../src/analytics/audit-events.service";
-import { PaymentWebhookController } from "../../../../src/shared-services/payment-webhook.controller";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { ConfigService } from "../../../../src/config/config.service";
-import { SharedServiceRoutingService } from "../../../../src/shared-services/shared-service-routing.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { PaymentWebhookController } from "../../../../apps/gateway/src/shared-services/payment-webhook.controller";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { SharedServiceRoutingService } from "../../../../apps/gateway/src/shared-services/shared-service-routing.service";
 import {
   ServiceUnavailableError,
   UnauthorizedError,
-} from "../../../../src/shared/errors";
+} from "../../../../apps/gateway/src/shared/errors";
 
-jest.mock("../../../../src/shared/proxy/cloud-run-auth", () => ({
+jest.mock("../../../../apps/gateway/src/shared/proxy/cloud-run-auth", () => ({
   getCloudRunAuthorizationHeader: jest.fn(async (upstream: string) =>
     upstream.includes(".run.app")
       ? "Bearer webhook-cloud-run-token"

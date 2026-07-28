@@ -1,7 +1,7 @@
 import {
   GovernanceDependencyError,
   requireGovernanceDependency,
-} from "../../../../src/shared/governance-dependencies";
+} from "../../../../apps/gateway/src/shared/governance-dependencies";
 
 describe("requireGovernanceDependency", () => {
   it("returns the dependency when present", () => {

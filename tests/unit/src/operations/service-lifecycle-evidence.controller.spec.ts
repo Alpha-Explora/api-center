@@ -1,5 +1,5 @@
-import { ServiceLifecycleEvidenceController } from "../../../../src/operations/service-lifecycle-evidence.controller";
-import { ServiceLifecycleEvidenceService } from "../../../../src/operations/service-lifecycle-evidence.service";
+import { ServiceLifecycleEvidenceController } from "../../../../apps/gateway/src/operations/service-lifecycle-evidence.controller";
+import { ServiceLifecycleEvidenceService } from "../../../../apps/gateway/src/operations/service-lifecycle-evidence.service";
 
 describe("ServiceLifecycleEvidenceController", () => {
   it("returns lifecycle evidence for all registry services", async () => {

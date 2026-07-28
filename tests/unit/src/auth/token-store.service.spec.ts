@@ -1,6 +1,6 @@
-import { TokenStoreService, RefreshTokenRecord } from "../../../../src/auth/token-store.service";
-import { ConfigService } from "../../../../src/config/config.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
+import { TokenStoreService, RefreshTokenRecord } from "../../../../apps/gateway/src/auth/token-store.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 
 describe("TokenStoreService", () => {
   const mockConfig = {

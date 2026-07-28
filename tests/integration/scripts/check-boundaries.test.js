@@ -31,9 +31,9 @@ function withTempRepo(files, fn) {
 run("fails direct cross-context imports of internal services", () => {
   withTempRepo(
     {
-      "src/analytics/bad.ts":
+      "apps/gateway/src/analytics/bad.ts":
         'import { RegistryInternalService } from "../registry/registry-internal.service";\nexport const x = RegistryInternalService;\n',
-      "src/registry/registry-internal.service.ts": "export class RegistryInternalService {}\n",
+      "apps/gateway/src/registry/registry-internal.service.ts": "export class RegistryInternalService {}\n",
     },
     (repoRoot) => {
       const violations = runBoundaryChecks({ repoRoot });
@@ -48,10 +48,10 @@ run("fails direct cross-context imports of internal services", () => {
 run("allows public module and dto imports across contexts", () => {
   withTempRepo(
     {
-      "src/analytics/good.ts":
+      "apps/gateway/src/analytics/good.ts":
         'import { RegistryModule } from "../registry/registry.module";\nimport { RegistryDto } from "../registry/registry.dto";\nexport const x = [RegistryModule, RegistryDto];\n',
-      "src/registry/registry.module.ts": "export class RegistryModule {}\n",
-      "src/registry/registry.dto.ts": "export class RegistryDto {}\n",
+      "apps/gateway/src/registry/registry.module.ts": "export class RegistryModule {}\n",
+      "apps/gateway/src/registry/registry.dto.ts": "export class RegistryDto {}\n",
     },
     (repoRoot) => {
       const violations = runBoundaryChecks({ repoRoot });
@@ -63,7 +63,7 @@ run("allows public module and dto imports across contexts", () => {
 run("fails raw SQL against another bounded context schema", () => {
   withTempRepo(
     {
-      "src/analytics/bad-sql.ts":
+      "apps/gateway/src/analytics/bad-sql.ts":
         "export const sql = \"select * from apic_governance.approval_requests\";\n",
     },
     (repoRoot) => {

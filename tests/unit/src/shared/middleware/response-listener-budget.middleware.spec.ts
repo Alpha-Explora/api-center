@@ -1,4 +1,4 @@
-import { ResponseListenerBudgetMiddleware } from "../../../../../src/shared/middleware/response-listener-budget.middleware";
+import { ResponseListenerBudgetMiddleware } from "../../../../../apps/gateway/src/shared/middleware/response-listener-budget.middleware";
 
 describe("ResponseListenerBudgetMiddleware", () => {
   it("raises the ServerResponse listener budget before downstream middleware attaches listeners", () => {

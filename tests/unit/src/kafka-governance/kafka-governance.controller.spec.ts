@@ -1,7 +1,7 @@
-import { AuthService } from "../../../../src/auth/auth.service";
-import { ForbiddenError } from "../../../../src/shared/errors";
-import { KafkaGovernanceController } from "../../../../src/kafka-governance/kafka-governance.controller";
-import { KafkaGovernanceService } from "../../../../src/kafka-governance/kafka-governance.service";
+import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
+import { ForbiddenError } from "../../../../apps/gateway/src/shared/errors";
+import { KafkaGovernanceController } from "../../../../apps/gateway/src/kafka-governance/kafka-governance.controller";
+import { KafkaGovernanceService } from "../../../../apps/gateway/src/kafka-governance/kafka-governance.service";
 
 describe("KafkaGovernanceController", () => {
   const mockKafkaGovernance = {

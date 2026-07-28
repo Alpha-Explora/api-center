@@ -1,4 +1,4 @@
-import { QuotaForecastService } from "../../../../src/forecasting/quota-forecast.service";
+import { QuotaForecastService } from "../../../../apps/gateway/src/forecasting/quota-forecast.service";
 
 describe("QuotaForecastService", () => {
   it("predicts days until quota exhaustion", () => {

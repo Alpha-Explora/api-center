@@ -1,6 +1,6 @@
-import { ConfigService } from "../../../../src/config/config.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { SharedServiceUsageService } from "../../../../src/analytics/shared-service-usage.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { SharedServiceUsageService } from "../../../../apps/gateway/src/analytics/shared-service-usage.service";
 
 describe("SharedServiceUsageService", () => {
   let service: SharedServiceUsageService;

@@ -1,5 +1,5 @@
-import { ConfigService } from "../../../../src/config/config.service";
-import { CapabilitiesService } from "../../../../src/capabilities/capabilities.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { CapabilitiesService } from "../../../../apps/gateway/src/capabilities/capabilities.service";
 
 describe("CapabilitiesService", () => {
   it("reports core gateway enabled and data pipeline disabled", () => {

@@ -1,5 +1,5 @@
-import { enforceProxyAuthContext } from "../../../../../src/shared/proxy/proxy-auth-context";
-import { ForbiddenError } from "../../../../../src/shared/errors";
+import { enforceProxyAuthContext } from "../../../../../apps/gateway/src/shared/proxy/proxy-auth-context";
+import { ForbiddenError } from "../../../../../apps/gateway/src/shared/errors";
 
 function input(overrides: Record<string, unknown> = {}) {
   return {

@@ -1,5 +1,5 @@
 import { validate } from "class-validator";
-import { TokenRequestDto } from "../../../../../src/shared/dto/token-request.dto";
+import { TokenRequestDto } from "../../../../../apps/gateway/src/shared/dto/token-request.dto";
 
 const dto = (input: Partial<TokenRequestDto>) =>
   Object.assign(new TokenRequestDto(), input);

@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { PipelineGovernanceService } from "../../../../src/data-pipeline/pipeline-governance.service";
+import { PipelineGovernanceService } from "../../../../apps/gateway/src/data-pipeline/pipeline-governance.service";
 
 describe("PipelineGovernanceService", () => {
   it("reads and filters fixture governance rows by environment", async () => {

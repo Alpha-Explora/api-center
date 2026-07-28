@@ -1,16 +1,16 @@
 import { NotFoundException } from "@nestjs/common";
-import { AuthController } from "../../../../src/auth/auth.controller";
-import { AuthService } from "../../../../src/auth/auth.service";
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { ConfigService } from "../../../../src/config/config.service";
+import { AuthController } from "../../../../apps/gateway/src/auth/auth.controller";
+import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import {
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
-} from "../../../../src/shared/errors";
-import { AuthenticatedRequest } from "../../../../src/types";
+} from "../../../../apps/gateway/src/shared/errors";
+import { AuthenticatedRequest } from "../../../../apps/gateway/src/types";
 
 const mockAuth: Partial<AuthService> = {
   issueTribeToken: jest.fn(),

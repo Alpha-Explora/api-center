@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { PipelineHealthService } from "../../../../src/data-pipeline/pipeline-health.service";
+import { PipelineHealthService } from "../../../../apps/gateway/src/data-pipeline/pipeline-health.service";
 
 describe("PipelineHealthService", () => {
   it("reads and filters fixture rows by environment", async () => {

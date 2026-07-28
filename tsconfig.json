@@ -9,7 +9,7 @@
     "target": "ES2022",
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "baseUrl": "./",
     "incremental": true,
     "ignoreDeprecations": "6.0",
@@ -26,17 +26,17 @@
     "esModuleInterop": true,
     "lib": ["ES2022"],
     "paths": {
-      "@config/*": ["src/config/*"],
-      "@shared/*": ["src/shared/*"],
-      "@auth/*": ["src/auth/*"],
-      "@kafka/*": ["src/kafka/*"],
-      "@registry/*": ["src/registry/*"],
-      "@tribes/*": ["src/tribes/*"],
-      "@external/*": ["src/external/*"],
-      "@health/*": ["src/health/*"]
+      "@config/*": ["apps/gateway/src/config/*"],
+      "@shared/*": ["apps/gateway/src/shared/*"],
+      "@auth/*": ["apps/gateway/src/auth/*"],
+      "@kafka/*": ["apps/gateway/src/kafka/*"],
+      "@registry/*": ["apps/gateway/src/registry/*"],
+      "@tribes/*": ["apps/gateway/src/tribes/*"],
+      "@external/*": ["apps/gateway/src/external/*"],
+      "@health/*": ["apps/gateway/src/health/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["apps/gateway/src/**/*"],
   "exclude": ["node_modules", "dist", "test"]
 }
 

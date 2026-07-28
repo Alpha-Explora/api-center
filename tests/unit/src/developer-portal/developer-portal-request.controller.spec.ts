@@ -1,5 +1,5 @@
-import { DeveloperPortalRequestController } from "../../../../src/developer-portal/developer-portal-request.controller";
-import { ForbiddenError } from "../../../../src/shared/errors";
+import { DeveloperPortalRequestController } from "../../../../apps/gateway/src/developer-portal/developer-portal-request.controller";
+import { ForbiddenError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("DeveloperPortalRequestController", () => {
   it("creates a quota increase request instead of changing quota directly", async () => {

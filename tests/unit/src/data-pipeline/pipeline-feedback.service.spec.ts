@@ -1,4 +1,4 @@
-import { PipelineFeedbackService } from "../../../../src/data-pipeline/pipeline-feedback.service";
+import { PipelineFeedbackService } from "../../../../apps/gateway/src/data-pipeline/pipeline-feedback.service";
 
 describe("PipelineFeedbackService", () => {
   it("creates a feedback record with actor, role, reason, and timestamp", async () => {

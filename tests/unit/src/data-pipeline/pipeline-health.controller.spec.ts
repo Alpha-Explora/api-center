@@ -1,9 +1,9 @@
-import { ConfigService } from "../../../../src/config/config.service";
-import { DataPipelineDisabledError } from "../../../../src/data-pipeline/data-pipeline-disabled.error";
-import { PipelineHealthController } from "../../../../src/data-pipeline/pipeline-health.controller";
-import { PipelineGovernanceService } from "../../../../src/data-pipeline/pipeline-governance.service";
-import { PipelineHealthService } from "../../../../src/data-pipeline/pipeline-health.service";
-import { RawToSilverRunService } from "../../../../src/data-pipeline/raw-to-silver-run.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { DataPipelineDisabledError } from "../../../../apps/gateway/src/data-pipeline/data-pipeline-disabled.error";
+import { PipelineHealthController } from "../../../../apps/gateway/src/data-pipeline/pipeline-health.controller";
+import { PipelineGovernanceService } from "../../../../apps/gateway/src/data-pipeline/pipeline-governance.service";
+import { PipelineHealthService } from "../../../../apps/gateway/src/data-pipeline/pipeline-health.service";
+import { RawToSilverRunService } from "../../../../apps/gateway/src/data-pipeline/raw-to-silver-run.service";
 
 describe("PipelineHealthController", () => {
   it("rejects raw-to-silver runs when the data pipeline is disabled", async () => {

@@ -1,5 +1,5 @@
-import { ComplianceExportController } from "../../../../src/compliance/compliance-export.controller";
-import { ComplianceExportService } from "../../../../src/compliance/compliance-export.service";
+import { ComplianceExportController } from "../../../../apps/gateway/src/compliance/compliance-export.controller";
+import { ComplianceExportService } from "../../../../apps/gateway/src/compliance/compliance-export.service";
 
 describe("ComplianceExportController", () => {
   it("filters audit events by date range and includes evidence bundles", async () => {

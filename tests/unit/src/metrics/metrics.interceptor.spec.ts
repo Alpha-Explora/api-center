@@ -1,7 +1,7 @@
 import { ExecutionContext } from "@nestjs/common";
 import { lastValueFrom, of, throwError } from "rxjs";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
-import { MetricsInterceptor } from "../../../../src/metrics/metrics.interceptor";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
+import { MetricsInterceptor } from "../../../../apps/gateway/src/metrics/metrics.interceptor";
 
 function createContext(
   request: Record<string, unknown>,

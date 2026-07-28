@@ -1,27 +1,27 @@
 // =============================================================================
-// Integration tests — RegistryService
+// Integration tests â€” RegistryService
 // =============================================================================
 // Covers: registration, deregistration, lifecycle transitions (deprecate,
 // retire, activate), semver version governance, Kafka event emission,
 // metrics gauge sync, and access-control helpers.
 // =============================================================================
 
-import { RegistryService } from "../../../../src/registry/registry.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { ConfigService } from "../../../../src/config/config.service";
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
-import { TribeSecretResolverService } from "../../../../src/registry/tribe-secret-resolver.service";
-import { PostgresRegistryStoreService } from "../../../../src/registry/postgres-registry-store.service";
-import { ServiceManifest } from "../../../../src/types";
+import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
+import { TribeSecretResolverService } from "../../../../apps/gateway/src/registry/tribe-secret-resolver.service";
+import { PostgresRegistryStoreService } from "../../../../apps/gateway/src/registry/postgres-registry-store.service";
+import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import {
   NotFoundError,
   ConflictError,
   ValidationError,
-} from "../../../../src/shared/errors";
-import { TOPICS } from "../../../../src/kafka/topics";
+} from "../../../../apps/gateway/src/shared/errors";
+import { TOPICS } from "../../../../apps/gateway/src/kafka/topics";
 
-// ── Mocks ────────────────────────────────────────────────────────────────────
+// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const mockLogger: Partial<LoggerService> = {
   info: jest.fn(),
@@ -63,7 +63,7 @@ const mockPostgresStore: Partial<PostgresRegistryStoreService> = {
   remove: jest.fn(),
 };
 
-// ── Fixtures ─────────────────────────────────────────────────────────────────
+// â”€â”€ Fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function baseManifest(
   overrides: Partial<ServiceManifest> = {},
@@ -90,7 +90,7 @@ function registryEntry(overrides: Partial<ReturnType<typeof baseManifest>> = {})
   };
 }
 
-// ── Test Suite ───────────────────────────────────────────────────────────────
+// â”€â”€ Test Suite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("RegistryService", () => {
   let service: RegistryService;
@@ -107,7 +107,7 @@ describe("RegistryService", () => {
     (mockPostgresStore.loadAll as jest.Mock).mockResolvedValue({});
     (mockPostgresStore.upsert as jest.Mock).mockResolvedValue(undefined);
     (mockPostgresStore.remove as jest.Mock).mockResolvedValue(undefined);
-    // Construct without lifecycle hooks — avoids Redis connection
+    // Construct without lifecycle hooks â€” avoids Redis connection
     service = new RegistryService(
       mockLogger as LoggerService,
       mockConfig as ConfigService,
@@ -447,7 +447,7 @@ describe("RegistryService", () => {
   });
 
   describe("activate()", () => {
-    it("transitions deprecated → active and clears sunset fields", async () => {
+    it("transitions deprecated â†’ active and clears sunset fields", async () => {
       await service.register(baseManifest());
       await service.deprecate("svc-alpha", "2025-12-31", "svc-beta");
       const entry = await service.activate("svc-alpha");
@@ -673,7 +673,7 @@ describe("RegistryService", () => {
   // Full lifecycle flow
   // =========================================================================
 
-  describe("full lifecycle: register → deprecate → retire", () => {
+  describe("full lifecycle: register â†’ deprecate â†’ retire", () => {
     it("walks through the entire lifecycle", async () => {
       // 1. Register
       const v1 = await service.register(baseManifest());

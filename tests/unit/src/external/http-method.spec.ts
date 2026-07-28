@@ -1,4 +1,4 @@
-import { normalizeHttpMethod } from "../../../../src/external/http-method";
+import { normalizeHttpMethod } from "../../../../apps/gateway/src/external/http-method";
 
 describe("normalizeHttpMethod", () => {
   it("normalizes supported methods to uppercase", () => {

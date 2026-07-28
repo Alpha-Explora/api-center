@@ -1,5 +1,5 @@
-import { enforceEnvironmentAccess } from "../../../../../src/shared/proxy/environment-leak-guard";
-import { ForbiddenError, ServiceUnavailableError } from "../../../../../src/shared/errors";
+import { enforceEnvironmentAccess } from "../../../../../apps/gateway/src/shared/proxy/environment-leak-guard";
+import { ForbiddenError, ServiceUnavailableError } from "../../../../../apps/gateway/src/shared/errors";
 
 const target = {
   serviceId: "orders",

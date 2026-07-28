@@ -1,4 +1,4 @@
-import { RawToSilverRunService } from "../../../../src/data-pipeline/raw-to-silver-run.service";
+import { RawToSilverRunService } from "../../../../apps/gateway/src/data-pipeline/raw-to-silver-run.service";
 
 describe("RawToSilverRunService", () => {
   it("previews bounded raw to Common Silver validation and materialization SQL", async () => {

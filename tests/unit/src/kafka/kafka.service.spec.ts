@@ -1,8 +1,8 @@
-import { KafkaService } from "../../../../src/kafka/kafka.service";
-import { ConfigService } from "../../../../src/config/config.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { TOPICS, withTopicPrefix } from "../../../../src/kafka/topics";
-import { MetricsService } from "../../../../src/metrics/metrics.service";
+import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { TOPICS, withTopicPrefix } from "../../../../apps/gateway/src/kafka/topics";
+import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 
 jest.mock("kafkajs", () => ({
   Kafka: jest.fn().mockImplementation(() => ({

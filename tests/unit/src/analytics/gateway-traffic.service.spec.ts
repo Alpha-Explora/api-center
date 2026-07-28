@@ -1,6 +1,6 @@
-import { ConfigService } from "../../../../src/config/config.service";
-import { LoggerService } from "../../../../src/shared/logger.service";
-import { GatewayTrafficService } from "../../../../src/analytics/gateway-traffic.service";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
+import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
+import { GatewayTrafficService } from "../../../../apps/gateway/src/analytics/gateway-traffic.service";
 
 describe("GatewayTrafficService", () => {
   let service: GatewayTrafficService;

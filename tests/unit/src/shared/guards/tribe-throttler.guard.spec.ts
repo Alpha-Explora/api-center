@@ -1,6 +1,6 @@
 import { Reflector } from "@nestjs/core";
-import { TribeThrottlerGuard } from "../../../../../src/shared/guards/tribe-throttler.guard";
-import { AuthService } from "../../../../../src/auth/auth.service";
+import { TribeThrottlerGuard } from "../../../../../apps/gateway/src/shared/guards/tribe-throttler.guard";
+import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
 
 class TestTribeThrottlerGuard extends TribeThrottlerGuard {
   resolveTracker(req: Record<string, any>): Promise<string> {

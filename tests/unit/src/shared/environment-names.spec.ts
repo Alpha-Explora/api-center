@@ -1,7 +1,7 @@
 import {
   assertRuntimeEnvironment,
   toPhysicalPipelineEnvironment,
-} from "../../../../src/shared/environment-names";
+} from "../../../../apps/gateway/src/shared/environment-names";
 
 describe("environment naming boundaries", () => {
   it.each(["test", "live"])(

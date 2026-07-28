@@ -1,6 +1,6 @@
 import "reflect-metadata";
-import { ConfigModule } from "../../../../src/config/config.module";
-import { ConfigService } from "../../../../src/config/config.service";
+import { ConfigModule } from "../../../../apps/gateway/src/config/config.module";
+import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 
 describe("ConfigModule", () => {
   it("only provides ConfigService because GCP secrets preload before Nest bootstrap", () => {
