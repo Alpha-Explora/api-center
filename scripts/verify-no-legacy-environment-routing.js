@@ -8,7 +8,6 @@ const allowHistorical = [
   /^docs\/superpowers\/plans\//,
   /^docs\/operations\/.*(?:inventory|migration|cleanup|decommission|preflight|smoke|parity).*[.](?:json|md)$/,
   /^docs\/operations\/one-url-environment-migration-inventory\.md$/,
-  /^docs\/visualizations\/one-apicenter-environment-aware-routing-tracker\.html$/,
   /^scripts\/verify-no-legacy-environment-routing\.js$/,
 ];
 

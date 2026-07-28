@@ -17,12 +17,7 @@ The private payments app is configured with `APICENTER_PAYMENTS_URL` and `APICEN
 >
 > **Deploying?** Pick one:
 >
-> Current production uses Cloud Run. The old GKE Autopilot cluster and former
-> GKE load balancer IP were removed after all shared services migrated to Cloud
-> Run and passed public API Center route verification.
->
-> - [Cloud Run deployment record](docs/deployment-cloud-run.md) - current production runtime, cutover evidence, gates, and rollback commands
-> - [GKE Autopilot historical reference](infra/gcp/gke/README.md) - retired manifests, HPA min 2 / max 3, Memorystore, and former GCLB Ingress
+> **Current production:** Cloud Run with APICenter-owned Pub/Sub payment events. See [docs/deployment-cloud-run.md](docs/deployment-cloud-run.md) and [docs/apicenter-platform-setup.md](docs/apicenter-platform-setup.md).
 
 ---
 
@@ -188,7 +183,7 @@ DESCOPE_CLIENT_SECRET_PAYMENT_SERVICE=<service-secret>
 
 ### Google OAuth and Google APIs
 
-Google OAuth and Google API credentials are owned by `api-shared-services`, not by API Center's auth provider switch. Register and call the shared services through `/api/v1/shared/gauth/*` and `/api/v1/shared/geo/*` using the SDK wrappers.
+Google OAuth and Google API credentials belong to the owning provider runtime. Register and call governed shared services through `/api/v1/shared/*` using the APICenter SDK.
 
 ---
 
@@ -196,9 +191,7 @@ Google OAuth and Google API credentials are owned by `api-shared-services`, not 
 
 Services register themselves at startup:
 
-Shared platform service artifacts (service code and registration manifests) are owned in the sibling repository:
-
-- `../api-shared-services/shared-services/`
+Shared platform runtime code lives under `apps/` in this Turborepo. Payment provider code is in `apps/payments`; gateway registration and proxy policy are in `apps/gateway`.
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/registry/register \
@@ -235,8 +228,7 @@ Behavior:
 - In production, bootstrap is blocked unless `REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true` is explicitly set.
 - This mode is intended for local/staging bootstrap and should be disabled once tribes self-register.
 
-For migration from bootstrap manifests to real tribe startup registration, use the onboarding runbook:
-[docs/developer/tribe-onboarding.md](docs/developer/tribe-onboarding.md).
+For current registry and consumer provisioning behavior, use [docs/apicenter-platform-setup.md](docs/apicenter-platform-setup.md).
 
 **Per-service secret** (so the service can authenticate with the gateway):
 ```bash
@@ -417,31 +409,7 @@ Local end-to-end sandbox validation:
 ./test-all-steps.ps1
 ```
 
-## OpenAPI Contract Artifact
-
-APICenter now generates an OpenAPI schema for non-Node consumers and generated client workflows.
-
-```bash
-npm run openapi:generate
-```
-
-Generated artifact location:
-
-- `docs/openapi/openapi.json`
-
-The script now performs service registration bootstrap and registry propagation checks across the gateway pool. Geo validation should use the shared `geo` service, while Confluent validation should use governed Kafka publish and S3 sink verification.
-
-Required token scopes for governed Kafka publishing:
-
-- `external:kafka:read` / `external:kafka:write`
-
-Kafka tenant isolation rule:
-
-- Governed tribe event publishing uses `tribe.<tribeId>.events` for the
-  authenticated tribe. Microservices should keep the same `APICENTER_TRIBE_ID`
-  and pass their registered backend ID as `sourceServiceId`.
-
-To add reusable platform functionality, prefer a shared service manifest and SDK wrapper over a direct external proxy.
+## Public Contracts\r\n\r\nThe checked-in public contracts are the source of truth for generated clients and documentation:\r\n\r\n- `contracts/public/apicenter.openapi.yaml`\r\n- `contracts/public/apicenter.asyncapi.yaml`\r\n- `packages/sdk` for the TypeScript client.
 
 ---
 

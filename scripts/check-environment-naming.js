@@ -16,7 +16,6 @@ const allowlist = [
   /supabase-live-backup/,
   /docs[/\\]superpowers[/\\]plans/,
   /docs[/\\]operations/,
-  /infra[/\\]aws-data-pipeline/,
   /src[/\\]entitlements[/\\]/,
   /src[/\\]operations[/\\]service-lifecycle-evidence\.service\.spec\.ts/,
   /scripts[/\\]check-environment-naming\.js$/,
