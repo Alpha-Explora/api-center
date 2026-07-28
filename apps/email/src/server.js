@@ -155,7 +155,7 @@ async function registerWithGateway() {
   return registerSharedServiceWithGateway({
     manifestPath: path.resolve(
       __dirname,
-      '../../manifests/email-manifest.json',
+      '../service-manifest.json',
     ),
     baseUrl: process.env.SERVICE_BASE_URL,
     serviceLabel: 'email-gateway',

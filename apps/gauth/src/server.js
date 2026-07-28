@@ -332,7 +332,7 @@ app.post('/oauth/logout', async (req, res) => {
 
 async function registerWithGateway() {
   return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(__dirname, '../../manifests/gauth-manifest.json'),
+    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
     baseUrl: process.env.SERVICE_BASE_URL,
     serviceLabel: 'gauth',
   });
