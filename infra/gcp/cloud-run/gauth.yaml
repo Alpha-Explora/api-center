@@ -22,6 +22,27 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-google-client-id-prod
+                  key: latest
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-google-client-secret-prod
+                  key: latest
+            - name: GOOGLE_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-google-redirect-uri-prod
+                  key: latest
+            - name: GOOGLE_OAUTH_TENANT_CLIENTS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-google-tenant-clients-prod
+                  key: latest
+
             - name: NODE_ENV
               value: production
             - name: GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT

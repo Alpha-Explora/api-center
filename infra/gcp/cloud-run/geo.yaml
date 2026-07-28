@@ -22,6 +22,12 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: GOOGLE_MAPS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-google-maps-api-key-prod
+                  key: latest
+
             - name: NODE_ENV
               value: production
             - name: GEO_CACHE_TTL_MS
