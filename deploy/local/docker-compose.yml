@@ -84,7 +84,17 @@ x-api-center-common: &api-center-common
     # Use environment-scoped Secret Manager records for tribe credentials.
     # Use .env RATE_LIMIT_MAX (default 100) so round-robin tests are not
     # artificially throttled by a hard-coded sandbox override.
-    RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
+    RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"    # Local shared-service upstreams used by the gateway registry/proxy.
+    SHARED_SERVICE_ROUTE_EMAIL_TEST: http://email-service:4012
+    SHARED_SERVICE_ROUTE_EMAIL_LIVE: http://email-service:4012
+    SHARED_SERVICE_ROUTE_SMS_TEST: http://sms-service:4011
+    SHARED_SERVICE_ROUTE_SMS_LIVE: http://sms-service:4011
+    SHARED_SERVICE_ROUTE_OTP_TEST: http://otp-service:4014
+    SHARED_SERVICE_ROUTE_OTP_LIVE: http://otp-service:4014
+    SHARED_SERVICE_ROUTE_GAUTH_TEST: http://gauth-service:4013
+    SHARED_SERVICE_ROUTE_GAUTH_LIVE: http://gauth-service:4013
+    SHARED_SERVICE_ROUTE_GEO_TEST: http://geo-service:4015
+    SHARED_SERVICE_ROUTE_GEO_LIVE: http://geo-service:4015
   depends_on:
     redis-cache:
       condition: service_healthy
@@ -106,6 +116,71 @@ x-api-center-common: &api-center-common
 
 # =============================================================================
 services:
+  email-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.shared-service
+      args:
+        SERVICE: email
+    environment:
+      PORT: "4012"
+      NODE_ENV: development
+      REGISTER_WITH_GATEWAY: "false"
+    expose: ["4012"]
+    networks: [api-center-network]
+
+  sms-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.shared-service
+      args:
+        SERVICE: sms
+    environment:
+      PORT: "4011"
+      NODE_ENV: development
+      REGISTER_WITH_GATEWAY: "false"
+    expose: ["4011"]
+    networks: [api-center-network]
+
+  otp-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.shared-service
+      args:
+        SERVICE: otp
+    environment:
+      PORT: "4014"
+      NODE_ENV: development
+      REGISTER_WITH_GATEWAY: "false"
+    expose: ["4014"]
+    networks: [api-center-network]
+
+  gauth-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.shared-service
+      args:
+        SERVICE: gauth
+    environment:
+      PORT: "4013"
+      NODE_ENV: development
+      REGISTER_WITH_GATEWAY: "false"
+    expose: ["4013"]
+    networks: [api-center-network]
+
+  geo-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.shared-service
+      args:
+        SERVICE: geo
+    environment:
+      PORT: "4015"
+      NODE_ENV: development
+      REGISTER_WITH_GATEWAY: "false"
+    expose: ["4015"]
+    networks: [api-center-network]
+
 
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------------------------

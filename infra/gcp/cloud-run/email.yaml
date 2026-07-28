@@ -1,0 +1,55 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: email
+  annotations:
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/service-account: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      containerConcurrency: 40
+      timeoutSeconds: 300
+      serviceAccountName: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:cloud-run
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: EMAIL_SEND_LIMIT_PER_RECIPIENT
+              value: "20"
+            - name: EMAIL_SEND_LIMIT_WINDOW_MS
+              value: "60000"
+            - name: EMAIL_IDEMPOTENCY_TTL_MS
+              value: "86400000"
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-resend-api-key-prod
+                  key: latest
+            - name: EMAIL_FROM_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-email-from-address-prod
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /health
+            periodSeconds: 15

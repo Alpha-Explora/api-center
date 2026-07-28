@@ -1,0 +1,47 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: geo
+  annotations:
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/service-account: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:cloud-run
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: GEO_CACHE_TTL_MS
+              value: "300000"
+            - name: GEO_PROVIDER_TIMEOUT_MS
+              value: "1500"
+            - name: GEO_PROVIDER_FAILURE_THRESHOLD
+              value: "5"
+            - name: GEO_PROVIDER_CIRCUIT_RESET_MS
+              value: "30000"
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /health
+            periodSeconds: 15

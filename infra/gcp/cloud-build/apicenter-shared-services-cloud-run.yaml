@@ -1,0 +1,135 @@
+substitutions:
+  _PROJECT_ID: apicenter-alpha-20260623
+  _REGION: asia-southeast1
+  _API_CENTER_INVOKER_SA: api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com
+  _EMAIL_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:cloud-run
+  _SMS_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:cloud-run
+  _OTP_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:cloud-run
+  _GAUTH_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:cloud-run
+  _GEO_IMAGE: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:cloud-run
+
+serviceAccount: projects/apicenter-alpha-20260623/serviceAccounts/apicenter-cloudbuild-deployer@apicenter-alpha-20260623.iam.gserviceaccount.com
+
+steps:
+  - name: node:24-bookworm-slim
+    id: verify
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        npm ci
+        npm run typecheck
+        npm run check:contracts
+        npm run sdk:build
+        npm test -- --runInBand
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-email
+    args:
+      - build
+      - -t
+      - ${_EMAIL_IMAGE}
+      - -f
+      - Dockerfile.shared-service
+      - --build-arg
+      - SERVICE=email
+      - .
+    waitFor: [verify]
+  - name: gcr.io/cloud-builders/docker
+    id: build-sms
+    args:
+      - build
+      - -t
+      - ${_SMS_IMAGE}
+      - -f
+      - Dockerfile.shared-service
+      - --build-arg
+      - SERVICE=sms
+      - .
+    waitFor: [verify]
+  - name: gcr.io/cloud-builders/docker
+    id: build-otp
+    args:
+      - build
+      - -t
+      - ${_OTP_IMAGE}
+      - -f
+      - Dockerfile.shared-service
+      - --build-arg
+      - SERVICE=otp
+      - .
+    waitFor: [verify]
+  - name: gcr.io/cloud-builders/docker
+    id: build-gauth
+    args:
+      - build
+      - -t
+      - ${_GAUTH_IMAGE}
+      - -f
+      - Dockerfile.shared-service
+      - --build-arg
+      - SERVICE=gauth
+      - .
+    waitFor: [verify]
+  - name: gcr.io/cloud-builders/docker
+    id: build-geo
+    args:
+      - build
+      - -t
+      - ${_GEO_IMAGE}
+      - -f
+      - Dockerfile.shared-service
+      - --build-arg
+      - SERVICE=geo
+      - .
+    waitFor: [verify]
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-images
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        set -e
+        docker push ${_EMAIL_IMAGE}
+        docker push ${_SMS_IMAGE}
+        docker push ${_OTP_IMAGE}
+        docker push ${_GAUTH_IMAGE}
+        docker push ${_GEO_IMAGE}
+    waitFor: [build-email, build-sms, build-otp, build-gauth, build-geo]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: deploy-cloud-run-services
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        set -e
+        gcloud run services replace infra/gcp/cloud-run/email.yaml --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/sms.yaml --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/otp.yaml --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/gauth.yaml --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/geo.yaml --project=${_PROJECT_ID} --region=${_REGION}
+    waitFor: [push-images]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: grant-api-center-invoker
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        set -e
+        for service in email sms otp gauth geo; do
+          gcloud run services add-iam-policy-binding "$$service" --project=${_PROJECT_ID} --region=${_REGION} --member=serviceAccount:${_API_CENTER_INVOKER_SA} --role=roles/run.invoker
+        done
+    waitFor: [deploy-cloud-run-services]
+
+images:
+  - ${_EMAIL_IMAGE}
+  - ${_SMS_IMAGE}
+  - ${_OTP_IMAGE}
+  - ${_GAUTH_IMAGE}
+  - ${_GEO_IMAGE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

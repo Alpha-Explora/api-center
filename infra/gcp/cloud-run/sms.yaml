@@ -1,0 +1,49 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: sms
+  annotations:
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/service-account: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      containerConcurrency: 40
+      timeoutSeconds: 300
+      serviceAccountName: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:cloud-run
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: SMS_STORE_MODE
+              value: redis
+            - name: SMS_REDIS_URL
+              value: redis://10.121.26.59:6379
+            - name: SMS_SEND_LIMIT_PER_RECIPIENT
+              value: "10"
+            - name: SMS_SEND_LIMIT_WINDOW_MS
+              value: "60000"
+            - name: SMS_IDEMPOTENCY_TTL_MS
+              value: "86400000"
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /health
+            periodSeconds: 15
