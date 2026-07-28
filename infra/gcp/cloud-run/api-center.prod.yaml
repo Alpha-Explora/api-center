@@ -42,6 +42,10 @@ spec:
               value: "false"
             - name: KAFKA_ENABLED
               value: "false"
+            - name: SHARED_SERVICE_PUBSUB_ENABLED
+              value: "true"
+            - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_TEST
+              value: apicenter.shared-service-events.test
             - name: PAYMENT_PUBSUB_IAM_ENABLED
               value: "true"
             - name: CLOUD_RUN_AUTH_ENABLED
@@ -62,6 +66,8 @@ spec:
                   key: latest
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-prod
+            - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE
+              value: apicenter.shared-service-events.live
           resources:
             limits:
               cpu: "1"

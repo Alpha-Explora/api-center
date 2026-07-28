@@ -44,7 +44,9 @@ const MAX_DELIVERY_ATTEMPTS = 20;
 export class PaymentPubSubProvisioningService {
   private pubsub: PubSub | null = null;
 
-  constructor(private readonly iamProvisioning = new PaymentPubSubIamProvisioningService()) {}
+  constructor(
+    private readonly iamProvisioning: PaymentPubSubIamProvisioningService = new PaymentPubSubIamProvisioningService(),
+  ) {}
 
   async provision(input: unknown): Promise<PaymentEventProvisioningResult> {
     const delivery = this.parse(input);

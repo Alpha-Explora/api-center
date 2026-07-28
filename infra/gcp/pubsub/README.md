@@ -71,3 +71,13 @@ required Pub/Sub service-agent, delivery-service-account, and Cloud Run invoker
 IAM bindings when `PAYMENT_PUBSUB_IAM_ENABLED=true`. The `gcloud` script below
 remains a dry-run/apply repair tool for operators and does not replace the
 Management audit path.
+
+## Shared-Service Telemetry
+
+The APICenter gateway publishes sanitized shared-service call telemetry to
+`apicenter.shared-service-events.test` and `apicenter.shared-service-events.live`
+when `SHARED_SERVICE_PUBSUB_ENABLED=true`. These topics are owned by the
+APICenter project and contain no provider credentials or raw sensitive request
+fields. Consumers that need this telemetry should provision an explicit
+subscription with OIDC push authentication and a dead-letter policy; the
+publisher does not create consumer subscriptions automatically.

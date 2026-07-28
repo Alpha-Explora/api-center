@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { GoogleAuth } from "google-auth-library";
 import { z } from "zod";
 
@@ -29,7 +29,7 @@ export type PaymentPubSubIamResult =
 
 @Injectable()
 export class PaymentPubSubIamProvisioningService {
-  constructor(private readonly requestClient?: IamRequestClient) {}
+  constructor(@Optional() private readonly requestClient?: IamRequestClient) {}
 
   async provision(input: unknown): Promise<PaymentPubSubIamResult> {
     if (process.env.PAYMENT_PUBSUB_IAM_ENABLED !== "true") {

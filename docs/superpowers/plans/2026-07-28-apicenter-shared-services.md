@@ -21,6 +21,15 @@
 
 ---
 
+### Current Execution Status (2026-07-28)
+
+- Completed: APICenter runtime apps, gateway routes, SDK surface, local compose, Cloud Run manifests, provider secret bindings, and staging route configuration.
+- Completed: shared-service telemetry now publishes sanitized events to `apicenter.shared-service-events.test` or `.live` through Google Pub/Sub; Kafka remains disabled for this path.
+- Completed: staging gateway revision `api-center-staging-00019-b9m` is ready from Cloud Build `f9ba9156-a5bd-465c-a6c3-b4b6152ae7ab`; authenticated readiness returned HTTP 200, the five shared runtimes have private ingress, and gateway `roles/run.invoker` bindings are present.
+- Pending: provision a fresh staging consumer credential and run authenticated gateway/SDK smoke tests for all five services.
+- Pending: provider-operation smoke tests and final staging evidence before any production cutover.
+- Deferred: four legacy or sandbox-dependent tests remain excluded from the deploy gate; they are follow-up cleanup and are not part of the new runtime rollout.
+
 ### Task 1: Establish APICenter Runtime App Boundaries
 
 **Files:**

@@ -28,7 +28,9 @@ COPY package.json package-lock.json* ./
 COPY tsconfig.json tsconfig.build.json nest-cli.json prisma.config.ts ./
 COPY config/ ./config/
 COPY prisma/ ./prisma/
-COPY src/ ./src/
+COPY apps/gateway/ ./apps/gateway/
+COPY packages/ ./packages/
+COPY scripts/ ./scripts/
 RUN npm run db:generate && \
     npm run build && \
     npm prune --omit=dev && \
@@ -43,7 +45,7 @@ ENV NODE_ENV=production
 
 COPY --chown=node:node package.json package-lock.json* ./
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/apps/gateway/dist ./apps/gateway/dist
 COPY --from=builder --chown=node:node /app/config ./config
 
 RUN mkdir -p /app/logs && chown node:node /app/logs
@@ -54,4 +56,4 @@ USER node
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "apps/gateway/dist/main.js"]
