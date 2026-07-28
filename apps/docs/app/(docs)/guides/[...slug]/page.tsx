@@ -9,6 +9,7 @@ const titles: Record<string, { eyebrow: string; title: string; description: stri
   "payments/overview": { eyebrow: "Payments", title: "Payments Overview", description: "Choose the payment resource and lifecycle operation that matches your integration." },
   "events/pubsub-delivery": { eyebrow: "Events", title: "Pub/Sub Delivery", description: "Receive canonical payment events with OIDC-authenticated push delivery, dead letters, and replay discipline." },
   "migration/from-direct-paymongo": { eyebrow: "Migration", title: "From Direct PayMongo", description: "Move the provider boundary into APICenter while preserving your application’s domain identifiers and workflows." },
+  "consumer-runbook": { eyebrow: "Operations", title: "Consumer Runbook", description: "Operate a provider-neutral payment integration with idempotency, Pub/Sub delivery, and rollback-safe cutover." },
 };
 
 export function generateStaticParams() {

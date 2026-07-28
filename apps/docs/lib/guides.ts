@@ -14,6 +14,7 @@ export const guideSlugs = [
   ["payments", "overview"],
   ["events", "pubsub-delivery"],
   ["migration", "from-direct-paymongo"],
+  ["consumer-runbook"],
 ] as const;
 
 function guidePath(slug: readonly string[]): string {

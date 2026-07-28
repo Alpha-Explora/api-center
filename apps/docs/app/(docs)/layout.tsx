@@ -34,6 +34,7 @@ export default function DocsLayout({ children }: Readonly<{ children: React.Reac
           {events.map(([label, href]) => <Link className="nested" key={href} href={href}>{label}</Link>)}
           <div className="sidebar-label">Resources</div>
           <Link href="/guides/migration/from-direct-paymongo">Migration from Direct PayMongo</Link>
+          <Link href="/guides/consumer-runbook">Consumer Runbook</Link>
           <Link href="/reference/api">API Reference</Link>
           <Link href="/reference/events">Event Reference</Link>
         </aside>
