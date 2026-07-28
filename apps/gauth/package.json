@@ -1,0 +1,21 @@
+{
+    "name":  "@apicenter/gauth",
+    "version":  "1.0.0",
+    "private":  true,
+    "description":  "APICenter Google OAuth broker runtime.",
+    "main":  "src/server.js",
+    "type":  "commonjs",
+    "scripts":  {
+                    "start":  "node src/server.js",
+                    "dev":  "node --watch src/server.js",
+                    "typecheck":  "node scripts/check-javascript.cjs",
+                    "lint":  "node scripts/check-javascript.cjs",
+                    "test":  "node scripts/check-javascript.cjs"
+                },
+    "dependencies":  {
+                         "@apicenter/runtime":  "1.0.0"
+                     },
+    "engines":  {
+                    "node":  "\u003e=24 \u003c25"
+                }
+}

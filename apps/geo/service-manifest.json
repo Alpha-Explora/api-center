@@ -1,0 +1,16 @@
+{
+  "serviceId": "geo",
+  "serviceType": "shared",
+  "name": "Geo Service",
+  "baseUrl": "http://geo-service:4015",
+  "requiredScopes": ["geo:read", "geo:write"],
+  "exposes": ["/geocode", "/reverse-geocode", "/geofence/check"],
+  "consumes": [],
+  "healthCheck": "/health",
+  "version": "1.0.0",
+  "description": "Platform-owned Google Maps geocoding and local geofencing service",
+  "ownerTeam": "platform-geo",
+  "contact": "#platform-geo-oncall",
+  "serviceTier": "standard",
+  "costCenter": "CC-GEO-001"
+}

@@ -1,0 +1,12 @@
+{
+  "serviceId": "otp",
+  "name": "OTP Gateway",
+"baseUrl": "http://otp-service:4014",
+  "serviceType": "shared",
+  "requiredScopes": ["otp:generate", "otp:verify"],
+  "exposes": ["/generate", "/verify", "/status"],
+  "consumes": [],
+  "healthCheck": "/health",
+  "version": "1.0.0",
+  "description": "OTP generation and verification service"
+}

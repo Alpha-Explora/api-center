@@ -1,0 +1,22 @@
+{
+  "serviceId": "gauth",
+  "serviceType": "shared",
+  "name": "Google Authentication Service",
+  "baseUrl": "http://gauth-service:4013",
+  "requiredScopes": ["auth:google:login"],
+  "exposes": [
+    "/oauth/authorize",
+    "/oauth/token",
+    "/oauth/token/refresh",
+    "/oauth/logout",
+    "/health"
+  ],
+  "consumes": [],
+  "healthCheck": "/health",
+  "version": "1.0.0",
+  "description": "Platform-owned Google OAuth 2.0 broker for user sign-in",
+  "ownerTeam": "platform-auth",
+  "contact": "#platform-auth-oncall",
+  "serviceTier": "critical",
+  "costCenter": "CC-AUTH-001"
+}

@@ -1,7 +1,10 @@
 {
-  "name": "@apicenter/runtime",
-  "version": "1.0.0",
-  "private": true,
-  "main": "src/index.js",
-  "type": "commonjs"
+    "name":  "@apicenter/runtime",
+    "version":  "1.0.0",
+    "private":  true,
+    "main":  "src/index.js",
+    "type":  "commonjs",
+    "dependencies":  {
+                         "express":  "^5.2.1"
+                     }
 }
