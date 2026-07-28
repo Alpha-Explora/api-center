@@ -136,6 +136,7 @@ function createPostgresPaymentStore(databaseUrl) {
       const sql = transaction || await getSql();
       const provider = event.provider || 'paymongo';
       const providerMode = event.providerMode || 'test';
+      const resolvedProviderMode = providerMode || runtimeEnvironment({ environment: event.environment });
       const providerEventId = event.eventId || event.providerEventId;
       const rows = await sql`
         insert into shared_payment.payment_webhook_events (
@@ -210,6 +211,12 @@ function createPostgresPaymentStore(databaseUrl) {
     async claimPendingPaymentEvents(limit = 50) {
       const sql = await getSql();
       return sql.begin(async (transaction) => {
+        await transaction`
+          update shared_payment.payment_event_outbox
+          set status = 'retry', available_at = now(), updated_at = now()
+          where status = 'publishing'
+            and updated_at < now() - interval '5 minutes'
+        `;
         const rows = await transaction.unsafe(`
           select *
           from shared_payment.payment_event_outbox
@@ -325,7 +332,7 @@ function createPostgresPaymentStore(databaseUrl) {
       const sql = await getSql();
       const rows = await sql`
         update shared_payment.payment_event_outbox
-        set status = 'retry', attempts = attempts + 1, last_error = ${error}, updated_at = now()
+        set status = case when attempts + 1 >= 20 then 'quarantined' else 'retry' end, attempts = attempts + 1, last_error = ${error}, available_at = now() + interval '5 minutes', updated_at = now()
         where provider_event_id = ${providerEventId}
           and environment = ${runtimeEnvironment({ environment })}
         returning *

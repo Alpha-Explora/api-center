@@ -15,9 +15,16 @@ import { PaymentAuthGuard } from './payment-auth.guard';
 import { PaymentIdempotencyService } from './payment-idempotency.service';
 import { AuthenticatedRequest } from '../types';
 
-const INTERNAL_BASE_URL = () =>
-  (process.env.APICENTER_PAYMENTS_URL || 'http://localhost:4010').replace(/\/$/, '');
+const internalBaseUrl = (environment: 'test' | 'live') => {
+  const configured = process.env.APICENTER_PAYMENTS_URL
+    || (environment === 'live' ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST)
+    || 'http://localhost:4010';
+  return configured.replace(/\/$/, '');
+};
 
+const internalToken = (environment: 'test' | 'live') =>
+  (environment === 'live' ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST)
+  || process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
 const MoneySchema = z.object({
   amountMinor: z.number().int().positive(),
   currency: z.literal('PHP'),
@@ -100,8 +107,8 @@ const bodySchemas: Array<{ method: string; path: RegExp; schema: z.ZodTypeAny }>
 @Controller('payments')
 @UseGuards(PaymentAuthGuard)
 export class PaymentsController {
-  constructor(private readonly idempotency: PaymentIdempotencyService) {}
 
+  constructor(private readonly idempotency: PaymentIdempotencyService) {}
   @All('*path')
   async proxy(@Req() req: AuthenticatedRequest, @Res() res: Response): Promise<void> {
     const publicPath = this.publicPath(req);
@@ -111,9 +118,15 @@ export class PaymentsController {
       environment: req.user?.environment === 'live' ? 'live' : 'test',
       scopes: req.user?.scopes || [],
     };
-    const requiredScope = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
-      ? 'payments:write'
-      : 'payments:read';
+    const validatedBody = this.validateBody(req.method, publicPath, req.body);
+    const immediateCancel = req.method === 'POST'
+      && /^\/subscriptions\/[^/]+\/cancel$/.test(publicPath)
+      && (validatedBody as Record<string, unknown> | undefined)?.cancelAtPeriodEnd === false;
+    const requiredScope = immediateCancel
+      ? 'payments:subscriptions:cancel-immediately'
+      : ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
+        ? 'payments:write'
+        : 'payments:read';
     if (!principal.scopes.includes(requiredScope)) {
       throw new ForbiddenException({
         code: 'PAYMENT_SCOPE_REQUIRED',
@@ -121,7 +134,7 @@ export class PaymentsController {
       });
     }
 
-    const validatedBody = this.validateBody(req.method, publicPath, req.body);
+    this.enforcePaymentLimits(principal, req.method, validatedBody);
     const internalPath = this.mapPath(req.method, publicPath, validatedBody);
     if (!internalPath && publicPath !== '/capabilities') {
       res.status(HttpStatus.NOT_IMPLEMENTED).json({
@@ -169,13 +182,14 @@ export class PaymentsController {
     }
     headers['x-tribe-id'] = principal.ownerTribeId;
     headers['x-apicenter-environment'] = principal.environment;
-    if (process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN) {
-      headers['x-apicenter-internal-token'] = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+    const token = internalToken(principal.environment);
+    if (token) {
+      headers['x-apicenter-internal-token'] = token;
     }
 
     const config: AxiosRequestConfig = {
       method: req.method as AxiosRequestConfig['method'],
-      url: `${INTERNAL_BASE_URL()}${internalPath}`,
+      url: `${internalBaseUrl(principal.environment)}${internalPath}`,
       headers,
       data: this.internalBody(publicPath, validatedBody, principal.consumerServiceId),
       validateStatus: () => true,
@@ -211,6 +225,12 @@ export class PaymentsController {
     }
   }
 
+  private enforcePaymentLimits(_principal: AuthenticatedRequest['paymentPrincipal'], _method: string, body: Record<string, unknown> | undefined): void {
+    const amount = body?.amount as { amountMinor?: unknown } | undefined;
+    if (amount && typeof amount.amountMinor === 'number' && amount.amountMinor > 100_000 * 100) {
+      throw new BadRequestException({ code: 'PAYMENT_AMOUNT_LIMIT_EXCEEDED', message: 'Payment amount exceeds the PHP 100,000 mutation ceiling' });
+    }
+  }
   private validateBody(method: string, path: string, body: unknown): Record<string, unknown> | undefined {
     const definition = bodySchemas.find((candidate) => candidate.method === method && candidate.path.test(path));
     if (!definition) return body as Record<string, unknown> | undefined;

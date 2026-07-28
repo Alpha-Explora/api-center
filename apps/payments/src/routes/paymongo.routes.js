@@ -1,12 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const {
+  cancelPaymentIntent,
+  confirmPaymentIntent,
   charge,
   createCustomer,
+  createPaymentIntent,
+  createPaymentMethodSetup,
   createPrice,
   createProduct,
   createSubscription,
   getCustomer,
+  getPaymentIntent,
   getCheckoutSession,
   getCheckoutStatus,
   getCheckoutStatusByReference,
@@ -77,6 +82,37 @@ function logWebhookResult(result) {
   }));
 }
 
+// Payment intents
+router.post('/payment-intents', async (req, res) => {
+  try {
+    const result = await createPaymentIntent(req.body || {}, { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req) });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) { sendError(res, err); }
+});
+router.get('/payment-intents/:paymentIntentId', async (req, res) => {
+  try {
+    const result = await getPaymentIntent(req.params.paymentIntentId);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) { sendError(res, err); }
+});
+router.post('/payment-intents/:paymentIntentId/confirm', async (req, res) => {
+  try {
+    const result = await confirmPaymentIntent(req.params.paymentIntentId, req.body || {}, { idempotencyKey: idempotencyKey(req) });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) { sendError(res, err); }
+});
+router.post('/payment-intents/:paymentIntentId/cancel', async (req, res) => {
+  try {
+    const result = await cancelPaymentIntent(req.params.paymentIntentId, { idempotencyKey: idempotencyKey(req) });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) { sendError(res, err); }
+});
+router.post('/payment-method-setups', async (req, res) => {
+  try {
+    const result = await createPaymentMethodSetup(req.body || {}, { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req) });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) { sendError(res, err); }
+});
 // POST /customers
 router.post('/customers', async (req, res) => {
   try {

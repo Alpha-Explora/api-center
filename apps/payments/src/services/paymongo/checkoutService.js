@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { toProviderId, toPublicId } = require('./paymentIds');
 
 function createCheckoutService({
   PayMongoError,
@@ -49,8 +50,7 @@ function createCheckoutService({
       };
 
     return {
-      checkoutId:
-        providerData.id || `mock_checkout_${crypto.randomUUID().replace(/-/g, '')}`,
+      checkoutId: toPublicId("chk", providerData.id || (`mock_checkout_${crypto.randomUUID().replace(/-/g, "")}`)),
       provider: 'paymongo',
       status: mapCheckoutStatus(attributes.status),
       referenceId: request.referenceId,
@@ -64,7 +64,6 @@ function createCheckoutService({
       amount,
       paymentMethodsAllowed,
       metadata: request.metadata,
-      providerData,
     };
   }
 
@@ -176,7 +175,7 @@ function createCheckoutService({
     }
 
     const response = await paymongoRequest(
-      `/checkout_sessions/${encodeURIComponent(checkoutId)}`,
+      `/checkout_sessions/${encodeURIComponent(toProviderId("chk", checkoutId))}`,
     );
     return toCheckoutSession(response, { referenceId: checkoutId, lineItems: [] });
   }

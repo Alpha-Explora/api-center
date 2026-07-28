@@ -12,6 +12,7 @@ export const guideSlugs = [
   ["authentication"],
   ["idempotency"],
   ["payments", "overview"],
+  ["payments", "architecture"],
   ["events", "pubsub-delivery"],
   ["migration", "from-direct-paymongo"],
   ["consumer-runbook"],

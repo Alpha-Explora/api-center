@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "contracts/public/**"
+      - "packages/contracts/**"
+      - "docs/payments-platform-current.md"
       - "apps/docs/**"
       - "packages/sdk/**"
       - "scripts/contracts/**"

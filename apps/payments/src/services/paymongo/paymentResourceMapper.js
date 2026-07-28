@@ -1,3 +1,5 @@
+const { toPublicId } = require('./paymentIds');
+
 function money(value, currency = 'PHP') {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'object') {
@@ -8,13 +10,17 @@ function money(value, currency = 'PHP') {
   return { amountMinor: Number(value), currency };
 }
 
+function publicId(kind, value) {
+  return value ? toPublicId(kind, value) : value;
+}
+
 function version(record) {
   return Math.max(1, Number(record?.aggregateVersion ?? record?.aggregate_version ?? 1));
 }
 
 function toCheckoutSnapshot(record) {
   return {
-    checkoutId: record.checkoutId ?? record.checkout_id,
+    checkoutId: publicId('chk', record.checkoutId ?? record.checkout_id),
     referenceId: record.referenceId ?? record.reference_id,
     status: record.status,
     amount: money(record.amount, record.currency),
@@ -25,8 +31,8 @@ function toCheckoutSnapshot(record) {
 
 function toPaymentSnapshot(record) {
   return {
-    paymentId: record.paymentId ?? record.payment_id,
-    checkoutId: record.checkoutId ?? record.checkout_id,
+    paymentId: publicId('pay', record.paymentId ?? record.payment_id),
+    checkoutId: publicId('chk', record.checkoutId ?? record.checkout_id),
     referenceId: record.referenceId ?? record.reference_id,
     status: record.status,
     amount: money(record.amount, record.currency),
@@ -36,8 +42,8 @@ function toPaymentSnapshot(record) {
 
 function toRefundSnapshot(record) {
   return {
-    refundId: record.refundId ?? record.refund_id,
-    paymentId: record.paymentId ?? record.payment_id,
+    refundId: publicId('ref', record.refundId ?? record.refund_id),
+    paymentId: publicId('pay', record.paymentId ?? record.payment_id),
     status: record.status,
     amount: money(record.amount, record.currency),
     aggregateVersion: version(record),
@@ -46,8 +52,8 @@ function toRefundSnapshot(record) {
 
 function toSubscriptionSnapshot(record) {
   return {
-    subscriptionId: record.subscriptionId ?? record.subscription_id,
-    customerId: record.customerId ?? record.customer_id,
+    subscriptionId: publicId('sub', record.subscriptionId ?? record.subscription_id),
+    customerId: publicId('cus', record.customerId ?? record.customer_id),
     referenceId: record.referenceId ?? record.reference_id,
     status: record.status,
     currentPeriodEnd: record.currentPeriodEnd ?? record.current_period_end,
@@ -57,8 +63,8 @@ function toSubscriptionSnapshot(record) {
 
 function toInvoiceSnapshot(record) {
   return {
-    invoiceId: record.invoiceId ?? record.invoice_id,
-    subscriptionId: record.subscriptionId ?? record.subscription_id,
+    invoiceId: publicId('inv', record.invoiceId ?? record.invoice_id),
+    subscriptionId: publicId('sub', record.subscriptionId ?? record.subscription_id),
     status: record.status,
     amount: money(record.amount ?? record.amountPaid ?? record.amountDue, record.currency),
     aggregateVersion: version(record),

@@ -13,10 +13,10 @@ const ConsumerInput = z.object({
     .refine((value) => value.startsWith("https://"), "eventEndpointUrl must use HTTPS")
     .optional(),
   scopes: z
-    .array(z.enum(["payments:read", "payments:write"]))
+    .array(z.enum(["payments:read", "payments:write", "payments:subscriptions:cancel-immediately", "payments:subscriptions:cancel-immediately"]))
     .min(1)
-    .max(2)
-    .default(["payments:read", "payments:write"]),
+    .max(3)
+    .default(["payments:read", "payments:write", "payments:subscriptions:cancel-immediately"]),
 });
 
 type ConsumerInput = z.infer<typeof ConsumerInput>;
@@ -68,7 +68,7 @@ export class PaymentConsumerManagementService {
       if (!service) throw new Error("Payment consumer registration returned no service");
 
       await tx.$executeRawUnsafe(
-        "UPDATE apic_governance.payment_api_keys SET revoked_at = now() " +
+        "UPDATE apic_governance.payment_api_keys SET expires_at = LEAST(COALESCE(expires_at, now() + interval '24 hours'), now() + interval '24 hours') " +
           "WHERE consumer_service_id = $1 AND revoked_at IS NULL",
         service.id,
       );

@@ -14,6 +14,7 @@ const primary = [
 ] as const;
 const payments = [
   ["Overview", "/guides/payments/overview"],
+  ["Current architecture", "/guides/payments/architecture"],
 ] as const;
 const events = [["Pub/Sub Delivery", "/guides/events/pubsub-delivery"]] as const;
 

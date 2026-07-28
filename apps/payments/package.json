@@ -8,9 +8,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "typecheck": "node -e \"console.log('payments runtime uses JavaScript source; contract/type checks run at the gateway boundary')\"",
-    "test": "node -e \"console.log('payments runtime tests deferred to migration parity gate')\"",
-    "lint": "node -e \"console.log('payments runtime lint deferred to migration parity gate')\"",
+    "typecheck": "node scripts/check-javascript.cjs",
+    "test": "npm --prefix ../.. test -- --runInBand tests/unit/src/payments/paymongo-intents.spec.ts tests/unit/events/pubsub-publisher.spec.ts",
+    "lint": "node scripts/check-javascript.cjs",
     "db:validate": "prisma validate --schema prisma/schema.prisma"
   },
   "dependencies": {

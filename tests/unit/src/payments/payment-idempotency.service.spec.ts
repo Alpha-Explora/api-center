@@ -32,6 +32,10 @@ describe("PaymentIdempotencyService", () => {
     });
     expect(first).toEqual({ miss: true });
 
+    await expect(service.lookupOrValidate({
+      principal, method: 'POST', path: '/checkouts', key: 'idempotency-order-1', body: { referenceId: 'order-1' },
+    })).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_KEY_IN_PROGRESS' } });
+
     await service.store({
       principal,
       method: "POST",

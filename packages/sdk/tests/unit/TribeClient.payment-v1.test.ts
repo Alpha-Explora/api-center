@@ -75,4 +75,20 @@ describe('TribeClient payment v1', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+
+  it('returns a pending resource from a 202 envelope', async () => {
+    const pendingFetch = jest.fn(async () => ({
+      ok: false,
+      status: 202,
+      json: async () => ({ success: true, data: { status: 'pending', resourceId: 'chk_v1_pending' } }),
+    })) as unknown as typeof fetch;
+    const client = new TribeClient({ baseUrl: 'https://api-center.example.test', apiKey: 'ac_test_key', tribeId: 'alphaci', fetchImpl: pendingFetch });
+    await expect(client.payments.createCheckout({
+      referenceId: 'ACI-PENDING',
+      amount: { amountMinor: 1000, currency: 'PHP' },
+      successUrl: 'https://alpha.example.test/success',
+      cancelUrl: 'https://alpha.example.test/cancel',
+    }, { headers: { 'Idempotency-Key': 'idem_pending_1' } })).resolves.toEqual({ status: 'pending', resourceId: 'chk_v1_pending' });
+  });
 });

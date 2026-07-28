@@ -34,6 +34,9 @@ jobs:
       - name: Validate SDK compatibility
         run: npm run check:sdk-contracts
 
+      - name: Validate public contract tests
+        run: npm run contracts:test
+
       - name: Build SDK
         run: npm run sdk:build
 

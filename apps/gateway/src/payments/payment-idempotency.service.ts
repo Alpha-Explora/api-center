@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import Redis from "ioredis";
 import { PaymentPrincipal } from "./payment-api-key.service";
 
@@ -43,10 +43,12 @@ export class PaymentIdempotencyService {
 
     const storageKey = this.storageKey(input.principal, input.method, input.path, key);
     const fingerprint = this.fingerprint(input.body);
-    const stored = await this.read(storageKey);
+    let stored = await this.read(storageKey);
     if (!stored) {
-      await this.write(storageKey, { fingerprint });
-      return { miss: true };
+      const claimed = await this.writeIfAbsent(storageKey, { fingerprint });
+      if (claimed) return { miss: true };
+      stored = await this.read(storageKey);
+      if (!stored) throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
     }
     if (stored.fingerprint !== fingerprint) {
       throw new ConflictException({
@@ -54,7 +56,13 @@ export class PaymentIdempotencyService {
         message: "The idempotency key was already used with a different request",
       });
     }
-    return stored.response ? { replay: stored.response } : { miss: true };
+    if (!stored.response) {
+      throw new ConflictException({
+        code: "IDEMPOTENCY_KEY_IN_PROGRESS",
+        message: "The idempotency key is already being processed",
+      });
+    }
+    return { replay: stored.response };
   }
 
   async store(input: {
@@ -89,12 +97,24 @@ export class PaymentIdempotencyService {
     return { fingerprint: value.fingerprint, response: value.response };
   }
 
+  private async writeIfAbsent(key: string, value: StoredRecord): Promise<boolean> {
+    const redis = await this.redisClient();
+    if (redis) {
+      const result = await redis.set(key, JSON.stringify(value), 'EX', TTL_SECONDS, 'NX');
+      return result === 'OK';
+    }
+    if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
+    if (this.memory.has(key)) return false;
+    this.memory.set(key, { ...value, expiresAt: Date.now() + TTL_SECONDS * 1000 });
+    return true;
+  }
   private async write(key: string, value: StoredRecord): Promise<void> {
     const redis = await this.redisClient();
     if (redis) {
       await redis.setex(key, TTL_SECONDS, JSON.stringify(value));
       return;
     }
+    if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
     this.memory.set(key, { ...value, expiresAt: Date.now() + TTL_SECONDS * 1000 });
   }
 

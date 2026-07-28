@@ -7,6 +7,7 @@ const { createCheckoutService } = require('./checkoutService');
 const { paymongoRequest: providerRequest } = require('./providerClient');
 const { createSubscriptionService } = require('./subscriptionService');
 const { createWebhookService } = require('./webhookService');
+const { toProviderId, toPublicId } = require('./paymentIds');
 
 const DEFAULT_SUPPORTED_PAYMENT_METHODS = [
   'qrph',
@@ -229,7 +230,7 @@ function toRefund(providerResponse, request) {
 
   return {
     refundId: providerData.id || `mock_refund_${crypto.randomUUID().replace(/-/g, '')}`,
-    paymentId: request.payment_id,
+    paymentId: toPublicId("pay", request.payment_id),
     provider: 'paymongo',
     status: attributes.status || 'succeeded',
     amount,
@@ -385,7 +386,7 @@ async function refund(refundData, options = {}) {
       data: {
         attributes: {
           amount: amount.value,
-          payment_id: refundData.payment_id,
+          payment_id: toProviderId("pay", refundData.payment_id),
           reason: refundData.reason || 'requested_by_customer',
           notes: refundData.notes,
           metadata: refundData.metadata,
@@ -414,13 +415,85 @@ async function refund(refundData, options = {}) {
   return result;
 }
 
+function normalizePaymentIntent(response, request) {
+  const providerData = response?.data || {};
+  const attributes = providerData.attributes || {};
+  const status = attributes.status === 'succeeded' ? 'succeeded'
+    : ['failed', 'cancelled'].includes(attributes.status) ? attributes.status
+      : 'pending';
+  return {
+    paymentIntentId: toPublicId("pi", providerData.id),
+    referenceId: request.referenceId,
+    status,
+    amount: normalizeAmount(attributes.amount ?? request.amount, attributes.currency || request.amount?.currency || 'PHP'),
+    aggregateVersion: 1,
+  };
+}
+
+async function createPaymentIntent(payload, options = {}) {
+  requireTribeContext(options.tribeId, 'payment intents');
+  if (!payload?.referenceId || !payload?.amount) throw new PayMongoError('referenceId and amount are required.', 400);
+  const response = await paymongoRequest('/payment_intents', {
+    method: 'POST',
+    idempotencyKey: options.idempotencyKey,
+    body: { data: { attributes: {
+      amount: Number(payload.amount.value),
+      currency: payload.amount.currency || 'PHP',
+      description: payload.description,
+      customer_id: payload.customerId,
+      metadata: { ...(payload.metadata || {}), referenceId: payload.referenceId },
+    } } },
+  });
+  return normalizePaymentIntent(response, payload);
+}
+
+async function getPaymentIntent(paymentIntentId) {
+  const response = await paymongoRequest(`/payment_intents/${encodeURIComponent(toProviderId("pi", paymentIntentId))}`);
+  return normalizePaymentIntent(response, { referenceId: response?.data?.attributes?.metadata?.referenceId || paymentIntentId });
+}
+
+async function confirmPaymentIntent(paymentIntentId, payload = {}, options = {}) {
+  const response = await paymongoRequest(`/payment_intents/${encodeURIComponent(toProviderId("pi", paymentIntentId))}/attach`, {
+    method: 'POST', idempotencyKey: options.idempotencyKey,
+    body: { data: { attributes: { payment_method: payload.paymentMethodId, return_url: payload.returnUrl } } },
+  });
+  return normalizePaymentIntent(response, { referenceId: payload.referenceId || paymentIntentId });
+}
+
+async function cancelPaymentIntent(paymentIntentId, options = {}) {
+  const response = await paymongoRequest(`/payment_intents/${encodeURIComponent(toProviderId("pi", paymentIntentId))}/cancel`, {
+    method: 'POST', idempotencyKey: options.idempotencyKey,
+  });
+  return normalizePaymentIntent(response, { referenceId: options.referenceId || paymentIntentId });
+}
+
+async function createPaymentMethodSetup(payload, options = {}) {
+  requireTribeContext(options.tribeId, 'payment method setups');
+  if (!payload?.customerId || !payload?.referenceId) throw new PayMongoError('customerId and referenceId are required.', 400);
+  const response = await paymongoRequest('/payment_method_setups', {
+    method: 'POST', idempotencyKey: options.idempotencyKey,
+    body: { data: { attributes: {
+      customer_id: payload.customerId,
+      return_url: payload.returnUrl,
+      metadata: { ...(payload.metadata || {}), referenceId: payload.referenceId },
+    } } },
+  });
+  const providerData = response?.data || {};
+  const attributes = providerData.attributes || {};
+  return {
+    setupId: toPublicId("setu", providerData.id),
+    customerId: attributes.customer_id || payload.customerId,
+    status: ['succeeded', 'failed'].includes(attributes.status) ? attributes.status : 'pending',
+    ...(payload.returnUrl ? { returnUrl: payload.returnUrl } : {}),
+  };
+}
 async function persistCheckoutSession(session, request, options = {}) {
   const store = getPaymentStore();
   if (!store.enabled) {
     return null;
   }
 
-  return store.createCheckoutSessionRecord({
+  const record = await store.createCheckoutSessionRecord({
     tribeId: options.tribeId,
     checkoutId: session.checkoutId,
     referenceId: session.referenceId,
@@ -437,7 +510,35 @@ async function persistCheckoutSession(session, request, options = {}) {
     metadata: request.metadata || {},
     providerMetadata: options.providerMetadata || {},
     expiresAt: session.expiresAt,
-  });
+  })
+  const consumerServiceId = request.metadata?.__apicenterConsumerServiceId
+  if (record && options.tribeId && session.referenceId && consumerServiceId) {
+    await store.enqueuePaymentEvent({
+      environment: providerMode(),
+      provider: 'paymongo',
+      providerMode: providerMode(),
+      providerEventId: `checkout_created:${session.checkoutId}`,
+      eventType: 'payment.checkout.created',
+      aggregateType: 'checkout',
+      aggregateId: session.checkoutId,
+      aggregateVersion: record.aggregateVersion || 1,
+      ownerTribeId: options.tribeId,
+      consumerServiceId,
+      referenceId: session.referenceId,
+      payload: {
+        environment: providerMode(),
+        status: 'created',
+        ownerTribeId: options.tribeId,
+        consumerServiceId,
+        referenceId: session.referenceId,
+        checkoutId: session.checkoutId,
+        amount: session.amount ? { amountMinor: session.amount.value, currency: session.amount.currency } : undefined,
+        occurredAt: new Date().toISOString(),
+        aggregateVersion: record.aggregateVersion || 1,
+      },
+    })
+  }
+  return record;
 }
 
 function assertTribeCanRead(session, tribeId) {
@@ -496,14 +597,19 @@ const {
 });
 module.exports = {
   PayMongoError,
+  cancelPaymentIntent,
+  confirmPaymentIntent,
   cancelSubscription,
   charge,
   changeSubscriptionPrice,
   createCustomer,
+  createPaymentIntent,
+  createPaymentMethodSetup,
   createPrice,
   createProduct,
   createSubscription,
   getCustomer,
+  getPaymentIntent,
   getCheckoutSession,
   getCheckoutStatus,
   getCheckoutStatusByReference,

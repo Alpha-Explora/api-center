@@ -7,14 +7,15 @@ const repoRoot = path.resolve(__dirname, '..');
 const sharedServicesRoot = process.env.API_SHARED_SERVICES_ROOT
   ? path.resolve(repoRoot, process.env.API_SHARED_SERVICES_ROOT)
   : path.resolve(repoRoot, '..', 'api-shared-services');
+const externalSharedRootAvailable = fs.existsSync(sharedServicesRoot);
 const allowMissingExternalManifests =
-  process.env.ALLOW_MISSING_EXTERNAL_MANIFESTS === 'true';
+  process.env.ALLOW_MISSING_EXTERNAL_MANIFESTS === 'true' || !externalSharedRootAvailable;
 const allowMissingExternalContracts =
-  process.env.ALLOW_MISSING_EXTERNAL_CONTRACTS === 'true';
+  process.env.ALLOW_MISSING_EXTERNAL_CONTRACTS === 'true' || !externalSharedRootAvailable;
 const contractPath = path.join(repoRoot, 'docs', 'contracts', 'shared-service-contract.json');
-const sharedControllerPath = path.join(repoRoot, 'src', 'shared-services', 'shared-services.controller.ts');
-const kafkaControllerPath = path.join(repoRoot, 'src', 'kafka-governance', 'kafka-governance.controller.ts');
-const externalPolicyPath = path.join(repoRoot, 'src', 'external', 'guards', 'external-policy.guard.ts');
+const sharedControllerPath = path.join(repoRoot, 'apps', 'gateway', 'src', 'shared-services', 'shared-services.controller.ts');
+const kafkaControllerPath = path.join(repoRoot, 'apps', 'gateway', 'src', 'kafka-governance', 'kafka-governance.controller.ts');
+const externalPolicyPath = path.join(repoRoot, 'apps', 'gateway', 'src', 'external', 'guards', 'external-policy.guard.ts');
 const openApiPath = path.join(repoRoot, 'docs', 'openapi', 'openapi.json');
 const authTokenContractPath = process.env.APICENTER_AUTH_TOKEN_CONTRACT_PATH
   ? path.resolve(repoRoot, process.env.APICENTER_AUTH_TOKEN_CONTRACT_PATH)

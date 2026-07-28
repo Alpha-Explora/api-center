@@ -54,5 +54,7 @@ export interface CancelSubscriptionInput { cancelAtPeriodEnd?: boolean; reason?:
 export interface CancelCheckoutInput { reason?: string; }
 export interface Subscription { subscriptionId: string; customerId: string; status: 'active' | 'past_due' | 'cancelled' | 'pending' | string; currentPeriodEnd?: string; }
 export interface Invoice { invoiceId: string; status: 'draft' | 'open' | 'paid' | 'past_due' | 'void' | string; amount: Money; }
+export interface PendingResource { status: 'pending'; resourceId: string; }
+export type PaymentResource<T> = T | PendingResource;
 export interface PaymentCapabilities { currency: 'PHP'; paymentMethods: string[]; resources: string[]; }
 export interface ApiErrorDetails { code?: string; message?: string; details?: unknown; status: number; }

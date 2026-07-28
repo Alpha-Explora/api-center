@@ -88,8 +88,11 @@ export class PaymentWebhookController {
     if (cloudRunAuthorization) {
       headers.Authorization = cloudRunAuthorization;
     }
-    if (process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN) {
-      headers["X-APICenter-Internal-Token"] = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+    const internalToken = targetEnvironment === "live"
+      ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE
+      : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST;
+    if (internalToken || process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN) {
+      headers["X-APICenter-Internal-Token"] = internalToken || process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN!;
     }
 
     const response = await fetch(upstream, {
@@ -120,7 +123,9 @@ export class PaymentWebhookController {
   private resolvePaymentWebhookUpstream(
     environment: ApicenterRuntimeEnvironment,
   ): string {
-    const configuredTarget = process.env.APICENTER_PAYMENTS_URL;
+    const configuredTarget = environment === "live"
+      ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE || process.env.APICENTER_PAYMENTS_URL
+      : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST || process.env.APICENTER_PAYMENTS_URL;
     if (configuredTarget) {
       return `${configuredTarget.replace(/\/+$/, "")}/webhooks`;
     }

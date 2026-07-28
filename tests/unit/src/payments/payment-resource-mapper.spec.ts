@@ -14,7 +14,7 @@ describe('payment resource mapper', () => {
       redirect_url: 'https://checkout.example.test/chk_123',
       aggregate_version: 2,
     })).toEqual({
-      checkoutId: 'chk_123',
+      checkoutId: 'chk_v1_Y2hrXzEyMw',
       referenceId: 'order-123',
       status: 'paid',
       amount: { amountMinor: 39900, currency: 'PHP' },
@@ -25,16 +25,16 @@ describe('payment resource mapper', () => {
 
   it('maps each aggregate type without provider fields', () => {
     const snapshot = toAggregateSnapshot('refund', {
-      refundId: 'ref_123',
-      paymentId: 'pay_123',
+      refundId: 'ref_v1_cmVmXzEyMw',
+      paymentId: 'pay_v1_cGF5XzEyMw',
       status: 'succeeded',
       amount: { value: 100, currency: 'PHP' },
       aggregateVersion: 3,
       providerMetadata: { raw: 'must-not-leak' },
     });
     expect(snapshot).toEqual({
-      refundId: 'ref_123',
-      paymentId: 'pay_123',
+      refundId: 'ref_v1_cmVmXzEyMw',
+      paymentId: 'pay_v1_cGF5XzEyMw',
       status: 'succeeded',
       amount: { amountMinor: 100, currency: 'PHP' },
       aggregateVersion: 3,

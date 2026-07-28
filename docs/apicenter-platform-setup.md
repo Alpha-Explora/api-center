@@ -1,3 +1,5 @@
+> **Current payment eventing note:** APICenter payment lifecycle events use Google Pub/Sub (`apicenter.payment-events.test` and `.live`). Confluent/Kafka references in this document describe the legacy general data-pipeline surfaces and are not the active payment command or event path.
+
 # APICenter Platform Setup
 
 This is the operator guide for the current APICenter deployment model.

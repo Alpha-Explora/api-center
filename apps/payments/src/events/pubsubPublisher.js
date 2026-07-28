@@ -1,4 +1,6 @@
+const crypto = require('node:crypto');
 const publisherCache = new Map();
+const { toPublicId } = require('../services/paymongo/paymentIds');
 
 function getPublisher(environment) {
   if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return null;
@@ -21,6 +23,16 @@ function omitUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
+
+function publicEventId(providerEventId) {
+  const value = String(providerEventId || '');
+  if (value.startsWith('evt_')) return value;
+  return `evt_${crypto.createHash('sha256').update(value).digest('hex').slice(0, 24)}`;
+}
+function publicResourceId(aggregateType, value) {
+  const kinds = { checkout: 'chk', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv' };
+  return value ? toPublicId(kinds[aggregateType] || 'res', value) : value;
+}
 function toCanonicalPaymentEvent(event) {
   const payload = event?.payload || {};
   const consumerServiceId = event.consumerServiceId || payload.consumerServiceId;
@@ -39,26 +51,26 @@ function toCanonicalPaymentEvent(event) {
   if (event.eventType === 'payment.checkout.paid' && !payload.amount) throw new Error('Paid checkout event amount is required');
 
   return {
-    eventId: event.providerEventId,
+    eventId: publicEventId(event.providerEventId),
     contractVersion: '1.0',
     eventType: event.eventType,
     ownerTribeId,
     consumerServiceId,
     referenceId,
     aggregateType: event.aggregateType,
-    aggregateId: event.aggregateId,
+    aggregateId: publicResourceId(event.aggregateType, event.aggregateId),
     aggregateVersion,
     occurredAt: payload.occurredAt || new Date().toISOString(),
-    ...(payload.correlationId ? { correlationId: payload.correlationId } : {}),
+    ...(payload.correlationId ? { correlationId: publicEventId(payload.correlationId) } : {}),
     data: omitUndefined({
       environment: event.environment,
       status: payload.status,
       referenceId,
-      checkoutId: payload.checkoutId,
-      subscriptionId: payload.subscriptionId,
-      invoiceId: payload.invoiceId,
-      paymentId: payload.paymentId,
-      refundId: payload.refundId,
+      checkoutId: publicResourceId('checkout', payload.checkoutId),
+      subscriptionId: publicResourceId('subscription', payload.subscriptionId),
+      invoiceId: publicResourceId('invoice', payload.invoiceId),
+      paymentId: publicResourceId('payment', payload.paymentId),
+      refundId: publicResourceId('refund', payload.refundId),
       amount: payload.amount,
       currency: payload.currency,
       aggregateVersion,
@@ -77,7 +89,6 @@ async function publishPaymentEvent(event, { topic: providedTopic } = {}) {
     attributes: {
       eventId: canonicalEvent.eventId,
       eventType: canonicalEvent.eventType,
-      providerEventId: event.providerEventId,
       contractVersion: canonicalEvent.contractVersion,
       aggregateType: canonicalEvent.aggregateType,
       aggregateId: canonicalEvent.aggregateId,

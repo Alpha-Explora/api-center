@@ -1,0 +1,13 @@
+# Current architecture
+
+APICenter owns the reusable payment runtime, PayMongo credentials, payment database, idempotency records, webhook verification, and the durable outbox. Consumer services call the public gateway with `@alpha-explora/apicenter-sdk` and never call PayMongo directly.
+
+## AlphaCI
+
+AlphaCI keeps its own billing ledger and subscription/access projection. Its command path uses the APICenter SDK; APICenter remains the provider source of truth. AlphaCI consumes filtered Pub/Sub events to project paid, failed, refunded, past-due, active, and cancelled lifecycle changes.
+
+## Event delivery
+
+Payment events are delivered through Google Pub/Sub topics `apicenter.payment-events.test` and `apicenter.payment-events.live`. Push subscriptions use OIDC authentication, consumer filtering, a dead-letter topic, and a 20-attempt delivery policy. A consumer records a duplicate or malformed event before acknowledging it.
+
+Resource IDs in HTTP responses and events are opaque versioned IDs such as `pi_v1_*` and `chk_v1_*`; raw PayMongo IDs never cross the public boundary.
