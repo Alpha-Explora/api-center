@@ -64,8 +64,24 @@ function runContractChecks() {
   }
 }
 
+function collectSharedContractViolations() {
+  const contractPath = path.join(repoRoot, 'packages/contracts/shared-service-contract.json');
+  if (!fs.existsSync(contractPath)) return;
+  const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+  for (const service of contract.sharedServices ?? []) {
+    if (typeof service.manifest !== 'string') {
+      violations.push('Shared service ' + service.serviceId + ' is missing a manifest path.');
+      continue;
+    }
+    if (!fs.existsSync(path.join(repoRoot, service.manifest))) {
+      violations.push('Shared service ' + service.serviceId + ' references missing manifest: ' + service.manifest);
+    }
+  }
+}
+
 runContractChecks();
 collectManifestDriftViolations();
+collectSharedContractViolations();
 if (violations.length > 0) {
   console.error('\nContract compatibility check failed:\n');
   for (const violation of violations) console.error(` - ${violation}`);

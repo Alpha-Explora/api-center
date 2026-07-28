@@ -1,0 +1,138 @@
+{
+    "version":  "2026-05-11",
+    "sharedServices":  [
+                           {
+                               "serviceId":  "payment",
+                               "manifest":  "apps/payments/service-manifest.json",
+                               "wrappers":  [
+                                                "paymentCreateCheckoutSession",
+                                                "paymentGetCheckoutSession",
+                                                "paymentGetCheckoutStatus",
+                                                "paymentGetCheckoutStatusByReference",
+                                                "paymentMarkCheckoutCancelled",
+                                                "paymentCreateRefund",
+                                                "paymentCreateCustomer",
+                                                "paymentGetCustomer",
+                                                "paymentCreateProduct",
+                                                "paymentGetProduct",
+                                                "paymentCreatePrice",
+                                                "paymentGetPrice",
+                                                "paymentCreateSubscription",
+                                                "paymentGetSubscription",
+                                                "paymentGetSubscriptionByReference",
+                                                "paymentCancelSubscription",
+                                                "paymentPauseSubscription",
+                                                "paymentResumeSubscription",
+                                                "paymentChangeSubscriptionPrice",
+                                                "paymentListSubscriptionInvoices",
+                                                "paymentGetInvoice"
+                                            ],
+                               "endpoints":  [
+                                                 "/customers",
+                                                 "/customers/:id",
+                                                 "/products",
+                                                 "/products/:id",
+                                                 "/prices",
+                                                 "/prices/:id",
+                                                 "/checkout/sessions",
+                                                 "/checkout/sessions/:id",
+                                                 "/checkout/sessions/:id/status",
+                                                 "/checkout/sessions/by-reference/:referenceId/status",
+                                                 "/checkout/sessions/:id/cancelled",
+                                                 "/subscriptions",
+                                                 "/subscriptions/:id",
+                                                 "/subscriptions/by-reference/:referenceId",
+                                                 "/subscriptions/:id/cancel",
+                                                 "/subscriptions/:id/pause",
+                                                 "/subscriptions/:id/resume",
+                                                 "/subscriptions/:id/change-price",
+                                                 "/subscriptions/:id/invoices",
+                                                 "/invoices/:id",
+                                                 "/payments/:id/refunds",
+                                                 "/webhooks"
+                                             ]
+                           },
+                           {
+                               "serviceId":  "email",
+                               "manifest":  "apps/email/service-manifest.json",
+                               "wrappers":  [
+                                                "emailSend",
+                                                "emailGetStatus"
+                                            ],
+                               "endpoints":  [
+                                                 "/send",
+                                                 "/templates",
+                                                 "/status"
+                                             ]
+                           },
+                           {
+                               "serviceId":  "sms",
+                               "manifest":  "apps/sms/service-manifest.json",
+                               "wrappers":  [
+                                                "smsSend",
+                                                "smsGetStatus"
+                                            ],
+                               "endpoints":  [
+                                                 "/send",
+                                                 "/status",
+                                                 "/templates"
+                                             ]
+                           },
+                           {
+                               "serviceId":  "gauth",
+                               "manifest":  "apps/gauth/service-manifest.json",
+                               "wrappers":  [
+                                                "gauthGetAuthorizationUrl",
+                                                "gauthExchangeCode",
+                                                "gauthRefreshToken",
+                                                "gauthLogout"
+                                            ],
+                               "endpoints":  [
+                                                 "/oauth/authorize",
+                                                 "/oauth/token",
+                                                 "/oauth/token/refresh",
+                                                 "/oauth/logout",
+                                                 "/health"
+                                             ]
+                           },
+                           {
+                               "serviceId":  "otp",
+                               "manifest":  "apps/otp/service-manifest.json",
+                               "wrappers":  [
+                                                "otpGenerate",
+                                                "otpVerify",
+                                                "otpStatus"
+                                            ],
+                               "endpoints":  [
+                                                 "/generate",
+                                                 "/verify",
+                                                 "/status"
+                                             ]
+                           },
+                           {
+                               "serviceId":  "geo",
+                               "manifest":  "apps/geo/service-manifest.json",
+                               "wrappers":  [
+                                                "geoGeocodeAddress",
+                                                "geoReverseGeocode",
+                                                "geoFenceCheck"
+                                            ],
+                               "endpoints":  [
+                                                 "/geocode",
+                                                 "/reverse-geocode",
+                                                 "/geofence/check"
+                                             ]
+                           }
+                       ],
+    "kafkaGovernance":  {
+                            "requiredScopes":  [
+                                                   "external:kafka:read",
+                                                   "external:kafka:write"
+                                               ],
+                            "wrappers":  [
+                                             "kafkaGetGovernanceCatalog",
+                                             "kafkaPublish",
+                                             "publishTribeEvent"
+                                         ]
+                        }
+}
