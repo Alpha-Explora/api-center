@@ -308,10 +308,10 @@ Production DNS must not move to Cloud Run until all gates pass:
   - `api-center`: `min-instances=1`, `max-instances=10`
   - `payment-live`: `min-instances=1`, `max-instances=5`
   - `payment-test`: `min-instances=0`, `max-instances=3`
-- Non-payment shared services are not part of the first production Cloud Run
-  cutover. Before moving email, SMS, OTP, Google Auth, or geo routes to Cloud
-  Run, deploy and verify each service with `min-instances=0`,
-  `max-instances=3`, IAM-only invocation, and provider guardrails enabled.
+- Email, SMS, OTP, Google Auth, and geo are APICenter-owned Cloud Run services.
+  Each uses `min-instances=0`, `max-instances=3`, IAM-only invocation, and
+  provider guardrails. Their checked-in source is under `apps/<service>` and their
+  deployment definitions are under `infra/gcp/cloud-run/`.
 - Alerts exist for Cloud Run 5xx, Cloud Run 429, p95 latency, Redis latency, provider failures, and max-instance saturation.
 - GKE production remains unchanged during staging verification.
 - Rollback command is documented and tested.

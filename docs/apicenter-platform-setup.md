@@ -9,6 +9,7 @@ uses the SDK and projects lifecycle events into its local database.
 | Area | Source of truth |
 | --- | --- |
 | Gateway, auth, registry, policy, quotas | `apps/gateway` |
+| Shared provider runtimes (email, SMS, OTP, Google Auth, geo) | `apps/email`, `apps/sms`, `apps/otp`, `apps/gauth`, `apps/geo` |
 | PayMongo credentials, provider calls, canonical payment state, outbox | `apps/payments` |
 | Management console and provisioning | `apps/management` |
 | Public contracts and TypeScript SDK | `packages/contracts`, `packages/sdk` |
@@ -39,10 +40,11 @@ integration should depend on them.
 
 ## Cloud Run Services
 
-The gateway and payment runtimes are independently deployable. Use the checked-in
-manifests under `infra/gcp/cloud-run/` and the Pub/Sub topology under
-`infra/gcp/pubsub/`. Test and live payment runtimes use separate services, databases,
-internal tokens, topics, and service accounts.
+The gateway and all shared runtimes are independently deployable. Use the checked-in
+manifests under infra/gcp/cloud-run/ and the Pub/Sub topology under
+infra/gcp/pubsub/. Payment test/live runtimes use separate services, databases, internal
+tokens, topics, and service accounts. Email, SMS, OTP, Google Auth, and geo each use
+separate Cloud Run services, provider bindings, and runtime guardrails.
 
 Required gateway settings include:
 
@@ -56,12 +58,12 @@ binding. Never expose provider credentials to a consumer service or AlphaCI.
 
 ## Provisioning
 
-1. Apply the APICenter and payment Cloud Run manifests for the target environment.
+1. Apply the APICenter gateway and shared-runtime Cloud Run manifests for the target environment.
 2. Apply the matching Pub/Sub topic/subscription/dead-letter manifests.
 3. Grant the payment runtime publisher role on the topic.
 4. Grant the AlphaCI receiver service account permission to receive push deliveries.
 5. Configure the gateway's environment-specific internal route and token secrets.
-6. Run the local contract, typecheck, and focused payment tests before live smoke.
+6. Run the local contract, typecheck, SDK, and shared-runtime smoke tests before live smoke.
 
 The management console provisions consumer registrations and scoped API keys. Keep
 payment scopes least-privilege; immediate subscription cancellation is a separate
