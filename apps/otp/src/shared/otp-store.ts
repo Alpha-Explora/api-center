@@ -1,3 +1,6 @@
+import { OtpRepositoryInterface } from './otp-repository.interface';
+import { PostgresOtpStore } from './postgres-otp-store';
+
 export interface OtpRecord {
   otpId: string;
   target: string;
@@ -7,7 +10,7 @@ export interface OtpRecord {
   status: 'pending' | 'used' | 'expired';
 }
 
-export class MemoryOtpStore {
+export class MemoryOtpStore implements OtpRepositoryInterface {
   private static instance: MemoryOtpStore;
   private readonly store = new Map<string, OtpRecord>();
 
@@ -34,4 +37,12 @@ export class MemoryOtpStore {
     this.store.set(otpId, updated);
     return updated;
   }
+}
+
+export function createOtpRepository(): OtpRepositoryInterface {
+  const mode = process.env.OTP_STORE_MODE || (process.env.DATABASE_URL ? 'postgres' : 'memory');
+  if (mode === 'postgres') {
+    return new PostgresOtpStore();
+  }
+  return MemoryOtpStore.getInstance();
 }

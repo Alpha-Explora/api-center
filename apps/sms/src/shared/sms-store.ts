@@ -1,3 +1,6 @@
+import { SmsRepositoryInterface } from './sms-repository.interface';
+import { PostgresSmsStore } from './postgres-sms-store';
+
 export interface SmsRecord {
   messageId: string;
   to: string;
@@ -7,7 +10,7 @@ export interface SmsRecord {
   createdAt: string;
 }
 
-export class MemorySmsStore {
+export class MemorySmsStore implements SmsRepositoryInterface {
   private static instance: MemorySmsStore;
   private readonly store = new Map<string, SmsRecord>();
 
@@ -26,4 +29,12 @@ export class MemorySmsStore {
   async findById(messageId: string): Promise<SmsRecord | null> {
     return this.store.get(messageId) || null;
   }
+}
+
+export function createSmsRepository(): SmsRepositoryInterface {
+  const mode = process.env.SMS_STORE_MODE || (process.env.DATABASE_URL ? 'postgres' : 'memory');
+  if (mode === 'postgres') {
+    return new PostgresSmsStore();
+  }
+  return MemorySmsStore.getInstance();
 }
