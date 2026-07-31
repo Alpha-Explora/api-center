@@ -89,7 +89,6 @@
     "google-auth-library": "^10.9.0",
     "helmet": "^8.1.0",
     "http-proxy-middleware": "^4.0.0",
-    "ioredis": "^5.10.0",
     "jose": "^6.2.1",
     "morgan": "^1.10.0",
     "pg": "^8.20.0",

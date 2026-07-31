@@ -1,5 +1,4 @@
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { Request, Response } from 'express';
 import {
   createMemoryRateLimitStore,
@@ -8,11 +7,12 @@ import {
 } from '@apicenter/runtime';
 import type {
   OtpGenerateRequest,
-  OtpGenerateResponse,
   OtpVerifyRequest,
-  OtpVerifyResponse,
 } from '@apicenter/contracts';
-import { createOtpStore } from './store';
+import { MemoryOtpRepository } from './infrastructure/repositories/MemoryOtpRepository';
+import { GenerateOtpUseCase } from './application/use-cases/GenerateOtpUseCase';
+import { VerifyOtpUseCase } from './application/use-cases/VerifyOtpUseCase';
+import { GetOtpStatusUseCase } from './application/use-cases/GetOtpStatusUseCase';
 
 const port = Number(process.env.PORT || 4014);
 const { app, ok, fail } = createSharedServiceApp({
@@ -20,11 +20,17 @@ const { app, ok, fail } = createSharedServiceApp({
   health: {
     status: 'ok',
     service: 'otp-gateway',
-    mode: 'mock',
+    architecture: 'ddd',
+    mode: 'memory',
   },
 });
 
-const otpStore = createOtpStore();
+// DDD Composition Root
+const otpRepository = new MemoryOtpRepository();
+const generateOtpUseCase = new GenerateOtpUseCase(otpRepository);
+const verifyOtpUseCase = new VerifyOtpUseCase(otpRepository);
+const getOtpStatusUseCase = new GetOtpStatusUseCase(otpRepository);
+
 const rateLimitStore = createMemoryRateLimitStore();
 const generateLimit = Number(process.env.OTP_GENERATE_LIMIT_PER_TARGET || 3);
 const generateWindowMs = Number(process.env.OTP_GENERATE_LIMIT_WINDOW_MS || 60_000);
@@ -32,7 +38,7 @@ const verifyLimit = Number(process.env.OTP_VERIFY_LIMIT_PER_OTP || 5);
 const verifyWindowMs = Number(process.env.OTP_VERIFY_LIMIT_WINDOW_MS || 60_000);
 
 app.post('/generate', async (req: Request, res: Response) => {
-  const { recipient, channel, digits = 6, ttlSeconds = 300 } =
+  const { recipient, channel, digits, ttlSeconds } =
     (req.body || {}) as OtpGenerateRequest & { recipient?: string; target?: string; digits?: number };
   const target = recipient || (req.body as any)?.target;
 
@@ -59,35 +65,17 @@ app.post('/generate', async (req: Request, res: Response) => {
     });
   }
 
-  const resolvedLength = Math.max(4, Math.min(10, Number(digits) || 6));
-  const resolvedExpiry = Math.max(
-    60,
-    Math.min(3600, Number(ttlSeconds) || 300),
-  );
-  const max = Math.pow(10, resolvedLength);
-  const code = String(crypto.randomInt(0, max)).padStart(resolvedLength, '0');
-  const otpId = `otp_${crypto.randomUUID().replace(/-/g, '')}`;
-  const expiresAt = Date.now() + resolvedExpiry * 1000;
-
-  await otpStore.createOtp({
-    otpId,
-    target,
-    channel,
-    code,
-    expiresAt,
-    status: 'pending',
-  });
-
-  const response: OtpGenerateResponse & { target: string; code?: string } = {
-    otpId,
-    expiresAt: new Date(expiresAt).toISOString(),
-    channel,
-    recipient: target,
-    target,
-    ...(process.env.NODE_ENV !== 'production' && { code }),
-  };
-
-  return ok(res, response, 201);
+  try {
+    const result = await generateOtpUseCase.execute({
+      target,
+      channel,
+      length: digits,
+      expiresInSeconds: ttlSeconds,
+    });
+    return ok(res, result, 201);
+  } catch (error: any) {
+    return fail(res, 400, 'INVALID_REQUEST', error?.message || 'Failed to generate OTP');
+  }
 });
 
 app.post('/verify', async (req: Request, res: Response) => {
@@ -107,61 +95,25 @@ app.post('/verify', async (req: Request, res: Response) => {
     });
   }
 
-  const entry = await otpStore.getOtp(otpId);
+  const result = await verifyOtpUseCase.execute({ otpId, code });
 
-  if (!entry) {
-    return fail(res, 404, 'OTP_NOT_FOUND', 'OTP not found');
+  if (!result.verified) {
+    const statusCode = result.reason === 'OTP_NOT_FOUND' ? 404 : 400;
+    return fail(res, statusCode, result.reason || 'OTP_INVALID', `OTP verification failed: ${result.reason}`);
   }
 
-  if (entry.status === 'used') {
-    return fail(res, 400, 'OTP_ALREADY_USED', 'OTP has already been used');
-  }
-
-  if (entry.status === 'expired' || Date.now() > entry.expiresAt) {
-    if (entry.status !== 'expired') {
-      entry.status = 'expired';
-      await otpStore.updateOtp(otpId, { status: 'expired' });
-    }
-    return fail(res, 400, 'OTP_EXPIRED', 'OTP has expired');
-  }
-
-  if (String(code) !== entry.code) {
-    return fail(res, 400, 'OTP_INVALID', 'OTP code is incorrect');
-  }
-
-  entry.status = 'used';
-  await otpStore.updateOtp(otpId, { status: 'used' });
-
-  const response: OtpVerifyResponse & { target: string; channel: string } = {
-    verified: true,
-    otpId,
-    target: entry.target,
-    channel: entry.channel,
-  };
-
-  return ok(res, response);
+  return ok(res, result);
 });
 
 app.get('/status/:otpId', async (req: Request, res: Response) => {
   const otpId = Array.isArray(req.params.otpId) ? req.params.otpId[0] : req.params.otpId;
-  const entry = await otpStore.getOtp(otpId);
+  const result = await getOtpStatusUseCase.execute(otpId);
 
-  if (!entry) {
+  if (!result) {
     return fail(res, 404, 'OTP_NOT_FOUND', 'OTP not found');
   }
 
-  if (entry.status === 'pending' && Date.now() > entry.expiresAt) {
-    entry.status = 'expired';
-    await otpStore.updateOtp(otpId, { status: 'expired' });
-  }
-
-  return ok(res, {
-    otpId: entry.otpId,
-    status: entry.status,
-    target: entry.target,
-    channel: entry.channel,
-    expiresAt: new Date(entry.expiresAt).toISOString(),
-  });
+  return ok(res, result);
 });
 
 export async function registerWithGateway() {
