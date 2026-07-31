@@ -1,8 +1,6 @@
 # APICenter Developer Guide
 
-This guide covers the active APICenter Turborepo. Cloud Run is the deployment target;
-Google Pub/Sub is the payment lifecycle event transport; the checked-in contracts
-and SDK are the public integration surface.
+This guide covers the active APICenter Turborepo monorepo. Cloud Run is the deployment target; Google Pub/Sub is the payment lifecycle event transport; `@apicenter/contracts` and `@alpha-explora/apicenter-sdk` form the public integration surface.
 
 ## Local Development
 
@@ -10,42 +8,31 @@ and SDK are the public integration surface.
 npm ci
 npm run typecheck
 npm run check:monorepo
-npm run check:boundaries:test
-npm run contracts:validate
-npm run check:contracts
-npm run contracts:test
-npm run sdk:build
+npm run check:boundaries
+npm run sdk:test
 npm run docs:test
 ```
 
-Run the gateway locally with `npm run dev`. The private payment runtime is under
-`apps/payments`; its JavaScript checks run with `npm run lint --workspace @apicenter/payments`.
+Run the gateway locally with `npm run dev`. All shared microservice runtimes (`apps/email`, `apps/sms`, `apps/otp`, `apps/geo`, `apps/gauth`, `apps/payments`) are written in strict TypeScript and follow **100% Strict Enterprise Feature Architecture** (`features/<action>/`).
 
 ## Current Boundaries
 
-- `apps/gateway`: auth, registry, policy, quotas, routing, and public facade.
-- `apps/payments`: PayMongo credentials, provider calls, canonical payment state,
-  webhook verification, outbox, and Pub/Sub publishing.
-- `apps/management`: operator provisioning and consumer/key management.
-- `packages/contracts`: public OpenAPI and AsyncAPI artifacts.
-- `packages/sdk`: TypeScript client used by consumer services.
-
-`api-shared` and the former standalone management repository are retired migration
-sources. Do not add new imports, manifests, or deployment contexts for them.
+- `apps/gateway`: Central NestJS API Gateway control plane organized by domain (`auth-security`, `catalog-registry`, `compliance`, `gateway-proxy`, `governance`, `payments`, `runtime-ops`).
+- `apps/payments`: PayMongo credentials, provider calls, canonical payment state, webhook verification, and Pub/Sub publishing.
+- `apps/email`, `apps/sms`, `apps/otp`, `apps/geo`, `apps/gauth`: Platform shared microservice runtimes.
+- `apps/management`: Operator provisioning and consumer/key management.
+- `apps/docs`: Static developer documentation site powered by Next.js, Fumadocs, and TailwindCSS.
+- `packages/contracts`: Public TypeScript contracts and schema definitions.
+- `packages/sdk`: Published `@alpha-explora/apicenter-sdk` client library.
 
 ## Deployment
 
-Use `docs/deployment-cloud-run.md` for the current Cloud Run deployment record and
-`docs/apicenter-platform-setup.md` for service accounts, secrets, and Pub/Sub setup.
-The Cloud Run manifests are under `infra/gcp/cloud-run/`; payment event topology is
-under `infra/gcp/pubsub/`.
+Use `docs/deployment-cloud-run.md` for the Cloud Run deployment record and `docs/apicenter-platform-setup.md` for service accounts, secrets, and Pub/Sub setup.
 
 ## Public Contracts
 
-- `contracts/public/apicenter.openapi.yaml`
-- `contracts/public/apicenter.asyncapi.yaml`
-- `packages/sdk/src/`
-- `docs/payments-platform-current.md`
+- `packages/contracts/src/index.ts`
+- `@alpha-explora/apicenter-sdk`
+- `apps/docs/content/docs/`
 
-Consumer services must call APICenter through the SDK. Provider credentials remain
-inside APICenter-owned runtime secrets.
+Consumer services must call APICenter through the SDK or contract endpoints. Provider credentials remain inside APICenter-owned runtime secrets.
