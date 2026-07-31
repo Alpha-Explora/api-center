@@ -1,0 +1,467 @@
+// =============================================================================
+// src/registry/registry.controller.ts — Service Registry API endpoints
+// =============================================================================
+// NestJS controller for managing the Dynamic Service Registry.
+//
+// REPLACES: Express registryRouter (routes.ts)
+// NestJS ADVANTAGE: @UseGuards(PlatformAdminGuard) replaces the manual
+// requirePlatformAdmin middleware. DTOs are auto-validated by the global
+// ValidationPipe.
+//
+// ENDPOINTS:
+//  POST   /api/v1/registry/register          — Register a new service
+//  GET    /api/v1/registry/services           — List all services
+//  GET    /api/v1/registry/services/:serviceId — Get a specific service
+//  DELETE /api/v1/registry/services/:serviceId — Deregister a service
+// =============================================================================
+
+import {
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+} from "@nestjs/common";
+import { ApprovalRequestService } from "@approvals/approval-request.service";
+import { RegistryService } from "./registry.service";
+import { AuditEventsService } from "@analytics/audit-events.service";
+import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
+import { LoggerService } from "@shared/logger.service";
+import { ServiceManifestDto } from "@shared/dto/service-manifest.dto";
+import { DeprecateServiceDto } from "@shared/dto/deprecate-service.dto";
+import { getExternalRequiredScopes } from "@external/guards/external-policy.guard";
+import { NotFoundError } from "@shared/errors";
+import { requireGovernanceDependency } from "@shared/governance-dependencies";
+import {
+  AuthenticatedRequest,
+  ServiceEnvironmentKey,
+  ServiceManifest,
+  ServiceTier,
+  ServiceType,
+} from "../../../types";
+
+const PLATFORM_ADMIN_SCOPE = "platform:admin";
+
+@Controller("registry")
+@UseGuards(ScopedAdminGuard)
+export class RegistryController {
+  constructor(
+    private readonly registry: RegistryService,
+    private readonly logger: LoggerService,
+    private readonly auditEvents: AuditEventsService,
+    private readonly approvals: ApprovalRequestService,
+  ) {}
+
+  /**
+   * POST /api/v1/registry/register
+   */
+  @Post("register")
+  async register(
+    @Body() dto: ServiceManifestDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const approvalTargetEnvironment = resolveApprovalTargetEnvironment(dto);
+    await this.requireApproval({
+      approvalRequestId: dto.approvalRequestId,
+      actionType: "service.register_live",
+      targetEnvironment: approvalTargetEnvironment,
+      targetId: dto.serviceId,
+    });
+    const {
+      approvalRequestId: _approvalRequestId,
+      targetEnvironment: _targetEnvironment,
+      ...manifestDto
+    } = dto;
+    const manifest = {
+      ...manifestDto,
+      consumes: manifestDto.consumes ?? [],
+      environments: normalizeManifestEnvironments(dto),
+      serviceTier: manifestDto.serviceTier as ServiceTier | undefined,
+      serviceType: (manifestDto.serviceType ?? "tribe") as ServiceType,
+    };
+    const entry = await this.registry.register(manifest);
+
+    this.logger.info("Service registered via API", {
+      serviceId: entry.serviceId,
+      correlationId: req.correlationId,
+    });
+    await this.recordAudit(
+      "registry.service.create_requested",
+      entry.serviceId,
+      req,
+      {
+        environment: approvalTargetEnvironment,
+      },
+    );
+
+    return {
+      success: true,
+      data: entry,
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId,
+      },
+    };
+  }
+
+  /**
+   * GET /api/v1/registry/services
+   */
+  @Get("services")
+  listServices() {
+    const all = this.registry.getAll();
+
+    return {
+      success: true,
+      data: Object.values(all).map((svc) => ({
+        serviceId: svc.serviceId,
+        name: svc.name,
+        baseUrl: svc.baseUrl,
+        status: svc.status,
+        serviceType: svc.serviceType ?? "tribe",
+        exposes: svc.exposes,
+        requiredScopes: svc.requiredScopes,
+        consumes: svc.consumes,
+        ownerTribeId: svc.ownerTribeId,
+        version: svc.version,
+        previousVersion: svc.previousVersion,
+        ownerTeam: svc.ownerTeam,
+        contact: svc.contact,
+        serviceTier: svc.serviceTier,
+        costCenter: svc.costCenter,
+        healthCheck: svc.healthCheck,
+        healthy: svc.healthy,
+        lastHealthCheckAt: svc.lastHealthCheckAt,
+        sunsetDate: svc.sunsetDate,
+        replacementService: svc.replacementService,
+        apiProductName: svc.apiProductName,
+        apiProductDescription: svc.apiProductDescription,
+        slaTier: svc.slaTier,
+        supportChannel: svc.supportChannel,
+        documentationUrl: svc.documentationUrl,
+        providerCostSensitive: svc.providerCostSensitive,
+        environments: svc.environments,
+        registeredAt: svc.registeredAt,
+        updatedAt: svc.updatedAt,
+      })),
+      meta: {
+        total: this.registry.count(),
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * GET /api/v1/registry/scopes
+   * Returns a deduplicated scope catalog for auth-provider provisioning.
+   */
+  @Get("scopes")
+  getScopes() {
+    const serviceScopes = new Set<string>();
+
+    for (const service of Object.values(this.registry.getAll())) {
+      for (const scope of service.requiredScopes ?? []) {
+        serviceScopes.add(scope);
+      }
+    }
+
+    const platformScopes = [PLATFORM_ADMIN_SCOPE];
+    const externalScopes = getExternalRequiredScopes();
+    const dynamicServiceScopes = [...serviceScopes].sort((a, b) =>
+      a.localeCompare(b),
+    );
+    const allScopes = [
+      ...new Set([
+        ...platformScopes,
+        ...externalScopes,
+        ...dynamicServiceScopes,
+      ]),
+    ].sort((a, b) => a.localeCompare(b));
+
+    return {
+      success: true,
+      data: {
+        platformScopes,
+        externalScopes,
+        dynamicServiceScopes,
+        allScopes,
+      },
+      meta: {
+        total: allScopes.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * GET /api/v1/registry/services/:serviceId
+   */
+  @Get("services/:serviceId")
+  getService(@Param("serviceId") serviceId: string) {
+    const entry = this.registry.get(serviceId);
+    if (!entry) {
+      throw new NotFoundError(`Service '${serviceId}' is not registered`);
+    }
+
+    return {
+      success: true,
+      data: entry,
+      meta: { timestamp: new Date().toISOString() },
+    };
+  }
+
+  /**
+   * DELETE /api/v1/registry/services/:serviceId
+   */
+  @Delete("services/:serviceId")
+  async deregister(
+    @Param("serviceId") serviceId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.registry.deregister(serviceId);
+
+    this.logger.info("Service deregistered via API", {
+      serviceId,
+      correlationId: req.correlationId,
+    });
+    await this.recordAudit("registry.service.delete_requested", serviceId, req);
+
+    return {
+      success: true,
+      data: {
+        serviceId,
+        message: `Service '${serviceId}' has been deregistered`,
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId,
+      },
+    };
+  }
+
+  // ─── Lifecycle management ────────────────────────────────────────────────────
+
+  /**
+   * PATCH /api/v1/registry/services/:serviceId/deprecate
+   * Mark a service as deprecated. Consumers will receive Sunset headers.
+   */
+  @Patch("services/:serviceId/deprecate")
+  async deprecate(
+    @Param("serviceId") serviceId: string,
+    @Body() dto: DeprecateServiceDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const entry = await this.registry.deprecate(
+      serviceId,
+      dto.sunsetDate,
+      dto.replacementService,
+    );
+
+    const consumers = this.registry.getConsumers(serviceId);
+
+    this.logger.warn(
+      `Service '${serviceId}' deprecated via API — ${consumers.length} consumer(s) affected`,
+      "RegistryController",
+    );
+
+    await this.recordAudit(
+      "registry.service.disable_requested",
+      serviceId,
+      req,
+      {
+        consumers,
+        sunsetDate: dto.sunsetDate,
+        replacementService: dto.replacementService,
+      },
+    );
+
+    return {
+      success: true,
+      data: {
+        ...entry,
+        affectedConsumers: consumers,
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId,
+      },
+    };
+  }
+
+  /**
+   * POST /api/v1/registry/services/:serviceId/retire
+   * Permanently retire a service — it will return 410 Gone to callers.
+   */
+  @Post("services/:serviceId/retire")
+  async retire(
+    @Param("serviceId") serviceId: string,
+    @Body() body: { approvalRequestId?: string } = {},
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.requireApproval({
+      approvalRequestId: body.approvalRequestId,
+      actionType: "service.retire",
+      targetEnvironment: "live",
+      targetId: serviceId,
+    });
+    const consumers = this.registry.getConsumers(serviceId);
+    const entry = await this.registry.retire(serviceId);
+
+    this.logger.warn(
+      `Service '${serviceId}' retired via API — ${consumers.length} consumer(s) affected`,
+      "RegistryController",
+    );
+
+    await this.recordAudit(
+      "registry.service.archive_requested",
+      serviceId,
+      req,
+      {
+        environment: "live",
+        consumers,
+        approvalRequestId: body.approvalRequestId,
+      },
+    );
+
+    return {
+      success: true,
+      data: {
+        ...entry,
+        affectedConsumers: consumers,
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId,
+      },
+    };
+  }
+
+  /**
+   * PATCH /api/v1/registry/services/:serviceId/activate
+   * Re-activate a proposed or deprecated service.
+   */
+  @Patch("services/:serviceId/activate")
+  async activate(
+    @Param("serviceId") serviceId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const entry = await this.registry.activate(serviceId);
+
+    this.logger.info(`Service '${serviceId}' activated via API`, {
+      correlationId: req.correlationId,
+    });
+
+    await this.recordAudit("registry.service.update_requested", serviceId, req);
+
+    return {
+      success: true,
+      data: entry,
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId,
+      },
+    };
+  }
+
+  /**
+   * GET /api/v1/registry/services/:serviceId/consumers
+   * List services that consume the given service.
+   */
+  @Get("services/:serviceId/consumers")
+  getConsumers(@Param("serviceId") serviceId: string) {
+    const entry = this.registry.get(serviceId);
+    if (!entry) {
+      throw new NotFoundError(`Service '${serviceId}' is not registered`);
+    }
+
+    const consumers = this.registry.getConsumers(serviceId);
+
+    return {
+      success: true,
+      data: { serviceId, consumers },
+      meta: { total: consumers.length, timestamp: new Date().toISOString() },
+    };
+  }
+
+  private async recordAudit(
+    type: string,
+    serviceId: string,
+    req: AuthenticatedRequest,
+    payload: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.auditEvents.recordRequired({
+      type,
+      actionFamily:
+        type === "registry.service.create_requested"
+          ? "registration"
+          : "lifecycle",
+      actor:
+        req.user?.tribeId ?? req.tribeId ?? req.user?.sub ?? "platform-admin",
+      serviceId,
+      resourceType: "service",
+      resourceId: serviceId,
+      environment: String(payload.environment ?? "live"),
+      correlationId: req.correlationId ?? serviceId,
+      severity: "info",
+      message: `${type} for ${serviceId}`,
+      payload: {
+        ...payload,
+      },
+    });
+  }
+
+  private async requireApproval(input: {
+    approvalRequestId?: string;
+    actionType: "service.register_live" | "service.retire";
+    targetEnvironment: string;
+    targetId: string;
+  }) {
+    const approvals = requireGovernanceDependency(
+      this.approvals,
+      "ApprovalRequestService",
+    );
+    await approvals.assertApprovedForAction(input);
+  }
+}
+
+function normalizeManifestEnvironments(
+  manifest: ServiceManifestDto,
+): NonNullable<ServiceManifest["environments"]> {
+  if (manifest.environments?.length) {
+    return manifest.environments.map((environment) => ({
+      environment: environment.environment as ServiceEnvironmentKey,
+      baseUrl: environment.baseUrl,
+      healthCheck: environment.healthCheck ?? manifest.healthCheck,
+      status: "active",
+    }));
+  }
+
+  return [
+    {
+      environment: (manifest.targetEnvironment ??
+        "test") as ServiceEnvironmentKey,
+      baseUrl: manifest.baseUrl,
+      healthCheck: manifest.healthCheck,
+      status: "active",
+    },
+  ];
+}
+
+function resolveApprovalTargetEnvironment(
+  manifest: ServiceManifestDto,
+): string {
+  if (manifest.targetEnvironment) return manifest.targetEnvironment;
+  if (
+    manifest.environments?.some(
+      (environment) => environment.environment === "live",
+    )
+  ) {
+    return "live";
+  }
+
+  return "test";
+}

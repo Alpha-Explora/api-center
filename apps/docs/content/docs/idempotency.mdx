@@ -1,19 +1,62 @@
-# Idempotency and Retries
+---
+title: "Idempotency & Rate Limits"
+description: "Guidelines on Idempotency-Key headers, reference IDs, and rate limit quotas."
+---
 
-Send an `Idempotency-Key` on every provider-impacting write. Use a stable key derived from your operation identity, not a random value generated for each retry.
+# Idempotency & Rate Limits
 
-```http
-Idempotency-Key: order-123-checkout-v1
+To protect against network failures, accidental double-clicks, and duplicate charges, APICenter enforces strict **Idempotency** on state-changing API operations.
+
+---
+
+## Idempotency-Key Header
+
+All `POST`, `PUT`, and `PATCH` requests on mutation operations require an `Idempotency-Key` HTTP header.
+
+```text
+Idempotency-Key: 7b9e0f14-3a21-4f92-901b-bf81c94d0e12
 ```
 
-The same key must represent the same operation and request body. Reusing it with a different payload is rejected so a network retry cannot silently change intent.
+### Behavior Guarantee
 
-## Retry policy
+- If a request with an existing `Idempotency-Key` is received within **24 hours**, APICenter returns the cached response without re-executing the operation or calling payment providers.
+- **Reference ID Uniqueness**: For payments, `referenceId` must be unique within `(ownerTribeId, consumerServiceId, environment)`.
 
-Retry transport failures and `202 Pending` responses with the same key. Use bounded exponential backoff and stop when the operation reaches a terminal resource state or your business deadline expires.
+---
 
-Do not retry authentication, validation, permission, or conflict responses without changing the request or resolving the underlying configuration.
+## Quotas & Rate Limits
 
-## Confirm from the resource and event
+APICenter applies rate limits per consumer service per minute:
 
-The HTTP response tells you what APICenter accepted. The event stream is authoritative for provider lifecycle transitions such as paid, failed, refunded, or cancelled.
+| Category | Limit | Error Code |
+| :--- | :--- | :--- |
+| **Payment Mutations** (Create checkout/intent) | 20 req / min | `429 TOO_MANY_REQUESTS` |
+| **Payment Reads** (Get status/invoices) | 100 req / min | `429 TOO_MANY_REQUESTS` |
+| **SMS Dispatches** | 60 req / min | `429 TOO_MANY_REQUESTS` |
+| **OTP Generation** | 10 req / target / min | `429 TOO_MANY_REQUESTS` |
+
+---
+
+## Handling 429 & Retries
+
+When receiving HTTP `429` or transient `502/503` responses, follow an **Exponential Backoff with Jitter** retry strategy:
+
+```typescript
+// Example retry logic with exponential backoff
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 500) {
+  try {
+    const res = await fetch(url, options);
+    if (res.status === 429 || res.status >= 500) {
+      if (retries <= 0) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      const jitter = Math.random() * 200;
+      await new Promise(r => setTimeout(r, delay + jitter));
+      return fetchWithRetry(url, options, retries - 1, delay * 2);
+    }
+    return res;
+  } catch (err) {
+    if (retries <= 0) throw err;
+    await new Promise(r => setTimeout(r, delay));
+    return fetchWithRetry(url, options, retries - 1, delay * 2);
+  }
+}
+```

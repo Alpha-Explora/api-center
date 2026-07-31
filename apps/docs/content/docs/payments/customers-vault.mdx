@@ -1,0 +1,46 @@
+---
+title: "Customers & Vaulted Payment Methods"
+description: "Manage consumer-scoped customers and vaulted payment cards/accounts."
+---
+
+# Customers & Vaulted Payment Methods
+
+APICenter allows registered consumer services to store customer payment profiles in a **consumer-scoped vault**. Reusable payment methods created by your service belong strictly to your owner tribe boundaries.
+
+---
+
+## Create Consumer-Scoped Customer
+
+- **Endpoint**: `POST /api/v1/payments/customers`
+- **Required Scope**: `payments:write`
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/customers \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Idempotency-Key: cust-idem-991" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referenceId": "USER-SUB-1029",
+    "email": "juan.delacruz@example.com",
+    "name": "Juan Dela Cruz",
+    "phone": "+639171234567"
+  }'
+```
+
+---
+
+## Setup Reusable Payment Method
+
+- **Endpoint**: `POST /api/v1/payments/payment-methods/setup`
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/payment-methods/setup \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Idempotency-Key: setup-idem-002" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": "cus_9912041",
+    "type": "card",
+    "returnUrl": "https://app.example.com/vault/callback"
+  }'
+```

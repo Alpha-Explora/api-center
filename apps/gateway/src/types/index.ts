@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // src/types/index.ts â€” Shared TypeScript type definitions for the API Center
 // =============================================================================
 // All shared interfaces and types used across the application are defined here.
@@ -10,8 +10,8 @@
 // =============================================================================
 
 import { Request } from "express";
-import type { JwtClaims } from "../auth/auth-provider.interface";
-import type { PaymentPrincipal } from "../payments/payment-api-key.service";
+import type { JwtClaims } from "@auth/auth-provider.interface";
+import type { PaymentPrincipal } from "@payments/payment-api-key.service";
 
 // ---------------------------------------------------------------------------
 // Express request extensions (used inside NestJS's Express adapter)

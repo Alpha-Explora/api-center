@@ -1,0 +1,31 @@
+---
+title: "Refunds API"
+description: "Process full or partial idempotent refunds for settled payments."
+---
+
+# Refunds API
+
+Consumer services can issue idempotent refund commands for previously settled checkouts or payment intents.
+
+---
+
+## Issue Refund
+
+- **Endpoint**: `POST /api/v1/payments/refunds`
+- **Required Scope**: `payments:write`
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/refunds \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Idempotency-Key: ref-idem-4412" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referenceId": "REFUND-ORD-991204",
+    "checkoutId": "chk_8f1a2b3c4d",
+    "amount": {
+      "amountMinor": 49900,
+      "currency": "PHP"
+    },
+    "reason": "customer_requested"
+  }'
+```

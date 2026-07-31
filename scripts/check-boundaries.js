@@ -45,7 +45,11 @@ const SDK_RUNTIME_LEAK_PATTERNS = [
 const BOUNDED_CONTEXTS = [
   {
     name: 'catalog_registry',
-    paths: ['apps/gateway/src/registry', 'apps/gateway/src/catalog'],
+    paths: [
+      'apps/gateway/src/registry',
+      'apps/gateway/src/catalog',
+      'apps/gateway/src/domains/catalog-registry',
+    ],
     schemas: ['apic_catalog'],
   },
   {
@@ -56,27 +60,35 @@ const BOUNDED_CONTEXTS = [
       'apps/gateway/src/entitlements',
       'apps/gateway/src/developer-portal',
       'apps/gateway/src/policy',
+      'apps/gateway/src/domains/governance',
     ],
     schemas: ['apic_governance'],
   },
   {
     name: 'runtime_operations',
-    paths: ['apps/gateway/src/analytics', 'apps/gateway/src/health', 'apps/gateway/src/forecasting', 'apps/gateway/src/operations'],
+    paths: [
+      'apps/gateway/src/analytics',
+      'apps/gateway/src/health',
+      'apps/gateway/src/forecasting',
+      'apps/gateway/src/operations',
+      'apps/gateway/src/domains/runtime-ops',
+    ],
     schemas: ['apic_runtime'],
   },
   {
     name: 'audit_evidence',
-    paths: ['apps/gateway/src/compliance'],
+    paths: [
+      'apps/gateway/src/compliance',
+      'apps/gateway/src/domains/compliance',
+    ],
     schemas: ['apic_audit'],
   },
   {
-    name: 'data_pipeline_governance',
-    paths: ['apps/gateway/src/data-pipeline', 'apps/gateway/src/kafka-governance'],
-    schemas: [],
-  },
-  {
     name: 'gateway_control_plane',
-    paths: ['apps/gateway/src/gateway-control-plane'],
+    paths: [
+      'apps/gateway/src/gateway-control-plane',
+      'apps/gateway/src/domains/gateway-proxy',
+    ],
     schemas: ['apic_gateway'],
   },
   {
@@ -86,12 +98,26 @@ const BOUNDED_CONTEXTS = [
   },
   {
     name: 'auth_identity',
-    paths: ['apps/gateway/src/auth', 'apps/gateway/src/secrets'],
+    paths: [
+      'apps/gateway/src/auth',
+      'apps/gateway/src/secrets',
+      'apps/gateway/src/domains/auth-security',
+    ],
     schemas: [],
   },
   {
+    name: 'payment_data_plane',
+    paths: ['apps/payments'],
+    schemas: ['shared_payment'],
+  },
+  {
     name: 'shared_kernel',
-    paths: ['apps/gateway/src/shared', 'apps/gateway/src/config', 'apps/gateway/src/database', 'apps/gateway/src/metrics'],
+    paths: [
+      'apps/gateway/src/shared',
+      'apps/gateway/src/config',
+      'apps/gateway/src/database',
+      'apps/gateway/src/metrics',
+    ],
     schemas: [],
     public: true,
   },
@@ -133,7 +159,6 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/analytics/audit-events.service.ts',
   'apps/gateway/src/analytics/gateway-traffic.service.ts',
   'apps/gateway/src/analytics/shared-service-usage.service.ts',
-  'apps/gateway/src/data-pipeline/pipeline-health.service.ts',
   'apps/gateway/src/entitlements/tribe-plan.service.ts',
   'apps/gateway/src/forecasting/quota-forecast.service.ts',
   'apps/gateway/src/operations/emergency-control.service.ts',

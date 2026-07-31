@@ -21,6 +21,7 @@
     "lint": "npm run typecheck"
   },
   "dependencies": {
+    "@apicenter/contracts": "*",
     "zod": "^4.4.3"
   },
   "publishConfig": {

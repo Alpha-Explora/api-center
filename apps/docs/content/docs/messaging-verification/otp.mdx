@@ -1,0 +1,97 @@
+---
+title: "OTP Verification Shared Service API"
+description: "Generate, verify, and check 6-digit One-Time Passwords over SMS and Email via @apicenter/contracts."
+---
+
+# OTP Verification Shared Service API
+
+The OTP Shared Service manages the generation, anti-brute-force rate-limiting, and verification of one-time passcodes over SMS and Email.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/otp`
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+
+---
+
+## 1. Generate OTP
+
+- **Endpoint**: `POST /api/v1/shared/otp/generate`
+
+### Request Body (`OtpGenerateRequest`)
+
+```json
+{
+  "recipient": "+639171234567",
+  "channel": "sms",
+  "digits": 6,
+  "ttlSeconds": 300
+}
+```
+
+### Response (`OtpGenerateResponse`) — `201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "otpId": "otp_9918231a48f29d10a9f",
+    "expiresAt": "2026-07-31T23:25:00.000Z",
+    "channel": "sms",
+    "recipient": "+639171234567",
+    "target": "+639171234567"
+  }
+}
+```
+
+---
+
+## 2. Verify OTP
+
+- **Endpoint**: `POST /api/v1/shared/otp/verify`
+
+### Request Body (`OtpVerifyRequest`)
+
+```json
+{
+  "otpId": "otp_9918231a48f29d10a9f",
+  "code": "849201"
+}
+```
+
+### Response (`OtpVerifyResponse`) — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "verified": true,
+    "otpId": "otp_9918231a48f29d10a9f",
+    "target": "+639171234567",
+    "channel": "sms"
+  }
+}
+```
+
+---
+
+## 3. Get OTP Status
+
+- **Endpoint**: `GET /api/v1/shared/otp/status/:otpId`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "otpId": "otp_9918231a48f29d10a9f",
+    "status": "pending",
+    "target": "+639171234567",
+    "channel": "sms",
+    "expiresAt": "2026-07-31T23:25:00.000Z"
+  }
+}
+```

@@ -1,22 +1,29 @@
 {
-    "name":  "@apicenter/sms",
-    "version":  "1.0.0",
-    "private":  true,
-    "description":  "APICenter SMS delivery runtime.",
-    "main":  "src/server.js",
-    "type":  "commonjs",
-    "scripts":  {
-                    "start":  "node src/server.js",
-                    "dev":  "node --watch src/server.js",
-                    "typecheck":  "node scripts/check-javascript.cjs",
-                    "lint":  "node scripts/check-javascript.cjs",
-                    "test":  "node scripts/check-javascript.cjs"
-                },
-    "dependencies":  {
-                         "@apicenter/runtime":  "1.0.0",
-                         "redis":  "^5.12.1"
-                     },
-    "engines":  {
-                    "node":  "\u003e=24 \u003c25"
-                }
+  "name": "@apicenter/sms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "APICenter platform-owned SMS delivery runtime.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "node --watch --loader ts-node/esm src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@apicenter/contracts": "*",
+    "@apicenter/runtime": "1.0.0",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.7.0",
+    "@types/pg": "^8.11.11",
+    "ts-node": "^10.9.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
 }

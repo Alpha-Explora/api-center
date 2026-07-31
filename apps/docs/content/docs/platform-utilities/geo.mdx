@@ -1,0 +1,118 @@
+---
+title: "Geo & Geofencing Shared Service API"
+description: "Geocoding, reverse-geocoding, and geofencing radius checks via @apicenter/contracts."
+---
+
+# Geo & Geofencing Shared Service API
+
+The Geo Shared Service provides forward geocoding, reverse geocoding, and geofence boundary checks with cached Google Maps integration and local fallback.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/geo`
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+
+---
+
+## 1. Geocode Address
+
+- **Endpoint**: `POST /api/v1/shared/geo/geocode`
+
+### Request Body (`GeocodeRequest`)
+
+```json
+{
+  "address": "Ayala Center, Makati City, Philippines",
+  "language": "en",
+  "region": "ph"
+}
+```
+
+### Response (`GeocodeResponse`) — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "formattedAddress": "Ayala Center, Makati, Metro Manila, Philippines",
+    "latitude": 14.5519,
+    "longitude": 121.0253,
+    "placeId": "ChIJb_2y",
+    "types": ["establishment", "point_of_interest"],
+    "provider": "google-maps",
+    "cacheStatus": "hit"
+  }
+}
+```
+
+---
+
+## 2. Reverse Geocode Coordinates
+
+- **Endpoint**: `POST /api/v1/shared/geo/reverse-geocode`
+
+### Request Body (`ReverseGeocodeRequest`)
+
+```json
+{
+  "latitude": 14.5995,
+  "longitude": 120.9842,
+  "language": "en"
+}
+```
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "formattedAddress": "Manila, Philippines",
+    "latitude": 14.5995,
+    "longitude": 120.9842,
+    "placeId": "ChIJv0k",
+    "types": ["locality", "political"],
+    "provider": "google-maps",
+    "cacheStatus": "hit"
+  }
+}
+```
+
+---
+
+## 3. Check Geofence Boundaries
+
+- **Endpoint**: `POST /api/v1/shared/geo/geofence/check`
+
+### Request Body
+
+```json
+{
+  "latitude": 14.5995,
+  "longitude": 120.9842,
+  "fenceId": "metro-manila"
+}
+```
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "inside": true,
+    "distanceDetails": [
+      {
+        "fenceId": "metro-manila",
+        "name": "Metro Manila",
+        "inside": true,
+        "distanceMeters": 0,
+        "radiusMeters": 50000
+      }
+    ],
+    "provider": "local"
+  }
+}
+```

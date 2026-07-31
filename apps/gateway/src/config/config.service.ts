@@ -84,10 +84,6 @@ export class ConfigService implements OnApplicationBootstrap {
     devMode: process.env.VAULT_DEV_MODE === "true",
   };
 
-  readonly dataPipeline = {
-    enabled: process.env.DATA_PIPELINE_ENABLED === "true",
-  };
-
   readonly paymentWebhooks = {
     paymongoTestSecret: process.env.PAYMONGO_TEST_WEBHOOK_SECRET || "",
     paymongoLiveSecret: process.env.PAYMONGO_LIVE_WEBHOOK_SECRET || "",
@@ -96,26 +92,6 @@ export class ConfigService implements OnApplicationBootstrap {
       process.env.PAYMONGO_LIVE_WEBHOOK_SECRET ||
       process.env.PAYMONGO_TEST_WEBHOOK_SECRET ||
       "",
-  };
-
-  readonly kafka = {
-    enabled:
-      process.env.KAFKA_ENABLED === "true" ||
-      process.env.DATA_PIPELINE_ENABLED === "true",
-    clientId: process.env.KAFKA_CLIENT_ID || "api-center",
-    topicPrefix: process.env.KAFKA_TOPIC_PREFIX || "",
-    brokers: (process.env.KAFKA_BROKERS || "")
-      .split(",")
-      .map((broker) => broker.trim())
-      .filter(Boolean),
-    groupId: process.env.KAFKA_GROUP_ID || "api-center-group",
-    sslEnabled: process.env.KAFKA_SSL_ENABLED === "true",
-    sslRejectUnauthorized:
-      process.env.KAFKA_SSL_REJECT_UNAUTHORIZED !== "false",
-    sslCaPem: process.env.KAFKA_SSL_CA_PEM || "",
-    saslMechanism: process.env.KAFKA_SASL_MECHANISM || "",
-    saslUsername: process.env.KAFKA_SASL_USERNAME || "",
-    saslPassword: process.env.KAFKA_SASL_PASSWORD || "",
   };
 
   get platformAdminSecret(): string {
@@ -323,97 +299,6 @@ export class ConfigService implements OnApplicationBootstrap {
     if (this.isProduction && !this.vault.token && !this.vault.roleId) {
       warnings.push(
         "No Vault credentials configured — secrets read from process.env only. Set VAULT_ROLE_ID+VAULT_SECRET_ID for production.",
-      );
-    }
-
-    const validKafkaSaslMechanisms = [
-      "plain",
-      "scram-sha-256",
-      "scram-sha-512",
-    ];
-    if (
-      this.kafka.saslMechanism &&
-      !validKafkaSaslMechanisms.includes(this.kafka.saslMechanism)
-    ) {
-      errors.push(
-        `KAFKA_SASL_MECHANISM must be one of: ${validKafkaSaslMechanisms.join(", ")} (got '${this.kafka.saslMechanism}')`,
-      );
-    }
-
-    if (this.isProduction && this.kafka.enabled) {
-      const hasLocalOrSelfManagedBroker = this.kafka.brokers.some((broker) => {
-        const normalizedBroker = broker.toLowerCase();
-        return (
-          normalizedBroker.includes("localhost") ||
-          normalizedBroker.includes("kafka:") ||
-          normalizedBroker.includes("api-center-kafka") ||
-          normalizedBroker.includes(".svc.cluster.local")
-        );
-      });
-      const allBrokersAreConfluentCloud = this.kafka.brokers.every((broker) =>
-        /^[a-z0-9-]+(\.[a-z0-9-]+)*\.confluent\.cloud:9092$/i.test(broker),
-      );
-
-      if (this.kafka.brokers.length === 0) {
-        errors.push(
-          "KAFKA_BROKERS must be set when Kafka publishing is enabled",
-        );
-      } else if (hasLocalOrSelfManagedBroker || !allBrokersAreConfluentCloud) {
-        errors.push(
-          "KAFKA_BROKERS must point to Confluent Cloud when Kafka publishing is enabled",
-        );
-      }
-
-      if (!this.kafka.sslEnabled) {
-        errors.push(
-          "KAFKA_SSL_ENABLED=true is required when Kafka publishing is enabled",
-        );
-      }
-
-      if (this.kafka.saslMechanism !== "plain") {
-        errors.push(
-          "KAFKA_SASL_MECHANISM=plain is required when Kafka publishing is enabled",
-        );
-      }
-    }
-
-    if (
-      this.kafka.saslMechanism &&
-      (!this.kafka.saslUsername || !this.kafka.saslPassword)
-    ) {
-      const message =
-        "KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD must be set when KAFKA_SASL_MECHANISM is configured";
-      if (this.isProduction) {
-        errors.push(message);
-      } else {
-        warnings.push(message);
-      }
-    }
-
-    if (this.isProduction && !this.kafka.sslEnabled) {
-      warnings.push(
-        "KAFKA_SSL_ENABLED is false in production — TLS is strongly recommended",
-      );
-    }
-
-    if (
-      this.isProduction &&
-      this.kafka.sslEnabled &&
-      !this.kafka.sslRejectUnauthorized
-    ) {
-      warnings.push(
-        "KAFKA_SSL_REJECT_UNAUTHORIZED=false disables broker certificate verification in production",
-      );
-    }
-
-    if (
-      this.isProduction &&
-      this.kafka.sslEnabled &&
-      this.kafka.sslRejectUnauthorized &&
-      !this.kafka.sslCaPem
-    ) {
-      warnings.push(
-        "KAFKA_SSL_CA_PEM is not set while TLS verification is enabled — self-signed broker certificates may fail verification",
       );
     }
 

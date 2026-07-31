@@ -4,6 +4,7 @@ describe("api center admin proxy", () => {
   afterEach(() => {
     delete process.env.API_CENTER_BASE_URL;
     delete process.env.API_CENTER_PLATFORM_ADMIN_SECRET;
+    delete process.env.PLATFORM_ADMIN_SECRET;
     delete process.env.NEXT_PUBLIC_API_CENTER_PLATFORM_ADMIN_SECRET;
     vi.unstubAllGlobals();
     vi.resetModules();
@@ -31,6 +32,31 @@ describe("api center admin proxy", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           "x-platform-secret": "server-secret",
+        }),
+      }),
+    );
+  });
+
+  it("accepts the API Center gateway secret under its canonical PLATFORM_ADMIN_SECRET name", async () => {
+    process.env.API_CENTER_BASE_URL = "https://api-center.test";
+    process.env.PLATFORM_ADMIN_SECRET = "platform-secret";
+    vi.resetModules();
+    const { apiCenterAdminRequest } = await import("../../../../../src/lib/server/api-center-admin");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiCenterAdminRequest("/api/v1/registry/services");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api-center.test/api/v1/registry/services",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-platform-secret": "platform-secret",
         }),
       }),
     );

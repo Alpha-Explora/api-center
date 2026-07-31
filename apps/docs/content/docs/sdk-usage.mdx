@@ -1,0 +1,64 @@
+---
+title: "APICenter SDK Integration"
+description: "Using the official @apicenter/sdk in TypeScript and Node.js applications."
+---
+
+# APICenter SDK Integration
+
+The `@apicenter/sdk` package simplifies authentication, token caching, retries, and API calls to all APICenter shared services.
+
+---
+
+## Installation
+
+```bash
+npm install @apicenter/sdk
+```
+
+---
+
+## Client Initialization
+
+```typescript
+import { ApiCenterClient } from "@apicenter/sdk";
+
+const client = new ApiCenterClient({
+  baseUrl: process.env.APICENTER_URL || "https://api-center.itsandbox.site",
+  clientId: process.env.TRIBE_ID || "my-tribe-backend",
+  clientSecret: process.env.TRIBE_SECRET,
+  environment: "live",
+});
+```
+
+---
+
+## Calling Shared Services
+
+### 1. Payments Checkouts
+
+```typescript
+const checkout = await client.payments.createCheckout({
+  referenceId: `REF-${Date.now()}`,
+  amount: { amountMinor: 49900, currency: "PHP" },
+  successUrl: "https://app.example.com/success",
+  cancelUrl: "https://app.example.com/cancel",
+});
+
+console.log("Checkout URL:", checkout.data.checkoutUrl);
+```
+
+### 2. SMS Shared Service
+
+```typescript
+const smsResult = await client.sms.send({
+  to: "+639171234567",
+  message: "Your OTP verification code is 849201",
+});
+```
+
+### 3. Geo Lookup
+
+```typescript
+const geoInfo = await client.geo.lookup({ ip: "203.177.10.1" });
+console.log("Region:", geoInfo.region);
+```

@@ -3,21 +3,31 @@
   "version": "1.0.0",
   "private": true,
   "description": "Private APICenter payments runtime and PayMongo adapter.",
-  "main": "src/server.js",
-  "type": "commonjs",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "typecheck": "node scripts/check-javascript.cjs",
-    "test": "npm --prefix ../.. test -- --runInBand tests/unit/src/payments/paymongo-intents.spec.ts tests/unit/events/pubsub-publisher.spec.ts",
-    "lint": "node scripts/check-javascript.cjs",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "node --watch --loader ts-node/esm src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "db:validate": "prisma validate --schema prisma/schema.prisma"
   },
   "dependencies": {
+    "@apicenter/contracts": "*",
     "@apicenter/runtime": "1.0.0",
     "@google-cloud/pubsub": "^5.2.1",
     "express": "^5.2.1",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.7.0",
+    "@types/pg": "^8.11.11",
+    "ts-node": "^10.9.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }
-

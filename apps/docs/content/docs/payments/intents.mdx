@@ -1,0 +1,66 @@
+---
+title: "Payment Intents API"
+description: "Custom payment workflows and card/e-wallet tokenization lifecycle."
+---
+
+# Payment Intents API
+
+Payment Intents manage complex multi-step payment flows, such as custom checkout forms, manual capture, and multi-factor authorization.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/payments/intents`
+- **Required Scopes**: `payments:write` (mutations), `payments:read` (queries)
+
+---
+
+## Create Payment Intent
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/intents \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Idempotency-Key: intent-idem-1002" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referenceId": "INTENT-2026-001",
+    "amount": {
+      "amountMinor": 125000,
+      "currency": "PHP"
+    },
+    "paymentMethodAllowed": ["card", "gcash", "paymaya"]
+  }'
+```
+
+### Response (`201 Created`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "intentId": "pi_99a8b7c6",
+    "referenceId": "INTENT-2026-001",
+    "status": "awaiting_payment_method",
+    "clientSecret": "pi_99a8b7c6_secret_12345"
+  }
+}
+```
+
+---
+
+## Confirm Payment Intent
+
+To attach a payment method token and trigger payment capture:
+
+- **Endpoint**: `POST /api/v1/payments/intents/{intentId}/confirm`
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/intents/pi_99a8b7c6/confirm \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentMethodId": "pm_card_visa_001",
+    "returnUrl": "https://app.example.com/payment/complete"
+  }'
+```

@@ -51,28 +51,25 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { ConfigModule } from "./config/config.module";
 import { ConfigService } from "./config/config.service";
 import { SharedModule } from "./shared/shared.module";
-import { KafkaModule } from "./kafka/kafka.module";
-import { KafkaGovernanceModule } from "./kafka-governance/kafka-governance.module";
-import { AuthModule } from "./auth/auth.module";
-import { RegistryModule } from "./registry/registry.module";
-import { TribesModule } from "./tribes/tribes.module";
-import { ExternalModule } from "./external/external.module";
-import { SharedServicesModule } from "./shared-services/shared-services.module";
-import { HealthModule } from "./health/health.module";
+import { AuthModule } from "./domains/auth-security/auth/auth.module";
+import { RegistryModule } from "./domains/catalog-registry/registry/registry.module";
+import { TribesModule } from "./domains/gateway-proxy/tribes/tribes.module";
+import { ExternalModule } from "./domains/gateway-proxy/external/external.module";
+import { SharedServicesModule } from "./domains/gateway-proxy/shared-services/shared-services.module";
+import { HealthModule } from "./domains/runtime-ops/health/health.module";
 import { MetricsModule } from "./metrics/metrics.module";
-import { AnalyticsModule } from "./analytics/analytics.module";
-import { QuotasModule } from "./quotas/quotas.module";
-import { EntitlementsModule } from "./entitlements/entitlements.module";
-import { DeveloperPortalModule } from "./developer-portal/developer-portal.module";
-import { ApprovalsModule } from "./approvals/approvals.module";
-import { PolicyEngineModule } from "./policy/policy-engine.module";
-import { DataPipelineModule } from "./data-pipeline/data-pipeline.module";
-import { CatalogModule } from "./catalog/catalog.module";
-import { ComplianceModule } from "./compliance/compliance.module";
-import { ForecastingModule } from "./forecasting/forecasting.module";
-import { OperationsModule } from "./operations/operations.module";
-import { CapabilitiesModule } from "./capabilities/capabilities.module";
-import { PaymentsModule } from "./payments/payments.module";
+import { AnalyticsModule } from "./domains/runtime-ops/analytics/analytics.module";
+import { QuotasModule } from "./domains/governance/quotas/quotas.module";
+import { EntitlementsModule } from "./domains/governance/entitlements/entitlements.module";
+import { DeveloperPortalModule } from "./domains/governance/developer-portal/developer-portal.module";
+import { ApprovalsModule } from "./domains/governance/approvals/approvals.module";
+import { PolicyEngineModule } from "./domains/governance/policy/policy-engine.module";
+import { CatalogModule } from "./domains/catalog-registry/catalog/catalog.module";
+import { ComplianceModule } from "./domains/compliance/compliance/compliance.module";
+import { ForecastingModule } from "./domains/runtime-ops/forecasting/forecasting.module";
+import { OperationsModule } from "./domains/runtime-ops/operations/operations.module";
+import { CapabilitiesModule } from "./domains/runtime-ops/capabilities/capabilities.module";
+import { PaymentsModule } from "./domains/payments/payments/payments.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -111,7 +108,6 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     DeveloperPortalModule, // Tribe-facing read-only self-service portal APIs
     ApprovalsModule, // Risky live-change request, approval, and audit gate
     PolicyEngineModule, // Explainable policy warnings and blocks
-    DataPipelineModule, // Curated pipeline health and governance evidence
     ForecastingModule, // Quota pressure projections
     OperationsModule, // Drift, dependencies, evidence, emergency, scorecards
     CatalogModule, // API marketplace product projection
@@ -120,8 +116,6 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     PaymentsModule, // Provider-neutral payments facade backed by private apps/payments
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
-    KafkaModule, // Audit events, auth events, registry lifecycle events
-    KafkaGovernanceModule, // Governed tenant Kafka publish/catalog endpoints
     AuthModule, // JWT providers + Vault + TokenStore — guards every proxy
 
     // ── 6. Service registry ───────────────────────────────────────────────────

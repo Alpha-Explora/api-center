@@ -1,0 +1,87 @@
+---
+title: "SMS Shared Service API"
+description: "Send single transactional SMS notifications and track message delivery via @apicenter/contracts."
+---
+
+# SMS Shared Service API
+
+The SMS Shared Service allows product backends to dispatch transactional SMS messages without directly integrating with telecommunication providers.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/sms`
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Optional Header**: `Idempotency-Key: <UUID>`
+
+---
+
+## 1. Send Single SMS
+
+- **Endpoint**: `POST /api/v1/shared/sms/send`
+
+### Request Body (`SmsSendRequest`)
+
+```json
+{
+  "to": "+639171234567",
+  "message": "Your order #ORDER-991204 has been dispatched!",
+  "senderId": "APICENTER"
+}
+```
+
+### Response (`SmsSendResponse`) — `201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "messageId": "msg_9918231a48f29d10a9f",
+    "status": "sent",
+    "to": "+639171234567",
+    "sentAt": "2026-07-31T23:20:00.000Z",
+    "recipient": "+639171234567"
+  }
+}
+```
+
+---
+
+## 2. Get SMS Message Status
+
+- **Endpoint**: `GET /api/v1/shared/sms/status/:messageId`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "messageId": "msg_9918231a48f29d10a9f",
+    "to": "+639171234567",
+    "message": "Your order #ORDER-991204 has been dispatched!",
+    "status": "sent",
+    "createdAt": "2026-07-31T23:20:00.000Z"
+  }
+}
+```
+
+---
+
+## 3. List Available SMS Templates
+
+- **Endpoint**: `GET /api/v1/shared/sms/templates`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": [
+    "otp",
+    "verification",
+    "notification"
+  ]
+}
+```

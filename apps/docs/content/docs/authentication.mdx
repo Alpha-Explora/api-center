@@ -1,23 +1,71 @@
-# Authentication
+---
+title: "Authentication & Scopes"
+description: "How consumer services authenticate with APICenter using JWTs and Scopes."
+---
 
-Every public payment request uses an APICenter consumer key issued for one service, one environment, and an explicit scope set.
+# Authentication & Scopes
 
-```http
-Authorization: Bearer apic_test_...
+APICenter uses standard **OAuth 2.0 Client Credentials** and **JSON Web Tokens (JWT)** signed via RS256 algorithm.
+
+---
+
+## Auth Modes
+
+APICenter supports three runtime authentication providers, configured via `AUTH_PROVIDER`:
+
+1. **`dev-jwt` (Local Dev & CI)**: Self-contained RS256 issuer using ephemeral or local PEM key pairs. No external IdP dependency.
+2. **`internal-jwt`**: Production machine-to-machine JWT issuer backed by GCP Secret Manager tribe secrets.
+3. **`composite` (Production Default)**: APICenter issues internal tribe M2M tokens directly while validating Descope tokens for human/admin console sessions.
+
+---
+
+## Obtaining Machine-to-Machine Tokens
+
+Send a `POST` request to `/api/v1/auth/token`:
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "logistics-service",
+    "client_secret": "sec_live_9481a7b...",
+    "environment": "live"
+  }'
 ```
 
-The key identifies the consumer to APICenter. It does not grant access to PayMongo, Pub/Sub, or any other provider account.
+### Response Payload
 
-## Keep credentials server-side
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "payments:read payments:write sms:send email:send geo:read"
+}
+```
 
-Use Secret Manager, a workload identity-backed secret store, or the deployment platform’s encrypted runtime configuration. Do not expose `APICENTER_API_KEY` through `NEXT_PUBLIC_*`, mobile bundles, logs, or client-side telemetry.
+---
 
-## Rotate without sharing provider access
+## Required Scopes Per Service
 
-Operators rotate keys from the APICenter Management console. The new value is displayed once; APICenter retains only a hash, prefix, scopes, and lifecycle timestamps. Deploy the replacement, verify traffic, then revoke the previous key.
+Each shared service route enforces fine-grained scope authorization:
 
-## Common failures
+| Shared Service | Route Pattern | Required Scopes |
+| :--- | :--- | :--- |
+| **Payments Write** | `/api/v1/payments/*` (POST, PUT, DELETE) | `payments:write` |
+| **Payments Read** | `/api/v1/payments/*` (GET) | `payments:read` |
+| **SMS Service** | `/api/v1/shared/sms/*` | `sms:send` |
+| **Email Service** | `/api/v1/shared/email/*` | `email:send` |
+| **OTP Service** | `/api/v1/shared/otp/*` | `otp:generate`, `otp:verify` |
+| **Geo Location** | `/api/v1/shared/geo/*` | `geo:read` |
 
-- `401`: the key is missing, expired, revoked, or belongs to another environment.
-- `403`: the consumer is not allowed to use the requested service or scope.
-- `404`: the resource is not visible to this consumer identity.
+---
+
+## Public JWKS Verification Endpoint
+
+Consumer services can verify JWT signature authenticity using APICenter's public JWKS endpoint:
+
+```text
+GET /api/v1/auth/.well-known/jwks.json
+```

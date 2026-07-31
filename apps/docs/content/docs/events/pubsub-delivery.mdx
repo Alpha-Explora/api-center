@@ -1,17 +1,50 @@
-# Pub/Sub delivery
+---
+title: "Google Pub/Sub Event Delivery"
+description: "Asynchronous webhook and event delivery platform architecture."
+---
 
-APICenter delivers normalized payment events to a registered HTTPS Cloud Run endpoint through Google Pub/Sub. Delivery uses an OIDC token minted for the configured service account and an audience matching the endpoint.
+# Google Pub/Sub Event Delivery
 
-## Envelope
+APICenter delivers asynchronous state change events (such as `payment.checkout.paid` or `payment.refunded`) via **APICenter-owned Google Pub/Sub**.
 
-Every event includes `eventId`, `contractVersion`, `eventType`, `ownerTribeId`, `consumerServiceId`, `referenceId`, `aggregateType`, `aggregateId`, `aggregateVersion`, `occurredAt`, and normalized `data`.
+---
 
-The `consumerServiceId` attribute is used to filter the subscription. A consumer must acknowledge only after validating the OIDC identity, parsing the envelope, applying duplicate protection by `eventId`, and committing its projection.
+## Delivery Mechanism
 
-## Delivery states
+1. **Outbox Pattern**: `apps/payments` writes event payloads to `shared_payment_outbox` transactional tables.
+2. **Pub/Sub Dispatcher**: Published to GCP Pub/Sub topic `apicenter.payment-events.test` or `apicenter.payment-events.live`.
+3. **Consumer Subscriptions**: Google Pub/Sub pushes HTTPS requests directly to consumer service Cloud Run endpoints with **GCP OIDC Bearer tokens**.
 
-Provisioning creates a filtered subscription, a dead-letter topic, a dead-letter subscription, and a 20-attempt delivery policy. Operators can inspect `pending_validation`, `active`, `delivery_failed`, and `revoked` from Management.
+---
 
-## Replay discipline
+## Event Payload Envelope
 
-Do not publish directly to APICenter topics. For a dead-letter replay, preserve the original event ID and use an explicitly approved repair workflow so the consumer’s duplicate handling remains effective.
+```json
+{
+  "eventId": "evt_99182a3b",
+  "eventType": "payment.checkout.paid",
+  "aggregateId": "chk_8f1a2b3c4d",
+  "aggregateType": "checkout",
+  "timestamp": "2026-07-29T00:55:00.000Z",
+  "environment": "live",
+  "ownerTribeId": "logistics",
+  "consumerServiceId": "logistics-service",
+  "data": {
+    "checkoutId": "chk_8f1a2b3c4d",
+    "referenceId": "ORDER-991204",
+    "status": "paid",
+    "amount": {
+      "amountMinor": 49900,
+      "currency": "PHP"
+    }
+  }
+}
+```
+
+---
+
+## Retries & Dead Letter Queue (DLQ)
+
+- **Max Attempts**: 20 retries over 24 hours.
+- **Dead Letter Topic**: `apicenter.payment-events.{env}.dead-letter`.
+- **Manual Replay**: Available through APICenter Management Console (`apps/management`).
