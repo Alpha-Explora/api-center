@@ -1,4 +1,16 @@
-export type PaymentEnvironment = 'test' | 'live';
+import type { PaymentEnvironment } from '@apicenter/contracts';
+export type { PaymentEnvironment };
+
+export type {
+  EmailSendRequest,
+  EmailSendResponse,
+  SmsSendRequest,
+  SmsSendResponse,
+  OtpGenerateRequest,
+  OtpGenerateResponse,
+  OtpVerifyRequest,
+  OtpVerifyResponse,
+} from '@apicenter/contracts';
 
 export interface TribeClientOptions {
   baseUrl: string;
@@ -60,18 +72,6 @@ export interface PaymentCapabilities { currency: 'PHP'; paymentMethods: string[]
 export interface ApiErrorDetails { code?: string; message?: string; details?: unknown; status: number; }
 
 export type SharedMessageRecipient = string | { email: string };
-export interface EmailSendRequest {
-  to: SharedMessageRecipient | SharedMessageRecipient[];
-  subject: string;
-  html?: string;
-  text?: string;
-  templateId?: string;
-  templateData?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
-}
-export interface EmailSendResponse { messageId: string; status: string; recipient: string[]; }
-export interface SmsSendRequest { to: string; message: string; }
-export interface SmsSendResponse { messageId: string; recipient: string; status: string; }
 export interface SharedMessageStatus { messageId: string; status: string; recipient?: string | string[]; createdAt?: string; metadata?: Record<string, unknown>; }
 export interface GoogleAuthorizationUrlRequest { tenantSlug?: string; redirectUri?: string; scopes?: string[]; state?: string; loginHint?: string; accessType?: 'online' | 'offline'; includeGrantedScopes?: boolean; prompt?: string; codeChallenge?: string; codeChallengeMethod?: 'plain' | 'S256'; }
 export interface GoogleAuthorizationUrlResponse { authorizationUrl: string; state: string; tenantSlug?: string; credentialSource?: string; expiresAt?: string; }
@@ -80,10 +80,6 @@ export interface GoogleTokenRefreshRequest { refreshToken: string; tenantSlug?: 
 export interface GoogleOAuthTokenResponse { accessToken: string; refreshToken: string | null; idToken?: string; expiresIn?: number; tokenType?: string; scope?: string; }
 export interface GoogleLogoutRequest { token: string; tokenTypeHint?: 'access_token' | 'refresh_token'; }
 export interface GoogleLogoutResponse { revoked: boolean; }
-export interface OtpGenerateRequest { target: string; channel: 'sms' | 'email'; length?: number; expiresInSeconds?: number; }
-export interface OtpGenerateResponse { otpId: string; expiresAt: string; channel: 'sms' | 'email'; target: string; code?: string; }
-export interface OtpVerifyRequest { otpId: string; code: string; }
-export interface OtpVerifyResponse { valid: boolean; target: string; channel: 'sms' | 'email'; }
 export interface OtpStatusResponse { otpId: string; status: string; target: string; channel: 'sms' | 'email'; expiresAt: string; }
 export interface GeoGeocodeAddressRequest { address: string; language?: string; region?: string; }
 export interface GeoReverseGeocodeRequest { latitude: number; longitude: number; language?: string; resultType?: string; locationType?: string; }
