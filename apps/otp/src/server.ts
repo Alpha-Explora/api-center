@@ -5,14 +5,9 @@ import {
   createSharedServiceApp,
   registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
-import type {
-  OtpGenerateRequest,
-  OtpVerifyRequest,
-} from '@apicenter/contracts';
-import { MemoryOtpRepository } from './infrastructure/repositories/MemoryOtpRepository';
-import { GenerateOtpUseCase } from './application/use-cases/GenerateOtpUseCase';
-import { VerifyOtpUseCase } from './application/use-cases/VerifyOtpUseCase';
-import { GetOtpStatusUseCase } from './application/use-cases/GetOtpStatusUseCase';
+import { GenerateOtpService } from './features/generate-otp/generate-otp.service';
+import { VerifyOtpService } from './features/verify-otp/verify-otp.service';
+import { GetOtpStatusService } from './features/get-otp-status/get-otp-status.service';
 
 const port = Number(process.env.PORT || 4014);
 const { app, ok, fail } = createSharedServiceApp({
@@ -20,16 +15,14 @@ const { app, ok, fail } = createSharedServiceApp({
   health: {
     status: 'ok',
     service: 'otp-gateway',
-    architecture: 'ddd',
+    architecture: 'enterprise-feature-sliced',
     mode: 'memory',
   },
 });
 
-// DDD Composition Root
-const otpRepository = new MemoryOtpRepository();
-const generateOtpUseCase = new GenerateOtpUseCase(otpRepository);
-const verifyOtpUseCase = new VerifyOtpUseCase(otpRepository);
-const getOtpStatusUseCase = new GetOtpStatusUseCase(otpRepository);
+const generateOtpService = new GenerateOtpService();
+const verifyOtpService = new VerifyOtpService();
+const getOtpStatusService = new GetOtpStatusService();
 
 const rateLimitStore = createMemoryRateLimitStore();
 const generateLimit = Number(process.env.OTP_GENERATE_LIMIT_PER_TARGET || 3);
@@ -38,11 +31,10 @@ const verifyLimit = Number(process.env.OTP_VERIFY_LIMIT_PER_OTP || 5);
 const verifyWindowMs = Number(process.env.OTP_VERIFY_LIMIT_WINDOW_MS || 60_000);
 
 app.post('/generate', async (req: Request, res: Response) => {
-  const { recipient, channel, digits, ttlSeconds } =
-    (req.body || {}) as OtpGenerateRequest & { recipient?: string; target?: string; digits?: number };
-  const target = recipient || (req.body as any)?.target;
+  const { recipient, target, channel } = req.body || {};
+  const rawTarget = recipient || target;
 
-  if (!target || !channel) {
+  if (!rawTarget || !channel) {
     return fail(res, 400, 'INVALID_REQUEST', 'recipient and channel are required');
   }
 
@@ -55,7 +47,7 @@ app.post('/generate', async (req: Request, res: Response) => {
     );
   }
 
-  const limit = await rateLimitStore.consume(`otp:generate:${String(target).toLowerCase()}`, {
+  const limit = await rateLimitStore.consume(`otp:generate:${String(rawTarget).toLowerCase()}`, {
     limit: generateLimit,
     windowMs: generateWindowMs,
   });
@@ -66,12 +58,7 @@ app.post('/generate', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await generateOtpUseCase.execute({
-      target,
-      channel,
-      length: digits,
-      expiresInSeconds: ttlSeconds,
-    });
+    const result = await generateOtpService.execute(req.body);
     return ok(res, result, 201);
   } catch (error: any) {
     return fail(res, 400, 'INVALID_REQUEST', error?.message || 'Failed to generate OTP');
@@ -79,7 +66,7 @@ app.post('/generate', async (req: Request, res: Response) => {
 });
 
 app.post('/verify', async (req: Request, res: Response) => {
-  const { otpId, code } = (req.body || {}) as OtpVerifyRequest;
+  const { otpId, code } = req.body || {};
 
   if (!otpId || !code) {
     return fail(res, 400, 'INVALID_REQUEST', 'otpId and code are required');
@@ -95,7 +82,7 @@ app.post('/verify', async (req: Request, res: Response) => {
     });
   }
 
-  const result = await verifyOtpUseCase.execute({ otpId, code });
+  const result = await verifyOtpService.execute(req.body);
 
   if (!result.verified) {
     const statusCode = result.reason === 'OTP_NOT_FOUND' ? 404 : 400;
@@ -107,7 +94,7 @@ app.post('/verify', async (req: Request, res: Response) => {
 
 app.get('/status/:otpId', async (req: Request, res: Response) => {
   const otpId = Array.isArray(req.params.otpId) ? req.params.otpId[0] : req.params.otpId;
-  const result = await getOtpStatusUseCase.execute(otpId);
+  const result = await getOtpStatusService.execute(otpId);
 
   if (!result) {
     return fail(res, 404, 'OTP_NOT_FOUND', 'OTP not found');

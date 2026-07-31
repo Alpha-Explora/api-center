@@ -1,5 +1,4 @@
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { Request, Response } from 'express';
 import {
   createMemoryIdempotencyStore,
@@ -7,8 +6,8 @@ import {
   createSharedServiceApp,
   registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
-import type { SmsSendRequest, SmsSendResponse } from '@apicenter/contracts';
-import { createSmsStore } from './store';
+import { SendSmsService } from './features/send-sms/send-sms.service';
+import { GetSmsStatusService } from './features/get-sms-status/get-sms-status.service';
 
 const port = Number(process.env.PORT || 4011);
 const { app, ok, fail } = createSharedServiceApp({
@@ -16,11 +15,13 @@ const { app, ok, fail } = createSharedServiceApp({
   health: {
     status: 'ok',
     service: 'sms-gateway',
-    mode: 'mock',
+    architecture: 'feature-sliced',
+    mode: 'memory',
   },
 });
 
-const messageStore = createSmsStore();
+const sendSmsService = new SendSmsService();
+const getSmsStatusService = new GetSmsStatusService();
 const idempotencyStore = createMemoryIdempotencyStore();
 const rateLimitStore = createMemoryRateLimitStore();
 const sendLimit = Number(process.env.SMS_SEND_LIMIT_PER_RECIPIENT || 10);
@@ -28,7 +29,7 @@ const sendWindowMs = Number(process.env.SMS_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.SMS_IDEMPOTENCY_TTL_MS || 24 * 60 * 60 * 1000);
 
 app.post('/send', async (req: Request, res: Response) => {
-  const { to, message, senderId } = (req.body || {}) as SmsSendRequest & { senderId?: string };
+  const { to, message } = req.body || {};
 
   if (!to || !message) {
     return fail(
@@ -57,34 +58,22 @@ app.post('/send', async (req: Request, res: Response) => {
     });
   }
 
-  const messageId = `msg_${crypto.randomUUID().replace(/-/g, '')}`;
-  const response: SmsSendResponse & { recipient: string } = {
-    messageId,
-    status: 'sent',
-    to,
-    sentAt: new Date().toISOString(),
-    recipient: to,
-  };
+  try {
+    const response = await sendSmsService.execute(req.body);
 
-  await messageStore.createMessage({
-    messageId,
-    to,
-    message,
-    status: 'mock_sent',
-    senderId,
-    createdAt: new Date().toISOString(),
-  });
+    if (idempotencyKey) {
+      await idempotencyStore.set(`sms:send:${idempotencyKey}`, response, { ttlMs: idempotencyTtlMs });
+    }
 
-  if (idempotencyKey) {
-    await idempotencyStore.set(`sms:send:${idempotencyKey}`, response, { ttlMs: idempotencyTtlMs });
+    return ok(res, response, 201);
+  } catch (error: any) {
+    return fail(res, 400, 'INVALID_REQUEST', error?.message || 'Failed to send SMS');
   }
-
-  return ok(res, response, 201);
 });
 
 app.get('/status/:messageId', async (req: Request, res: Response) => {
   const messageId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
-  const entry = await messageStore.getMessage(messageId);
+  const entry = await getSmsStatusService.execute(messageId);
 
   if (!entry) {
     return fail(res, 404, 'NOT_FOUND', 'Message not found');

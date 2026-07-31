@@ -1,6 +1,4 @@
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { Resend } from 'resend';
 import { Request, Response } from 'express';
 import {
   createMemoryIdempotencyStore,
@@ -8,32 +6,36 @@ import {
   createSharedServiceApp,
   registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
-import type { EmailSendRequest, EmailSendResponse } from '@apicenter/contracts';
+import { SendEmailService } from './features/send-email/send-email.service';
+import { GetEmailStatusService } from './features/get-email-status/get-email-status.service';
+import { ListTemplatesService } from './features/list-templates/list-templates.service';
 
 const port = Number(process.env.PORT || 4012);
-const resendApiKey = process.env.RESEND_API_KEY;
-const emailFrom = process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev';
 const nodeEnv = process.env.NODE_ENV || 'development';
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const messageStore = new Map<string, unknown>();
+const resendApiKey = process.env.RESEND_API_KEY;
+
+const { app, ok, fail } = createSharedServiceApp({
+  serviceId: 'email-gateway',
+  health: {
+    status: 'ok',
+    resendEnabled: !!resendApiKey,
+    architecture: 'enterprise-feature-sliced',
+    nodeEnv,
+  },
+});
+
+const sendEmailService = new SendEmailService();
+const getEmailStatusService = new GetEmailStatusService();
+const listTemplatesService = new ListTemplatesService();
+
 const idempotencyStore = createMemoryIdempotencyStore();
 const rateLimitStore = createMemoryRateLimitStore();
 const sendLimit = Number(process.env.EMAIL_SEND_LIMIT_PER_RECIPIENT || 20);
 const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.EMAIL_IDEMPOTENCY_TTL_MS || 24 * 60 * 60 * 1000);
 
-const { app, ok, fail } = createSharedServiceApp({
-  serviceId: 'email-gateway',
-  health: {
-    status: 'ok',
-    resendEnabled: !!resend,
-    nodeEnv,
-  },
-});
-
 app.post('/send', async (req: Request, res: Response) => {
-  const { to, subject, html, text, templateId, templateVariables, tags } =
-    (req.body || {}) as EmailSendRequest;
+  const { to, subject } = req.body || {};
 
   if (!to || !subject) {
     return fail(
@@ -44,9 +46,9 @@ app.post('/send', async (req: Request, res: Response) => {
     );
   }
 
-  const recipients: string[] = Array.isArray(to)
-    ? to.map((r: unknown) => (typeof r === 'string' ? r : (r as { email: string }).email))
-    : [typeof to === 'string' ? to : (to as { email: string }).email];
+  const recipients = Array.isArray(to)
+    ? to.map((r: any) => (typeof r === 'string' ? r : r.email))
+    : [typeof to === 'string' ? to : to.email];
   const idempotencyKey = req.get('Idempotency-Key');
 
   if (idempotencyKey) {
@@ -68,55 +70,8 @@ app.post('/send', async (req: Request, res: Response) => {
     }
   }
 
-  const htmlContent = html || (text ? `<p>${text}</p>` : '<p>(no content)</p>');
-  const resolvedSubject = subject;
-
-  if (!resend && nodeEnv === 'production') {
-    return fail(
-      res,
-      500,
-      'CONFIG_ERROR',
-      'Resend API key is not configured in production environment',
-    );
-  }
-
   try {
-    const messageId = `msg_${crypto.randomUUID().replace(/-/g, '')}`;
-    let providerMessageId = messageId;
-    let status = 'mock_sent';
-
-    if (resend) {
-      const payload = {
-        from: emailFrom,
-        to: recipients,
-        subject: resolvedSubject,
-        html: htmlContent,
-      };
-      if (templateId) {
-        console.log(
-          `[email-gateway] templateId=${templateId} templateVariables=${JSON.stringify(templateVariables)}`,
-        );
-      }
-      const { data, error } = await resend.emails.send(payload);
-      if (error) throw new Error(error.message);
-      providerMessageId = data?.id || messageId;
-      status = 'sent';
-    }
-
-    const response: EmailSendResponse & { provider: string; recipient: string[] } = {
-      messageId: providerMessageId,
-      status: status as EmailSendResponse['status'],
-      recipientCount: recipients.length,
-      sentAt: new Date().toISOString(),
-      provider: resend ? 'resend' : 'mock',
-      recipient: recipients,
-    };
-
-    messageStore.set(providerMessageId, {
-      ...response,
-      tags,
-      createdAt: new Date().toISOString(),
-    });
+    const response = await sendEmailService.execute(req.body);
 
     if (idempotencyKey) {
       await idempotencyStore.set(`email:send:${idempotencyKey}`, response, { ttlMs: idempotencyTtlMs });
@@ -133,9 +88,9 @@ app.post('/send', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/status/:messageId', (req: Request, res: Response) => {
+app.get('/status/:messageId', async (req: Request, res: Response) => {
   const messageId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
-  const entry = messageStore.get(messageId);
+  const entry = await getEmailStatusService.execute(messageId);
 
   if (!entry) {
     return fail(res, 404, 'NOT_FOUND', 'Message not found');
@@ -145,19 +100,13 @@ app.get('/status/:messageId', (req: Request, res: Response) => {
 });
 
 app.get('/templates', (_req: Request, res: Response) => {
-  return ok(res, [
-    'account_verification',
-    'password_reset',
-    'general_notification',
-  ]);
+  const templates = listTemplatesService.execute();
+  return ok(res, templates);
 });
 
 export async function registerWithGateway() {
   return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(
-      __dirname,
-      '../service-manifest.json',
-    ),
+    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
     baseUrl: process.env.SERVICE_BASE_URL,
     serviceLabel: 'email-gateway',
   });
