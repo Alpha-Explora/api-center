@@ -1,64 +1,97 @@
 ---
 title: "OTP Verification Shared Service API"
-description: "Generate and verify 6-digit One-Time Passwords over SMS and Email."
+description: "Generate, verify, and check 6-digit One-Time Passwords over SMS and Email via @apicenter/contracts."
 ---
 
 # OTP Verification Shared Service API
 
-The OTP Shared Service manages the generation, anti-brute-force rate-limiting, and verification of 6-digit one-time passcodes.
+The OTP Shared Service manages the generation, anti-brute-force rate-limiting, and verification of one-time passcodes over SMS and Email.
 
 ---
 
-## Generate OTP
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/otp`
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+
+---
+
+## 1. Generate OTP
 
 - **Endpoint**: `POST /api/v1/shared/otp/generate`
-- **Required Scope**: `otp:generate`
 
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/shared/otp/generate \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "channel": "sms",
-    "target": "+639171234567",
-    "purpose": "login_verification",
-    "ttlSeconds": 300
-  }'
+### Request Body (`OtpGenerateRequest`)
+
+```json
+{
+  "recipient": "+639171234567",
+  "channel": "sms",
+  "digits": 6,
+  "ttlSeconds": 300
+}
 ```
 
-### Response (`200 OK`)
+### Response (`OtpGenerateResponse`) — `201 Created`
 
 ```json
 {
   "success": true,
-  "referenceId": "otp_ref_99182",
-  "expiresAt": "2026-07-29T01:00:00Z"
+  "data": {
+    "otpId": "otp_9918231a48f29d10a9f",
+    "expiresAt": "2026-07-31T23:25:00.000Z",
+    "channel": "sms",
+    "recipient": "+639171234567",
+    "target": "+639171234567"
+  }
 }
 ```
 
 ---
 
-## Verify OTP
+## 2. Verify OTP
 
 - **Endpoint**: `POST /api/v1/shared/otp/verify`
-- **Required Scope**: `otp:verify`
 
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/shared/otp/verify \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target": "+639171234567",
-    "code": "849201",
-    "purpose": "login_verification"
-  }'
+### Request Body (`OtpVerifyRequest`)
+
+```json
+{
+  "otpId": "otp_9918231a48f29d10a9f",
+  "code": "849201"
+}
 ```
 
-### Response (`200 OK`)
+### Response (`OtpVerifyResponse`) — `200 OK`
 
 ```json
 {
   "success": true,
-  "verified": true
+  "data": {
+    "verified": true,
+    "otpId": "otp_9918231a48f29d10a9f",
+    "target": "+639171234567",
+    "channel": "sms"
+  }
+}
+```
+
+---
+
+## 3. Get OTP Status
+
+- **Endpoint**: `GET /api/v1/shared/otp/status/:otpId`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "otpId": "otp_9918231a48f29d10a9f",
+    "status": "pending",
+    "target": "+639171234567",
+    "channel": "sms",
+    "expiresAt": "2026-07-31T23:25:00.000Z"
+  }
 }
 ```

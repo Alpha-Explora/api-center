@@ -1,0 +1,163 @@
+---
+title: "Google Auth (GAuth) Shared Service API"
+description: "Multi-tenant Google OAuth 2.0 authorization, code exchange, token refresh, and OIDC token verification via @apicenter/contracts."
+---
+
+# Google Auth (GAuth) Shared Service API
+
+The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorization, state HMAC signing, code-to-token exchange, token revocation, and OIDC ID Token verification.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/gauth`
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+
+---
+
+## 1. Get Authorization URL
+
+- **Endpoint**: `POST /api/v1/shared/gauth/oauth/authorize`
+
+### Request Body (`GauthAuthorizeRequest`)
+
+```json
+{
+  "tenantSlug": "alphaci",
+  "redirectUri": "https://alphaci.com/callback",
+  "scopes": ["openid", "email", "profile"],
+  "accessType": "offline"
+}
+```
+
+### Response (`GauthAuthorizeResponse`) — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
+    "state": "eyK10a...",
+    "tenantSlug": "alphaci",
+    "credentialSource": "tenant",
+    "expiresAt": "2026-07-31T23:30:00.000Z"
+  }
+}
+```
+
+---
+
+## 2. Exchange Code for Tokens
+
+- **Endpoint**: `POST /api/v1/shared/gauth/oauth/token`
+
+### Request Body (`GauthTokenExchangeRequest`)
+
+```json
+{
+  "code": "4/0AeaY...",
+  "state": "eyK10a...",
+  "tenantSlug": "alphaci",
+  "redirectUri": "https://alphaci.com/callback"
+}
+```
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "ya29.a0...",
+    "refreshToken": "1//04...",
+    "idToken": "eyJhbGci...",
+    "expiresIn": 3599,
+    "tokenType": "Bearer",
+    "scope": "openid email profile"
+  }
+}
+```
+
+---
+
+## 3. Refresh Access Token
+
+- **Endpoint**: `POST /api/v1/shared/gauth/oauth/token/refresh`
+
+### Request Body
+
+```json
+{
+  "refreshToken": "1//04...",
+  "tenantSlug": "alphaci"
+}
+```
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "ya29.a0NEW_ACCESS_TOKEN...",
+    "refreshToken": "1//04...",
+    "expiresIn": 3599,
+    "tokenType": "Bearer"
+  }
+}
+```
+
+---
+
+## 4. Revoke / Logout Token
+
+- **Endpoint**: `POST /api/v1/shared/gauth/oauth/logout`
+
+### Request Body
+
+```json
+{
+  "token": "ya29.a0..."
+}
+```
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "success": true
+  }
+}
+```
+
+---
+
+## 5. Verify OIDC ID Token
+
+- **Endpoint**: `POST /api/v1/shared/gauth/verify-token`
+
+### Request Body (`GauthVerifyTokenRequest`)
+
+```json
+{
+  "idToken": "eyJhbGci..."
+}
+```
+
+### Response (`GauthVerifyTokenResponse`) — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "valid": true,
+    "userId": "google_user_mock_123",
+    "email": "dev@alphaexplora.com",
+    "emailVerified": true,
+    "name": "Developer Account"
+  }
+}
+```

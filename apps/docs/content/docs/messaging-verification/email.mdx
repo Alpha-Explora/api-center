@@ -1,43 +1,91 @@
 ---
 title: "Email Shared Service API"
-description: "Send HTML/text transactional email notifications and template renders."
+description: "Send HTML/text transactional email notifications and template renders via @apicenter/contracts."
 ---
 
 # Email Shared Service API
 
-Send transactional emails with HTML layout support, attachments, and delivery status tracking.
+Send transactional emails with HTML layout support, template rendering, and message status tracking.
 
 ---
 
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/email`
-- **Required Scope**: `email:send`
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Optional Header**: `Idempotency-Key: <UUID>`
 
 ---
 
-## Send Transactional Email
+## 1. Send Transactional Email
 
 - **Endpoint**: `POST /api/v1/shared/email/send`
 
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/shared/email/send \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "customer@example.com",
-    "subject": "Payment Receipt for ORDER-991204",
-    "html": "<h1>Payment Successful</h1><p>Thank you for your purchase of PHP 499.00.</p>",
-    "tags": ["receipt", "payments"]
-  }'
+### Request Body (`EmailSendRequest`)
+
+```json
+{
+  "to": "customer@example.com",
+  "subject": "Payment Receipt for ORDER-991204",
+  "html": "<h1>Payment Successful</h1><p>Thank you for your purchase of PHP 499.00.</p>",
+  "templateId": "general_notification",
+  "tags": {
+    "category": "receipt"
+  }
+}
 ```
 
-### Response (`200 OK`)
+### Response (`EmailSendResponse`) — `201 Created`
 
 ```json
 {
   "success": true,
-  "emailId": "eml_77182a99",
-  "status": "delivered"
+  "data": {
+    "messageId": "msg_77182a994ff34e028b1239910a",
+    "status": "sent",
+    "recipientCount": 1,
+    "sentAt": "2026-07-31T23:20:00.000Z",
+    "provider": "resend",
+    "recipient": ["customer@example.com"]
+  }
+}
+```
+
+---
+
+## 2. Get Message Status
+
+- **Endpoint**: `GET /api/v1/shared/email/status/:messageId`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "messageId": "msg_77182a994ff34e028b1239910a",
+    "status": "sent",
+    "recipient": ["customer@example.com"],
+    "createdAt": "2026-07-31T23:20:00.000Z"
+  }
+}
+```
+
+---
+
+## 3. List Available Email Templates
+
+- **Endpoint**: `GET /api/v1/shared/email/templates`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": [
+    "account_verification",
+    "password_reset",
+    "general_notification"
+  ]
 }
 ```

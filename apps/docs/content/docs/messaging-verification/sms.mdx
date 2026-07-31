@@ -1,6 +1,6 @@
 ---
 title: "SMS Shared Service API"
-description: "Send single and bulk SMS notifications across Philippine mobile networks."
+description: "Send single transactional SMS notifications and track message delivery via @apicenter/contracts."
 ---
 
 # SMS Shared Service API
@@ -12,49 +12,76 @@ The SMS Shared Service allows product backends to dispatch transactional SMS mes
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/sms`
-- **Required Scope**: `sms:send`
-- **Quota Limit**: 60 requests / minute
+- **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Optional Header**: `Idempotency-Key: <UUID>`
 
 ---
 
-## Send Single SMS
+## 1. Send Single SMS
 
 - **Endpoint**: `POST /api/v1/shared/sms/send`
 
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/shared/sms/send \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "+639171234567",
-    "message": "Your order #ORDER-991204 has been dispatched!",
-    "senderId": "APICENTER"
-  }'
+### Request Body (`SmsSendRequest`)
+
+```json
+{
+  "to": "+639171234567",
+  "message": "Your order #ORDER-991204 has been dispatched!",
+  "senderId": "APICENTER"
+}
 ```
 
-### Response (`200 OK`)
+### Response (`SmsSendResponse`) — `201 Created`
 
 ```json
 {
   "success": true,
-  "messageId": "sms_msg_9918231a",
-  "status": "queued",
-  "recipient": "+639171234567"
+  "data": {
+    "messageId": "msg_9918231a48f29d10a9f",
+    "status": "sent",
+    "to": "+639171234567",
+    "sentAt": "2026-07-31T23:20:00.000Z",
+    "recipient": "+639171234567"
+  }
 }
 ```
 
 ---
 
-## Bulk SMS Dispatch
+## 2. Get SMS Message Status
 
-- **Endpoint**: `POST /api/v1/shared/sms/bulk`
+- **Endpoint**: `GET /api/v1/shared/sms/status/:messageId`
 
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/shared/sms/bulk \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "recipients": ["+639171234567", "+639189876543"],
-    "message": "System maintenance alert for APICenter services."
-  }'
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "messageId": "msg_9918231a48f29d10a9f",
+    "to": "+639171234567",
+    "message": "Your order #ORDER-991204 has been dispatched!",
+    "status": "sent",
+    "createdAt": "2026-07-31T23:20:00.000Z"
+  }
+}
+```
+
+---
+
+## 3. List Available SMS Templates
+
+- **Endpoint**: `GET /api/v1/shared/sms/templates`
+
+### Response — `200 OK`
+
+```json
+{
+  "success": true,
+  "data": [
+    "otp",
+    "verification",
+    "notification"
+  ]
+}
 ```
