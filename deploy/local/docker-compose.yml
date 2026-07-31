@@ -1,64 +1,7 @@
 # =============================================================================
-# deploy/local/docker-compose.yml — APICenter Complete Infrastructure Stack
-# =============================================================================
-#
-# ARCHITECTURE DIAGRAM (checklist §1–§4, §8):
-#
-#   ┌──────────────────────────────────────────────────────────────────┐
-#   │  Consumer  (tribe SDK / browser / external client)               │
-#   └───────────────────────────┬──────────────────────────────────────┘
-#                               │ HTTP  :3000  ← ONE entrypoint
-#   ┌───────────────────────────▼──────────────────────────────────────┐
-#   │  NGINX  (load balancer)                                          │
-#   │  • Round-robin across 3 containers          (checklist §3)       │
-#   │  • Passive health checks — auto remove/re-add containers         │
-#   │  • CORS preflight answered at NGINX level                        │
-#   │  • Connection-level rate limiting before Node                    │
-#   └────────┬──────────────────┬──────────────────┬───────────────────┘
-#            │                  │                  │
-#   ┌────────▼──────┐  ┌────────▼──────┐  ┌────────▼──────┐
-#   │ api-center-1  │  │ api-center-2  │  │ api-center-3  │
-#   │ (this image)  │  │ (same image)  │  │ (same image)  │
-#   │  stateless    │  │  stateless    │  │  stateless    │
-#   └───────────────┘  └───────────────┘  └───────────────┘
-#        All 3 are IDENTICAL and INTERCHANGEABLE (checklist §2)
-#        Stopping any one does NOT interrupt traffic (checklist §8)
-#
-#   Shared infrastructure (all containers connect to the same instances):
-#   ┌─────────────────────────────────────────────────────────────────┐
-#   │  redis-cache      :6381  — service registry + token store       │
-#   │  redis-rate-limit :6380  — distributed rate-limit counters      │
-#   │  vault            :8200  — secrets + Transit signing (dev mode) │
-#   └─────────────────────────────────────────────────────────────────┘
-#
-#   Observability:
-#   ┌─────────────────────────────────────────────────────────────────┐
-#   │  prometheus   :9090  — metrics scraping                         │
-#   │  grafana      :3001  — dashboards                               │
-#   │  jaeger       :16686 — distributed tracing UI                   │
-#   └─────────────────────────────────────────────────────────────────┘
-#
-# HOW TO RUN:
-#   docker compose -f deploy/local/docker-compose.yml up -d
-#
-# HOW TO ADD A 4th CONTAINER (checklist §8 — horizontal scaling):
-#   1. Add to this file (copy api-center-3 block, rename to api-center-4)
-#   2. Add  server api-center-4:3000 max_fails=3 fail_timeout=20s;
-#      to the upstream block in nginx.conf
-#   3. docker compose -f deploy/local/docker-compose.yml up -d api-center-4 && docker compose -f deploy/local/docker-compose.yml restart nginx
-#
-# TRIBE SDK (checklist §5, §6, §7):
-#   Tribes interact with this stack via the shared SDK only.
-#   See the api-shared-services repository and @apicenter/sdk package.
-#   SDK gateway URL in development: http://localhost:3000
+# deploy/local/docker-compose.yml — APICenter Infrastructure Stack
 # =============================================================================
 
-# Note: The `version` attribute is obsolete in modern Docker Compose and has been removed.
-
-# =============================================================================
-# Shared anchor for all 3 identical gateway containers (checklist §2)
-# Every change here is automatically applied to all 3 containers.
-# =============================================================================
 x-api-center-common: &api-center-common
   image: apicenter-gateway:local
   build:
@@ -68,23 +11,13 @@ x-api-center-common: &api-center-common
   env_file:
     - ../../.env
   environment:
-    # All 3 containers get the same env — stateless by design
     GATEWAY_ROLE: apicenter-gateway
-    # Redis URLs point to container names (Docker internal network)
-    REDIS_CACHE_URL:      redis://redis-cache:6379
-    REDIS_RATE_LIMIT_URL: redis://redis-rate-limit:6379
-    # Local sandbox allowlists — wildcard allows all registered tribes
-    # Vault dev server — replace with AppRole credentials in production
     VAULT_ADDR:     http://vault:8200
     VAULT_TOKEN:    root
     VAULT_DEV_MODE: "true"
     JWT_PRIVATE_KEY: "${JWT_PRIVATE_KEY}"
     JWT_PUBLIC_KEY: "${JWT_PUBLIC_KEY}"
-    # Sandbox tribe credentials — set in .env (sha256 of your local secret)
-    # Use environment-scoped Secret Manager records for tribe credentials.
-    # Use .env RATE_LIMIT_MAX (default 100) so round-robin tests are not
-    # artificially throttled by a hard-coded sandbox override.
-    RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"    # Local shared-service upstreams used by the gateway registry/proxy.
+    RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
     SHARED_SERVICE_ROUTE_EMAIL_TEST: http://email-service:4012
     SHARED_SERVICE_ROUTE_EMAIL_LIVE: http://email-service:4012
     SHARED_SERVICE_ROUTE_SMS_TEST: http://sms-service:4011
@@ -96,14 +29,9 @@ x-api-center-common: &api-center-common
     SHARED_SERVICE_ROUTE_GEO_TEST: http://geo-service:4015
     SHARED_SERVICE_ROUTE_GEO_LIVE: http://geo-service:4015
   depends_on:
-    redis-cache:
-      condition: service_healthy
-    redis-rate-limit:
-      condition: service_healthy
     vault:
       condition: service_healthy
   healthcheck:
-    # NGINX passive health check reads this endpoint to decide rotation status
     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider",
            "http://localhost:3000/api/v1/health/live"]
     interval: 15s
@@ -114,7 +42,6 @@ x-api-center-common: &api-center-common
   networks:
     - api-center-network
 
-# =============================================================================
 services:
   email-service:
     build:
@@ -181,25 +108,11 @@ services:
     expose: ["4015"]
     networks: [api-center-network]
 
-
-  # ---------------------------------------------------------------------------
-  # ---------------------------------------------------------------------------
-  # ---------------------------------------------------------------------------
-  # NGINX — Single entrypoint + round-robin load balancer  (checklist §3)
-  # ---------------------------------------------------------------------------
-  # ALL consumer traffic enters here first.
-  # NGINX is responsible for:
-  #   • Distributing traffic round-robin across the 3 gateway containers
-  #   • Removing unhealthy containers from rotation (passive health checks)
-  #   • Re-adding recovered containers automatically (fail_timeout)
-  #   • Answering CORS preflight (OPTIONS) without hitting Node
-  #   • Connection-level rate limiting
-  # ---------------------------------------------------------------------------
   nginx:
     image: nginx:1.25-alpine
     container_name: nginx-lb
     ports:
-      - "3000:80"      # ← THE ONE entrypoint. Tribes/browsers use this port.
+      - "3000:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -219,34 +132,18 @@ services:
     networks:
       - api-center-network
 
-  # ---------------------------------------------------------------------------
-  # APICenter Gateway — Container 1  (checklist §2)
-  # ---------------------------------------------------------------------------
-  # Identical to containers 2 and 3. Runs the same image.
-  # Stopping this container does NOT interrupt traffic —
-  # NGINX will route to containers 2 and 3 automatically.
-  # ---------------------------------------------------------------------------
   api-center-1:
     <<: *api-center-common
     container_name: api-center-1
 
-  # ---------------------------------------------------------------------------
-  # APICenter Gateway — Container 2  (checklist §2)
-  # ---------------------------------------------------------------------------
   api-center-2:
     <<: *api-center-common
     container_name: api-center-2
 
-  # ---------------------------------------------------------------------------
-  # APICenter Gateway — Container 3  (checklist §2)
-  # ---------------------------------------------------------------------------
   api-center-3:
     <<: *api-center-common
     container_name: api-center-3
 
-  # ---------------------------------------------------------------------------
-  # Logistics-Service (mock upstream) — JWT-protected NestJS service
-  # ---------------------------------------------------------------------------
   logistics-service:
     build:
       context: ../../examples/sandbox
@@ -272,9 +169,6 @@ services:
         aliases:
           - logistics-service.local
 
-  # ---------------------------------------------------------------------------
-  # Demand-Service (mock consumer) — uses @apicenter/sdk via gateway front door
-  # ---------------------------------------------------------------------------
   demand-service:
     build:
       context: ../../examples/sandbox
@@ -303,66 +197,6 @@ services:
         aliases:
           - demand-service.local
 
-  # ---------------------------------------------------------------------------
-  # Redis — Service Registry + Token Store  (stateless guarantee, checklist §1)
-  # ---------------------------------------------------------------------------
-  # Shared by all 3 gateway containers.
-  # Stores:
-  #   • Service registry entries  →  api-center:registry:services (hash)
-  #   • Refresh tokens            →  refresh:{jti}  (string + TTL)
-  #   • Session token indexes     →  session:{sub}  (set)
-  # Persistence: RDB snapshot every 60 s if ≥1 write — registry survives restarts.
-  # ---------------------------------------------------------------------------
-  redis-cache:
-    image: redis:7-alpine
-    container_name: redis-cache
-    ports:
-      - "6381:6379"
-    command: >
-      redis-server
-        --save 60 1
-        --loglevel warning
-        --maxmemory 256mb
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout:  5s
-      retries:  3
-    volumes:
-      - redis-cache-data:/data
-    networks:
-      - api-center-network
-
-  # ---------------------------------------------------------------------------
-  # Redis — Rate-limit counters  (distributed throttling, checklist §8)
-  # ---------------------------------------------------------------------------
-  # Separate instance: a rate-limit storm cannot evict registry/token entries.
-  # LRU eviction is safe here — counters are ephemeral and will self-reset.
-  # ---------------------------------------------------------------------------
-  redis-rate-limit:
-    image: redis:7-alpine
-    container_name: redis-rate-limit
-    ports:
-      - "6380:6379"
-    command: >
-      redis-server
-        --loglevel warning
-        --maxmemory 128mb
-        --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout:  5s
-      retries:  3
-    networks:
-      - api-center-network
-
-  # ---------------------------------------------------------------------------
-  # Vault — Secrets + Transit signing (dev mode for local development)
-  # ---------------------------------------------------------------------------
-  # In production: use a properly unsealed HA Vault cluster with AppRole auth.
-  # Dev root token: root   |   UI: http://localhost:8200/ui
-  # ---------------------------------------------------------------------------
   vault:
     image: hashicorp/vault:1.15
     container_name: vault
@@ -384,9 +218,6 @@ services:
     networks:
       - api-center-network
 
-  # ---------------------------------------------------------------------------
-  # Prometheus — Metrics scraping  (checklist §8 — "ready for future monitoring")
-  # ---------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: prometheus
@@ -406,9 +237,6 @@ services:
     networks:
       - api-center-network
 
-  # ---------------------------------------------------------------------------
-  # Grafana — Dashboards
-  # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:10.4.0
     container_name: grafana
@@ -425,37 +253,23 @@ services:
     networks:
       - api-center-network
 
-  # ---------------------------------------------------------------------------
-  # Jaeger — Distributed tracing
-  # ---------------------------------------------------------------------------
   jaeger:
     image: jaegertracing/all-in-one:1.55
     container_name: jaeger
     ports:
-      - "16686:16686"   # Jaeger UI
-      - "14268:14268"   # HTTP collector
-      - "4318:4318"     # OTLP HTTP
+      - "16686:16686"
+      - "14268:14268"
+      - "4318:4318"
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     networks:
       - api-center-network
 
-# =============================================================================
 networks:
   api-center-network:
     driver: bridge
-    # All containers on this internal network.
-    # Only the following ports are exposed to the host:
-    #   :3000  NGINX (consumer entrypoint)
-    #   :8200  Vault UI (dev)
-    #   :9090  Prometheus
-    #   :3001  Grafana
-    #   :16686 Jaeger
 
 volumes:
-  redis-cache-data:   # Service registry persists across container restarts
   prometheus-data:
   grafana-data:
     driver: local
-
-
