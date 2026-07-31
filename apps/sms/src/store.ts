@@ -1,6 +1,21 @@
 const SMS_KEY_PREFIX = 'apic:sms:';
 
-function createSmsStore(env = process.env) {
+export interface SmsMessageRecord {
+  messageId: string;
+  to: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+export interface SmsStore {
+  createMessage(entry: SmsMessageRecord): Promise<SmsMessageRecord>;
+  getMessage(messageId: string): Promise<SmsMessageRecord | null>;
+  updateMessage(messageId: string, patch: Partial<SmsMessageRecord>): Promise<SmsMessageRecord | null>;
+}
+
+export function createSmsStore(env: Record<string, string | undefined> = process.env): SmsStore {
   const mode = env.SMS_STORE_MODE || (env.NODE_ENV === 'production' ? 'redis' : 'memory');
 
   if (mode === 'memory') {
@@ -23,8 +38,8 @@ function createSmsStore(env = process.env) {
   return createRedisSmsStore(redisUrl);
 }
 
-function createMemorySmsStore() {
-  const entries = new Map();
+export function createMemorySmsStore(): SmsStore {
+  const entries = new Map<string, SmsMessageRecord>();
 
   return {
     async createMessage(entry) {
@@ -49,15 +64,15 @@ function createMemorySmsStore() {
   };
 }
 
-function createRedisSmsStore(redisUrl) {
-  let clientPromise;
+export function createRedisSmsStore(redisUrl: string): SmsStore {
+  let clientPromise: Promise<any> | undefined;
 
   async function getClient() {
     if (!clientPromise) {
       const { createClient } = require('redis');
       const client = createClient({ url: redisUrl });
-      client.on('error', (error) => {
-        console.error('[sms-gateway] Redis error:', error.message);
+      client.on('error', (error: any) => {
+        console.error('[sms-gateway] Redis error:', error?.message);
       });
       clientPromise = client.connect().then(() => client);
     }
@@ -75,7 +90,7 @@ function createRedisSmsStore(redisUrl) {
     async getMessage(messageId) {
       const client = await getClient();
       const raw = await client.get(`${SMS_KEY_PREFIX}${messageId}`);
-      return raw ? JSON.parse(raw) : null;
+      return raw ? (JSON.parse(raw) as SmsMessageRecord) : null;
     },
 
     async updateMessage(messageId, patch) {
@@ -91,9 +106,3 @@ function createRedisSmsStore(redisUrl) {
     },
   };
 }
-
-module.exports = {
-  createSmsStore,
-  createMemorySmsStore,
-  createRedisSmsStore,
-};

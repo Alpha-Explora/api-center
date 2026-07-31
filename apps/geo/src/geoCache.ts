@@ -1,26 +1,42 @@
-const { createMemoryCacheStore } = require('@apicenter/runtime');
+import { createMemoryCacheStore, CacheStore } from '@apicenter/runtime';
 
-function normalizeText(value) {
+function normalizeText(value?: string | null): string {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-function normalizeNumber(value) {
+function normalizeNumber(value: number | string): string {
   return Number(value).toFixed(6);
 }
 
-function createGeoCache({
+export interface GeoCacheInput {
+  type: 'geocode' | 'reverse';
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  language?: string;
+  region?: string;
+  resultType?: string;
+  locationType?: string;
+}
+
+export interface GeoCacheOptions {
+  ttlMs?: number;
+  store?: CacheStore;
+}
+
+export function createGeoCache({
   ttlMs = Number(process.env.GEO_CACHE_TTL_MS || 5 * 60 * 1000),
   store = createMemoryCacheStore(),
-} = {}) {
-  const inFlight = new Map();
+}: GeoCacheOptions = {}) {
+  const inFlight = new Map<string, Promise<any>>();
 
-  function keyFor(input) {
+  function keyFor(input: GeoCacheInput): string {
     if (input.type === 'reverse') {
       return [
         'geo',
         'reverse',
-        normalizeNumber(input.latitude),
-        normalizeNumber(input.longitude),
+        normalizeNumber(input.latitude ?? 0),
+        normalizeNumber(input.longitude ?? 0),
         normalizeText(input.language),
         normalizeText(input.resultType),
         normalizeText(input.locationType),
@@ -36,7 +52,7 @@ function createGeoCache({
     ].join(':');
   }
 
-  async function getOrLoad(input, loader) {
+  async function getOrLoad<T>(input: GeoCacheInput, loader: () => Promise<T>): Promise<T & { cacheStatus: string }> {
     const key = keyFor(input);
     const cached = await store.get(key);
     if (cached) {
@@ -44,7 +60,7 @@ function createGeoCache({
     }
 
     if (inFlight.has(key)) {
-      const value = await inFlight.get(key);
+      const value = await inFlight.get(key)!;
       return { ...value, cacheStatus: 'miss' };
     }
 
@@ -68,5 +84,3 @@ function createGeoCache({
     keyFor,
   };
 }
-
-module.exports = { createGeoCache };

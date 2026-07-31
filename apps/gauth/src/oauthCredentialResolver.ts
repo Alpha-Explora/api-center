@@ -1,11 +1,25 @@
 const TENANT_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-function parseTenantClients(rawJson) {
+export interface GoogleOAuthCredential {
+  source: 'shared' | 'tenant' | 'shared-fallback';
+  tenantSlug: string | null;
+  displayName: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string | null;
+  authProjectId: string | null;
+}
+
+export type ResolveCredentialResult =
+  | { ok: true; credential: GoogleOAuthCredential }
+  | { ok: false; status: number; code: string; message: string };
+
+export function parseTenantClients(rawJson?: string): Record<string, any> {
   if (!rawJson) {
     return {};
   }
 
-  let parsed;
+  let parsed: any;
   try {
     parsed = JSON.parse(rawJson);
   } catch {
@@ -19,7 +33,7 @@ function parseTenantClients(rawJson) {
   return parsed;
 }
 
-function normalizeTenantSlug(value) {
+export function normalizeTenantSlug(value?: string | null): string | null {
   if (typeof value !== 'string' || !TENANT_SLUG_PATTERN.test(value)) {
     return null;
   }
@@ -27,7 +41,7 @@ function normalizeTenantSlug(value) {
   return value;
 }
 
-function buildSharedCredential(env) {
+function buildSharedCredential(env: Record<string, string | undefined>): GoogleOAuthCredential | null {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     return null;
   }
@@ -43,7 +57,15 @@ function buildSharedCredential(env) {
   };
 }
 
-function resolveGoogleOAuthCredential({ env = process.env, tenantSlug, redirectUri }) {
+export function resolveGoogleOAuthCredential({
+  env = process.env,
+  tenantSlug,
+  redirectUri,
+}: {
+  env?: Record<string, string | undefined>;
+  tenantSlug?: string | null;
+  redirectUri?: string | null;
+}): ResolveCredentialResult {
   const sharedCredential = buildSharedCredential(env);
   const normalizedTenantSlug = normalizeTenantSlug(tenantSlug);
 
@@ -141,9 +163,3 @@ function resolveGoogleOAuthCredential({ env = process.env, tenantSlug, redirectU
     },
   };
 }
-
-module.exports = {
-  normalizeTenantSlug,
-  parseTenantClients,
-  resolveGoogleOAuthCredential,
-};

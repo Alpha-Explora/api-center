@@ -1,11 +1,18 @@
-const path = require('node:path');
-const crypto = require('node:crypto');
-const {
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { Request, Response } from 'express';
+import {
   createMemoryRateLimitStore,
   createSharedServiceApp,
-  registerWithGateway: registerSharedServiceWithGateway,
-} = require('@apicenter/runtime');
-const { createOtpStore } = require('./store');
+  registerWithGateway as registerSharedServiceWithGateway,
+} from '@apicenter/runtime';
+import type {
+  OtpGenerateRequest,
+  OtpGenerateResponse,
+  OtpVerifyRequest,
+  OtpVerifyResponse,
+} from '@apicenter/contracts';
+import { createOtpStore } from './store';
 
 const port = Number(process.env.PORT || 4014);
 const { app, ok, fail } = createSharedServiceApp({
@@ -24,11 +31,13 @@ const generateWindowMs = Number(process.env.OTP_GENERATE_LIMIT_WINDOW_MS || 60_0
 const verifyLimit = Number(process.env.OTP_VERIFY_LIMIT_PER_OTP || 5);
 const verifyWindowMs = Number(process.env.OTP_VERIFY_LIMIT_WINDOW_MS || 60_000);
 
-app.post('/generate', async (req, res) => {
-  const { target, channel, length = 6, expiresInSeconds = 300 } = req.body || {};
+app.post('/generate', async (req: Request, res: Response) => {
+  const { recipient, channel, digits = 6, ttlSeconds = 300 } =
+    (req.body || {}) as OtpGenerateRequest & { recipient?: string; target?: string; digits?: number };
+  const target = recipient || (req.body as any)?.target;
 
   if (!target || !channel) {
-    return fail(res, 400, 'INVALID_REQUEST', 'target and channel are required');
+    return fail(res, 400, 'INVALID_REQUEST', 'recipient and channel are required');
   }
 
   if (channel !== 'sms' && channel !== 'email') {
@@ -50,10 +59,10 @@ app.post('/generate', async (req, res) => {
     });
   }
 
-  const resolvedLength = Math.max(4, Math.min(10, Number(length) || 6));
+  const resolvedLength = Math.max(4, Math.min(10, Number(digits) || 6));
   const resolvedExpiry = Math.max(
     60,
-    Math.min(3600, Number(expiresInSeconds) || 300),
+    Math.min(3600, Number(ttlSeconds) || 300),
   );
   const max = Math.pow(10, resolvedLength);
   const code = String(crypto.randomInt(0, max)).padStart(resolvedLength, '0');
@@ -69,21 +78,20 @@ app.post('/generate', async (req, res) => {
     status: 'pending',
   });
 
-  return ok(
-    res,
-    {
-      otpId,
-      expiresAt: new Date(expiresAt).toISOString(),
-      channel,
-      target,
-      ...(process.env.NODE_ENV !== 'production' && { code }),
-    },
-    201,
-  );
+  const response: OtpGenerateResponse & { target: string; code?: string } = {
+    otpId,
+    expiresAt: new Date(expiresAt).toISOString(),
+    channel,
+    recipient: target,
+    target,
+    ...(process.env.NODE_ENV !== 'production' && { code }),
+  };
+
+  return ok(res, response, 201);
 });
 
-app.post('/verify', async (req, res) => {
-  const { otpId, code } = req.body || {};
+app.post('/verify', async (req: Request, res: Response) => {
+  const { otpId, code } = (req.body || {}) as OtpVerifyRequest;
 
   if (!otpId || !code) {
     return fail(res, 400, 'INVALID_REQUEST', 'otpId and code are required');
@@ -124,15 +132,18 @@ app.post('/verify', async (req, res) => {
   entry.status = 'used';
   await otpStore.updateOtp(otpId, { status: 'used' });
 
-  return ok(res, {
-    valid: true,
+  const response: OtpVerifyResponse & { target: string; channel: string } = {
+    verified: true,
+    otpId,
     target: entry.target,
     channel: entry.channel,
-  });
+  };
+
+  return ok(res, response);
 });
 
-app.get('/status/:otpId', async (req, res) => {
-  const { otpId } = req.params;
+app.get('/status/:otpId', async (req: Request, res: Response) => {
+  const otpId = Array.isArray(req.params.otpId) ? req.params.otpId[0] : req.params.otpId;
   const entry = await otpStore.getOtp(otpId);
 
   if (!entry) {
@@ -153,7 +164,7 @@ app.get('/status/:otpId', async (req, res) => {
   });
 });
 
-async function registerWithGateway() {
+export async function registerWithGateway() {
   return registerSharedServiceWithGateway({
     manifestPath: path.resolve(__dirname, '../service-manifest.json'),
     baseUrl: process.env.SERVICE_BASE_URL,
@@ -163,10 +174,9 @@ async function registerWithGateway() {
 
 if (require.main === module) {
   app.listen(port, () => {
-    // eslint-disable-next-line no-console
     console.log(`[otp-gateway] listening on port ${port}`);
     registerWithGateway();
   });
 }
 
-module.exports = { app, registerWithGateway };
+export { app };

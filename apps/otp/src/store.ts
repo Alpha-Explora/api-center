@@ -1,6 +1,21 @@
 const OTP_KEY_PREFIX = 'apic:otp:';
 
-function createOtpStore(env = process.env) {
+export interface OtpRecord {
+  otpId: string;
+  target: string;
+  channel: 'sms' | 'email';
+  code: string;
+  expiresAt: number;
+  status: 'pending' | 'used' | 'expired';
+}
+
+export interface OtpStore {
+  createOtp(entry: OtpRecord): Promise<OtpRecord>;
+  getOtp(otpId: string): Promise<OtpRecord | null>;
+  updateOtp(otpId: string, patch: Partial<OtpRecord>): Promise<OtpRecord | null>;
+}
+
+export function createOtpStore(env: Record<string, string | undefined> = process.env): OtpStore {
   const mode = env.OTP_STORE_MODE || (env.NODE_ENV === 'production' ? 'redis' : 'memory');
 
   if (mode === 'memory') {
@@ -23,8 +38,8 @@ function createOtpStore(env = process.env) {
   return createRedisOtpStore(redisUrl);
 }
 
-function createMemoryOtpStore() {
-  const entries = new Map();
+export function createMemoryOtpStore(): OtpStore {
+  const entries = new Map<string, OtpRecord>();
 
   return {
     async createOtp(entry) {
@@ -49,15 +64,15 @@ function createMemoryOtpStore() {
   };
 }
 
-function createRedisOtpStore(redisUrl) {
-  let clientPromise;
+export function createRedisOtpStore(redisUrl: string): OtpStore {
+  let clientPromise: Promise<any> | undefined;
 
   async function getClient() {
     if (!clientPromise) {
       const { createClient } = require('redis');
       const client = createClient({ url: redisUrl });
-      client.on('error', (error) => {
-        console.error('[otp-gateway] Redis error:', error.message);
+      client.on('error', (error: any) => {
+        console.error('[otp-gateway] Redis error:', error?.message);
       });
       clientPromise = client.connect().then(() => client);
     }
@@ -65,7 +80,7 @@ function createRedisOtpStore(redisUrl) {
     return clientPromise;
   }
 
-  async function writeEntry(entry) {
+  async function writeEntry(entry: OtpRecord) {
     const client = await getClient();
     const secondsUntilExpiry = Math.max(1, Math.ceil((entry.expiresAt - Date.now()) / 1000));
     await client.set(`${OTP_KEY_PREFIX}${entry.otpId}`, JSON.stringify(entry), {
@@ -82,7 +97,7 @@ function createRedisOtpStore(redisUrl) {
     async getOtp(otpId) {
       const client = await getClient();
       const raw = await client.get(`${OTP_KEY_PREFIX}${otpId}`);
-      return raw ? JSON.parse(raw) : null;
+      return raw ? (JSON.parse(raw) as OtpRecord) : null;
     },
 
     async updateOtp(otpId, patch) {
@@ -95,9 +110,3 @@ function createRedisOtpStore(redisUrl) {
     },
   };
 }
-
-module.exports = {
-  createOtpStore,
-  createMemoryOtpStore,
-  createRedisOtpStore,
-};

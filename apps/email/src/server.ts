@@ -1,24 +1,27 @@
-const path = require('node:path');
-const { Resend } = require('resend');
-const crypto = require('node:crypto');
-const {
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { Resend } from 'resend';
+import { Request, Response } from 'express';
+import {
   createMemoryIdempotencyStore,
   createMemoryRateLimitStore,
   createSharedServiceApp,
-  registerWithGateway: registerSharedServiceWithGateway,
-} = require('@apicenter/runtime');
+  registerWithGateway as registerSharedServiceWithGateway,
+} from '@apicenter/runtime';
+import type { EmailSendRequest, EmailSendResponse } from '@apicenter/contracts';
 
 const port = Number(process.env.PORT || 4012);
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev';
 const nodeEnv = process.env.NODE_ENV || 'development';
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const messageStore = new Map();
+const messageStore = new Map<string, unknown>();
 const idempotencyStore = createMemoryIdempotencyStore();
 const rateLimitStore = createMemoryRateLimitStore();
 const sendLimit = Number(process.env.EMAIL_SEND_LIMIT_PER_RECIPIENT || 20);
 const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.EMAIL_IDEMPOTENCY_TTL_MS || 24 * 60 * 60 * 1000);
+
 const { app, ok, fail } = createSharedServiceApp({
   serviceId: 'email-gateway',
   health: {
@@ -28,10 +31,9 @@ const { app, ok, fail } = createSharedServiceApp({
   },
 });
 
-// Matches SDK EmailSendRequest: { to: string|string[], subject, html?, text?, templateId?, templateData? }
-app.post('/send', async (req, res) => {
-  const { to, subject, html, text, templateId, templateData, metadata } =
-    req.body || {};
+app.post('/send', async (req: Request, res: Response) => {
+  const { to, subject, html, text, templateId, templateVariables, tags } =
+    (req.body || {}) as EmailSendRequest;
 
   if (!to || !subject) {
     return fail(
@@ -42,9 +44,9 @@ app.post('/send', async (req, res) => {
     );
   }
 
-  const recipients = Array.isArray(to)
-    ? to.map((r) => (typeof r === 'string' ? r : r.email))
-    : [typeof to === 'string' ? to : to.email];
+  const recipients: string[] = Array.isArray(to)
+    ? to.map((r: unknown) => (typeof r === 'string' ? r : (r as { email: string }).email))
+    : [typeof to === 'string' ? to : (to as { email: string }).email];
   const idempotencyKey = req.get('Idempotency-Key');
 
   if (idempotencyKey) {
@@ -91,30 +93,28 @@ app.post('/send', async (req, res) => {
         html: htmlContent,
       };
       if (templateId) {
-        // eslint-disable-next-line no-console
         console.log(
-          `[email-gateway] templateId=${templateId} templateData=${JSON.stringify(templateData)}`,
+          `[email-gateway] templateId=${templateId} templateVariables=${JSON.stringify(templateVariables)}`,
         );
       }
       const { data, error } = await resend.emails.send(payload);
       if (error) throw new Error(error.message);
-      providerMessageId = data.id;
+      providerMessageId = data?.id || messageId;
       status = 'sent';
     }
 
-    const response = {
+    const response: EmailSendResponse & { provider: string; recipient: string[] } = {
       messageId: providerMessageId,
+      status: status as EmailSendResponse['status'],
+      recipientCount: recipients.length,
+      sentAt: new Date().toISOString(),
       provider: resend ? 'resend' : 'mock',
-      status,
       recipient: recipients,
     };
 
     messageStore.set(providerMessageId, {
-      messageId: providerMessageId,
-      provider: resend ? 'resend' : 'mock',
-      status,
-      recipient: recipients,
-      metadata,
+      ...response,
+      tags,
       createdAt: new Date().toISOString(),
     });
 
@@ -123,18 +123,19 @@ app.post('/send', async (req, res) => {
     }
 
     return ok(res, response, 201);
-  } catch (error) {
+  } catch (error: any) {
     return fail(
       res,
       502,
       'PROVIDER_ERROR',
-      error.message || 'Failed to send email via Resend',
+      error?.message || 'Failed to send email via Resend',
     );
   }
 });
 
-app.get('/status/:messageId', (req, res) => {
-  const entry = messageStore.get(req.params.messageId);
+app.get('/status/:messageId', (req: Request, res: Response) => {
+  const messageId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
+  const entry = messageStore.get(messageId);
 
   if (!entry) {
     return fail(res, 404, 'NOT_FOUND', 'Message not found');
@@ -143,7 +144,7 @@ app.get('/status/:messageId', (req, res) => {
   return ok(res, entry);
 });
 
-app.get('/templates', (_req, res) => {
+app.get('/templates', (_req: Request, res: Response) => {
   return ok(res, [
     'account_verification',
     'password_reset',
@@ -151,7 +152,7 @@ app.get('/templates', (_req, res) => {
   ]);
 });
 
-async function registerWithGateway() {
+export async function registerWithGateway() {
   return registerSharedServiceWithGateway({
     manifestPath: path.resolve(
       __dirname,
@@ -164,10 +165,9 @@ async function registerWithGateway() {
 
 if (require.main === module) {
   app.listen(port, () => {
-    // eslint-disable-next-line no-console
     console.log(`[email-gateway] listening on port ${port}`);
     registerWithGateway();
   });
 }
 
-module.exports = { app, registerWithGateway };
+export { app };

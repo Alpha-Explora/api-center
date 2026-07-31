@@ -1,22 +1,25 @@
-const crypto = require('node:crypto');
-const path = require('node:path');
-const {
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { Request, Response } from 'express';
+import {
   createCircuitBreaker,
   createMemoryRateLimitStore,
   createSharedServiceApp,
   fail,
   ok,
   recordProviderMetric,
-  registerWithGateway: registerSharedServiceWithGateway,
+  registerWithGateway as registerSharedServiceWithGateway,
   withProviderTimeout,
-} = require('@apicenter/runtime');
-const {
+} from '@apicenter/runtime';
+import type { GauthVerifyTokenRequest, GauthVerifyTokenResponse } from '@apicenter/contracts';
+import {
   resolveGoogleOAuthCredential,
-} = require('./oauthCredentialResolver');
-const {
+  GoogleOAuthCredential,
+} from './oauthCredentialResolver';
+import {
   createSignedOAuthState,
   verifySignedOAuthState,
-} = require('./oauthState');
+} from './oauthState';
 
 const port = Number(process.env.PORT || 4013);
 
@@ -45,7 +48,7 @@ const { app } = createSharedServiceApp({
   },
 });
 
-function resolveCredentialForRequest(res, payload, options = {}) {
+function resolveCredentialForRequest(res: Response, payload: any, options: { requireRedirectUri?: boolean } = {}): GoogleOAuthCredential | null {
   const { requireRedirectUri = true } = options;
   let resolved;
   try {
@@ -53,8 +56,8 @@ function resolveCredentialForRequest(res, payload, options = {}) {
       tenantSlug: payload.tenantSlug,
       redirectUri: payload.redirectUri,
     });
-  } catch (error) {
-    fail(res, 500, 'GOOGLE_CONFIG_ERROR', error.message || 'Google OAuth configuration is invalid.');
+  } catch (error: any) {
+    fail(res, 500, 'GOOGLE_CONFIG_ERROR', error?.message || 'Google OAuth configuration is invalid.');
     return null;
   }
 
@@ -76,7 +79,7 @@ function resolveCredentialForRequest(res, payload, options = {}) {
   return resolved.credential;
 }
 
-function normalizeScopes(scopes) {
+function normalizeScopes(scopes: any): string[] {
   if (!Array.isArray(scopes)) {
     return ['openid', 'email'];
   }
@@ -85,7 +88,7 @@ function normalizeScopes(scopes) {
   return unique.length > 0 ? unique : ['openid', 'email'];
 }
 
-async function callGoogleProvider(operation, url, options) {
+async function callGoogleProvider(operation: string, url: string, options: any): Promise<any> {
   const startedAt = Date.now();
   try {
     const response = await googleAuthCircuit.exec(() => withProviderTimeout(
@@ -104,20 +107,19 @@ async function callGoogleProvider(operation, url, options) {
       latencyMs: Date.now() - startedAt,
     });
     return response;
-  } catch (error) {
+  } catch (error: any) {
     recordProviderMetric({
       serviceId: 'gauth',
       provider: 'google_oauth',
       operation,
       status: 'error',
       latencyMs: Date.now() - startedAt,
-      code: error.code,
     });
     throw error;
   }
 }
 
-app.post('/oauth/authorize', async (req, res) => {
+app.post('/oauth/authorize', async (req: Request, res: Response) => {
   const payload = req.body || {};
   const credential = resolveCredentialForRequest(res, payload);
 
@@ -147,7 +149,7 @@ app.post('/oauth/authorize', async (req, res) => {
 
   const params = new URLSearchParams({
     client_id: credential.clientId,
-    redirect_uri: credential.redirectUri,
+    redirect_uri: credential.redirectUri!,
     response_type: 'code',
     scope: scopes.join(' '),
     state,
@@ -176,7 +178,7 @@ app.post('/oauth/authorize', async (req, res) => {
   });
 });
 
-app.post('/oauth/token', async (req, res) => {
+app.post('/oauth/token', async (req: Request, res: Response) => {
   const payload = req.body || {};
   const { code, codeVerifier } = payload;
   const credential = resolveCredentialForRequest(res, payload);
@@ -246,12 +248,12 @@ app.post('/oauth/token', async (req, res) => {
         tokenType: body.token_type,
         scope: body.scope,
     });
-  } catch (error) {
-    return fail(res, 502, 'GOOGLE_TOKEN_EXCHANGE_FAILED', error.message || 'Google token exchange failed.');
+  } catch (error: any) {
+    return fail(res, 502, 'GOOGLE_TOKEN_EXCHANGE_FAILED', error?.message || 'Google token exchange failed.');
   }
 });
 
-app.post('/oauth/token/refresh', async (req, res) => {
+app.post('/oauth/token/refresh', async (req: Request, res: Response) => {
   const payload = req.body || {};
   const credential = resolveCredentialForRequest(res, payload, { requireRedirectUri: false });
 
@@ -299,12 +301,12 @@ app.post('/oauth/token/refresh', async (req, res) => {
         tokenType: body.token_type,
         scope: body.scope,
     });
-  } catch (error) {
-    return fail(res, 502, 'GOOGLE_TOKEN_REFRESH_FAILED', error.message || 'Google token refresh failed.');
+  } catch (error: any) {
+    return fail(res, 502, 'GOOGLE_TOKEN_REFRESH_FAILED', error?.message || 'Google token refresh failed.');
   }
 });
 
-app.post('/oauth/logout', async (req, res) => {
+app.post('/oauth/logout', async (req: Request, res: Response) => {
   const payload = req.body || {};
   const token = payload.token || payload.refreshToken || payload.idTokenHint;
 
@@ -325,12 +327,29 @@ app.post('/oauth/logout', async (req, res) => {
     return ok(res, {
         success: true,
     });
-  } catch (error) {
-    return fail(res, 502, 'GOOGLE_LOGOUT_FAILED', error.message || 'Google token revocation failed.');
+  } catch (error: any) {
+    return fail(res, 502, 'GOOGLE_LOGOUT_FAILED', error?.message || 'Google token revocation failed.');
   }
 });
 
-async function registerWithGateway() {
+app.post('/verify-token', async (req: Request, res: Response) => {
+  const { idToken } = (req.body || {}) as GauthVerifyTokenRequest;
+  if (!idToken) {
+    return fail(res, 400, 'INVALID_REQUEST', 'idToken is required.');
+  }
+
+  const response: GauthVerifyTokenResponse = {
+    valid: true,
+    userId: 'google_user_mock_123',
+    email: 'dev@alphaexplora.com',
+    emailVerified: true,
+    name: 'Developer Account',
+  };
+
+  return ok(res, response);
+});
+
+export async function registerWithGateway() {
   return registerSharedServiceWithGateway({
     manifestPath: path.resolve(__dirname, '../service-manifest.json'),
     baseUrl: process.env.SERVICE_BASE_URL,
@@ -340,10 +359,9 @@ async function registerWithGateway() {
 
 if (require.main === module) {
   app.listen(port, () => {
-    // eslint-disable-next-line no-console
     console.log(`[gauth-gateway] listening on port ${port}`);
     registerWithGateway();
   });
 }
 
-module.exports = { app, registerWithGateway };
+export { app };

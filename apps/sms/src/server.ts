@@ -1,12 +1,14 @@
-const path = require('node:path');
-const crypto = require('node:crypto');
-const {
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { Request, Response } from 'express';
+import {
   createMemoryIdempotencyStore,
   createMemoryRateLimitStore,
   createSharedServiceApp,
-  registerWithGateway: registerSharedServiceWithGateway,
-} = require('@apicenter/runtime');
-const { createSmsStore } = require('./store');
+  registerWithGateway as registerSharedServiceWithGateway,
+} from '@apicenter/runtime';
+import type { SmsSendRequest, SmsSendResponse } from '@apicenter/contracts';
+import { createSmsStore } from './store';
 
 const port = Number(process.env.PORT || 4011);
 const { app, ok, fail } = createSharedServiceApp({
@@ -25,8 +27,8 @@ const sendLimit = Number(process.env.SMS_SEND_LIMIT_PER_RECIPIENT || 10);
 const sendWindowMs = Number(process.env.SMS_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.SMS_IDEMPOTENCY_TTL_MS || 24 * 60 * 60 * 1000);
 
-app.post('/send', async (req, res) => {
-  const { to, message } = req.body || {};
+app.post('/send', async (req: Request, res: Response) => {
+  const { to, message, senderId } = (req.body || {}) as SmsSendRequest & { senderId?: string };
 
   if (!to || !message) {
     return fail(
@@ -56,9 +58,11 @@ app.post('/send', async (req, res) => {
   }
 
   const messageId = `msg_${crypto.randomUUID().replace(/-/g, '')}`;
-  const response = {
+  const response: SmsSendResponse & { recipient: string } = {
     messageId,
-    status: 'mock_sent',
+    status: 'sent',
+    to,
+    sentAt: new Date().toISOString(),
     recipient: to,
   };
 
@@ -67,6 +71,7 @@ app.post('/send', async (req, res) => {
     to,
     message,
     status: 'mock_sent',
+    senderId,
     createdAt: new Date().toISOString(),
   });
 
@@ -77,8 +82,8 @@ app.post('/send', async (req, res) => {
   return ok(res, response, 201);
 });
 
-app.get('/status/:messageId', async (req, res) => {
-  const { messageId } = req.params;
+app.get('/status/:messageId', async (req: Request, res: Response) => {
+  const messageId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
   const entry = await messageStore.getMessage(messageId);
 
   if (!entry) {
@@ -88,11 +93,11 @@ app.get('/status/:messageId', async (req, res) => {
   return ok(res, entry);
 });
 
-app.get('/templates', (_req, res) => {
+app.get('/templates', (_req: Request, res: Response) => {
   return ok(res, ['otp', 'verification', 'notification']);
 });
 
-async function registerWithGateway() {
+export async function registerWithGateway() {
   return registerSharedServiceWithGateway({
     manifestPath: path.resolve(__dirname, '../service-manifest.json'),
     baseUrl: process.env.SERVICE_BASE_URL,
@@ -102,10 +107,9 @@ async function registerWithGateway() {
 
 if (require.main === module) {
   app.listen(port, () => {
-    // eslint-disable-next-line no-console
     console.log(`[sms-gateway] listening on port ${port}`);
     registerWithGateway();
   });
 }
 
-module.exports = { app, registerWithGateway };
+export { app };
