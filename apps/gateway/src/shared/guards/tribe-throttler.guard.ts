@@ -20,7 +20,7 @@ import {
   ThrottlerModuleOptions,
   ThrottlerStorage,
 } from "@nestjs/throttler";
-import { AuthService } from "../../auth/auth.service";
+import { AuthService } from "@auth/auth.service";
 import { isHealthCheckPath } from "../health-path";
 
 @Injectable()

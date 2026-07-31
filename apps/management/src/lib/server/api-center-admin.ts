@@ -170,7 +170,10 @@ function getApiCenterBaseUrl() {
 }
 
 function getPlatformSecret() {
-  return process.env.API_CENTER_PLATFORM_ADMIN_SECRET;
+  return (
+    process.env.API_CENTER_PLATFORM_ADMIN_SECRET?.trim() ||
+    process.env.PLATFORM_ADMIN_SECRET?.trim()
+  );
 }
 
 function buildUnavailableSourceMeta(path: string, reason: string) {

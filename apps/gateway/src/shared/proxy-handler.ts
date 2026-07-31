@@ -14,22 +14,22 @@
 import { Response } from "express";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Options, RequestHandler } from "http-proxy-middleware";
-import { RegistryService } from "../registry/registry.service";
-import { AuthService } from "../auth/auth.service";
+import { RegistryService } from "@registry/registry.service";
+import { AuthService } from "@auth/auth.service";
 import { LoggerService } from "../shared/logger.service";
 import { MetricsService } from "../metrics/metrics.service";
-import { AuditEventsService } from "../analytics/audit-events.service";
-import { GatewayTrafficService } from "../analytics/gateway-traffic.service";
-import { SharedServiceUsageService } from "../analytics/shared-service-usage.service";
+import { AuditEventsService } from "@analytics/audit-events.service";
+import { GatewayTrafficService } from "@analytics/gateway-traffic.service";
+import { SharedServiceUsageService } from "@analytics/shared-service-usage.service";
 import {
   ServiceCallObservation,
   ServiceCallOutcome,
-} from "../analytics/service-call-observation";
-import { SharedServiceEventPublisher } from "../shared-services/shared-service-event-publisher";
-import { EmergencyControlService } from "../operations/emergency-control.service";
-import { TribeQuotaEnforcerService } from "../quotas/tribe-quota-enforcer.service";
-import { PolicyEngineService } from "../policy/policy-engine.service";
-import { PolicyRuleExplanation } from "../policy/policy-rule.types";
+} from "@analytics/service-call-observation";
+import { SharedServiceEventPublisher } from "@shared-services/shared-service-event-publisher";
+import { EmergencyControlService } from "@operations/emergency-control.service";
+import { TribeQuotaEnforcerService } from "@quotas/tribe-quota-enforcer.service";
+import { PolicyEngineService } from "@policy/policy-engine.service";
+import { PolicyRuleExplanation } from "@policy/policy-rule.types";
 import { CircuitBreaker } from "../shared/circuit-breaker";
 import {
   ForbiddenError,
@@ -51,7 +51,7 @@ import {
 } from "./proxy/environment-leak-guard";
 import { checkProxyQuota } from "./proxy/proxy-quota-context";
 import { createUpstreamProxyOptions } from "./proxy/upstream-request";
-import type { SharedServiceRoutingService } from "../shared-services/shared-service-routing.service";
+import type { SharedServiceRoutingService } from "@shared-services/shared-service-routing.service";
 
 /** Default hard timeout for outgoing proxy requests (ms). */
 const PROXY_TIMEOUT_MS = 30_000;

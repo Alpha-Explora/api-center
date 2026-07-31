@@ -1,6 +1,6 @@
-import type { AuthService } from "../../auth/auth.service";
-import type { EmergencyControlService } from "../../operations/emergency-control.service";
-import type { RegistryService } from "../../registry/registry.service";
+import type { AuthService } from "@auth/auth.service";
+import type { EmergencyControlService } from "@operations/emergency-control.service";
+import type { RegistryService } from "@registry/registry.service";
 import type { AuthenticatedRequest } from "../../types";
 import { ForbiddenError } from "../errors";
 

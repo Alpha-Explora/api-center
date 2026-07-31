@@ -1,0 +1,75 @@
+---
+title: "Checkouts & Payment Links API"
+description: "Create hosted payment checkout pages and collect PHP payments effortlessly."
+---
+
+# Checkouts & Payment Links API
+
+The Checkouts API allows consumer services to create provider-neutral payment checkout sessions for one-off charges. APICenter handles PayMongo checkout generation, payment method routing (GCash, PayMaya, Cards, GrabPay), and webhook reconciliation.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/payments/checkouts`
+- **HTTP Method**: `POST`
+- **Required Scope**: `payments:write`
+- **Requires Header**: `Idempotency-Key`
+
+---
+
+## Quickstart Code Example
+
+### Request (cURL)
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/checkouts \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: chk-idem-20260729-001" \
+  -d '{
+    "referenceId": "ORDER-991204",
+    "description": "Monthly Pro Subscription",
+    "amount": {
+      "amountMinor": 49900,
+      "currency": "PHP"
+    },
+    "successUrl": "https://app.example.com/checkout/success",
+    "cancelUrl": "https://app.example.com/checkout/cancel",
+    "metadata": {
+      "customerId": "cust_12345",
+      "tier": "pro"
+    }
+  }'
+```
+
+### Response Payload (`201 Created`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "checkoutId": "chk_8f1a2b3c4d",
+    "referenceId": "ORDER-991204",
+    "status": "pending",
+    "amount": {
+      "amountMinor": 49900,
+      "currency": "PHP"
+    },
+    "checkoutUrl": "https://checkout.paymongo.com/chk_8f1a2b3c4d",
+    "aggregateVersion": 1
+  }
+}
+```
+
+---
+
+## Fetch Checkout Status
+
+- **Endpoint**: `GET /api/v1/payments/checkouts/{checkoutId}`
+- **Required Scope**: `payments:read`
+
+```bash
+curl -s https://api-center.itsandbox.site/api/v1/payments/checkouts/chk_8f1a2b3c4d \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```

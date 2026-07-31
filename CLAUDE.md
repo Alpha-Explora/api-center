@@ -2,7 +2,18 @@
 
 ## Project Overview
 
-APICenter is a NestJS TypeScript API gateway. It is backend-only (no frontend UI stack) and organized by domain modules under `src/`.
+APICenter is organized as a Turborepo monorepo featuring a central NestJS TypeScript API Gateway (`apps/gateway`) alongside specialized service runtimes (`apps/payments`, `apps/email`, etc.) and shared packages (`packages/contracts`, `packages/runtime`, `packages/sdk`).
+
+## Workspace Layout
+
+- `apps/gateway`: Central NestJS API Gateway control plane
+- `apps/payments`: Payment data plane runtime
+- `apps/email`, `apps/sms`, `apps/geo`, `apps/gauth`, `apps/otp`: Shared service runtimes
+- `apps/management`: Management console web application
+- `apps/docs`: Public developer documentation site
+- `packages/contracts`: Shared schema definitions and contracts
+- `packages/runtime`: Shared Node.js micro-runtime framework
+- `packages/sdk`: Published `@alpha-explora/apicenter-sdk` client library
 
 ## Core Commands
 
@@ -24,41 +35,17 @@ npm run build
 npm run dev
 ```
 
-Alternative:
-
-```bash
-npm run start:dev
-```
-
-### Run (production build)
-
-```bash
-npm run build
-npm run start:prod
-```
-
 ### Test
 
 ```bash
 npm run test
 ```
 
-Run a single test file:
+### Boundary & Monorepo Validation
 
 ```bash
-npm run test -- tests/unit/src/auth/auth.controller.spec.ts
-```
-
-Coverage:
-
-```bash
-npm run test:cov
-```
-
-E2E:
-
-```bash
-npm run test:e2e
+npm run check:boundaries
+npm run check:monorepo
 ```
 
 ### Lint and Format
@@ -76,16 +63,16 @@ npm run typecheck
 
 ## Architecture Notes
 
-- Entry point: `src/main.ts`
-- Root module: `src/app.module.ts`
-- Domain modules: `src/auth`, `src/external`, `src/registry`, `src/tribes`, `src/health`, `src/kafka`, `src/metrics`
-- Shared infrastructure: `src/shared`, `src/shared-services`, `src/config`, `src/types`
-- Tests live under `tests/`: unit specs mirror source paths under `tests/unit/src/`, integration script tests live under `tests/integration/`, and e2e specs/config live under `tests/e2e/`
+- Gateway Entry point: `apps/gateway/src/main.ts`
+- Gateway Root module: `apps/gateway/src/app.module.ts`
+- Gateway Domain modules: Organized under `apps/gateway/src/` (e.g. `auth`, `registry`, `tribes`, `health`, `metrics`, `quotas`, `approvals`, `policy`, `catalog`, `compliance`)
+- Boundary rules: Strictly enforced by `scripts/check-boundaries.js` and `scripts/check-monorepo-boundary.js`
+- Tests live under `tests/`: unit specs mirror source paths under `tests/unit/`, integration script tests live under `tests/integration/`, and e2e specs/config live under `tests/e2e/`
 
 ## Conventions
 
-- File naming in `src/` is mostly kebab-case with Nest suffix patterns (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.guard.ts`, `*.dto.ts`).
-- Prefer existing path aliases from `tsconfig.json` (`@auth/*`, `@shared/*`, etc.) when appropriate.
-- Keep commit messages short and imperative; optional prefixes (`feat:`, `fix:`, `docs:`) are acceptable but not consistently enforced in this repo.
+- File naming in `apps/gateway/src/` is kebab-case with Nest suffix patterns (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.guard.ts`, `*.dto.ts`).
+- Respect path aliases defined in `apps/gateway/tsconfig.json` (`@config/*`, `@shared/*`, `@auth/*`, etc.).
+- Keep commit messages short and imperative (`feat:`, `fix:`, `refactor:`).
 
 

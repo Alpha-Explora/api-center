@@ -17,14 +17,13 @@ import {
 } from "@nestjs/common";
 import { Observable, tap } from "rxjs";
 import { Request, Response } from "express";
-import { KafkaService } from "../../kafka/kafka.service";
-import { TOPICS } from "../../kafka/topics";
+import { LoggerService } from "../logger.service";
 import { AuthenticatedRequest } from "../../types";
 import { isHealthCheckPath } from "../health-path";
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
-  constructor(private readonly kafka: KafkaService) {}
+  constructor(private readonly logger: LoggerService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -52,22 +51,16 @@ export class AuditLogInterceptor implements NestInterceptor {
     const targetServiceId =
       tribesIdx >= 0 ? pathParts[tribesIdx + 1] : undefined;
 
-    this.kafka.publishNonBlocking(
-      TOPICS.AUDIT_LOG,
-      {
-        tribeId: authReq.tribeId || "anonymous",
-        method: request.method,
-        path: request.originalUrl,
-        statusCode: response.statusCode,
-        durationMs: Date.now() - start,
-        ip: request.ip || "unknown",
-        correlationId: authReq.correlationId,
-        ...(targetServiceId && { targetServiceId }),
-      },
-      {
-        key: authReq.tribeId,
-        context: "AuditLogInterceptor",
-      },
-    );
+    this.logger.info("Audit log", {
+      tribeId: authReq.tribeId || "anonymous",
+      method: request.method,
+      path: request.originalUrl,
+      statusCode: response.statusCode,
+      durationMs: Date.now() - start,
+      ip: request.ip || "unknown",
+      correlationId: authReq.correlationId,
+      ...(targetServiceId && { targetServiceId }),
+    });
   }
 }
+

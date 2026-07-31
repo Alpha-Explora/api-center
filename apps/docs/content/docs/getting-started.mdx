@@ -1,39 +1,64 @@
-# Start with a registered service
+---
+title: "Platform Overview & Quickstart"
+description: "Introduction to APICenter centralized API gateway and consumer shared services."
+---
 
-APICenter is for registered backend services. Before making a request, an operator records the owner tribe, consumer service ID, environment, scopes, and the service endpoint that will receive payment events.
+# Platform Overview & Architecture
 
-## Configure the runtime
+APICenter is the **centralized API gateway** and provider-neutral integration platform for all product backends ("consumer services") and internal tribes. 
 
-Keep the consumer key in the backend runtime secret manager. Never put it in a browser bundle, source control, or an npm package.
+No consumer service or tribe calls external third-party providers (like PayMongo, Twilio, or SendGrid) directly. All requests are routed, authenticated, rate-limited, and audited by APICenter.
 
-```env
-APICENTER_BASE_URL=https://api-center.itsandbox.site
-APICENTER_CONSUMER_SERVICE_ID=orders-api
-APICENTER_ENVIRONMENT=test
-APICENTER_API_KEY=apic_test_replace_me
+```text
+Consumer Backend (Tribe Service)
+       │
+       ▼ (Bearer JWT / API Key)
+┌─────────────────────────────────────────────────────────────┐
+│                    APICenter Gateway                        │
+│ ┌───────────────┐ ┌───────────────┐ ┌─────────────────────┐ │
+│ │ Auth & Scopes │ │  Rate Limits  │ │ Idempotency Control │ │
+│ └───────────────┘ └───────────────┘ └─────────────────────┘ │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+      ┌────────────────────────┼────────────────────────┐
+      ▼                        ▼                        ▼
+┌───────────┐            ┌───────────┐            ┌───────────┐
+│ Payments  │            │ SMS/Email │            │    Geo    │
+│ Service   │            │ Service   │            │ Service   │
+└───────────┘            └───────────┘            └───────────┘
 ```
 
-## Make the first request
+---
 
-```ts
-const response = await fetch(`${process.env.APICENTER_BASE_URL}/api/v1/payments/checkouts`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${process.env.APICENTER_API_KEY}`,
-    "Content-Type": "application/json",
-    "Idempotency-Key": "order-123-checkout-v1",
-  },
-  body: JSON.stringify({
-    referenceId: "order-123",
-    amount: { amountMinor: 39900, currency: "PHP" },
-    successUrl: "https://orders.example.test/payment/success",
-    cancelUrl: "https://orders.example.test/payment/cancel",
-  }),
-});
+## Route Namespaces
+
+| Namespace | Endpoint Pattern | Description |
+| :--- | :--- | :--- |
+| **Payments** | `/api/v1/payments/*` | Provider-neutral PayMongo facade (Checkouts, Intents, Subscriptions, Refunds) |
+| **Shared Services** | `/api/v1/shared/:serviceId/*` | Messaging, Email, OTP, Geo location, and utility services |
+| **Tribe Proxy** | `/api/v1/tribes/:serviceId/*` | Governed inter-tribe service RPC calls |
+| **Authentication** | `/api/v1/auth/*` | Machine-to-machine JWT token issuance, refresh, and JWKS |
+| **Registry** | `/api/v1/registry/*` | Service self-registration and discovery |
+| **Health** | `/api/v1/health/*` | Liveness and readiness probes |
+
+---
+
+## Quickstart: Making Your First Call
+
+To call any APICenter shared service, obtain a Bearer token using your tribe credentials:
+
+```bash
+# 1. Fetch Machine-to-Machine JWT
+TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "your-tribe-id",
+    "client_secret": "your-secret-key",
+    "environment": "test"
+  }' | jq -r '.access_token')
+
+# 2. Call Geo Shared Service
+curl -s http://localhost:3000/api/v1/shared/geo/lookup \
+  -H "Authorization: Bearer $TOKEN"
 ```
-
-Registered success and cancel URLs are part of the integration boundary. Treat the returned checkout resource as pending until the authoritative payment event confirms the state.
-
-## Continue
-
-Read Authentication, then Idempotency and Retries before enabling live traffic.

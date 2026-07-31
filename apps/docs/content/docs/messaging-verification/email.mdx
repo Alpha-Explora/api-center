@@ -1,0 +1,43 @@
+---
+title: "Email Shared Service API"
+description: "Send HTML/text transactional email notifications and template renders."
+---
+
+# Email Shared Service API
+
+Send transactional emails with HTML layout support, attachments, and delivery status tracking.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/email`
+- **Required Scope**: `email:send`
+
+---
+
+## Send Transactional Email
+
+- **Endpoint**: `POST /api/v1/shared/email/send`
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/shared/email/send \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "customer@example.com",
+    "subject": "Payment Receipt for ORDER-991204",
+    "html": "<h1>Payment Successful</h1><p>Thank you for your purchase of PHP 499.00.</p>",
+    "tags": ["receipt", "payments"]
+  }'
+```
+
+### Response (`200 OK`)
+
+```json
+{
+  "success": true,
+  "emailId": "eml_77182a99",
+  "status": "delivered"
+}
+```

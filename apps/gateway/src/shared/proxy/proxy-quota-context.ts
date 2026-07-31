@@ -1,5 +1,5 @@
-import type { TribeQuotaEnforcerService } from "../../quotas/tribe-quota-enforcer.service";
-import type { TribeQuotaScope } from "../../quotas/tribe-quota-policy.types";
+import type { TribeQuotaEnforcerService } from "@quotas/tribe-quota-enforcer.service";
+import type { TribeQuotaScope } from "@quotas/tribe-quota-policy.types";
 import type { ServiceType } from "../../types";
 import { requireGovernanceDependency } from "../governance-dependencies";
 

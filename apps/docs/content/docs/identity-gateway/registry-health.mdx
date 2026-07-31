@@ -1,0 +1,36 @@
+---
+title: "Service Registry & Health API"
+description: "Register tribe microservices and monitor gateway liveness/readiness probes."
+---
+
+# Service Registry & Health API
+
+Microservices register themselves with APICenter at application startup to participate in route proxying and scope governance.
+
+---
+
+## Register Microservice
+
+- **Endpoint**: `POST /api/v1/registry/register`
+
+```bash
+curl -X POST http://localhost:3000/api/v1/registry/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serviceId": "logistics-service",
+    "name": "Logistics & Fulfillment",
+    "baseUrl": "http://logistics-service:4005",
+    "requiredScopes": ["logistics:write"],
+    "exposes": ["logistics:read", "logistics:write"],
+    "consumes": ["payment-service", "sms-service"],
+    "healthCheck": "/health",
+    "version": "1.2.0"
+  }'
+```
+
+---
+
+## Gateway Health Probes
+
+- **Liveness**: `GET /api/v1/health/liveness`
+- **Readiness**: `GET /api/v1/health/readiness`

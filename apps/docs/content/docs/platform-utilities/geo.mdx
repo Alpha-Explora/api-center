@@ -1,0 +1,41 @@
+---
+title: "Geo & IP Shared Service API"
+description: "Lookup client IP geolocation, region, postal code, and ISP information."
+---
+
+# Geo & IP Shared Service API
+
+The Geo Shared Service resolves client IP addresses and postal codes to geographical regions in the Philippines and global locations.
+
+---
+
+## Service Specifications
+
+- **Base Route**: `/api/v1/shared/geo`
+- **Required Scope**: `geo:read`
+
+---
+
+## IP Geolocation Lookup
+
+- **Endpoint**: `GET /api/v1/shared/geo/lookup?ip=203.177.10.1`
+
+```bash
+curl -s https://api-center.itsandbox.site/api/v1/shared/geo/lookup?ip=203.177.10.1 \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### Response (`200 OK`)
+
+```json
+{
+  "ip": "203.177.10.1",
+  "country": "PH",
+  "countryName": "Philippines",
+  "region": "NCR",
+  "city": "Manila",
+  "postalCode": "1000",
+  "timezone": "Asia/Manila",
+  "isp": "Globe Telecom"
+}
+```

@@ -1,0 +1,34 @@
+---
+title: "Subscriptions & Invoices API"
+description: "Automated recurring billing cycles, plan schedules, and invoice management."
+---
+
+# Subscriptions & Invoices API
+
+Subscriptions automate periodic collection of PHP funds from vaulted customer payment methods.
+
+---
+
+## Create Subscription
+
+- **Endpoint**: `POST /api/v1/payments/subscriptions`
+- **Required Scope**: `payments:write`
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/subscriptions \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Idempotency-Key: sub-idem-8812" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referenceId": "SUB-TIER-PRO-001",
+    "customerId": "cus_9912041",
+    "plan": {
+      "name": "Pro SaaS Monthly",
+      "interval": "month",
+      "amount": {
+        "amountMinor": 99900,
+        "currency": "PHP"
+      }
+    }
+  }'
+```
