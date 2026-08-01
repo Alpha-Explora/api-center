@@ -28,7 +28,8 @@
       "@entitlements/*": ["src/domains/governance/entitlements/*"],
       "@payments/*": ["src/domains/payments/payments/*"],
 
-      "@governance": ["src/domains/governance/index.ts"],
+      "@governance": ["src/domains/governance/index"],
+      "@governance/*": ["src/domains/governance/*"],
       "@domains/*": ["src/domains/*"]
     }
   },

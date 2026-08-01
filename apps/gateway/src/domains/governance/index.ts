@@ -1,3 +1,4 @@
+export { GovernanceModule } from './governance.module';
 export { QuotasModule } from './quotas/quotas.module';
 export { ApprovalsModule } from './approvals/approvals.module';
 export { EntitlementsModule } from './entitlements/entitlements.module';

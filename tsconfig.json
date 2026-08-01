@@ -26,6 +26,8 @@
       "@entitlements/*": ["apps/gateway/src/domains/governance/entitlements/*"],
       "@payments/*": ["apps/gateway/src/domains/payments/payments/*"],
       "@shared-services/*": ["apps/gateway/src/domains/gateway-proxy/shared-services/*"],
+      "@governance": ["apps/gateway/src/domains/governance/index"],
+      "@governance/*": ["apps/gateway/src/domains/governance/*"],
       "@domains/*": ["apps/gateway/src/domains/*"]
     }
   },
