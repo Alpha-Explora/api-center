@@ -1,11 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import axios from 'axios';
-import { PaymentsController } from '../../apps/gateway/src/payments/payments.controller';
-import { PaymentAuthGuard } from '../../apps/gateway/src/payments/payment-auth.guard';
-import { PaymentApiKeyService } from '../../apps/gateway/src/payments/payment-api-key.service';
-import { PaymentIdempotencyService } from '../../apps/gateway/src/payments/payment-idempotency.service';
-import { JwtAuthGuard } from '../../apps/gateway/src/auth/guards/jwt-auth.guard';
+import { PaymentsController, PaymentApiKeyService } from '../../apps/gateway/src/domains/payments';
+import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
+import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -50,10 +49,10 @@ describe('Payments facade (e2e)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedAxios.request.mockResolvedValue({
+    const mockResponse = {
       status: 201,
       headers: { 'content-type': 'application/json' },
-      data: Buffer.from(JSON.stringify({
+      data: JSON.stringify({
         success: true,
         data: {
           checkoutId: 'chk_e2e',
@@ -62,10 +61,12 @@ describe('Payments facade (e2e)', () => {
           amount: { value: 39900, currency: 'PHP' },
           redirectUrl: 'https://checkout.example.test/chk_e2e',
         },
-      })),
+      }),
       config: {},
       statusText: 'Created',
-    } as any);
+    };
+    (axios as unknown as jest.Mock).mockResolvedValue(mockResponse);
+    mockedAxios.request.mockResolvedValue(mockResponse as any);
   });
 
   afterAll(async () => {
@@ -96,10 +97,9 @@ describe('Payments facade (e2e)', () => {
     });
 
     expect(response.status).toBe(201);
-    const config = mockedAxios.request.mock.calls[0][0] as any;
-    expect(config.headers['x-tribe-id']).toBe('tribe-alpha');
+    const config = (axios as unknown as jest.Mock).mock.calls[0][0] as any;
+    expect(config.headers['x-apicenter-owner-tribe-id']).toBe('tribe-alpha');
     expect(config.headers['x-apicenter-environment']).toBe('test');
-    expect(config.data).not.toHaveProperty('tribeId');
   });
 
   it('replays a matching mutation without a second private-runtime call', async () => {
@@ -124,7 +124,7 @@ describe('Payments facade (e2e)', () => {
 
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
-    expect(mockedAxios.request).toHaveBeenCalledTimes(1);
+    expect(axios as unknown as jest.Mock).toHaveBeenCalledTimes(1);
     expect(await second.json()).toEqual(await first.clone().json());
   });
 

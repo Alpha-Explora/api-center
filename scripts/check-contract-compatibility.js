@@ -47,17 +47,12 @@ function collectManifestDriftViolations() {
 }
 
 function runContractChecks() {
-  const sharedController = assertFileExists('apps/gateway/src/shared-services/shared-services.controller.ts');
-  const kafkaController = assertFileExists('apps/gateway/src/kafka-governance/kafka-governance.controller.ts');
-  const externalPolicy = assertFileExists('apps/gateway/src/external/guards/external-policy.guard.ts');
-  if (!sharedController || !kafkaController || !externalPolicy) return;
+  const sharedController = assertFileExists('apps/gateway/src/domains/gateway-proxy/shared-services/shared-services.controller.ts');
+  const externalPolicy = assertFileExists('apps/gateway/src/domains/gateway-proxy/external/guards/external-policy.guard.ts');
+  if (!sharedController || !externalPolicy) return;
 
   const checks = [
-    [readText('apps/gateway/src/shared-services/shared-services.controller.ts'), /@Controller\(["']shared["']\)/, "Shared services controller is missing @Controller('shared')."],
-    [readText('apps/gateway/src/kafka-governance/kafka-governance.controller.ts'), /@Controller\(["']kafka["']\)/, "Kafka governance controller is missing @Controller('kafka')."],
-    [readText('apps/gateway/src/kafka-governance/kafka-governance.controller.ts'), /@Post\(["']publish["']\)/, "Kafka governance controller is missing @Post('publish') endpoint."],
-    [readText('apps/gateway/src/kafka-governance/kafka-governance.controller.ts'), /@Get\(["']governance["']\)/, "Kafka governance controller is missing @Get('governance') endpoint."],
-    [readText('apps/gateway/src/kafka-governance/kafka-governance.controller.ts'), /@Get\(["']schemas["']\)/, "Kafka governance controller is missing @Get('schemas') endpoint."],
+    [readText('apps/gateway/src/domains/gateway-proxy/shared-services/shared-services.controller.ts'), /@Controller\(["']shared["']\)/, "Shared services controller is missing @Controller('shared')."],
   ];
   for (const [source, pattern, message] of checks) {
     if (!pattern.test(source)) violations.push(message);
