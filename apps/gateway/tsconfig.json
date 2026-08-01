@@ -9,12 +9,14 @@
       "@shared/*": ["src/shared/*"],
       "@database/*": ["src/database/*"],
       "@metrics/*": ["src/metrics/*"],
+      "@kafka/*": ["src/kafka/*"],
+
       "@auth/*": ["src/domains/auth-security/auth/*"],
       "@secrets/*": ["src/domains/auth-security/secrets/*"],
-      "@kafka/*": ["src/kafka/*"],
       "@registry/*": ["src/domains/catalog-registry/registry/*"],
       "@tribes/*": ["src/domains/gateway-proxy/tribes/*"],
       "@external/*": ["src/domains/gateway-proxy/external/*"],
+      "@shared-services/*": ["src/domains/gateway-proxy/shared-services/*"],
       "@health/*": ["src/domains/runtime-ops/health/*"],
       "@analytics/*": ["src/domains/runtime-ops/analytics/*"],
       "@operations/*": ["src/domains/runtime-ops/operations/*"],
@@ -25,7 +27,8 @@
       "@approvals/*": ["src/domains/governance/approvals/*"],
       "@entitlements/*": ["src/domains/governance/entitlements/*"],
       "@payments/*": ["src/domains/payments/payments/*"],
-      "@shared-services/*": ["src/domains/gateway-proxy/shared-services/*"],
+
+      "@governance": ["src/domains/governance/index.ts"],
       "@domains/*": ["src/domains/*"]
     }
   },
