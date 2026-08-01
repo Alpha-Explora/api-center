@@ -5,7 +5,6 @@ import { AuthController } from "../../apps/gateway/src/domains/auth-security/aut
 import { AuthService } from "../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { RegistryService } from "../../apps/gateway/src/domains/catalog-registry";
 import { LoggerService } from "../../apps/gateway/src/shared/logger.service";
-import { KafkaService } from "../../apps/gateway/src/kafka/kafka.service";
 import { ConfigService } from "../../apps/gateway/src/config/config.service";
 import { JwtAuthGuard } from "../../apps/gateway/src/domains/auth-security";
 
@@ -52,7 +51,7 @@ describe("AuthController (e2e)", () => {
           },
         },
         {
-          provide: KafkaService,
+          provide: "KafkaService",
           useValue: {
             publish: jest.fn().mockResolvedValue(undefined),
             publishNonBlocking: jest.fn(),

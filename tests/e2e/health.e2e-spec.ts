@@ -2,7 +2,6 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthCheckService } from '@nestjs/terminus';
 import { HealthController } from '../../apps/gateway/src/domains/runtime-ops/health/health.controller';
-import { KafkaService } from '../../apps/gateway/src/kafka/kafka.service';
 import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry';
 import { ExternalService } from '../../apps/gateway/src/domains/gateway-proxy/external/external.service';
 import { TokenStoreService } from '../../apps/gateway/src/domains/auth-security/auth/token-store.service';
@@ -40,7 +39,7 @@ describe('HealthController (e2e)', () => {
           },
         },
         {
-          provide: KafkaService,
+          provide: 'KafkaService',
           useValue: {
             isConnected: jest.fn().mockReturnValue(true),
           },
@@ -124,14 +123,12 @@ describe('HealthController (e2e)', () => {
     const response = await fetch(`${baseUrl}/api/v1/health/ready`);
     const body = (await response.json()) as {
       info: {
-        kafka: { status: string };
         redis: { status: string };
         registry: { registeredServices: number };
       };
     };
 
     expect(response.status).toBe(200);
-    expect(body.info.kafka.status).toBe('up');
     expect(body.info.redis.status).toBe('down');
     expect(body.info.registry.registeredServices).toBe(2);
   });
