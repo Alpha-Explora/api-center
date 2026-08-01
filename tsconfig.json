@@ -24,7 +24,7 @@
       "@policy/*": ["apps/gateway/src/domains/governance/policy/*"],
       "@approvals/*": ["apps/gateway/src/domains/governance/approvals/*"],
       "@entitlements/*": ["apps/gateway/src/domains/governance/entitlements/*"],
-      "@payments/*": ["apps/gateway/src/domains/payments/payments/*"],
+      "@payments/*": ["apps/gateway/src/domains/payments/*"],
       "@shared-services/*": ["apps/gateway/src/domains/gateway-proxy/shared-services/*"],
       "@governance": ["apps/gateway/src/domains/governance/index"],
       "@governance/*": ["apps/gateway/src/domains/governance/*"],

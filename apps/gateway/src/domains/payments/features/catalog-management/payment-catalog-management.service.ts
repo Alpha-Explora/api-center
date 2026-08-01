@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { z } from "zod";
 
@@ -119,4 +119,3 @@ export class PaymentCatalogManagementService {
     return ("catalog:" + path + ":" + JSON.stringify(body)).slice(0, 255);
   }
 }
-

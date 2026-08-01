@@ -1,4 +1,4 @@
-﻿import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 
@@ -126,4 +126,3 @@ export class PaymentApiKeyService {
     return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
   }
 }
-

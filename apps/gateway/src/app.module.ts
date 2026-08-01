@@ -65,7 +65,7 @@ import { ComplianceModule } from "./domains/compliance/compliance/compliance.mod
 import { ForecastingModule } from "./domains/runtime-ops/forecasting/forecasting.module";
 import { OperationsModule } from "./domains/runtime-ops/operations/operations.module";
 import { CapabilitiesModule } from "./domains/runtime-ops/capabilities/capabilities.module";
-import { PaymentsModule } from "./domains/payments/payments/payments.module";
+import { PaymentsModule } from "./domains/payments/payments.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";

@@ -26,7 +26,7 @@
       "@policy/*": ["src/domains/governance/policy/*"],
       "@approvals/*": ["src/domains/governance/approvals/*"],
       "@entitlements/*": ["src/domains/governance/entitlements/*"],
-      "@payments/*": ["src/domains/payments/payments/*"],
+      "@payments/*": ["src/domains/payments/*"],
 
       "@governance": ["src/domains/governance/index"],
       "@governance/*": ["src/domains/governance/*"],

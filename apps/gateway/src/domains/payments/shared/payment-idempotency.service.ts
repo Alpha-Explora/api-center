@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import Redis from "ioredis";
-import { PaymentPrincipal } from "./payment-api-key.service";
+import { PaymentPrincipal } from "../features/payment-facade/payment-api-key.service";
 
 type StoredResponse = {
   status: number;
@@ -108,6 +108,7 @@ export class PaymentIdempotencyService {
     this.memory.set(key, { ...value, expiresAt: Date.now() + TTL_SECONDS * 1000 });
     return true;
   }
+
   private async write(key: string, value: StoredRecord): Promise<void> {
     const redis = await this.redisClient();
     if (redis) {
@@ -178,4 +179,3 @@ export class PaymentIdempotencyService {
     return ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase());
   }
 }
-
