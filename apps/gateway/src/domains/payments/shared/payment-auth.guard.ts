@@ -1,4 +1,4 @@
-﻿import {
+import {
   CanActivate,
   ExecutionContext,
   Injectable,
@@ -7,7 +7,7 @@
 import { Request } from "express";
 import { JwtAuthGuard } from "@auth/guards/jwt-auth.guard";
 import { AuthenticatedRequest } from "../../../types";
-import { PaymentApiKeyService } from "./payment-api-key.service";
+import { PaymentApiKeyService } from "../features/payment-facade/payment-api-key.service";
 
 @Injectable()
 export class PaymentAuthGuard implements CanActivate {
@@ -48,4 +48,3 @@ export class PaymentAuthGuard implements CanActivate {
       : undefined;
   }
 }
-

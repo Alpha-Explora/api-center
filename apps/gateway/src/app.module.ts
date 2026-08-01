@@ -59,17 +59,13 @@ import { SharedServicesModule } from "./domains/gateway-proxy/shared-services/sh
 import { HealthModule } from "./domains/runtime-ops/health/health.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { AnalyticsModule } from "./domains/runtime-ops/analytics/analytics.module";
-import { QuotasModule } from "./domains/governance/quotas/quotas.module";
-import { EntitlementsModule } from "./domains/governance/entitlements/entitlements.module";
-import { DeveloperPortalModule } from "./domains/governance/developer-portal/developer-portal.module";
-import { ApprovalsModule } from "./domains/governance/approvals/approvals.module";
-import { PolicyEngineModule } from "./domains/governance/policy/policy-engine.module";
+import { GovernanceModule } from "@governance";
 import { CatalogModule } from "./domains/catalog-registry/catalog/catalog.module";
 import { ComplianceModule } from "./domains/compliance/compliance/compliance.module";
 import { ForecastingModule } from "./domains/runtime-ops/forecasting/forecasting.module";
 import { OperationsModule } from "./domains/runtime-ops/operations/operations.module";
 import { CapabilitiesModule } from "./domains/runtime-ops/capabilities/capabilities.module";
-import { PaymentsModule } from "./domains/payments/payments/payments.module";
+import { PaymentsModule } from "./domains/payments/payments.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -100,14 +96,10 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     // ── 3. Shared utilities — @Global, available everywhere without re-import ─
     SharedModule, // LoggerService, AllExceptionsFilter, interceptors, middleware
 
-    // ── 4. Observability ──────────────────────────────────────────────────────
+    // ── 4. Observability & Bounded Contexts ──────────────────────────────────
     MetricsModule, // Prometheus counters / histograms / gauges
     AnalyticsModule, // Protected JSON analytics for the management console
-    QuotasModule, // Operator quota policies and runtime enforcement
-    EntitlementsModule, // Tribe plan tiers and quota proposal defaults
-    DeveloperPortalModule, // Tribe-facing read-only self-service portal APIs
-    ApprovalsModule, // Risky live-change request, approval, and audit gate
-    PolicyEngineModule, // Explainable policy warnings and blocks
+    GovernanceModule, // Complete governance bounded context (quotas, entitlements, approvals, policy, dev portal)
     ForecastingModule, // Quota pressure projections
     OperationsModule, // Drift, dependencies, evidence, emergency, scorecards
     CatalogModule, // API marketplace product projection

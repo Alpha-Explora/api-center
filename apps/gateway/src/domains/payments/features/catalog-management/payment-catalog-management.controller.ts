@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { PaymentCatalogManagementService } from "./payment-catalog-management.service";
 
@@ -17,4 +17,3 @@ export class PaymentCatalogManagementController {
     return { success: true, data: await this.catalog.createPrice(body) };
   }
 }
-

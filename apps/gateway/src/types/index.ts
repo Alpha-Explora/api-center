@@ -11,7 +11,7 @@
 
 import { Request } from "express";
 import type { JwtClaims } from "@auth/auth-provider.interface";
-import type { PaymentPrincipal } from "@payments/payment-api-key.service";
+import type { PaymentPrincipal } from "../domains/payments";
 
 // ---------------------------------------------------------------------------
 // Express request extensions (used inside NestJS's Express adapter)

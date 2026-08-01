@@ -1,8 +1,6 @@
 import { Controller, Get, UseGuards } from "@nestjs/common";
-import { ApprovalRequestService } from "@approvals/approval-request.service";
+import { ApprovalRequestService, TribePlanService, TribeQuotaPolicyService } from "@governance";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
-import { TribePlanService } from "@entitlements/tribe-plan.service";
-import { TribeQuotaPolicyService } from "@quotas/tribe-quota-policy.service";
 import { RegistryService } from "@registry/registry.service";
 import { ServiceLifecycleEvidenceService } from "./service-lifecycle-evidence.service";
 
