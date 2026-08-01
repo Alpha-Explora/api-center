@@ -1,14 +1,14 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthCheckService } from '@nestjs/terminus';
-import { HealthController } from '../../apps/gateway/src/health/health.controller';
+import { HealthController } from '../../apps/gateway/src/domains/runtime-ops/health/health.controller';
 import { KafkaService } from '../../apps/gateway/src/kafka/kafka.service';
-import { RegistryService } from '../../apps/gateway/src/registry/registry.service';
-import { ExternalService } from '../../apps/gateway/src/external/external.service';
-import { TokenStoreService } from '../../apps/gateway/src/auth/token-store.service';
-import { GatewayTrafficService } from '../../apps/gateway/src/analytics/gateway-traffic.service';
-import { AuditEventsService } from '../../apps/gateway/src/analytics/audit-events.service';
-import { GovernanceReadinessService } from '../../apps/gateway/src/health/governance-readiness.service';
+import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry';
+import { ExternalService } from '../../apps/gateway/src/domains/gateway-proxy/external/external.service';
+import { TokenStoreService } from '../../apps/gateway/src/domains/auth-security/auth/token-store.service';
+import { GatewayTrafficService } from '../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service';
+import { AuditEventsService } from '../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service';
+import { GovernanceReadinessService } from '../../apps/gateway/src/domains/runtime-ops/health/governance-readiness.service';
 import { ConfigService } from '../../apps/gateway/src/config/config.service';
 
 describe('HealthController (e2e)', () => {

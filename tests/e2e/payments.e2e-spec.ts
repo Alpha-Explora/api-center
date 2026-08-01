@@ -1,11 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import axios from 'axios';
-import { PaymentsController } from '../../apps/gateway/src/payments/payments.controller';
-import { PaymentAuthGuard } from '../../apps/gateway/src/payments/payment-auth.guard';
-import { PaymentApiKeyService } from '../../apps/gateway/src/payments/payment-api-key.service';
-import { PaymentIdempotencyService } from '../../apps/gateway/src/payments/payment-idempotency.service';
-import { JwtAuthGuard } from '../../apps/gateway/src/auth/guards/jwt-auth.guard';
+import { PaymentsController, PaymentApiKeyService } from '../../apps/gateway/src/domains/payments';
+import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
+import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
