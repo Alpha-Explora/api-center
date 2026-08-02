@@ -1,25 +1,10 @@
 # =============================================================================
-# Dockerfile — API Center (Production-Hardened)
+# Dockerfile — API Center Gateway (Production-Hardened for GCP Cloud Run)
 # =============================================================================
 # MULTI-STAGE BUILD:
-#  Stage 1 (deps):    Install ALL deps once for cached builds
-#  Stage 2 (builder): Compile TypeScript and prune to production deps
-#  Stage 3 (runner):  Copy only runtime artifacts and start the app
-#
-# WHY MULTI-STAGE:
-#  - Final image is ~80% smaller (no TypeScript, no devDependencies)
-#  - Faster deploys (smaller images push/pull faster)
-#  - Smaller attack surface (fewer packages = fewer vulnerabilities)
-#
-# WHY DEBIAN SLIM:
-#  - Keeps the image smaller than full Debian while avoiding Alpine package-index issues
-#  - Uses glibc, which is a safer default for native Node dependencies
-#  - Avoids OS package installation during builds for simpler Cloud Build reliability
-#
-# SECURITY:
-#  - Runs as non-root user (appuser) — even if exploited, attacker has limited access
-#  - No secrets baked into the image — all config comes from env vars at runtime
-#  - Uses npm ci (not npm install) for deterministic, reproducible builds
+#  Stage 1 (deps):    Install ALL dependencies including workspace packages
+#  Stage 2 (builder): Compile TypeScript monorepo packages & gateway app
+#  Stage 3 (runner):  Copy only production runtime artifacts for Cloud Run
 # =============================================================================
 
 # ---- Stage 1: Dependencies ----
@@ -27,9 +12,11 @@ FROM node:24-bookworm-slim AS deps
 
 WORKDIR /app
 
-# Install dependencies first (Docker caches this layer as long as package.json
-# doesn't change, making rebuilds much faster)
+# Copy root manifest and workspace package manifests for cached dependency installation
 COPY package.json package-lock.json* ./
+COPY packages/ ./packages/
+COPY apps/gateway/package.json ./apps/gateway/
+
 RUN npm ci --include=dev --no-fund
 
 # ---- Stage 2: Build ----
@@ -37,27 +24,27 @@ FROM node:24-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Reuse dependencies from the deps stage to avoid reinstalling on source changes
+# Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
-
-# Copy source and compile TypeScript (NestJS uses nest build)
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
-COPY apps/gateway/tsconfig.json apps/gateway/tsconfig.build.json apps/gateway/nest-cli.json ./apps/gateway/
+COPY packages/ ./packages/
+COPY apps/gateway/ ./apps/gateway/
 COPY config/ ./config/
 COPY prisma/ ./prisma/
-COPY apps/gateway/src/ ./apps/gateway/src/
+
 RUN npm run db:generate && \
-    npm run build && \
+    npm run build --workspace @apicenter/gateway && \
     npm prune --omit=dev && \
     npm cache clean --force
 
-# ---- Stage 3: Production ----
+# ---- Stage 3: Production Runner ----
 FROM node:24-bookworm-slim AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=8080
 
 # Copy runtime dependencies and app build output from builder
 COPY --chown=node:node package.json package-lock.json* ./
@@ -68,12 +55,10 @@ COPY --from=builder --chown=node:node /app/config ./config
 # Create logs directory
 RUN mkdir -p /app/logs && chown node:node /app/logs
 
-# Non-root user for security — NEVER run containers as root in production
+# Non-root user for security — Cloud Run runs containers under non-root
 USER node
 
-# Expose the application port
-EXPOSE 3000
+# Expose default Cloud Run port
+EXPOSE 8080
 
 CMD ["node", "dist/main.js"]
-
-

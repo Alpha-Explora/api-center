@@ -1,12 +1,12 @@
 FROM node:24-bookworm-slim
 ARG SERVICE
 ENV NODE_ENV=production
+ENV PORT=8080
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 COPY apps/${SERVICE}/package.json apps/${SERVICE}/package.json
-COPY packages/runtime/package.json packages/runtime/package.json
+COPY packages/ ./packages/
 RUN npm ci --omit=dev --ignore-scripts
-COPY packages/runtime packages/runtime
 COPY apps/${SERVICE} apps/${SERVICE}
 EXPOSE 8080
 CMD ["sh", "-c", "node apps/${SERVICE}/src/server.js"]
