@@ -1,6 +1,6 @@
 import axios from "axios";
 import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
-import { DescopeProvider, mapDescopeClaims } from "../../../../../apps/gateway/src/auth/providers/descope.provider";
+import { DescopeProvider, mapDescopeClaims } from "../../../../../apps/gateway/src/domains/auth-security/auth/providers/descope.provider";
 
 jest.mock("axios");
 jest.mock("jose", () => ({

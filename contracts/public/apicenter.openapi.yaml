@@ -16,7 +16,7 @@ paths:
       tags:
         - Payments
       parameters:
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -62,6 +62,8 @@ paths:
           $ref: "#/components/responses/Pending"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/checkouts/{checkoutId}:
     get:
       operationId: getCheckout
@@ -117,7 +119,7 @@ paths:
         - Payments
       parameters:
         - $ref: "#/components/parameters/CheckoutId"
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
           description: Checkout cancelled
@@ -133,13 +135,15 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Checkout"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/intents:
     post:
       operationId: createPaymentIntent
       tags:
         - Payments
       parameters:
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -161,6 +165,8 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/intents/{paymentIntentId}:
     get:
       operationId: getPaymentIntent
@@ -190,7 +196,7 @@ paths:
         - Payments
       parameters:
         - $ref: "#/components/parameters/PaymentIntentId"
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
           description: Payment intent confirmed
@@ -206,6 +212,8 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/intents/{paymentIntentId}/cancel:
     post:
       operationId: cancelPaymentIntent
@@ -213,7 +221,7 @@ paths:
         - Payments
       parameters:
         - $ref: "#/components/parameters/PaymentIntentId"
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
           description: Payment intent cancelled
@@ -229,13 +237,15 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/customers:
     post:
       operationId: createCustomer
       tags:
         - Payments
       parameters:
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -257,6 +267,8 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Customer"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/customers/{customerId}:
     get:
       operationId: getCustomer
@@ -279,41 +291,13 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Customer"
-  /api/v1/payments/payment-method-setups:
-    post:
-      operationId: createPaymentMethodSetup
-      tags:
-        - Payments
-      parameters:
-        - $ref: "#/components/headers/Idempotency-Key"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PaymentMethodSetupRequest"
-      responses:
-        "201":
-          description: Payment method setup created
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    const: true
-                  data:
-                    $ref: "#/components/schemas/PaymentMethodSetup"
   /api/v1/payments/refunds:
     post:
       operationId: createRefund
       tags:
         - Payments
       parameters:
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -335,6 +319,8 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Refund"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/refunds/{refundId}:
     get:
       operationId: getRefund
@@ -363,7 +349,7 @@ paths:
       tags:
         - Payments
       parameters:
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -385,6 +371,8 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Subscription"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/subscriptions/{subscriptionId}:
     get:
       operationId: getSubscription
@@ -414,7 +402,7 @@ paths:
         - Payments
       parameters:
         - $ref: "#/components/parameters/SubscriptionId"
-        - $ref: "#/components/headers/Idempotency-Key"
+        - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
           description: Subscription cancellation scheduled
@@ -430,6 +418,8 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Subscription"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
   /api/v1/payments/subscriptions/{subscriptionId}/invoices:
     get:
       operationId: listSubscriptionInvoices
@@ -502,15 +492,19 @@ components:
       type: http
       scheme: bearer
       bearerFormat: APICenterApiKey
-  headers:
-    Idempotency-Key:
-      description: Unique key for safely retrying this mutation.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
       required: true
+      description: >-
+        Unique key for safely retrying this payment mutation. Reuse the same key and
+        request body after uncertain outcomes. A key used with a different request,
+        an in-progress request, or an unresolved provider outcome returns HTTP 409.
       schema:
         type: string
         minLength: 16
         maxLength: 255
-  parameters:
     CheckoutId:
       name: checkoutId
       in: path
@@ -590,6 +584,15 @@ components:
                 const: false
               error:
                 $ref: "#/components/schemas/Error"
+    IdempotencyConflict:
+      description: >-
+        The key was used with a different request, is already processing, or the
+        provider outcome remains unresolved. Inspect `error.code`; in particular,
+        `PAYMENT_OUTCOME_UNKNOWN` requires reconciliation before using a new key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     Pending:
       description: Provider outcome is pending confirmation
       content:
@@ -639,8 +642,6 @@ components:
         cancelUrl:
           type: string
           format: uri
-        customerId:
-          type: string
         metadata:
           type: object
           additionalProperties:
@@ -656,12 +657,11 @@ components:
           type: string
         amount:
           $ref: "#/components/schemas/Money"
-        customerId:
-          type: string
     CustomerCreateRequest:
       type: object
       required:
         - customerReference
+        - email
       properties:
         customerReference:
           type: string
@@ -673,19 +673,6 @@ components:
         name:
           type: string
           maxLength: 255
-    PaymentMethodSetupRequest:
-      type: object
-      required:
-        - customerId
-        - referenceId
-      properties:
-        customerId:
-          type: string
-        referenceId:
-          type: string
-        returnUrl:
-          type: string
-          format: uri
     RefundCreateRequest:
       type: object
       required:
@@ -712,9 +699,6 @@ components:
         priceId:
           type: string
           description: APICenter-managed recurring price reference.
-        cancelAtPeriodEnd:
-          type: boolean
-          default: false
     Checkout:
       type: object
       required:
@@ -761,6 +745,7 @@ components:
           enum:
             - requires_action
             - pending
+            - processing
             - succeeded
             - failed
             - cancelled
@@ -784,26 +769,6 @@ components:
           format: email
         name:
           type: string
-    PaymentMethodSetup:
-      type: object
-      required:
-        - setupId
-        - customerId
-        - status
-      properties:
-        setupId:
-          type: string
-        customerId:
-          type: string
-        status:
-          type: string
-          enum:
-            - pending
-            - succeeded
-            - failed
-        returnUrl:
-          type: string
-          format: uri
     Refund:
       type: object
       required:
@@ -900,14 +865,16 @@ components:
       required:
         - code
         - message
-        - requestId
       properties:
         code:
           type: string
         message:
           type: string
-        requestId:
-          type: string
+        details:
+          type: array
+          items:
+            type: string
+        detail: {}
     SuccessEnvelope:
       type: object
       required:
@@ -927,3 +894,11 @@ components:
           const: false
         error:
           $ref: "#/components/schemas/Error"
+        meta:
+          type: object
+          properties:
+            timestamp:
+              type: string
+              format: date-time
+            correlationId:
+              type: string

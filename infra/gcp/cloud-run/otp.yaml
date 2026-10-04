@@ -28,6 +28,38 @@ spec:
               value: redis
             - name: OTP_REDIS_URL
               value: redis://10.121.26.59:6379
+            - name: OTP_IDEMPOTENCY_TTL_MS
+              value: "604800000"
+            - name: OTP_HASH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-otp-hash-secret-prod
+                  key: latest
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-account-sid-prod
+                  key: latest
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-auth-token-prod
+                  key: latest
+            - name: TWILIO_MESSAGING_SERVICE_SID
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-messaging-service-sid-prod
+                  key: latest
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-resend-api-key-prod
+                  key: latest
+            - name: EMAIL_FROM_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-email-from-address-prod
+                  key: latest
             - name: OTP_GENERATE_LIMIT_PER_TARGET
               value: "3"
             - name: OTP_GENERATE_LIMIT_WINDOW_MS

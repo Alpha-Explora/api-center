@@ -1,7 +1,6 @@
-import { ExternalService } from "../../../../apps/gateway/src/external/external.service";
+import { ExternalService } from "../../../../apps/gateway/src/domains/gateway-proxy/external/external.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
-import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 import { NotFoundError, ServiceUnavailableError } from "../../../../apps/gateway/src/shared/errors";
 
@@ -14,16 +13,12 @@ describe("ExternalService", () => {
     error: jest.fn(),
     debug: jest.fn(),
   } as unknown as LoggerService;
-  const kafka = {
-    publish: jest.fn().mockResolvedValue(undefined),
-    publishNonBlocking: jest.fn(),
-  } as unknown as KafkaService;
   const metrics = {
     setCircuitBreakerState: jest.fn(),
   } as unknown as MetricsService;
 
   const createService = () =>
-    new ExternalService(new ConfigService(), logger, kafka, metrics);
+    new ExternalService(new ConfigService(), logger, metrics);
 
   beforeEach(() => {
     process.env = { ...originalEnv };

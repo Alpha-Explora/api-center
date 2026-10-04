@@ -1,6 +1,6 @@
 import { ExecutionContext } from "@nestjs/common";
-import { JwtAuthGuard } from "../../../../../apps/gateway/src/auth/guards/jwt-auth.guard";
-import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
+import { JwtAuthGuard } from "../../../../../apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard";
+import { AuthService } from "../../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 

@@ -1,4 +1,4 @@
-import { DevJwtProvider } from "../../../../../apps/gateway/src/auth/providers/dev-jwt.provider";
+import { DevJwtProvider } from "../../../../../apps/gateway/src/domains/auth-security/auth/providers/dev-jwt.provider";
 import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
 
 const tokenPayloads = new Map<string, Record<string, unknown>>();

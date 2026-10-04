@@ -1,5 +1,5 @@
-import { CapabilitiesController } from "../../../../apps/gateway/src/capabilities/capabilities.controller";
-import { CapabilitiesSnapshot } from "../../../../apps/gateway/src/capabilities/capabilities.service";
+import { CapabilitiesController } from "../../../../apps/gateway/src/domains/runtime-ops/capabilities/capabilities.controller";
+import { CapabilitiesSnapshot } from "../../../../apps/gateway/src/domains/runtime-ops/capabilities/capabilities.service";
 
 describe("CapabilitiesController", () => {
   it("wraps the capabilities snapshot in the standard API envelope", () => {
@@ -9,12 +9,6 @@ describe("CapabilitiesController", () => {
         authProvider: "internal-jwt",
         registrySource: "redis",
         registryBootstrapEnabled: false,
-      },
-      dataPipeline: {
-        enabled: false,
-      },
-      kafkaPublishing: {
-        enabled: false,
       },
       tribeSecrets: {
         source: "env-hash",

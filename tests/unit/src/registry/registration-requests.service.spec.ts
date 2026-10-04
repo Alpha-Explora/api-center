@@ -1,7 +1,7 @@
 import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
-import { RegistrationRequestsService } from "../../../../apps/gateway/src/registry/registration-requests.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import { RegistrationRequestsService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registration-requests.service";
 
 function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {
   return {

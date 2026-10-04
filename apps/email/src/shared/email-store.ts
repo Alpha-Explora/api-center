@@ -28,3 +28,11 @@ export class MemoryEmailStore {
     return this.store.get(messageId) || null;
   }
 }
+import { RedisEmailStore } from './redis-email-store';
+
+
+export function createEmailStore(): Pick<MemoryEmailStore, 'save' | 'findById'> {
+  if (process.env.EMAIL_REDIS_URL || process.env.REDIS_URL) return new RedisEmailStore();
+  if (process.env.NODE_ENV === 'production') throw new Error('Email Redis URL is required in production');
+  return MemoryEmailStore.getInstance();
+}

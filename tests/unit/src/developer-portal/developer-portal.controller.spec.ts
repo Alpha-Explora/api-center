@@ -1,7 +1,7 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { JwtAuthGuard } from "../../../../apps/gateway/src/auth/guards/jwt-auth.guard";
+import { JwtAuthGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard";
 import { ForbiddenError } from "../../../../apps/gateway/src/shared/errors";
-import { DeveloperPortalController } from "../../../../apps/gateway/src/developer-portal/developer-portal.controller";
+import { DeveloperPortalController } from "../../../../apps/gateway/src/domains/governance/developer-portal/developer-portal.controller";
 
 describe("DeveloperPortalController", () => {
   const registry = {

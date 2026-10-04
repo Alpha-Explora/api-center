@@ -1,10 +1,10 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { TribeCostService } from "../../../../apps/gateway/src/costs/tribe-cost.service";
+import { TribeCostService } from "../../../../apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service";
 import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
-import { QuotaForecastService } from "../../../../apps/gateway/src/forecasting/quota-forecast.service";
-import { ScopedAdminGuard } from "../../../../apps/gateway/src/auth/guards/scoped-admin.guard";
+import { QuotaForecastService } from "../../../../apps/gateway/src/domains/runtime-ops/forecasting/quota-forecast.service";
+import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
-import { TribeQuotaUsageController } from "../../../../apps/gateway/src/quotas/tribe-quota-usage.controller";
+import { TribeQuotaUsageController } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-usage.controller";
 
 describe("TribeQuotaUsageController", () => {
   const prisma = {

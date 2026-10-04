@@ -33,7 +33,12 @@ export class CheckoutService {
     const body = {
       data: {
         attributes: {
-          line_items: chargeData.lineItems,
+          line_items: chargeData.lineItems || [{
+            name: chargeData.description || chargeData.referenceId || 'Payment',
+            amount: chargeData.amount,
+            currency: chargeData.currency || 'PHP',
+            quantity: 1,
+          }],
           payment_method_types: paymentMethodsAllowed,
           success_url: chargeData.successUrl,
           cancel_url: chargeData.cancelUrl,
@@ -112,14 +117,17 @@ export class CheckoutService {
     throw new PayMongoError(`Checkout session for reference '${referenceId}' was not found.`, 404);
   }
 
-  async markCheckoutCancelled(checkoutId: string, options: { tribeId?: string; reason?: string } = {}) {
+  async markCheckoutCancelled(checkoutId: string, options: { tribeId?: string; reason?: string; idempotencyKey?: string } = {}) {
     const current = await this.store.getCheckoutSessionStatus(checkoutId);
     const reason = options.reason || 'user_returned_from_cancel_url';
-    if (!current) {
-      return { checkoutId, provider: 'paymongo', status: 'cancelled', reason };
+    if (current) assertTribeCanRead(current, options.tribeId);
+    if (!isMockMode()) {
+      await paymongoRequest(`/checkout_sessions/${encodeURIComponent(toProviderId('chk', checkoutId))}/expire`, {
+        method: 'POST',
+        idempotencyKey: options.idempotencyKey,
+      });
     }
-    assertTribeCanRead(current, options.tribeId);
-    const updated = await this.store.updateCheckoutStatus(checkoutId, { status: 'cancelled', cancellationReason: reason });
-    return { ...updated, reason };
+    const updated = await this.store.updateCheckoutStatus(checkoutId, { status: 'expired', cancellationReason: reason });
+    return { ...(updated || current || {}), checkoutId, provider: 'paymongo', status: 'expired', reason };
   }
 }

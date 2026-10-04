@@ -1,35 +1,30 @@
-# Private APICenter payments runtime image.
-# The image is built from the monorepo root so workspace packages resolve
-# exactly as they do in local development.
+FROM node:24-bookworm-slim AS builder
 
-FROM node:24-bookworm-slim AS dependencies
 WORKDIR /app
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY apps/ ./apps/
+COPY packages/ ./packages/
 
-COPY package.json package-lock.json ./
-COPY apps/docs/package.json apps/docs/package.json
-COPY apps/gateway/package.json apps/gateway/package.json
-COPY apps/management/package.json apps/management/package.json
-COPY apps/payments/package.json apps/payments/package.json
-COPY packages/contracts/package.json packages/contracts/package.json
-COPY packages/runtime/package.json packages/runtime/package.json
-COPY packages/sdk/package.json packages/sdk/package.json
-RUN npm ci --omit=dev --no-fund --no-audit
+RUN npm ci --include=dev --no-audit --no-fund \
+    && npm run build --workspace @apicenter/contracts \
+    && npm run build --workspace @apicenter/payments \
+    && npm prune --omit=dev --no-audit --no-fund
 
-FROM node:24-bookworm-slim AS runtime
-WORKDIR /app
+FROM node:24-bookworm-slim AS runner
+
 ENV NODE_ENV=production
+ENV PORT=8080
+WORKDIR /app
 
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY package.json package-lock.json ./
-COPY apps/payments/package.json apps/payments/package.json
-COPY apps/payments/src apps/payments/src
-COPY apps/payments/prisma apps/payments/prisma
-COPY packages/runtime/package.json packages/runtime/package.json
-COPY packages/runtime/src packages/runtime/src
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/packages/runtime ./packages/runtime
+COPY --from=builder --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=builder --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=builder --chown=node:node /app/apps/payments/package.json ./apps/payments/package.json
+COPY --from=builder --chown=node:node /app/apps/payments/dist ./apps/payments/dist
+COPY --from=builder --chown=node:node /app/apps/payments/prisma ./apps/payments/prisma
 
 WORKDIR /app/apps/payments
-
 USER node
-ENV PORT=8080
 EXPOSE 8080
-CMD ["node", "src/server.js"]
+CMD ["node", "dist/server.js"]

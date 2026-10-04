@@ -1,6 +1,6 @@
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
-import { RuntimeDependencyMapController } from "../../../../apps/gateway/src/operations/runtime-dependency-map.controller";
-import { RuntimeDependencyMapService } from "../../../../apps/gateway/src/operations/runtime-dependency-map.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import { RuntimeDependencyMapController } from "../../../../apps/gateway/src/domains/runtime-ops/operations/runtime-dependency-map.controller";
+import { RuntimeDependencyMapService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/runtime-dependency-map.service";
 
 describe("RuntimeDependencyMapController", () => {
   it("returns a runtime dependency map from registry entries", () => {

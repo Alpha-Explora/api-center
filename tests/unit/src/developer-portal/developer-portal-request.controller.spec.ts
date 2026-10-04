@@ -1,4 +1,4 @@
-import { DeveloperPortalRequestController } from "../../../../apps/gateway/src/developer-portal/developer-portal-request.controller";
+import { DeveloperPortalRequestController } from "../../../../apps/gateway/src/domains/governance/developer-portal/developer-portal-request.controller";
 import { ForbiddenError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("DeveloperPortalRequestController", () => {

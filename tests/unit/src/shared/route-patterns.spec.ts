@@ -1,7 +1,7 @@
 import { PATH_METADATA } from "@nestjs/common/constants";
-import { TribesController } from "../../../../apps/gateway/src/tribes/tribes.controller";
-import { SharedServicesController } from "../../../../apps/gateway/src/shared-services/shared-services.controller";
-import { ExternalController } from "../../../../apps/gateway/src/external/external.controller";
+import { TribesController } from "../../../../apps/gateway/src/domains/gateway-proxy/tribes/tribes.controller";
+import { SharedServicesController } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-services.controller";
+import { ExternalController } from "../../../../apps/gateway/src/domains/gateway-proxy/external/external.controller";
 
 describe("Nest 11 route patterns", () => {
   it.each([

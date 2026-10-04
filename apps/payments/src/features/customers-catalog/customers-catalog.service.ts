@@ -53,41 +53,36 @@ export class CustomersCatalogService {
   async createProduct(payload: any, options: { idempotencyKey?: string } = {}) {
     const { name, description } = payload;
     if (!name) throw new PayMongoError('name is required', 400);
-
-    if (isMockMode()) {
-      return { productId: toPublicId('prd', `prod_mock_${crypto.randomUUID().replace(/-/g, '')}`), name, description };
-    }
-
-    const response = await paymongoRequest('/products', {
-      method: 'POST',
-      body: { data: { attributes: { name, description } } },
-      idempotencyKey: options.idempotencyKey,
-    });
-
-    const providerData = response?.data || {};
-    const attributes = providerData.attributes || {};
-
-    return { productId: toPublicId('prd', providerData.id), name: attributes.name, description: attributes.description };
+    return { productId: payload.productId || toPublicId('prd', `prod_${crypto.randomUUID().replace(/-/g, '')}`),
+      name, description, active: payload.active ?? true, metadata: payload.metadata || {} };
   }
 
   async createPrice(payload: any, options: { idempotencyKey?: string } = {}) {
-    const { amount, currency = 'PHP', productId, unitAmount } = payload;
-    const finalAmount = amount || unitAmount;
-    if (!finalAmount || !productId) throw new PayMongoError('amount and productId are required', 400);
+    const { amount, currency = 'PHP', productId, unitAmount, recurring } = payload;
+    const finalAmount = typeof amount === 'object' ? Number(amount?.value) : Number(amount || unitAmount);
+    if (!Number.isInteger(finalAmount) || finalAmount <= 0 || !productId || !recurring) {
+      throw new PayMongoError('A positive amount, productId, and recurring interval are required', 400);
+    }
+    const interval = { week: 'weekly', month: 'monthly', year: 'yearly' }[recurring.interval as 'week' | 'month' | 'year'];
+    if (!interval) throw new PayMongoError('PayMongo supports weekly, monthly, or yearly plans', 400);
 
     if (isMockMode()) {
-      return { priceId: toPublicId('pri', `price_mock_${crypto.randomUUID().replace(/-/g, '')}`), amount: finalAmount, currency, productId };
+      return { priceId: toPublicId('pri', `plan_mock_${crypto.randomUUID().replace(/-/g, '')}`),
+        amount: { value: finalAmount, currency }, productId, recurring };
     }
 
-    const response = await paymongoRequest('/prices', {
+    const response = await paymongoRequest('/subscriptions/plans', {
       method: 'POST',
-      body: { data: { attributes: { unit_amount: finalAmount, currency, product_id: toProviderId('prd', productId) } } },
+      body: { data: { attributes: { name: payload.name || `Plan ${productId}`,
+        amount: finalAmount, currency, interval, interval_count: recurring.intervalCount || 1 } } },
       idempotencyKey: options.idempotencyKey,
     });
 
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
-    return { priceId: toPublicId('pri', providerData.id), amount: attributes.unit_amount, currency: attributes.currency, productId };
+    return { priceId: toPublicId('pri', providerData.id),
+      amount: { value: attributes.amount || finalAmount, currency: attributes.currency || currency },
+      productId, recurring };
   }
 }

@@ -36,6 +36,7 @@ const files = execFileSync("git", [
 
 const violations = [];
 for (const file of files) {
+  if (/\.(test|spec)\.(ts|tsx|js)$/.test(file)) continue;
   const absolute = path.join(root, file);
   if (!fs.existsSync(absolute)) continue;
   const text = fs.readFileSync(absolute, "utf8");

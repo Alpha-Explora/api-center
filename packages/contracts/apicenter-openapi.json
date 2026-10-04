@@ -29,7 +29,7 @@
         ],
         "parameters": [
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
@@ -96,6 +96,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -191,7 +194,7 @@
             "$ref": "#/components/parameters/CheckoutId"
           },
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "responses": {
@@ -216,6 +219,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -228,7 +234,7 @@
         ],
         "parameters": [
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
@@ -263,6 +269,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -315,7 +324,7 @@
             "$ref": "#/components/parameters/PaymentIntentId"
           },
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "responses": {
@@ -340,6 +349,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -355,7 +367,7 @@
             "$ref": "#/components/parameters/PaymentIntentId"
           },
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "responses": {
@@ -380,6 +392,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -392,7 +407,7 @@
         ],
         "parameters": [
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
@@ -427,6 +442,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -468,53 +486,6 @@
         }
       }
     },
-    "/api/v1/payments/payment-method-setups": {
-      "post": {
-        "operationId": "createPaymentMethodSetup",
-        "tags": [
-          "Payments"
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/headers/Idempotency-Key"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PaymentMethodSetupRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Payment method setup created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "properties": {
-                    "success": {
-                      "const": true
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/PaymentMethodSetup"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/payments/refunds": {
       "post": {
         "operationId": "createRefund",
@@ -523,7 +494,7 @@
         ],
         "parameters": [
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
@@ -558,6 +529,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -607,7 +581,7 @@
         ],
         "parameters": [
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
@@ -642,6 +616,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -694,7 +671,7 @@
             "$ref": "#/components/parameters/SubscriptionId"
           },
           {
-            "$ref": "#/components/headers/Idempotency-Key"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "responses": {
@@ -719,6 +696,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
           }
         }
       }
@@ -841,18 +821,18 @@
         "bearerFormat": "APICenterApiKey"
       }
     },
-    "headers": {
-      "Idempotency-Key": {
-        "description": "Unique key for safely retrying this mutation.",
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
         "required": true,
+        "description": "Unique key for safely retrying this payment mutation. Reuse the same key and request body after uncertain outcomes. A key used with a different request, an in-progress request, or an unresolved provider outcome returns HTTP 409.",
         "schema": {
           "type": "string",
           "minLength": 16,
           "maxLength": 255
         }
-      }
-    },
-    "parameters": {
+      },
       "CheckoutId": {
         "name": "checkoutId",
         "in": "path",
@@ -963,6 +943,16 @@
           }
         }
       },
+      "IdempotencyConflict": {
+        "description": "The key was used with a different request, is already processing, or the provider outcome remains unresolved. Inspect `error.code`; in particular, `PAYMENT_OUTCOME_UNKNOWN` requires reconciliation before using a new key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
       "Pending": {
         "description": "Provider outcome is pending confirmation",
         "content": {
@@ -1032,9 +1022,6 @@
             "type": "string",
             "format": "uri"
           },
-          "customerId": {
-            "type": "string"
-          },
           "metadata": {
             "type": "object",
             "additionalProperties": {
@@ -1056,16 +1043,14 @@
           },
           "amount": {
             "$ref": "#/components/schemas/Money"
-          },
-          "customerId": {
-            "type": "string"
           }
         }
       },
       "CustomerCreateRequest": {
         "type": "object",
         "required": [
-          "customerReference"
+          "customerReference",
+          "email"
         ],
         "properties": {
           "customerReference": {
@@ -1080,25 +1065,6 @@
           "name": {
             "type": "string",
             "maxLength": 255
-          }
-        }
-      },
-      "PaymentMethodSetupRequest": {
-        "type": "object",
-        "required": [
-          "customerId",
-          "referenceId"
-        ],
-        "properties": {
-          "customerId": {
-            "type": "string"
-          },
-          "referenceId": {
-            "type": "string"
-          },
-          "returnUrl": {
-            "type": "string",
-            "format": "uri"
           }
         }
       },
@@ -1137,10 +1103,6 @@
           "priceId": {
             "type": "string",
             "description": "APICenter-managed recurring price reference."
-          },
-          "cancelAtPeriodEnd": {
-            "type": "boolean",
-            "default": false
           }
         }
       },
@@ -1203,6 +1165,7 @@
             "enum": [
               "requires_action",
               "pending",
+              "processing",
               "succeeded",
               "failed",
               "cancelled"
@@ -1236,34 +1199,6 @@
           },
           "name": {
             "type": "string"
-          }
-        }
-      },
-      "PaymentMethodSetup": {
-        "type": "object",
-        "required": [
-          "setupId",
-          "customerId",
-          "status"
-        ],
-        "properties": {
-          "setupId": {
-            "type": "string"
-          },
-          "customerId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "succeeded",
-              "failed"
-            ]
-          },
-          "returnUrl": {
-            "type": "string",
-            "format": "uri"
           }
         }
       },
@@ -1400,8 +1335,7 @@
         "type": "object",
         "required": [
           "code",
-          "message",
-          "requestId"
+          "message"
         ],
         "properties": {
           "code": {
@@ -1410,9 +1344,13 @@
           "message": {
             "type": "string"
           },
-          "requestId": {
-            "type": "string"
-          }
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "detail": {}
         }
       },
       "SuccessEnvelope": {
@@ -1440,6 +1378,18 @@
           },
           "error": {
             "$ref": "#/components/schemas/Error"
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "correlationId": {
+                "type": "string"
+              }
+            }
           }
         }
       }

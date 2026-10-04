@@ -60,16 +60,25 @@ jobs:
       - name: Enforce gateway and SDK boundaries
         run: npm run check:boundaries
 
+      - name: Test gateway boundary checker
+        run: npm run check:boundaries:test
+
+      - name: Enforce workspace package boundaries
+        run: npm run check:monorepo
+
+      - name: Enforce environment naming
+        run: npm run check:environment-naming
+
       - name: Enforce gateway and SDK contract compatibility
         run: npm run check:contracts
         env:
           ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
 
-      - name: Check data-pipeline topic projection
-        run: npm run check:data-pipeline-projection
+      - name: Validate public contracts
+        run: npm run contracts:validate
 
-      - name: TypeScript type check
-        run: npx tsc --noEmit
+      - name: TypeScript type check across workspaces
+        run: npm run typecheck
 
   # ---------------------------------------------------------------------------
   # Job 2: Build
@@ -95,14 +104,17 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
-      - name: Build TypeScript
+      - name: Build all workspaces
         run: npm run build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/
+          path: |
+            apps/*/dist/
+            apps/*/.next/
+            packages/*/dist/
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -129,8 +141,20 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
-      - name: Run tests
-        run: npm test
+      - name: Run gateway and workspace tests
+        run: npm run test:all
+        env:
+          NODE_ENV: test
+          ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+          ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
+
+      - name: Run HTTP E2E tests
+        run: npm run test:e2e -- --runInBand
         env:
           NODE_ENV: test
           ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
@@ -149,6 +173,15 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t api-center:${{ github.sha }} .
+
+      - name: Build payment runtime image
+        run: docker build -f docker/Dockerfile.payments.gcp -t api-center-payments:${{ github.sha }} .
+
+      - name: Build shared runtime images
+        run: |
+          for service in email sms otp geo gauth; do
+            docker build -f Dockerfile.shared-service --build-arg SERVICE="$service" -t "api-center-$service:${{ github.sha }}" .
+          done
 
       - name: Verify image runs
         run: |
@@ -172,3 +205,30 @@ jobs:
           done
           echo "API Center container did not pass liveness within 60 seconds."
           exit 1
+
+      - name: Smoke test payment and shared runtime images
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_runtime() {
+            local image="$1"
+            local name="apicenter-runtime-smoke"
+            docker run --rm -d --name "$name" \
+              -e NODE_ENV=test -e PORT=8080 \
+              -p 18080:8080 \
+              "$image"
+            for attempt in {1..30}; do
+              if curl --fail --silent --show-error http://127.0.0.1:18080/health; then
+                docker stop "$name" >/dev/null
+                return 0
+              fi
+              sleep 2
+            done
+            docker logs "$name" || true
+            docker stop "$name" || true
+            return 1
+          }
+          smoke_runtime "api-center-payments:${{ github.sha }}"
+          for service in email sms otp geo gauth; do
+            smoke_runtime "api-center-${service}:${{ github.sha }}"
+          done

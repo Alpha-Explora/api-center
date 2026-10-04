@@ -1,9 +1,11 @@
-const { createSharedServiceApp, fail, ok } = require('./app');
+const { createSharedServiceApp, createSuccessResponse, createFailureResponse, fail, ok } = require('./app');
 const { createMemoryCacheStore } = require('./cacheStore');
-const { createMemoryIdempotencyStore } = require('./idempotencyStore');
+const { createMemoryIdempotencyStore, createScopedIdempotencyKey } = require('./idempotencyStore');
 const { recordProviderMetric } = require('./metrics');
 const { ProviderGuardError, createCircuitBreaker, withProviderTimeout } = require('./providerGuard');
 const { createMemoryRateLimitStore } = require('./rateLimitStore');
+const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
+const { sendTwilioSms, sendResendEmail } = require('./delivery');
 const { registerWithGateway, shouldRegisterWithGateway } = require('./registerWithGateway');
 
 module.exports = {
@@ -11,8 +13,15 @@ module.exports = {
   createCircuitBreaker,
   createMemoryCacheStore,
   createMemoryIdempotencyStore,
+  createScopedIdempotencyKey,
   createMemoryRateLimitStore,
+  createSharedIdempotencyStore,
+  createSharedRateLimitStore,
+  sendTwilioSms,
+  sendResendEmail,
   createSharedServiceApp,
+  createSuccessResponse,
+  createFailureResponse,
   fail,
   ok,
   recordProviderMetric,

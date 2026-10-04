@@ -1,8 +1,8 @@
-import { AnalyticsController } from "../../../../apps/gateway/src/analytics/analytics.controller";
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { GatewayTrafficService } from "../../../../apps/gateway/src/analytics/gateway-traffic.service";
-import { SharedServiceUsageService } from "../../../../apps/gateway/src/analytics/shared-service-usage.service";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { AnalyticsController } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/analytics.controller";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service";
+import { SharedServiceUsageService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/shared-service-usage.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("AnalyticsController", () => {

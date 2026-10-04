@@ -1,66 +1,38 @@
 ---
 title: "Payment Intents API"
-description: "Custom payment workflows and card/e-wallet tokenization lifecycle."
+description: "Create, retrieve, confirm, and cancel payment intents through the public payment API."
 ---
 
 # Payment Intents API
 
-Payment Intents manage complex multi-step payment flows, such as custom checkout forms, manual capture, and multi-factor authorization.
+Payment intents expose a provider-neutral way to create and track a payment. The public API currently accepts an amount and a reference when creating an intent. Payment-method tokenization and manual capture are not part of this contract.
 
----
+## Create a payment intent
 
-## Service Specifications
-
-- **Base Route**: `/api/v1/payments/intents`
-- **Required Scopes**: `payments:write` (mutations), `payments:read` (queries)
-
----
-
-## Create Payment Intent
+- **Endpoint**: `POST /api/v1/payments/intents`
+- **Required scope**: `payments:intents:write` or a broader payment write scope
+- **Required header**: `Idempotency-Key`
 
 ```bash
 curl -X POST https://api-center.itsandbox.site/api/v1/payments/intents \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Idempotency-Key: intent-idem-1002" \
+  -H "Idempotency-Key: intent-create-1002" \
   -H "Content-Type: application/json" \
   -d '{
     "referenceId": "INTENT-2026-001",
     "amount": {
       "amountMinor": 125000,
       "currency": "PHP"
-    },
-    "paymentMethodAllowed": ["card", "gcash", "paymaya"]
+    }
   }'
 ```
 
-### Response (`201 Created`)
+A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`.
 
-```json
-{
-  "success": true,
-  "data": {
-    "intentId": "pi_99a8b7c6",
-    "referenceId": "INTENT-2026-001",
-    "status": "awaiting_payment_method",
-    "clientSecret": "pi_99a8b7c6_secret_12345"
-  }
-}
-```
+## Retrieve, confirm, or cancel
 
----
+- **Retrieve**: `GET /api/v1/payments/intents/{paymentIntentId}` with `payments:intents:read`.
+- **Confirm**: `POST /api/v1/payments/intents/{paymentIntentId}/confirm` with `payments:intents:write`.
+- **Cancel**: `POST /api/v1/payments/intents/{paymentIntentId}/cancel` with `payments:intents:write`.
 
-## Confirm Payment Intent
-
-To attach a payment method token and trigger payment capture:
-
-- **Endpoint**: `POST /api/v1/payments/intents/{intentId}/confirm`
-
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/payments/intents/pi_99a8b7c6/confirm \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "paymentMethodId": "pm_card_visa_001",
-    "returnUrl": "https://app.example.com/payment/complete"
-  }'
-```
+Confirm and cancel require their own `Idempotency-Key` values. The current public contract does not accept a payment-method token or return a client secret for these operations.

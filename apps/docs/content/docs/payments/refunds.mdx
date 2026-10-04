@@ -1,18 +1,19 @@
 ---
 title: "Refunds API"
-description: "Process full or partial idempotent refunds for settled payments."
+description: "Create and inspect idempotent refunds for payments."
 ---
 
 # Refunds API
 
-Consumer services can issue idempotent refund commands for previously settled checkouts or payment intents.
+Consumer services can create refunds for supported payment IDs. The public refund request identifies the payment directly; APICenter keeps provider-specific refund fields inside the payment runtime.
 
 ---
 
 ## Issue Refund
 
 - **Endpoint**: `POST /api/v1/payments/refunds`
-- **Required Scope**: `payments:write`
+- **Required Scope**: `payments:refunds:write` or a broader payment write scope
+- **Required Header**: `Idempotency-Key`
 
 ```bash
 curl -X POST https://api-center.itsandbox.site/api/v1/payments/refunds \
@@ -20,8 +21,7 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/refunds \
   -H "Idempotency-Key: ref-idem-4412" \
   -H "Content-Type: application/json" \
   -d '{
-    "referenceId": "REFUND-ORD-991204",
-    "checkoutId": "chk_8f1a2b3c4d",
+    "paymentId": "pi_v1_example01",
     "amount": {
       "amountMinor": 49900,
       "currency": "PHP"
@@ -29,3 +29,5 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/refunds \
     "reason": "customer_requested"
   }'
 ```
+
+Look up the result with `GET /api/v1/payments/refunds/{refundId}` and the `payments:refunds:read` scope.

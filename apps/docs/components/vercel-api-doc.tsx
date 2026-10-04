@@ -198,7 +198,7 @@ console.log(data);`;
                 <span className="pill pill-type">string</span>
                 <span className="pill pill-required">Required</span>
               </div>
-              <p className="param-desc">Unique key to prevent duplicate provider execution within 24 hours.</p>
+              <p className="param-desc">Unique key for this payment mutation. Reuse it with the same request body when retrying.</p>
             </div>
           </section>
         )}

@@ -13,11 +13,13 @@ describe('Payments facade (e2e)', () => {
   let app: INestApplication;
   const originalRedisUrl = process.env.REDIS_URL;
   const originalRedisCacheUrl = process.env.REDIS_CACHE_URL;
+  const originalInternalToken = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
 
   beforeAll(async () => {
     delete process.env.REDIS_URL;
     delete process.env.REDIS_CACHE_URL;
     process.env.APICENTER_PAYMENTS_URL = 'http://payments.internal';
+    process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN = 'test-internal-token';
 
     const moduleFixture = await Test.createTestingModule({
       controllers: [PaymentsController],
@@ -65,13 +67,14 @@ describe('Payments facade (e2e)', () => {
       config: {},
       statusText: 'Created',
     };
-    (axios as unknown as jest.Mock).mockResolvedValue(mockResponse);
     mockedAxios.request.mockResolvedValue(mockResponse as any);
   });
 
   afterAll(async () => {
     await app.close();
     delete process.env.APICENTER_PAYMENTS_URL;
+    if (originalInternalToken === undefined) delete process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+    else process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN = originalInternalToken;
     if (originalRedisUrl === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = originalRedisUrl;
     if (originalRedisCacheUrl === undefined) delete process.env.REDIS_CACHE_URL; else process.env.REDIS_CACHE_URL = originalRedisCacheUrl;
   });
@@ -97,7 +100,7 @@ describe('Payments facade (e2e)', () => {
     });
 
     expect(response.status).toBe(201);
-    const config = (axios as unknown as jest.Mock).mock.calls[0][0] as any;
+    const config = mockedAxios.request.mock.calls[0][0] as any;
     expect(config.headers['x-apicenter-owner-tribe-id']).toBe('tribe-alpha');
     expect(config.headers['x-apicenter-environment']).toBe('test');
   });
@@ -124,7 +127,7 @@ describe('Payments facade (e2e)', () => {
 
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
-    expect(axios as unknown as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(mockedAxios.request).toHaveBeenCalledTimes(1);
     expect(await second.json()).toEqual(await first.clone().json());
   });
 

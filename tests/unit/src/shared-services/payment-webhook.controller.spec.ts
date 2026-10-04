@@ -1,9 +1,9 @@
 import { createHmac } from "node:crypto";
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { PaymentWebhookController } from "../../../../apps/gateway/src/shared-services/payment-webhook.controller";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { PaymentWebhookController } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/payment-webhook.controller";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
-import { SharedServiceRoutingService } from "../../../../apps/gateway/src/shared-services/shared-service-routing.service";
+import { SharedServiceRoutingService } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-routing.service";
 import {
   ServiceUnavailableError,
   UnauthorizedError,

@@ -1,8 +1,10 @@
 import type { OtpVerifyRequest, OtpVerifyResponse } from '@apicenter/contracts';
-import { MemoryOtpStore } from '../../shared/otp-store';
+import { createOtpRepository } from '../../shared/otp-store';
+import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
+import { hashOtpCode } from '../../shared/otp-hash';
 
 export class VerifyOtpService {
-  constructor(private readonly store = MemoryOtpStore.getInstance()) {}
+  constructor(private readonly store: OtpRepositoryInterface = createOtpRepository()) {}
 
   async execute(input: OtpVerifyRequest): Promise<OtpVerifyResponse & { verified: boolean; target?: string; channel?: string; reason?: string }> {
     const { otpId, code } = input;
@@ -15,22 +17,11 @@ export class VerifyOtpService {
       return { verified: false, otpId, reason: 'OTP_NOT_FOUND' };
     }
 
-    if (record.status === 'used') {
-      return { verified: false, otpId, reason: 'OTP_ALREADY_USED' };
-    }
-
-    if (record.status === 'expired' || Date.now() > record.expiresAt) {
-      if (record.status !== 'expired') {
-        await this.store.update(otpId, { status: 'expired' });
-      }
-      return { verified: false, otpId, reason: 'OTP_EXPIRED' };
-    }
-
-    if (String(code) !== record.code) {
+    if (input.recipient && input.recipient.trim().toLowerCase() !== record.target) {
       return { verified: false, otpId, reason: 'OTP_INVALID' };
     }
-
-    await this.store.update(otpId, { status: 'used' });
+    const outcome = await this.store.consume(otpId, hashOtpCode(otpId, String(code)));
+    if (outcome !== 'VERIFIED') return { verified: false, otpId, reason: outcome };
 
     return {
       verified: true,

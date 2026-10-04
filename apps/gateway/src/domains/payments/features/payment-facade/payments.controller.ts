@@ -1,19 +1,20 @@
 import {
   All,
-  BadRequestException,
   Controller,
   ForbiddenException,
   HttpStatus,
+  Logger,
+  ServiceUnavailableException,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import axios, { AxiosRequestConfig } from 'axios';
-import { z } from 'zod';
 import { Request, Response } from 'express';
 import { PaymentAuthGuard } from '../../shared/payment-auth.guard';
 import { PaymentIdempotencyService } from '../../shared/payment-idempotency.service';
 import { AuthenticatedRequest } from '../../../../types';
+import { paymentRequestBody, paymentResponseBody, resolvePaymentOperation } from './payment-public-operation';
 
 const internalBaseUrl = (environment: 'test' | 'live') => {
   const configured = process.env.APICENTER_PAYMENTS_URL
@@ -25,48 +26,11 @@ const internalBaseUrl = (environment: 'test' | 'live') => {
 const internalToken = (environment: 'test' | 'live') =>
   (environment === 'live' ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST)
   || process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
-const MoneySchema = z.object({
-  amountMinor: z.number().int().positive(),
-  currency: z.literal('PHP'),
-});
-
-const LineItemSchema = z.object({
-  name: z.string().min(1),
-  quantity: z.number().int().positive(),
-  amount: MoneySchema,
-});
-
-const CheckoutPayloadSchema = z.object({
-  lineItems: z.array(LineItemSchema).min(1),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  billing: z.record(z.string(), z.unknown()).optional(),
-});
-
-const IntentPayloadSchema = z.object({
-  amount: MoneySchema,
-  paymentMethodTypes: z.array(z.string()).min(1),
-  description: z.string().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-const RefundPayloadSchema = z.object({
-  paymentIntentId: z.string().min(1),
-  amount: MoneySchema,
-  reason: z.string().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-const SubscriptionPayloadSchema = z.object({
-  customerId: z.string().min(1),
-  priceId: z.string().min(1),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
 @Controller('payments')
 @UseGuards(PaymentAuthGuard)
 export class PaymentsController {
+  private readonly logger = new Logger(PaymentsController.name);
+
   constructor(private readonly idempotency: PaymentIdempotencyService) {}
 
   @All('*')
@@ -84,16 +48,27 @@ export class PaymentsController {
       return;
     }
 
-    const path = req.path.replace(/^\/api\/v1\/payments/, '').replace(/^\/payments/, '') || '/';
-    const subpath = path === '/' ? '' : path;
+    const fullPath = new URL(req.originalUrl || req.path, 'http://localhost').pathname;
+    const path = fullPath.replace(/^\/api\/v1\/payments/, '').replace(/^\/payments/, '') || '/';
+    const operation = resolvePaymentOperation(req.method, path);
     const env = principal.environment;
-    const upstreamUrl = `${internalBaseUrl(env)}${subpath}`;
     const token = internalToken(env);
 
-    this.enforceScope(principal.scopes, req.method, path);
-    this.validatePayloadShape(req.method, path, req.body);
+    this.enforceScope(principal.scopes, operation.scope);
+    if (operation.resource === 'capabilities') {
+      res.status(200).json({ success: true, data: { currency: 'PHP',
+        paymentMethods: ['card', 'gcash', 'paymaya'],
+        resources: ['checkouts', 'intents', 'customers', 'refunds', 'subscriptions', 'invoices'] } });
+      return;
+    }
+    if (!token) throw new ServiceUnavailableException('Payment runtime token is not configured');
+    const runtimeBody = paymentRequestBody(operation.shape, req.body, principal.consumerServiceId);
+    const runtimePath = req.method.toUpperCase() === 'POST' && path === '/refunds'
+      ? `/payments/${encodeURIComponent((runtimeBody as { paymentId: string }).paymentId)}/refunds`
+      : operation.runtimePath;
+    const upstreamUrl = `${internalBaseUrl(env)}${runtimePath}`;
 
-    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    const idempotencyKey = req.get('Idempotency-Key')?.trim() || undefined;
     const lookup = await this.idempotency.lookupOrValidate({
       principal,
       method: req.method,
@@ -116,26 +91,32 @@ export class PaymentsController {
       'x-apicenter-environment': env,
       'x-apicenter-consumer-service-id': principal.consumerServiceId,
       'x-apicenter-owner-tribe-id': principal.ownerTribeId,
+      'x-tribe-id': principal.ownerTribeId,
     };
-    if (token) {
-      headers.authorization = `Bearer ${token}`;
-    }
+    headers.authorization = `Bearer ${token}`;
+    if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
 
     const config: AxiosRequestConfig = {
       method: req.method,
       url: upstreamUrl,
       headers,
       params: req.query,
-      data: ['POST', 'PUT', 'PATCH'].includes(req.method.toUpperCase()) ? req.body : undefined,
+      data: runtimeBody,
+      timeout: Number(process.env.APICENTER_PAYMENTS_TIMEOUT_MS || 15000),
       validateStatus: () => true,
       transformResponse: [(data) => data],
     };
 
     try {
-      const response = await axios(config);
-      const contentType = (response.headers['content-type'] as string | undefined) || 'application/json';
+      const response = await axios.request(config);
+      const parsed = typeof response.data === 'string' || Buffer.isBuffer(response.data)
+        ? JSON.parse(Buffer.isBuffer(response.data) ? response.data.toString('utf8') : response.data)
+        : response.data;
+      const mapped = paymentResponseBody(operation.resource, parsed);
+      const body = JSON.stringify(mapped);
+      const contentType = 'application/json';
 
-      if (idempotencyKey && response.status < 500) {
+      if (idempotencyKey && req.method.toUpperCase() !== 'GET' && response.status < 500) {
         await this.idempotency.store({
           principal,
           method: req.method,
@@ -145,14 +126,17 @@ export class PaymentsController {
           response: {
             status: response.status,
             contentType,
-            body: typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+            body,
           },
         });
+      } else if (response.status >= 500) {
+        await this.preserveUnknownOutcome({ principal, method: req.method, path, key: idempotencyKey });
       }
 
       res.setHeader('content-type', contentType);
-      res.status(response.status).send(response.data);
+      res.status(response.status).send(body);
     } catch (error: unknown) {
+      await this.preserveUnknownOutcome({ principal, method: req.method, path, key: idempotencyKey });
       const message = error instanceof Error ? error.message : 'Payment upstream unreachable';
       res.status(HttpStatus.BAD_GATEWAY).json({
         success: false,
@@ -164,15 +148,28 @@ export class PaymentsController {
     }
   }
 
-  private enforceScope(scopes: string[], method: string, path: string): void {
-    if (scopes.includes('*') || scopes.includes('payments:*')) return;
+  private async preserveUnknownOutcome(input: {
+    principal: NonNullable<AuthenticatedRequest['paymentPrincipal']>;
+    method: string;
+    path: string;
+    key?: string;
+  }): Promise<void> {
+    try {
+      await this.idempotency.markUnknown(input);
+    } catch {
+      // The durable reservation created before the upstream request remains in
+      // place, so stale provider keys still fail closed if Redis is unavailable.
+      this.logger.error('Unable to update the payment idempotency outcome marker');
+    }
+  }
 
-    const reqMethod = method.toUpperCase();
-    const required = this.requiredScope(reqMethod, path);
-    if (!required) return;
+  private enforceScope(scopes: string[], required: string): void {
+    if (scopes.includes('*') || scopes.includes('payments:*')) return;
+    const direction = required.endsWith(':read') ? 'read' : 'write';
 
     const hasScope = scopes.some((scope) => {
       if (scope === required) return true;
+      if (scope === `payments:${direction}`) return true;
       if (scope.endsWith(':*')) {
         const prefix = scope.slice(0, -2);
         return required.startsWith(`${prefix}:`);
@@ -183,53 +180,9 @@ export class PaymentsController {
     if (!hasScope) {
       throw new ForbiddenException({
         code: 'INSUFFICIENT_SCOPE',
-        message: `Scope '${required}' is required for ${reqMethod} ${path}`,
+        message: `Scope '${required}' is required`,
       });
     }
   }
 
-  private requiredScope(method: string, path: string): string | null {
-    if (path.startsWith('/v1/checkout/sessions')) {
-      return method === 'GET' ? 'payments:checkout:read' : 'payments:checkout:write';
-    }
-    if (path.startsWith('/v1/payment_intents')) {
-      return method === 'GET' ? 'payments:intents:read' : 'payments:intents:write';
-    }
-    if (path.startsWith('/v1/refunds')) {
-      return method === 'GET' ? 'payments:refunds:read' : 'payments:refunds:write';
-    }
-    if (path.startsWith('/v1/subscriptions')) {
-      return method === 'GET' ? 'payments:subscriptions:read' : 'payments:subscriptions:write';
-    }
-    if (path.startsWith('/v1/customers')) {
-      return method === 'GET' ? 'payments:customers:read' : 'payments:customers:write';
-    }
-    if (path.startsWith('/v1/products') || path.startsWith('/v1/prices')) {
-      return method === 'GET' ? 'payments:catalog:read' : 'payments:catalog:write';
-    }
-    return null;
-  }
-
-  private validatePayloadShape(method: string, path: string, body: unknown): void {
-    if (!['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) return;
-
-    const schemaMap: Record<string, z.ZodSchema> = {
-      '/v1/checkout/sessions': CheckoutPayloadSchema,
-      '/v1/payment_intents': IntentPayloadSchema,
-      '/v1/refunds': RefundPayloadSchema,
-      '/v1/subscriptions': SubscriptionPayloadSchema,
-    };
-
-    const schema = schemaMap[path];
-    if (!schema) return;
-
-    const result = schema.safeParse(body);
-    if (!result.success) {
-      throw new BadRequestException({
-        code: 'INVALID_PAYLOAD_SHAPE',
-        message: 'Request payload does not match expected payment schema',
-        details: result.error.issues.map((issue) => `${String(issue.path.join('.'))}: ${issue.message}`),
-      });
-    }
-  }
 }

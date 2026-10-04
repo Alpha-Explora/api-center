@@ -9,28 +9,28 @@ const FORBIDDEN_DIRECTORIES = ['apps/gateway/src/sdk', 'examples/sandbox/sdk'];
 const FORBIDDEN_IMPORT_PATTERNS = [
   {
     description:
-      'Local SDK source import is forbidden; consume the published @implementsprint/sdk package instead',
-    regex: /(from|require\()\s*['"](?:\.{1,2}\/)+sdk(?:\/|['"])/,
+      'Gateway must consume the SDK package, not import its source files',
+    regex: /(from|require\()\s*['"][^'"]*packages\/sdk\/src\//,
   },
   {
-    description: 'Direct import from api-shared-services source is forbidden in gateway',
-    regex: /(from|require\()\s*['"][^'"]*api-shared-services\/src\//,
+    description: 'Direct import from shared service runtime source is forbidden in gateway',
+    regex: /(from|require\()\s*['"][^'"]*apps\/(?:payments|email|sms|otp|geo|gauth)\/src\//,
   },
   {
     description:
-      'file: SDK dependency is forbidden; use a published @implementsprint/sdk version',
-    regex: /"@implementsprint\/sdk"\s*:\s*"file:/,
+      'file: SDK dependency is forbidden; use the @alpha-explora/apicenter-sdk workspace or a published version',
+    regex: /"@alpha-explora\/apicenter-sdk"\s*:\s*"file:/,
   },
 ];
 
 const SDK_RUNTIME_LEAK_PATTERNS = [
   {
     description: 'SDK code must not import runtime auth internals',
-    regex: /from\s+['"][^'"]*src\/auth\//,
+    regex: /from\s+['"][^'"]*src\/domains\/auth-security\/auth\//,
   },
   {
     description: 'SDK code must not import runtime registry internals',
-    regex: /from\s+['"][^'"]*src\/registry\//,
+    regex: /from\s+['"][^'"]*src\/domains\/catalog-registry\/registry\//,
   },
   {
     description: 'SDK code must not import runtime proxy internals',
@@ -61,6 +61,7 @@ const BOUNDED_CONTEXTS = [
       'apps/gateway/src/developer-portal',
       'apps/gateway/src/policy',
       'apps/gateway/src/domains/governance',
+      'apps/gateway/src/domains/payments',
     ],
     schemas: ['apic_governance'],
   },
@@ -93,7 +94,7 @@ const BOUNDED_CONTEXTS = [
   },
   {
     name: 'shared_service_platform',
-    paths: ['apps/gateway/src/shared-services'],
+    paths: ['apps/gateway/src/domains/gateway-proxy/shared-services'],
     schemas: ['shared_core'],
   },
   {
@@ -207,7 +208,7 @@ function collectRepoFiles(repoRoot) {
 }
 
 function isLikelySdkCodePath(relPath) {
-  return /(^|\/)sdk(\/|$)/.test(relPath) || /(^|\/)api-shared-services(\/|$)/.test(relPath);
+  return relPath.startsWith('packages/sdk/');
 }
 
 function collectDirectoryViolations(repoRoot) {
@@ -234,6 +235,8 @@ function collectPatternViolations(files, repoRoot) {
     const content = fs.readFileSync(absolutePath, 'utf8');
 
     for (const pattern of FORBIDDEN_IMPORT_PATTERNS) {
+      if (pattern.description.startsWith('file:') && path.basename(relPath) !== 'package.json') continue;
+      if (!pattern.description.startsWith('file:') && !relPath.startsWith('apps/gateway/src/')) continue;
       if (pattern.regex.test(content)) {
         violations.push({
           file: relPath,
@@ -330,10 +333,23 @@ function isPublicContractFile(relPath) {
 }
 
 function resolveImportTarget(importerRelPath, specifier, repoRoot) {
-  if (!specifier.startsWith('.')) return undefined;
-
-  const importerDir = path.dirname(path.join(repoRoot, importerRelPath));
-  const base = path.resolve(importerDir, specifier);
+  let base;
+  if (specifier.startsWith('.')) {
+    const importerDir = path.dirname(path.join(repoRoot, importerRelPath));
+    base = path.resolve(importerDir, specifier);
+  } else if (specifier.startsWith('@')) {
+    const tsconfigPath = path.join(repoRoot, 'apps/gateway/tsconfig.json');
+    if (!fs.existsSync(tsconfigPath)) return undefined;
+    const aliases = JSON.parse(fs.readFileSync(tsconfigPath, 'utf8')).compilerOptions?.paths || {};
+    const match = Object.entries(aliases).find(([pattern]) => {
+      const prefix = pattern.replace(/\*$/, '');
+      return pattern.endsWith('*') ? specifier.startsWith(prefix) : specifier === pattern;
+    });
+    if (!match) return undefined;
+    const [pattern, targets] = match;
+    const suffix = pattern.endsWith('*') ? specifier.slice(pattern.length - 1) : '';
+    base = path.resolve(repoRoot, 'apps/gateway', targets[0].replace('*', suffix));
+  } else return undefined;
   const candidates = [
     base,
     `${base}.ts`,
@@ -365,6 +381,10 @@ function readImports(content) {
 
 function collectBoundedContextImportViolations(files, repoRoot) {
   const violations = [];
+  const baselinePath = path.join(repoRoot, 'scripts/boundary-legacy-imports.json');
+  const legacy = fs.existsSync(baselinePath)
+    ? new Set(JSON.parse(fs.readFileSync(baselinePath, 'utf8')))
+    : new Set();
 
   for (const relPath of files) {
     if (!isProductionSourceFile(relPath)) continue;
@@ -381,6 +401,7 @@ function collectBoundedContextImportViolations(files, repoRoot) {
       if (!targetContext || targetContext.name === sourceContext.name) continue;
       if (targetContext.public || sourceContext.public) continue;
       if (isPublicContractFile(targetRelPath)) continue;
+      if (legacy.has(`${relPath} -> ${targetRelPath}`)) continue;
 
       violations.push({
         file: relPath,

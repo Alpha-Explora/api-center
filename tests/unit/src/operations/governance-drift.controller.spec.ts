@@ -1,5 +1,5 @@
-import { GovernanceDriftController } from "../../../../apps/gateway/src/operations/governance-drift.controller";
-import { GovernanceDriftService } from "../../../../apps/gateway/src/operations/governance-drift.service";
+import { GovernanceDriftController } from "../../../../apps/gateway/src/domains/runtime-ops/operations/governance-drift.controller";
+import { GovernanceDriftService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/governance-drift.service";
 
 describe("GovernanceDriftController", () => {
   it("returns drift comparison data", () => {

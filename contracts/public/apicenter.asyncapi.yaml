@@ -38,8 +38,6 @@ channels:
         $ref: '#/components/messages/PaymentCheckoutFailed'
       PaymentRefunded:
         $ref: '#/components/messages/PaymentRefunded'
-      PaymentMethodSetupSucceeded:
-        $ref: '#/components/messages/PaymentMethodSetupSucceeded'
       PaymentSubscriptionActive:
         $ref: '#/components/messages/PaymentSubscriptionActive'
       PaymentSubscriptionPastDue:
@@ -84,9 +82,6 @@ components:
       payload: { $ref: '#/components/schemas/PaymentEvent' }
     PaymentRefunded:
       name: payment.refunded
-      payload: { $ref: '#/components/schemas/PaymentEvent' }
-    PaymentMethodSetupSucceeded:
-      name: payment_method_setup.succeeded
       payload: { $ref: '#/components/schemas/PaymentEvent' }
     PaymentSubscriptionActive:
       name: subscription.active

@@ -1,4 +1,4 @@
-import { normalizeServiceEnvironments } from "../../../../apps/gateway/src/registry/environment-resolver";
+import { normalizeServiceEnvironments } from "../../../../apps/gateway/src/domains/catalog-registry/registry/environment-resolver";
 import type { ServiceManifest, ServiceRegistryEntry } from "../../../../apps/gateway/src/types";
 
 function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {

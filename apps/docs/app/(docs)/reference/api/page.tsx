@@ -61,7 +61,7 @@ export default function ApiOverviewPage() {
         <section id="idempotency" className="fd-section">
           <h2 className="fd-section-title">Idempotency &amp; Retries</h2>
           <p className="fd-param-desc" style={{ marginBottom: "10px" }}>
-            All state-changing operations require an <code className="fd-inline-code">Idempotency-Key</code> header to prevent duplicate execution within a 24-hour window.
+            Payment mutations require an <code className="fd-inline-code">Idempotency-Key</code>. Completed responses replay for seven days; for an uncertain provider outcome, keep the same key and reconcile before starting a new payment.
           </p>
           <pre className="fd-codeblock">
             <code>Idempotency-Key: &lt;UUID&gt;</code>

@@ -1,9 +1,9 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { ScopedAdminGuard } from "../../../../apps/gateway/src/auth/guards/scoped-admin.guard";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
-import { TribePlanAdminController } from "../../../../apps/gateway/src/entitlements/tribe-plan-admin.controller";
-import { TribePlanService } from "../../../../apps/gateway/src/entitlements/tribe-plan.service";
+import { TribePlanAdminController } from "../../../../apps/gateway/src/domains/governance/entitlements/tribe-plan-admin.controller";
+import { TribePlanService } from "../../../../apps/gateway/src/domains/governance/entitlements/tribe-plan.service";
 
 describe("TribePlanAdminController", () => {
   const plans = {

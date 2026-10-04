@@ -160,7 +160,7 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
                 <Tag variant="type">string</Tag>
                 <Tag variant="required">Required</Tag>
               </div>
-              <p className="fd-param-desc">Unique key preventing duplicate provider execution within 24 hours.</p>
+              <p className="fd-param-desc">Unique key for this payment mutation. Reuse it with the same request body when retrying.</p>
             </div>
           </section>
         )}

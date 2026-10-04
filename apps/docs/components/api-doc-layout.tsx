@@ -387,7 +387,7 @@ console.log(data);`,
                 <section id="idempotency-retries" className="doc-section">
                   <h2 className="section-title">Idempotency &amp; Retries</h2>
                   <p className="param-desc" style={{ marginBottom: "12px" }}>
-                    All state-changing operations require an <code className="icode">Idempotency-Key</code> header to safely retry requests without duplicate provider execution (24-hour window):
+                    Payment mutations require an <code className="icode">Idempotency-Key</code> header. Completed responses replay for seven days; keep the same key when retrying an uncertain provider outcome:
                   </p>
                   <pre className="codeblock"><code>Idempotency-Key: &lt;UUID&gt;</code></pre>
                 </section>
@@ -507,7 +507,7 @@ console.log(data);`,
                         <span className="tag tag-type">string</span>
                         <span className="tag tag-required">Required</span>
                       </div>
-                      <p className="param-desc">Unique key to prevent duplicate provider execution within 24 hours.</p>
+                      <p className="param-desc">Unique key for this payment mutation. Reuse it with the same request body when retrying.</p>
                     </div>
                   </section>
                 )}

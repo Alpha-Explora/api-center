@@ -1,9 +1,8 @@
 import { NotFoundException } from "@nestjs/common";
-import { AuthController } from "../../../../apps/gateway/src/auth/auth.controller";
-import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { AuthController } from "../../../../apps/gateway/src/domains/auth-security/auth/auth.controller";
+import { AuthService } from "../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
-import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import {
   ForbiddenError,
@@ -30,11 +29,6 @@ const mockLogger: Partial<LoggerService> = {
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
-};
-
-const mockKafka: Partial<KafkaService> = {
-  publish: jest.fn().mockResolvedValue(undefined),
-  publishNonBlocking: jest.fn(),
 };
 
 const mockConfig = {
@@ -86,8 +80,7 @@ describe("AuthController", () => {
       mockAuth as AuthService,
       mockRegistry as RegistryService,
       mockLogger as LoggerService,
-      mockKafka as KafkaService,
-      mockConfig as ConfigService,
+      mockConfig as unknown as ConfigService,
     );
   });
 
@@ -199,7 +192,6 @@ describe("AuthController", () => {
         "test",
       );
       expect(mockRegistry.validateLegacySecret).not.toHaveBeenCalled();
-      expect(mockKafka.publishNonBlocking).not.toHaveBeenCalled();
     });
     it("throws UnauthorizedError for an unknown source service", async () => {
       (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) =>
@@ -251,41 +243,6 @@ describe("AuthController", () => {
       await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
         ForbiddenError,
       );
-    });
-
-    it("publishes TOKEN_ISSUED Kafka event without raw JWT material", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        true,
-      );
-      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
-        accessToken: "access-jwt",
-        refreshToken: "refresh-jwt",
-        expiresIn: 3600,
-      });
-
-      await controller.issueToken(dto, fakeReq());
-
-      expect(mockKafka.publishNonBlocking).toHaveBeenCalledTimes(1);
-      const [topic, payload, options] = (
-        mockKafka.publishNonBlocking as jest.Mock
-      ).mock.calls[0];
-      expect(topic).toBe("api-center.auth.token-issued");
-      expect(options.key).toBe("test:svc-alpha");
-      expect(payload).toEqual(
-        expect.objectContaining({
-          tribeId: "svc-alpha",
-          sourceServiceId: "svc-alpha",
-          environment: "test",
-          scopes: ["read"],
-          expiresIn: 3600,
-        }),
-      );
-      expect(payload.permissions).toEqual(
-        expect.arrayContaining(["tribe:svc-alpha:read"]),
-      );
-      expect(JSON.stringify(payload)).not.toContain("access-jwt");
-      expect(JSON.stringify(payload)).not.toContain("refresh-jwt");
     });
 
     it("issues scopes from tribe-owned microservices and effective consumes", async () => {

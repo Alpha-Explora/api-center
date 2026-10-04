@@ -7,12 +7,12 @@ describe("ConsumerRunbookPage", () => {
     cleanup();
   });
 
-  it("renders the SDK runbook destination used by the developer portal", () => {
+  it("renders the consumer runbook and public documentation destination", () => {
     render(<ConsumerRunbookPage />);
 
-    expect(screen.getByRole("heading", { name: "SDK runbook" })).toBeTruthy();
-    expect(screen.getByText("API Center endpoint")).toBeTruthy();
-    expect(screen.getByText("Event topics")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Consumer runbook" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open APICenter docs" }).getAttribute("href"))
+      .toBe("https://api-center.itsandbox.site/docs");
   });
 
   it("prioritizes consumer setup actions with one selected detail", () => {

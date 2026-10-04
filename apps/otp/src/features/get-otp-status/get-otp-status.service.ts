@@ -1,7 +1,8 @@
-import { MemoryOtpStore } from '../../shared/otp-store';
+import { createOtpRepository } from '../../shared/otp-store';
+import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
 
 export class GetOtpStatusService {
-  constructor(private readonly store = MemoryOtpStore.getInstance()) {}
+  constructor(private readonly store: OtpRepositoryInterface = createOtpRepository()) {}
 
   async execute(otpId: string) {
     const record = await this.store.findById(otpId);

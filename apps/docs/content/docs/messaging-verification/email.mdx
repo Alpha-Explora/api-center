@@ -13,7 +13,7 @@ Send transactional emails with HTML layout support, template rendering, and mess
 
 - **Base Route**: `/api/v1/shared/email`
 - **Required Header**: `Authorization: Bearer <API_KEY>`
-- **Optional Header**: `Idempotency-Key: <UUID>`
+- **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---
 
@@ -52,6 +52,8 @@ Send transactional emails with HTML layout support, template rendering, and mess
 ```
 
 ---
+
+Retries with the same key and request body replay the original status and response for seven days. Reusing a key with a different body returns `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`. If delivery has an uncertain outcome, APICenter blocks the key for reconciliation instead of sending again.
 
 ## 2. Get Message Status
 

@@ -56,8 +56,12 @@ export class PaymentCatalogManagementService {
     tribeId: string,
     environment: "test" | "live",
   ): Promise<Record<string, unknown>> {
-    const baseUrl = process.env.APICENTER_PAYMENTS_URL;
-    const internalToken = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+    const baseUrl = process.env.APICENTER_PAYMENTS_URL
+      || (environment === 'live' ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST);
+    const internalToken = (environment === 'live'
+      ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE
+      : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST)
+      || process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
     if (!baseUrl || !internalToken) {
       throw new ServiceUnavailableException(
         "APICenter payments runtime is not configured for catalog management",
@@ -66,12 +70,14 @@ export class PaymentCatalogManagementService {
 
     const response = await axios.post(baseUrl.replace(/\/$/, "") + path, body, {
       headers: {
-        "X-APICenter-Internal-Token": internalToken,
-        "X-Tribe-ID": tribeId,
+        Authorization: `Bearer ${internalToken}`,
+        "X-APICenter-Owner-Tribe-ID": tribeId,
+        "X-APICenter-Consumer-Service-ID": 'apicenter-management',
         "X-APICenter-Environment": environment,
         "Idempotency-Key": this.idempotencyKey(path, body),
       },
       validateStatus: () => true,
+      timeout: Number(process.env.APICENTER_PAYMENTS_TIMEOUT_MS || 15000),
     });
     const payload = response.data as { success?: boolean; data?: Record<string, unknown>; error?: unknown };
     if (response.status >= 400 || !payload.success || !payload.data) {

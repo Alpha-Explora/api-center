@@ -1,6 +1,6 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { RegistrationRequestsController } from "../../../../apps/gateway/src/registry/registration-requests.controller";
-import { RegistrationRequestsService } from "../../../../apps/gateway/src/registry/registration-requests.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { RegistrationRequestsController } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registration-requests.controller";
+import { RegistrationRequestsService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registration-requests.service";
 
 function request(overrides: Record<string, unknown> = {}) {
   return {

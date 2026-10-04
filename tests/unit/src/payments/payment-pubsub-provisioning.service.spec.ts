@@ -1,4 +1,4 @@
-import { PaymentPubSubProvisioningService } from "../../../../apps/gateway/src/payments/payment-pubsub-provisioning.service";
+import { PaymentPubSubProvisioningService } from "../../../../apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service";
 
 describe("PaymentPubSubProvisioningService", () => {
   const originalProject = process.env.APICENTER_GCP_PROJECT_ID;

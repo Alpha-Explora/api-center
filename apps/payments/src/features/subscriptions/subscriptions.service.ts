@@ -9,11 +9,14 @@ export class SubscriptionsService {
     if (!customerId || !priceId) {
       throw new PayMongoError('customerId and priceId are required', 400);
     }
+    if (payload.cancelAtPeriodEnd === true) {
+      throw new PayMongoError('Scheduled cancellation is not supported by this provider', 422, 'UNSUPPORTED_OPTION');
+    }
 
     if (isMockMode()) {
       return {
         subscriptionId: toPublicId('sub', `sub_mock_${crypto.randomUUID().replace(/-/g, '')}`),
-        status: 'active',
+        status: 'pending',
         customerId,
         priceId,
         createdAt: new Date().toISOString(),
@@ -22,7 +25,7 @@ export class SubscriptionsService {
 
     const response = await paymongoRequest('/subscriptions', {
       method: 'POST',
-      body: { data: { attributes: { customer_id: toProviderId('cus', customerId), price_id: toProviderId('pri', priceId) } } },
+      body: { data: { attributes: { customer_id: toProviderId('cus', customerId), plan_id: toProviderId('pri', priceId) } } },
       idempotencyKey: options.idempotencyKey,
     });
 
@@ -31,16 +34,17 @@ export class SubscriptionsService {
 
     return {
       subscriptionId: toPublicId('sub', providerData.id),
-      status: attributes.status || 'active',
+      status: attributes.status === 'incomplete' ? 'pending' : attributes.status || 'pending',
       customerId,
       priceId,
+      currentPeriodEnd: attributes.next_billing_schedule,
       createdAt: new Date().toISOString(),
     };
   }
 
   async getSubscription(subscriptionId: string) {
     if (isMockMode()) {
-      return { subscriptionId, status: 'active', createdAt: new Date().toISOString() };
+      return { subscriptionId, status: 'pending', createdAt: new Date().toISOString() };
     }
     const response = await paymongoRequest(`/subscriptions/${encodeURIComponent(toProviderId('sub', subscriptionId))}`);
     const providerData = response?.data || {};
@@ -48,16 +52,19 @@ export class SubscriptionsService {
 
     return {
       subscriptionId: toPublicId('sub', providerData.id || subscriptionId),
-      status: attributes.status,
+      status: attributes.status === 'incomplete' ? 'pending' : attributes.status,
       customerId: attributes.customer_id ? toPublicId('cus', attributes.customer_id) : undefined,
+      currentPeriodEnd: attributes.next_billing_schedule,
     };
   }
 
-  async cancelSubscription(subscriptionId: string) {
+  async cancelSubscription(subscriptionId: string, options: { idempotencyKey?: string } = {}) {
     if (isMockMode()) {
       return { subscriptionId, status: 'cancelled' };
     }
-    const response = await paymongoRequest(`/subscriptions/${encodeURIComponent(toProviderId('sub', subscriptionId))}/cancel`, { method: 'POST' });
+    const response = await paymongoRequest(`/subscriptions/${encodeURIComponent(toProviderId('sub', subscriptionId))}/cancel`, {
+      method: 'POST', idempotencyKey: options.idempotencyKey,
+    });
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 

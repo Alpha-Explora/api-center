@@ -5,7 +5,7 @@ description: "Create hosted payment checkout pages and collect PHP payments effo
 
 # Checkouts & Payment Links API
 
-The Checkouts API allows consumer services to create provider-neutral payment checkout sessions for one-off charges. APICenter handles PayMongo checkout generation, payment method routing (GCash, PayMaya, Cards, GrabPay), and webhook reconciliation.
+The Checkouts API allows consumer services to create provider-neutral payment checkout sessions for one-off charges. APICenter handles checkout generation, routes to the enabled payment methods, and reconciles provider webhooks.
 
 ---
 
@@ -13,7 +13,7 @@ The Checkouts API allows consumer services to create provider-neutral payment ch
 
 - **Base Route**: `/api/v1/payments/checkouts`
 - **HTTP Method**: `POST`
-- **Required Scope**: `payments:write`
+- **Required Scope**: `payments:checkout:write` or a broader payment write scope
 - **Requires Header**: `Idempotency-Key`
 
 ---
@@ -29,7 +29,6 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/checkouts \
   -H "Idempotency-Key: chk-idem-20260729-001" \
   -d '{
     "referenceId": "ORDER-991204",
-    "description": "Monthly Pro Subscription",
     "amount": {
       "amountMinor": 49900,
       "currency": "PHP"
@@ -56,7 +55,7 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/checkouts \
       "amountMinor": 49900,
       "currency": "PHP"
     },
-    "checkoutUrl": "https://checkout.paymongo.com/chk_8f1a2b3c4d",
+    "checkoutUrl": "https://checkout.example.test/chk_8f1a2b3c4d",
     "aggregateVersion": 1
   }
 }
@@ -67,7 +66,7 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/checkouts \
 ## Fetch Checkout Status
 
 - **Endpoint**: `GET /api/v1/payments/checkouts/{checkoutId}`
-- **Required Scope**: `payments:read`
+- **Required Scope**: `payments:checkout:read` or a broader payment read scope
 
 ```bash
 curl -s https://api-center.itsandbox.site/api/v1/payments/checkouts/chk_8f1a2b3c4d \

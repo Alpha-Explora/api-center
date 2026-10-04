@@ -1,7 +1,7 @@
 import {
   EmergencyControlService,
   parseEmergencyControl,
-} from "../../../../apps/gateway/src/operations/emergency-control.service";
+} from "../../../../apps/gateway/src/domains/runtime-ops/operations/emergency-control.service";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("EmergencyControlService", () => {

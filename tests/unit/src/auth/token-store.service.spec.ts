@@ -1,4 +1,4 @@
-import { TokenStoreService, RefreshTokenRecord } from "../../../../apps/gateway/src/auth/token-store.service";
+import { TokenStoreService, RefreshTokenRecord } from "../../../../apps/gateway/src/domains/auth-security/auth/token-store.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 

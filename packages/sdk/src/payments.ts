@@ -1,13 +1,10 @@
 export { ApiCenterError, PaymentsClient } from './internal/payment';
 export type {
-  CancelCheckoutInput,
-  CancelSubscriptionInput,
   Checkout,
   ConfirmPaymentIntentInput,
   CreateCheckoutInput,
   CreateCustomerInput,
   CreatePaymentIntentInput,
-  CreatePaymentMethodSetupInput,
   CreateRefundInput,
   CreateSubscriptionInput,
   Customer,
@@ -17,7 +14,6 @@ export type {
   PaymentCapabilities,
   PaymentEnvironment,
   PaymentIntent,
-  PaymentMethodSetup,
   Refund,
   RequestOptions,
   Subscription,

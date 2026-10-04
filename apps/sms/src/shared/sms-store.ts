@@ -1,5 +1,6 @@
 import { SmsRepositoryInterface } from './sms-repository.interface';
 import { PostgresSmsStore } from './postgres-sms-store';
+import { RedisSmsStore } from './redis-sms-store';
 
 export interface SmsRecord {
   messageId: string;
@@ -35,6 +36,10 @@ export function createSmsRepository(): SmsRepositoryInterface {
   const mode = process.env.SMS_STORE_MODE || (process.env.DATABASE_URL ? 'postgres' : 'memory');
   if (mode === 'postgres') {
     return new PostgresSmsStore();
+  }
+  if (mode === 'redis') return new RedisSmsStore();
+  if (mode !== 'memory' || process.env.NODE_ENV === 'production') {
+    throw new Error('A shared SMS store is required in production');
   }
   return MemorySmsStore.getInstance();
 }

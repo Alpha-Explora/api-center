@@ -1,5 +1,5 @@
 import { ExecutionContext } from "@nestjs/common";
-import { PlatformAdminGuard } from "../../../../../apps/gateway/src/auth/guards/platform-admin.guard";
+import { PlatformAdminGuard } from "../../../../../apps/gateway/src/domains/auth-security/auth/guards/platform-admin.guard";
 import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";

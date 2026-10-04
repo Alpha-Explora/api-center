@@ -3,12 +3,7 @@
 // =============================================================================
 
 import { RedisThrottlerStorage } from "../../../../apps/gateway/src/shared/redis-throttler-storage";
-import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
-
-const mockConfig = {
-  redis: { rateLimitUrl: "redis://localhost:6380" },
-} as Partial<ConfigService>;
 
 const mockLogger = {
   log: jest.fn(),
@@ -22,7 +17,6 @@ describe("RedisThrottlerStorage (in-memory fallback)", () => {
 
   beforeEach(() => {
     storage = new RedisThrottlerStorage(
-      mockConfig as ConfigService,
       mockLogger as LoggerService,
     );
     // Don't call onModuleInit â€” this simulates Redis being unavailable

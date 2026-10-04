@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const publisherCache = new Map();
-const { toPublicId } = require('../services/paymongo/paymentIds');
+const { toPublicId } = require('../shared/payment-ids');
 
 function getPublisher(environment) {
   if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return null;

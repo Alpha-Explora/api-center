@@ -1,18 +1,32 @@
 import { PayMongoError } from './payment-errors';
 
-const secretKey = process.env.PAYMONGO_SECRET_KEY || '';
 const baseUrl = process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1';
 
+function secretKey(): string {
+  const mode = process.env.PAYMENT_PROVIDER_MODE;
+  return (mode === 'live' ? process.env.PAYMONGO_LIVE_SECRET_KEY : process.env.PAYMONGO_TEST_SECRET_KEY)
+    || process.env.PAYMONGO_SECRET_KEY || '';
+}
+
 export function isMockMode(): boolean {
-  return !secretKey || process.env.PAYMENT_PROVIDER_MODE === 'mock';
+  if (process.env.PAYMENT_PROVIDER_MODE === 'mock') {
+    if (process.env.NODE_ENV === 'production') throw new Error('Mock payments are forbidden in production');
+    return true;
+  }
+  if (!secretKey()) {
+    if (process.env.NODE_ENV === 'production') throw new Error('PayMongo secret key is required in production');
+    return true;
+  }
+  return false;
 }
 
 export function providerMode(): string {
-  return isMockMode() ? 'mock' : 'live';
+  if (isMockMode()) return 'mock';
+  return process.env.PAYMENT_PROVIDER_MODE === 'test' ? 'test' : 'live';
 }
 
 export function getAuthHeader(): string {
-  const encoded = Buffer.from(`${secretKey}:`).toString('base64');
+  const encoded = Buffer.from(`${secretKey()}:`).toString('base64');
   return `Basic ${encoded}`;
 }
 
@@ -34,6 +48,7 @@ export async function paymongoRequest(endpoint: string, options: { method?: stri
     method: options.method || 'GET',
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
+    signal: AbortSignal.timeout(Number(process.env.PAYMONGO_REQUEST_TIMEOUT_MS || 15000)),
   });
 
   const body: any = await response.json();

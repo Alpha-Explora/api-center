@@ -1,13 +1,12 @@
 import { HealthCheckService } from "@nestjs/terminus";
-import { HealthController } from "../../../../apps/gateway/src/health/health.controller";
-import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
-import { ExternalService } from "../../../../apps/gateway/src/external/external.service";
-import { TokenStoreService } from "../../../../apps/gateway/src/auth/token-store.service";
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { GatewayTrafficService } from "../../../../apps/gateway/src/analytics/gateway-traffic.service";
+import { HealthController } from "../../../../apps/gateway/src/domains/runtime-ops/health/health.controller";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import { ExternalService } from "../../../../apps/gateway/src/domains/gateway-proxy/external/external.service";
+import { TokenStoreService } from "../../../../apps/gateway/src/domains/auth-security/auth/token-store.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
-import { GovernanceReadinessService } from "../../../../apps/gateway/src/health/governance-readiness.service";
+import { GovernanceReadinessService } from "../../../../apps/gateway/src/domains/runtime-ops/health/governance-readiness.service";
 
 type IndicatorFn = () => Promise<Record<string, unknown>>;
 
@@ -34,14 +33,9 @@ describe("HealthController", () => {
   let tokenStore: TokenStoreService;
   let externalService: ExternalService;
   let registry: RegistryService;
-  let kafka: KafkaService;
-  let config: ConfigService;
 
   beforeEach(() => {
     const health = createHealthCheckServiceMock();
-    kafka = {
-      isConnected: jest.fn().mockReturnValue(true),
-    } as unknown as KafkaService;
     registry = {
       count: jest.fn().mockReturnValue(2),
     } as unknown as RegistryService;
@@ -58,13 +52,10 @@ describe("HealthController", () => {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuditEventsService;
     const governanceReadiness = new GovernanceReadinessService();
-    config = {
-      kafka: { enabled: true },
-    } as ConfigService;
+    const config = {} as ConfigService;
 
     controller = new HealthController(
       health,
-      kafka,
       registry,
       externalService,
       tokenStore,
@@ -116,16 +107,4 @@ describe("HealthController", () => {
     });
   });
 
-  it("should skip Kafka readiness when Kafka is disabled", async () => {
-    (config.kafka as { enabled: boolean }).enabled = false;
-
-    const result = await controller.readiness();
-
-    expect(kafka.isConnected).not.toHaveBeenCalled();
-    expect((result as any).info.kafka).toEqual({
-      status: "up",
-      skipped: true,
-      reason: "Kafka disabled by configuration",
-    });
-  });
 });

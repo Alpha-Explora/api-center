@@ -1,4 +1,4 @@
-import { sanitizeSharedServiceEventInput } from "../../../../apps/gateway/src/shared-services/shared-service-event-sanitizer";
+import { sanitizeSharedServiceEventInput } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-event-sanitizer";
 
 describe("sanitizeSharedServiceEventInput", () => {
   it("exports SMS metadata without raw recipient or message text", () => {

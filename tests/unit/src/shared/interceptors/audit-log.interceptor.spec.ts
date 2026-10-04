@@ -1,7 +1,6 @@
 import { ExecutionContext } from "@nestjs/common";
 import { lastValueFrom, of, throwError } from "rxjs";
-import { KafkaService } from "../../../../../apps/gateway/src/kafka/kafka.service";
-import { TOPICS } from "../../../../../apps/gateway/src/kafka/topics";
+import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 import { AuditLogInterceptor } from "../../../../../apps/gateway/src/shared/interceptors/audit-log.interceptor";
 
 function createContext(
@@ -17,19 +16,16 @@ function createContext(
 }
 
 describe("AuditLogInterceptor", () => {
-  const mockKafka = {
-    publish: jest.fn(),
-    publishNonBlocking: jest.fn(),
-  } as unknown as KafkaService;
+  const mockLogger = { info: jest.fn() } as unknown as LoggerService;
 
   let interceptor: AuditLogInterceptor;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    interceptor = new AuditLogInterceptor(mockKafka);
+    interceptor = new AuditLogInterceptor(mockLogger);
   });
 
-  it("should publish audit event on successful response with tribe route target", async () => {
+  it("should log successful responses with tribe route target", async () => {
     const request = {
       method: "GET",
       originalUrl: "/api/v1/tribes/billing-service/invoices",
@@ -47,8 +43,8 @@ describe("AuditLogInterceptor", () => {
       }),
     );
 
-    expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
-      TOPICS.AUDIT_LOG,
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      "Audit log",
       expect.objectContaining({
         tribeId: "caller-service",
         method: "GET",
@@ -57,7 +53,6 @@ describe("AuditLogInterceptor", () => {
         targetServiceId: "billing-service",
         correlationId: "corr-1",
       }),
-      expect.objectContaining({ key: "caller-service" }),
     );
   });
 
@@ -81,7 +76,7 @@ describe("AuditLogInterceptor", () => {
       ),
     ).rejects.toThrow("proxy-failed");
 
-    expect(mockKafka.publishNonBlocking).toHaveBeenCalled();
+    expect(mockLogger.info).toHaveBeenCalled();
   });
 
   it("should skip audit events for health checks", async () => {
@@ -102,6 +97,6 @@ describe("AuditLogInterceptor", () => {
       }),
     );
 
-    expect(mockKafka.publishNonBlocking).not.toHaveBeenCalled();
+    expect(mockLogger.info).not.toHaveBeenCalled();
   });
 });

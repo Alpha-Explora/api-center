@@ -7,9 +7,9 @@
 // =============================================================================
 
 import { ExecutionContext } from "@nestjs/common";
-import { ScopedAdminGuard } from "../../../../../apps/gateway/src/auth/guards/scoped-admin.guard";
+import { ScopedAdminGuard } from "../../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
 import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
-import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
+import { AuthService } from "../../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 

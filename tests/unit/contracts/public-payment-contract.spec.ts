@@ -14,7 +14,12 @@ describe('public payment contracts', () => {
   it('exposes versioned HTTP and event contracts', () => {
     expect(openApi.openapi).toBe('3.2.0');
     expect(openApi.security[0].ApiKeyAuth).toEqual([]);
-    expect(openApi.components.headers['Idempotency-Key']).toBeDefined();
+    expect(openApi.components.parameters.IdempotencyKey).toMatchObject({
+      name: 'Idempotency-Key',
+      in: 'header',
+      required: true,
+      schema: { type: 'string', minLength: 16, maxLength: 255 },
+    });
     expect(asyncApi.asyncapi).toBe('3.1.0');
     expect(asyncApi.channels['apicenter.payment-events.{environment}']).toBeDefined();
     expect(asyncApi.components.schemas.PaymentEvent.required).toEqual(expect.arrayContaining(requiredEnvelopeFields));
@@ -27,10 +32,12 @@ describe('public payment contracts', () => {
       for (const [method, operation] of Object.entries<any>(pathItem)) {
         if (!['post', 'put', 'patch', 'delete'].includes(method)) continue;
         expect(operation.parameters).toEqual(expect.arrayContaining([
-          { $ref: '#/components/headers/Idempotency-Key' },
+          { $ref: '#/components/parameters/IdempotencyKey' },
         ]));
+        expect(operation.responses['409']).toEqual({ $ref: '#/components/responses/IdempotencyConflict' });
       }
     }
+    expect(Object.keys(openApi.paths)).not.toContain('/api/v1/payments/payment-methods/setup');
     expect(openApi.components.schemas.CheckoutCreateRequest.properties.metadata.additionalProperties.type).toBe('string');
     expect(JSON.stringify(openApi).toLowerCase()).not.toContain('paymongo_');
   });

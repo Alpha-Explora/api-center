@@ -1,5 +1,5 @@
 import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
-import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/quotas/tribe-quota-policy.service";
+import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service";
 
 describe("TribeQuotaPolicyService", () => {
   let prisma: {

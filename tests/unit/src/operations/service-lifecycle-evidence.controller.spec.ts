@@ -1,5 +1,12 @@
-import { ServiceLifecycleEvidenceController } from "../../../../apps/gateway/src/operations/service-lifecycle-evidence.controller";
-import { ServiceLifecycleEvidenceService } from "../../../../apps/gateway/src/operations/service-lifecycle-evidence.service";
+jest.mock("@governance", () => ({
+  ApprovalRequestService: class {},
+  TribePlanService: class {},
+  TribeQuotaPolicyService: class {},
+}));
+jest.mock("@auth/guards/scoped-admin.guard", () => ({ ScopedAdminGuard: class {} }));
+
+import { ServiceLifecycleEvidenceController } from "../../../../apps/gateway/src/domains/runtime-ops/operations/service-lifecycle-evidence.controller";
+import { ServiceLifecycleEvidenceService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/service-lifecycle-evidence.service";
 
 describe("ServiceLifecycleEvidenceController", () => {
   it("returns lifecycle evidence for all registry services", async () => {
@@ -28,13 +35,11 @@ describe("ServiceLifecycleEvidenceController", () => {
     const quotaPolicies = { listPolicies: jest.fn().mockResolvedValue([]) };
     const plans = { listPlanAssignments: jest.fn().mockResolvedValue([]) };
     const approvals = { listRequests: jest.fn().mockResolvedValue([]) };
-    const pipelineHealth = { listHealth: jest.fn().mockResolvedValue([]) };
     const controller = new ServiceLifecycleEvidenceController(
       registry as any,
       quotaPolicies as any,
       plans as any,
       approvals as any,
-      pipelineHealth as any,
       new ServiceLifecycleEvidenceService(),
     );
 
@@ -47,6 +52,5 @@ describe("ServiceLifecycleEvidenceController", () => {
       status: "active",
     });
     expect(approvals.listRequests).toHaveBeenCalledWith();
-    expect(pipelineHealth.listHealth).toHaveBeenCalledWith("live");
   });
 });

@@ -49,7 +49,7 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
       record.otpId,
       record.target,
       record.channel,
-      record.code,
+      record.codeHash,
       record.expiresAt,
       record.status,
     ]);
@@ -68,7 +68,7 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
       otpId: row.otp_id,
       target: row.target,
       channel: row.channel,
-      code: row.code,
+      codeHash: row.code,
       expiresAt: Number(row.expires_at),
       status: row.status,
     };
@@ -80,5 +80,21 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
     const updated = { ...existing, ...patch };
     await this.save(updated);
     return updated;
+  }
+
+  async consume(otpId: string, codeHash: string): Promise<string> {
+    await this.ensureInitialized();
+    const result = await this.pool.query(
+      `UPDATE shared_otp.otp_records SET status = 'used'
+       WHERE otp_id = $1 AND code = $2 AND status = 'pending' AND expires_at > $3
+       RETURNING otp_id`,
+      [otpId, codeHash, Date.now()],
+    );
+    if (result.rowCount) return 'VERIFIED';
+    const record = await this.findById(otpId);
+    if (!record) return 'OTP_NOT_FOUND';
+    if (record.status === 'used') return 'OTP_ALREADY_USED';
+    if (record.status === 'expired' || Date.now() > record.expiresAt) return 'OTP_EXPIRED';
+    return 'OTP_INVALID';
   }
 }

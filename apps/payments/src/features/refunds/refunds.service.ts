@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { toPublicId, toProviderId } from '../../shared/payment-ids';
+import { toPublicId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
 
@@ -21,7 +21,7 @@ export class RefundsService {
 
     const response = await paymongoRequest('/refunds', {
       method: 'POST',
-      body: { data: { attributes: { amount, payment_id: toProviderId('pi', paymentId), reason, notes } } },
+      body: { data: { attributes: { amount, payment_id: paymentId, reason, notes } } },
       idempotencyKey: options.idempotencyKey,
     });
 

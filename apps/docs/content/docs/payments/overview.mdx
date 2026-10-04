@@ -14,7 +14,7 @@ Use the returned `checkoutUrl` for the customer redirect. A return to your appli
 
 ## Intents, customers, refunds, and subscriptions
 
-Use payment intents when your application owns confirmation state, customers and payment-method setups for reusable billing identities, refunds for a completed payment, and subscriptions/invoices for recurring billing.
+Use payment intents when your application owns confirmation state, customer records for billing identities, refunds for completed payments, and subscriptions/invoices for recurring billing. Reusable payment-method setup is not currently exposed by the public API.
 
 All provider-impacting creates, confirmations, cancellations, and refunds use `Idempotency-Key`. Resources expose normalized statuses and aggregate versions rather than raw PayMongo fields.
 

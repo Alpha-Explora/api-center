@@ -1,15 +1,13 @@
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
-import { CapabilitiesService } from "../../../../apps/gateway/src/capabilities/capabilities.service";
+import { CapabilitiesService } from "../../../../apps/gateway/src/domains/runtime-ops/capabilities/capabilities.service";
 
 describe("CapabilitiesService", () => {
-  it("reports core gateway enabled and data pipeline disabled", () => {
+  it("reports gateway and registry capabilities", () => {
     const service = new CapabilitiesService({
       authProvider: "internal-jwt",
-      dataPipeline: { enabled: false },
-      kafka: { enabled: false },
       database: { registrySource: "redis" },
       registryBootstrap: { enabled: false },
-    } as ConfigService);
+    } as unknown as ConfigService);
 
     expect(service.snapshot()).toEqual({
       coreGateway: {
@@ -18,39 +16,25 @@ describe("CapabilitiesService", () => {
         registrySource: "redis",
         registryBootstrapEnabled: false,
       },
-      dataPipeline: {
-        enabled: false,
-      },
-      kafkaPublishing: {
-        enabled: false,
-      },
       tribeSecrets: {
         source: "env-hash",
       },
     });
   });
 
-  it("reports enabled pipeline and GCP tribe secret source", () => {
+  it("reports GCP tribe secret source", () => {
     process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
     const service = new CapabilitiesService({
       authProvider: "composite",
-      dataPipeline: { enabled: true },
-      kafka: { enabled: true },
       database: { registrySource: "postgres" },
       registryBootstrap: { enabled: true },
-    } as ConfigService);
+    } as unknown as ConfigService);
 
     expect(service.snapshot()).toMatchObject({
       coreGateway: {
         authProvider: "composite",
         registrySource: "postgres",
         registryBootstrapEnabled: true,
-      },
-      dataPipeline: {
-        enabled: true,
-      },
-      kafkaPublishing: {
-        enabled: true,
       },
       tribeSecrets: {
         source: "gcp-secret-manager",

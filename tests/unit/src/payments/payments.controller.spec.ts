@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { PaymentsController } from '../../../../apps/gateway/src/payments/payments.controller';
-import { PaymentIdempotencyService } from '../../../../apps/gateway/src/payments/payment-idempotency.service';
+import { PaymentsController } from '../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
+import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -13,6 +13,7 @@ function request(path: string, method: string, body?: Record<string, unknown>) {
       authorization: 'Bearer apic_test_key',
       'idempotency-key': 'idempotency-key-123456',
     },
+    get(name: string) { return this.headers[name.toLowerCase()]; },
     body,
     paymentPrincipal: {
       ownerTribeId: 'tribe-alpha',
@@ -39,15 +40,19 @@ function response() {
 describe('PaymentsController', () => {
   const originalRedisUrl = process.env.REDIS_URL;
   const originalRedisCacheUrl = process.env.REDIS_CACHE_URL;
+  const originalRuntimeToken = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST;
 
   beforeAll(() => {
     delete process.env.REDIS_URL;
     delete process.env.REDIS_CACHE_URL;
+    process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST = 'unit-test-runtime-token';
   });
 
   afterAll(() => {
     if (originalRedisUrl === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = originalRedisUrl;
     if (originalRedisCacheUrl === undefined) delete process.env.REDIS_CACHE_URL; else process.env.REDIS_CACHE_URL = originalRedisCacheUrl;
+    if (originalRuntimeToken === undefined) delete process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST;
+    else process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST = originalRuntimeToken;
   });
 
   beforeEach(() => {
@@ -79,9 +84,8 @@ describe('PaymentsController', () => {
     ['GET', '/intents/pi_123', undefined],
     ['POST', '/intents/pi_123/confirm', {}],
     ['POST', '/intents/pi_123/cancel', {}],
-    ['POST', '/customers', { customerReference: 'customer-123' }],
+    ['POST', '/customers', { customerReference: 'customer-123', email: 'customer@example.test' }],
     ['GET', '/customers/cus_123', undefined],
-    ['POST', '/payment-method-setups', { customerId: 'cus_123', referenceId: 'setup-123' }],
     ['POST', '/refunds', { paymentId: 'pay_123', amount: { amountMinor: 100, currency: 'PHP' } }],
     ['GET', '/refunds/ref_123', undefined],
     ['POST', '/subscriptions', { customerId: 'cus_123', referenceId: 'sub-123', priceId: 'price_123' }],
@@ -152,5 +156,43 @@ describe('PaymentsController', () => {
       response: { code: 'INVALID_PAYMENT_REQUEST' },
     });
     expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
+  it('rejects unlisted routes and a read-only key on a mutation', async () => {
+    const controller = new PaymentsController(new PaymentIdempotencyService());
+    await expect(controller.proxy(request('/admin', 'GET'), response().res))
+      .rejects.toMatchObject({ response: { code: 'PAYMENT_OPERATION_NOT_FOUND' } });
+    const readOnly = request('/checkouts', 'POST', {
+      referenceId: 'order-1', amount: { amountMinor: 100, currency: 'PHP' },
+      successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel',
+    });
+    readOnly.paymentPrincipal.scopes = ['payments:read'];
+    await expect(controller.proxy(readOnly, response().res))
+      .rejects.toMatchObject({ response: { code: 'INSUFFICIENT_SCOPE' } });
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
+  it('retries an unknown provider outcome with the same key after a bounded lease', async () => {
+    const clock = jest.spyOn(Date, 'now');
+    const start = Date.now();
+    clock.mockReturnValue(start);
+    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const body = { referenceId: 'order-lease', amount: { amountMinor: 100, currency: 'PHP' },
+      successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel' };
+    mockedAxios.request.mockRejectedValueOnce(new Error('timeout'));
+    try {
+      const first = response();
+      await controller.proxy(request('/checkouts', 'POST', body), first.res);
+      expect(first.state.status).toBe(502);
+      await expect(controller.proxy(request('/checkouts', 'POST', body), response().res))
+        .rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_KEY_IN_PROGRESS' } });
+      clock.mockReturnValue(start + 31000);
+      const retried = response();
+      await controller.proxy(request('/checkouts', 'POST', body), retried.res);
+      expect(retried.state.status).toBe(200);
+      expect(mockedAxios.request).toHaveBeenCalledTimes(2);
+      expect((mockedAxios.request.mock.calls[1][0] as any).headers['idempotency-key'])
+        .toBe('idempotency-key-123456');
+    } finally { clock.mockRestore(); }
   });
 });

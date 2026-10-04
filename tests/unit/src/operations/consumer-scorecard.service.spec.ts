@@ -1,4 +1,4 @@
-import { ConsumerScorecardService } from "../../../../apps/gateway/src/operations/consumer-scorecard.service";
+import { ConsumerScorecardService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/consumer-scorecard.service";
 
 describe("ConsumerScorecardService", () => {
   it("flags stale SDK usage and quota pressure", () => {

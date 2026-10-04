@@ -1,6 +1,6 @@
 import { ExecutionContext } from "@nestjs/common";
-import { ExternalPolicyGuard } from "../../../../../apps/gateway/src/external/guards/external-policy.guard";
-import { AuthService } from "../../../../../apps/gateway/src/auth/auth.service";
+import { ExternalPolicyGuard } from "../../../../../apps/gateway/src/domains/gateway-proxy/external/guards/external-policy.guard";
+import { AuthService } from "../../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 import { ForbiddenError } from "../../../../../apps/gateway/src/shared/errors";
 

@@ -1,9 +1,9 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { ScopedAdminGuard } from "../../../../apps/gateway/src/auth/guards/scoped-admin.guard";
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
-import { TribeQuotaAdminController } from "../../../../apps/gateway/src/quotas/tribe-quota-admin.controller";
-import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/quotas/tribe-quota-policy.service";
+import { TribeQuotaAdminController } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-admin.controller";
+import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service";
 
 describe("TribeQuotaAdminController", () => {
   const policies = {

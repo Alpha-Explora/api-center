@@ -1,4 +1,4 @@
-import { RuntimeDependencyMapService } from "../../../../apps/gateway/src/operations/runtime-dependency-map.service";
+import { RuntimeDependencyMapService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/runtime-dependency-map.service";
 
 describe("RuntimeDependencyMapService", () => {
   it("builds tribe to shared service and Kafka dependencies", () => {

@@ -1,4 +1,4 @@
-import { SharedServiceRoutingService } from "../../../../apps/gateway/src/shared-services/shared-service-routing.service";
+import { SharedServiceRoutingService } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-routing.service";
 import { ServiceUnavailableError } from "../../../../apps/gateway/src/shared/errors";
 
 describe("SharedServiceRoutingService", () => {

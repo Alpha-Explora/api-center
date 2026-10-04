@@ -1,5 +1,5 @@
 import { ForbiddenError, ValidationError } from "../../../../apps/gateway/src/shared/errors";
-import { ApprovalRequestService } from "../../../../apps/gateway/src/approvals/approval-request.service";
+import { ApprovalRequestService } from "../../../../apps/gateway/src/domains/governance/approvals/approval-request.service";
 
 describe("ApprovalRequestService", () => {
   const approvals = {

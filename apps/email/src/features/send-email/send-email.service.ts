@@ -2,15 +2,15 @@ import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import type { EmailSendRequest, EmailSendResponse } from '@apicenter/contracts';
 import { EmailRecipients, EmailSubject } from './send-email.model';
-import { MemoryEmailStore } from '../../shared/email-store';
+import { createEmailStore } from '../../shared/email-store';
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const emailFrom = process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev';
+const emailFrom = process.env.EMAIL_FROM_ADDRESS;
 const nodeEnv = process.env.NODE_ENV || 'development';
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export class SendEmailService {
-  constructor(private readonly store = MemoryEmailStore.getInstance()) {}
+  constructor(private readonly store = createEmailStore()) {}
 
   async execute(input: EmailSendRequest): Promise<EmailSendResponse & { provider: string; recipient: string[] }> {
     const recipientsVo = new EmailRecipients(input.to);
@@ -19,15 +19,16 @@ export class SendEmailService {
     const recipients = recipientsVo.getRecipients();
     const htmlContent = input.html || (input.text ? `<p>${input.text}</p>` : '<p>(no content)</p>');
 
-    if (!resend && nodeEnv === 'production') {
-      throw new Error('Resend API key is not configured in production environment');
+    if ((!resend || !emailFrom) && nodeEnv === 'production') {
+      throw new Error('Resend API key and sender address are required in production');
     }
 
     const messageId = `msg_${crypto.randomUUID().replace(/-/g, '')}`;
     let providerMessageId = messageId;
-    let status = 'mock_sent';
+    let status = 'queued';
 
     if (resend) {
+      if (!emailFrom) throw new Error('Resend sender address is required');
       const payload = {
         from: emailFrom,
         to: recipients,
@@ -42,7 +43,7 @@ export class SendEmailService {
       const { data, error } = await resend.emails.send(payload);
       if (error) throw new Error(error.message);
       providerMessageId = data?.id || messageId;
-      status = 'sent';
+      status = 'queued';
     }
 
     const response = {

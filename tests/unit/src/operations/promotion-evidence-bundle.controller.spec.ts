@@ -1,7 +1,14 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
-import { PromotionEvidenceBundleController } from "../../../../apps/gateway/src/operations/promotion-evidence-bundle.controller";
-import { PromotionEvidenceBundleService } from "../../../../apps/gateway/src/operations/promotion-evidence-bundle.service";
+jest.mock("@governance", () => ({
+  ApprovalRequestService: class {},
+  TribePlanService: class {},
+  TribeQuotaPolicyService: class {},
+}));
+jest.mock("@auth/guards/scoped-admin.guard", () => ({ ScopedAdminGuard: class {} }));
+
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import { PromotionEvidenceBundleController } from "../../../../apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.controller";
+import { PromotionEvidenceBundleService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.service";
 
 describe("PromotionEvidenceBundleController", () => {
   const registry = {
@@ -16,10 +23,6 @@ describe("PromotionEvidenceBundleController", () => {
   const approvals = {
     listRequests: jest.fn(),
   };
-  const pipelineHealth = {
-    listHealth: jest.fn(),
-    getResponseSource: jest.fn(),
-  };
 
   let auditEvents: { record: jest.Mock };
   let controller: PromotionEvidenceBundleController;
@@ -33,12 +36,11 @@ describe("PromotionEvidenceBundleController", () => {
       quotaPolicies as any,
       planService as any,
       approvals as any,
-      pipelineHealth as any,
       auditEvents as unknown as AuditEventsService,
     );
   });
 
-  it("returns markdown evidence when requested", async () => {
+  it("returns markdown evidence for current service and governance data", async () => {
     (registry.get as jest.Mock).mockReturnValue({
       serviceId: "campus-one",
       ownerTribeId: "campus-one",
@@ -53,15 +55,11 @@ describe("PromotionEvidenceBundleController", () => {
     approvals.listRequests.mockResolvedValue([
       { id: "approval-1", status: "approved", targetId: "campus-one" },
     ]);
-    pipelineHealth.getResponseSource.mockReturnValue("athena-proxy");
-    pipelineHealth.listHealth.mockResolvedValue([
-      { tribeId: "campus-one", sourceServiceId: "student-api" },
-    ]);
 
     const response = await controller.getEvidence("campus-one", "md");
 
     expect(response).toContain("# Promotion Evidence: campus-one");
-    expect(response).toContain("## Health");
+    expect(response).toContain("## Pipeline");
   });
 
   it("does not mark quota, plan, approval, or pipeline as passing when evidence is missing", async () => {
@@ -74,8 +72,6 @@ describe("PromotionEvidenceBundleController", () => {
     quotaPolicies.listPolicies.mockResolvedValue([]);
     planService.listPlanAssignments.mockResolvedValue([]);
     approvals.listRequests.mockResolvedValue([]);
-    pipelineHealth.getResponseSource.mockReturnValue("evidence-file");
-    pipelineHealth.listHealth.mockResolvedValue([]);
 
     const response = await controller.getEvidence("campus-one", undefined);
 
@@ -86,10 +82,6 @@ describe("PromotionEvidenceBundleController", () => {
       expect.arrayContaining([
         expect.objectContaining({
           sourceName: "promotion-evidence-memory-bundles",
-          sourceType: "volatile",
-        }),
-        expect.objectContaining({
-          sourceName: "promotion-pipeline-health-fixture",
           sourceType: "volatile",
         }),
       ]),
@@ -119,10 +111,6 @@ describe("PromotionEvidenceBundleController", () => {
     approvals.listRequests.mockResolvedValue([
       { id: "approval-1", status: "approved", targetId: "student-api" },
     ]);
-    pipelineHealth.getResponseSource.mockReturnValue("athena-proxy");
-    pipelineHealth.listHealth.mockResolvedValue([
-      { tribeId: "campus-one", sourceServiceId: "student-api" },
-    ]);
 
     const response = await controller.getEvidence("student-api", undefined);
 
@@ -132,23 +120,14 @@ describe("PromotionEvidenceBundleController", () => {
       status: "active",
     });
     if (typeof response === "string") throw new Error("Expected JSON response");
-    expect(response.meta.sourceMetadata).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          sourceName: "promotion-pipeline-health-athena",
-          sourceType: "external",
-          durability: "athena",
-        }),
-      ]),
-    );
     expect(auditEvents.record).toHaveBeenCalledWith({
       type: "promotion.evidence.generated",
       actionFamily: "promotion",
       serviceId: "student-api",
-      severity: "info",
+      severity: "warning",
       message: "Promotion evidence generated for student-api",
       payload: expect.objectContaining({
-        ready: true,
+        ready: false,
         sectionStatuses: {
           health: "pass",
           quota: "pass",
@@ -156,13 +135,9 @@ describe("PromotionEvidenceBundleController", () => {
           approval: "pass",
           smoke: "pass",
           manifest: "pass",
-          pipeline: "pass",
+          pipeline: "fail",
         },
-        sourceMetadata: expect.arrayContaining([
-          expect.objectContaining({
-            sourceName: "promotion-pipeline-health-athena",
-          }),
-        ]),
+        sourceMetadata: expect.any(Array),
       }),
     });
   });

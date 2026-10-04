@@ -1,4 +1,4 @@
-import { PaymentPubSubIamProvisioningService, type IamRequestClient } from "../../../../apps/gateway/src/payments/payment-pubsub-iam-provisioning.service";
+import { PaymentPubSubIamProvisioningService, type IamRequestClient } from "../../../../apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service";
 
 describe("PaymentPubSubIamProvisioningService", () => {
   const originalFlag = process.env.PAYMENT_PUBSUB_IAM_ENABLED;

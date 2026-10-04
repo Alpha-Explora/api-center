@@ -1,4 +1,4 @@
-import { HealthMonitorService } from "../../../../apps/gateway/src/registry/health-monitor.service";
+import { HealthMonitorService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/health-monitor.service";
 import { ServiceRegistryEntry } from "../../../../apps/gateway/src/types";
 
 const baseEntry: ServiceRegistryEntry = {
@@ -47,7 +47,6 @@ describe("HealthMonitorService Redis drift reconciliation", () => {
     const service = new HealthMonitorService(
       registry as any,
       logger as any,
-      { publishNonBlocking: jest.fn() } as any,
       { health: { checkTimeoutMs: 500 } } as any,
     );
 
@@ -77,7 +76,6 @@ describe("HealthMonitorService Redis drift reconciliation", () => {
     const service = new HealthMonitorService(
       registry as any,
       logger as any,
-      { publishNonBlocking: jest.fn() } as any,
       {
         database: { registrySource: "postgres" },
         health: { checkTimeoutMs: 500 },

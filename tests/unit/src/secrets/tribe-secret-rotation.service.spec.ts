@@ -1,5 +1,5 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
-import { TribeSecretRotationService } from "../../../../apps/gateway/src/secrets/tribe-secret-rotation.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { TribeSecretRotationService } from "../../../../apps/gateway/src/domains/auth-security/secrets/tribe-secret-rotation.service";
 
 describe("TribeSecretRotationService", () => {
   let auditEvents: { recordRequired: jest.Mock };

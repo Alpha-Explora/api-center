@@ -13,8 +13,8 @@ import {
   GoneError,
   setCreateProxyMiddlewareForTesting,
 } from "../../../../apps/gateway/src/shared/proxy-handler";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
-import { AuthService } from "../../../../apps/gateway/src/auth/auth.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import { AuthService } from "../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 import {

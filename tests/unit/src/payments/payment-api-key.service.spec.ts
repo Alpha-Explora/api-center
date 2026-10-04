@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PaymentApiKeyService } from "../../../../apps/gateway/src/payments/payment-api-key.service";
+import { PaymentApiKeyService } from "../../../../apps/gateway/src/domains/payments/features/payment-facade/payment-api-key.service";
 
 describe("PaymentApiKeyService", () => {
   const originalConfig = process.env.APICENTER_PAYMENT_API_KEY_CONFIG;

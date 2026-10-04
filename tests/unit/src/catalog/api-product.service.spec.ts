@@ -1,4 +1,4 @@
-import { ApiProductService } from "../../../../apps/gateway/src/catalog/api-product.service";
+import { ApiProductService } from "../../../../apps/gateway/src/domains/catalog-registry/catalog/api-product.service";
 
 describe("ApiProductService", () => {
   it("projects registry services into marketplace products", () => {

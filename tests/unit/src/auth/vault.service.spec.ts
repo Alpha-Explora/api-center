@@ -1,5 +1,5 @@
 import axios from "axios";
-import { VaultService } from "../../../../apps/gateway/src/auth/vault.service";
+import { VaultService } from "../../../../apps/gateway/src/domains/auth-security/auth/vault.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 

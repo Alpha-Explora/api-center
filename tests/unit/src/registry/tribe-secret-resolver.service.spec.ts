@@ -3,7 +3,7 @@ import { LoggerService } from "../../../../apps/gateway/src/shared/logger.servic
 import {
   SecretManagerClientLike,
   TribeSecretResolverService,
-} from "../../../../apps/gateway/src/registry/tribe-secret-resolver.service";
+} from "../../../../apps/gateway/src/domains/catalog-registry/registry/tribe-secret-resolver.service";
 
 const mockLogger: Partial<LoggerService> = {
   warn: jest.fn(),

@@ -1,7 +1,7 @@
-import { RegistryController } from "../../../../apps/gateway/src/registry/registry.controller";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { RegistryController } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.controller";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
 
 describe("RegistryController", () => {
   const mockRegistry = {

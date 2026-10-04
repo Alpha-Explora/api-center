@@ -1,30 +1,35 @@
 ---
 title: "Idempotency & Rate Limits"
-description: "Guidelines on Idempotency-Key headers, reference IDs, and rate limit quotas."
+description: "Guidelines for safe retries across payment, messaging, and OTP APIs."
 ---
 
 # Idempotency & Rate Limits
 
-To protect against network failures, accidental double-clicks, and duplicate charges, APICenter enforces strict **Idempotency** on state-changing API operations.
+Payment mutations use idempotency keys to prevent duplicate provider operations when a request is retried after a network failure or timeout.
 
----
+## Idempotency-Key header
 
-## Idempotency-Key Header
-
-All `POST`, `PUT`, and `PATCH` requests on mutation operations require an `Idempotency-Key` HTTP header.
+Every payment `POST` mutation requires an `Idempotency-Key` header containing 16–255 characters. Reuse the same key with the same request body when retrying the same operation.
 
 ```text
 Idempotency-Key: 7b9e0f14-3a21-4f92-901b-bf81c94d0e12
 ```
 
-### Behavior Guarantee
+After a definitive response, APICenter replays the response for the same key and request body for seven days. Reusing a key with a different body returns HTTP `409` with `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`. Concurrent reuse returns `IDEMPOTENCY_KEY_IN_PROGRESS`; retry later with the same key.
 
-- If a request with an existing `Idempotency-Key` is received within **24 hours**, APICenter returns the cached response without re-executing the operation or calling payment providers.
-- **Reference ID Uniqueness**: For payments, `referenceId` must be unique within `(ownerTribeId, consumerServiceId, environment)`.
+If the provider outcome is uncertain, keep using the original key. APICenter allows retries with that key for up to 23 hours from the first attempt, leaving a safety margin before PayMongo's provider idempotency key expires. After that window, APICenter returns HTTP `409` with `PAYMENT_OUTCOME_UNKNOWN`. Reconcile the payment with APICenter or PayMongo before starting a new operation with a different key.
 
----
+For payments, `referenceId` must be unique within `(ownerTribeId, consumerServiceId, environment)`.
 
-## Quotas & Rate Limits
+## Email, SMS, and OTP
+
+Email and SMS sends, OTP generation, and OTP verification also require an `Idempotency-Key` containing 16–255 characters. Keys are scoped to the authenticated consumer service, tribe, environment, and operation. Reuse the same key with the same request body when retrying.
+
+After a completed operation, APICenter replays the original HTTP status and response body for seven days and includes `x-idempotency-replayed: true`. A changed body returns HTTP `409` with `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`; a concurrent request returns `IDEMPOTENCY_KEY_IN_PROGRESS`. Rate-limit rejections do not consume the key.
+
+When email/SMS delivery or OTP processing has an uncertain outcome, APICenter keeps the key blocked and returns `IDEMPOTENCY_OUTCOME_UNKNOWN` on retry. Reconcile the provider message or OTP state before submitting a new request with a different key.
+
+## Quotas & rate limits
 
 APICenter applies rate limits per consumer service per minute:
 
@@ -35,28 +40,6 @@ APICenter applies rate limits per consumer service per minute:
 | **SMS Dispatches** | 60 req / min | `429 TOO_MANY_REQUESTS` |
 | **OTP Generation** | 10 req / target / min | `429 TOO_MANY_REQUESTS` |
 
----
+## Handling rate limits and retries
 
-## Handling 429 & Retries
-
-When receiving HTTP `429` or transient `502/503` responses, follow an **Exponential Backoff with Jitter** retry strategy:
-
-```typescript
-// Example retry logic with exponential backoff
-async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 500) {
-  try {
-    const res = await fetch(url, options);
-    if (res.status === 429 || res.status >= 500) {
-      if (retries <= 0) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      const jitter = Math.random() * 200;
-      await new Promise(r => setTimeout(r, delay + jitter));
-      return fetchWithRetry(url, options, retries - 1, delay * 2);
-    }
-    return res;
-  } catch (err) {
-    if (retries <= 0) throw err;
-    await new Promise(r => setTimeout(r, delay));
-    return fetchWithRetry(url, options, retries - 1, delay * 2);
-  }
-}
-```
+When receiving HTTP `429`, retry after the server's `Retry-After` value when present, using exponential backoff with jitter. For payment timeouts or `5xx` responses, retain the same key and request body. Never create a replacement payment with a new key while the earlier outcome is unresolved.

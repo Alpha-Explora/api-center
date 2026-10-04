@@ -26,7 +26,6 @@ const requiredOperations = {
   'POST /api/v1/payments/intents/{paymentIntentId}/cancel': 'cancelPaymentIntent',
   'POST /api/v1/payments/customers': 'createCustomer',
   'GET /api/v1/payments/customers/{customerId}': 'getCustomer',
-  'POST /api/v1/payments/payment-method-setups': 'createPaymentMethodSetup',
   'POST /api/v1/payments/refunds': 'createRefund',
   'GET /api/v1/payments/refunds/{refundId}': 'getRefund',
   'POST /api/v1/payments/subscriptions': 'createSubscription',

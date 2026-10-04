@@ -1,4 +1,4 @@
-import { EnvironmentPromotionService } from "../../../../apps/gateway/src/promotions/environment-promotion.service";
+import { EnvironmentPromotionService } from "../../../../apps/gateway/src/domains/governance/promotions/environment-promotion.service";
 
 describe("EnvironmentPromotionService", () => {
   const service = new EnvironmentPromotionService();

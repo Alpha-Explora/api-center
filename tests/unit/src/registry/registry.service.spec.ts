@@ -6,20 +6,18 @@
 // metrics gauge sync, and access-control helpers.
 // =============================================================================
 
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
-import { KafkaService } from "../../../../apps/gateway/src/kafka/kafka.service";
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
-import { TribeSecretResolverService } from "../../../../apps/gateway/src/registry/tribe-secret-resolver.service";
-import { PostgresRegistryStoreService } from "../../../../apps/gateway/src/registry/postgres-registry-store.service";
+import { TribeSecretResolverService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tribe-secret-resolver.service";
+import { PostgresRegistryStoreService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/postgres-registry-store.service";
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import {
   NotFoundError,
   ConflictError,
   ValidationError,
 } from "../../../../apps/gateway/src/shared/errors";
-import { TOPICS } from "../../../../apps/gateway/src/kafka/topics";
 
 // â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -39,11 +37,6 @@ const mockConfig: Partial<ConfigService> = {
     registrySource: "redis",
     dualWrite: false,
   } as any,
-};
-
-const mockKafka: Partial<KafkaService> = {
-  publish: jest.fn().mockResolvedValue(undefined),
-  publishNonBlocking: jest.fn(),
 };
 
 const mockMetrics: Partial<MetricsService> = {
@@ -111,7 +104,6 @@ describe("RegistryService", () => {
     service = new RegistryService(
       mockLogger as LoggerService,
       mockConfig as ConfigService,
-      mockKafka as KafkaService,
       mockMetrics as MetricsService,
       mockTribeSecretResolver as TribeSecretResolverService,
       mockPostgresStore as PostgresRegistryStoreService,
@@ -179,14 +171,6 @@ describe("RegistryService", () => {
       expect(entry.updatedAt).toBeDefined();
     });
 
-    it("publishes a SERVICE_REGISTERED Kafka event", async () => {
-      await service.register(baseManifest());
-      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
-        TOPICS.SERVICE_REGISTERED,
-        expect.objectContaining({ serviceId: "svc-alpha", isUpdate: false }),
-        expect.any(Object),
-      );
-    });
 
     it("syncs the metrics gauge", async () => {
       await service.register(baseManifest());
@@ -361,11 +345,6 @@ describe("RegistryService", () => {
       await service.deregister("svc-alpha");
 
       expect(service.get("svc-alpha")).toBeNull();
-      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
-        TOPICS.SERVICE_DEREGISTERED,
-        expect.objectContaining({ serviceId: "svc-alpha" }),
-        expect.any(Object),
-      );
     });
 
     it("throws NotFoundError for unknown service", async () => {
@@ -399,17 +378,6 @@ describe("RegistryService", () => {
       expect(entry.replacementService).toBe("svc-beta");
     });
 
-    it("emits a SERVICE_DEPRECATED Kafka event", async () => {
-      await service.register(baseManifest());
-      await service.deprecate("svc-alpha");
-
-      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
-        TOPICS.SERVICE_DEPRECATED,
-        expect.objectContaining({ serviceId: "svc-alpha" }),
-        expect.any(Object),
-      );
-    });
-
     it("throws NotFoundError for unknown service", async () => {
       await expect(service.deprecate("unknown")).rejects.toThrow(NotFoundError);
     });
@@ -428,17 +396,6 @@ describe("RegistryService", () => {
       await service.register(baseManifest());
       const entry = await service.retire("svc-alpha");
       expect(entry.status).toBe("retired");
-    });
-
-    it("emits a SERVICE_RETIRED Kafka event", async () => {
-      await service.register(baseManifest());
-      await service.retire("svc-alpha");
-
-      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
-        TOPICS.SERVICE_RETIRED,
-        expect.objectContaining({ serviceId: "svc-alpha" }),
-        expect.any(Object),
-      );
     });
 
     it("throws NotFoundError for unknown service", async () => {
@@ -502,31 +459,6 @@ describe("RegistryService", () => {
       ).rejects.toThrow(ValidationError);
     });
 
-    it("emits SERVICE_VERSION_CHANGED on version update", async () => {
-      await service.register(baseManifest({ version: "1.0.0" }));
-      await service.register(baseManifest({ version: "1.1.0" }));
-
-      expect(mockKafka.publishNonBlocking).toHaveBeenCalledWith(
-        TOPICS.SERVICE_VERSION_CHANGED,
-        expect.objectContaining({
-          serviceId: "svc-alpha",
-          previousVersion: "1.0.0",
-          newVersion: "1.1.0",
-        }),
-        expect.any(Object),
-      );
-    });
-
-    it("does not emit VERSION_CHANGED when version is unchanged", async () => {
-      await service.register(baseManifest({ version: "1.0.0" }));
-      (mockKafka.publish as jest.Mock).mockClear();
-      await service.register(baseManifest({ version: "1.0.0" }));
-
-      const versionCalls = (mockKafka.publish as jest.Mock).mock.calls.filter(
-        ([topic]: [string]) => topic === TOPICS.SERVICE_VERSION_CHANGED,
-      );
-      expect(versionCalls).toHaveLength(0);
-    });
   });
 
   // =========================================================================

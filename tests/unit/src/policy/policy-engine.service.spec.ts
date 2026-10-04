@@ -1,4 +1,4 @@
-import { PolicyEngineService } from "../../../../apps/gateway/src/policy/policy-engine.service";
+import { PolicyEngineService } from "../../../../apps/gateway/src/domains/governance/policy/policy-engine.service";
 
 describe("PolicyEngineService", () => {
   let service: PolicyEngineService;

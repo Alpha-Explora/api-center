@@ -1,9 +1,9 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
-import { TribeCostService } from "../../../../apps/gateway/src/costs/tribe-cost.service";
-import { TribeQuotaEnforcerService } from "../../../../apps/gateway/src/quotas/tribe-quota-enforcer.service";
-import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/quotas/tribe-quota-policy.service";
+import { TribeCostService } from "../../../../apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service";
+import { TribeQuotaEnforcerService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service";
+import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service";
 
 describe("TribeQuotaEnforcerService", () => {
   let policies: {

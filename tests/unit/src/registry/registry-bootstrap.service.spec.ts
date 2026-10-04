@@ -4,8 +4,8 @@ import { ConfigService } from "../../../../apps/gateway/src/config/config.servic
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
-import { RegistryBootstrapService } from "../../../../apps/gateway/src/registry/registry-bootstrap.service";
-import { RegistryService } from "../../../../apps/gateway/src/registry/registry.service";
+import { RegistryBootstrapService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry-bootstrap.service";
+import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 
 jest.mock("node:fs/promises", () => ({
   readFile: jest.fn(),

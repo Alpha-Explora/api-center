@@ -1,18 +1,17 @@
 ---
-title: "Customers & Vaulted Payment Methods"
-description: "Manage consumer-scoped customers and vaulted payment cards/accounts."
+title: "Customers"
+description: "Create and look up customer records owned by a consumer service."
 ---
 
-# Customers & Vaulted Payment Methods
+# Customers
 
-APICenter allows registered consumer services to store customer payment profiles in a **consumer-scoped vault**. Reusable payment methods created by your service belong strictly to your owner tribe boundaries.
+Customer records are scoped to the registered consumer service and its owning tribe. They can be referenced by supported billing resources.
 
----
-
-## Create Consumer-Scoped Customer
+## Create a customer
 
 - **Endpoint**: `POST /api/v1/payments/customers`
-- **Required Scope**: `payments:write`
+- **Required scope**: `payments:customers:write` or a broader payment write scope
+- **Required header**: `Idempotency-Key`
 
 ```bash
 curl -X POST https://api-center.itsandbox.site/api/v1/payments/customers \
@@ -20,27 +19,14 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/customers \
   -H "Idempotency-Key: cust-idem-991" \
   -H "Content-Type: application/json" \
   -d '{
-    "referenceId": "USER-SUB-1029",
+    "customerReference": "USER-SUB-1029",
     "email": "juan.delacruz@example.com",
-    "name": "Juan Dela Cruz",
-    "phone": "+639171234567"
+    "name": "Juan Dela Cruz"
   }'
 ```
 
----
+Use the returned `customerId` when creating a supported subscription. The customer API stores customer records; reusable payment-method setup is not currently exposed by the public API.
 
-## Setup Reusable Payment Method
+## Look up a customer
 
-- **Endpoint**: `POST /api/v1/payments/payment-methods/setup`
-
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/payments/payment-methods/setup \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Idempotency-Key: setup-idem-002" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerId": "cus_9912041",
-    "type": "card",
-    "returnUrl": "https://app.example.com/vault/callback"
-  }'
-```
+Use `GET /api/v1/payments/customers/{customerId}` with the `payments:customers:read` scope or a broader payment read scope.

@@ -15,7 +15,9 @@ const asyncApi = readYaml('contracts/public/apicenter.asyncapi.yaml');
 assert(openApi.openapi === '3.2.0', 'OpenAPI must use version 3.2.0');
 assert(asyncApi.asyncapi === '3.1.0', 'AsyncAPI must use version 3.1.0');
 assert(openApi.security?.[0]?.ApiKeyAuth, 'OpenAPI must require ApiKeyAuth globally');
-assert(openApi.components?.headers?.['Idempotency-Key'], 'Idempotency-Key header is missing');
+const idempotencyParameter = openApi.components?.parameters?.IdempotencyKey;
+assert(idempotencyParameter?.name === 'Idempotency-Key' && idempotencyParameter?.in === 'header'
+  && idempotencyParameter?.required === true, 'Idempotency-Key header parameter is missing or invalid');
 
 const requiredOperations: Record<string, string> = {
   'POST /api/v1/payments/checkouts': 'createCheckout',
@@ -28,7 +30,6 @@ const requiredOperations: Record<string, string> = {
   'POST /api/v1/payments/intents/{paymentIntentId}/cancel': 'cancelPaymentIntent',
   'POST /api/v1/payments/customers': 'createCustomer',
   'GET /api/v1/payments/customers/{customerId}': 'getCustomer',
-  'POST /api/v1/payments/payment-method-setups': 'createPaymentMethodSetup',
   'POST /api/v1/payments/refunds': 'createRefund',
   'GET /api/v1/payments/refunds/{refundId}': 'getRefund',
   'POST /api/v1/payments/subscriptions': 'createSubscription',
@@ -50,7 +51,8 @@ for (const [route, pathItem] of Object.entries<RecordValue>(openApi.paths ?? {})
   assert(route.startsWith('/api/v1/payments/'), `${route} is outside the public payment namespace`);
   for (const [method, operation] of Object.entries<RecordValue>(pathItem)) {
     if (!['post', 'put', 'patch', 'delete'].includes(method)) continue;
-    assert((operation.parameters ?? []).some((parameter: RecordValue) => parameter.$ref === '#/components/headers/Idempotency-Key'), `${method.toUpperCase()} ${route} must declare Idempotency-Key`);
+    assert((operation.parameters ?? []).some((parameter: RecordValue) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `${method.toUpperCase()} ${route} must declare Idempotency-Key`);
+    assert(operation.responses?.['409']?.$ref === '#/components/responses/IdempotencyConflict', `${method.toUpperCase()} ${route} must document idempotency conflicts`);
   }
 }
 const serializedOpenApi = JSON.stringify(openApi).toLowerCase();

@@ -1,5 +1,5 @@
-import { PaymentIdempotencyService } from "../../../../apps/gateway/src/payments/payment-idempotency.service";
-import { PaymentPrincipal } from "../../../../apps/gateway/src/payments/payment-api-key.service";
+import { PaymentIdempotencyService } from "../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service";
+import { PaymentPrincipal } from "../../../../apps/gateway/src/domains/payments/features/payment-facade/payment-api-key.service";
 
 describe("PaymentIdempotencyService", () => {
   const principal: PaymentPrincipal = {
@@ -78,6 +78,50 @@ describe("PaymentIdempotencyService", () => {
     ).rejects.toMatchObject({
       response: { code: "IDEMPOTENCY_KEY_PAYLOAD_MISMATCH" },
     });
+  });
+
+  it('atomically gives the first concurrent request the processing lease', async () => {
+    const service = new PaymentIdempotencyService();
+    const request = {
+      principal,
+      method: 'POST',
+      path: '/checkouts',
+      key: 'idempotency-concurrent-order-3',
+      body: { referenceId: 'order-concurrent' },
+    };
+
+    const results = await Promise.allSettled([
+      service.lookupOrValidate(request),
+      service.lookupOrValidate(request),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled' && 'miss' in result.value)).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected' && result.reason?.response?.code === 'IDEMPOTENCY_KEY_IN_PROGRESS')).toHaveLength(1);
+  });
+
+  it("keeps an unresolved payment key blocked after the provider retry window expires", async () => {
+    const clock = jest.spyOn(Date, "now");
+    const start = Date.now();
+    clock.mockReturnValue(start);
+    const service = new PaymentIdempotencyService();
+    const request = {
+      principal,
+      method: "POST",
+      path: "/checkouts",
+      key: "idempotency-unknown-123",
+      body: { referenceId: "order-unknown" },
+    };
+
+    try {
+      await service.lookupOrValidate(request);
+      await service.markUnknown(request);
+      clock.mockReturnValue(start + 24 * 60 * 60 * 1000);
+      await expect(service.lookupOrValidate(request)).rejects.toMatchObject({
+        response: { code: "PAYMENT_OUTCOME_UNKNOWN" },
+      });
+    } finally {
+      clock.mockRestore();
+    }
   });
 });
 

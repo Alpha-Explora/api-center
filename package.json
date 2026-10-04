@@ -4,20 +4,22 @@
   "description": "APICenter - centralized gateway for tribe-to-tribe calls, shared services, auth, registry, and governed event publishing.",
   "main": "./dist/main.js",
   "scripts": {
-    "build": "npm run build:gateway",
+    "build": "turbo run build",
     "start": "node apps/gateway/dist/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "NODE_ENV=production node apps/gateway/dist/main",
     "dev": "npm run dev --workspace @apicenter/gateway",
-    "lint": "npm run lint:gateway",
+    "lint": "turbo run lint",
     "lint:gateway": "eslint \"apps/gateway/src/**/*.ts\"",
     "test": "jest",
+    "test:all": "npm test -- --runInBand && npm run test:workspaces",
+    "test:workspaces": "npm run test --workspace @alpha-explora/apicenter-sdk && npm run test --workspace @apicenter/management && npm run test --workspace @apicenter/docs",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./tests/e2e/jest-e2e.json",
     "test:integration": "jest --config ./tests/integration/jest-integration.json --runInBand",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck": "turbo run typecheck",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migration:new": "supabase migration new",
@@ -89,6 +91,7 @@
     "google-auth-library": "^10.9.0",
     "helmet": "^8.1.0",
     "http-proxy-middleware": "^4.0.0",
+    "ioredis": "^5.10.0",
     "jose": "^6.2.1",
     "morgan": "^1.10.0",
     "pg": "^8.20.0",
@@ -143,7 +146,7 @@
       "<rootDir>/tests/unit/**/*.spec.ts"
     ],
     "transform": {
-      "^.+\\.(t|j)s$": [
+      "^.+\\.ts$": [
         "ts-jest",
         {
           "tsconfig": "<rootDir>/tsconfig.spec.json"
@@ -158,7 +161,33 @@
     "modulePathIgnorePatterns": [
       "<rootDir>/.agents/",
       "<rootDir>/.claude/"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^@config/(.*)$": "<rootDir>/apps/gateway/src/config/$1",
+      "^@shared/(.*)$": "<rootDir>/apps/gateway/src/shared/$1",
+      "^@database/(.*)$": "<rootDir>/apps/gateway/src/database/$1",
+      "^@metrics/(.*)$": "<rootDir>/apps/gateway/src/metrics/$1",
+      "^@kafka/(.*)$": "<rootDir>/apps/gateway/src/kafka/$1",
+      "^@auth/(.*)$": "<rootDir>/apps/gateway/src/domains/auth-security/auth/$1",
+      "^@secrets/(.*)$": "<rootDir>/apps/gateway/src/domains/auth-security/secrets/$1",
+      "^@registry/(.*)$": "<rootDir>/apps/gateway/src/domains/catalog-registry/registry/$1",
+      "^@tribes/(.*)$": "<rootDir>/apps/gateway/src/domains/gateway-proxy/tribes/$1",
+      "^@external/(.*)$": "<rootDir>/apps/gateway/src/domains/gateway-proxy/external/$1",
+      "^@shared-services/(.*)$": "<rootDir>/apps/gateway/src/domains/gateway-proxy/shared-services/$1",
+      "^@health/(.*)$": "<rootDir>/apps/gateway/src/domains/runtime-ops/health/$1",
+      "^@analytics/(.*)$": "<rootDir>/apps/gateway/src/domains/runtime-ops/analytics/$1",
+      "^@operations/(.*)$": "<rootDir>/apps/gateway/src/domains/runtime-ops/operations/$1",
+      "^@costs/(.*)$": "<rootDir>/apps/gateway/src/domains/runtime-ops/costs/$1",
+      "^@forecasting/(.*)$": "<rootDir>/apps/gateway/src/domains/runtime-ops/forecasting/$1",
+      "^@quotas/(.*)$": "<rootDir>/apps/gateway/src/domains/governance/quotas/$1",
+      "^@policy/(.*)$": "<rootDir>/apps/gateway/src/domains/governance/policy/$1",
+      "^@approvals/(.*)$": "<rootDir>/apps/gateway/src/domains/governance/approvals/$1",
+      "^@entitlements/(.*)$": "<rootDir>/apps/gateway/src/domains/governance/entitlements/$1",
+      "^@payments/(.*)$": "<rootDir>/apps/gateway/src/domains/payments/$1",
+      "^@governance$": "<rootDir>/apps/gateway/src/domains/governance/index",
+      "^@governance/(.*)$": "<rootDir>/apps/gateway/src/domains/governance/$1",
+      "^@domains/(.*)$": "<rootDir>/apps/gateway/src/domains/$1"
+    }
   },
   "private": true,
   "packageManager": "npm@11.6.2",

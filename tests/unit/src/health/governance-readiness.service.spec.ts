@@ -1,4 +1,4 @@
-import { GovernanceReadinessService } from "../../../../apps/gateway/src/health/governance-readiness.service";
+import { GovernanceReadinessService } from "../../../../apps/gateway/src/domains/runtime-ops/health/governance-readiness.service";
 
 describe("GovernanceReadinessService", () => {
   it("reports governance as up when all required providers are enabled", () => {

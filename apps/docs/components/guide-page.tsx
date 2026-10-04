@@ -11,7 +11,7 @@ export function GuidePage({ blocks }: { blocks: GuideBlock[] }) {
   return (
     <div className="guide-content">
       <Callout type="warn" title="Fumadocs Solar Preset Guide">
-        APICenter shared services enforce strict 24-hour idempotency keys and Bearer JWT machine-to-machine security. Review official specifications before issuing live billing transactions.
+        Payment mutations use idempotency keys to prevent duplicate provider operations. APICenter also supports Bearer JWT machine-to-machine security. Review the endpoint contract before issuing live billing transactions.
       </Callout>
 
       {blocks.map((block, index) => {

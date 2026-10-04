@@ -1,4 +1,4 @@
-import { ApiDeprecationService } from "../../../../apps/gateway/src/deprecations/api-deprecation.service";
+import { ApiDeprecationService } from "../../../../apps/gateway/src/domains/runtime-ops/deprecations/api-deprecation.service";
 
 describe("ApiDeprecationService", () => {
   it("shows impacted consumers for deprecated products", () => {

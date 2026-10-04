@@ -100,6 +100,7 @@ async function bootstrap() {
       "X-Correlation-ID",
       "X-Platform-Secret",
       "X-Tribe-Id",
+      "Idempotency-Key",
     ],
     exposedHeaders: [
       "X-Correlation-ID", // trace requests across services
@@ -107,6 +108,7 @@ async function bootstrap() {
       "Sunset", // RFC 8594 — deadline for migration
       "Link", // points to replacement service
       "Retry-After", // rate-limit backoff
+      "x-idempotency-replayed",
     ],
     credentials: true, // allow Authorization header from browsers
     maxAge: 86_400, // cache preflight for 24 h — reduces OPTIONS volume

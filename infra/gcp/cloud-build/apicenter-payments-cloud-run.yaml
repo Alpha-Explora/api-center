@@ -19,7 +19,9 @@ steps:
         npm run contracts:validate
         npm run typecheck
         npm --workspace @apicenter/payments run db:validate
-        node --check apps/payments/src/server.js
+        npm run build --workspace @apicenter/contracts
+        npm run build --workspace @apicenter/payments
+        node --check apps/payments/dist/server.js
         node --check scripts/gcp/provision-payment-events.js
 
   - name: gcr.io/cloud-builders/docker

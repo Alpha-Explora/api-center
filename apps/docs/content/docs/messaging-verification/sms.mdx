@@ -13,7 +13,7 @@ The SMS Shared Service allows product backends to dispatch transactional SMS mes
 
 - **Base Route**: `/api/v1/shared/sms`
 - **Required Header**: `Authorization: Bearer <API_KEY>`
-- **Optional Header**: `Idempotency-Key: <UUID>`
+- **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---
 
@@ -47,6 +47,8 @@ The SMS Shared Service allows product backends to dispatch transactional SMS mes
 ```
 
 ---
+
+Retries with the same key and request body replay the original status and response for seven days. Reusing a key with a different body returns `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`. If delivery has an uncertain outcome, APICenter blocks the key for reconciliation instead of sending again.
 
 ## 2. Get SMS Message Status
 

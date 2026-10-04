@@ -13,8 +13,11 @@ The OTP Shared Service manages the generation, anti-brute-force rate-limiting, a
 
 - **Base Route**: `/api/v1/shared/otp`
 - **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---
+
+Use a separate key for each `generate` or `verify` request. Reusing the same key and body replays its original status and response for seven days. A changed body returns `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`; a concurrent request returns `409 IDEMPOTENCY_KEY_IN_PROGRESS`. If OTP delivery or verification has an uncertain outcome, APICenter returns `409 IDEMPOTENCY_OUTCOME_UNKNOWN` on retry and keeps the key blocked for reconciliation.
 
 ## 1. Generate OTP
 

@@ -31,9 +31,9 @@ function withTempRepo(files, fn) {
 run("fails direct cross-context imports of internal services", () => {
   withTempRepo(
     {
-      "apps/gateway/src/analytics/bad.ts":
-        'import { RegistryInternalService } from "../registry/registry-internal.service";\nexport const x = RegistryInternalService;\n',
-      "apps/gateway/src/registry/registry-internal.service.ts": "export class RegistryInternalService {}\n",
+      "apps/gateway/src/domains/runtime-ops/analytics/bad.ts":
+        'import { RegistryInternalService } from "../../catalog-registry/registry/registry-internal.service";\nexport const x = RegistryInternalService;\n',
+      "apps/gateway/src/domains/catalog-registry/registry/registry-internal.service.ts": "export class RegistryInternalService {}\n",
     },
     (repoRoot) => {
       const violations = runBoundaryChecks({ repoRoot });
@@ -45,13 +45,29 @@ run("fails direct cross-context imports of internal services", () => {
   );
 });
 
+run("fails alias imports that reach another context's internals", () => {
+  withTempRepo({
+    "apps/gateway/tsconfig.json": JSON.stringify({ compilerOptions: { paths: {
+      "@registry/*": ["src/domains/catalog-registry/registry/*"],
+    } } }),
+    "apps/gateway/src/domains/runtime-ops/analytics/bad.ts":
+      'import { RegistryInternalService } from "@registry/registry-internal.service";\n',
+    "apps/gateway/src/domains/catalog-registry/registry/registry-internal.service.ts":
+      'export class RegistryInternalService {}\n',
+  }, (repoRoot) => {
+    const violations = runBoundaryChecks({ repoRoot });
+    assert.match(violations.map((violation) => violation.reason).join("\n"),
+      /Cross-context import.*registry-internal\.service\.ts/);
+  });
+});
+
 run("allows public module and dto imports across contexts", () => {
   withTempRepo(
     {
-      "apps/gateway/src/analytics/good.ts":
-        'import { RegistryModule } from "../registry/registry.module";\nimport { RegistryDto } from "../registry/registry.dto";\nexport const x = [RegistryModule, RegistryDto];\n',
-      "apps/gateway/src/registry/registry.module.ts": "export class RegistryModule {}\n",
-      "apps/gateway/src/registry/registry.dto.ts": "export class RegistryDto {}\n",
+      "apps/gateway/src/domains/runtime-ops/analytics/good.ts":
+        'import { RegistryModule } from "../../catalog-registry/registry/registry.module";\nimport { RegistryDto } from "../../catalog-registry/registry/registry.dto";\nexport const x = [RegistryModule, RegistryDto];\n',
+      "apps/gateway/src/domains/catalog-registry/registry/registry.module.ts": "export class RegistryModule {}\n",
+      "apps/gateway/src/domains/catalog-registry/registry/registry.dto.ts": "export class RegistryDto {}\n",
     },
     (repoRoot) => {
       const violations = runBoundaryChecks({ repoRoot });
@@ -63,7 +79,7 @@ run("allows public module and dto imports across contexts", () => {
 run("fails raw SQL against another bounded context schema", () => {
   withTempRepo(
     {
-      "apps/gateway/src/analytics/bad-sql.ts":
+      "apps/gateway/src/domains/runtime-ops/analytics/bad-sql.ts":
         "export const sql = \"select * from apic_governance.approval_requests\";\n",
     },
     (repoRoot) => {

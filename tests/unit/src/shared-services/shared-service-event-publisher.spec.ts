@@ -1,4 +1,4 @@
-import { SharedServiceEventPublisher } from "../../../../apps/gateway/src/shared-services/shared-service-event-publisher";
+import { SharedServiceEventPublisher } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-event-publisher";
 
 describe("SharedServiceEventPublisher", () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { ComplianceExportService } from "../../../../apps/gateway/src/compliance/compliance-export.service";
+import { ComplianceExportService } from "../../../../apps/gateway/src/domains/compliance/compliance/compliance-export.service";
 
 describe("ComplianceExportService", () => {
   it("creates a compliance packet from audit and evidence inputs", () => {

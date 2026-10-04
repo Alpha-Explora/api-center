@@ -85,6 +85,13 @@ function resolveRef(doc: ContractMap, ref: string): ContractMap {
   return asRecord(current);
 }
 
+function resolveParameter(doc: ContractMap, value: unknown): ContractMap {
+  const parameter = asRecord(value);
+  return typeof parameter.$ref === "string"
+    ? resolveRef(doc, parameter.$ref)
+    : parameter;
+}
+
 // Helper to extract properties recursively from an OpenAPI schema
 function extractProperties(doc: ContractMap, rawSchema: ContractMap): PropertyField[] {
   let schema = rawSchema;
@@ -140,7 +147,6 @@ function formatOperationTitle(operationId: string, pathStr: string, method: stri
     cancelPaymentIntent: "Cancel a Payment Intent",
     createCustomer: "Create a Customer",
     getCustomer: "Get a Customer",
-    createPaymentMethodSetup: "Setup Payment Method",
     createRefund: "Create a Refund",
     getRefund: "Get a Refund",
     createSubscription: "Create a Subscription",
@@ -173,7 +179,7 @@ function formatOperationTitle(operationId: string, pathStr: string, method: stri
 function getOperationCategory(operationId: string, pathStr: string): string {
   if (pathStr.includes("/payments/checkouts")) return "Checkouts";
   if (pathStr.includes("/payments/intents")) return "Payment Intents";
-  if (pathStr.includes("/payments/customers") || pathStr.includes("/payments/payment-methods")) return "Customers & Vault";
+  if (pathStr.includes("/payments/customers")) return "Customers";
   if (pathStr.includes("/payments/subscriptions") || pathStr.includes("/payments/invoices")) return "Subscriptions & Billing";
   if (pathStr.includes("/payments/refunds")) return "Refunds";
   if (pathStr.includes("/payments/capabilities")) return "Capabilities & System";
@@ -201,17 +207,14 @@ export function getDetailedOperations(): DetailedOperation[] {
       const summaryTitle = formatOperationTitle(operationId, route, method);
 
       const rawParams = Array.isArray(op.parameters) ? op.parameters : [];
-      const requiresIdempotency = rawParams.some((p) => JSON.stringify(p).includes("Idempotency-Key"));
+      const requiresIdempotency = rawParams.some((parameter) => resolveParameter(document, parameter).name === "Idempotency-Key");
 
       const pathParameters: ParameterItem[] = [];
       const queryParameters: ParameterItem[] = [];
       const headerParameters: ParameterItem[] = [];
 
       for (const param of rawParams) {
-        let p = asRecord(param);
-        if (p.$ref) {
-          p = resolveRef(document, String(p.$ref));
-        }
+        const p = resolveParameter(document, param);
 
         const name = String(p.name ?? "");
         const inType = String(p.in ?? "query");
@@ -434,7 +437,7 @@ export function getApiOperations(): ApiOperation[] {
       .map(([method, rawOperation]) => {
         const operation = asRecord(rawOperation);
         const parameters = Array.isArray(operation.parameters) ? operation.parameters : [];
-        const requiresIdempotency = parameters.some((parameter) => JSON.stringify(parameter).includes("Idempotency-Key"));
+        const requiresIdempotency = parameters.some((parameter) => resolveParameter(document, parameter).name === "Idempotency-Key");
         return {
           path: route,
           method: method.toUpperCase(),

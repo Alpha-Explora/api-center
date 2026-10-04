@@ -28,12 +28,27 @@ spec:
               value: redis
             - name: SMS_REDIS_URL
               value: redis://10.121.26.59:6379
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-account-sid-prod
+                  key: latest
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-auth-token-prod
+                  key: latest
+            - name: TWILIO_MESSAGING_SERVICE_SID
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-messaging-service-sid-prod
+                  key: latest
             - name: SMS_SEND_LIMIT_PER_RECIPIENT
               value: "10"
             - name: SMS_SEND_LIMIT_WINDOW_MS
               value: "60000"
             - name: SMS_IDEMPOTENCY_TTL_MS
-              value: "86400000"
+              value: "604800000"
           resources:
             limits:
               cpu: "1"
