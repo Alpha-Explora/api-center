@@ -141,6 +141,9 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
+      - name: Build docs (the docs test reads the static export)
+        run: npm run docs:build
+
       - name: Run gateway and workspace tests
         run: npm run test:all
         env:
