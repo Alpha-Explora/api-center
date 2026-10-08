@@ -228,11 +228,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Eight images, each with a full monorepo dependency install, do not fit on the default runner disk.
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          df -h /
+
       - name: Build Docker image
-        run: docker build -t api-center:${{ github.sha }} .
+        run: |
+          docker build -t api-center:${{ github.sha }} .
+          docker builder prune --all --force
 
       - name: Build payment runtime image
-        run: docker build -f docker/Dockerfile.payments.gcp -t api-center-payments:${{ github.sha }} .
+        run: |
+          docker build -f docker/Dockerfile.payments.gcp -t api-center-payments:${{ github.sha }} .
+          docker builder prune --all --force
 
       - name: Verify the payment image ships the event dispatcher
         run: docker run --rm --entrypoint test api-center-payments:${{ github.sha }} -f dist/events/paymentEventDispatcher.js
@@ -241,6 +251,7 @@ jobs:
         run: |
           for service in email sms otp geo gauth; do
             docker build -f Dockerfile.shared-service --build-arg SERVICE="$service" -t "api-center-$service:${{ github.sha }}" .
+            docker builder prune --all --force
           done
 
       - name: Verify image runs
