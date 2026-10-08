@@ -25,8 +25,7 @@ describe("api-center-client preview calls", () => {
   it("sends tribe secret preview requests without exposing plaintext", async () => {
     const fetchMock = mockPreviewFetch();
     await previewTribeSecretProvision({
-      tribeId: "smoke-tribe",
-      sourceServiceId: "smoke-api",
+      serviceId: "smoke-api",
       environment: "test",
       secretHashSha256: "a".repeat(64),
       mode: "create-or-rotate",
@@ -35,8 +34,7 @@ describe("api-center-client preview calls", () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(fetchMock.mock.calls[0][0]).toBe("/api/local/tribe-secrets");
     expect(JSON.parse(String(init.body))).toEqual({
-      tribeId: "smoke-tribe",
-      sourceServiceId: "smoke-api",
+      serviceId: "smoke-api",
       environment: "test",
       secretHashSha256: "a".repeat(64),
       mode: "create-or-rotate",

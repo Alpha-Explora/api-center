@@ -10,8 +10,8 @@ import {
   registrationRequestDetailResponseSchema,
   registrationRequestListResponseSchema,
   readinessResponseSchema,
-  tribeTokenRequestSchema,
-  tribeTokenResponseSchema,
+  serviceTokenRequestSchema,
+  serviceTokenResponseSchema,
   tribeSecretDeleteRequestSchema,
   tribeSecretDeleteResponseSchema,
   tribeSecretProvisionRequestSchema,
@@ -82,7 +82,7 @@ import {
   type ServiceRegistrationRequest,
   type SharedServiceRuntimeUsage,
   type SharedServiceUsageWindow,
-  type TribeTokenRequest,
+  type ServiceTokenRequest,
   type TribeSecretDeleteRequest,
   type TribeSecretProvisionRequest,
   type TribeSecretProvisionResponse,
@@ -140,6 +140,7 @@ export * from "@/lib/api-center/operations-client";
 export * from "@/lib/api-center/quotas-client";
 export * from "@/lib/api-center/registry-client";
 export * from "@/lib/api-center/secrets-client";
+export * from "@/lib/api-center/tenancy-client";
 
 export async function getReadiness(): Promise<ReadinessResponse> {
   const data = await request<unknown>("/api/local/readiness");
@@ -168,14 +169,14 @@ export async function testContract(
   return contractTestResultSchema.parse(data);
 }
 
-export async function requestTribeToken(input: TribeTokenRequest) {
-  const payload = tribeTokenRequestSchema.parse(input);
+export async function requestServiceToken(input: ServiceTokenRequest) {
+  const payload = serviceTokenRequestSchema.parse(input);
   const data = await request<unknown>("/api/local/auth/token", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 
-  return tribeTokenResponseSchema.parse(data).data;
+  return serviceTokenResponseSchema.parse(data).data;
 }
 
 export async function provisionConfluentTopic(
