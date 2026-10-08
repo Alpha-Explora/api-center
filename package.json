@@ -56,6 +56,7 @@
     "db:purge:history": "node scripts/purge-expired-history.cjs",
     "db:test:retention": "node --test tests/db/retention-purge.test.cjs",
     "db:verify:replay": "node scripts/replay-supabase-migrations.cjs && ts-node scripts/verify-control-plane-schema.ts --forbid-legacy-schemas --app-role api_center_app --require-retention-policy",
+    "db:test:payment-outbox": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",
     "check:boundaries:test": "node tests/integration/scripts/check-boundaries.test.js",
     "registry:verify": "node scripts/collect-registry-parity-evidence.js --fail-on-blockers",
     "check:environment-naming": "node scripts/check-environment-naming.js",
