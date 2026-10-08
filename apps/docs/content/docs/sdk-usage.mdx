@@ -5,60 +5,65 @@ description: "Using the official @apicenter/sdk in TypeScript and Node.js applic
 
 # APICenter SDK Integration
 
-The `@apicenter/sdk` package simplifies authentication, token caching, retries, and API calls to all APICenter shared services.
+The `@alpha-explora/apicenter-sdk` package provides TypeScript clients for the
+public payments API and shared services.
 
----
-
-## Installation
+## Install
 
 ```bash
-npm install @apicenter/sdk
+npm install @alpha-explora/apicenter-sdk
 ```
 
----
+## Payment API
 
-## Client Initialization
-
-```typescript
-import { ApiCenterClient } from "@apicenter/sdk";
-
-const client = new ApiCenterClient({
-  baseUrl: process.env.APICENTER_URL || "https://api-center.itsandbox.site",
-  clientId: process.env.TRIBE_ID || "my-tribe-backend",
-  clientSecret: process.env.TRIBE_SECRET,
-  environment: "live",
-});
-```
-
----
-
-## Calling Shared Services
-
-### 1. Payments Checkouts
+Payment routes use a payment API key issued for a registered consumer service
+and environment:
 
 ```typescript
-const checkout = await client.payments.createCheckout({
-  referenceId: `REF-${Date.now()}`,
-  amount: { amountMinor: 49900, currency: "PHP" },
-  successUrl: "https://app.example.com/success",
-  cancelUrl: "https://app.example.com/cancel",
+import { PaymentsClient } from "@alpha-explora/apicenter-sdk";
+
+const payments = new PaymentsClient({
+  baseUrl: process.env.APICENTER_URL!,
+  apiKey: process.env.APICENTER_PAYMENT_API_KEY!,
 });
 
-console.log("Checkout URL:", checkout.data.checkoutUrl);
+const checkout = await payments.createCheckout(
+  {
+    referenceId: `REF-${Date.now()}`,
+    amount: { amountMinor: 49900, currency: "PHP" },
+    successUrl: "https://app.example.com/success",
+    cancelUrl: "https://app.example.com/cancel",
+  },
+  { headers: { "Idempotency-Key": `checkout-${Date.now()}` } },
+);
 ```
 
-### 2. SMS Shared Service
+## Shared Services
+
+Shared-service routes use a service token minted from the calling service's
+ID, environment, and environment secret. Its project and tribe are read from
+the registered service placement:
+
+```bash
+curl -X POST "$APICENTER_URL/api/v1/auth/token" \
+  -H "Content-Type: application/json" \
+  -d "{\"serviceId\":\"orders-api\",\"environment\":\"test\",\"secret\":\"$APICENTER_SERVICE_SECRET\"}"
+```
+
+Pass the returned `data.accessToken` as `Authorization: Bearer <token>`. The
+SDK's shared-service client accepts it as `serviceToken`:
 
 ```typescript
-const smsResult = await client.sms.send({
-  to: "+639171234567",
-  message: "Your OTP verification code is 849201",
+import { SharedServicesClient } from "@alpha-explora/apicenter-sdk";
+
+const shared = new SharedServicesClient({
+  baseUrl: process.env.APICENTER_URL!,
+  serviceToken: process.env.APICENTER_SERVICE_TOKEN!,
 });
-```
 
-### 3. Geo Lookup
-
-```typescript
-const geoInfo = await client.geo.lookup({ ip: "203.177.10.1" });
-console.log("Region:", geoInfo.region);
+await shared.emailSend({
+  to: "person@example.com",
+  subject: "Welcome",
+  text: "Your account is ready.",
+});
 ```

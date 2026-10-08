@@ -10,7 +10,7 @@ APICenter is the **centralized API gateway** and provider-neutral integration pl
 No consumer service or tribe calls external third-party providers (like PayMongo, Twilio, or SendGrid) directly. All requests are routed, authenticated, rate-limited, and audited by APICenter.
 
 ```text
-Consumer Backend (Tribe Service)
+Consumer Backend (Registered Service)
        │
        ▼ (Bearer JWT / API Key)
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,20 +45,21 @@ Consumer Backend (Tribe Service)
 
 ## Quickstart: Making Your First Call
 
-To call any APICenter shared service, obtain a Bearer token using your tribe credentials:
+To call an APICenter shared service, obtain a Bearer token using the calling service's environment secret:
 
 ```bash
 # 1. Fetch Machine-to-Machine JWT
 TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{
-    "grant_type": "client_credentials",
-    "client_id": "your-tribe-id",
-    "client_secret": "your-secret-key",
-    "environment": "test"
-  }' | jq -r '.access_token')
+    "serviceId": "orders-api",
+    "environment": "test",
+    "secret": "your-service-environment-secret"
+  }' | jq -r '.data.accessToken')
 
 # 2. Call Geo Shared Service
-curl -s http://localhost:3000/api/v1/shared/geo/lookup \
-  -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:3000/api/v1/shared/geo/reverse-geocode \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"latitude":13.7563,"longitude":100.5018}'
 ```

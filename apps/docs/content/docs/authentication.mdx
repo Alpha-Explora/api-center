@@ -5,7 +5,7 @@ description: "How consumer services authenticate with APICenter using JWTs and S
 
 # Authentication & Scopes
 
-APICenter uses standard **OAuth 2.0 Client Credentials** and **JSON Web Tokens (JWT)** signed via RS256 algorithm.
+APICenter issues service-scoped **JSON Web Tokens (JWTs)** signed with RS256. Each token is bound to one registered service, its project, tribe, and environment.
 
 ---
 
@@ -14,23 +14,22 @@ APICenter uses standard **OAuth 2.0 Client Credentials** and **JSON Web Tokens (
 APICenter supports three runtime authentication providers, configured via `AUTH_PROVIDER`:
 
 1. **`dev-jwt` (Local Dev & CI)**: Self-contained RS256 issuer using ephemeral or local PEM key pairs. No external IdP dependency.
-2. **`internal-jwt`**: Production machine-to-machine JWT issuer backed by GCP Secret Manager tribe secrets.
-3. **`composite` (Production Default)**: APICenter issues internal tribe M2M tokens directly while validating Descope tokens for human/admin console sessions.
+2. **`internal-jwt`**: Production machine-to-machine JWT issuer backed by per-service GCP Secret Manager credentials.
+3. **`composite` (Production Default)**: APICenter issues internal service tokens while validating Descope tokens for human/admin console sessions.
 
 ---
 
 ## Obtaining Machine-to-Machine Tokens
 
-Send a `POST` request to `/api/v1/auth/token`:
+Send a `POST` request to `/api/v1/auth/token` with the registered service ID, its environment, and that environment's secret. APICenter resolves the service's project and tribe from registry placement.
 
 ```bash
 curl -X POST https://api-center.itsandbox.site/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{
-    "grant_type": "client_credentials",
-    "client_id": "logistics-service",
-    "client_secret": "sec_live_9481a7b...",
-    "environment": "live"
+    "serviceId": "logistics-orders",
+    "environment": "live",
+    "secret": "service-environment-secret"
   }'
 ```
 
@@ -38,12 +37,20 @@ curl -X POST https://api-center.itsandbox.site/api/v1/auth/token \
 
 ```json
 {
-  "access_token": "eyJhbGciOiJSUzI1NiIs...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "payments:read payments:write sms:send email:send geo:read"
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJSUzI1NiIs...",
+    "serviceId": "logistics-orders",
+    "projectId": "logistics-fulfilment",
+    "tribeId": "logistics",
+    "environment": "live",
+    "expiresIn": 3600,
+    "scopes": ["orders:read", "email:send"]
+  }
 }
 ```
+
+Use `data.accessToken` as the Bearer token for service and shared-service routes. Payment routes use a separately issued payment API key.
 
 ---
 
@@ -53,12 +60,12 @@ Each shared service route enforces fine-grained scope authorization:
 
 | Shared Service | Route Pattern | Required Scopes |
 | :--- | :--- | :--- |
-| **Payments Write** | `/api/v1/payments/*` (POST, PUT, DELETE) | `payments:write` |
-| **Payments Read** | `/api/v1/payments/*` (GET) | `payments:read` |
-| **SMS Service** | `/api/v1/shared/sms/*` | `sms:send` |
-| **Email Service** | `/api/v1/shared/email/*` | `email:send` |
-| **OTP Service** | `/api/v1/shared/otp/*` | `otp:generate`, `otp:verify` |
-| **Geo Location** | `/api/v1/shared/geo/*` | `geo:read` |
+| **Payments Write** | `/api/v1/payments/*` (POST, PUT, DELETE) | Payment API key with `payments:write` |
+| **Payments Read** | `/api/v1/payments/*` (GET) | Payment API key with `payments:read` |
+| **SMS Service** | `/api/v1/shared/sms/*` | Service token with `sms:send` |
+| **Email Service** | `/api/v1/shared/email/*` | Service token with `email:send` |
+| **OTP Service** | `/api/v1/shared/otp/*` | Service token with `otp:generate`, `otp:verify` |
+| **Geo Location** | `/api/v1/shared/geo/*` | Service token with `geo:read` |
 
 ---
 

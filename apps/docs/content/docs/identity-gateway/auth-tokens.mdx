@@ -1,6 +1,6 @@
 ---
 title: "Auth & Token Issuance API"
-description: "Obtain machine-to-machine JWT tokens and inspect public JWKS keys."
+description: "Obtain service-scoped JWTs and inspect public JWKS keys."
 ---
 
 # Auth & Token Issuance API
@@ -17,12 +17,13 @@ The Auth API manages token issuance, refresh, and key set discovery for APICente
 curl -X POST https://api-center.itsandbox.site/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{
-    "grant_type": "client_credentials",
-    "client_id": "demand-service",
-    "client_secret": "sec_live_99182...",
-    "environment": "live"
+    "serviceId": "demand-service",
+    "environment": "live",
+    "secret": "service-environment-secret"
   }'
 ```
+
+The response includes `data.accessToken`, `data.serviceId`, `data.projectId`, and `data.tribeId`. Placement is resolved from the registry and cannot be supplied in the request.
 
 ---
 

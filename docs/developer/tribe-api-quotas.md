@@ -1,10 +1,12 @@
 # Tribe API Quotas
 
-API Center supports configurable per-tribe API call limits. Operators can set a
-quota for all calls, one namespace, or one target service. Policies start in
-observe mode and can be switched to enforce mode after usage is reviewed.
+API Center supports project API budgets and optional tribe-wide quota ceilings.
+Operators can scope policies to a project, namespace, or target service.
+Policies start in observe mode and can be switched to enforce mode after usage
+is reviewed. When both a project budget and a tribe ceiling apply, both are
+enforced.
 
-When a tribe exceeds an enforced quota, API Center returns HTTP 429 with
+When an enforced quota is exceeded, API Center returns HTTP 429 with
 `code=TRIBE_API_QUOTA_EXCEEDED`. The SDK raises `RateLimitError` and includes
 retry/quota metadata when the gateway provides it.
 
@@ -27,8 +29,8 @@ an API Center quota policy.
 
 ## Plan Tiers
 
-API Center can assign a tribe plan tier to an owner tribe and generate
-observe-mode quota proposals from that tier. The first tier defaults are:
+API Center assigns plan tiers per project and can generate observe-mode quota
+proposals from that tier. The first tier defaults are:
 
 | Plan         | Gateway calls/day | Kafka publishes/day | Notes                                                             |
 | ------------ | ----------------: | ------------------: | ----------------------------------------------------------------- |
@@ -46,9 +48,9 @@ usage is reviewed.
 The deployed quota smoke requires:
 
 - `APICENTER_SMOKE_BASE_URL`
-- `APICENTER_SMOKE_TRIBE_TOKEN`
+- `APICENTER_SMOKE_SERVICE_TOKEN`
 - `API_CENTER_PLATFORM_ADMIN_SECRET`
 
-The smoke creates and approves a short-window enforced quota for
+The smoke creates and approves a short-window enforced tribe ceiling for
 `APICENTER_SMOKE_TRIBE_ID`, sends three calls through a shared-service route,
 and expects `200`, `200`, then `429` with `TRIBE_API_QUOTA_EXCEEDED`.
