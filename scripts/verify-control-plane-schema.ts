@@ -440,8 +440,11 @@ async function main(): Promise<void> {
       }
       addFailure(failures, "Missing app-role table grants", missingGrants);
 
-      if ((grantsByTable.get("apic_audit.audit_events") ?? new Set<string>()).has("DELETE")) {
-        failures.push(appRole + " must not have DELETE on apic_audit.audit_events.");
+      const auditGrants = grantsByTable.get("apic_audit.audit_events") ?? new Set<string>();
+      for (const privilege of ["UPDATE", "DELETE", "TRUNCATE"]) {
+        if (auditGrants.has(privilege)) {
+          failures.push(appRole + " must not have " + privilege + " on apic_audit.audit_events; audit events are append-only.");
+        }
       }
     }
   } finally {
