@@ -9,6 +9,10 @@ on:
 jobs:
   api-center:
     runs-on: ubuntu-latest
+    # The secrets context is not available in step conditions, so expose the values as environment variables.
+    env:
+      APICENTER_SMOKE_BASE_URL: ${{ secrets.APICENTER_SMOKE_BASE_URL }}
+      APICENTER_SMOKE_TRIBE_TOKEN: ${{ secrets.APICENTER_SMOKE_TRIBE_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,6 +27,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npm run db:generate
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -36,10 +43,8 @@ jobs:
         run: npm run build
 
       - name: Deployed quota smoke
-        if: ${{ secrets.APICENTER_SMOKE_BASE_URL != '' && secrets.APICENTER_SMOKE_TRIBE_TOKEN != '' }}
+        if: ${{ env.APICENTER_SMOKE_BASE_URL != '' && env.APICENTER_SMOKE_TRIBE_TOKEN != '' }}
         env:
-          APICENTER_SMOKE_BASE_URL: ${{ secrets.APICENTER_SMOKE_BASE_URL }}
-          APICENTER_SMOKE_TRIBE_TOKEN: ${{ secrets.APICENTER_SMOKE_TRIBE_TOKEN }}
           API_CENTER_PLATFORM_ADMIN_SECRET: ${{ secrets.API_CENTER_PLATFORM_ADMIN_SECRET }}
           APICENTER_SMOKE_TRIBE_ID: smoke-tribe
         run: npm run smoke:quota
