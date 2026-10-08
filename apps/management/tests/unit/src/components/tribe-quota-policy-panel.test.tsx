@@ -98,6 +98,8 @@ describe("TribeQuotaPolicyPanel", () => {
     await waitFor(() =>
       expect(apiClient.saveQuotaPolicy).toHaveBeenCalledWith({
         ownerTribeId: "logistics",
+        // No project selected: this is a tribe-wide ceiling.
+        projectId: "",
         scope: "kafka_publish",
         targetServiceId: "",
         windowSeconds: 300,

@@ -18,13 +18,17 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         actionType: "quota.increase",
         targetEnvironment: "live",
-        targetId: input.ownerTribeId,
+        targetId: input.projectId ?? input.ownerTribeId,
         requestedBy: session.email,
         riskLevel: "medium",
         reason: input.reason,
-        before: { ownerTribeId: input.ownerTribeId },
+        before: {
+          ownerTribeId: input.ownerTribeId,
+          ...(input.projectId ? { projectId: input.projectId } : {}),
+        },
         after: {
           ownerTribeId: input.ownerTribeId,
+          ...(input.projectId ? { projectId: input.projectId } : {}),
           requestedMaxRequests: input.requestedMaxRequests,
         },
       }),

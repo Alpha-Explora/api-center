@@ -16,10 +16,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const params = new URLSearchParams();
   const ownerTribeId = url.searchParams.get("ownerTribeId");
+  const projectId = url.searchParams.get("projectId");
   const environment = url.searchParams.get("environment");
   const status = url.searchParams.get("status");
 
   if (ownerTribeId) params.set("ownerTribeId", ownerTribeId);
+  if (projectId) params.set("projectId", projectId);
   if (environment) {
     try {
       params.set("environment", toPlanStorageEnvironment(environment));

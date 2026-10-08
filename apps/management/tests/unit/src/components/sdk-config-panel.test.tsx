@@ -5,6 +5,7 @@ import type { ServiceRegistryEntry } from "@/lib/schemas";
 
 const service: ServiceRegistryEntry = {
   serviceId: "trinithrive-api",
+  projectId: "trinithrive-core",
   ownerTribeId: "trinithrive",
   name: "TriniThrive",
   version: "1.0.0",
@@ -40,7 +41,8 @@ describe("SdkConfigPanel", () => {
     expect(screen.getByText("/api/v1/tribes/trinithrive-api/orders")).toBeTruthy();
     expect(screen.getByText(/APICENTER_ENVIRONMENT=test/)).toBeTruthy();
     expect(screen.getByText(/APICENTER_ENVIRONMENT=live/)).toBeTruthy();
-    expect(screen.getByText(/APICENTER_TRIBE_ID=trinithrive/)).toBeTruthy();
+    expect(screen.getByText(/APICENTER_SERVICE_ID=trinithrive-api/)).toBeTruthy();
+    expect(screen.queryByText(/APICENTER_TRIBE_ID/)).toBeNull();
     expect(screen.getByText(/APICENTER_SERVICE_ID=trinithrive-api/)).toBeTruthy();
     expect(screen.getByText(/<test-secret-issued-by-platform>/)).toBeTruthy();
     expect(screen.getByText(/<live-secret-issued-by-platform>/)).toBeTruthy();

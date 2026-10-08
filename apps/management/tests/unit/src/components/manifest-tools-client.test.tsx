@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ManifestToolsClient } from "@/components/manifest-tools-client";
 import type { ServiceRegistryEntry } from "@/lib/schemas";
 
 const apiClient = vi.hoisted(() => ({
   listServices: vi.fn(),
+  listTribes: vi.fn(),
   registerService: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("sonner", () => ({
 
 const ownerTribe: ServiceRegistryEntry = {
   serviceId: "logistics",
+  projectId: "logistics-core",
   ownerTribeId: "logistics",
   name: "Logistics",
   baseUrl: "https://logistics.example.test",
@@ -40,13 +42,35 @@ const ownerTribe: ServiceRegistryEntry = {
   status: "active",
 };
 
+const logisticsTribe = {
+  tribeId: "logistics",
+  name: "Logistics",
+  status: "active" as const,
+  createdAt: "2026-05-20T00:00:00.000Z",
+  updatedAt: "2026-05-20T00:00:00.000Z",
+  projects: [
+    {
+      projectId: "logistics-core",
+      tribeId: "logistics",
+      name: "Logistics Core",
+      status: "active" as const,
+      createdAt: "2026-05-20T00:00:00.000Z",
+      updatedAt: "2026-05-20T00:00:00.000Z",
+    },
+  ],
+};
+
 describe("ManifestToolsClient", () => {
+  beforeEach(() => {
+    apiClient.listTribes.mockResolvedValue([logisticsTribe]);
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it("shows owner tribe handoff and event topic for a microservice import", async () => {
+  it("shows the project, derived tribe, and event topic for a microservice import", async () => {
     apiClient.listServices.mockResolvedValue([ownerTribe]);
     renderWithClient(<ManifestToolsClient />);
 
@@ -56,12 +80,13 @@ describe("ManifestToolsClient", () => {
       ).toContain("logistics"),
       { timeout: 5000 },
     );
+    await waitFor(() => expect(apiClient.listTribes).toHaveBeenCalled());
 
     fireEvent.change(screen.getAllByRole("textbox")[1], {
       target: {
         value: JSON.stringify({
           serviceId: "logistics-orders",
-          ownerTribeId: "logistics",
+          projectId: "logistics-core",
           name: "Logistics Orders",
           baseUrl: "https://orders.example.test",
           requiredScopes: ["orders:read"],
@@ -80,8 +105,8 @@ describe("ManifestToolsClient", () => {
     fireEvent.click(screen.getByRole("button", { name: /validate/i }));
 
     expect(await screen.findByText(/Registration plan is applicable/i)).toBeTruthy();
-    expect(screen.getByText("APICENTER_TRIBE_ID=logistics")).toBeTruthy();
     expect(screen.getByText("APICENTER_SERVICE_ID=logistics-orders")).toBeTruthy();
+    expect(screen.getByText("project=logistics-core tribe=logistics")).toBeTruthy();
     expect(screen.getByText("topic=tribe.logistics.events")).toBeTruthy();
     expect(
       (screen.getByRole("button", {
@@ -106,15 +131,16 @@ describe("ManifestToolsClient", () => {
     expect(screen.getByLabelText("Manifest import JSON")).toBeTruthy();
   });
 
-  it("blocks import when the owner tribe is missing", async () => {
+  it("blocks import when the project does not exist", async () => {
     apiClient.listServices.mockResolvedValue([]);
     renderWithClient(<ManifestToolsClient />);
+    await waitFor(() => expect(apiClient.listTribes).toHaveBeenCalled());
 
     fireEvent.change(screen.getAllByRole("textbox")[1], {
       target: {
         value: JSON.stringify({
           serviceId: "logistics-orders",
-          ownerTribeId: "logistics",
+          projectId: "logistics-unknown",
           name: "Logistics Orders",
           baseUrl: "https://orders.example.test",
           requiredScopes: ["orders:read"],
@@ -133,6 +159,7 @@ describe("ManifestToolsClient", () => {
     fireEvent.click(screen.getByRole("button", { name: /validate/i }));
 
     expect(await screen.findByText(/Registration plan is blocked/i)).toBeTruthy();
+    expect(screen.getByText(/Project 'logistics-unknown' must exist/)).toBeTruthy();
     await waitFor(() =>
       expect(
         (screen.getByRole("button", {
@@ -140,36 +167,6 @@ describe("ManifestToolsClient", () => {
         }) as HTMLButtonElement).disabled,
       ).toBe(true),
     );
-  });
-
-  it("prepares legacy registry entries for ownerTribeId migration", async () => {
-    apiClient.listServices.mockResolvedValue([
-      ownerTribe,
-      {
-        ...ownerTribe,
-        serviceId: "logistics-orders",
-        ownerTribeId: undefined,
-        name: "Logistics Orders",
-      },
-    ]);
-    renderWithClient(<ManifestToolsClient />);
-
-    await waitFor(() =>
-      expect(
-        (screen.getAllByRole("textbox")[0] as HTMLTextAreaElement).value,
-      ).toContain("logistics-orders"),
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /prepare owner migration/i }),
-    );
-
-    const importInput = screen.getAllByRole("textbox")[1] as HTMLTextAreaElement;
-    expect(importInput.value).toContain('"serviceId": "logistics-orders"');
-    expect(importInput.value).toContain('"ownerTribeId": "logistics"');
-    expect(
-      await screen.findByText(/manifest\(s\) prepared with ownerTribeId/i),
-    ).toBeTruthy();
   });
 });
 

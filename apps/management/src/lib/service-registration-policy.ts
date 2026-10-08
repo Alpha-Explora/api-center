@@ -6,13 +6,19 @@ import {
   type ServiceManifest,
   type ServiceRegistrationPlan,
   type ServiceRegistryEntry,
+  type TenancyProject,
 } from "@/lib/schemas";
 
 export type RegistrationMode = "local-direct" | "production-request";
 
+/**
+ * Dry-run a manifest batch against the registry and the tenancy directory.
+ * Tribe services must name an active project; their tribe comes from that project.
+ */
 export function buildServiceRegistrationPlan(input: {
   manifests: ServiceManifest[];
   existingServices: ServiceRegistryEntry[];
+  projects: TenancyProject[];
   mode: RegistrationMode;
 }): ServiceRegistrationPlan {
   const manifests = input.manifests.map((manifest) =>
@@ -21,6 +27,9 @@ export function buildServiceRegistrationPlan(input: {
   const issues: RegistrationPlanIssue[] = [];
   const existingById = new Map(
     input.existingServices.map((service) => [service.serviceId, service]),
+  );
+  const projectsById = new Map(
+    input.projects.map((project) => [project.projectId, project]),
   );
   const batchById = new Map<string, ServiceManifest>();
 
@@ -37,18 +46,20 @@ export function buildServiceRegistrationPlan(input: {
   }
 
   const items = manifests.map((manifest) => {
-    const ownerTribeId = resolveOwnerTribeId(manifest);
-    validateOwnerTribe(manifest, ownerTribeId, existingById, batchById, issues);
+    const project = manifest.projectId ? projectsById.get(manifest.projectId) : undefined;
+    validatePlacement(manifest, project, existingById.get(manifest.serviceId), issues);
     validateConsumes(manifest, existingById, batchById, input.mode, issues);
-    validateOperationalHints(manifest, ownerTribeId, issues);
+    validateOperationalHints(manifest, issues);
+    const ownerTribeId = project?.tribeId ?? null;
 
     return {
       serviceId: manifest.serviceId,
       ownerTribeId,
+      projectId: manifest.projectId ?? null,
       sourceServiceId: manifest.serviceId,
       eventTopic: getServiceEventTopics({
         serviceId: manifest.serviceId,
-        ownerTribeId,
+        ownerTribeId: ownerTribeId ?? undefined,
         serviceType: manifest.serviceType,
       }).primary,
       action: existingById.has(manifest.serviceId)
@@ -65,35 +76,39 @@ export function buildServiceRegistrationPlan(input: {
   };
 }
 
-function resolveOwnerTribeId(manifest: ServiceManifest) {
-  if ((manifest.serviceType ?? "tribe") === "shared") {
-    return manifest.ownerTribeId ?? manifest.serviceId;
-  }
-  return manifest.ownerTribeId ?? manifest.serviceId;
-}
-
-function validateOwnerTribe(
+function validatePlacement(
   manifest: ServiceManifest,
-  ownerTribeId: string,
-  existingById: Map<string, ServiceRegistryEntry>,
-  batchById: Map<string, ServiceManifest>,
+  project: TenancyProject | undefined,
+  existing: ServiceRegistryEntry | undefined,
   issues: RegistrationPlanIssue[],
 ) {
   if ((manifest.serviceType ?? "tribe") === "shared") return;
-  if (ownerTribeId === manifest.serviceId) return;
 
-  const existingOwner = existingById.get(ownerTribeId);
-  const batchOwner = batchById.get(ownerTribeId);
-  const ownerExists =
-    Boolean(existingOwner && (existingOwner.serviceType ?? "tribe") !== "shared") ||
-    batchOwner?.serviceType === "tribe";
-
-  if (!ownerExists) {
+  if (!project) {
     issues.push({
       severity: "blocking",
-      code: "owner-tribe-missing",
+      code: "project-missing",
       serviceId: manifest.serviceId,
-      message: `Owner tribe '${ownerTribeId}' must exist before '${manifest.serviceId}' can be registered as its microservice.`,
+      message: `Project '${manifest.projectId ?? ""}' must exist before '${manifest.serviceId}' can be registered.`,
+    });
+    return;
+  }
+
+  if (project.status !== "active") {
+    issues.push({
+      severity: "blocking",
+      code: "project-inactive",
+      serviceId: manifest.serviceId,
+      message: `Project '${project.projectId}' is ${project.status}.`,
+    });
+  }
+
+  if (existing?.projectId && existing.projectId !== project.projectId) {
+    issues.push({
+      severity: "blocking",
+      code: "project-change",
+      serviceId: manifest.serviceId,
+      message: `'${manifest.serviceId}' belongs to project '${existing.projectId}'; services cannot move between projects.`,
     });
   }
 }
@@ -124,7 +139,6 @@ function validateConsumes(
 
 function validateOperationalHints(
   manifest: ServiceManifest,
-  ownerTribeId: string,
   issues: RegistrationPlanIssue[],
 ) {
   if (!manifest.exposes.includes("/health") && manifest.healthCheck !== "/health") {
@@ -136,12 +150,12 @@ function validateOperationalHints(
     });
   }
 
-  if (manifest.ownerTribeId && ownerTribeId !== manifest.serviceId) {
+  if ((manifest.serviceType ?? "tribe") === "tribe") {
     issues.push({
       severity: "info",
-      code: "microservice-attribution",
+      code: "service-credential",
       serviceId: manifest.serviceId,
-      message: `Use APICENTER_TRIBE_ID='${ownerTribeId}' and APICENTER_SERVICE_ID='${manifest.serviceId}'.`,
+      message: `Request tokens with APICENTER_SERVICE_ID='${manifest.serviceId}' and that service's own secret. Calls to other projects need a consumes grant.`,
     });
   }
 }

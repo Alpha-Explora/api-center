@@ -42,8 +42,20 @@ export function ServiceIdentityPanel({
           <Detail label="Service ID" value={service.serviceId} />
           <Detail label="Type" value={service.serviceType ?? "tribe"} />
           <Detail
+            label="Project"
+            value={
+              service.serviceType === "shared"
+                ? "Shared (no project)"
+                : (service.projectId ?? "Unplaced")
+            }
+          />
+          <Detail
             label="Owner tribe"
-            value={service.ownerTribeId ?? service.serviceId}
+            value={
+              service.serviceType === "shared"
+                ? "Platform"
+                : (service.ownerTribeId ?? "Unplaced")
+            }
           />
           <Detail label="Owner team" value={service.ownerTeam || "Unset"} />
           <Detail label="Contact" value={service.contact || "Unset"} />

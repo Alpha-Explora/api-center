@@ -24,7 +24,7 @@ export async function GET(
 
     const ownedServices = services.filter((service) => {
       if ((service.serviceType ?? "tribe") !== "tribe") return false;
-      return (service.ownerTribeId ?? service.serviceId) === decodedTribeId;
+      return service.ownerTribeId === decodedTribeId;
     });
     const allowedIds = new Set(
       ownedServices.flatMap((service) => service.consumes ?? []),

@@ -92,27 +92,29 @@ export function EnvironmentPromotionPanel({
     services.find(
       (service) => service.serviceId === effectiveSelectedServiceId,
     ) ?? services[0];
-  const ownerTribeId = selectedService
-    ? getOwnerTribeId(selectedService)
-    : undefined;
+  const ownerTribeId = selectedService?.ownerTribeId;
+  const projectId = selectedService?.projectId;
   const eventTopic = selectedService
-    ? `tribe.${ownerTribeId}.events`
+    ? `tribe.${ownerTribeId ?? selectedService.serviceId}.events`
     : undefined;
 
   const quotaPoliciesQuery = useQuery({
-    queryKey: queryKeys.quotaPolicies(ownerTribeId ?? "none"),
-    queryFn: () => listQuotaPolicies(ownerTribeId),
+    queryKey: queryKeys.applicableQuotaPolicies(ownerTribeId ?? "none", projectId),
+    queryFn: async () =>
+      (await listQuotaPolicies(ownerTribeId)).filter(
+        (policy) => !policy.projectId || policy.projectId === projectId,
+      ),
     enabled: Boolean(ownerTribeId),
   });
   const planAssignmentsQuery = useQuery({
-    queryKey: queryKeys.planAssignments(`${ownerTribeId ?? "none"}:live`),
+    queryKey: queryKeys.planAssignments(`project:${projectId ?? "none"}:live`),
     queryFn: () =>
       listTribePlanAssignments({
-        ownerTribeId,
+        projectId,
         environment: "live",
         status: "active",
       }),
-    enabled: Boolean(ownerTribeId),
+    enabled: Boolean(projectId),
   });
   const auditEventsQuery = useQuery({
     queryKey: queryKeys.auditEvents(selectedService?.serviceId ?? "none"),
@@ -335,7 +337,7 @@ function PromotionServiceContext({
             {service.name || service.serviceId}
           </div>
           <div className="mt-1 break-words font-mono text-xs text-muted-foreground">
-            {service.serviceId} / {ownerTribeId}
+            {ownerTribeId} / {service.projectId ?? "no project"} / {service.serviceId}
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -392,7 +394,7 @@ export function evaluatePromotionGates(evidence: PromotionEvidence) {
         ? "Smoke evidence found in audit events."
         : "No passing smoke test evidence.",
       proposedAction: {
-        label: "Run safe shared-service smoke checks with a tribe token.",
+        label: "Run safe shared-service smoke checks with a service token.",
         href: serviceDetailHref(service.serviceId, "actions"),
       },
     },
@@ -501,8 +503,7 @@ export function evaluatePromotionGates(evidence: PromotionEvidence) {
       passed:
         evidence.approvedRequests.some(
           (request) =>
-            request.serviceId === service.serviceId ||
-            request.ownerTribeId === getOwnerTribeId(service),
+            request.serviceId === service.serviceId,
         ) ||
         hasAuditEvidence(
           evidence.auditEvents,
@@ -640,7 +641,7 @@ function Signal({ label, value }: { label: string; value: string }) {
 }
 
 function getOwnerTribeId(service: ServiceRegistryEntry) {
-  return service.ownerTribeId || service.serviceId;
+  return service.ownerTribeId ?? "unplaced";
 }
 
 function serviceDetailHref(serviceId: string, section: string) {

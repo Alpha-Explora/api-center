@@ -8,6 +8,7 @@ import {
   assignTribePlan,
   listTribePlanAssignments,
   listTribePlanDefinitions,
+  listTribes,
 } from "@/lib/api-center-client";
 import { queryKeys } from "@/lib/query-keys";
 import type {
@@ -41,7 +42,8 @@ const planKeys: TribePlanKey[] = ["starter", "standard", "pro", "enterprise"];
 const environments: RuntimeEnvironment[] = ["test", "live"];
 
 type AssignmentFormState = {
-  ownerTribeId: string;
+  /** Plans attach to a project; the gateway derives the tribe. */
+  projectId: string;
   planKey: TribePlanKey;
   environment: RuntimeEnvironment;
   reason: string;
@@ -50,7 +52,7 @@ type AssignmentFormState = {
 export function TribePlanTierPanel() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<AssignmentFormState>({
-    ownerTribeId: "",
+    projectId: "",
     planKey: "starter",
     environment: "test",
     reason: "",
@@ -59,6 +61,10 @@ export function TribePlanTierPanel() {
     useState<AssignTribePlanResult | null>(null);
   const [reviewedAssignment, setReviewedAssignment] = useState(false);
 
+  const tribesQuery = useQuery({
+    queryKey: queryKeys.tenancyTribes,
+    queryFn: listTribes,
+  });
   const definitionsQuery = useQuery({
     queryKey: queryKeys.planDefinitions,
     queryFn: listTribePlanDefinitions,
@@ -93,7 +99,7 @@ export function TribePlanTierPanel() {
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     assignMutation.mutate({
-      ownerTribeId: form.ownerTribeId,
+      projectId: form.projectId,
       planKey: form.planKey,
       environment: form.environment,
       reason: form.reason,
@@ -104,27 +110,35 @@ export function TribePlanTierPanel() {
     <div className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Assign tribe plan</CardTitle>
+          <CardTitle>Assign project plan</CardTitle>
           <CardDescription>
-            Assign a first-pass entitlement package, then open generated quota
-            proposals in observe mode.
+            Plans attach to one project in one environment. Generated quota
+            proposals become that project&apos;s budgets, in observe mode.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={onSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="plan-owner-tribe-id">
-                  Owner tribe ID
-                </FieldLabel>
-                <Input
-                  id="plan-owner-tribe-id"
-                  value={form.ownerTribeId}
-                  onChange={(event) =>
-                    updateField("ownerTribeId", event.target.value)
-                  }
+                <FieldLabel htmlFor="plan-project-id">Project</FieldLabel>
+                <select
+                  id="plan-project-id"
+                  className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={form.projectId}
+                  onChange={(event) => updateField("projectId", event.target.value)}
                   required
-                />
+                >
+                  <option value="">Choose a project</option>
+                  {(tribesQuery.data ?? []).map((tribe) => (
+                    <optgroup key={tribe.tribeId} label={`${tribe.name} (${tribe.tribeId})`}>
+                      {tribe.projects.map((project) => (
+                        <option key={project.projectId} value={project.projectId}>
+                          {project.name} ({project.projectId})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
@@ -183,8 +197,8 @@ export function TribePlanTierPanel() {
               <div className="text-sm font-medium">Review plan assignment</div>
               <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                 <PlanReviewDetail
-                  label="Tribe"
-                  value={form.ownerTribeId || "Not set"}
+                  label="Project"
+                  value={form.projectId || "Not set"}
                 />
                 <PlanReviewDetail label="Plan" value={formatLabel(form.planKey)} />
                 <PlanReviewDetail label="Environment" value={form.environment} />
@@ -370,12 +384,12 @@ function AssignedTribes({
       {assignments.map((assignment) => (
         <Badge
           key={
-            assignment.id ?? `${assignment.ownerTribeId}-${assignment.planKey}`
+            assignment.id ?? `${assignment.projectId}-${assignment.planKey}`
           }
           variant="outline"
           className="gap-1"
         >
-          <span className="font-mono">{assignment.ownerTribeId}</span>
+          <span className="font-mono">{assignment.projectId}</span>
           <span className="text-muted-foreground">
             {assignment.planKey} / {displayRuntimeEnvironment(assignment.environment)}
           </span>
@@ -445,6 +459,7 @@ function groupAssignmentsByPlan(assignments: TribePlanAssignment[]) {
 function quotaProposalHref(proposal: GeneratedQuotaPolicyProposal) {
   const params = new URLSearchParams({
     ownerTribeId: proposal.ownerTribeId,
+    projectId: proposal.projectId,
     scope: proposal.scope,
     windowSeconds: String(proposal.windowSeconds),
     maxRequests: String(proposal.maxRequests),

@@ -4,10 +4,13 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { listServices, registerService } from "@/lib/api-center-client";
+import {
+  listServices,
+  listTribes,
+  registerService,
+} from "@/lib/api-center-client";
 import { copyTextToClipboard } from "@/lib/client-clipboard";
 import { queryKeys } from "@/lib/query-keys";
-import { buildOwnerTribeMigrationPlan } from "@/lib/owner-tribe-migration";
 import { buildServiceRegistrationPlan } from "@/lib/service-registration-policy";
 import {
   serviceManifestSchema,
@@ -33,6 +36,10 @@ export function ManifestToolsClient() {
   const servicesQuery = useQuery({
     queryKey: queryKeys.services,
     queryFn: listServices,
+  });
+  const tribesQuery = useQuery({
+    queryKey: queryKeys.tenancyTribes,
+    queryFn: listTribes,
   });
 
   const exportJson = useMemo(() => {
@@ -84,6 +91,7 @@ export function ManifestToolsClient() {
         buildServiceRegistrationPlan({
           manifests,
           existingServices: servicesQuery.data ?? [],
+          projects: (tribesQuery.data ?? []).flatMap((tribe) => tribe.projects),
           mode: "local-direct",
         }),
       );
@@ -120,27 +128,6 @@ export function ManifestToolsClient() {
       .slice(0, 10)}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-  }
-
-  function prepareOwnerMigration() {
-    const migrationPlan = buildOwnerTribeMigrationPlan({
-      services: servicesQuery.data ?? [],
-    });
-    setInput(JSON.stringify(migrationPlan.updateManifests, null, 2));
-    setPlan(null);
-    setReviewedImport(false);
-    setResult(
-      [
-        `${migrationPlan.updateManifests.length} manifest(s) prepared with ownerTribeId.`,
-        migrationPlan.canApply
-          ? "No manual review items detected."
-          : "Manual review required before import.",
-        ...migrationPlan.items
-          .filter((item) => item.action === "manual-review")
-          .map((item) => `${item.serviceId}: ${item.reason}`),
-      ].join("\n"),
-    );
-    toast.success("Owner migration manifests prepared");
   }
 
   function clearImport() {
@@ -182,14 +169,6 @@ export function ManifestToolsClient() {
               disabled={!servicesQuery.data}
             >
               Download JSON
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={prepareOwnerMigration}
-              disabled={!servicesQuery.data}
-            >
-              Prepare owner migration
             </Button>
           </div>
         </CardContent>
@@ -293,10 +272,10 @@ function RegistrationPlanPanel({ plan }: { plan: ServiceRegistrationPlan }) {
                 {item.action}: {item.serviceId}
               </div>
               <div className="font-mono text-xs text-muted-foreground">
-                APICENTER_TRIBE_ID={item.ownerTribeId}
+                APICENTER_SERVICE_ID={item.sourceServiceId}
               </div>
               <div className="font-mono text-xs text-muted-foreground">
-                APICENTER_SERVICE_ID={item.sourceServiceId}
+                project={item.projectId ?? "shared"} tribe={item.ownerTribeId ?? "none"}
               </div>
               <div className="font-mono text-xs text-muted-foreground">
                 topic={item.eventTopic}

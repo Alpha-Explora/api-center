@@ -3,9 +3,11 @@
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, PlusIcon, WandSparklesIcon } from "lucide-react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { registerService } from "@/lib/api-center-client";
+import { listTribes, registerService } from "@/lib/api-center-client";
+import { queryKeys } from "@/lib/query-keys";
 import {
   knownSharedServiceIds,
   sharedServiceOptions,
@@ -13,7 +15,6 @@ import {
 } from "@/lib/service-form-presets";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  isOwnerTribeIdRequiredForManifest,
   type ServiceManifest,
   type ServiceRegistryEntry,
 } from "@/lib/schemas";
@@ -48,7 +49,7 @@ const defaultValues: FormInput = {
   name: "",
   baseUrl: "",
   serviceType: "tribe",
-  ownerTribeId: "",
+  projectId: "",
   ownerTeam: "",
   contact: "",
   version: "1.0.0",
@@ -79,21 +80,12 @@ function toFormDefaults(service?: ServiceRegistryEntry | ServiceManifest): FormI
   const extraConsumes = service.consumes.filter(
     (serviceId) => !knownSharedIds.has(serviceId),
   );
-  const ownerTribeId =
-    service.ownerTribeId ??
-    (isOwnerTribeIdRequiredForManifest({
-      serviceId: service.serviceId,
-      serviceType: service.serviceType,
-    })
-      ? service.serviceId
-      : "");
-
   return {
     serviceId: service.serviceId,
     name: service.name,
     baseUrl: service.baseUrl,
     serviceType: service.serviceType ?? "tribe",
-    ownerTribeId,
+    projectId: service.projectId ?? "",
     ownerTeam: service.ownerTeam ?? "",
     contact: service.contact ?? "",
     version: service.version ?? "1.0.0",
@@ -140,6 +132,13 @@ export function TribeForm({
     name: "environments",
   });
   const watchedValues = useWatch({ control: form.control });
+  const tribesQuery = useQuery({
+    queryKey: queryKeys.tenancyTribes,
+    queryFn: listTribes,
+  });
+  const isShared = watchedValues.serviceType === "shared";
+  // A registered service cannot move between projects, so the project is fixed when editing.
+  const projectLocked = mode === "edit" && Boolean(initialValue?.projectId);
   const watchedEnvironments =
     useWatch({ control: form.control, name: "environments" }) ?? [];
 
@@ -390,19 +389,45 @@ export function TribeForm({
             <FieldTitle>Ownership</FieldTitle>
             <FieldGroup>
               <div className="grid gap-5 md:grid-cols-2">
-                <Field data-invalid={Boolean(errors.ownerTribeId)}>
-                  <FieldLabel htmlFor="ownerTribeId">Owner tribe ID</FieldLabel>
-                  <Input
-                    id="ownerTribeId"
-                    placeholder="campusone"
-                    aria-invalid={Boolean(errors.ownerTribeId)}
-                    {...form.register("ownerTribeId")}
-                  />
+                <Field data-invalid={Boolean(errors.projectId)}>
+                  <FieldLabel htmlFor="projectId">Project</FieldLabel>
+                  <select
+                    id="projectId"
+                    className="h-8 rounded-lg border border-input bg-background px-2 text-sm"
+                    aria-invalid={Boolean(errors.projectId)}
+                    disabled={isShared}
+                    {...form.register("projectId")}
+                  >
+                    {projectLocked ? null : (
+                      <option value="">
+                        {isShared ? "Shared services have no project" : "Choose a project"}
+                      </option>
+                    )}
+                    {(tribesQuery.data ?? []).map((tribe) => (
+                      <optgroup key={tribe.tribeId} label={`${tribe.name} (${tribe.tribeId})`}>
+                        {tribe.projects
+                          .filter(
+                            (project) =>
+                              !projectLocked || project.projectId === initialValue?.projectId,
+                          )
+                          .map((project) => (
+                          <option
+                            key={project.projectId}
+                            value={project.projectId}
+                            disabled={project.status !== "active" || tribe.status !== "active"}
+                          >
+                            {project.name} ({project.projectId})
+                          </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                  </select>
                   <FieldDescription>
-                    For a tribe principal, use the service ID. For a microservice,
-                    use the owning tribe ID.
+                    {projectLocked
+                      ? "Services cannot move between projects. Register a new service to change project."
+                      : "The tribe is derived from the project. Create tribes and projects on the Registry page."}
                   </FieldDescription>
-                  <FieldError errors={[errors.ownerTribeId]} />
+                  <FieldError errors={[errors.projectId]} />
                 </Field>
 
                 <Field data-invalid={Boolean(errors.ownerTeam)}>

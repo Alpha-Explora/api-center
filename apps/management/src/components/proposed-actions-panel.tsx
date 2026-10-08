@@ -80,11 +80,9 @@ export function ServiceProposedActionsPanel({
     retry: 1,
   });
   const secretStatusQuery = useQuery({
-    queryKey: queryKeys.tribeSecretStatus(
-      service.ownerTribeId ?? service.serviceId,
-    ),
+    queryKey: queryKeys.tribeSecretStatus(service.serviceId),
     queryFn: () =>
-      getTribeSecretStatus(service.ownerTribeId ?? service.serviceId),
+      getTribeSecretStatus(service.serviceId),
     retry: 1,
     enabled: service.serviceType === "tribe",
   });

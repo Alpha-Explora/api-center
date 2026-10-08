@@ -121,17 +121,23 @@ export function ServiceDetailClient({
     partition: pipelinePartition,
     partitionKey: pipelinePartitionKey,
   });
-  const tribePrincipalId = serviceQuery.data?.ownerTribeId ?? serviceId;
+  // Credentials belong to the service itself; quotas belong to its project and tribe.
+  const credentialServiceId = serviceId;
+  const ownerTribeId = serviceQuery.data?.ownerTribeId ?? "";
+  const projectId = serviceQuery.data?.projectId;
   const quotaPoliciesQuery = useQuery({
-    queryKey: queryKeys.quotaPolicies(tribePrincipalId),
-    queryFn: () => listQuotaPolicies(tribePrincipalId),
-    enabled: Boolean(serviceQuery.data) && section === "quotas",
+    queryKey: queryKeys.applicableQuotaPolicies(ownerTribeId, projectId),
+    queryFn: async () =>
+      (await listQuotaPolicies(ownerTribeId)).filter(
+        (policy) => !policy.projectId || policy.projectId === projectId,
+      ),
+    enabled: Boolean(serviceQuery.data?.ownerTribeId) && section === "quotas",
     retry: 1,
   });
   const quotaUsageQuery = useQuery({
-    queryKey: queryKeys.quotaUsage(tribePrincipalId, "24h"),
-    queryFn: () => getQuotaUsage({ ownerTribeId: tribePrincipalId, window: "24h" }),
-    enabled: Boolean(serviceQuery.data) && section === "quotas",
+    queryKey: queryKeys.quotaUsage(ownerTribeId, "24h"),
+    queryFn: () => getQuotaUsage({ ownerTribeId, window: "24h" }),
+    enabled: Boolean(serviceQuery.data?.ownerTribeId) && section === "quotas",
     retry: 1,
   });
 
@@ -210,8 +216,7 @@ export function ServiceDetailClient({
   const provisionSecretMutation = useMutation({
     mutationFn: () =>
       provisionTribeSecret({
-        tribeId: tribePrincipalId,
-        sourceServiceId: serviceId,
+        serviceId: credentialServiceId,
         environment: secretEnvironment,
         secretHashSha256: secretHash,
         mode: "create-or-rotate",
@@ -227,9 +232,9 @@ export function ServiceDetailClient({
         rotatedAt: result.rotatedAt,
       });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.tribeSecretStatus(tribePrincipalId, secretEnvironment),
+        queryKey: queryKeys.tribeSecretStatus(credentialServiceId, secretEnvironment),
       });
-      toast.success("Tribe secret provisioned");
+      toast.success("Service secret provisioned");
     },
     onError: showMutationError(
       "Secret provisioning failed",
@@ -240,8 +245,7 @@ export function ServiceDetailClient({
   const previewSecretMutation = useMutation({
     mutationFn: () =>
       previewTribeSecretProvision({
-        tribeId: tribePrincipalId,
-        sourceServiceId: serviceId,
+        serviceId: credentialServiceId,
         environment: secretEnvironment,
         secretHashSha256: secretHash,
         mode: "create-or-rotate",
@@ -269,7 +273,7 @@ export function ServiceDetailClient({
     await copyText(
       plaintextSecret,
       "Plaintext secret copied",
-      "plaintext tribe secret",
+      "plaintext service secret",
       setManualCopy,
     );
   };
@@ -328,7 +332,7 @@ export function ServiceDetailClient({
         service={service}
         services={servicesQuery.data ?? []}
         isTribe={isTribe}
-        tribePrincipalId={tribePrincipalId}
+        credentialServiceId={credentialServiceId}
         consumers={consumers}
         brokenDependencies={brokenDependencies}
         lifecycleEntry={lifecycleEntry}

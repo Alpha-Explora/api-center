@@ -34,23 +34,36 @@ export function buildQuotaProposedActions(input: {
   const activePolicies = input.policies.filter(
     (policy) => policy.status === "active",
   );
-  const activePolicyOwners = new Set(
-    activePolicies.map((policy) => policy.ownerTribeId),
+  const budgetedProjects = new Set(
+    activePolicies.flatMap((policy) =>
+      policy.projectId ? [policy.projectId] : [],
+    ),
   );
+  const ceilingTribes = new Set(
+    activePolicies
+      .filter((policy) => !policy.projectId)
+      .map((policy) => policy.ownerTribeId),
+  );
+  const proposedProjects = new Set<string>();
 
   for (const service of input.services) {
-    if (
-      isProductionTribe(service) &&
-      !activePolicyOwners.has(ownerFor(service))
-    ) {
+    if (!isProductionTribe(service)) continue;
+    // A project budget or a tribe-wide ceiling both count as coverage.
+    const covered =
+      (service.projectId && budgetedProjects.has(service.projectId)) ||
+      (service.ownerTribeId && ceilingTribes.has(service.ownerTribeId));
+    const projectKey = service.projectId ?? service.serviceId;
+    if (!covered && !proposedProjects.has(projectKey)) {
+      proposedProjects.add(projectKey);
       actions.push({
-        id: `${ownerFor(service)}-create-active-quota`,
+        id: `${projectKey}-create-active-quota`,
         title: "Create active quota policy",
-        description: "No active quota policy exists for this production tribe.",
+        description:
+          "No active project budget or tribe-wide ceiling covers this production service.",
         serviceId: service.serviceId,
         risk: "state-write",
         execution: "proposal",
-        href: quotaHref(ownerFor(service)),
+        href: quotaHref(service.ownerTribeId, service.projectId),
         reason: "Missing production tribe quota",
         expiresAt: proposalExpiry(now),
       });
@@ -273,8 +286,8 @@ function buildSecretActions(
         ? `${service.serviceId}-rotate-stale-secret`
         : `${service.serviceId}-provision-secret`,
       title: status.exists
-        ? "Rotate stale tribe secret"
-        : "Provision tribe secret",
+        ? "Rotate stale service secret"
+        : "Provision service secret",
       description:
         status.rotationWarning?.message ??
         "Tribe secret hash is missing from Secret Manager.",
@@ -282,7 +295,7 @@ function buildSecretActions(
       risk: "state-write",
       execution: "proposal",
       href: serviceDetailHref(service.serviceId, "actions"),
-      reason: status.exists ? "Stale secret" : "Missing tribe secret",
+      reason: status.exists ? "Stale secret" : "Missing service secret",
       expiresAt: proposalExpiry(now),
     };
 
@@ -304,12 +317,12 @@ function isProductionTribe(service: ServiceRegistryEntry) {
   );
 }
 
-function ownerFor(service: ServiceRegistryEntry) {
-  return service.ownerTribeId ?? service.serviceId;
-}
-
-function quotaHref(ownerTribeId: string) {
-  return serviceDetailHref(ownerTribeId, "quotas");
+function quotaHref(ownerTribeId?: string, projectId?: string) {
+  const params = new URLSearchParams();
+  if (ownerTribeId) params.set("ownerTribeId", ownerTribeId);
+  if (projectId) params.set("projectId", projectId);
+  const suffix = params.toString();
+  return suffix ? `/quotas?${suffix}` : "/quotas";
 }
 
 function serviceDetailHref(serviceId: string, section: string) {

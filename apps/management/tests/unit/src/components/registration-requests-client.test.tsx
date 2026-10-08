@@ -22,10 +22,11 @@ const pendingRequest = {
   id: "00000000-0000-0000-0000-000000000001",
   serviceId: "logistics-orders",
   ownerTribeId: "logistics",
+  projectId: "logistics-core",
   status: "pending" as const,
   manifest: {
     serviceId: "logistics-orders",
-    ownerTribeId: "logistics",
+    projectId: "logistics-core",
     name: "Logistics Orders",
     baseUrl: "https://orders.example.test",
     requiredScopes: ["orders:read"],
@@ -64,10 +65,11 @@ const blockedRequest = {
   id: "00000000-0000-0000-0000-000000000002",
   serviceId: "payments-gateway",
   ownerTribeId: "payments",
+  projectId: "payments-core",
   manifest: {
     ...pendingRequest.manifest,
     serviceId: "payments-gateway",
-    ownerTribeId: "payments",
+    projectId: "payments-core",
     name: "Payments Gateway",
     baseUrl: "https://payments.example.test",
     consumes: ["ledger"],
@@ -99,7 +101,7 @@ describe("RegistrationRequestsClient", () => {
     expect(
       (await screen.findAllByText("logistics-orders")).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText("APICENTER_TRIBE_ID=logistics")).toBeTruthy();
+    expect(screen.getByText("project=logistics-core tribe=logistics")).toBeTruthy();
     expect(
       screen.getByText("APICENTER_SERVICE_ID=logistics-orders"),
     ).toBeTruthy();
@@ -119,7 +121,7 @@ describe("RegistrationRequestsClient", () => {
     ).toBeTruthy();
     expect(screen.getByText("Review request")).toBeTruthy();
     expect(screen.getAllByText("payments-gateway").length).toBeGreaterThan(0);
-    expect(screen.getByText("APICENTER_TRIBE_ID=payments")).toBeTruthy();
+    expect(screen.getByText("project=payments-core tribe=payments")).toBeTruthy();
     expect(
       screen.getByText("blocking: Scope payments:write is not allowed."),
     ).toBeTruthy();
@@ -131,7 +133,7 @@ describe("RegistrationRequestsClient", () => {
     );
 
     expect(screen.getAllByText("logistics-orders").length).toBeGreaterThan(0);
-    expect(screen.getByText("APICENTER_TRIBE_ID=logistics")).toBeTruthy();
+    expect(screen.getByText("project=logistics-core tribe=logistics")).toBeTruthy();
     expect(
       screen.getByLabelText("Rejection reason for logistics-orders"),
     ).toBeTruthy();

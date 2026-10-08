@@ -301,7 +301,7 @@ function RegistrationRequestDetail({
 }) {
   const topic = getServiceEventTopics({
     serviceId: request.serviceId,
-    ownerTribeId: request.ownerTribeId,
+    ownerTribeId: request.ownerTribeId ?? undefined,
     serviceType: request.manifest.serviceType,
   }).primary;
   const hasBlockingIssues = request.validationReport.issues.some(
@@ -357,8 +357,10 @@ function RegistrationRequestDetail({
         </div>
 
         <div className="grid gap-1 border-t pt-4 font-mono text-xs text-muted-foreground">
-          <div>APICENTER_TRIBE_ID={request.ownerTribeId}</div>
           <div>APICENTER_SERVICE_ID={request.serviceId}</div>
+          <div>
+            project={request.projectId ?? "shared"} tribe={request.ownerTribeId ?? "none"}
+          </div>
           <div>topic={topic}</div>
         </div>
 
@@ -470,7 +472,7 @@ function RegistrationRequestPath({
     {
       label: "Portal preview",
       detail: "Review the requesting tribe packet.",
-      href: `/developer-portal?tribeId=${encodeURIComponent(request.ownerTribeId)}`,
+      href: `/developer-portal?tribeId=${encodeURIComponent(request.ownerTribeId ?? "")}`,
       action: "Open portal preview",
     },
     {

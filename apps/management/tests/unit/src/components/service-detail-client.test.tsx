@@ -106,6 +106,8 @@ vi.mock("@/components/tribe-onboarding-flow", () => ({
 
 const service: ServiceRegistryEntry = {
   serviceId: "smoke-tribe",
+  projectId: "smoke-tribe-default",
+  ownerTribeId: "smoke-tribe",
   name: "Smoke Tribe",
   baseUrl: "https://smoke.example.test",
   requiredScopes: ["payment:checkout"],

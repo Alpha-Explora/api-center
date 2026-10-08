@@ -1,15 +1,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TribeForm } from "@/components/tribe-form";
-import { registerService } from "@/lib/api-center-client";
+import { listTribes, registerService } from "@/lib/api-center-client";
 import { sharedServiceOptions } from "@/lib/service-form-presets";
-import type { ServiceRegistryEntry } from "@/lib/schemas";
+import type { ServiceRegistryEntry, TenancyTribe } from "@/lib/schemas";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock("@/lib/api-center-client", () => ({
+  listTribes: vi.fn(),
   registerService: vi.fn(),
 }));
 
@@ -21,8 +23,36 @@ vi.mock("sonner", () => ({
   },
 }));
 
-const hyphenatedRootTribe: ServiceRegistryEntry = {
+const smurfTribe: TenancyTribe = {
+  tribeId: "smurf-village",
+  name: "Smurf Village",
+  status: "active",
+  createdAt: "2026-05-16T00:00:00.000Z",
+  updatedAt: "2026-05-16T00:00:00.000Z",
+  projects: [
+    {
+      projectId: "smurf-village-default",
+      tribeId: "smurf-village",
+      name: "Default",
+      status: "active",
+      createdAt: "2026-05-16T00:00:00.000Z",
+      updatedAt: "2026-05-16T00:00:00.000Z",
+    },
+    {
+      projectId: "smurf-village-mushrooms",
+      tribeId: "smurf-village",
+      name: "Mushrooms",
+      status: "active",
+      createdAt: "2026-05-16T00:00:00.000Z",
+      updatedAt: "2026-05-16T00:00:00.000Z",
+    },
+  ],
+};
+
+const registeredService: ServiceRegistryEntry = {
   serviceId: "smurf-village",
+  projectId: "smurf-village-default",
+  ownerTribeId: "smurf-village",
   name: "Smurf Village",
   baseUrl: "https://smurf-village.example.test",
   requiredScopes: ["smurf-village:read"],
@@ -42,20 +72,28 @@ const hyphenatedRootTribe: ServiceRegistryEntry = {
 };
 
 describe("TribeForm", () => {
+  beforeEach(() => {
+    vi.mocked(listTribes).mockResolvedValue([smurfTribe]);
+  });
+
   afterEach(() => {
     cleanup();
   });
 
-  it("defaults a hyphenated root tribe owner to the service ID when editing", () => {
-    render(<TribeForm mode="edit" initialValue={hyphenatedRootTribe} />);
+  it("locks a registered service to its project when editing", async () => {
+    renderWithClient(<TribeForm mode="edit" initialValue={registeredService} />);
 
-    expect((screen.getByLabelText("Owner tribe ID") as HTMLInputElement).value).toBe(
-      "smurf-village",
+    expect(
+      await screen.findByRole("option", { name: /smurf-village-default/ }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /smurf-village-mushrooms/ })).toBeNull();
+    expect((screen.getByLabelText("Project") as HTMLSelectElement).value).toBe(
+      "smurf-village-default",
     );
   });
 
   it("gives shared-service checkboxes explicit labels", () => {
-    render(<TribeForm />);
+    renderWithClient(<TribeForm />);
 
     for (const option of sharedServiceOptions) {
       const checkbox = screen.getByLabelText(option.label) as HTMLInputElement;
@@ -65,13 +103,17 @@ describe("TribeForm", () => {
     }
   });
 
-  it("lets operators add multiple service environments", async () => {
+  it("registers a service into the chosen project with multiple environments", async () => {
     vi.mocked(registerService).mockResolvedValue({
       serviceId: "trinithrive",
     } as ServiceRegistryEntry);
 
-    render(<TribeForm />);
+    renderWithClient(<TribeForm />);
 
+    await screen.findByRole("option", { name: /smurf-village-mushrooms/ });
+    fireEvent.change(screen.getByLabelText("Project"), {
+      target: { value: "smurf-village-mushrooms" },
+    });
     fireEvent.change(screen.getByLabelText("Service ID"), {
       target: { value: "trinithrive" },
     });
@@ -95,6 +137,7 @@ describe("TribeForm", () => {
     await waitFor(() =>
       expect(registerService).toHaveBeenCalledWith(
         expect.objectContaining({
+          projectId: "smurf-village-mushrooms",
           baseUrl: "https://trinithrive-test.example.com",
           environments: [
             expect.objectContaining({
@@ -109,5 +152,18 @@ describe("TribeForm", () => {
         }),
       ),
     );
+    expect(vi.mocked(registerService).mock.calls[0]?.[0]).not.toHaveProperty(
+      "ownerTribeId",
+    );
   });
 });
+
+function renderWithClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}

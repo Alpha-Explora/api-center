@@ -52,7 +52,7 @@ export function SharedServiceSmokeTests({
   mode?: "test" | "live";
 }) {
   const [accessToken, setAccessToken] = useState("");
-  const [tokenTribeId, setTokenTribeId] = useState(defaultTribeId);
+  const [tokenServiceId, setTokenServiceId] = useState(defaultTribeId);
   const [providerConfirmed, setProviderConfirmed] = useState(false);
   const [operationPreview, setOperationPreview] = useState<OperationPreview | null>(null);
   const [typedPhrase, setTypedPhrase] = useState("");
@@ -118,7 +118,7 @@ export function SharedServiceSmokeTests({
 
   async function runSafeChecks() {
     if (!accessToken) {
-      toast.error("Request a tribe token first");
+      toast.error("Request a service token first");
       return;
     }
 
@@ -131,7 +131,7 @@ export function SharedServiceSmokeTests({
 
   async function runPaymentSubscriptionLifecycle() {
     if (!accessToken) {
-      toast.error("Request a tribe token first");
+      toast.error("Request a service token first");
       return;
     }
     if (!canRunProviderImpacting()) {
@@ -218,10 +218,10 @@ export function SharedServiceSmokeTests({
   return (
     <div className="flex flex-col gap-5">
       <SmokeTokenCard
-        defaultTribeId={tokenTribeId}
-        onTokenIssued={(token, tribeId) => {
+        defaultServiceId={tokenServiceId}
+        onTokenIssued={(token, serviceId) => {
           setAccessToken(token);
-          setTokenTribeId(tribeId);
+          setTokenServiceId(serviceId);
         }}
       />
 
@@ -236,7 +236,7 @@ export function SharedServiceSmokeTests({
             </div>
             <div className="flex flex-wrap gap-2">
               {accessToken ? (
-                <Badge variant="secondary">token for {tokenTribeId}</Badge>
+                <Badge variant="secondary">token for {tokenServiceId}</Badge>
               ) : (
                 <Badge variant="outline">token required</Badge>
               )}

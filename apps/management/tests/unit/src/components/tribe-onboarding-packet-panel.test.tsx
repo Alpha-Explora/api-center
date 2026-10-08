@@ -17,6 +17,8 @@ const service: ServiceRegistryEntry = {
   baseUrl: "https://pakiapps.example.com",
   healthCheck: "/health",
   serviceType: "tribe",
+  projectId: "pakiapps-default",
+  ownerTribeId: "pakiapps",
   ownerTeam: "PakiApps",
   contact: "ops@pakiapps.example.com",
   tags: [],
@@ -51,7 +53,7 @@ describe("TribeOnboardingPacketPanel", () => {
     ).toBeTruthy();
     expect(screen.getByText("Publish tribe event")).toBeTruthy();
     expect(screen.getByText("Publish custom event")).toBeTruthy();
-    expect(screen.getByText(/APICENTER_TRIBE_ID=pakiapps/)).toBeTruthy();
+    expect(screen.getByText(/APICENTER_SERVICE_ID=pakiapps/)).toBeTruthy();
     expect(
       screen.getAllByText(/tribe\.pakiapps\.events/).length,
     ).toBeGreaterThan(0);

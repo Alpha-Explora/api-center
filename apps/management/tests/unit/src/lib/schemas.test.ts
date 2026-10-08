@@ -45,19 +45,24 @@ describe("confluentTopicNameSchema", () => {
 
 
 describe("tribeSecretProvisionRequestSchema", () => {
-  it("requires owner tribe, source service, and target environment", () => {
+  it("requires the service and target environment, with no tribe credential", () => {
     expect(
       tribeSecretProvisionRequestSchema.parse({
-        tribeId: "church-donations",
-        sourceServiceId: "spark-site",
+        serviceId: "spark-site",
         environment: "live",
         secretHashSha256: "a".repeat(64),
       }),
     ).toMatchObject({
-      tribeId: "church-donations",
-      sourceServiceId: "spark-site",
+      serviceId: "spark-site",
       environment: "live",
     });
+    expect(
+      tribeSecretProvisionRequestSchema.parse({
+        serviceId: "spark-site",
+        environment: "live",
+        secretHashSha256: "a".repeat(64),
+      }),
+    ).not.toHaveProperty("tribeId");
 
     expect(() =>
       tribeSecretProvisionRequestSchema.parse({
@@ -71,7 +76,7 @@ describe("serviceManifestSchema", () => {
   it("accepts multiple platform-approved service environments", () => {
     const parsed = serviceManifestSchema.parse({
       serviceId: "trinithrive",
-      ownerTribeId: "trinithrive",
+      projectId: "trinithrive-default",
       name: "TriniThrive",
       baseUrl: "https://trinithrive-test.example.com",
       requiredScopes: ["service:read"],
@@ -97,20 +102,20 @@ describe("serviceManifestSchema", () => {
     });
   });
 
-  it("accepts ownerTribeId for microservices owned by a tribe", () => {
+  it("accepts tribe services that name their project", () => {
     expect(
       serviceManifestSchema.parse({
         serviceId: "logistics-orders",
-        ownerTribeId: "logistics",
+        projectId: "logistics-core",
         name: "Logistics Orders",
         baseUrl: "http://logistics-orders:3000",
         requiredScopes: ["orders:read"],
         exposes: ["/orders"],
-      }).ownerTribeId,
-    ).toBe("logistics");
+      }).projectId,
+    ).toBe("logistics-core");
   });
 
-  it("rejects likely tribe microservices without ownerTribeId", () => {
+  it("rejects tribe services without a project", () => {
     expect(() =>
       serviceManifestSchema.parse({
         serviceId: "logistics-orders",
@@ -119,22 +124,24 @@ describe("serviceManifestSchema", () => {
         requiredScopes: ["orders:read"],
         exposes: ["/orders"],
       }),
-    ).toThrow("ownerTribeId is required");
+    ).toThrow("Choose the project this tribe service belongs to");
   });
 
-  it("accepts root tribe services without ownerTribeId", () => {
-    expect(
+  it("rejects a project on shared services", () => {
+    expect(() =>
       serviceManifestSchema.parse({
-        serviceId: "logistics",
-        name: "Logistics",
-        baseUrl: "http://logistics:3000",
-        requiredScopes: ["logistics:read"],
-        exposes: ["/health"],
-      }).serviceId,
-    ).toBe("logistics");
+        serviceId: "payment",
+        serviceType: "shared",
+        projectId: "logistics-core",
+        name: "Payment",
+        baseUrl: "http://payment:3000",
+        requiredScopes: ["payment:charge"],
+        exposes: ["/shared/payment"],
+      }),
+    ).toThrow("Shared services cannot belong to a project");
   });
 
-  it("accepts shared services without ownerTribeId", () => {
+  it("accepts shared services without a project", () => {
     expect(
       serviceManifestSchema.parse({
         serviceId: "payment",

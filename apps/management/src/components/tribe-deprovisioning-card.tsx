@@ -61,8 +61,9 @@ export function TribeDeprovisioningCard({
   const [sinkPreview, setSinkPreview] = useState<OperationPreview | null>(null);
   const [typedPhrase, setTypedPhrase] = useState("");
   const [operatorReason, setOperatorReason] = useState("");
-  const tribePrincipalId = ownerTribeId ?? serviceId;
-  const usesSharedTribeResources = tribePrincipalId !== serviceId;
+  // Credentials are per service, so deleting this service's secret never affects siblings.
+  // The tribe event topic is shared by every service in the tribe, so its S3 export is preserved.
+  const sharesTribeTopic = Boolean(ownerTribeId);
   const cleanupResources = useMemo(() => {
     const serviceEnvironments =
       environments && environments.length > 0
@@ -83,7 +84,7 @@ export function TribeDeprovisioningCard({
         serviceEnvironment.environment === "live" ? "live" : "test";
       if (resourcesByEnvironment.has(environment)) continue;
 
-      const secretPrincipalId = tribePrincipalId;
+      const secretPrincipalId = serviceId;
       const topicName = getServiceEventTopics({
         serviceId,
         ownerTribeId,
@@ -94,25 +95,25 @@ export function TribeDeprovisioningCard({
       resourcesByEnvironment.set(environment, {
         environment,
         secretPrincipalId,
-        secretName: `api-center-tribe-secret-${secretPrincipalId}-${environment}`,
+        secretName: `api-center-service-secret-${secretPrincipalId}-${environment}`,
         topicName,
       });
     }
 
     return [...resourcesByEnvironment.values()];
-  }, [environments, ownerTribeId, serviceId, tribePrincipalId]);
+  }, [environments, ownerTribeId, serviceId]);
   const primaryCleanupResource = cleanupResources[0];
   const hasLiveCleanupResource = cleanupResources.some(
     (resource) => resource.environment === "live",
   );
   const secretStatusQuery = useQuery({
     queryKey: queryKeys.tribeSecretStatus(
-      tribePrincipalId,
+      serviceId,
       primaryCleanupResource.environment,
     ),
     queryFn: () =>
       getTribeSecretStatus(
-        tribePrincipalId,
+        serviceId,
         primaryCleanupResource.environment,
       ),
   });
@@ -171,7 +172,7 @@ export function TribeDeprovisioningCard({
       await queryClient.invalidateQueries({ queryKey: queryKeys.services });
       await queryClient.invalidateQueries({
         queryKey: queryKeys.tribeSecretStatus(
-          tribePrincipalId,
+          serviceId,
           primaryCleanupResource.environment,
         ),
       });
@@ -213,8 +214,7 @@ export function TribeDeprovisioningCard({
   });
 
   const hasAction =
-    (!usesSharedTribeResources && (deleteSecret || removeFromSink)) ||
-    deregister;
+    deleteSecret || (!sharesTribeTopic && removeFromSink) || deregister;
   const liveConfirmed =
     !hasLiveCleanupResource ||
     (typedPhrase === "APPLY LIVE CHANGE" && operatorReason.trim().length > 0);
@@ -251,13 +251,13 @@ export function TribeDeprovisioningCard({
           </AlertDescription>
         </Alert>
 
-        {usesSharedTribeResources ? (
+        {sharesTribeTopic ? (
           <Alert>
-            <AlertTitle>Shared tribe resources are preserved</AlertTitle>
+            <AlertTitle>The tribe event topic is preserved</AlertTitle>
             <AlertDescription>
-              This service uses the {tribePrincipalId} tribe secret and topic.
-              Deprovisioning this microservice should not delete those shared
-              tribe resources.
+              Every service in the {ownerTribeId} tribe publishes to the same
+              tribe topic, so this cleanup keeps the topic and its S3 export.
+              This service&apos;s own credential secret can still be deleted.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -284,16 +284,15 @@ export function TribeDeprovisioningCard({
         <div className="grid gap-2">
           <CleanupOption
             checked={deleteSecret}
-            label="Delete tribe credential secret"
-            description="Stops this tribe from requesting new API Center tokens."
-            disabled={usesSharedTribeResources}
+            label="Delete this service's credential secret"
+            description="Stops this service from requesting new API Center tokens. Other services keep their own credentials."
             onChange={setDeleteSecret}
           />
           <CleanupOption
             checked={removeFromSink}
             label="Remove topic from S3 sink connector"
-            description="Stops future S3 exports for this tribe topic. Existing S3 data remains."
-            disabled={usesSharedTribeResources}
+            description="Stops future S3 exports for this topic. Existing S3 data remains."
+            disabled={sharesTribeTopic}
             onChange={setRemoveFromSink}
           />
           <CleanupOption
@@ -304,7 +303,7 @@ export function TribeDeprovisioningCard({
           />
         </div>
 
-        {!usesSharedTribeResources ? (
+        {deleteSecret || !sharesTribeTopic ? (
           <div className="grid gap-3 lg:grid-cols-2">
             <OperationPreviewPanel
               title="Secret cleanup preview"

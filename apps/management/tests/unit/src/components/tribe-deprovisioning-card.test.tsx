@@ -54,10 +54,10 @@ describe("TribeDeprovisioningCard", () => {
     ).toBeTruthy();
     expect(screen.getByText("live.tribe.trinithrive.events")).toBeTruthy();
     expect(
-      screen.getByText("api-center-tribe-secret-trinithrive-test"),
+      screen.getByText("api-center-service-secret-trinithrive-test"),
     ).toBeTruthy();
     expect(
-      screen.getByText("api-center-tribe-secret-trinithrive-live"),
+      screen.getByText("api-center-service-secret-trinithrive-live"),
     ).toBeTruthy();
   });
 });

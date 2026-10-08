@@ -146,6 +146,7 @@ describe("TribeOnboardingFlow", () => {
     renderWithClient(
       <TribeOnboardingFlow
         serviceId="logistics-orders"
+        projectId="logistics-core"
         ownerTribeId="logistics"
         consumes={[]}
         requiredScopes={["external:kafka:write"]}
@@ -153,13 +154,16 @@ describe("TribeOnboardingFlow", () => {
     );
 
     await waitFor(() =>
-      expect(apiClient.getTribeSecretStatus).toHaveBeenCalledWith("logistics"),
+      expect(apiClient.getTribeSecretStatus).toHaveBeenCalledWith("logistics-orders"),
     );
+    expect(apiClient.listQuotaPolicies).toHaveBeenCalledWith("logistics");
     expect(apiClient.getConfluentPipelineStatus).toHaveBeenCalledWith(
       "logistics-orders",
       "test.tribe.logistics.events",
     );
-    expect(await screen.findByText(/under tribe logistics/)).toBeTruthy();
+    expect(
+      await screen.findByText(/under project logistics-core \(tribe logistics\)/),
+    ).toBeTruthy();
     expect(
       screen.getByText(
         /Owner tribe topic: test\.tribe\.logistics\.events; source service logistics-orders/,

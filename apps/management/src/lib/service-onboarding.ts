@@ -594,7 +594,6 @@ export function getOnboardingChecks(
   service: ServiceRegistryEntry,
   services: ServiceRegistryEntry[],
 ): OnboardingCheck[] {
-  const tribePrincipalId = getTribePrincipalId(service);
   const serviceType = service.serviceType === "shared" ? "shared" : "tribe";
   const broken = getBrokenDependencies(services).filter(
     (dependency) => dependency.sourceServiceId === service.serviceId,
@@ -630,7 +629,7 @@ export function getOnboardingChecks(
       key: "sdk",
       label: "SDK configuration",
       ok: Boolean(service.serviceId && service.requiredScopes.length),
-      detail: `APICENTER_TRIBE_ID=${tribePrincipalId}; scopes=${service.requiredScopes.join(", ")}`,
+      detail: `APICENTER_SERVICE_ID=${service.serviceId}; ${describePlacement(service)}; scopes=${service.requiredScopes.join(", ")}`,
     },
     {
       key: "events",
@@ -649,7 +648,6 @@ export function getOnboardingPacket(
   service: ServiceRegistryEntry,
   services: ServiceRegistryEntry[],
 ) {
-  const tribePrincipalId = getTribePrincipalId(service);
   const serviceType = service.serviceType === "shared" ? "shared" : "tribe";
   const topics = getServiceEventTopics({
     serviceId: service.serviceId,
@@ -660,7 +658,8 @@ export function getOnboardingPacket(
 
   return {
     serviceId: service.serviceId,
-    tribePrincipalId,
+    projectId: service.projectId ?? null,
+    ownerTribeId: service.ownerTribeId ?? null,
     name: service.name,
     baseUrl: service.baseUrl,
     gatewayRoute:
@@ -669,9 +668,8 @@ export function getOnboardingPacket(
         : `/api/v1/tribes/${service.serviceId}`,
     sdkEnv: {
       APICENTER_URL: "https://api-center.itsandbox.site",
-      APICENTER_TRIBE_ID: tribePrincipalId,
       APICENTER_SERVICE_ID: service.serviceId,
-      APICENTER_TRIBE_SECRET: "<issued-tribe-secret>",
+      APICENTER_SERVICE_SECRET: "<issued-service-secret>",
     },
     scopes: service.requiredScopes,
     exposes: service.exposes,
@@ -682,7 +680,6 @@ export function getOnboardingPacket(
 }
 
 export function getTribeOnboardingPacket(service: ServiceRegistryEntry) {
-  const tribePrincipalId = getTribePrincipalId(service);
   const serviceType = service.serviceType === "shared" ? "shared" : "tribe";
   const topics = getServiceEventTopics({
     serviceId: service.serviceId,
@@ -711,50 +708,51 @@ export function getTribeOnboardingPacket(service: ServiceRegistryEntry) {
     serviceId: service.serviceId,
     platformActions: [
       "Register and review the tribe manifest.",
-      "Generate the one-time tribe secret and provision only its SHA-256 hash.",
+      "Generate one secret per service environment and provision only its SHA-256 hash.",
       `Create or verify ${topics.primary}.`,
       "Add the topic to the managed S3 Sink connector when exports should start.",
       "Run safe smoke checks and verify usage/audit signals.",
     ],
     tribeActions: [
       "Install @implementsprint/sdk in the tribe backend.",
-      "Set APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_TRIBE_ID, APICENTER_SERVICE_ID, and APICENTER_TRIBE_SECRET as server-only env vars.",
+      "Set APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_SERVICE_ID, and APICENTER_SERVICE_SECRET as server-only env vars. API Center derives the project and tribe from the service.",
       "Call shared services through API Center instead of provider APIs.",
       "Publish business events through the SDK when data should flow to S3.",
       "Do not store API Center credentials in frontend code.",
     ],
     env: [
+      `# ${describePlacement(service)}`,
       "# test",
       "APICENTER_URL=https://api-center.itsandbox.site",
       "APICENTER_ENVIRONMENT=test",
-      `APICENTER_TRIBE_ID=${tribePrincipalId}`,
       `APICENTER_SERVICE_ID=${service.serviceId}`,
-      "APICENTER_TRIBE_SECRET=<test-secret-issued-by-platform>",
+      "APICENTER_SERVICE_SECRET=<test-secret-issued-by-platform>",
       "",
       "# live",
       "APICENTER_URL=https://api-center.itsandbox.site",
       "APICENTER_ENVIRONMENT=live",
-      `APICENTER_TRIBE_ID=${tribePrincipalId}`,
       `APICENTER_SERVICE_ID=${service.serviceId}`,
-      "APICENTER_TRIBE_SECRET=<live-secret-issued-by-platform>",
+      "APICENTER_SERVICE_SECRET=<live-secret-issued-by-platform>",
     ].join("\n"),
-    nestjsModule: createNestJsModuleExample(tribePrincipalId, service.serviceId),
+    nestjsModule: createNestJsModuleExample(service.serviceId),
     sharedServiceExamples,
     sdkServiceExamples: getSdkServiceExamples(),
     eventPublishing: createEventPublishingExample(
-      tribePrincipalId,
+      service.ownerTribeId ?? null,
       service.serviceId,
     ),
     customEventPublishing: createCustomEventPublishingExample(
-      tribePrincipalId,
+      service.ownerTribeId ?? null,
       service.serviceId,
     ),
     topics,
   };
 }
 
-function getTribePrincipalId(service: ServiceRegistryEntry) {
-  return service.ownerTribeId ?? service.serviceId;
+function describePlacement(service: ServiceRegistryEntry) {
+  if (service.serviceType === "shared") return "shared service (no project)";
+  if (!service.projectId) return "project=unplaced";
+  return `project=${service.projectId}; tribe=${service.ownerTribeId ?? "unknown"}`;
 }
 
 function mergeSourceServiceIds(
@@ -825,7 +823,7 @@ function stateRank(state: TribeS3OnboardingState) {
   return ranks[state];
 }
 
-function createNestJsModuleExample(tribeId: string, sourceServiceId: string) {
+function createNestJsModuleExample(serviceId: string) {
   return [
     'import { Module, Global } from "@nestjs/common";',
     'import { TribeClient } from "@implementsprint/sdk";',
@@ -838,10 +836,9 @@ function createNestJsModuleExample(tribeId: string, sourceServiceId: string) {
     "      useFactory: () =>",
     "        new TribeClient({",
     "          gatewayUrl: process.env.APICENTER_URL!,",
-    `          tribeId: process.env.APICENTER_TRIBE_ID ?? "${tribeId}",`,
-    `          sourceServiceId: process.env.APICENTER_SERVICE_ID ?? "${sourceServiceId}",`,
+    `          serviceId: process.env.APICENTER_SERVICE_ID ?? "${serviceId}",`,
     '          environment: process.env.APICENTER_ENVIRONMENT as "test" | "live",',
-    "          secret: process.env.APICENTER_TRIBE_SECRET!,",
+    "          secret: process.env.APICENTER_SERVICE_SECRET!,",
     "        }),",
     "    },",
     "  ],",
@@ -872,7 +869,10 @@ function createSharedServiceCallExample(
   return lines.join("\n");
 }
 
-function createEventPublishingExample(tribeId: string, sourceServiceId: string) {
+function createEventPublishingExample(
+  tribeId: string | null,
+  sourceServiceId: string,
+) {
   return [
     "await apiCenter.publishTribeEvent({",
     `  sourceServiceId: "${sourceServiceId}",`,
@@ -880,7 +880,7 @@ function createEventPublishingExample(tribeId: string, sourceServiceId: string) 
     "  payload: {",
     '    eventId: "evt_123",',
     '    source: "' + sourceServiceId + '",',
-    '    tribeId: "' + tribeId + '",',
+    ...(tribeId ? ['    tribeId: "' + tribeId + '",'] : []),
     "    occurredAt: new Date().toISOString(),",
     "  },",
     "});",
@@ -888,7 +888,7 @@ function createEventPublishingExample(tribeId: string, sourceServiceId: string) 
 }
 
 function createCustomEventPublishingExample(
-  tribeId: string,
+  tribeId: string | null,
   sourceServiceId: string,
 ) {
   return [
@@ -898,7 +898,7 @@ function createCustomEventPublishingExample(
     "  payload: {",
     '    orderId: "ord_123",',
     '    customerId: "cus_123",',
-    '    tribeId: "' + tribeId + '",',
+    ...(tribeId ? ['    tribeId: "' + tribeId + '",'] : []),
     "    amount: 50000,",
     '    currency: "PHP",',
     "    occurredAt: new Date().toISOString(),",

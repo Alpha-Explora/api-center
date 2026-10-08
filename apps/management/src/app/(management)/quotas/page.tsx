@@ -11,6 +11,7 @@ export default async function QuotasPage({
 }: {
   searchParams?: Promise<{
     ownerTribeId?: string;
+    projectId?: string;
     scope?: string;
     targetServiceId?: string;
     windowSeconds?: string;
@@ -24,6 +25,7 @@ export default async function QuotasPage({
   const ownerTribeId = params?.ownerTribeId?.trim() || undefined;
   const initialPolicy = {
     ownerTribeId: ownerTribeId ?? "",
+    projectId: params?.projectId?.trim() ?? "",
     scope: quotaScopes.includes(params?.scope as QuotaScope)
       ? (params?.scope as QuotaScope)
       : undefined,
@@ -40,8 +42,8 @@ export default async function QuotasPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeading
-        title="Tribe quotas"
-        description="Configure per-tribe API call policies, review observe-mode impact, and inspect quota decisions emitted by API Center."
+        title="Quotas"
+        description="Configure project budgets and tribe-wide ceilings, review observe-mode impact, and inspect quota decisions emitted by API Center."
       />
       <TribeQuotaPolicyPanel
         ownerTribeId={ownerTribeId}

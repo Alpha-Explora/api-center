@@ -55,7 +55,7 @@ export function TribeSecretProvisionCard({
   onTypedPhraseChange: (value: string) => void;
   onOperatorReasonChange: (value: string) => void;
 }) {
-  const secretName = `api-center-tribe-secret-${serviceId}-${environment}`;
+  const secretName = `api-center-service-secret-${serviceId}-${environment}`;
   const isLive = environment === "live";
 
   return (
@@ -63,7 +63,7 @@ export function TribeSecretProvisionCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyRoundIcon data-icon="inline-start" />
-          Tribe secret
+          Service secret
         </CardTitle>
         <CardDescription>
           Generate a one-time plaintext secret and store only its SHA-256 hash in
@@ -103,7 +103,7 @@ export function TribeSecretProvisionCard({
               id="tribe-generated-secret"
               readOnly
               value={plaintextSecret}
-              placeholder="Generate before giving this to the tribe backend owner"
+              placeholder="Generate before giving this to the service owner"
             />
             <div className="flex flex-wrap gap-2 md:justify-end">
               <Button type="button" variant="outline" onClick={onGenerate}>

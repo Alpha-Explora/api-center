@@ -29,7 +29,7 @@ export const managementActionCapabilities = [
   },
   {
     actionId: "tribe-secret.provision",
-    label: "Provision or rotate per-tribe secret hashes",
+    label: "Provision or rotate per-service secret hashes",
     risk: "provider-write",
     category: "secret",
   },

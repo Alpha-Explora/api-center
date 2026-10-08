@@ -61,9 +61,10 @@ const serviceManifestBaseSchema = z.object({
     .array(z.string().min(1))
     .min(1, "At least one exposed route is required"),
   consumes: z.array(z.string().min(1)).default([]),
-  ownerTribeId: z
+  /** Project that owns a tribe service. The tribe is derived from it by the gateway. */
+  projectId: z
     .string()
-    .regex(/^[a-z0-9-]+$/, "Use lowercase letters, numbers, and hyphens only")
+    .regex(/^[a-z0-9][a-z0-9-]{0,79}$/, "Use a lowercase project slug")
     .optional(),
   serviceType: serviceTypeSchema.default("tribe"),
   healthCheck: z.string().optional(),
@@ -89,28 +90,23 @@ const serviceManifestBaseSchema = z.object({
   environments: z.array(serviceEnvironmentManifestSchema).optional(),
 });
 
-function validateServiceManifestOwner(
+function validateServiceManifestPlacement(
   manifest: z.infer<typeof serviceManifestBaseSchema>,
   context: z.RefinementCtx,
 ) {
-  if (!isOwnerTribeIdRequiredForManifest(manifest)) {
-    return;
-  }
-
-  context.addIssue({
-    code: "custom",
-    path: ["ownerTribeId"],
-    message:
-      "ownerTribeId is required for tribe microservices or hyphenated tribe service IDs",
-  });
+  const issue = projectPlacementIssue(manifest);
+  if (issue) context.addIssue({ code: "custom", path: ["projectId"], message: issue });
 }
 
 export const serviceManifestSchema = serviceManifestBaseSchema.superRefine(
-  validateServiceManifestOwner,
+  validateServiceManifestPlacement,
 );
 
-export const serviceRegistryEntrySchema = serviceManifestBaseSchema
-  .extend({
+// Reads stay tolerant: an unplaced service must still render so operators can fix it.
+export const serviceRegistryEntrySchema = serviceManifestBaseSchema.extend({
+    projectId: z.preprocess((value) => value ?? undefined, z.string().optional()),
+    /** Derived by the gateway from projectId; never sent on writes. */
+    ownerTribeId: z.preprocess((value) => value ?? undefined, z.string().optional()),
     registeredAt: z.string(),
     updatedAt: z.string(),
     status: serviceStatusSchema,
@@ -126,8 +122,7 @@ export const serviceRegistryEntrySchema = serviceManifestBaseSchema
       z.string().optional(),
     ),
     environments: z.array(serviceEnvironmentSchema).optional(),
-  })
-  .superRefine(validateServiceManifestOwner);
+  });
 
 export const registrationPlanSeveritySchema = z.enum([
   "info",
@@ -144,11 +139,12 @@ export const registrationPlanIssueSchema = z.object({
 
 export const serviceRegistrationPlanItemSchema = z.object({
   serviceId: z.string(),
-  ownerTribeId: z.string(),
+  ownerTribeId: z.string().nullable(),
+  projectId: z.string().nullable(),
   sourceServiceId: z.string(),
   eventTopic: z.string(),
   action: z.enum(["create", "update"]),
-  manifest: serviceManifestSchema,
+  manifest: serviceManifestBaseSchema,
 });
 
 export const serviceRegistrationPlanSchema = z.object({
@@ -172,9 +168,11 @@ export const registrationValidationReportSchema = z.object({
 export const serviceRegistrationRequestSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
-  ownerTribeId: z.string(),
+  ownerTribeId: z.string().nullable().default(null),
+  projectId: z.string().nullable().default(null),
   status: registrationRequestStatusSchema,
-  manifest: serviceManifestSchema,
+  // Historical requests predate projects; reads must not reject them.
+  manifest: serviceManifestBaseSchema,
   validationReport: registrationValidationReportSchema,
   requestedBy: z.string().optional(),
   approvedBy: z.string().optional(),
@@ -356,24 +354,13 @@ export type ServiceHealthResult = z.infer<typeof serviceHealthResultSchema>;
 export type DeploymentConfigCheck = z.infer<typeof deploymentConfigCheckSchema>;
 export type ReadinessResponse = z.infer<typeof readinessResponseSchema>;
 
-export function isOwnerTribeIdRequiredForManifest(manifest: {
-  serviceId?: string;
+/** Tribe services must name a project; shared services must not. Returns the problem, or null. */
+export function projectPlacementIssue(manifest: {
   serviceType?: string;
-  ownerTribeId?: string;
-}) {
-  if ((manifest.serviceType ?? "tribe") !== "tribe") {
-    return false;
-  }
-
-  if (manifest.ownerTribeId !== undefined) {
-    return false;
-  }
-
-  if (typeof manifest.serviceId !== "string") {
-    return false;
-  }
-
-  return (
-    manifest.serviceId.includes("-") && !manifest.serviceId.endsWith("-tribe")
-  );
+  projectId?: string;
+}): string | null {
+  const shared = (manifest.serviceType ?? "tribe") === "shared";
+  if (shared && manifest.projectId) return "Shared services cannot belong to a project";
+  if (!shared && !manifest.projectId) return "Choose the project this tribe service belongs to";
+  return null;
 }

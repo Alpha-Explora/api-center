@@ -25,7 +25,7 @@ describe("POST /api/local/plans/assignments", () => {
       new Request("http://localhost/api/local/plans/assignments", {
         method: "POST",
         body: JSON.stringify({
-          ownerTribeId: "campus-one",
+          projectId: "campus-one-default",
           planKey: "standard",
           environment: "live",
           reason: "Go live",
@@ -48,7 +48,7 @@ describe("POST /api/local/plans/assignments", () => {
       new Request("http://localhost/api/local/plans/assignments", {
         method: "POST",
         body: JSON.stringify({
-          ownerTribeId: "campus-one",
+          projectId: "campus-one-default",
           planKey: "standard",
           environment: "live",
           reason: "Go live",
@@ -80,12 +80,12 @@ describe("POST /api/local/plans/assignments", () => {
 
     await GET(
       new Request(
-        "http://localhost/api/local/plans/assignments?ownerTribeId=campus-one&environment=live&status=active",
+        "http://localhost/api/local/plans/assignments?projectId=campus-one-default&environment=live&status=active",
       ),
     );
 
     expect(adminMocks.apiCenterAdminRequest).toHaveBeenCalledWith(
-      "/api/v1/plans/assignments?ownerTribeId=campus-one&environment=prod&status=active",
+      "/api/v1/plans/assignments?projectId=campus-one-default&environment=prod&status=active",
     );
   });
 });

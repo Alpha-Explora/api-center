@@ -13,7 +13,7 @@ import {
   shouldUseLocalGcloudImpersonation,
 } from "@/lib/server/gcp-secret-manager";
 
-const DEFAULT_SECRET_PREFIX = "api-center-tribe-secret-";
+const DEFAULT_SECRET_PREFIX = "api-center-service-secret-";
 
 export async function POST(request: Request) {
   try {
@@ -32,9 +32,9 @@ export async function POST(request: Request) {
           environment: input.environment,
           risk: actionRisk,
           changes: [
-            `Create or rotate ${input.environment} Secret Manager hash for owner tribe ${input.tribeId}`,
-            `Authorize registered source service ${input.sourceServiceId} to use the tribe secret`,
-            "Store only SHA-256 hash payload, not plaintext tribe secret",
+            `Create or rotate the ${input.environment} credential hash for service ${input.serviceId}`,
+            "The credential authenticates this service only; sibling services need their own",
+            "Store only SHA-256 hash payload, not the plaintext secret",
             "Preserve prior Secret Manager versions for audit/history",
           ],
         }),
@@ -78,14 +78,12 @@ export async function POST(request: Request) {
     }
 
     const prefix = process.env.TRIBE_SECRET_GCP_PREFIX || DEFAULT_SECRET_PREFIX;
-    const secretId = `${prefix}${input.tribeId}-${input.environment}`;
+    const secretId = `${prefix}${input.serviceId}-${input.environment}`;
     const secretName = `projects/${projectId}/secrets/${secretId}`;
     const rotatedAt = new Date().toISOString();
     const payload = JSON.stringify({
-      tribeId: input.tribeId,
+      serviceId: input.serviceId,
       environment: input.environment,
-      provisionedForServiceIds: [input.sourceServiceId],
-      sourceServiceId: input.sourceServiceId,
       secretHashSha256: input.secretHashSha256.toLowerCase(),
       status: "active",
       rotationState: "active_current",
@@ -94,7 +92,7 @@ export async function POST(request: Request) {
         {
           action: "rotation_started",
           actor: session.email,
-          sourceServiceId: input.sourceServiceId,
+          serviceId: input.serviceId,
           environment: input.environment,
           occurredAt: rotatedAt,
         },
@@ -121,9 +119,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       data: {
-        serviceId: input.sourceServiceId,
-        tribeId: input.tribeId,
-        sourceServiceId: input.sourceServiceId,
+        serviceId: input.serviceId,
         environment: input.environment,
         secretId,
         secretName,
@@ -137,7 +133,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: error.issues[0]?.message ?? "Invalid tribe secret request.",
+          error: error.issues[0]?.message ?? "Invalid service secret request.",
         },
         { status: 400 },
       );
