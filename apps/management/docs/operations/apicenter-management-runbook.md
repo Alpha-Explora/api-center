@@ -26,12 +26,12 @@ npm run build --workspace @apicenter/management
 
 ## Consumer Provisioning
 
-1. Register the consumer service and owning tribe.
+1. Register the consumer service in its project; the tribe is derived from the project.
 2. Grant only the scopes required by that consumer.
 3. Generate an API key and deliver it through the approved secret channel.
-4. Configure the consumer with `APICENTER_URL`, `APICENTER_TRIBE_ID`,
-   `APICENTER_SERVICE_ID`, and its API key.
-5. For payments, configure only the SDK package and APICenter base URL.
+4. Configure shared-service access with `APICENTER_URL`, `APICENTER_SERVICE_ID`,
+   the environment-specific service secret, and a minted service token.
+5. Configure payment access with the payment API key issued for that service and environment.
 
 Immediate subscription cancellation is separately scoped from cancel-at-period-end.
 Rotate keys with the management action; prior keys remain valid only during the
