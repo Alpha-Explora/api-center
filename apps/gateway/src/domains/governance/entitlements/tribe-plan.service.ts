@@ -87,6 +87,7 @@ export class TribePlanService {
   ): Promise<TribePlanAssignment[]> {
     const where: Record<string, unknown> = {};
     if (input.ownerTribeId) where.ownerTribeId = input.ownerTribeId;
+    if (input.projectId) where.projectId = input.projectId;
     if (input.planKey) where.planKey = input.planKey;
     if (input.environment) where.environment = input.environment;
     if (input.status) where.status = input.status;
@@ -106,6 +107,7 @@ export class TribePlanService {
     const assignment = await this.planPrisma.entitlementAssignment.create({
       data: {
         ownerTribeId: input.ownerTribeId,
+        projectId: input.projectId,
         planKey: input.planKey,
         environment: input.environment,
         status: "active",
@@ -157,6 +159,7 @@ export class TribePlanService {
     if (definition.gatewayCallsPerDay !== null) {
       proposals.push({
         ownerTribeId: input.ownerTribeId,
+        projectId: input.projectId,
         scope: "all",
         targetServiceId: null,
         windowSeconds: DAY_SECONDS,
@@ -169,6 +172,7 @@ export class TribePlanService {
     if (definition.kafkaPublishesPerDay !== null) {
       proposals.push({
         ownerTribeId: input.ownerTribeId,
+        projectId: input.projectId,
         scope: "kafka_publish",
         targetServiceId: null,
         windowSeconds: DAY_SECONDS,

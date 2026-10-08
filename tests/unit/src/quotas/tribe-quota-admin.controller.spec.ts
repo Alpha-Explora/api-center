@@ -4,6 +4,23 @@ import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 import { TribeQuotaAdminController } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-admin.controller";
 import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service";
+import type { TenancyDirectory } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types";
+
+const tenancy: TenancyDirectory = {
+  getTribe: jest.fn((tribeId: string) =>
+    tribeId === "campus-one" ? ({ tribeId, name: "Campus One", status: "active" } as never) : null,
+  ),
+  resolveProject: jest.fn((projectId: string) =>
+    projectId === "campus-lms"
+      ? ({
+          tribe: { tribeId: "campus-one", name: "Campus One", status: "active" },
+          project: { projectId, tribeId: "campus-one", name: "LMS", status: "active" },
+        } as never)
+      : null,
+  ),
+  requireActiveProject: jest.fn(),
+  resolveServicePlacement: jest.fn(),
+};
 
 describe("TribeQuotaAdminController", () => {
   const policies = {
@@ -25,6 +42,7 @@ describe("TribeQuotaAdminController", () => {
     controller = new TribeQuotaAdminController(
       policies as unknown as TribeQuotaPolicyService,
       approvals as any,
+      tenancy,
       auditEvents as unknown as AuditEventsService,
     );
   });
@@ -60,7 +78,7 @@ describe("TribeQuotaAdminController", () => {
     policies.disablePolicy.mockResolvedValue(policy({ status: "disabled" }));
 
     const response = await controller.deletePolicy("quota-policy-1", {
-      user: { tribeId: "platform", scopes: ["platform:admin"] },
+      user: { sub: "platform", scopes: ["platform:admin"] },
       correlationId: "corr-admin",
     } as any);
 
@@ -109,13 +127,16 @@ describe("TribeQuotaAdminController", () => {
       policy({ createdBy: "operator", providerCredential: "secret" }),
     ]);
 
-    const response = await controller.listPolicies("campus-one", {
+    const response = await controller.listPolicies("campus-one", undefined, {
       correlationId: "corr-list",
     } as any);
 
+    expect(policies.listPolicies).toHaveBeenCalledWith({ ownerTribeId: "campus-one", projectId: undefined });
     expect(response.data[0]).toEqual({
       id: "quota-policy-1",
       ownerTribeId: "campus-one",
+      projectId: null,
+      level: "tribe",
       scope: "shared",
       targetServiceId: "payment-service",
       windowSeconds: 60,
@@ -133,6 +154,7 @@ describe("TribeQuotaAdminController", () => {
     const guardedController = new TribeQuotaAdminController(
       policies as unknown as TribeQuotaPolicyService,
       approvals as any,
+      tenancy,
       auditEvents as unknown as AuditEventsService,
     );
 
@@ -146,7 +168,7 @@ describe("TribeQuotaAdminController", () => {
         reason: "Go live enforcement",
         approvalRequestId: "approval-1",
       },
-      { user: { tribeId: "platform" } } as any,
+      { user: { sub: "platform" } } as any,
     );
 
     expect(approvals.assertApprovedForAction).toHaveBeenCalledWith({
@@ -176,6 +198,7 @@ describe("TribeQuotaAdminController", () => {
     const unguardedController = new TribeQuotaAdminController(
       policies as unknown as TribeQuotaPolicyService,
       undefined as never,
+      tenancy,
     );
 
     await expect(
@@ -194,6 +217,81 @@ describe("TribeQuotaAdminController", () => {
     ).rejects.toThrow("ApprovalRequestService is required");
 
     expect(policies.createPolicy).not.toHaveBeenCalled();
+  });
+
+  it("creates a project budget whose tribe comes from the project", async () => {
+    policies.createPolicy.mockResolvedValue(policy({ projectId: "campus-lms" }));
+
+    const response = await controller.createPolicy(
+      {
+        projectId: "campus-lms",
+        scope: "all",
+        windowSeconds: 60,
+        maxRequests: 500,
+        mode: "observe",
+        reason: "LMS budget",
+      } as never,
+      { user: { sub: "platform" } } as any,
+    );
+
+    expect(policies.createPolicy).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerTribeId: "campus-one", projectId: "campus-lms" }),
+    );
+    expect(response.data).toMatchObject({ projectId: "campus-lms", level: "project" });
+  });
+
+  it("rejects a project budget whose ownerTribeId disagrees with the project", async () => {
+    await expect(
+      controller.createPolicy(
+        {
+          projectId: "campus-lms",
+          ownerTribeId: "other-tribe",
+          scope: "all",
+          windowSeconds: 60,
+          maxRequests: 500,
+          reason: "mismatch",
+        } as never,
+        { user: { sub: "platform" } } as any,
+      ),
+    ).rejects.toThrow("Project 'campus-lms' belongs to tribe 'campus-one', not 'other-tribe'");
+  });
+
+  it("rejects unknown projects and unknown tribes", async () => {
+    const base = { scope: "all", windowSeconds: 60, maxRequests: 10, reason: "x" };
+    await expect(
+      controller.createPolicy({ ...base, projectId: "missing" } as never, { user: {} } as any),
+    ).rejects.toThrow("Project 'missing' is not registered");
+    await expect(
+      controller.createPolicy({ ...base, ownerTribeId: "missing-tribe" } as never, { user: {} } as any),
+    ).rejects.toThrow("Tribe 'missing-tribe' is not registered");
+    expect(policies.createPolicy).not.toHaveBeenCalled();
+  });
+
+  it("targets the project when approving an enforced project budget", async () => {
+    policies.createPolicy.mockResolvedValue(policy({ mode: "enforce", projectId: "campus-lms" }));
+
+    await controller.createPolicy(
+      {
+        projectId: "campus-lms",
+        scope: "all",
+        windowSeconds: 60,
+        maxRequests: 500,
+        mode: "enforce",
+        reason: "LMS go-live",
+        approvalRequestId: "approval-2",
+      } as never,
+      { user: { sub: "platform" } } as any,
+    );
+
+    expect(approvals.assertApprovedForAction).toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: "campus-lms" }),
+    );
+  });
+
+  it("does not let an update move a policy to another project", async () => {
+    await expect(
+      controller.updatePolicy("quota-policy-1", { projectId: "campus-lms" } as never, { user: {} } as any),
+    ).rejects.toThrow("projectId cannot change");
   });
 });
 

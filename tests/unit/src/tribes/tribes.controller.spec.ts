@@ -56,7 +56,8 @@ describe("TribesController", () => {
     handler.listServices.mockReturnValue([{ serviceId: "billing-service" }]);
 
     const result = controller.listServices({
-      tribeId: "caller-service",
+      tribeId: "caller-tribe",
+      sourceServiceId: "caller-service",
       correlationId: "corr-tribe-1",
     } as any);
 
@@ -65,7 +66,7 @@ describe("TribesController", () => {
     expect(result.meta).toEqual(
       expect.objectContaining({
         total: 1,
-        tribeId: "caller-service",
+        tribeId: "caller-tribe",
         namespace: "tribe",
         correlationId: "corr-tribe-1",
       }),
@@ -80,7 +81,8 @@ describe("TribesController", () => {
     handler.listServices.mockReturnValue([{ serviceId: "internal-tribe" }]);
 
     controller.listServices({
-      tribeId: "caller-service",
+      tribeId: "caller-tribe",
+      sourceServiceId: "caller-service",
       user: { scopes: ["platform:admin"] },
       correlationId: "corr-tribe-3",
     } as any);

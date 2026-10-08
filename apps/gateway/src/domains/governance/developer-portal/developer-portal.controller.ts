@@ -15,40 +15,42 @@ export class DeveloperPortalController {
 
   @Get("me")
   me(@Req() req: AuthenticatedRequest) {
-    const tribeId = this.resolveTribeId(req);
+    const caller = this.resolveCaller(req);
     return this.response(
       {
-        tribeId,
+        ...caller,
         scopes: req.user?.scopes ?? [],
       },
       req,
-      tribeId,
+      caller.tribeId,
     );
   }
 
+  /** The calling service's project siblings and the services it explicitly consumes. */
   @Get("services")
   services(@Req() req: AuthenticatedRequest) {
-    const tribeId = this.resolveTribeId(req);
+    const caller = this.resolveCaller(req);
     return this.response(
-      this.registry.getDeveloperPortalServices(tribeId),
+      this.registry.getDeveloperPortalServices(caller.serviceId),
       req,
-      tribeId,
+      caller.tribeId,
     );
   }
 
+  /** The caller's project budgets plus its tribe's ceilings. */
   @Get("quotas")
   async quotas(@Req() req: AuthenticatedRequest) {
-    const tribeId = this.resolveTribeId(req);
+    const caller = this.resolveCaller(req);
     return this.response(
-      await this.quotaPolicies.listPoliciesForPortal(tribeId),
+      await this.quotaPolicies.listPoliciesForPortal(caller.tribeId, caller.projectId),
       req,
-      tribeId,
+      caller.tribeId,
     );
   }
 
   @Get("topics")
   topics(@Req() req: AuthenticatedRequest) {
-    const tribeId = this.resolveTribeId(req);
+    const { tribeId } = this.resolveCaller(req);
     const tenantTopicPrefix = `tribe.${tribeId}.`;
     return this.response(
       {
@@ -70,9 +72,10 @@ export class DeveloperPortalController {
 
   @Get("onboarding")
   async onboarding(@Req() req: AuthenticatedRequest) {
-    const tribeId = this.resolveTribeId(req);
-    const services = this.registry.getDeveloperPortalServices(tribeId);
-    const quotas = await this.quotaPolicies.listPoliciesForPortal(tribeId);
+    const caller = this.resolveCaller(req);
+    const tribeId = caller.tribeId;
+    const services = this.registry.getDeveloperPortalServices(caller.serviceId);
+    const quotas = await this.quotaPolicies.listPoliciesForPortal(tribeId, caller.projectId);
 
     return this.response(
       {
@@ -113,15 +116,20 @@ export class DeveloperPortalController {
     );
   }
 
-  private resolveTribeId(req: AuthenticatedRequest): string {
-    const tribeId = req.user?.tribeId ?? req.tribeId;
-    if (!tribeId) {
+  private resolveCaller(req: AuthenticatedRequest): {
+    serviceId: string;
+    projectId?: string;
+    tribeId: string;
+  } {
+    const tribeId = req.tribeId ?? req.user?.tribeId;
+    const serviceId = req.sourceServiceId ?? req.user?.sourceServiceId ?? req.user?.sub;
+    if (!tribeId || !serviceId) {
       throw new ForbiddenError(
-        "Developer portal requires a token with tribeId claim",
+        "Developer portal requires a service token with tribeId and sourceServiceId claims",
       );
     }
 
-    return tribeId;
+    return { serviceId, projectId: req.projectId ?? req.user?.projectId, tribeId };
   }
 
   private response<T>(data: T, req: AuthenticatedRequest, tribeId: string) {

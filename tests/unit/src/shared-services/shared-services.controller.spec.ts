@@ -67,7 +67,8 @@ describe("SharedServicesController", () => {
     handler.listServices.mockReturnValue([{ serviceId: "payment-service" }]);
 
     const result = controller.listSharedServices({
-      tribeId: "caller-service",
+      tribeId: "caller-tribe",
+      sourceServiceId: "caller-service",
       correlationId: "corr-shared-1",
     } as any);
 
@@ -76,7 +77,7 @@ describe("SharedServicesController", () => {
     expect(result.meta).toEqual(
       expect.objectContaining({
         total: 1,
-        tribeId: "caller-service",
+        tribeId: "caller-tribe",
         namespace: "shared",
         correlationId: "corr-shared-1",
       }),
@@ -106,7 +107,8 @@ describe("SharedServicesController", () => {
     handler.listServices.mockReturnValue([{ serviceId: "internal-shared" }]);
 
     controller.listSharedServices({
-      tribeId: "caller-service",
+      tribeId: "caller-tribe",
+      sourceServiceId: "caller-service",
       user: { scopes: ["platform:admin"] },
       correlationId: "corr-shared-3",
     } as any);

@@ -39,6 +39,8 @@ describe("createUpstreamProxyOptions", () => {
       proxyReq as any,
       {
         tribeId: "orders-tribe",
+        projectId: "orders-core",
+        sourceServiceId: "orders-web",
         correlationId: "corr-1",
         body: { orderId: "ord-1" },
       } as any,
@@ -49,6 +51,14 @@ describe("createUpstreamProxyOptions", () => {
     expect(proxyReq.setHeader).toHaveBeenCalledWith(
       "X-Tribe-Id",
       "orders-tribe",
+    );
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "X-APICenter-Project-Id",
+      "orders-core",
+    );
+    expect(proxyReq.setHeader).toHaveBeenCalledWith(
+      "X-APICenter-Source-Service-Id",
+      "orders-web",
     );
     expect(proxyReq.setHeader).toHaveBeenCalledWith(
       "X-Correlation-ID",

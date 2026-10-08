@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import {
   CreateTribeQuotaPolicyInput,
+  ResolvedTribeQuotaPolicies,
   ResolveTribeQuotaPolicyInput,
   TribeQuotaPolicy,
   TribeQuotaScope,
@@ -32,20 +33,31 @@ export class TribeQuotaPolicyService {
     this.quotaPrisma = prisma as unknown as QuotaPolicyPrisma;
   }
 
-  async resolvePolicy(
+  /** The most specific active project budget and the most specific active tribe ceiling for a call. */
+  async resolvePolicies(
     input: ResolveTribeQuotaPolicyInput,
-  ): Promise<TribeQuotaPolicy | null> {
+  ): Promise<ResolvedTribeQuotaPolicies> {
     const policies = await this.quotaPrisma.quotaPolicy.findMany({
       where: {
         ownerTribeId: input.ownerTribeId,
         status: "active",
-        OR: [
+        AND: [
           {
-            scope: input.scope,
-            targetServiceId: input.targetServiceId ?? null,
+            OR: [
+              { projectId: null },
+              ...(input.projectId ? [{ projectId: input.projectId }] : []),
+            ],
           },
-          { scope: input.scope, targetServiceId: null },
-          { scope: "all", targetServiceId: null },
+          {
+            OR: [
+              {
+                scope: input.scope,
+                targetServiceId: input.targetServiceId ?? null,
+              },
+              { scope: input.scope, targetServiceId: null },
+              { scope: "all", targetServiceId: null },
+            ],
+          },
         ],
       },
       orderBy: [
@@ -55,29 +67,43 @@ export class TribeQuotaPolicyService {
       ],
     });
 
-    return (
-      [...policies].sort(
+    const best = (level: TribeQuotaPolicy[]) =>
+      [...level].sort(
         (left, right) =>
           this.specificityScore(right, input.scope, input.targetServiceId) -
           this.specificityScore(left, input.scope, input.targetServiceId),
-      )[0] ?? null
-    );
+      )[0] ?? null;
+
+    return {
+      project: input.projectId
+        ? best(policies.filter((policy) => policy.projectId === input.projectId))
+        : null,
+      tribe: best(policies.filter((policy) => !policy.projectId)),
+    };
   }
 
-  async listPolicies(ownerTribeId?: string): Promise<TribeQuotaPolicy[]> {
+  async listPolicies(
+    filter: { ownerTribeId?: string; projectId?: string } = {},
+  ): Promise<TribeQuotaPolicy[]> {
     return this.quotaPrisma.quotaPolicy.findMany({
       where: {
-        ...(ownerTribeId ? { ownerTribeId } : {}),
+        ...(filter.ownerTribeId ? { ownerTribeId: filter.ownerTribeId } : {}),
+        ...(filter.projectId ? { projectId: filter.projectId } : {}),
       },
       orderBy: [{ updatedAt: "desc" }],
     });
   }
 
+  /** What a calling service sees: its project's budgets plus its tribe's ceilings. */
   async listPoliciesForPortal(
     ownerTribeId: string,
+    projectId?: string,
   ): Promise<TribeQuotaPolicy[]> {
     return this.quotaPrisma.quotaPolicy.findMany({
-      where: { ownerTribeId },
+      where: {
+        ownerTribeId,
+        OR: [{ projectId: null }, ...(projectId ? [{ projectId }] : [])],
+      },
       orderBy: [{ updatedAt: "desc" }],
     });
   }
@@ -88,6 +114,7 @@ export class TribeQuotaPolicyService {
     return this.quotaPrisma.quotaPolicy.create({
       data: {
         ...input,
+        projectId: input.projectId ?? null,
         mode: input.mode ?? "observe",
         status: "active",
       },

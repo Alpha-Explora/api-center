@@ -1,10 +1,11 @@
-import { Global, Module } from "@nestjs/common";
+import { Global, Module, forwardRef } from "@nestjs/common";
 import { AuthModule } from "@auth/auth.module";
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { ConfigModule } from "@config/config.module";
 import { TribeCostService } from "@costs/tribe-cost.service";
 import { DatabaseModule } from "@database/database.module";
 import { ForecastingModule } from "@forecasting/forecasting.module";
+import { RegistryModule } from "@registry/registry.module";
 import { TribeQuotaAdminController } from "./tribe-quota-admin.controller";
 import { TribeQuotaEnforcerService } from "./tribe-quota-enforcer.service";
 import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
@@ -18,6 +19,7 @@ import { TribeQuotaUsageController } from "./tribe-quota-usage.controller";
     DatabaseModule,
     ConfigModule,
     ForecastingModule,
+    forwardRef(() => RegistryModule),
   ],
   controllers: [TribeQuotaAdminController, TribeQuotaUsageController],
   providers: [

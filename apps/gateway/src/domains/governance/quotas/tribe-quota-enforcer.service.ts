@@ -14,6 +14,8 @@ import {
 
 interface CheckTribeQuotaInput {
   ownerTribeId: string;
+  /** Caller's project. Its budgets apply in addition to the tribe-wide ceiling. */
+  projectId?: string;
   scope: TribeQuotaScope;
   targetServiceId?: string;
   routeFamily: string;
@@ -25,6 +27,7 @@ interface QuotaDecisionDelegate {
   create(args: {
     data: {
       ownerTribeId: string;
+      projectId?: string | null;
       policyId?: string;
       scope: TribeQuotaScope;
       targetServiceId?: string | null;
@@ -73,10 +76,54 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
   }
 
   async check(input: CheckTribeQuotaInput): Promise<void> {
-    const policy = await this.policies.resolvePolicy(input);
-    if (!policy) return;
+    const resolved = await this.policies.resolvePolicies(input);
+    const levels = [resolved.project, resolved.tribe].filter(
+      (policy): policy is TribeQuotaPolicy => policy !== null,
+    );
+    if (levels.length === 0) return;
 
     const now = new Date();
+    let blocked: { policy: TribeQuotaPolicy; windowEnd: Date } | null = null;
+    // The project budget is checked first. A call it blocks never reaches the tribe ceiling, so a project
+    // that keeps retrying past its own budget cannot use up the ceiling its sibling projects share.
+    for (const policy of levels) {
+      const decision = await this.evaluate(policy, input, now);
+      if (decision.outcome === "blocked") {
+        blocked = { policy, windowEnd: decision.windowEnd };
+        break;
+      }
+    }
+
+    if (blocked) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((blocked.windowEnd.getTime() - now.getTime()) / 1000),
+      );
+
+      throw new QuotaExceededError(
+        blocked.policy.projectId ? "Project API quota exceeded" : "Tribe API quota exceeded",
+        {
+          ownerTribeId: input.ownerTribeId,
+          projectId: input.projectId ?? null,
+          level: blocked.policy.projectId ? "project" : "tribe",
+          retryAfterSeconds,
+          quota: {
+            maxRequests: blocked.policy.maxRequests,
+            windowSeconds: blocked.policy.windowSeconds,
+            scope: blocked.policy.scope,
+            targetServiceId: blocked.policy.targetServiceId ?? null,
+          },
+        },
+      );
+    }
+  }
+
+  /** Count this call against one policy level and record the decision. */
+  private async evaluate(
+    policy: TribeQuotaPolicy,
+    input: CheckTribeQuotaInput,
+    now: Date,
+  ): Promise<{ outcome: TribeQuotaDecisionOutcome; windowEnd: Date }> {
     const windowStartMs =
       Math.floor(now.getTime() / (policy.windowSeconds * 1000)) *
       policy.windowSeconds *
@@ -106,23 +153,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
       outcome,
     );
 
-    if (outcome === "blocked") {
-      const retryAfterSeconds = Math.max(
-        1,
-        Math.ceil((windowEnd.getTime() - now.getTime()) / 1000),
-      );
-
-      throw new QuotaExceededError("Tribe API quota exceeded", {
-        ownerTribeId: input.ownerTribeId,
-        retryAfterSeconds,
-        quota: {
-          maxRequests: policy.maxRequests,
-          windowSeconds: policy.windowSeconds,
-          scope: policy.scope,
-          targetServiceId: policy.targetServiceId ?? null,
-        },
-      });
-    }
+    return { outcome, windowEnd };
   }
 
   estimateUsageChargeback(input: {
@@ -193,6 +224,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     await this.quotaPrisma.quotaEvaluation.create({
       data: {
         ownerTribeId: input.ownerTribeId,
+        projectId: input.projectId ?? null,
         policyId: policy.id,
         scope: policy.scope,
         targetServiceId: policy.targetServiceId ?? null,
@@ -241,6 +273,8 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
         message: `Quota evaluation ${actionOutcome} for ${input.ownerTribeId}`,
         payload: {
           ownerTribeId: input.ownerTribeId,
+          projectId: input.projectId ?? null,
+          level: policy.projectId ? "project" : "tribe",
           policyId: policy.id,
           scope: policy.scope,
           targetServiceId: policy.targetServiceId ?? null,
@@ -267,6 +301,7 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     return [
       "quota",
       input.ownerTribeId,
+      policy.projectId ?? "tribe-ceiling",
       policy.scope,
       policy.targetServiceId ?? "all-targets",
       input.environment ?? "unknown",

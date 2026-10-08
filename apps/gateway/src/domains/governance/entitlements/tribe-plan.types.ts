@@ -17,9 +17,11 @@ export interface TribePlanDefinition {
   supportTier: string;
 }
 
+/** A plan is assigned to one project in one environment. ownerTribeId is derived from the project. */
 export interface TribePlanAssignment {
   id?: string;
   ownerTribeId: string;
+  projectId: string;
   planKey: TribePlanKey;
   environment: TribePlanEnvironment;
   status: TribePlanAssignmentStatus;
@@ -31,6 +33,8 @@ export interface TribePlanAssignment {
 }
 
 export interface AssignTribePlanInput {
+  projectId: string;
+  /** Filled from the project's tribe; never taken from the request. */
   ownerTribeId: string;
   planKey: TribePlanKey;
   environment: TribePlanEnvironment;
@@ -48,6 +52,7 @@ export interface UpdateTribePlanAssignmentInput {
 
 export interface ListTribePlanAssignmentsInput {
   ownerTribeId?: string;
+  projectId?: string;
   planKey?: TribePlanKey;
   environment?: TribePlanEnvironment;
   status?: TribePlanAssignmentStatus;
@@ -55,6 +60,7 @@ export interface ListTribePlanAssignmentsInput {
 
 export interface GeneratedQuotaPolicyProposal {
   ownerTribeId: string;
+  projectId: string;
   scope: TribeQuotaScope;
   targetServiceId: string | null;
   windowSeconds: number;
