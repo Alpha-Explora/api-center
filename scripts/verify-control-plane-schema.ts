@@ -33,6 +33,8 @@ const requiredTables: QualifiedObject[] = [
   ["apic_governance", "entitlement_plans"],
   ["apic_governance", "entitlement_assignments"],
   ["apic_governance", "promotion_evidence_bundles"],
+  ["apic_governance", "payment_consumer_services"],
+  ["apic_governance", "payment_api_keys"],
   ["apic_runtime", "provisioning_jobs"],
   ["apic_runtime", "event_topic_onboarding_states"],
   ["apic_runtime", "confluent_topics"],
