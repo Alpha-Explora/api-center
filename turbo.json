@@ -7,7 +7,7 @@
       "outputs": ["dist/**", ".next/**"]
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^build"],
       "inputs": ["src/**/*.ts", "tsconfig*.json"],
       "outputs": []
     },
@@ -17,7 +17,7 @@
       "outputs": ["coverage/**"]
     },
     "lint": {
-      "dependsOn": ["^lint"],
+      "dependsOn": ["^build"],
       "inputs": ["src/**/*.ts", "src/**/*.js", "eslint.config.*"],
       "outputs": []
     }
