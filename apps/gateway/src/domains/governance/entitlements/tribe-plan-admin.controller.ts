@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Optional,
   Param,
   Patch,
@@ -11,6 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 import { ValidationError } from "@shared/errors";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";
 import { AuthenticatedRequest } from "../../../types";
@@ -31,7 +33,8 @@ const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "prod"];
 const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = ["active", "disabled"];
 
 interface AssignPlanRequest {
-  ownerTribeId?: string;
+  projectId?: string;
+  ownerTribeId?: unknown;
   planKey?: TribePlanKey;
   environment?: TribePlanEnvironment;
   effectiveAt?: string;
@@ -48,6 +51,7 @@ interface UpdateAssignmentRequest {
 export class TribePlanAdminController {
   constructor(
     private readonly plans: TribePlanService,
+    @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
     @Optional()
     private readonly auditEvents?: AuditEventsService,
   ) {}
@@ -72,13 +76,20 @@ export class TribePlanAdminController {
     @Req() req: AuthenticatedRequest,
   ) {
     this.validateAssignment(body);
+    const placement = this.tenancy.resolveProject(body.projectId!.trim());
+    if (!placement) {
+      throw new ValidationError(`Project '${body.projectId}' is not registered`);
+    }
+    const ownerTribeId = placement.tribe.tribeId;
+    const projectId = placement.project.projectId;
     const result = await this.plans.assignPlan({
-      ownerTribeId: body.ownerTribeId!,
+      projectId,
+      ownerTribeId,
       planKey: body.planKey!,
       environment: body.environment!,
       effectiveAt: body.effectiveAt ? new Date(body.effectiveAt) : undefined,
       reason: body.reason!,
-      assignedBy: req.user?.tribeId ?? req.tribeId,
+      assignedBy: req.user?.sub ?? req.tribeId,
     });
     const auditEvents = requireGovernanceDependency(
       this.auditEvents,
@@ -87,15 +98,16 @@ export class TribePlanAdminController {
     await auditEvents.recordRequired({
       type: "entitlement.assignment.created",
       actionFamily: "plan",
-      actor: req.user?.tribeId ?? req.tribeId ?? "platform",
+      actor: req.user?.sub ?? req.tribeId ?? "platform",
       resourceType: "entitlement_assignment",
       resourceId: result.assignment.id,
       environment: body.environment!,
       correlationId: req.correlationId ?? result.assignment.id,
       severity: "info",
-      message: `Plan ${body.planKey} assigned to ${body.ownerTribeId}`,
+      message: `Plan ${body.planKey} assigned to project ${projectId}`,
       payload: {
-        ownerTribeId: body.ownerTribeId,
+        ownerTribeId,
+        projectId,
         planKey: body.planKey,
         environment: body.environment,
         correlationId: req.correlationId,
@@ -116,7 +128,7 @@ export class TribePlanAdminController {
       assignmentId,
       status: body.status!,
       reason: body.reason!,
-      updatedBy: req.user?.tribeId ?? req.tribeId,
+      updatedBy: req.user?.sub ?? req.tribeId,
     });
     const auditEvents = requireGovernanceDependency(
       this.auditEvents,
@@ -125,7 +137,7 @@ export class TribePlanAdminController {
     await auditEvents.recordRequired({
       type: "entitlement.assignment.updated",
       actionFamily: "plan",
-      actor: req.user?.tribeId ?? req.tribeId ?? "platform",
+      actor: req.user?.sub ?? req.tribeId ?? "platform",
       resourceType: "entitlement_assignment",
       resourceId: assignment.id ?? assignmentId,
       environment: assignment.environment,
@@ -135,6 +147,7 @@ export class TribePlanAdminController {
       payload: {
         assignmentId: assignment.id ?? assignmentId,
         ownerTribeId: assignment.ownerTribeId,
+        projectId: assignment.projectId,
         planKey: assignment.planKey,
         environment: assignment.environment,
         status: assignment.status,
@@ -162,8 +175,13 @@ export class TribePlanAdminController {
   }
 
   private validateAssignment(body: AssignPlanRequest) {
-    if (!body.ownerTribeId?.trim()) {
-      throw new ValidationError("ownerTribeId is required");
+    if (body.ownerTribeId !== undefined) {
+      throw new ValidationError(
+        "Plans are assigned to projects; send projectId and the tribe is derived",
+      );
+    }
+    if (!body.projectId?.trim()) {
+      throw new ValidationError("projectId is required");
     }
     if (!body.planKey || !PLAN_KEYS.includes(body.planKey)) {
       throw new ValidationError("planKey is invalid");

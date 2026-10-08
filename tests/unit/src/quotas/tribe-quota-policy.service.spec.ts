@@ -47,17 +47,20 @@ describe("TribeQuotaPolicyService", () => {
     ]);
 
     await expect(
-      service.resolvePolicy({
+      service.resolvePolicies({
         ownerTribeId: "campus-one",
         scope: "shared",
         targetServiceId: "payment-service",
       }),
     ).resolves.toMatchObject({
-      ownerTribeId: "campus-one",
-      scope: "shared",
-      targetServiceId: "payment-service",
-      maxRequests: 120,
-      mode: "enforce",
+      project: null,
+      tribe: {
+        ownerTribeId: "campus-one",
+        scope: "shared",
+        targetServiceId: "payment-service",
+        maxRequests: 120,
+        mode: "enforce",
+      },
     });
   });
 
@@ -90,16 +93,56 @@ describe("TribeQuotaPolicyService", () => {
     ]);
 
     await expect(
-      service.resolvePolicy({
+      service.resolvePolicies({
         ownerTribeId: "campus-one",
         scope: "shared",
         targetServiceId: "email-service",
       }),
     ).resolves.toMatchObject({
-      id: "policy-shared",
-      scope: "shared",
-      targetServiceId: null,
-      maxRequests: 300,
+      tribe: {
+        id: "policy-shared",
+        scope: "shared",
+        targetServiceId: null,
+        maxRequests: 300,
+      },
     });
+  });
+
+  it("resolves the caller's project budget and the tribe ceiling separately, ignoring sibling projects", async () => {
+    prisma.quotaPolicy.findMany.mockResolvedValue([
+      { id: "tribe-ceiling", ownerTribeId: "campus-one", projectId: null, scope: "all", targetServiceId: null, maxRequests: 10000, windowSeconds: 60, mode: "enforce", status: "active", reason: "ceiling" },
+      { id: "lms-budget", ownerTribeId: "campus-one", projectId: "campus-lms", scope: "all", targetServiceId: null, maxRequests: 500, windowSeconds: 60, mode: "enforce", status: "active", reason: "lms" },
+      { id: "billing-budget", ownerTribeId: "campus-one", projectId: "campus-billing", scope: "all", targetServiceId: null, maxRequests: 50, windowSeconds: 60, mode: "enforce", status: "active", reason: "billing" },
+    ]);
+
+    const resolved = await service.resolvePolicies({
+      ownerTribeId: "campus-one",
+      projectId: "campus-lms",
+      scope: "tribe",
+      targetServiceId: "grades",
+    });
+
+    expect(resolved.project?.id).toBe("lms-budget");
+    expect(resolved.tribe?.id).toBe("tribe-ceiling");
+    expect(prisma.quotaPolicy.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          ownerTribeId: "campus-one",
+          AND: expect.arrayContaining([
+            { OR: [{ projectId: null }, { projectId: "campus-lms" }] },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it("returns no project budget when the caller has no project", async () => {
+    prisma.quotaPolicy.findMany.mockResolvedValue([
+      { id: "lms-budget", ownerTribeId: "campus-one", projectId: "campus-lms", scope: "all", targetServiceId: null, maxRequests: 500, windowSeconds: 60, mode: "enforce", status: "active", reason: "lms" },
+    ]);
+
+    await expect(
+      service.resolvePolicies({ ownerTribeId: "campus-one", scope: "all" }),
+    ).resolves.toEqual({ project: null, tribe: null });
   });
 });

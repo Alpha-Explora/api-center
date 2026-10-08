@@ -59,6 +59,7 @@ describe("TribePlanService", () => {
     });
 
     const result = await service.assignPlan({
+      projectId: "campus-lms",
       ownerTribeId: "campus-one",
       planKey: "standard",
       environment: "test",
@@ -70,6 +71,7 @@ describe("TribePlanService", () => {
     expect(assignments.create).toHaveBeenCalledWith({
       data: {
         ownerTribeId: "campus-one",
+        projectId: "campus-lms",
         planKey: "standard",
         environment: "test",
         status: "active",
@@ -81,6 +83,7 @@ describe("TribePlanService", () => {
     expect(result.quotaProposals).toEqual([
       {
         ownerTribeId: "campus-one",
+        projectId: "campus-lms",
         scope: "all",
         targetServiceId: null,
         windowSeconds: 86400,
@@ -90,6 +93,7 @@ describe("TribePlanService", () => {
       },
       {
         ownerTribeId: "campus-one",
+        projectId: "campus-lms",
         scope: "kafka_publish",
         targetServiceId: null,
         windowSeconds: 86400,

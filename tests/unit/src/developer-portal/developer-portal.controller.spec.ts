@@ -60,22 +60,24 @@ describe("DeveloperPortalController", () => {
     expect(guards).toContain(JwtAuthGuard);
   });
 
-  it("returns caller profile from the JWT tribeId", () => {
+  it("returns the calling service, its project, and its tribe", () => {
     const response = controller.me(
       request({ tribeId: "campus-one", scopes: ["external:kafka:read"] }),
     );
 
     expect(response.data).toEqual({
+      serviceId: "campus-lms-api",
+      projectId: "campus-lms",
       tribeId: "campus-one",
       scopes: ["external:kafka:read"],
     });
   });
 
-  it("returns only services visible to the caller tribe", () => {
+  it("returns only services visible to the calling service", () => {
     const response = controller.services(request({ tribeId: "campus-one" }));
 
     expect(registry.getDeveloperPortalServices).toHaveBeenCalledWith(
-      "campus-one",
+      "campus-lms-api",
     );
     expect(response.data.allowedServices[0]).not.toHaveProperty("baseUrl");
   });
@@ -85,7 +87,7 @@ describe("DeveloperPortalController", () => {
       request({ tribeId: "campus-one" }),
     );
 
-    expect(quotas.listPoliciesForPortal).toHaveBeenCalledWith("campus-one");
+    expect(quotas.listPoliciesForPortal).toHaveBeenCalledWith("campus-one", "campus-lms");
     expect(response.data[0]).not.toHaveProperty("createdBy");
   });
 
@@ -124,8 +126,13 @@ describe("DeveloperPortalController", () => {
 function request(input: { tribeId?: string; scopes?: string[] }) {
   return {
     tribeId: input.tribeId,
+    projectId: "campus-lms",
+    sourceServiceId: "campus-lms-api",
     user: {
+      sub: "campus-lms-api",
       tribeId: input.tribeId,
+      projectId: "campus-lms",
+      sourceServiceId: "campus-lms-api",
       scopes: input.scopes ?? [],
     },
     correlationId: "corr-portal",

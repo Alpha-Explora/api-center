@@ -265,16 +265,16 @@ export class ProxyHandler {
   }
 
   /**
-   * List services visible to a caller, filtered by this handler's namespace.
+   * List services visible to a calling service, filtered by this handler's namespace.
    */
-  listServices(tribeId: string | undefined, includeNonConsumable = false) {
+  listServices(callerServiceId: string | undefined, includeNonConsumable = false) {
     const services = this.deps.registry.getByType(this.opts.namespace);
 
     const visibleServices = services
       .filter((svc) => svc.status !== "retired")
       .map((svc) => ({
-        canAccess: tribeId
-          ? this.deps.registry.canAccess(tribeId, svc.serviceId)
+        canAccess: callerServiceId
+          ? this.deps.registry.canAccess(callerServiceId, svc.serviceId)
           : false,
         serviceId: svc.serviceId,
         name: svc.name,
@@ -293,7 +293,7 @@ export class ProxyHandler {
 
     this.deps.metrics.recordServiceDiscoverySnapshot(
       this.opts.namespace,
-      tribeId ? "authenticated" : "anonymous",
+      callerServiceId ? "authenticated" : "anonymous",
       visibleServices.map((service) => service.status),
     );
 
@@ -309,7 +309,13 @@ export class ProxyHandler {
     req: AuthenticatedRequest,
     res: Response,
   ): Promise<void> {
-    const tribeId = req.tribeId!;
+    const sourceServiceId = req.sourceServiceId;
+    const tribeId = req.tribeId;
+    if (!sourceServiceId || !tribeId) {
+      throw new ForbiddenError(
+        "Token does not identify a calling service and its tribe",
+      );
+    }
     const correlationId = req.correlationId;
 
     // 1. Resolve upstream from the validated token environment only.
@@ -349,6 +355,7 @@ export class ProxyHandler {
       auth: this.deps.auth,
       emergencyControls: this.deps.emergencyControls,
       targetServiceId,
+      sourceServiceId,
       tribeId,
       req,
     });
@@ -357,6 +364,7 @@ export class ProxyHandler {
     await checkProxyQuota({
       quotaEnforcer: this.deps.quotaEnforcer,
       ownerTribeId: tribeId,
+      projectId: req.projectId,
       namespace: this.opts.namespace,
       targetServiceId,
       correlationId,

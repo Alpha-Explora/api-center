@@ -14,8 +14,10 @@ function input(overrides: Record<string, unknown> = {}) {
       evaluate: jest.fn().mockReturnValue({ allowed: true }),
     },
     targetServiceId: "orders",
+    sourceServiceId: "checkout-api",
     tribeId: "orders-tribe",
     req: {
+      projectId: "orders-web",
       user: { token: { scopes: ["orders:read"] } },
     },
     ...overrides,
@@ -38,7 +40,21 @@ describe("enforceProxyAuthContext", () => {
     );
   });
 
-  it("throws when the tribe cannot access the target service", () => {
+  it("passes the calling service, its project, and its tribe to emergency controls", () => {
+    const context = input();
+
+    enforceProxyAuthContext(context);
+
+    expect(context.emergencyControls.evaluate).toHaveBeenCalledWith({
+      ownerTribeId: "orders-tribe",
+      projectId: "orders-web",
+      sourceServiceId: "checkout-api",
+      serviceId: "orders",
+    });
+    expect(context.registry.canAccess).toHaveBeenCalledWith("checkout-api", "orders");
+  });
+
+  it("throws when the calling service cannot access the target service", () => {
     const context = input({
       registry: {
         canAccess: jest.fn().mockReturnValue(false),
@@ -48,7 +64,7 @@ describe("enforceProxyAuthContext", () => {
 
     expect(() => enforceProxyAuthContext(context)).toThrow(
       new ForbiddenError(
-        "Tribe 'orders-tribe' is not authorised to access 'orders'",
+        "Service 'checkout-api' is not authorised to access 'orders'",
       ),
     );
   });

@@ -7,7 +7,7 @@ import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/go
 
 describe("TribeQuotaEnforcerService", () => {
   let policies: {
-    resolvePolicy: jest.Mock;
+    resolvePolicies: jest.Mock;
   };
   let prisma: {
     quotaEvaluation: {
@@ -19,7 +19,7 @@ describe("TribeQuotaEnforcerService", () => {
 
   beforeEach(() => {
     policies = {
-      resolvePolicy: jest.fn(),
+      resolvePolicies: jest.fn(),
     };
     prisma = {
       quotaEvaluation: {
@@ -39,7 +39,7 @@ describe("TribeQuotaEnforcerService", () => {
   });
 
   it("allows calls under an enforce policy", async () => {
-    policies.resolvePolicy.mockResolvedValue(policy({ maxRequests: 2 }));
+    policies.resolvePolicies.mockResolvedValue(tribeOnly(policy({ maxRequests: 2 })));
 
     await expect(service.check(request())).resolves.toBeUndefined();
     await expect(service.check(request())).resolves.toBeUndefined();
@@ -85,8 +85,8 @@ describe("TribeQuotaEnforcerService", () => {
   });
 
   it("records observed_exceeded without blocking when policy mode is observe", async () => {
-    policies.resolvePolicy.mockResolvedValue(
-      policy({ mode: "observe", maxRequests: 1 }),
+    policies.resolvePolicies.mockResolvedValue(
+      tribeOnly(policy({ mode: "observe", maxRequests: 1 })),
     );
 
     await service.check(request());
@@ -103,7 +103,7 @@ describe("TribeQuotaEnforcerService", () => {
   });
 
   it("throws QuotaExceededError when an enforce policy is exceeded", async () => {
-    policies.resolvePolicy.mockResolvedValue(policy({ maxRequests: 1 }));
+    policies.resolvePolicies.mockResolvedValue(tribeOnly(policy({ maxRequests: 1 })));
 
     await service.check(request());
     await expect(service.check(request())).rejects.toMatchObject({
@@ -111,6 +111,7 @@ describe("TribeQuotaEnforcerService", () => {
       code: "TRIBE_API_QUOTA_EXCEEDED",
       detail: expect.objectContaining({
         ownerTribeId: "campus-one",
+        level: "tribe",
         retryAfterSeconds: expect.any(Number),
         quota: {
           maxRequests: 1,
@@ -142,7 +143,7 @@ describe("TribeQuotaEnforcerService", () => {
   });
 
   it("falls back to memory counters when Redis is not writeable", async () => {
-    policies.resolvePolicy.mockResolvedValue(policy({ maxRequests: 1 }));
+    policies.resolvePolicies.mockResolvedValue(tribeOnly(policy({ maxRequests: 1 })));
     (service as unknown as { getRedis: jest.Mock }).getRedis = jest
       .fn()
       .mockResolvedValue({
@@ -157,11 +158,74 @@ describe("TribeQuotaEnforcerService", () => {
   });
 
   it("does nothing when no policy is active", async () => {
-    policies.resolvePolicy.mockResolvedValue(null);
+    policies.resolvePolicies.mockResolvedValue({ project: null, tribe: null });
 
     await expect(service.check(request())).resolves.toBeUndefined();
 
     expect(prisma.quotaEvaluation.create).not.toHaveBeenCalled();
+  });
+
+  it("counts a call against both the project budget and the tribe ceiling", async () => {
+    policies.resolvePolicies.mockResolvedValue({
+      project: policy({ id: "lms-budget", projectId: "campus-lms", maxRequests: 5 }),
+      tribe: policy({ id: "tribe-ceiling", projectId: null, maxRequests: 100 }),
+    });
+
+    await service.check({ ...request(), projectId: "campus-lms" });
+
+    expect(prisma.quotaEvaluation.create).toHaveBeenCalledTimes(2);
+    const policyIds = prisma.quotaEvaluation.create.mock.calls.map(
+      ([args]: [{ data: { policyId: string; projectId: string } }]) => [args.data.policyId, args.data.projectId],
+    );
+    expect(policyIds).toEqual([
+      ["lms-budget", "campus-lms"],
+      ["tribe-ceiling", "campus-lms"],
+    ]);
+  });
+
+  it("blocks on an exhausted project budget while the tribe ceiling still has room", async () => {
+    policies.resolvePolicies.mockResolvedValue({
+      project: policy({ id: "lms-budget", projectId: "campus-lms", maxRequests: 1 }),
+      tribe: policy({ id: "tribe-ceiling", projectId: null, maxRequests: 100 }),
+    });
+
+    await service.check({ ...request(), projectId: "campus-lms" });
+    await expect(service.check({ ...request(), projectId: "campus-lms" })).rejects.toMatchObject({
+      status: 429,
+      detail: expect.objectContaining({ level: "project", projectId: "campus-lms" }),
+    });
+    expect(prisma.quotaEvaluation.create).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ policyId: "lms-budget", outcome: "blocked", requestCount: 2 }),
+    });
+  });
+
+  it("does not count a project-blocked call against the shared tribe ceiling", async () => {
+    policies.resolvePolicies.mockResolvedValue({
+      project: policy({ id: "lms-budget", projectId: "campus-lms", maxRequests: 1 }),
+      tribe: policy({ id: "tribe-ceiling", projectId: null, maxRequests: 100 }),
+    });
+
+    await service.check({ ...request(), projectId: "campus-lms" });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(service.check({ ...request(), projectId: "campus-lms" })).rejects.toMatchObject({
+        status: 429,
+      });
+    }
+
+    const ceilingCounts = prisma.quotaEvaluation.create.mock.calls
+      .map(([args]: [{ data: { policyId: string; requestCount: number } }]) => args.data)
+      .filter((data: { policyId: string }) => data.policyId === "tribe-ceiling");
+    expect(ceilingCounts).toHaveLength(1);
+    expect(ceilingCounts[0].requestCount).toBe(1);
+  });
+  it("keeps separate counters per project under one tribe ceiling", async () => {
+    policies.resolvePolicies.mockImplementation(async (input: { projectId?: string }) => ({
+      project: policy({ id: `${input.projectId}-budget`, projectId: input.projectId, maxRequests: 1 }),
+      tribe: policy({ id: "tribe-ceiling", projectId: null, maxRequests: 100 }),
+    }));
+
+    await service.check({ ...request(), projectId: "campus-lms" });
+    await expect(service.check({ ...request(), projectId: "campus-billing" })).resolves.toBeUndefined();
   });
 
   it("estimates chargeback when usage is above 80 percent of quota", () => {
@@ -194,6 +258,10 @@ function policy(overrides: Record<string, unknown> = {}) {
     reason: "payment-service protection",
     ...overrides,
   };
+}
+
+function tribeOnly(tribe: ReturnType<typeof policy>) {
+  return { project: null, tribe };
 }
 
 function request() {

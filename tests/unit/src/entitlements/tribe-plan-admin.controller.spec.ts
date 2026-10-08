@@ -4,6 +4,21 @@ import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-secu
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 import { TribePlanAdminController } from "../../../../apps/gateway/src/domains/governance/entitlements/tribe-plan-admin.controller";
 import { TribePlanService } from "../../../../apps/gateway/src/domains/governance/entitlements/tribe-plan.service";
+import type { TenancyDirectory } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types";
+
+const tenancy: TenancyDirectory = {
+  getTribe: jest.fn(),
+  resolveProject: jest.fn((projectId: string) =>
+    projectId === "campus-lms"
+      ? ({
+          tribe: { tribeId: "campus-one", name: "Campus One", status: "active" },
+          project: { projectId, tribeId: "campus-one", name: "LMS", status: "active" },
+        } as never)
+      : null,
+  ),
+  requireActiveProject: jest.fn(),
+  resolveServicePlacement: jest.fn(),
+};
 
 describe("TribePlanAdminController", () => {
   const plans = {
@@ -20,6 +35,7 @@ describe("TribePlanAdminController", () => {
     auditEvents = { recordRequired: jest.fn().mockResolvedValue(undefined) };
     controller = new TribePlanAdminController(
       plans as unknown as TribePlanService,
+      tenancy,
       auditEvents as unknown as AuditEventsService,
     );
   });
@@ -101,19 +117,20 @@ describe("TribePlanAdminController", () => {
 
     const response = await controller.assignPlan(
       {
-        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
         planKey: "standard",
         environment: "test",
         effectiveAt: "2026-05-25T00:00:00.000Z",
         reason: "Initial rollout",
       },
       {
-        user: { tribeId: "platform" },
+        user: { sub: "platform" },
         correlationId: "corr-assign",
       } as any,
     );
 
     expect(plans.assignPlan).toHaveBeenCalledWith({
+      projectId: "campus-lms",
       ownerTribeId: "campus-one",
       planKey: "standard",
       environment: "test",
@@ -131,9 +148,10 @@ describe("TribePlanAdminController", () => {
       resourceId: "assignment-1",
       environment: "test",
       correlationId: "corr-assign",
-      message: "Plan standard assigned to campus-one",
+      message: "Plan standard assigned to project campus-lms",
       payload: {
         ownerTribeId: "campus-one",
+        projectId: "campus-lms",
         planKey: "standard",
         environment: "test",
         correlationId: "corr-assign",
@@ -145,6 +163,7 @@ describe("TribePlanAdminController", () => {
     plans.updatePlanAssignment.mockResolvedValue({
       id: "assignment-1",
       ownerTribeId: "campus-one",
+      projectId: "campus-lms",
       planKey: "standard",
       environment: "prod",
       status: "disabled",
@@ -156,7 +175,7 @@ describe("TribePlanAdminController", () => {
       "assignment-1",
       { status: "disabled", reason: "Retired service" },
       {
-        user: { tribeId: "platform" },
+        user: { sub: "platform" },
         correlationId: "corr-update",
       } as any,
     );
@@ -181,6 +200,7 @@ describe("TribePlanAdminController", () => {
       payload: {
         assignmentId: "assignment-1",
         ownerTribeId: "campus-one",
+        projectId: "campus-lms",
         planKey: "standard",
         environment: "prod",
         status: "disabled",
@@ -235,12 +255,12 @@ describe("TribePlanAdminController", () => {
     await expect(
       controller.assignPlan(
         {
-          ownerTribeId: "campus-one",
+          projectId: "campus-lms",
           planKey: "standard",
           environment: "test",
           reason: "Initial rollout",
         },
-        { user: { tribeId: "platform" } } as any,
+        { user: { sub: "platform" } } as any,
       ),
     ).rejects.toThrow("audit unavailable");
   });
@@ -249,7 +269,7 @@ describe("TribePlanAdminController", () => {
     await expect(
       controller.assignPlan(
         {
-          ownerTribeId: "",
+          projectId: "",
           planKey: "standard",
           environment: "test",
           reason: "",
@@ -257,5 +277,21 @@ describe("TribePlanAdminController", () => {
         {} as any,
       ),
     ).rejects.toThrow(ValidationError);
+  });
+
+  it("rejects tribe-level assignments and unknown projects", async () => {
+    await expect(
+      controller.assignPlan(
+        { ownerTribeId: "campus-one", planKey: "standard", environment: "test", reason: "x" },
+        {} as any,
+      ),
+    ).rejects.toThrow("Plans are assigned to projects");
+    await expect(
+      controller.assignPlan(
+        { projectId: "missing", planKey: "standard", environment: "test", reason: "x" },
+        {} as any,
+      ),
+    ).rejects.toThrow("Project 'missing' is not registered");
+    expect(plans.assignPlan).not.toHaveBeenCalled();
   });
 });

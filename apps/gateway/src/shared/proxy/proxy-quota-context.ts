@@ -6,6 +6,7 @@ import { requireGovernanceDependency } from "../governance-dependencies";
 export type CheckProxyQuotaInput = {
   quotaEnforcer: TribeQuotaEnforcerService;
   ownerTribeId: string;
+  projectId?: string;
   namespace: ServiceType;
   targetServiceId: string;
   correlationId?: string;
@@ -15,6 +16,7 @@ export type CheckProxyQuotaInput = {
 export async function checkProxyQuota({
   quotaEnforcer,
   ownerTribeId,
+  projectId,
   namespace,
   targetServiceId,
   correlationId,
@@ -27,6 +29,7 @@ export async function checkProxyQuota({
 
   await enforcer.check({
     ownerTribeId,
+    projectId,
     scope: namespace as TribeQuotaScope,
     targetServiceId,
     routeFamily: `${namespace}:${targetServiceId}`,

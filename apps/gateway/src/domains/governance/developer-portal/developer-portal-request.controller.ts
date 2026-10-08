@@ -12,7 +12,8 @@ export class DeveloperPortalRequestController {
   async requestQuotaIncrease(
     @Body()
     input: {
-      ownerTribeId: string;
+      ownerTribeId?: string;
+      projectId?: string;
       requestedMaxRequests: number;
       reason: string;
     },
@@ -29,19 +30,30 @@ export class DeveloperPortalRequestController {
         "Tribes can only request quota changes for their own tribe.",
       );
     }
+    // A service token carries its project, so the request targets that project's budget. Without one the
+    // request is for the tribe-wide ceiling.
+    const authenticatedProjectId: string | undefined = req.projectId ?? req.user?.projectId;
+    if (input.projectId && input.projectId !== authenticatedProjectId) {
+      throw new ForbiddenError(
+        "Services can only request quota changes for their own project.",
+      );
+    }
+    const projectId = input.projectId ?? authenticatedProjectId;
 
     const request = await this.approvals.createRequest({
       actionType: "quota.increase",
       targetEnvironment: "live",
-      targetId: authenticatedTribeId,
+      targetId: projectId ?? authenticatedTribeId,
       requestedBy: authenticatedTribeId,
       reason: input.reason,
       riskLevel: "medium",
       before: {
         ownerTribeId: authenticatedTribeId,
+        ...(projectId ? { projectId } : {}),
       },
       after: {
         ownerTribeId: authenticatedTribeId,
+        ...(projectId ? { projectId } : {}),
         requestedMaxRequests: input.requestedMaxRequests,
       },
     });
