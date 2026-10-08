@@ -101,7 +101,7 @@ type ServiceDetailContentProps = {
   service: ServiceRegistryEntry;
   services: ServiceRegistryEntry[];
   isTribe: boolean;
-  tribePrincipalId: string;
+  credentialServiceId: string;
   consumers: string[];
   brokenDependencies: BrokenDependency[];
   lifecycleEntry?: ServiceLifecycleEntry;
@@ -121,7 +121,7 @@ export function ServiceDetailContent({
   service,
   services,
   isTribe,
-  tribePrincipalId,
+  credentialServiceId,
   consumers,
   brokenDependencies,
   lifecycleEntry,
@@ -177,7 +177,7 @@ export function ServiceDetailContent({
         />
         <ServiceEnvironmentPanel service={service} />
         <ContractTesterPanel service={service} />
-        {isTribe ? <TribeSecretHealthPanel serviceId={tribePrincipalId} /> : null}
+        {isTribe ? <TribeSecretHealthPanel serviceId={credentialServiceId} /> : null}
       </div>
     );
   }
@@ -325,6 +325,7 @@ export function ServiceDetailContent({
         <>
           <TribeOnboardingFlow
             serviceId={service.serviceId}
+            projectId={service.projectId}
             ownerTribeId={service.ownerTribeId}
             consumes={service.consumes}
             healthCheck={service.healthCheck}
@@ -333,7 +334,7 @@ export function ServiceDetailContent({
             requiredScopes={service.requiredScopes}
           />
           <TribeSecretProvisionCard
-            serviceId={tribePrincipalId}
+            serviceId={credentialServiceId}
             environment={secret.environment}
             plaintextSecret={secret.plaintextSecret}
             secretHash={secret.secretHash}

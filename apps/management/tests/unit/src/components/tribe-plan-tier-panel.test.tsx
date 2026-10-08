@@ -13,12 +13,32 @@ const apiClient = vi.hoisted(() => ({
   assignTribePlan: vi.fn(),
   listTribePlanAssignments: vi.fn(),
   listTribePlanDefinitions: vi.fn(),
+  listTribes: vi.fn(),
 }));
 
 vi.mock("@/lib/api-center-client", () => apiClient);
 
 describe("TribePlanTierPanel", () => {
   beforeEach(() => {
+    apiClient.listTribes.mockResolvedValue([
+      {
+        tribeId: "logistics",
+        name: "Logistics",
+        status: "active",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z",
+        projects: [
+          {
+            projectId: "logistics-core",
+            tribeId: "logistics",
+            name: "Logistics Core",
+            status: "active",
+            createdAt: "2026-05-25T00:00:00.000Z",
+            updatedAt: "2026-05-25T00:00:00.000Z",
+          },
+        ],
+      },
+    ]);
     apiClient.listTribePlanDefinitions.mockResolvedValue([
       {
         planKey: "starter",
@@ -43,6 +63,7 @@ describe("TribePlanTierPanel", () => {
       {
         id: "assignment-1",
         ownerTribeId: "campus-one",
+        projectId: "campus-one-default",
         planKey: "standard",
         environment: "prod",
         status: "active",
@@ -54,6 +75,7 @@ describe("TribePlanTierPanel", () => {
       assignment: {
         id: "assignment-2",
         ownerTribeId: "logistics",
+        projectId: "logistics-core",
         planKey: "starter",
         environment: "test",
         status: "active",
@@ -63,6 +85,7 @@ describe("TribePlanTierPanel", () => {
       quotaProposals: [
         {
           ownerTribeId: "logistics",
+          projectId: "logistics-core",
           scope: "all",
           targetServiceId: null,
           windowSeconds: 86400,
@@ -72,6 +95,7 @@ describe("TribePlanTierPanel", () => {
         },
         {
           ownerTribeId: "logistics",
+          projectId: "logistics-core",
           scope: "kafka_publish",
           targetServiceId: null,
           windowSeconds: 86400,
@@ -88,22 +112,23 @@ describe("TribePlanTierPanel", () => {
     vi.clearAllMocks();
   });
 
-  it("renders plan defaults and assigned tribes", async () => {
+  it("renders plan defaults and assigned projects", async () => {
     renderWithClient(<TribePlanTierPanel />);
 
     expect(await screen.findByText("Starter")).toBeTruthy();
     expect(screen.getByText(/1,000 gateway calls\/day/)).toBeTruthy();
     expect(screen.getByText("live after approval")).toBeTruthy();
-    expect(screen.getByText("campus-one")).toBeTruthy();
+    expect(screen.getByText("campus-one-default")).toBeTruthy();
     expect(screen.getByText("standard / live")).toBeTruthy();
   });
 
-  it("assigns a plan and links generated quota proposals", async () => {
+  it("assigns a plan to a project and links generated quota proposals", async () => {
     renderWithClient(<TribePlanTierPanel />);
 
     await screen.findByText("Starter");
-    fireEvent.change(screen.getByLabelText("Owner tribe ID"), {
-      target: { value: "logistics" },
+    await screen.findByRole("option", { name: /logistics-core/ });
+    fireEvent.change(screen.getByLabelText("Project"), {
+      target: { value: "logistics-core" },
     });
     fireEvent.change(screen.getByLabelText("Plan"), {
       target: { value: "starter" },
@@ -124,7 +149,7 @@ describe("TribePlanTierPanel", () => {
 
     await waitFor(() =>
       expect(apiClient.assignTribePlan).toHaveBeenCalledWith({
-        ownerTribeId: "logistics",
+        projectId: "logistics-core",
         planKey: "starter",
         environment: "test",
         reason: "Initial test rollout",
@@ -136,6 +161,7 @@ describe("TribePlanTierPanel", () => {
     expect(links[0].getAttribute("href")).toContain(
       "/quotas?ownerTribeId=logistics",
     );
+    expect(links[0].getAttribute("href")).toContain("projectId=logistics-core");
     expect(links[0].getAttribute("href")).toContain("maxRequests=1000");
   });
 

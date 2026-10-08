@@ -215,7 +215,7 @@ export function ConfluentProvisioningCard({
             <DatabaseIcon data-icon="inline-start" />
             <AlertTitle>Core gateway mode</AlertTitle>
             <AlertDescription>
-              Registration, tribe secrets, token issuance, and proxied API calls
+              Registration, per-service secrets, token issuance, and proxied API calls
               remain available.
             </AlertDescription>
           </Alert>

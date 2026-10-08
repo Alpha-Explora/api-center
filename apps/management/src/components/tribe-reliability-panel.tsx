@@ -349,7 +349,7 @@ function buildReliabilitySummary(input: {
     event.type.toLowerCase().includes("kafka"),
   ).length;
   const owned = input.services.filter(
-    (service) => (service.ownerTribeId ?? service.serviceId) === input.tribeId,
+    (service) => service.ownerTribeId === input.tribeId,
   );
   const declared = owned.flatMap((service) => service.consumes ?? []);
   const affectedServices = [

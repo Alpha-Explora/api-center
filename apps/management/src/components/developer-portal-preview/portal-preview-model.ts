@@ -13,7 +13,7 @@ export function buildPortalPreview({
 }) {
   const ownedServices = services.filter((service) => {
     if ((service.serviceType ?? "tribe") !== "tribe") return false;
-    return (service.ownerTribeId ?? service.serviceId) === tribeId;
+    return service.ownerTribeId === tribeId;
   });
   const allowedIds = new Set(
     ownedServices.flatMap((service) => service.consumes ?? []),

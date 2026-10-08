@@ -66,17 +66,26 @@ export const contractTestResultSchema = z.object({
   attempts: z.array(contractAttemptSchema),
 });
 
-export const tribeTokenRequestSchema = z.object({
-  tribeId: z.string().min(1),
+/** A token is issued to one tribe service, proven by that service's own environment secret. */
+export const serviceTokenRequestSchema = z.object({
+  serviceId: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, "Use lowercase letters, numbers, and hyphens only"),
   secret: z.string().min(1),
+  environment: z.enum(["test", "live"]).default("test"),
 });
 
-export const tribeTokenResponseSchema = z.object({
+export const serviceTokenResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     accessToken: z.string(),
     refreshToken: z.string().nullable().optional(),
     expiresIn: z.number().optional(),
+    serviceId: z.string().optional(),
+    projectId: z.string().optional(),
+    tribeId: z.string().optional(),
+    environment: z.enum(["test", "live"]).optional(),
+    scopes: z.array(z.string()).optional(),
   }),
   meta: z
     .object({
@@ -569,6 +578,7 @@ export const tribePlanDefinitionSchema = z.object({
 export const tribePlanAssignmentSchema = z.object({
   id: z.string().optional(),
   ownerTribeId: z.string(),
+  projectId: z.string(),
   planKey: tribePlanKeySchema,
   environment: tribePlanEnvironmentSchema,
   status: tribePlanAssignmentStatusSchema,
@@ -581,6 +591,7 @@ export const tribePlanAssignmentSchema = z.object({
 
 export const generatedQuotaPolicyProposalSchema = z.object({
   ownerTribeId: z.string(),
+  projectId: z.string(),
   scope: quotaScopeSchema,
   targetServiceId: z.string().nullable().optional(),
   windowSeconds: z.number().int().positive(),
@@ -589,8 +600,9 @@ export const generatedQuotaPolicyProposalSchema = z.object({
   reason: z.string(),
 });
 
+/** Plans are assigned to a project; the gateway derives its tribe. */
 export const assignTribePlanInputSchema = z.object({
-  ownerTribeId: z.string().min(1),
+  projectId: z.string().min(1),
   planKey: tribePlanKeySchema,
   environment: tribePlanEnvironmentSchema,
   effectiveAt: z.string().optional(),
@@ -738,8 +750,8 @@ export type ManagementSessionResponse = z.infer<
 export type ManagementSession = z.infer<typeof managementSessionSchema>;
 export type ContractTestRequest = z.infer<typeof contractTestRequestSchema>;
 export type ContractTestResult = z.infer<typeof contractTestResultSchema>;
-export type TribeTokenRequest = z.infer<typeof tribeTokenRequestSchema>;
-export type TribeTokenResponse = z.infer<typeof tribeTokenResponseSchema>;
+export type ServiceTokenRequest = z.input<typeof serviceTokenRequestSchema>;
+export type ServiceTokenResponse = z.infer<typeof serviceTokenResponseSchema>;
 export type ConfluentTopicProvisionRequest = z.infer<
   typeof confluentTopicProvisionRequestSchema
 >;

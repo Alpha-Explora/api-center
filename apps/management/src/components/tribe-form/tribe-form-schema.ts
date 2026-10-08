@@ -15,7 +15,8 @@ export const formSchema = z
     name: serviceManifestSchema.shape.name,
     baseUrl: z.string().optional().default(""),
     serviceType: z.enum(["tribe", "shared"]),
-    ownerTribeId: z.string().optional(),
+    /** Project that owns a tribe service; its tribe is derived by the gateway. */
+    projectId: z.string().optional(),
     ownerTeam: z.string().optional(),
     contact: z.string().optional(),
     version: serviceManifestSchema.shape.version,
@@ -41,6 +42,13 @@ export const formSchema = z
       .min(1, "At least one environment is required"),
   })
   .superRefine((values, context) => {
+    if (values.serviceType === "tribe" && !values.projectId?.trim()) {
+      context.addIssue({
+        code: "custom",
+        path: ["projectId"],
+        message: "Choose the project this tribe service belongs to",
+      });
+    }
     const seen = new Set<string>();
     values.environments.forEach((environment, index) => {
       if (seen.has(environment.environment)) {
@@ -60,7 +68,8 @@ export const formSchema = z
       name: values.name,
       baseUrl: firstEnvironment?.baseUrl ?? values.baseUrl,
       serviceType: values.serviceType,
-      ownerTribeId: emptyToUndefined(values.ownerTribeId),
+      projectId:
+        values.serviceType === "shared" ? undefined : emptyToUndefined(values.projectId),
       ownerTeam: emptyToUndefined(values.ownerTeam),
       contact: emptyToUndefined(values.contact),
       version: values.version,

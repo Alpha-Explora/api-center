@@ -44,4 +44,17 @@ describe("summarizeSecretStatus", () => {
       severity: "warning",
     });
   });
+
+  it("flags a service secret that is still the credential copied from its tribe", () => {
+    const warning = getTribeSecretRotationWarning({
+      exists: true,
+      enabled: true,
+      latestVersionCreatedAt: "2026-05-17T00:00:00.000Z",
+      inheritedFromTribeSecret: true,
+      now: new Date("2026-05-18T00:00:00.000Z"),
+    });
+
+    expect(warning).toMatchObject({ stale: true, severity: "warning" });
+    expect(warning.message).toContain("copied from its tribe");
+  });
 });

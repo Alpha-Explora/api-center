@@ -32,6 +32,8 @@ const service: ServiceRegistryEntry = {
   healthCheck: "/health",
   version: "1.0.0",
   tags: [],
+  projectId: "logistics-default",
+  ownerTribeId: "logistics",
   ownerTeam: "Logistics",
   contact: "logistics@example.test",
   serviceTier: "standard",
@@ -208,6 +210,7 @@ describe("EnvironmentPromotionPanel", () => {
       {
         id: "plan-1",
         ownerTribeId: "logistics",
+        projectId: "logistics-default",
         planKey: "standard",
         environment: "prod",
         status: "active",
@@ -224,6 +227,7 @@ describe("EnvironmentPromotionPanel", () => {
         id: "request-1",
         serviceId: "logistics",
         ownerTribeId: "logistics",
+        projectId: "logistics-default",
         status: "approved",
         manifest: service,
         validationReport: { canApply: true, issues: [] },
@@ -251,7 +255,7 @@ describe("EnvironmentPromotionPanel", () => {
     expect(screen.getAllByText("pass").length).toBeGreaterThanOrEqual(9);
     expect(screen.getByLabelText("Selected promotion gate detail")).toBeTruthy();
     expect(apiClient.listTribePlanAssignments).toHaveBeenCalledWith({
-      ownerTribeId: "logistics",
+      projectId: "logistics-default",
       environment: "live",
       status: "active",
     });

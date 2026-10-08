@@ -12,7 +12,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   provisionTribeSecret,
-  requestTribeToken,
+  requestServiceToken,
 } from "@/lib/api-center-client";
 import { copyTextToClipboard } from "@/lib/client-clipboard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -33,13 +33,13 @@ import {
 import { Input } from "@/components/ui/input";
 
 export function SmokeTokenCard({
-  defaultTribeId = "smoke-tribe",
+  defaultServiceId = "smoke-service",
   onTokenIssued,
 }: {
-  defaultTribeId?: string;
-  onTokenIssued: (accessToken: string, tribeId: string) => void;
+  defaultServiceId?: string;
+  onTokenIssued: (accessToken: string, serviceId: string) => void;
 }) {
-  const [tribeId, setTribeId] = useState(defaultTribeId);
+  const [serviceId, setServiceId] = useState(defaultServiceId);
   const [secret, setSecret] = useState("");
   const [hashPlaintext, setHashPlaintext] = useState("");
   const [secretHash, setSecretHash] = useState("");
@@ -54,32 +54,33 @@ export function SmokeTokenCard({
     label: string;
     value: string;
   } | null>(null);
-  const normalizedTribeId = normalizeServiceId(tribeId || "smoke-tribe");
+  const normalizedServiceId = normalizeServiceId(serviceId || "smoke-service");
   const targetEnvironment = "test" as const;
-  const secretManagerName = `api-center-tribe-secret-${normalizedTribeId || "smoke-tribe"}-${targetEnvironment}`;
+  const secretManagerName = `api-center-service-secret-${normalizedServiceId || "smoke-service"}-${targetEnvironment}`;
   const localManagementMode =
     process.env.NEXT_PUBLIC_LOCAL_MANAGEMENT_MODE !== "false";
 
   const tokenMutation = useMutation({
     mutationFn: () =>
-      requestTribeToken({
-        tribeId: tribeId.trim(),
+      requestServiceToken({
+        serviceId: serviceId.trim(),
         secret,
+        environment: targetEnvironment,
       }),
     onSuccess: (token) => {
       setAccessToken(token.accessToken);
       setExpiresIn(token.expiresIn);
-      onTokenIssued(token.accessToken, tribeId.trim());
+      onTokenIssued(token.accessToken, serviceId.trim());
       setSecret("");
       toast.success("Temporary token issued");
     },
     onError: (error) => {
       setAccessToken("");
-      onTokenIssued("", tribeId.trim());
+      onTokenIssued("", serviceId.trim());
       toast.error("Token request failed", {
         description:
           getErrorMessage(error) ??
-          "Check the tribe ID, plaintext secret, and API Center auth configuration.",
+          "Check the service ID, its plaintext secret, and API Center auth configuration.",
       });
     },
   });
@@ -87,8 +88,7 @@ export function SmokeTokenCard({
   const provisionSecretMutation = useMutation({
     mutationFn: () =>
       provisionTribeSecret({
-        tribeId: normalizedTribeId,
-        sourceServiceId: normalizedTribeId,
+        serviceId: normalizedServiceId,
         environment: targetEnvironment,
         secretHashSha256: secretHash,
         mode: "create-or-rotate",
@@ -99,7 +99,7 @@ export function SmokeTokenCard({
         versionName: result.versionName,
         rotatedAt: result.rotatedAt,
       });
-      toast.success("Tribe secret provisioned");
+      toast.success("Service secret provisioned");
     },
     onError: (error) => {
       toast.error("Secret provisioning failed", {
@@ -139,8 +139,7 @@ export function SmokeTokenCard({
     await copyText(
       JSON.stringify(
         {
-          tribeId: normalizedTribeId,
-          sourceServiceId: normalizedTribeId,
+          serviceId: normalizedServiceId,
           environment: targetEnvironment,
           secretHashSha256: secretHash,
           status: "active",
@@ -187,10 +186,10 @@ export function SmokeTokenCard({
           <div>
             <CardTitle className="flex items-center gap-2">
               <KeyRoundIcon data-icon="inline-start" />
-              Request tribe token
+              Request service token
             </CardTitle>
             <CardDescription>
-              Use the tribe plaintext secret once to request a temporary API Center bearer token.
+              Use the service plaintext secret once to request a temporary API Center bearer token.
             </CardDescription>
           </div>
           {accessToken ? <Badge variant="secondary">token in memory</Badge> : null}
@@ -267,8 +266,7 @@ export function SmokeTokenCard({
               </div>
               <div className="mt-2 break-all font-mono text-sm">
                 {JSON.stringify({
-                  tribeId: normalizedTribeId,
-                  sourceServiceId: normalizedTribeId,
+                  serviceId: normalizedServiceId,
                   environment: targetEnvironment,
                   secretHashSha256: secretHash,
                   status: "active",
@@ -289,7 +287,7 @@ export function SmokeTokenCard({
                   onClick={() => provisionSecretMutation.mutate()}
                   disabled={
                     !localManagementMode ||
-                    !normalizedTribeId ||
+                    !normalizedServiceId ||
                     !secretHash ||
                     provisionSecretMutation.isPending
                   }
@@ -322,28 +320,28 @@ export function SmokeTokenCard({
 
         <div className="grid gap-4 rounded-lg border bg-muted/10 p-3 md:grid-cols-[minmax(12rem,0.65fr)_minmax(0,1fr)_auto] md:items-end">
           <Field>
-            <FieldLabel htmlFor="smoke-tribe-id" className="h-5 w-full items-center">
-              Tribe ID
+            <FieldLabel htmlFor="smoke-service-id" className="h-5 w-full items-center">
+              Service ID
             </FieldLabel>
             <Input
-              id="smoke-tribe-id"
-              value={tribeId}
-              onChange={(event) => setTribeId(event.target.value)}
-              placeholder="smoke-tribe"
+              id="smoke-service-id"
+              value={serviceId}
+              onChange={(event) => setServiceId(event.target.value)}
+              placeholder="smoke-service"
             />
           </Field>
           <Field>
             <FieldLabel
-              htmlFor="smoke-tribe-secret"
+              htmlFor="smoke-service-secret"
               className="h-5 w-full items-center justify-between"
             >
-              <span>Plaintext tribe secret</span>
+              <span>Plaintext service secret</span>
               <Badge variant="outline" className="hidden sm:inline-flex">
                 Paste plaintext, not hash
               </Badge>
             </FieldLabel>
             <Input
-              id="smoke-tribe-secret"
+              id="smoke-service-secret"
               type="password"
               value={secret}
               onChange={(event) => setSecret(event.target.value)}
@@ -353,7 +351,7 @@ export function SmokeTokenCard({
           <Button
             type="button"
             onClick={() => tokenMutation.mutate()}
-            disabled={!tribeId.trim() || !secret || tokenMutation.isPending}
+            disabled={!serviceId.trim() || !secret || tokenMutation.isPending}
           >
             Request token
           </Button>
@@ -412,7 +410,7 @@ function normalizeServiceId(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return normalized || "smoke-tribe";
+  return normalized || "smoke-service";
 }
 
 function generateRandomSecret() {

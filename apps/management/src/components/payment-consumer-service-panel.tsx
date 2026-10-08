@@ -30,7 +30,6 @@ type ApiResponse = { success: boolean; data?: Result; error?: { message?: string
 export function PaymentConsumerServicePanel() {
   const [result, setResult] = useState<Result | null>(null);
   const [serviceId, setServiceId] = useState("");
-  const [ownerTribeId, setOwnerTribeId] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
   const [scopes, setScopes] = useState<PaymentScope[]>(["payments:read", "payments:write"]);
   const [pushEndpoint, setPushEndpoint] = useState("");
@@ -50,7 +49,6 @@ export function PaymentConsumerServicePanel() {
       const payload = await request<ApiResponse>("/api/local/payment-consumers", {
         method: "POST",
         body: JSON.stringify({
-          ownerTribeId,
           consumerServiceId: serviceId,
           environment,
           scopes,
@@ -78,7 +76,7 @@ export function PaymentConsumerServicePanel() {
     try {
       const payload = await request<ApiResponse>(
         `/api/local/payment-consumers/${encodeURIComponent(serviceId)}/rotate-key`,
-        { method: "POST", body: JSON.stringify({ ownerTribeId, environment, scopes }) },
+        { method: "POST", body: JSON.stringify({ environment, scopes }) },
       );
       if (!payload.success || !payload.data) throw new Error(payload.error?.message ?? "Rotation failed");
       setResult(payload.data);
@@ -103,7 +101,6 @@ export function PaymentConsumerServicePanel() {
 
       <form className="mt-6 grid gap-4" onSubmit={register}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium" htmlFor="ownerTribeId">Owner tribe<input className="h-10 rounded-md border bg-background px-3 font-normal" id="ownerTribeId" value={ownerTribeId} onChange={(event) => setOwnerTribeId(event.target.value)} required /></label>
           <label className="grid gap-2 text-sm font-medium" htmlFor="serviceId">Consumer service ID<input className="h-10 rounded-md border bg-background px-3 font-normal" id="serviceId" value={serviceId} onChange={(event) => setServiceId(event.target.value)} required /></label>
           <label className="grid gap-2 text-sm font-medium" htmlFor="environment">Environment<select className="h-10 rounded-md border bg-background px-3 font-normal" id="environment" value={environment} onChange={(event) => setEnvironment(event.target.value as "test" | "live")}><option value="test">Test</option><option value="live">Live</option></select></label>
           <fieldset className="grid gap-2 text-sm font-medium"><legend>Scopes</legend><div className="flex flex-wrap gap-3 font-normal"><label className="flex items-center gap-2"><input type="checkbox" checked={scopes.includes("payments:read")} onChange={() => toggleScope("payments:read")} /> payments:read</label><label className="flex items-center gap-2"><input type="checkbox" checked={scopes.includes("payments:write")} onChange={() => toggleScope("payments:write")} /> payments:write</label></div></fieldset>
@@ -113,7 +110,7 @@ export function PaymentConsumerServicePanel() {
           <label className="grid gap-2 text-sm font-medium" htmlFor="cloudRunServiceName">Cloud Run service name<input className="h-10 rounded-md border bg-background px-3 font-normal" id="cloudRunServiceName" required={Boolean(pushEndpoint)} value={cloudRunServiceName} onChange={(event) => setCloudRunServiceName(event.target.value)} /></label>
         </div>
         <label className="grid gap-2 text-sm font-medium" htmlFor="pushEndpoint">Cloud Run event endpoint<input className="h-10 rounded-md border bg-background px-3 font-normal" id="pushEndpoint" type="url" placeholder="https://service-xxxxx-uc.a.run.app/api/v1/payments/events" value={pushEndpoint} onChange={(event) => setPushEndpoint(event.target.value)} /></label>
-        <div className="flex flex-wrap gap-2"><button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50" disabled={busy || scopes.length === 0} type="submit">{busy ? "Working..." : "Register consumer"}</button><button className="rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-50" disabled={busy || !serviceId || !ownerTribeId || scopes.length === 0} type="button" onClick={rotate}>Rotate key</button></div>
+        <div className="flex flex-wrap gap-2"><button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50" disabled={busy || scopes.length === 0} type="submit">{busy ? "Working..." : "Register consumer"}</button><button className="rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-50" disabled={busy || !serviceId || scopes.length === 0} type="button" onClick={rotate}>Rotate key</button></div>
       </form>
 
       {error ? <p className="mt-4 text-sm text-destructive" role="alert">{error}</p> : null}

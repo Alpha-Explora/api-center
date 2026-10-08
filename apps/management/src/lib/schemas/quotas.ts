@@ -19,6 +19,9 @@ export const quotaUsageWindowSchema = z.enum(["1h", "24h", "7d", "30d"]);
 export const quotaPolicySchema = z.object({
   id: z.string(),
   ownerTribeId: z.string(),
+  /** Null for a tribe-wide ceiling. */
+  projectId: z.string().nullable().optional(),
+  level: z.enum(["project", "tribe"]).optional(),
   scope: quotaScopeSchema,
   targetServiceId: z.string().nullable().optional(),
   windowSeconds: z.number().int().positive(),
@@ -56,6 +59,7 @@ export const quotaPolicyDetailResponseSchema = z.object({
 export const quotaUsageDecisionSchema = z.object({
   id: z.string(),
   ownerTribeId: z.string(),
+  projectId: z.string().nullable().optional(),
   policyId: z.string().nullable().optional(),
   scope: quotaScopeSchema,
   targetServiceId: z.string().nullable().optional(),
@@ -100,6 +104,8 @@ export const quotaUsageResponseSchema = z.object({
 
 export const quotaIncreaseRequestInputSchema = z.object({
   ownerTribeId: z.string().min(1),
+  /** Set to raise one project's budget; omit to raise the tribe-wide ceiling. */
+  projectId: z.string().min(1).optional(),
   requestedMaxRequests: z.number().int().positive(),
   reason: z.string().min(1),
 });

@@ -87,6 +87,8 @@ export function getTribeSecretRotationWarning(input: {
   exists: boolean;
   enabled?: boolean;
   latestVersionCreatedAt?: string;
+  /** The payload still carries migratedFromTribeSecret: the credential is shared with sibling services. */
+  inheritedFromTribeSecret?: boolean;
   now?: Date;
 }) {
   if (!input.exists) {
@@ -102,6 +104,15 @@ export function getTribeSecretRotationWarning(input: {
       stale: false,
       severity: "error" as const,
       message: "Tribe secret is disabled.",
+    };
+  }
+
+  if (input.inheritedFromTribeSecret) {
+    return {
+      stale: true,
+      severity: "warning" as const,
+      message:
+        "This service still uses the credential copied from its tribe. Rotate it so sibling services in other projects cannot request tokens for it.",
     };
   }
 
@@ -131,7 +142,7 @@ export function getTribeSecretRotationWarning(input: {
     return {
       stale: true,
       severity: "warning" as const,
-      message: `Rotate this tribe secret. Latest enabled version is ${ageDays} days old.`,
+      message: `Rotate this service secret. Latest enabled version is ${ageDays} days old.`,
     };
   }
 

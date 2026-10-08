@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 const PaymentScope = z.enum(["payments:read", "payments:write"]);
+/** The consumer is a registered tribe service; APICenter derives its owner tribe. */
 const RegisterInput = z.object({
-  ownerTribeId: z.string().trim().min(1).max(100),
   consumerServiceId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
   eventEndpointUrl: z.string().url().refine((value) => value.startsWith("https://")).optional(),
@@ -16,7 +16,6 @@ const RegisterInput = z.object({
 });
 
 const RotateInput = z.object({
-  ownerTribeId: z.string().trim().min(1).max(100),
   environment: z.enum(["test", "live"]),
   eventEndpointUrl: z.string().url().refine((value) => value.startsWith("https://")).optional(),
   scopes: z.array(PaymentScope).min(1).default(["payments:read", "payments:write"]),
@@ -88,7 +87,6 @@ export class PaymentConsumerService {
   async registerPaymentConsumer(input: unknown): Promise<PaymentConsumerRegistration> {
     const parsed = this.parse(RegisterInput, input);
     const registration = await this.post("/admin/payments/consumers", {
-      ownerTribeId: parsed.ownerTribeId,
       consumerServiceId: parsed.consumerServiceId,
       environment: parsed.environment,
       scopes: parsed.scopes,
@@ -98,7 +96,7 @@ export class PaymentConsumerService {
     const delivery =
       parsed.pushEndpoint && parsed.deliveryServiceAccountEmail
         ? await this.provisionEventDelivery({
-            ownerTribeId: parsed.ownerTribeId,
+            ownerTribeId: this.stringField(registration, "ownerTribeId"),
             consumerServiceId: parsed.consumerServiceId,
             environment: parsed.environment,
             pushEndpoint: parsed.pushEndpoint,

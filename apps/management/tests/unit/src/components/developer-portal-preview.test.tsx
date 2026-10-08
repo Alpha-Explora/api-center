@@ -23,6 +23,8 @@ const navigation = vi.hoisted(() => ({
 const portalServices = [
   {
     serviceId: "campus-one",
+    projectId: "campus-one-default",
+    ownerTribeId: "campus-one",
     name: "Campus One",
     baseUrl: "https://campus-one.internal",
     requiredScopes: ["campus:read"],
@@ -103,6 +105,8 @@ describe("DeveloperPortalPreview", () => {
     apiClient.listServices.mockResolvedValue([
       {
         serviceId: "campus-one",
+        projectId: "campus-one-default",
+        ownerTribeId: "campus-one",
         name: "Campus One",
         baseUrl: "https://campus-one.internal",
         requiredScopes: ["campus:read"],

@@ -97,7 +97,9 @@ export function buildServiceLifecycle({
   const ownerTribeId = getOwnerTribeId(service);
   const activeQuotaPolicies = quotaPolicies.filter(
     (policy) =>
-      policy.ownerTribeId === ownerTribeId && policy.status === "active",
+      policy.ownerTribeId === ownerTribeId &&
+      policy.status === "active" &&
+      (!policy.projectId || policy.projectId === service.projectId),
   );
   const ownerQuotaUsage = quotaUsage.filter(
     (usage) => usage.ownerTribeId === ownerTribeId,
@@ -143,7 +145,8 @@ export function buildServiceLifecycle({
 }
 
 export function getOwnerTribeId(service: ServiceRegistryEntry) {
-  return service.ownerTribeId || service.serviceId;
+  // Shared services have no tribe; tribe services derive it from their project.
+  return service.ownerTribeId ?? (service.serviceType === "shared" ? "shared" : "");
 }
 
 export function requiresEventExport(service: ServiceRegistryEntry) {
@@ -204,7 +207,9 @@ function ownershipStage(
   const missing = [
     service.ownerTeam?.trim() ? "" : "owner team",
     service.contact?.trim() ? "" : "contact",
-    ownerTribeId ? "" : "owner tribe",
+    service.serviceType === "shared" || (service.projectId && ownerTribeId)
+      ? ""
+      : "project placement",
   ].filter(Boolean);
 
   if (missing.length) {

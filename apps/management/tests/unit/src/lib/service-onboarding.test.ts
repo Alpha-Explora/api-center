@@ -15,6 +15,8 @@ const service: ServiceRegistryEntry = {
   baseUrl: "https://trinithrive.example.com",
   healthCheck: "/health",
   serviceType: "tribe",
+  projectId: "trinithrive-default",
+  ownerTribeId: "trinithrive",
   ownerTeam: "TriniThrive",
   contact: "ops@trinithrive.example.com",
   tags: [],
@@ -31,7 +33,10 @@ describe("getTribeOnboardingPacket", () => {
   it("generates NestJS, service call, and event publishing handoff content", () => {
     const packet = getTribeOnboardingPacket(service);
 
-    expect(packet.env).toContain("APICENTER_TRIBE_ID=trinithrive");
+    expect(packet.env).toContain("APICENTER_SERVICE_ID=trinithrive");
+    expect(packet.env).toContain("APICENTER_SERVICE_SECRET=");
+    expect(packet.env).not.toContain("APICENTER_TRIBE");
+    expect(packet.env).toContain("project=trinithrive-default; tribe=trinithrive");
     expect(packet.nestjsModule).toContain("ApiCenterModule");
     expect(packet.nestjsModule).toContain("@implementsprint/sdk");
     expect(packet.sharedServiceExamples).toHaveLength(2);
@@ -52,21 +57,21 @@ describe("getTribeOnboardingPacket", () => {
     expect(packet.topics.primary).toBe("tribe.trinithrive.events");
   });
 
-  it("uses the owner tribe principal for owned microservice handoff content", () => {
+  it("uses the service's own credential for microservice handoff content", () => {
     const packet = getTribeOnboardingPacket({
       ...service,
       serviceId: "logistics-orders",
+      projectId: "logistics-core",
       ownerTribeId: "logistics",
       name: "Logistics Orders",
     });
 
-    expect(packet.env).toContain("APICENTER_TRIBE_ID=logistics");
+    expect(packet.env).toContain("APICENTER_SERVICE_ID=logistics-orders");
     expect(packet.nestjsModule).toContain(
-      'tribeId: process.env.APICENTER_TRIBE_ID ?? "logistics"',
+      'serviceId: process.env.APICENTER_SERVICE_ID ?? "logistics-orders"',
     );
-    expect(packet.nestjsModule).toContain(
-      'sourceServiceId: process.env.APICENTER_SERVICE_ID ?? "logistics-orders"',
-    );
+    expect(packet.nestjsModule).toContain("process.env.APICENTER_SERVICE_SECRET");
+    expect(packet.nestjsModule).not.toContain("tribeId");
     expect(packet.eventPublishing).toContain(
       'sourceServiceId: "logistics-orders"',
     );

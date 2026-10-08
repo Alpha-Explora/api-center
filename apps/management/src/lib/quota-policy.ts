@@ -4,7 +4,19 @@ import { quotaModeSchema, quotaScopeSchema } from "./schemas";
 export const quotaPolicyInputSchema = z
   .object({
     id: z.string().optional(),
-    ownerTribeId: z.string().trim().min(1),
+    /** With projectId: that project's budget. Without it: a tribe-wide ceiling for ownerTribeId. */
+    projectId: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    ownerTribeId: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
     scope: quotaScopeSchema,
     targetServiceId: z
       .string()
@@ -19,6 +31,13 @@ export const quotaPolicyInputSchema = z
     reason: z.string().trim().min(1),
   })
   .superRefine((input, context) => {
+    if (!input.projectId && !input.ownerTribeId) {
+      context.addIssue({
+        code: "custom",
+        path: ["projectId"],
+        message: "Choose a project for a project budget, or a tribe for a tribe-wide ceiling",
+      });
+    }
     if (
       input.burstRequests !== undefined &&
       input.burstRequests !== null &&

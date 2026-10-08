@@ -48,6 +48,7 @@ type OnboardingStep = {
 
 export function TribeOnboardingFlow({
   serviceId,
+  projectId,
   ownerTribeId,
   consumes,
   healthCheck,
@@ -56,6 +57,7 @@ export function TribeOnboardingFlow({
   requiredScopes = [],
 }: {
   serviceId: string;
+  projectId?: string;
   ownerTribeId?: string;
   consumes: string[];
   healthCheck?: string;
@@ -64,15 +66,14 @@ export function TribeOnboardingFlow({
   requiredScopes?: string[];
 }) {
   const dataPipelineEnabled = isDataPipelineEnabled();
-  const tribePrincipalId = ownerTribeId ?? serviceId;
   const topicName = getServiceEventTopics({
     serviceId,
     ownerTribeId,
     serviceType: "tribe",
   }).primary;
   const secretStatusQuery = useQuery({
-    queryKey: queryKeys.tribeSecretStatus(tribePrincipalId),
-    queryFn: () => getTribeSecretStatus(tribePrincipalId),
+    queryKey: queryKeys.tribeSecretStatus(serviceId),
+    queryFn: () => getTribeSecretStatus(serviceId),
     retry: 1,
   });
   const confluentStatusQuery = useQuery({
@@ -93,8 +94,13 @@ export function TribeOnboardingFlow({
     retry: false,
   });
   const quotaPoliciesQuery = useQuery({
-    queryKey: queryKeys.quotaPolicies(tribePrincipalId),
-    queryFn: () => listQuotaPolicies(tribePrincipalId),
+    queryKey: queryKeys.applicableQuotaPolicies(ownerTribeId ?? "unplaced", projectId),
+    queryFn: async () =>
+      ownerTribeId
+        ? (await listQuotaPolicies(ownerTribeId)).filter(
+            (policy) => !policy.projectId || policy.projectId === projectId,
+          )
+        : [],
     retry: 1,
   });
   const activeQuotaPolicy = quotaPoliciesQuery.data?.find(
@@ -140,9 +146,9 @@ export function TribeOnboardingFlow({
     {
       label: "Manifest registered",
       description:
-        tribePrincipalId === serviceId
-          ? "This service exists in the API Center registry."
-          : `This service exists in the API Center registry under tribe ${tribePrincipalId}.`,
+        projectId && ownerTribeId
+          ? `This service exists in the API Center registry under project ${projectId} (tribe ${ownerTribeId}).`
+          : "This service exists in the API Center registry but is not placed in a project yet.",
       status: "complete",
       actionHref: `/tribes/${serviceId}/edit`,
       actionLabel: "Edit manifest",
@@ -189,6 +195,7 @@ export function TribeOnboardingFlow({
     },
     {
       label: "Tribe secret provisioned",
+      // Credentials are issued per service and environment, never per tribe.
       description: getSecretDescription(
         secretStatus,
         secretStatusQuery.isPending,
@@ -240,7 +247,7 @@ export function TribeOnboardingFlow({
             s3OnboardingState,
             topicName,
             serviceId,
-            tribePrincipalId,
+            ownerTribeId,
             confluentStatusQuery.isFetching,
           )
         : "Data pipeline disabled for this environment; raw export onboarding is skipped.",
@@ -252,7 +259,7 @@ export function TribeOnboardingFlow({
     },
     {
       label: "Token issued",
-      description: `Request an API Center token with the ${tribePrincipalId} tribe secret.`,
+      description: `Request an API Center token with the ${serviceId} service secret.`,
       status: "pending",
       actionHref: serviceDetailHref(serviceId, "actions"),
       actionLabel: "Open token test",
@@ -392,13 +399,13 @@ function getS3OnboardingDescription(
   state: TribeS3OnboardingState,
   topicName: string,
   serviceId: string,
-  tribePrincipalId: string,
+  ownerTribeId: string | undefined,
   isPending: boolean,
 ) {
   if (isPending) return `Checking S3 onboarding state for ${topicName}.`;
 
   const attribution =
-    serviceId === tribePrincipalId
+    !ownerTribeId || serviceId === ownerTribeId
       ? `Owner tribe topic: ${topicName}.`
       : `Owner tribe topic: ${topicName}; source service ${serviceId}.`;
 
@@ -431,7 +438,7 @@ function getSecretDescription(
   if (status === "blocked" || status === "unknown") {
     return "Secret status could not be checked from the management environment.";
   }
-  return "Generate and provision the tribe secret in the card below.";
+  return "Generate and provision this service's secret in the card below.";
 }
 
 function getQuotaPolicyDescription(

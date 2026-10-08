@@ -13,6 +13,7 @@ const baseService: ServiceRegistryEntry = {
   requiredScopes: ["campus:read", "external:kafka:write"],
   exposes: ["/students"],
   consumes: ["payment-service"],
+  projectId: "campus-one-default",
   ownerTribeId: "campus-one",
   serviceType: "tribe",
   healthCheck: "/health",

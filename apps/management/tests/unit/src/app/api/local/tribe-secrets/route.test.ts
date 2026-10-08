@@ -18,7 +18,7 @@ const secretMocks = vi.hoisted(() => ({
   shouldUseLocalGcloudImpersonation: vi.fn(() => true),
   provisionSecretWithLocalGcloudImpersonation: vi.fn(async () => ({
     versionName:
-      "projects/api-center-test/secrets/api-center-tribe-secret-church-donations-live/versions/7",
+      "projects/api-center-test/secrets/api-center-service-secret-spark-site-live/versions/7",
   })),
   createSecretManagerClient: vi.fn(),
 }));
@@ -32,7 +32,7 @@ describe("POST /api/local/tribe-secrets", () => {
     vi.clearAllMocks();
   });
 
-  it("requires tribeId, sourceServiceId, and environment", async () => {
+  it("requires serviceId and environment", async () => {
     const response = await POST(
       new Request("http://localhost/api/local/tribe-secrets", {
         method: "POST",
@@ -47,13 +47,12 @@ describe("POST /api/local/tribe-secrets", () => {
     expect(secretMocks.provisionSecretWithLocalGcloudImpersonation).not.toHaveBeenCalled();
   });
 
-  it("authorizes against the requested live environment and stores an environment-scoped tribe secret", async () => {
+  it("authorizes against the requested live environment and stores a per-service secret", async () => {
     const response = await POST(
       new Request("http://localhost/api/local/tribe-secrets", {
         method: "POST",
         body: JSON.stringify({
-          tribeId: "church-donations",
-          sourceServiceId: "spark-site",
+          serviceId: "spark-site",
           environment: "live",
           secretHashSha256: "b".repeat(64),
           confirmation: {
@@ -74,9 +73,9 @@ describe("POST /api/local/tribe-secrets", () => {
     );
     expect(secretMocks.provisionSecretWithLocalGcloudImpersonation).toHaveBeenCalledWith(
       expect.objectContaining({
-        secretId: "api-center-tribe-secret-church-donations-live",
+        secretId: "api-center-service-secret-spark-site-live",
         secretName:
-          "projects/api-center-test/secrets/api-center-tribe-secret-church-donations-live",
+          "projects/api-center-test/secrets/api-center-service-secret-spark-site-live",
       }),
     );
     const provisionCalls = (secretMocks.provisionSecretWithLocalGcloudImpersonation as ReturnType<typeof vi.fn>).mock.calls;
@@ -84,18 +83,15 @@ describe("POST /api/local/tribe-secrets", () => {
     expect(provisionInput).toBeDefined();
     const payload = JSON.parse(provisionInput!.payload);
     expect(payload).toMatchObject({
-      tribeId: "church-donations",
-      sourceServiceId: "spark-site",
-      provisionedForServiceIds: ["spark-site"],
+      serviceId: "spark-site",
       environment: "live",
       secretHashSha256: "b".repeat(64),
     });
+    expect(payload).not.toHaveProperty("tribeId");
     expect(body.data).toMatchObject({
       serviceId: "spark-site",
-      tribeId: "church-donations",
-      sourceServiceId: "spark-site",
       environment: "live",
-      secretId: "api-center-tribe-secret-church-donations-live",
+      secretId: "api-center-service-secret-spark-site-live",
       versionNumber: "7",
     });
   });

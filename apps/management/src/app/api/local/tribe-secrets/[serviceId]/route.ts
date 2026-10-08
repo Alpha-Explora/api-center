@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { tribeSecretDeleteRequestSchema } from "@/lib/schemas";
 import { createOperationPreview } from "@/lib/operation-preview";
@@ -8,12 +8,13 @@ import { requireManagementAction } from "@/lib/server/require-management-action"
 import { requireManagementSession } from "@/lib/server/require-management-session";
 import {
   deleteTribeSecret,
+  accessLatestSecretPayload,
   getProjectId,
   getSecretManagerAuthReadiness,
   getTribeSecretStatus,
 } from "@/lib/server/gcp-secret-manager";
 
-const DEFAULT_SECRET_PREFIX = "api-center-tribe-secret-";
+const DEFAULT_SECRET_PREFIX = "api-center-service-secret-";
 const SERVICE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 type RuntimeEnvironment = "test" | "live";
@@ -26,7 +27,6 @@ type SecretSetup =
   | {
       projectId: string;
       serviceId: string;
-      tribeId: string;
       environment: RuntimeEnvironment;
       secretId: string;
       secretName: string;
@@ -48,23 +48,26 @@ export async function GET(request: Request, context: Context) {
     if ("response" in setup) return setup.response;
 
     const data = await getTribeSecretStatus(setup);
+    const inheritedFromTribeSecret = data.exists
+      ? await readMigrationMarker(setup.secretName)
+      : false;
     return NextResponse.json({
       success: true,
       data: {
         ...data,
-        tribeId: setup.tribeId,
         environment: setup.environment,
         rotationWarning: getTribeSecretRotationWarning({
           exists: data.exists,
           enabled: data.enabled,
           latestVersionCreatedAt: data.latestVersionCreatedAt,
+          inheritedFromTribeSecret,
         }),
       },
     });
   } catch (error) {
     return managementRouteErrorResponse(
       error,
-      "Could not read tribe secret status.",
+      "Could not read service secret status.",
     );
   }
 }
@@ -87,8 +90,8 @@ export async function DELETE(request: Request, context: Context) {
           environment: input.environment,
           risk: "destructive",
           changes: [
-            `Delete ${input.environment} Secret Manager secret for owner tribe ${serviceId}`,
-            "Stop this tribe from requesting new API Center tokens in the target environment",
+            `Delete ${input.environment} Secret Manager secret for service ${serviceId}`,
+            "Stop this service from requesting new API Center tokens in the target environment",
             "This does not delete registry entry, Kafka topic, or historical S3 data",
           ],
         }),
@@ -122,7 +125,6 @@ export async function DELETE(request: Request, context: Context) {
       success: true,
       data: {
         ...data,
-        tribeId: setup.tribeId,
         environment: setup.environment,
       },
     });
@@ -144,6 +146,18 @@ export async function DELETE(request: Request, context: Context) {
       },
       { status: 500 },
     );
+  }
+}
+
+/** True while the secret payload is still the copy made when credentials moved from tribe to service. */
+async function readMigrationMarker(secretName: string): Promise<boolean> {
+  try {
+    const raw = await accessLatestSecretPayload(secretName);
+    if (!raw) return false;
+    const payload = JSON.parse(raw) as { migratedFromTribeSecret?: unknown };
+    return payload.migratedFromTribeSecret === true;
+  } catch {
+    return false;
   }
 }
 
@@ -204,7 +218,6 @@ function getSecretSetup(
   return {
     projectId,
     serviceId,
-    tribeId: serviceId,
     environment,
     secretId,
     secretName: `projects/${projectId}/secrets/${secretId}`,
@@ -219,7 +232,7 @@ function formatSecretDeleteError(error: unknown) {
     message.includes("secretmanager.secrets.delete") ||
     message.includes("PERMISSION_DENIED")
   ) {
-    return "The management provisioner cannot delete tribe secrets yet.";
+    return "The management provisioner cannot delete service secrets yet.";
   }
 
   return "Tribe secret cleanup failed. Check Secret Manager access.";

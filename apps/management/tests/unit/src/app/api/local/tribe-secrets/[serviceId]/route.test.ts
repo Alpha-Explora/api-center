@@ -45,8 +45,8 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
   it("returns environment-scoped status metadata after authentication", async () => {
     secretMocks.getTribeSecretStatus.mockResolvedValue({
       serviceId: "campus-one",
-      secretId: "api-center-tribe-secret-campus-one-live",
-      expectedSecretId: "api-center-tribe-secret-campus-one-live",
+      secretId: "api-center-service-secret-campus-one-live",
+      expectedSecretId: "api-center-service-secret-campus-one-live",
       exists: true,
       enabled: true,
       state: "ENABLED",
@@ -65,17 +65,16 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
 
     expect(body.success).toBe(true);
     expect(body.data).toMatchObject({
-      tribeId: "campus-one",
+      serviceId: "campus-one",
       environment: "live",
-      secretId: "api-center-tribe-secret-campus-one-live",
+      secretId: "api-center-service-secret-campus-one-live",
     });
     expect(secretMocks.getTribeSecretStatus).toHaveBeenCalledWith(
       expect.objectContaining({
         serviceId: "campus-one",
-        tribeId: "campus-one",
         environment: "live",
         secretName:
-          "projects/api-center-test/secrets/api-center-tribe-secret-campus-one-live",
+          "projects/api-center-test/secrets/api-center-service-secret-campus-one-live",
       }),
     );
   });
@@ -83,7 +82,7 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
   it("authorizes live delete against the target environment", async () => {
     secretMocks.deleteTribeSecret.mockResolvedValue({
       serviceId: "campus-one",
-      secretId: "api-center-tribe-secret-campus-one-live",
+      secretId: "api-center-service-secret-campus-one-live",
       action: "deleted",
     });
 
@@ -113,7 +112,7 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
     );
     expect(secretMocks.deleteTribeSecret).toHaveBeenCalledWith(
       expect.objectContaining({
-        secretId: "api-center-tribe-secret-campus-one-live",
+        secretId: "api-center-service-secret-campus-one-live",
       }),
     );
   });

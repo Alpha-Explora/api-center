@@ -44,6 +44,8 @@ const quotaModes: QuotaMode[] = ["observe", "enforce"];
 
 type PolicyFormState = {
   ownerTribeId: string;
+  /** Set: this project's budget. Empty: a tribe-wide ceiling for ownerTribeId. */
+  projectId: string;
   scope: QuotaScope;
   targetServiceId: string;
   windowSeconds: string;
@@ -63,6 +65,7 @@ export function TribeQuotaPolicyPanel({
   const queryClient = useQueryClient();
   const [form, setForm] = useState<PolicyFormState>({
     ownerTribeId: initialPolicy?.ownerTribeId ?? ownerTribeId ?? "",
+    projectId: initialPolicy?.projectId ?? "",
     scope: initialPolicy?.scope ?? "shared",
     targetServiceId: initialPolicy?.targetServiceId ?? "",
     windowSeconds: initialPolicy?.windowSeconds ?? "60",
@@ -111,6 +114,7 @@ export function TribeQuotaPolicyPanel({
     event.preventDefault();
     saveMutation.mutate({
       ownerTribeId: form.ownerTribeId,
+      projectId: form.projectId,
       scope: form.scope,
       targetServiceId: form.targetServiceId,
       windowSeconds: Number(form.windowSeconds),
@@ -127,8 +131,8 @@ export function TribeQuotaPolicyPanel({
         <div>
           <CardTitle>Quota policies</CardTitle>
           <CardDescription>
-            Set tribe call limits in observe mode first, then move
-            high-confidence policies to enforce.
+            A project budget limits one project; a tribe ceiling caps every
+            project in the tribe. Start in observe mode, then enforce.
           </CardDescription>
         </div>
         <Button
@@ -155,7 +159,18 @@ export function TribeQuotaPolicyPanel({
                   onChange={(event) =>
                     updateField("ownerTribeId", event.target.value)
                   }
-                  required
+                  required={!form.projectId}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="quota-project-id">Project</FieldLabel>
+                <Input
+                  id="quota-project-id"
+                  value={form.projectId}
+                  placeholder="Empty = tribe-wide ceiling"
+                  onChange={(event) =>
+                    updateField("projectId", event.target.value)
+                  }
                 />
               </Field>
               <Field>
@@ -269,7 +284,11 @@ export function TribeQuotaPolicyPanel({
           <div className="rounded-lg border bg-muted/20 p-3">
             <div className="text-sm font-medium">Review quota change</div>
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-              <QuotaReviewDetail label="Tribe" value={form.ownerTribeId || "Not set"} />
+              <QuotaReviewDetail label="Tribe" value={form.ownerTribeId || "From project"} />
+              <QuotaReviewDetail
+                label="Level"
+                value={form.projectId ? `Project budget (${form.projectId})` : "Tribe-wide ceiling"}
+              />
               <QuotaReviewDetail label="Scope" value={formatScope(form.scope)} />
               <QuotaReviewDetail
                 label="Target"
@@ -411,6 +430,9 @@ function PolicyTable({
               <TableRow key={policy.id}>
                 <TableCell className="font-mono text-xs">
                   {policy.ownerTribeId}
+                  <span className="block font-sans text-muted-foreground">
+                    {policy.projectId ? `project ${policy.projectId}` : "tribe ceiling"}
+                  </span>
                 </TableCell>
                 <TableCell>{formatScope(policy.scope)}</TableCell>
                 <TableCell>{policy.targetServiceId ?? "All targets"}</TableCell>

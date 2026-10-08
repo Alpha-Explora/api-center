@@ -90,9 +90,14 @@ describe("proposed actions", () => {
     const productionTribe: ServiceRegistryEntry = {
       ...tribe,
       serviceId: "campus-one",
+      projectId: "campus-one-default",
       ownerTribeId: "campus-one",
       serviceTier: "critical",
       status: "active",
+    };
+    const sameProjectService: ServiceRegistryEntry = {
+      ...productionTribe,
+      serviceId: "campus-one-admin",
     };
     const providerSensitiveSharedService: ServiceRegistryEntry = {
       ...tribe,
@@ -162,24 +167,60 @@ describe("proposed actions", () => {
     ];
 
     const actions = buildQuotaProposedActions({
-      services: [productionTribe, providerSensitiveSharedService],
+      services: [productionTribe, sameProjectService, providerSensitiveSharedService],
       policies,
       usage,
       now: new Date("2026-05-25T01:00:00.000Z"),
     });
 
     expect(actions.map((action) => action.id)).toEqual([
-      "campus-one-create-active-quota",
+      "campus-one-default-create-active-quota",
       "logistics-review-observe-quota-exceeded",
       "billing-review-enforced-quota-blocks",
       "payment-create-target-quota",
     ]);
     expect(actions.map((action) => action.href)).toEqual([
-      "/tribes/campus-one?section=quotas",
-      "/tribes/logistics?section=quotas",
-      "/tribes/billing?section=quotas",
+      "/quotas?ownerTribeId=campus-one&projectId=campus-one-default",
+      "/quotas?ownerTribeId=logistics",
+      "/quotas?ownerTribeId=billing",
       "/tribes/payment?section=quotas",
     ]);
+  });
+
+  it("treats a tribe-wide ceiling as quota coverage for every project in the tribe", () => {
+    const actions = buildQuotaProposedActions({
+      services: [
+        {
+          ...tribe,
+          serviceId: "campus-one",
+          projectId: "campus-one-default",
+          ownerTribeId: "campus-one",
+          serviceTier: "critical",
+          status: "active",
+        },
+      ],
+      policies: [
+        {
+          id: "campus-ceiling",
+          ownerTribeId: "campus-one",
+          scope: "all",
+          targetServiceId: null,
+          windowSeconds: 86400,
+          maxRequests: 50000,
+          burstRequests: null,
+          mode: "observe",
+          status: "active",
+          reason: "Tribe ceiling",
+          updatedAt: "2026-05-25T00:00:00.000Z",
+        },
+      ],
+      usage: [],
+      now: new Date("2026-05-25T01:00:00.000Z"),
+    });
+
+    expect(actions.map((action) => action.id)).not.toContain(
+      "campus-one-default-create-active-quota",
+    );
   });
 });
 
