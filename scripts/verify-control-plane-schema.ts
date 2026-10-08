@@ -16,6 +16,16 @@ type InventoryObject = {
 const repoRoot = path.resolve(__dirname, "..");
 const controlledSchemas = ["apic_catalog", "apic_governance", "apic_runtime", "apic_audit"];
 const legacySchemas = ["api_center", "api_center_ops", "api_center_audit"];
+// Every schema the platform owns. Each is a bounded context: no foreign key may cross between them.
+const domainSchemas = [
+  ...controlledSchemas,
+  "shared_payment",
+  "shared_email",
+  "shared_sms",
+  "shared_otp",
+  "shared_geo",
+  "shared_gauth",
+];
 
 const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "organizations"],
@@ -329,6 +339,17 @@ async function main(): Promise<void> {
       );
       addFailure(failures, "Legacy compatibility schemas still present", legacySchemaRows.map((row) => String(row.schema)));
     }
+
+    const crossSchemaForeignKeys = await queryRows(
+      client,
+      "select n.nspname || '.' || t.relname as source, c.conname as name, rn.nspname || '.' || rt.relname as target from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace join pg_class rt on rt.oid = c.confrelid join pg_namespace rn on rn.oid = rt.relnamespace where c.contype = 'f' and n.nspname = any($1::text[]) and n.nspname <> rn.nspname order by 1, 2",
+      [domainSchemas],
+    );
+    addFailure(
+      failures,
+      "Foreign keys across schemas (reference other contexts by identifier and validate through their public interface)",
+      crossSchemaForeignKeys.map((row) => String(row.source) + " (" + String(row.name) + ") -> " + String(row.target)),
+    );
 
     const indexRows = await queryRows(
       client,
