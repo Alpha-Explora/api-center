@@ -1,4 +1,3 @@
-export { RuntimeOpsModule } from "./runtime-ops.module";
 export { HealthModule } from "./health/health.module";
 export { AnalyticsModule } from "./analytics/analytics.module";
 export { OperationsModule } from "./operations/operations.module";
