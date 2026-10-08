@@ -1,5 +1,6 @@
 export const queryKeys = {
   services: ["services"] as const,
+  tenancyTribes: ["tenancy", "tribes"] as const,
   service: (serviceId: string) => ["services", serviceId] as const,
   registrationRequests: (status: string) =>
     ["registration-requests", status] as const,
@@ -10,6 +11,9 @@ export const queryKeys = {
     ["shared-services", "usage", window] as const,
   quotaPolicies: (ownerTribeId = "all") =>
     ["quotas", "policies", ownerTribeId] as const,
+  /** Project budget plus tribe-wide ceilings that apply to one project. */
+  applicableQuotaPolicies: (ownerTribeId: string, projectId = "none") =>
+    ["quotas", "policies", ownerTribeId, "applicable", projectId] as const,
   quotaUsage: (ownerTribeId = "all", window = "24h") =>
     ["quotas", "usage", ownerTribeId, window] as const,
   governanceDrift: ["operations", "drift"] as const,

@@ -1,6 +1,6 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
-const tribeSecretIdSchema = z
+const serviceSecretIdSchema = z
   .string()
   .regex(
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
@@ -9,9 +9,9 @@ const tribeSecretIdSchema = z
 
 const runtimeEnvironmentSchema = z.enum(["test", "live"]);
 
+/** Each tribe service has its own credential per environment; the secret is never shared across services. */
 export const tribeSecretProvisionRequestSchema = z.object({
-  tribeId: tribeSecretIdSchema,
-  sourceServiceId: tribeSecretIdSchema,
+  serviceId: serviceSecretIdSchema,
   environment: runtimeEnvironmentSchema,
   secretHashSha256: z
     .string()
@@ -29,8 +29,6 @@ export const tribeSecretProvisionResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     serviceId: z.string(),
-    tribeId: z.string(),
-    sourceServiceId: z.string(),
     environment: runtimeEnvironmentSchema,
     secretId: z.string(),
     secretName: z.string(),
