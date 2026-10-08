@@ -150,24 +150,24 @@ const IMPORT_SPECIFIER_PATTERN =
 const APIC_SCHEMA_PATTERN = /\b(apic_[a-z0-9_]+|shared_core)\./g;
 const RAW_SCHEMA_ACCESS_PATTERN = /\b(select\s+.*from|from|join|update|insert\s+into|delete\s+from|\$queryRaw|\$executeRaw)\b/i;
 const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
-  'apps/gateway/src/auth/auth.service.ts',
-  'apps/gateway/src/auth/guards/jwt-auth.guard.ts',
-  'apps/gateway/src/auth/guards/scoped-admin.guard.ts',
-  'apps/gateway/src/auth/token-store.service.ts',
-  'apps/gateway/src/auth/vault.service.ts',
-  'apps/gateway/src/registry/registry.service.ts',
-  'apps/gateway/src/approvals/approval-request.service.ts',
-  'apps/gateway/src/analytics/audit-events.service.ts',
-  'apps/gateway/src/analytics/gateway-traffic.service.ts',
-  'apps/gateway/src/analytics/shared-service-usage.service.ts',
-  'apps/gateway/src/entitlements/tribe-plan.service.ts',
-  'apps/gateway/src/forecasting/quota-forecast.service.ts',
-  'apps/gateway/src/operations/emergency-control.service.ts',
-  'apps/gateway/src/operations/promotion-evidence-bundle.service.ts',
-  'apps/gateway/src/policy/policy-engine.service.ts',
-  'apps/gateway/src/quotas/tribe-quota-enforcer.service.ts',
-  'apps/gateway/src/quotas/tribe-quota-policy.service.ts',
-  'apps/gateway/src/secrets/tribe-secret-rotation.service.ts',
+  'apps/gateway/src/domains/auth-security/auth/auth.service.ts',
+  'apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard.ts',
+  'apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard.ts',
+  'apps/gateway/src/domains/auth-security/auth/token-store.service.ts',
+  'apps/gateway/src/domains/auth-security/auth/vault.service.ts',
+  'apps/gateway/src/domains/catalog-registry/registry/registry.service.ts',
+  'apps/gateway/src/domains/governance/approvals/approval-request.service.ts',
+  'apps/gateway/src/domains/runtime-ops/analytics/audit-events.service.ts',
+  'apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service.ts',
+  'apps/gateway/src/domains/runtime-ops/analytics/shared-service-usage.service.ts',
+  'apps/gateway/src/domains/governance/entitlements/tribe-plan.service.ts',
+  'apps/gateway/src/domains/runtime-ops/forecasting/quota-forecast.service.ts',
+  'apps/gateway/src/domains/runtime-ops/operations/emergency-control.service.ts',
+  'apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.service.ts',
+  'apps/gateway/src/domains/governance/policy/policy-engine.service.ts',
+  'apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service.ts',
+  'apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service.ts',
+  'apps/gateway/src/domains/auth-security/secrets/tribe-secret-rotation.service.ts',
 ]);
 
 function toPosixPath(filePath) {
@@ -477,6 +477,40 @@ function collectPrismaSchemaOwnershipViolations(files, repoRoot) {
   return violations;
 }
 
+/**
+ * Fails when the public-contract list or the legacy baseline names a file that no longer exists.
+ * A stale path silently turns a public contract back into an internal file, so every import of it
+ * becomes a violation or has to be added to the baseline. Update the path when a file moves.
+ */
+function collectStaleAllowlistViolations(repoRoot = DEFAULT_REPO_ROOT) {
+  const violations = [];
+
+  for (const file of PUBLIC_SERVICE_CONTRACT_FILES) {
+    if (!fs.existsSync(path.join(repoRoot, file))) {
+      violations.push({
+        file: 'scripts/check-boundaries.js',
+        reason: `PUBLIC_SERVICE_CONTRACT_FILES lists ${file}, which does not exist; update the path after moving or deleting the file`,
+      });
+    }
+  }
+
+  const baselinePath = path.join(repoRoot, 'scripts/boundary-legacy-imports.json');
+  if (fs.existsSync(baselinePath)) {
+    for (const entry of JSON.parse(fs.readFileSync(baselinePath, 'utf8'))) {
+      for (const file of entry.split(' -> ')) {
+        if (!fs.existsSync(path.join(repoRoot, file))) {
+          violations.push({
+            file: 'scripts/boundary-legacy-imports.json',
+            reason: `Baseline entry "${entry}" names ${file}, which does not exist; remove the entry`,
+          });
+        }
+      }
+    }
+  }
+
+  return violations;
+}
+
 function runBoundaryChecks(options = {}) {
   const repoRoot = path.resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
   const files = options.files?.map(normalizeRelPath) ?? collectRepoFiles(repoRoot);
@@ -505,7 +539,7 @@ function printViolationsAndExit(violations) {
 }
 
 function main() {
-  printViolationsAndExit(runBoundaryChecks());
+  printViolationsAndExit([...runBoundaryChecks(), ...collectStaleAllowlistViolations()]);
 }
 
 if (require.main === module) {
@@ -514,5 +548,6 @@ if (require.main === module) {
 
 module.exports = {
   BOUNDED_CONTEXTS,
+  collectStaleAllowlistViolations,
   runBoundaryChecks,
 };

@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { runBoundaryChecks } = require("../../../scripts/check-boundaries.js");
+const { collectStaleAllowlistViolations, runBoundaryChecks } = require("../../../scripts/check-boundaries.js");
 
 function run(name, fn) {
   try {
@@ -27,6 +27,19 @@ function withTempRepo(files, fn) {
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
+
+run("keeps the public contract list and legacy baseline pointing at files that exist", () => {
+  const repoRoot = path.resolve(__dirname, "../../..");
+  assert.deepEqual(collectStaleAllowlistViolations(repoRoot), []);
+});
+
+run("reports public contract paths and baseline entries that do not exist", () => {
+  withTempRepo({ "scripts/boundary-legacy-imports.json": JSON.stringify(["apps/a.ts -> apps/b.ts"]) }, (repoRoot) => {
+    const reasons = collectStaleAllowlistViolations(repoRoot).map((violation) => violation.reason).join("\n");
+    assert.match(reasons, /PUBLIC_SERVICE_CONTRACT_FILES lists apps\/gateway\/src\/domains\/auth-security\/auth\/auth\.service\.ts, which does not exist/);
+    assert.match(reasons, /Baseline entry "apps\/a\.ts -> apps\/b\.ts" names apps\/a\.ts, which does not exist/);
+  });
+});
 
 run("fails direct cross-context imports of internal services", () => {
   withTempRepo(
