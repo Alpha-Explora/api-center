@@ -96,13 +96,6 @@ model Service {
   lifecycleEvents    ServiceLifecycleEvent[]
   environments       ServiceEnvironment[]
   serviceSecretReference ServiceSecretReference?
-  confluentTopics    ConfluentTopic[]
-  provisioningJobs   ProvisioningJob[]
-  healthSnapshots    HealthSnapshot[]
-  smokeTestRuns      SmokeTestRun[]          @relation("SmokeTestService")
-  tribeSmokeTestRuns SmokeTestRun[]          @relation("SmokeTestTribe")
-  usageAsConsumer    UsageRollup[]           @relation("UsageConsumer")
-  usageAsTarget      UsageRollup[]           @relation("UsageTarget")
 
   @@unique([organizationId, serviceId], name: "organization_service_id")
   @@index([serviceType, status], name: "services_type_status_idx")
@@ -245,7 +238,6 @@ model ConfluentTopic {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  ownerService Service?      @relation(fields: [ownerServiceId], references: [id], onDelete: SetNull)
   s3SinkTopics S3SinkTopic[]
 
   @@map("confluent_topics")
@@ -282,8 +274,6 @@ model ProvisioningJob {
   finishedAt   DateTime? @map("finished_at") @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
   @@index([serviceId], name: "provisioning_jobs_service_idx")
   @@index([status, createdAt], name: "provisioning_jobs_status_created_idx")
@@ -391,8 +381,6 @@ model HealthSnapshot {
   errorMessage String?  @map("error_message")
   checkedAt    DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
 
-  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
   @@index([serviceId, environment, checkedAt], name: "health_snapshots_service_env_checked_idx")
   @@map("health_snapshots")
   @@schema("apic_runtime")
@@ -411,9 +399,6 @@ model SmokeTestRun {
   responsePreview   String?  @map("response_preview")
   errorMessage      String?  @map("error_message")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  service      Service? @relation("SmokeTestService", fields: [serviceId], references: [id], onDelete: SetNull)
-  tribeService Service? @relation("SmokeTestTribe", fields: [tribeServiceId], references: [id], onDelete: SetNull)
 
   @@index([serviceId, environment, createdAt], name: "smoke_test_runs_service_env_created_idx")
   @@index([tribeServiceId, environment, createdAt], name: "smoke_test_runs_tribe_service_env_created_idx")
@@ -436,9 +421,6 @@ model UsageRollup {
   p95LatencyMs      Int?     @map("p95_latency_ms")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  consumerService Service? @relation("UsageConsumer", fields: [consumerServiceId], references: [id], onDelete: SetNull)
-  targetService   Service? @relation("UsageTarget", fields: [targetServiceId], references: [id], onDelete: SetNull)
 
   @@unique([environment, consumerServiceId, targetServiceId, routeFamily, windowStart, windowEnd], name: "usage_rollups_env_service_target_window_uidx")
   @@index([environment, windowStart], name: "usage_rollups_environment_window_idx")
