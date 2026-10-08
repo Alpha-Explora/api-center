@@ -12,6 +12,7 @@
     "dev": "npm run dev --workspace @apicenter/gateway",
     "lint": "turbo run lint",
     "lint:gateway": "eslint \"apps/gateway/src/**/*.ts\"",
+    "pretest": "npm run build --workspace @apicenter/contracts",
     "test": "jest",
     "test:all": "npm test -- --runInBand && npm run test:workspaces",
     "test:workspaces": "npm run test --workspace @alpha-explora/apicenter-sdk && npm run test --workspace @apicenter/management && npm run test --workspace @apicenter/docs",
