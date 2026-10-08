@@ -33,7 +33,6 @@ describe("AuthController (e2e)", () => {
 
   const registryService = {
     get: jest.fn(),
-    getEffectiveConsumesForTribe: jest.fn().mockReturnValue([]),
     getOwnedServices: jest.fn().mockReturnValue([]),
     getCallableServiceIds: jest.fn().mockReturnValue([]),
     validateEnvironmentSecret: jest.fn().mockResolvedValue(true),
@@ -95,9 +94,6 @@ describe("AuthController (e2e)", () => {
     jest.clearAllMocks();
     (registryService.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
       true,
-    );
-    (registryService.getEffectiveConsumesForTribe as jest.Mock).mockReturnValue(
-      [],
     );
     (registryService.getOwnedServices as jest.Mock).mockReturnValue([]);
     (registryService.getCallableServiceIds as jest.Mock).mockReturnValue([]);
