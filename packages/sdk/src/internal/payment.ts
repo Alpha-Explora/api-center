@@ -3,7 +3,7 @@ import type {
   CreateCheckoutInput, CreateCustomerInput, CreatePaymentIntentInput,
   CreateRefundInput, CreateSubscriptionInput, Customer, IdempotentRequestOptions, Invoice,
   PaymentCapabilities, PaymentIntent, PaymentResource, Refund, RequestOptions, Subscription,
-  TribeClientOptions,
+  PaymentsClientOptions,
 } from '../types';
 
 interface ApiEnvelope<T> { success: boolean; data?: T; error?: { code?: string; message?: string; details?: unknown }; }
@@ -16,16 +16,12 @@ export class ApiCenterError extends Error {
 export class PaymentsClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
-  private readonly tribeId: string;
-  private readonly environment: 'test' | 'live';
   private readonly fetchImpl: typeof fetch;
 
-  constructor(options: TribeClientOptions) {
-    if (!options.baseUrl.trim() || !options.apiKey.trim() || !options.tribeId.trim()) throw new TypeError('baseUrl, apiKey, and tribeId are required');
+  constructor(options: PaymentsClientOptions) {
+    if (!options.baseUrl.trim() || !options.apiKey.trim()) throw new TypeError('baseUrl and apiKey are required');
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.apiKey = options.apiKey;
-    this.tribeId = options.tribeId;
-    this.environment = options.environment ?? 'test';
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -56,8 +52,8 @@ export class PaymentsClient {
   }
   private async request<T>(path: string, request: { method: 'GET' | 'POST'; body?: unknown; options?: RequestOptions }): Promise<T> {
     const headers: Record<string, string> = {
-      Accept: 'application/json', Authorization: `Bearer ${this.apiKey}`, 'X-Tribe-ID': this.tribeId,
-      'X-APICenter-Environment': this.environment, ...(request.options?.headers ?? {}),
+      Accept: 'application/json', Authorization: `Bearer ${this.apiKey}`,
+      ...(request.options?.headers ?? {}),
     };
     if (request.body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await this.fetchImpl(`${this.baseUrl}/api/v1/payments${path}`, {

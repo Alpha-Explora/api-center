@@ -57,4 +57,22 @@ describe("EmergencyControlService", () => {
       }),
     ).toThrow(ValidationError);
   });
+
+  it("stops every call made by services of a paused project, and only that project", () => {
+    const controls = new EmergencyControlService();
+    controls.apply({
+      targetType: "project",
+      targetId: "campus-lms",
+      mode: "pause",
+      reason: "LMS incident",
+      appliedBy: "platform",
+    });
+
+    expect(
+      controls.evaluate({ ownerTribeId: "campus-one", projectId: "campus-lms", sourceServiceId: "lms-api", serviceId: "grades" }),
+    ).toEqual({ allowed: false, reason: "LMS incident", mode: "pause" });
+    expect(
+      controls.evaluate({ ownerTribeId: "campus-one", projectId: "campus-billing", sourceServiceId: "billing-api", serviceId: "grades" }),
+    ).toEqual({ allowed: true });
+  });
 });

@@ -2,6 +2,7 @@
   "serviceId": "logistics-service",
   "name": "Logistics Service",
   "baseUrl": "http://logistics-service:4000",
+  "projectId": "logistics-fulfilment",
   "requiredScopes": ["logistics:read"],
   "exposes": ["GET /shipments/:id"],
   "consumes": [],

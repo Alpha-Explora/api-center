@@ -19,6 +19,27 @@ import { LoggerService } from "@shared/logger.service";
 import { ForbiddenError, UnauthorizedError, ValidationError } from "@shared/errors";
 import { AuthenticatedRequest, ApicenterRuntimeEnvironment } from "../../../types";
 
+/** Who a service token speaks for. Resolved from the registry and tenancy, never from the request. */
+export interface ServiceTokenIdentity {
+  serviceId: string;
+  projectId: string;
+  tribeId: string;
+}
+
+/** What a refresh token claims to be; the caller re-checks it against the registry. */
+export interface RefreshSubject {
+  serviceId: string;
+  environment: ApicenterRuntimeEnvironment;
+  projectId: string;
+}
+
+/** The identity, permissions, and scopes a service holds right now. */
+export interface ServiceTokenGrant {
+  identity: ServiceTokenIdentity;
+  permissions: string[];
+  scopes: string[];
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -69,20 +90,22 @@ export class AuthService {
     return issued;
   }
 
-  async issueTribeToken(
-    tribeId: string,
+  /** Issue a token bound to one tribe service: sub = sourceServiceId = serviceId. */
+  async issueServiceToken(
+    identity: ServiceTokenIdentity,
     permissions: string[] = [],
     scopes: string[] = [],
-    context: TokenIssueContext,
+    environment: ApicenterRuntimeEnvironment,
   ): Promise<IssuedToken> {
-    if (!context?.environment) {
+    if (!environment) {
       throw new ValidationError("Token environment is required");
     }
 
-    return this.issueToken(tribeId, permissions, scopes, {
-      ...context,
-      tribeId,
-      sourceServiceId: context.sourceServiceId ?? tribeId,
+    return this.issueToken(identity.serviceId, permissions, scopes, {
+      tribeId: identity.tribeId,
+      projectId: identity.projectId,
+      sourceServiceId: identity.serviceId,
+      environment,
     });
   }
 
@@ -92,54 +115,55 @@ export class AuthService {
 
   /**
    * Exchange a refresh token for a new access token.
-   * Validates that the refresh token exists in the Redis store (not revoked).
+   *
+   * A refresh never replays the claims of the old token. The caller supplies `revalidate`, which looks the
+   * service up again (registry, project, tribe) and returns the identity and scopes that apply now, or
+   * throws when the service may no longer hold a token. Tokens without a stored project are refused, so
+   * tokens issued before the project hierarchy must be requested again.
    */
-  async refreshToken(refreshToken: string): Promise<IssuedToken> {
-    let claims: JwtClaims | undefined;
-    let jti: string | undefined;
-    let sub: string | undefined;
-    let storedRecord: RefreshTokenRecord | null = null;
-
+  async refreshToken(
+    refreshToken: string,
+    revalidate: (subject: RefreshSubject) => ServiceTokenGrant,
+  ): Promise<IssuedToken> {
+    let claims: JwtClaims;
     try {
       claims = await this.provider.validateToken(refreshToken);
-      jti = claims.jti as string | undefined;
-      sub = claims.sub;
     } catch {
-      // Provider-backed opaque refresh tokens cannot be pre-validated here;
-      // the selected provider's token endpoint will reject invalid tokens.
+      throw new UnauthorizedError("Refresh token is invalid or expired");
     }
 
-    if (jti) {
-      const valid = await this.tokenStore.isValid(jti);
-      if (!valid) {
-        throw new UnauthorizedError(
-          "Refresh token has been revoked or expired",
-        );
-      }
-
-      storedRecord = await this.tokenStore.get(jti);
-      if (!storedRecord) {
-        throw new UnauthorizedError("Refresh token metadata is unavailable");
-      }
+    const jti = typeof claims.jti === "string" ? claims.jti : undefined;
+    if (!jti) {
+      throw new UnauthorizedError("Refresh token cannot be verified; request a new token");
     }
-
-    const issued = await this.provider.refreshToken(refreshToken);
-
-    if (jti) {
-      await this.tokenStore.revoke(jti);
+    if (!(await this.tokenStore.isValid(jti))) {
+      throw new UnauthorizedError("Refresh token has been revoked or expired");
     }
-
-    if (issued.refreshToken && sub) {
-      await this.persistRefreshToken(
-        issued,
-        sub,
-        storedRecord?.permissions ?? claims?.permissions ?? [],
-        storedRecord?.scopes ?? claims?.scopes ?? [],
-        this.contextFromRefresh(storedRecord, claims, sub),
+    const storedRecord = await this.tokenStore.get(jti);
+    if (!storedRecord) {
+      throw new UnauthorizedError("Refresh token metadata is unavailable");
+    }
+    if (!storedRecord.projectId) {
+      throw new UnauthorizedError(
+        "Refresh token predates project placement; request a new token",
       );
     }
 
-    return issued;
+    const grant = revalidate({
+      serviceId: storedRecord.sourceServiceId ?? claims.sourceServiceId ?? claims.sub,
+      environment: storedRecord.environment,
+      projectId: storedRecord.projectId,
+    });
+
+    // Revoke before issuing so one refresh token never produces two live descendants.
+    await this.tokenStore.revoke(jti);
+
+    return this.issueServiceToken(
+      grant.identity,
+      grant.permissions,
+      grant.scopes,
+      storedRecord.environment,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -229,24 +253,9 @@ export class AuthService {
     serviceId: string,
     context: TokenIssueContext = {},
   ): TokenIssueContext {
-    const tribeId = context.tribeId ?? serviceId;
     return {
       ...context,
-      tribeId,
-      sourceServiceId: context.sourceServiceId ?? tribeId,
-    };
-  }
-
-  private contextFromRefresh(
-    record: RefreshTokenRecord | null,
-    claims: JwtClaims | undefined,
-    sub: string,
-  ): TokenIssueContext {
-    return {
-      tribeId: record?.tribeId ?? claims?.tribeId ?? sub,
-      sourceServiceId:
-        record?.sourceServiceId ?? claims?.sourceServiceId ?? claims?.tribeId ?? sub,
-      environment: record?.environment ?? claims?.environment,
+      sourceServiceId: context.sourceServiceId ?? serviceId,
     };
   }
 
@@ -280,13 +289,13 @@ export class AuthService {
 
     const now = Math.floor(Date.now() / 1000);
     const refreshExpiresIn = issued.refreshExpiresIn ?? issued.expiresIn * 24;
-    const tribeId = context.tribeId ?? sub;
 
     const record: RefreshTokenRecord = {
       jti,
       sub,
-      tribeId,
-      sourceServiceId: context.sourceServiceId ?? tribeId,
+      ...(context.tribeId ? { tribeId: context.tribeId } : {}),
+      ...(context.projectId ? { projectId: context.projectId } : {}),
+      sourceServiceId: context.sourceServiceId ?? sub,
       environment,
       issuedAt: now,
       expiresAt: now + refreshExpiresIn,

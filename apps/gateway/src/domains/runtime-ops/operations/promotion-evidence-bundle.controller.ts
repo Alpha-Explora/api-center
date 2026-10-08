@@ -24,14 +24,16 @@ export class PromotionEvidenceBundleController {
     @Query("format") format: string | undefined,
   ) {
     const entry = this.registry.get(serviceId);
-    const ownerTribeId = readOwnerTribeId(entry) ?? serviceId;
+    const ownerTribeId = readOwnerTribeId(entry);
+    const projectId = entry?.projectId;
     const [quotaPolicies, planAssignments, approvalRequests] =
       await Promise.all([
-        this.quotaPolicies.listPolicies(ownerTribeId),
-        this.plans.listPlanAssignments({
-          ownerTribeId,
-          status: "active",
-        }),
+        ownerTribeId
+          ? this.quotaPolicies.listPoliciesForPortal(ownerTribeId, projectId)
+          : Promise.resolve([]),
+        projectId
+          ? this.plans.listPlanAssignments({ projectId, status: "active" })
+          : Promise.resolve([]),
         this.approvals.listRequests(),
       ]);
 

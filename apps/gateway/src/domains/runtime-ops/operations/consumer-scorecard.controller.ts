@@ -39,13 +39,14 @@ export class ConsumerScorecardController {
     const latestSdkVersion =
       process.env.APICENTER_SDK_CONTRACT_VERSION ?? "1.2.1";
     const gatewayErrorRate = await this.getGatewayErrorRatePercent();
-    const services = Object.values(this.registry.getAll());
-    const ownerTribeIds = services.map(
-      (service) => service.ownerTribeId ?? service.serviceId,
+    const services = Object.values(this.registry.getAll()).filter(
+      (service): service is typeof service & { ownerTribeId: string } =>
+        Boolean(service.ownerTribeId),
     );
+    const ownerTribeIds = services.map((service) => service.ownerTribeId);
     const quotaUsageByOwner = await this.getQuotaUsageByOwner(ownerTribeIds);
     const data = services.map((service) => {
-      const ownerTribeId = service.ownerTribeId ?? service.serviceId;
+      const ownerTribeId = service.ownerTribeId;
       return this.scorecards.score({
         ownerTribeId,
         sdkVersion: readSdkVersion(service),

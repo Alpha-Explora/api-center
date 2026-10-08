@@ -53,12 +53,15 @@ export interface LifecycleEvidenceInput {
 export interface QuotaPolicyEvidence {
   id?: unknown;
   ownerTribeId?: unknown;
+  /** Null/absent = tribe-wide ceiling. */
+  projectId?: unknown;
   status?: unknown;
 }
 
 export interface PlanAssignmentEvidence {
   id?: unknown;
   ownerTribeId?: unknown;
+  projectId?: unknown;
   status?: unknown;
   environment?: unknown;
 }
@@ -306,9 +309,12 @@ function quotaStage(
     );
   }
 
+  // The service's own project budget, or its tribe's ceiling. A sibling project's budget does not count.
   const activePolicy = quotaPolicies.find(
     (policy) =>
-      policy.ownerTribeId === ownerTribeId && policy.status === "active",
+      policy.ownerTribeId === ownerTribeId &&
+      policy.status === "active" &&
+      (!readString(policy.projectId) || readString(policy.projectId) === service.projectId),
   );
 
   if (!activePolicy) {
@@ -385,12 +391,13 @@ function promotionStage(
       readString(request.status) === "approved" &&
       (!readString(request.targetId) ||
         readString(request.targetId) === service.serviceId ||
+        readString(request.targetId) === service.projectId ||
         readString(request.targetId) === ownerTribeId)
     );
   });
   const activePlan = input.planAssignments.find(
     (assignment) =>
-      readString(assignment.ownerTribeId) === ownerTribeId &&
+      readString(assignment.projectId) === service.projectId &&
       readString(assignment.status) === "active",
   );
 
@@ -473,7 +480,7 @@ function matchingPipelineRows(
 }
 
 function getOwnerTribeId(service: ServiceRegistryEntry) {
-  return service.ownerTribeId || service.serviceId;
+  return service.ownerTribeId ?? "";
 }
 
 function requiresEventExport(service: ServiceRegistryEntry) {

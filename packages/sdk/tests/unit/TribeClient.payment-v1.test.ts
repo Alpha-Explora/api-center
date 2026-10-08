@@ -19,7 +19,7 @@ describe('TribeClient payment v1', () => {
     const client = new TribeClient({
       baseUrl: 'https://api-center.example.test/',
       apiKey: 'ac_test_key',
-      tribeId: 'alphaci',
+      serviceToken: 'jwt_service_token',
       fetchImpl,
     });
 
@@ -39,7 +39,6 @@ describe('TribeClient payment v1', () => {
         method: 'POST',
         headers: expect.objectContaining({
           Authorization: 'Bearer ac_test_key',
-          'X-Tribe-ID': 'alphaci',
           'Idempotency-Key': 'idem_checkout_1',
         }),
         body: JSON.stringify({
@@ -56,7 +55,7 @@ describe('TribeClient payment v1', () => {
     const client = new TribeClient({
       baseUrl: 'https://api-center.example.test',
       apiKey: 'ac_test_key',
-      tribeId: 'alphaci',
+      serviceToken: 'jwt_service_token',
       fetchImpl,
     });
 
@@ -83,7 +82,7 @@ describe('TribeClient payment v1', () => {
       status: 202,
       json: async () => ({ success: true, data: { status: 'pending', resourceId: 'chk_v1_pending' } }),
     })) as unknown as typeof fetch;
-    const client = new TribeClient({ baseUrl: 'https://api-center.example.test', apiKey: 'ac_test_key', tribeId: 'alphaci', fetchImpl: pendingFetch });
+    const client = new TribeClient({ baseUrl: 'https://api-center.example.test', apiKey: 'ac_test_key', serviceToken: 'jwt_service_token', fetchImpl: pendingFetch });
     await expect(client.payments.createCheckout({
       referenceId: 'ACI-PENDING',
       amount: { amountMinor: 1000, currency: 'PHP' },

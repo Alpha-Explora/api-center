@@ -17,6 +17,13 @@ describe("ConsumerScorecardController", () => {
         },
         logistics: {
           serviceId: "logistics",
+          ownerTribeId: "logistics",
+          projectId: "logistics-default",
+          status: "active",
+        },
+        email: {
+          serviceId: "email",
+          serviceType: "shared",
           status: "active",
         },
       }),

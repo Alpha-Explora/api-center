@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
-import { ConflictError, NotFoundError } from "@shared/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@shared/errors";
 import { isPlatformCapability } from "@shared/platform-capabilities";
-import { isOwnerTribeIdRequiredForManifest } from "@shared/service-manifest-governance";
 import { ServiceManifest } from "../../../types";
 import { RegistryService } from "./registry.service";
+import { TenancyService } from "./tenancy.service";
 
 type RegistrationRequestStatus =
   | "pending"
@@ -15,7 +15,8 @@ type RegistrationRequestStatus =
 type RegistrationRequestRow = {
   id: string;
   serviceId: string;
-  ownerTribeId: string;
+  ownerTribeId: string | null;
+  projectId: string | null;
   status: string;
   manifest: unknown;
   validationReport: unknown;
@@ -45,7 +46,9 @@ export type RegistrationValidationReport = {
 export type ServiceRegistrationRequest = {
   id: string;
   serviceId: string;
-  ownerTribeId: string;
+  /** Derived from projectId; null for shared services. */
+  ownerTribeId: string | null;
+  projectId: string | null;
   status: string;
   manifest: ServiceManifest;
   validationReport: RegistrationValidationReport;
@@ -65,6 +68,7 @@ export class RegistrationRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: RegistryService,
+    private readonly tenancy: TenancyService,
   ) {}
 
   async createRequest(input: {
@@ -72,12 +76,14 @@ export class RegistrationRequestsService {
     requestedBy?: string;
   }): Promise<ServiceRegistrationRequest> {
     const manifest = normalizeManifest(input.manifest);
-    const ownerTribeId = resolveOwnerTribeId(manifest);
-    const validationReport = this.buildValidationReport(manifest, ownerTribeId);
+    await this.tenancy.refreshIfMissing(manifest.projectId);
+    const placement = this.resolveRequestPlacement(manifest);
+    const validationReport = this.buildValidationReport(manifest);
     const row = await this.prisma.registryChangeRequest.create({
       data: {
         serviceId: manifest.serviceId,
-        ownerTribeId,
+        ownerTribeId: placement?.tribeId ?? null,
+        projectId: placement?.projectId ?? null,
         status: "pending",
         manifest: manifest as any,
         validationReport: validationReport as any,
@@ -110,10 +116,9 @@ export class RegistrationRequestsService {
       );
     }
 
-    const validationReport = this.buildValidationReport(
-      request.manifest,
-      request.ownerTribeId,
-    );
+    const manifest = normalizeManifest(request.manifest);
+    await this.tenancy.refreshIfMissing(manifest.projectId);
+    const validationReport = this.buildValidationReport(manifest);
 
     if (!validationReport.canApply) {
       await this.prisma.registryChangeRequest.update({
@@ -131,7 +136,7 @@ export class RegistrationRequestsService {
       );
     }
 
-    const entry = await this.registry.register(request.manifest);
+    const entry = await this.registry.register(manifest);
     const row = await this.prisma.registryChangeRequest.update({
       where: { id: requestId },
       data: {
@@ -188,33 +193,52 @@ export class RegistrationRequestsService {
     return mapRow(row);
   }
 
-  private buildValidationReport(
+  /** Tribe services must target a registered project; shared services have no placement. */
+  private resolveRequestPlacement(
     manifest: ServiceManifest,
-    ownerTribeId: string,
-  ): RegistrationValidationReport {
+  ): { projectId: string; tribeId: string } | null {
+    if ((manifest.serviceType ?? "tribe") === "shared") return null;
+    if (!manifest.projectId) {
+      throw new ValidationError("projectId is required for tribe services");
+    }
+    const placement = this.tenancy.resolveProject(manifest.projectId);
+    if (!placement) {
+      throw new ValidationError(`Project '${manifest.projectId}' is not registered`);
+    }
+    return { projectId: placement.project.projectId, tribeId: placement.tribe.tribeId };
+  }
+
+  private buildValidationReport(manifest: ServiceManifest): RegistrationValidationReport {
     const registry = this.registry.getAll();
     const issues: RegistrationPlanIssue[] = [];
 
-    if (isOwnerTribeIdRequiredForManifest(manifest)) {
-      issues.push({
-        severity: "blocking",
-        code: "owner-tribe-required",
-        serviceId: manifest.serviceId,
-        message: `ownerTribeId is required before '${manifest.serviceId}' can be registered as a tribe microservice.`,
-      });
-    }
-
-    if (
-      (manifest.serviceType ?? "tribe") !== "shared" &&
-      ownerTribeId !== manifest.serviceId
-    ) {
-      const owner = registry[ownerTribeId];
-      if (!owner || (owner.serviceType ?? "tribe") !== "tribe") {
+    if ((manifest.serviceType ?? "tribe") !== "shared") {
+      const placement = manifest.projectId
+        ? this.tenancy.resolveProject(manifest.projectId)
+        : null;
+      if (!placement) {
         issues.push({
           severity: "blocking",
-          code: "owner-tribe-missing",
+          code: "project-missing",
           serviceId: manifest.serviceId,
-          message: `Owner tribe '${ownerTribeId}' must exist before '${manifest.serviceId}' can be registered.`,
+          message: `Project '${manifest.projectId ?? ""}' must exist before '${manifest.serviceId}' can be registered.`,
+        });
+      } else if (placement.tribe.status !== "active" || placement.project.status !== "active") {
+        issues.push({
+          severity: "blocking",
+          code: "project-inactive",
+          serviceId: manifest.serviceId,
+          message: `Project '${placement.project.projectId}' (${placement.project.status}) in tribe '${placement.tribe.tribeId}' (${placement.tribe.status}) must be active.`,
+        });
+      }
+
+      const existing = registry[manifest.serviceId];
+      if (existing?.projectId && existing.projectId !== manifest.projectId) {
+        issues.push({
+          severity: "blocking",
+          code: "project-change",
+          serviceId: manifest.serviceId,
+          message: `'${manifest.serviceId}' belongs to project '${existing.projectId}'; services cannot move between projects.`,
         });
       }
     }
@@ -242,19 +266,14 @@ export class RegistrationRequestsService {
 }
 
 function normalizeManifest(manifest: ServiceManifest): ServiceManifest {
-  return {
+  const normalized: ServiceManifest & { ownerTribeId?: unknown } = {
     ...manifest,
     consumes: manifest.consumes ?? [],
     serviceType: manifest.serviceType ?? "tribe",
   };
-}
-
-function resolveOwnerTribeId(manifest: ServiceManifest): string {
-  if ((manifest.serviceType ?? "tribe") === "shared") {
-    return manifest.ownerTribeId ?? manifest.serviceId;
-  }
-
-  return manifest.ownerTribeId ?? manifest.serviceId;
+  // Shared platform services have no tribe. Requests stored before the hierarchy may still carry one.
+  if (normalized.serviceType === "shared") delete normalized.ownerTribeId;
+  return normalized;
 }
 
 function mapRow(row: RegistrationRequestRow): ServiceRegistrationRequest {
@@ -262,6 +281,7 @@ function mapRow(row: RegistrationRequestRow): ServiceRegistrationRequest {
     id: row.id,
     serviceId: row.serviceId,
     ownerTribeId: row.ownerTribeId,
+    projectId: row.projectId,
     status: row.status as RegistrationRequestStatus,
     manifest: parseJsonField<ServiceManifest>(row.manifest),
     validationReport: parseJsonField<RegistrationValidationReport>(

@@ -125,6 +125,9 @@ export class ConfigService implements OnApplicationBootstrap {
     allowInProduction:
       process.env.REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION === "true",
     manifestPaths: this.parseRegistryBootstrapManifestPaths(),
+    /** Tribes and projects seeded before manifests; missing file means no tenancy seed. */
+    tenancySeedPath:
+      process.env.REGISTRY_BOOTSTRAP_TENANCY?.trim() || "examples/tenancy-seed.json",
   };
   readonly environmentContract = {
     mode: "enforce",

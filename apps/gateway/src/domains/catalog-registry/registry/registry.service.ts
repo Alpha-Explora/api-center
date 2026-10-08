@@ -39,8 +39,10 @@ import {
   ConflictError,
   ValidationError,
 } from "@shared/errors";
-import { TribeSecretResolverService } from "./tribe-secret-resolver.service";
+import { ServiceSecretResolverService } from "./service-secret-resolver.service";
 import { PostgresRegistryStoreService } from "./postgres-registry-store.service";
+import { TenancyService } from "./tenancy.service";
+import type { ProjectPlacement } from "./tenancy.types";
 import { normalizeServiceEnvironments } from "./environment-resolver";
 import {
   createRegistryEntry,
@@ -56,6 +58,7 @@ const REDIS_WRITE_TIMEOUT_MS = 2_000;
 export class RegistryService implements OnModuleInit, OnModuleDestroy {
   private readonly services: ServiceRegistryMap = {};
   private readonly servicesByOwnerTribeId = new Map<string, Set<string>>();
+  private readonly servicesByProjectId = new Map<string, Set<string>>();
   private readonly consumersByTargetServiceId = new Map<string, Set<string>>();
   private redis: Redis | null = null;
   private readonly cacheInvalidationListeners = new Set<
@@ -66,7 +69,8 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     private readonly logger: LoggerService,
     private readonly config: ConfigService,
     private readonly metrics: MetricsService,
-    private readonly tribeSecretResolver: TribeSecretResolverService,
+    private readonly serviceSecretResolver: ServiceSecretResolverService,
+    private readonly tenancy: TenancyService,
     @Optional()
     private readonly postgresStore?: PostgresRegistryStoreService,
   ) {}
@@ -167,7 +171,10 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     const existing = this.services[manifest.serviceId];
     const previousEntry = existing ? { ...existing } : null;
 
-    this.validateOwnerTribeRegistration(manifest);
+    if ((manifest.serviceType ?? "tribe") !== "shared") {
+      await this.tenancy.refreshIfMissing(manifest.projectId);
+    }
+    const placement = this.resolvePlacement(manifest, existing);
 
     // ── Version governance ─────────────────────────────────────────────────
     let previousVersion: string | undefined;
@@ -187,6 +194,7 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       existing,
       now,
       previousVersion,
+      ownerTribeId: placement?.tribe.tribeId,
     });
 
     this.services[manifest.serviceId] = entry;
@@ -213,6 +221,8 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.info("Service registered", {
       serviceId: manifest.serviceId,
+      projectId: entry.projectId,
+      ownerTribeId: entry.ownerTribeId,
       name: manifest.name,
       baseUrl: manifest.baseUrl,
       exposes: manifest.exposes,
@@ -228,18 +238,35 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     return entry;
   }
 
-  private validateOwnerTribeRegistration(manifest: ServiceManifest): void {
-    if ((manifest.serviceType ?? "tribe") === "shared") return;
+  /**
+   * Tribe services must name an active project; their tribe is derived from it.
+   * A registered service never changes project: moving it means registering a new service.
+   * Shared platform services have no project.
+   */
+  private resolvePlacement(
+    manifest: ServiceManifest,
+    existing: ServiceRegistryEntry | undefined,
+  ): ProjectPlacement | null {
+    if ((manifest.serviceType ?? "tribe") === "shared") {
+      const hasSuppliedOwner = Object.prototype.hasOwnProperty.call(
+        manifest,
+        "ownerTribeId",
+      );
+      if (manifest.projectId || hasSuppliedOwner) {
+        throw new ValidationError(
+          `Shared service '${manifest.serviceId}' cannot have tribe or project placement`,
+        );
+      }
+      return null;
+    }
 
-    const ownerTribeId = manifest.ownerTribeId ?? manifest.serviceId;
-    if (ownerTribeId === manifest.serviceId) return;
-
-    const owner = this.services[ownerTribeId];
-    if (!owner || (owner.serviceType ?? "tribe") !== "tribe") {
-      throw new ValidationError(
-        `Owner tribe '${ownerTribeId}' must be registered before service '${manifest.serviceId}' can be registered`,
+    const placement = this.tenancy.requireActiveProject(manifest.projectId);
+    if (existing?.projectId && existing.projectId !== placement.project.projectId) {
+      throw new ConflictError(
+        `Service '${manifest.serviceId}' belongs to project '${existing.projectId}' and cannot move to '${placement.project.projectId}'`,
       );
     }
+    return placement;
   }
 
   /**
@@ -450,26 +477,38 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // -------------------------------------------------------------------------
 
   getEffectiveOwnerTribeId(serviceId: string): string | undefined {
-    const service = this.services[serviceId];
-    if (!service) return undefined;
-    if ((service.serviceType ?? "tribe") === "shared") {
-      return service.ownerTribeId;
-    }
-
-    return service.ownerTribeId ?? service.serviceId;
+    return this.services[serviceId]?.ownerTribeId;
   }
 
+  /** Every tribe service owned by a tribe, across all of its projects. */
   getOwnedServices(tribeId: string): ServiceRegistryEntry[] {
-    return [...(this.servicesByOwnerTribeId.get(tribeId) ?? [])]
-      .map((serviceId) => this.services[serviceId])
-      .filter((service): service is ServiceRegistryEntry => Boolean(service));
+    return this.entriesFor(this.servicesByOwnerTribeId.get(tribeId));
   }
 
-  getDeveloperPortalServices(tribeId: string) {
+  /** Tribe services that belong to one project. */
+  getProjectServices(projectId: string): ServiceRegistryEntry[] {
+    return this.entriesFor(this.servicesByProjectId.get(projectId));
+  }
+
+  /**
+   * Services a caller may reach: every tribe service in its own project, plus whatever it lists in
+   * consumes. There is no tribe-wide union, so sibling projects need an explicit consumes grant.
+   */
+  getCallableServiceIds(serviceId: string): string[] {
+    const source = this.services[serviceId];
+    if (!source) return [];
+    const siblings = source.projectId
+      ? this.getProjectServices(source.projectId).map((service) => service.serviceId)
+      : [];
+    return [...new Set([...siblings, ...(source.consumes ?? [])])];
+  }
+
+  getDeveloperPortalServices(serviceId: string) {
     const safeService = (service: ServiceRegistryEntry) => ({
       serviceId: service.serviceId,
       name: service.name,
       serviceType: service.serviceType ?? "tribe",
+      projectId: service.projectId ?? null,
       routes: service.exposes ?? [],
       scopes: service.requiredScopes ?? [],
       status: service.status,
@@ -478,44 +517,49 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
       serviceTier: service.serviceTier,
       contact: service.contact,
     });
-    const allowedServiceIds = this.getEffectiveConsumesForTribe(tribeId);
+    const source = this.services[serviceId];
 
     return {
-      ownedServices: this.getOwnedServices(tribeId).map(safeService),
-      allowedServices: allowedServiceIds
+      serviceId,
+      projectId: source?.projectId ?? null,
+      tribeId: source?.ownerTribeId ?? null,
+      ownedServices: source?.projectId
+        ? this.getProjectServices(source.projectId).map(safeService)
+        : [],
+      allowedServices: (source?.consumes ?? [])
         .map((serviceId) => this.services[serviceId])
         .filter((service): service is ServiceRegistryEntry => Boolean(service))
         .map(safeService),
     };
   }
 
-  getEffectiveConsumesForTribe(tribeId: string): string[] {
-    const direct = this.services[tribeId]?.consumes ?? [];
-    const owned = this.getOwnedServices(tribeId).flatMap(
-      (service) => service.consumes ?? [],
-    );
-
-    return [...new Set([...direct, ...owned])];
-  }
-
-  canAccess(sourceTribeId: string, targetServiceId: string): boolean {
+  /**
+   * Whether one service may call another.
+   *  - a tribe target in the caller's own project: allowed;
+   *  - a target the caller lists in consumes: allowed;
+   *  - anything else, including other projects of the same tribe: denied.
+   */
+  canAccess(sourceServiceId: string, targetServiceId: string): boolean {
+    const source = this.services[sourceServiceId];
     const target = this.services[targetServiceId];
-    if (!target) return false;
+    if (!source || !target) return false;
 
-    if ((target.serviceType ?? "tribe") === "tribe") {
-      const targetOwner = target.ownerTribeId ?? target.serviceId;
-      if (targetOwner === sourceTribeId) return true;
+    if (
+      (target.serviceType ?? "tribe") === "tribe" &&
+      source.projectId !== undefined &&
+      target.projectId === source.projectId
+    ) {
+      return true;
     }
 
-    return this.canConsume(sourceTribeId, targetServiceId);
+    return (source.consumes ?? []).includes(targetServiceId);
   }
 
-  canConsume(sourceServiceId: string, targetServiceId: string): boolean {
-    const source = this.services[sourceServiceId];
-    if (source?.consumes.includes(targetServiceId)) return true;
-    return this.getEffectiveConsumesForTribe(sourceServiceId).includes(
-      targetServiceId,
-    );
+  private entriesFor(ids: Set<string> | undefined): ServiceRegistryEntry[] {
+    return [...(ids ?? [])]
+      .map((serviceId) => this.services[serviceId])
+      .filter((service): service is ServiceRegistryEntry => Boolean(service))
+      .sort((a, b) => a.serviceId.localeCompare(b.serviceId));
   }
 
   getRequiredScopes(targetServiceId: string): string[] {
@@ -557,24 +601,16 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   // Secret validation
   // -------------------------------------------------------------------------
 
-  async validateSecret(serviceId: string, secret: string): Promise<boolean> {
-    return this.validateLegacySecret(serviceId, secret);
-  }
-
   async validateEnvironmentSecret(
-    tribeId: string,
+    serviceId: string,
     secret: string,
     environment: ApicenterRuntimeEnvironment,
   ): Promise<boolean> {
-    return this.tribeSecretResolver.validateEnvironmentSecret(
-      tribeId,
+    return this.serviceSecretResolver.validateEnvironmentSecret(
+      serviceId,
       secret,
       environment,
     );
-  }
-
-  async validateLegacySecret(tribeId: string, secret: string): Promise<boolean> {
-    return this.tribeSecretResolver.validateLegacySecret(tribeId, secret);
   }
 
   // -------------------------------------------------------------------------
@@ -684,12 +720,12 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
     }
 
     if ((entry.serviceType ?? "tribe") === "tribe") {
-      const ownerTribeId = entry.ownerTribeId ?? entry.serviceId;
-      this.addIndexedValue(
-        this.servicesByOwnerTribeId,
-        ownerTribeId,
-        entry.serviceId,
-      );
+      if (entry.ownerTribeId) {
+        this.addIndexedValue(this.servicesByOwnerTribeId, entry.ownerTribeId, entry.serviceId);
+      }
+      if (entry.projectId) {
+        this.addIndexedValue(this.servicesByProjectId, entry.projectId, entry.serviceId);
+      }
     }
 
     for (const targetServiceId of entry.consumes ?? []) {
@@ -702,12 +738,12 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
   }
 
   private removeServiceFromIndexes(entry: ServiceRegistryEntry): void {
-    const ownerTribeId = entry.ownerTribeId ?? entry.serviceId;
-    this.removeIndexedValue(
-      this.servicesByOwnerTribeId,
-      ownerTribeId,
-      entry.serviceId,
-    );
+    if (entry.ownerTribeId) {
+      this.removeIndexedValue(this.servicesByOwnerTribeId, entry.ownerTribeId, entry.serviceId);
+    }
+    if (entry.projectId) {
+      this.removeIndexedValue(this.servicesByProjectId, entry.projectId, entry.serviceId);
+    }
 
     for (const targetServiceId of entry.consumes ?? []) {
       this.removeIndexedValue(
@@ -743,10 +779,22 @@ export class RegistryService implements OnModuleInit, OnModuleDestroy {
 
   private rebuildRegistryIndexes(): void {
     this.servicesByOwnerTribeId.clear();
+    this.servicesByProjectId.clear();
     this.consumersByTargetServiceId.clear();
 
     for (const entry of Object.values(this.services)) {
       this.reindexService(entry);
+    }
+
+    const unplaced = Object.values(this.services).filter(
+      (entry) => (entry.serviceType ?? "tribe") === "tribe" && !entry.projectId,
+    );
+    if (unplaced.length > 0) {
+      this.logger.error(
+        `Registry holds ${unplaced.length} tribe service(s) without a project; run scripts/migrate-tenancy-hierarchy.ts: ${unplaced.map((entry) => entry.serviceId).join(", ")}`,
+        undefined,
+        "RegistryService",
+      );
     }
   }
 

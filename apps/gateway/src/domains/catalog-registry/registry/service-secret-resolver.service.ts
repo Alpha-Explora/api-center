@@ -1,3 +1,12 @@
+// =============================================================================
+// Service credential resolver.
+// =============================================================================
+// Each tribe service has its own secret per environment, stored in Secret Manager as
+// `<prefix><serviceId>-<environment>` (default prefix api-center-service-secret-). The JSON payload must
+// name the same serviceId and environment and holds SHA-256 hashes only (current, next, previous during
+// rotation). A token is therefore bound to one service; it cannot be minted for a sibling service.
+// =============================================================================
+
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import crypto from "node:crypto";
@@ -16,8 +25,8 @@ type CachedSecret = {
   expiresAt: number;
 };
 
-type TribeSecretPayload = {
-  tribeId?: unknown;
+type ServiceSecretPayload = {
+  serviceId?: unknown;
   environment?: unknown;
   secretHashSha256?: unknown;
   nextSecretHashSha256?: unknown;
@@ -32,19 +41,19 @@ type TribeSecretPayload = {
 
 const SHA_256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
 const DEFAULT_CACHE_TTL_SECONDS = 300;
-export const TRIBE_SECRET_MANAGER_CLIENT = Symbol(
-  "TRIBE_SECRET_MANAGER_CLIENT",
+export const SERVICE_SECRET_MANAGER_CLIENT = Symbol(
+  "SERVICE_SECRET_MANAGER_CLIENT",
 );
 
 @Injectable()
-export class TribeSecretResolverService {
+export class ServiceSecretResolverService {
   private readonly cache = new Map<string, CachedSecret>();
   private secretManagerClient: SecretManagerClientLike | null;
 
   constructor(
     private readonly logger: LoggerService,
     @Optional()
-    @Inject(TRIBE_SECRET_MANAGER_CLIENT)
+    @Inject(SERVICE_SECRET_MANAGER_CLIENT)
     secretManagerClient?: SecretManagerClientLike,
     @Optional()
     private readonly rotationService: TribeSecretRotationService = new TribeSecretRotationService(),
@@ -52,57 +61,38 @@ export class TribeSecretResolverService {
     this.secretManagerClient = secretManagerClient ?? null;
   }
 
-  async validateSecret(
-    _serviceId: string,
-    _plaintextSecret: string,
-  ): Promise<boolean> {
-    return this.validateLegacySecret(_serviceId, _plaintextSecret);
-  }
-
-  async validateLegacySecret(
-    _serviceId: string,
-    _plaintextSecret: string,
-  ): Promise<boolean> {
-    throw new Error("Legacy tribe secret validation has been removed");
-  }
-
   async validateEnvironmentSecret(
-    tribeId: string,
+    serviceId: string,
     plaintextSecret: string,
     environment: ApicenterRuntimeEnvironment,
   ): Promise<boolean> {
     const expectedHashes = await this.resolveEnvironmentSecretHashes(
-      tribeId,
+      serviceId,
       environment,
     );
     return this.matchesSecretHashes(plaintextSecret, expectedHashes);
   }
 
-  async resolveSecretHash(serviceId: string): Promise<string | null> {
-    void serviceId;
-    throw new Error("Legacy tribe secret validation has been removed");
-  }
-
   async resolveEnvironmentSecretHash(
-    tribeId: string,
+    serviceId: string,
     environment: ApicenterRuntimeEnvironment,
   ): Promise<string | null> {
     const hashes = await this.resolveEnvironmentSecretHashes(
-      tribeId,
+      serviceId,
       environment,
     );
     return hashes[0] ?? null;
   }
 
   private async resolveEnvironmentSecretHashes(
-    tribeId: string,
+    serviceId: string,
     environment: ApicenterRuntimeEnvironment,
   ): Promise<string[]> {
-    const normalizedTribeId = this.normalizeServiceId(tribeId);
-    if (!normalizedTribeId) {
+    const normalizedServiceId = this.normalizeServiceId(serviceId);
+    if (!normalizedServiceId) {
       this.logger.warn(
-        `Tribe secret lookup rejected invalid tribeId '${tribeId}'`,
-        "TribeSecretResolverService",
+        `Service secret lookup rejected invalid serviceId '${serviceId}'`,
+        "ServiceSecretResolverService",
       );
       return [];
     }
@@ -111,14 +101,14 @@ export class TribeSecretResolverService {
       return [];
     }
 
-    const cacheKey = `environment:${normalizedTribeId}:${environment}`;
+    const cacheKey = `environment:${normalizedServiceId}:${environment}`;
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.hashes;
     }
 
     const resolvedHashes = await this.getGcpEnvironmentSecretHashes(
-      normalizedTribeId,
+      normalizedServiceId,
       environment,
     );
     if (resolvedHashes.length === 0) return [];
@@ -148,23 +138,23 @@ export class TribeSecretResolverService {
   }
 
   private async getGcpEnvironmentSecretHashes(
-    tribeId: string,
+    serviceId: string,
     environment: ApicenterRuntimeEnvironment,
   ): Promise<string[]> {
     const projectId = this.getProjectId();
     if (!projectId) return [];
 
-    const secretName = buildEnvironmentSecretId(tribeId, environment);
+    const secretName = buildEnvironmentSecretId(serviceId, environment);
     const resourceName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
 
     try {
       const raw = await this.readSecretPayload(resourceName, secretName);
       if (!raw) return [];
-      return this.parseEnvironmentPayload(tribeId, environment, secretName, raw);
+      return this.parseEnvironmentPayload(serviceId, environment, secretName, raw);
     } catch (error) {
       this.logger.warn(
-        `Tribe Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
-        "TribeSecretResolverService",
+        `Service Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
+        "ServiceSecretResolverService",
       );
       return [];
     }
@@ -178,8 +168,8 @@ export class TribeSecretResolverService {
 
     if (!projectId) {
       this.logger.warn(
-        "Tribe Secret Manager lookup skipped - set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT",
-        "TribeSecretResolverService",
+        "Service Secret Manager lookup skipped - set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT",
+        "ServiceSecretResolverService",
       );
       return null;
     }
@@ -197,8 +187,8 @@ export class TribeSecretResolverService {
     const rawPayload = response.payload?.data;
     if (!rawPayload) {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' returned an empty payload`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' returned an empty payload`,
+        "ServiceSecretResolverService",
       );
       return null;
     }
@@ -209,7 +199,7 @@ export class TribeSecretResolverService {
   }
 
   private parseEnvironmentPayload(
-    tribeId: string,
+    serviceId: string,
     environment: ApicenterRuntimeEnvironment,
     secretName: string,
     rawPayload: string,
@@ -218,29 +208,29 @@ export class TribeSecretResolverService {
     const parsed = this.parseJsonPayload(secretName, normalizedPayload);
     if (!parsed) return [];
 
-    const payloadTribeId =
-      typeof parsed.tribeId === "string"
-        ? this.normalizeServiceId(parsed.tribeId)
+    const payloadServiceId =
+      typeof parsed.serviceId === "string"
+        ? this.normalizeServiceId(parsed.serviceId)
         : null;
-    if (!payloadTribeId) {
+    if (!payloadServiceId) {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' tribeId is missing or malformed`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' serviceId is missing or malformed`,
+        "ServiceSecretResolverService",
       );
       return [];
     }
-    if (payloadTribeId !== tribeId) {
+    if (payloadServiceId !== serviceId) {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' tribeId '${payloadTribeId}' does not match '${tribeId}'`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' serviceId '${payloadServiceId}' does not match '${serviceId}'`,
+        "ServiceSecretResolverService",
       );
       return [];
     }
 
     if (parsed.environment !== environment) {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' environment '${String(parsed.environment)}' does not match '${environment}'`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' environment '${String(parsed.environment)}' does not match '${environment}'`,
+        "ServiceSecretResolverService",
       );
       return [];
     }
@@ -251,26 +241,26 @@ export class TribeSecretResolverService {
   private parseJsonPayload(
     secretName: string,
     normalizedPayload: string,
-  ): TribeSecretPayload | null {
+  ): ServiceSecretPayload | null {
     try {
-      return JSON.parse(normalizedPayload) as TribeSecretPayload;
+      return JSON.parse(normalizedPayload) as ServiceSecretPayload;
     } catch {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' payload is not JSON or a raw SHA-256 hash`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' payload is not JSON or a raw SHA-256 hash`,
+        "ServiceSecretResolverService",
       );
       return null;
     }
   }
 
   private extractAcceptedHashes(
-    parsed: TribeSecretPayload,
+    parsed: ServiceSecretPayload,
     secretName: string,
   ): string[] {
     if (parsed.status && parsed.status !== "active") {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' is inactive`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' is inactive`,
+        "ServiceSecretResolverService",
       );
       return [];
     }
@@ -278,8 +268,8 @@ export class TribeSecretResolverService {
     const acceptedHashes = this.rotationService.getAcceptedSecretHashes(parsed);
     if (acceptedHashes.length === 0) {
       this.logger.warn(
-        `Tribe Secret Manager secret '${secretName}' secretHashSha256 is malformed`,
-        "TribeSecretResolverService",
+        `Service Secret Manager secret '${secretName}' secretHashSha256 is malformed`,
+        "ServiceSecretResolverService",
       );
       return [];
     }

@@ -22,7 +22,8 @@ import type { ApicenterRuntimeEnvironment } from "../../../types";
 export interface RefreshTokenRecord {
   jti: string;
   sub: string;
-  tribeId: string;
+  tribeId?: string;
+  projectId?: string;
   sourceServiceId: string;
   environment: ApicenterRuntimeEnvironment;
   issuedAt: number;

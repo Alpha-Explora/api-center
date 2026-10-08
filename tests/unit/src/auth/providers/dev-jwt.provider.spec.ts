@@ -96,17 +96,18 @@ describe("DevJwtProvider", () => {
     await provider.onModuleInit();
 
     const issued = await provider.issueToken(
-      "smoke-tribe",
-      ["tribe:smoke-tribe:read"],
+      "smoke-api",
+      ["service:smoke-api:read"],
       ["geo:read"],
-      { environment: "test", sourceServiceId: "smoke-api" },
+      { environment: "test", tribeId: "smoke-tribe", projectId: "smoke-core" },
     );
 
     const issuedClaims = await provider.validateToken(issued.accessToken);
     expect(issuedClaims).toEqual(
       expect.objectContaining({
-        sub: "smoke-tribe",
+        sub: "smoke-api",
         tribeId: "smoke-tribe",
+        projectId: "smoke-core",
         sourceServiceId: "smoke-api",
         environment: "test",
       }),
@@ -116,13 +117,14 @@ describe("DevJwtProvider", () => {
     const refreshedClaims = await provider.validateToken(refreshed.accessToken);
     expect(refreshedClaims).toEqual(
       expect.objectContaining({
-        sub: "smoke-tribe",
+        sub: "smoke-api",
         tribeId: "smoke-tribe",
+        projectId: "smoke-core",
         sourceServiceId: "smoke-api",
         environment: "test",
       }),
     );
-    expect(refreshedClaims.permissions).toContain("tribe:smoke-tribe:read");
+    expect(refreshedClaims.permissions).toContain("service:smoke-api:read");
     expect(refreshedClaims.scopes).toContain("geo:read");
   });
 });

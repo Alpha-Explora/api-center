@@ -2,17 +2,19 @@ import { NotFoundException } from "@nestjs/common";
 import { AuthController } from "../../../../apps/gateway/src/domains/auth-security/auth/auth.controller";
 import { AuthService } from "../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import type { TenancyDirectory } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import {
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
+  ValidationError,
 } from "../../../../apps/gateway/src/shared/errors";
 import { AuthenticatedRequest } from "../../../../apps/gateway/src/types";
 
 const mockAuth: Partial<AuthService> = {
-  issueTribeToken: jest.fn(),
+  issueServiceToken: jest.fn(),
   refreshToken: jest.fn(),
   getJwksJson: jest.fn(),
 };
@@ -20,9 +22,31 @@ const mockAuth: Partial<AuthService> = {
 const mockRegistry: Partial<RegistryService> = {
   get: jest.fn(),
   validateEnvironmentSecret: jest.fn(),
-  validateLegacySecret: jest.fn(),
-  getOwnedServices: jest.fn(),
-  getEffectiveConsumesForTribe: jest.fn(),
+  getCallableServiceIds: jest.fn(),
+};
+
+const placements: Record<string, { tribeId: string; status?: string; tribeStatus?: string }> = {
+  "orders-core": { tribeId: "commerce" },
+  "billing-core": { tribeId: "commerce" },
+  "paused-project": { tribeId: "commerce", status: "suspended" },
+};
+
+const mockTenancy: TenancyDirectory = {
+  getTribe: jest.fn(),
+  resolveProject: jest.fn(),
+  resolveServicePlacement: jest.fn(),
+  requireActiveProject: jest.fn((projectId?: string) => {
+    const placement = projectId ? placements[projectId] : undefined;
+    if (!projectId) throw new ValidationError("projectId is required for tribe services");
+    if (!placement) throw new ValidationError(`Project '${projectId}' is not registered`);
+    if (placement.status && placement.status !== "active") {
+      throw new ValidationError(`Project '${projectId}' is ${placement.status}`);
+    }
+    return {
+      tribe: { tribeId: placement.tribeId, name: placement.tribeId, status: "active", createdAt: "", updatedAt: "" },
+      project: { projectId, tribeId: placement.tribeId, name: projectId, status: "active", createdAt: "", updatedAt: "" },
+    } as never;
+  }),
 };
 
 const mockLogger: Partial<LoggerService> = {
@@ -46,39 +70,57 @@ function fakeReq(
 
 const activeTestEnvironment = {
   environment: "test" as const,
-  baseUrl: "https://svc-alpha.test",
+  baseUrl: "https://orders-api.test",
   status: "active" as const,
 };
 
-function activeService(serviceId = "svc-alpha") {
+function tribeService(serviceId: string, projectId: string, extra: Record<string, unknown> = {}) {
   return {
     serviceId,
-    ownerTribeId: serviceId,
-    requiredScopes: ["read"],
+    serviceType: "tribe",
+    projectId,
+    ownerTribeId: placements[projectId]?.tribeId,
+    requiredScopes: [`${serviceId}:read`],
     consumes: [],
     environments: [activeTestEnvironment],
+    ...extra,
   };
 }
+
+const services: Record<string, unknown> = {
+  "orders-api": tribeService("orders-api", "orders-core", { consumes: ["payment", "kafka"] }),
+  "orders-worker": tribeService("orders-worker", "orders-core"),
+  "billing-api": tribeService("billing-api", "billing-core", { consumes: ["email"] }),
+  payment: { serviceId: "payment", serviceType: "shared", requiredScopes: ["payment:write"], consumes: [] },
+  email: { serviceId: "email", serviceType: "shared", requiredScopes: ["email:send"], consumes: [] },
+};
 
 describe("AuthController", () => {
   let controller: AuthController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (mockRegistry.validateLegacySecret as jest.Mock).mockResolvedValue(false);
     mockConfig.environmentContract = {
       mode: "enforce" as const,
     };
-    (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([]);
-    (mockRegistry.getEffectiveConsumesForTribe as jest.Mock).mockImplementation(
-      (tribeId: string) => {
-        const service = (mockRegistry.get as jest.Mock)(tribeId);
-        return service?.consumes ?? [];
-      },
+    (mockRegistry.get as jest.Mock).mockImplementation(
+      (serviceId: string) => services[serviceId] ?? null,
     );
+    (mockRegistry.getCallableServiceIds as jest.Mock).mockImplementation((serviceId: string) => {
+      if (serviceId === "orders-api") return ["orders-api", "orders-worker", "payment", "kafka"];
+      if (serviceId === "billing-api") return ["billing-api", "email"];
+      return [serviceId];
+    });
+    (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
+    (mockAuth.issueServiceToken as jest.Mock).mockResolvedValue({
+      accessToken: "access-jwt",
+      refreshToken: "refresh-jwt",
+      expiresIn: 3600,
+    });
     controller = new AuthController(
       mockAuth as AuthService,
       mockRegistry as RegistryService,
+      mockTenancy,
       mockLogger as LoggerService,
       mockConfig as unknown as ConfigService,
     );
@@ -86,22 +128,12 @@ describe("AuthController", () => {
 
   describe("issueToken()", () => {
     const dto = {
-      tribeId: "svc-alpha",
+      serviceId: "orders-api",
       secret: "s3cret",
       environment: "test" as const,
     };
 
-    it("returns accessToken, refreshToken, environment, and source service context", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        true,
-      );
-      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
-        accessToken: "access-jwt",
-        refreshToken: "refresh-jwt",
-        expiresIn: 3600,
-      });
-
+    it("issues a token bound to the service, its project, and its tribe", async () => {
       const result = await controller.issueToken(dto, fakeReq());
 
       expect(result.success).toBe(true);
@@ -110,33 +142,27 @@ describe("AuthController", () => {
           accessToken: "access-jwt",
           refreshToken: "refresh-jwt",
           expiresIn: 3600,
-          tribeId: "svc-alpha",
-          sourceServiceId: "svc-alpha",
+          serviceId: "orders-api",
+          projectId: "orders-core",
+          tribeId: "commerce",
           environment: "test",
         }),
       );
       expect(mockRegistry.validateEnvironmentSecret).toHaveBeenCalledWith(
-        "svc-alpha",
+        "orders-api",
         "s3cret",
         "test",
       );
-      expect(mockAuth.issueTribeToken).toHaveBeenCalledWith(
-        "svc-alpha",
+      expect(mockAuth.issueServiceToken).toHaveBeenCalledWith(
+        { serviceId: "orders-api", projectId: "orders-core", tribeId: "commerce" },
+        expect.arrayContaining(["service:orders-api:read"]),
         expect.any(Array),
-        expect.any(Array),
-        expect.objectContaining({
-          environment: "test",
-          sourceServiceId: "svc-alpha",
-        }),
+        "test",
       );
     });
 
     it("returns refreshToken as null when provider omits it", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        true,
-      );
-      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
+      (mockAuth.issueServiceToken as jest.Mock).mockResolvedValue({
         accessToken: "access-jwt",
         refreshToken: null,
         expiresIn: 3600,
@@ -146,182 +172,91 @@ describe("AuthController", () => {
       expect(result.data.refreshToken).toBeNull();
     });
 
-    it("throws NotFoundError for unknown tribe", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue(null);
+    it("scopes the token to project siblings and the service's own consumes only", async () => {
+      await controller.issueToken(dto, fakeReq());
 
-      await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
-        NotFoundError,
+      const scopes = (mockAuth.issueServiceToken as jest.Mock).mock.calls[0][2] as string[];
+      expect(scopes).toEqual(
+        expect.arrayContaining([
+          "orders-api:read",
+          "orders-worker:read",
+          "payment:write",
+          "external:kafka:write",
+        ]),
       );
+      expect(scopes).not.toContain("billing-api:read");
+      expect(scopes).not.toContain("email:send");
     });
 
-    it("throws UnauthorizedError for invalid secret", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        false,
-      );
+    it("throws NotFoundError for an unknown service", async () => {
+      await expect(
+        controller.issueToken({ ...dto, serviceId: "missing" }, fakeReq()),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it("throws UnauthorizedError for an invalid secret", async () => {
+      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(false);
 
       await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
         UnauthorizedError,
       );
+      expect(mockAuth.issueServiceToken).not.toHaveBeenCalled();
     });
+
     it("rejects missing environment in enforce mode", async () => {
       await expect(
         controller.issueToken(
-          { tribeId: "svc-alpha", secret: "s3cret" } as typeof dto,
+          { serviceId: "orders-api", secret: "s3cret" } as typeof dto,
           fakeReq(),
         ),
       ).rejects.toThrow("environment is required");
     });
 
-    it("does not fall back to legacy secret validation after scoped validation fails", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue(activeService());
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        false,
-      );
-      (mockRegistry.validateLegacySecret as jest.Mock).mockResolvedValue(true);
-
+    it("refuses shared platform services", async () => {
       await expect(
-        controller.issueToken(
-          { ...dto, secret: "legacy-secret" },
-          fakeReq(),
-        ),
-      ).rejects.toThrow(UnauthorizedError);
-      expect(mockRegistry.validateEnvironmentSecret).toHaveBeenCalledWith(
-        "svc-alpha",
-        "legacy-secret",
-        "test",
-      );
-      expect(mockRegistry.validateLegacySecret).not.toHaveBeenCalled();
-    });
-    it("throws UnauthorizedError for an unknown source service", async () => {
-      (mockRegistry.get as jest.Mock).mockImplementation((serviceId: string) =>
-        serviceId === "svc-alpha" ? activeService("svc-alpha") : null,
-      );
-
-      await expect(
-        controller.issueToken(
-          { ...dto, sourceServiceId: "missing-source" },
-          fakeReq(),
-        ),
-      ).rejects.toThrow(UnauthorizedError);
-    });
-
-    it("throws ForbiddenError when source service belongs to another tribe", async () => {
-      (mockRegistry.get as jest.Mock).mockImplementation(
-        (serviceId: string) => {
-          if (serviceId === "svc-alpha") return activeService("svc-alpha");
-          if (serviceId === "billing-api") {
-            return {
-              ...activeService("billing-api"),
-              ownerTribeId: "billing",
-            };
-          }
-          return null;
-        },
-      );
-
-      await expect(
-        controller.issueToken(
-          { ...dto, sourceServiceId: "billing-api" },
-          fakeReq(),
-        ),
+        controller.issueToken({ ...dto, serviceId: "payment" }, fakeReq()),
       ).rejects.toThrow(ForbiddenError);
     });
 
-    it("throws ForbiddenError when source service is not active in the requested environment", async () => {
-      (mockRegistry.get as jest.Mock).mockReturnValue({
-        ...activeService("svc-alpha"),
-        environments: [
-          {
-            environment: "test",
-            baseUrl: "https://svc-alpha.test",
-            status: "deprecated",
-          },
-        ],
-      });
+    it("refuses services in a suspended project", async () => {
+      services["paused-api"] = tribeService("paused-api", "paused-project");
 
-      await expect(controller.issueToken(dto, fakeReq())).rejects.toThrow(
-        ForbiddenError,
-      );
+      await expect(
+        controller.issueToken({ ...dto, serviceId: "paused-api" }, fakeReq()),
+      ).rejects.toThrow("Service 'paused-api' cannot receive tokens: Project 'paused-project' is suspended");
     });
 
-    it("issues scopes from tribe-owned microservices and effective consumes", async () => {
-      (mockRegistry.get as jest.Mock).mockImplementation(
-        (serviceId: string) => {
-          if (serviceId === "logistics") {
-            return {
-              serviceId: "logistics",
-              ownerTribeId: "logistics",
-              requiredScopes: ["logistics:read"],
-              consumes: ["kafka"],
-              environments: [activeTestEnvironment],
-            };
-          }
-          if (serviceId === "payment") {
-            return {
-              serviceId: "payment",
-              serviceType: "shared",
-              requiredScopes: ["payment:write"],
-              consumes: [],
-            };
-          }
-          return null;
-        },
-      );
-      (mockRegistry.getOwnedServices as jest.Mock).mockReturnValue([
-        {
-          serviceId: "logistics",
-          ownerTribeId: "logistics",
-          requiredScopes: ["logistics:read"],
-        },
-        {
-          serviceId: "logistics-orders",
-          ownerTribeId: "logistics",
-          requiredScopes: ["orders:read"],
-        },
-      ]);
-      (mockRegistry.getEffectiveConsumesForTribe as jest.Mock).mockReturnValue([
-        "payment",
-        "kafka",
-      ]);
-      (mockRegistry.validateEnvironmentSecret as jest.Mock).mockResolvedValue(
-        true,
-      );
-      (mockAuth.issueTribeToken as jest.Mock).mockResolvedValue({
-        accessToken: "access-jwt",
-        refreshToken: "refresh-jwt",
-        expiresIn: 3600,
+    it("refuses services whose stored tribe disagrees with their project", async () => {
+      services["drifted-api"] = { ...tribeService("drifted-api", "orders-core"), ownerTribeId: "other" };
+
+      await expect(
+        controller.issueToken({ ...dto, serviceId: "drifted-api" }, fakeReq()),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("refuses services that are not active in the requested environment", async () => {
+      services["test-only"] = tribeService("test-only", "orders-core", {
+        environments: [{ environment: "test", baseUrl: "https://t", status: "deprecated" }],
       });
 
-      await controller.issueToken(
-        { tribeId: "logistics", secret: "s3cret", environment: "test" },
-        fakeReq(),
-      );
-
-      expect(mockAuth.issueTribeToken).toHaveBeenCalledWith(
-        "logistics",
-        expect.arrayContaining(["tribe:logistics:read"]),
-        expect.arrayContaining([
-          "logistics:read",
-          "orders:read",
-          "payment:write",
-          "external:kafka:write",
-        ]),
-        expect.objectContaining({
-          environment: "test",
-          sourceServiceId: "logistics",
-        }),
-      );
+      await expect(
+        controller.issueToken({ ...dto, serviceId: "test-only" }, fakeReq()),
+      ).rejects.toThrow(ForbiddenError);
     });
   });
 
   describe("refreshToken()", () => {
+    const subject = { serviceId: "orders-api", environment: "test", projectId: "orders-core" };
+    const runRevalidation = (override: Partial<typeof subject> = {}) =>
+      (mockAuth.refreshToken as jest.Mock).mockImplementation(
+        async (_token: string, revalidate: (s: typeof subject) => unknown) => {
+          const grant = revalidate({ ...subject, ...override });
+          return { accessToken: "new-access", refreshToken: "new-refresh", expiresIn: 3600, grant };
+        },
+      );
+
     it("returns accessToken AND refreshToken", async () => {
-      (mockAuth.refreshToken as jest.Mock).mockResolvedValue({
-        accessToken: "new-access",
-        refreshToken: "new-refresh",
-        expiresIn: 3600,
-      });
+      runRevalidation();
 
       const result = await controller.refreshToken(
         { refreshToken: "old-refresh" },
@@ -330,6 +265,43 @@ describe("AuthController", () => {
 
       expect(result.data.accessToken).toBe("new-access");
       expect(result.data.refreshToken).toBe("new-refresh");
+    });
+
+    it("recomputes scopes from the registry as it stands now", async () => {
+      runRevalidation();
+      await controller.refreshToken({ refreshToken: "old-refresh" }, fakeReq());
+
+      const [, revalidate] = (mockAuth.refreshToken as jest.Mock).mock.calls[0];
+      expect(revalidate(subject)).toMatchObject({
+        identity: { serviceId: "orders-api", projectId: "orders-core", tribeId: "commerce" },
+        scopes: expect.arrayContaining(["orders-api:read", "orders-worker:read", "payment:write"]),
+      });
+    });
+
+    it("refuses a refresh when the project is suspended", async () => {
+      (services["orders-api"] as { projectId: string }).projectId = "paused-project";
+      try {
+        runRevalidation({ projectId: "paused-project" });
+        await expect(
+          controller.refreshToken({ refreshToken: "old-refresh" }, fakeReq()),
+        ).rejects.toThrow(ForbiddenError);
+      } finally {
+        (services["orders-api"] as { projectId: string }).projectId = "orders-core";
+      }
+    });
+
+    it("refuses a refresh when the service has left its project", async () => {
+      runRevalidation({ projectId: "billing-core" });
+      await expect(
+        controller.refreshToken({ refreshToken: "old-refresh" }, fakeReq()),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("refuses a refresh when the service is no longer active in the environment", async () => {
+      runRevalidation({ environment: "live" });
+      await expect(
+        controller.refreshToken({ refreshToken: "old-refresh" }, fakeReq()),
+      ).rejects.toThrow(ForbiddenError);
     });
 
     it("returns refreshToken as null when provider omits it", async () => {

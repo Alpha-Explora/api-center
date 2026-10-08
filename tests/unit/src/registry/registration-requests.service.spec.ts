@@ -2,11 +2,17 @@ import { PrismaService } from "../../../../apps/gateway/src/database/prisma.serv
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { RegistrationRequestsService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registration-requests.service";
+import { TenancyService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.service";
+
+const activePlacement = {
+  tribe: { tribeId: "logistics", name: "Logistics", status: "active" },
+  project: { projectId: "logistics-fulfilment", tribeId: "logistics", name: "Fulfilment", status: "active" },
+};
 
 function manifest(overrides: Partial<ServiceManifest> = {}): ServiceManifest {
   return {
     serviceId: "logistics-orders",
-    ownerTribeId: "logistics",
+    projectId: "logistics-fulfilment",
     name: "Logistics Orders",
     baseUrl: "https://orders.example.test",
     requiredScopes: ["orders:read"],
@@ -23,6 +29,7 @@ function row(overrides: Record<string, unknown> = {}) {
     id: "00000000-0000-0000-0000-000000000001",
     serviceId: "logistics-orders",
     ownerTribeId: "logistics",
+    projectId: "logistics-fulfilment",
     status: "pending",
     manifest: manifest(),
     validationReport: { canApply: true, issues: [] },
@@ -53,9 +60,14 @@ describe("RegistrationRequestsService", () => {
     getAll: jest.Mock;
     register: jest.Mock;
   };
+  let tenancy: { resolveProject: jest.Mock; refreshIfMissing: jest.Mock };
   let service: RegistrationRequestsService;
 
   beforeEach(() => {
+    tenancy = {
+      resolveProject: jest.fn().mockReturnValue(activePlacement),
+      refreshIfMissing: jest.fn().mockResolvedValue(undefined),
+    };
     prisma = {
       registryChangeRequest: {
         create: jest.fn(),
@@ -83,10 +95,11 @@ describe("RegistrationRequestsService", () => {
     service = new RegistrationRequestsService(
       prisma as unknown as PrismaService,
       registry as unknown as RegistryService,
+      tenancy as unknown as TenancyService,
     );
   });
 
-  it("creates a pending request with owner tribe metadata and validation report", async () => {
+  it("creates a pending request with the project and its derived tribe", async () => {
     prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
 
     const result = await service.createRequest({
@@ -98,6 +111,7 @@ describe("RegistrationRequestsService", () => {
       data: {
         serviceId: "logistics-orders",
         ownerTribeId: "logistics",
+        projectId: "logistics-fulfilment",
         status: "pending",
         manifest: expect.objectContaining({ serviceId: "logistics-orders" }),
         validationReport: { canApply: true, issues: [] },
@@ -144,8 +158,30 @@ describe("RegistrationRequestsService", () => {
     expect(result.status).toBe("applied");
   });
 
+  it("looks for a project created on another gateway instance before rejecting the request", async () => {
+    prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
+
+    await service.createRequest({ manifest: manifest() });
+
+    expect(tenancy.refreshIfMissing).toHaveBeenCalledWith("logistics-fulfilment");
+  });
+
+  it("drops a tribe left on a shared-service request by the pre-hierarchy format", async () => {
+    const stored = { ...manifest(), serviceType: "shared", projectId: undefined, ownerTribeId: "logistics" };
+    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(
+      row({ manifest: stored, ownerTribeId: null, projectId: null }),
+    );
+    prisma.registryChangeRequest.update.mockResolvedValueOnce(row({ status: "applied" }));
+
+    await service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin");
+
+    expect(registry.register).toHaveBeenCalledWith(
+      expect.not.objectContaining({ ownerTribeId: expect.anything() }),
+    );
+  });
+
   it("recomputes validation at approval time and blocks stale requests", async () => {
-    registry.getAll.mockReturnValue({});
+    tenancy.resolveProject.mockReturnValue(null);
     prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
     prisma.registryChangeRequest.update.mockResolvedValueOnce(
       row({
@@ -154,9 +190,9 @@ describe("RegistrationRequestsService", () => {
           issues: [
             {
               severity: "blocking",
-              code: "owner-tribe-missing",
+              code: "project-missing",
               serviceId: "logistics-orders",
-              message: "Owner tribe is missing.",
+              message: "Project is missing.",
             },
           ],
         },
@@ -169,7 +205,7 @@ describe("RegistrationRequestsService", () => {
         "platform-admin",
       ),
     ).rejects.toThrow(
-      "Owner tribe 'logistics' must exist before 'logistics-orders' can be registered.",
+      "Project 'logistics-fulfilment' must exist before 'logistics-orders' can be registered.",
     );
 
     expect(registry.register).not.toHaveBeenCalled();
@@ -231,6 +267,42 @@ describe("RegistrationRequestsService", () => {
       rejectedBy: "platform-admin",
       rejectionReason: "Consumes list not approved.",
     });
+  });
+
+  it("refuses to create a request for an unknown project", async () => {
+    tenancy.resolveProject.mockReturnValue(null);
+
+    await expect(
+      service.createRequest({ manifest: manifest(), requestedBy: "github:logistics/orders" }),
+    ).rejects.toThrow("Project 'logistics-fulfilment' is not registered");
+    expect(prisma.registryChangeRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("stores no tribe or project for shared-service requests", async () => {
+    prisma.registryChangeRequest.create.mockResolvedValueOnce(
+      row({ serviceId: "email", ownerTribeId: null, projectId: null }),
+    );
+
+    await service.createRequest({
+      manifest: manifest({ serviceId: "email", serviceType: "shared", projectId: undefined }),
+    });
+
+    expect(prisma.registryChangeRequest.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ownerTribeId: null, projectId: null }),
+    });
+  });
+
+  it("blocks approval when the service already belongs to another project", async () => {
+    registry.getAll.mockReturnValue({
+      "logistics-orders": { serviceId: "logistics-orders", projectId: "logistics-returns", consumes: [] },
+    });
+    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
+    prisma.registryChangeRequest.update.mockResolvedValueOnce(row());
+
+    await expect(
+      service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin"),
+    ).rejects.toThrow("services cannot move between projects");
+    expect(registry.register).not.toHaveBeenCalled();
   });
 
   it("does not approve a non-pending request", async () => {

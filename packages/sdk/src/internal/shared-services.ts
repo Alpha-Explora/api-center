@@ -23,7 +23,7 @@ import type {
   SharedServiceRequestOptions,
   SmsSendRequest,
   SmsSendResponse,
-  TribeClientOptions,
+  SharedServicesClientOptions,
 } from '../types';
 import { ApiCenterError } from './payment';
 
@@ -33,19 +33,15 @@ type Method = 'GET' | 'POST';
 
 export class SharedServicesClient {
   private readonly baseUrl: string;
-  private readonly apiKey: string;
-  private readonly tribeId: string;
-  private readonly environment: 'test' | 'live';
+  private readonly serviceToken: string;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(options: TribeClientOptions) {
-    if (!options.baseUrl.trim() || !options.apiKey.trim() || !options.tribeId.trim()) {
-      throw new TypeError('baseUrl, apiKey, and tribeId are required');
+  constructor(options: SharedServicesClientOptions) {
+    if (!options.baseUrl.trim() || !options.serviceToken.trim()) {
+      throw new TypeError('baseUrl and serviceToken are required');
     }
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
-    this.apiKey = options.apiKey;
-    this.tribeId = options.tribeId;
-    this.environment = options.environment ?? 'test';
+    this.serviceToken = options.serviceToken;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -70,9 +66,7 @@ export class SharedServicesClient {
   private async request<T>(serviceId: string, path: string, method: Method, body?: unknown, options?: SharedServiceRequestOptions): Promise<T> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      Authorization: `Bearer ${this.apiKey}`,
-      'X-Tribe-ID': this.tribeId,
-      'X-APICenter-Environment': this.environment,
+      Authorization: `Bearer ${this.serviceToken}`,
       ...(options?.headers ?? {}),
     };
     if (body !== undefined) headers['Content-Type'] = 'application/json';

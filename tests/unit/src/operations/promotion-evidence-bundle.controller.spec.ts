@@ -15,7 +15,7 @@ describe("PromotionEvidenceBundleController", () => {
     get: jest.fn(),
   } as unknown as RegistryService;
   const quotaPolicies = {
-    listPolicies: jest.fn(),
+    listPoliciesForPortal: jest.fn(),
   };
   const planService = {
     listPlanAssignments: jest.fn(),
@@ -44,9 +44,10 @@ describe("PromotionEvidenceBundleController", () => {
     (registry.get as jest.Mock).mockReturnValue({
       serviceId: "campus-one",
       ownerTribeId: "campus-one",
+      projectId: "campus-core",
       consumes: ["kafka"],
     });
-    quotaPolicies.listPolicies.mockResolvedValue([
+    quotaPolicies.listPoliciesForPortal.mockResolvedValue([
       { id: "quota-1", status: "active" },
     ]);
     planService.listPlanAssignments.mockResolvedValue([
@@ -66,10 +67,11 @@ describe("PromotionEvidenceBundleController", () => {
     (registry.get as jest.Mock).mockReturnValue({
       serviceId: "campus-one",
       ownerTribeId: "campus-one",
+      projectId: "campus-core",
       healthy: true,
       consumes: [],
     });
-    quotaPolicies.listPolicies.mockResolvedValue([]);
+    quotaPolicies.listPoliciesForPortal.mockResolvedValue([]);
     planService.listPlanAssignments.mockResolvedValue([]);
     approvals.listRequests.mockResolvedValue([]);
 
@@ -96,13 +98,14 @@ describe("PromotionEvidenceBundleController", () => {
     );
   });
 
-  it("uses owner tribe for quota and plan evidence lookup", async () => {
+  it("uses the service's project budgets, tribe ceilings, and project plan for evidence", async () => {
     (registry.get as jest.Mock).mockReturnValue({
       serviceId: "student-api",
       ownerTribeId: "campus-one",
+      projectId: "campus-student",
       healthy: true,
     });
-    quotaPolicies.listPolicies.mockResolvedValue([
+    quotaPolicies.listPoliciesForPortal.mockResolvedValue([
       { id: "quota-1", status: "active" },
     ]);
     planService.listPlanAssignments.mockResolvedValue([
@@ -114,9 +117,9 @@ describe("PromotionEvidenceBundleController", () => {
 
     const response = await controller.getEvidence("student-api", undefined);
 
-    expect(quotaPolicies.listPolicies).toHaveBeenCalledWith("campus-one");
+    expect(quotaPolicies.listPoliciesForPortal).toHaveBeenCalledWith("campus-one", "campus-student");
     expect(planService.listPlanAssignments).toHaveBeenCalledWith({
-      ownerTribeId: "campus-one",
+      projectId: "campus-student",
       status: "active",
     });
     if (typeof response === "string") throw new Error("Expected JSON response");

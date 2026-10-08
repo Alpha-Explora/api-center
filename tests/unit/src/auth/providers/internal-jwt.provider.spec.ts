@@ -106,24 +106,25 @@ describe("InternalJwtProvider", () => {
     jest.clearAllMocks();
   });
 
-  it("issues a tribe access token with scopes and permissions", async () => {
+  it("issues a service access token carrying its project and tribe", async () => {
     const { provider } = createProvider();
     await provider.onModuleInit();
 
     const issued = await provider.issueToken(
-      "smoke-tribe",
-      ["tribe:smoke-tribe:read"],
+      "smoke-api",
+      ["service:smoke-api:read"],
       ["geo:read"],
-      { environment: "test", sourceServiceId: "smoke-api" },
+      { environment: "test", tribeId: "smoke-tribe", projectId: "smoke-core" },
     );
 
     const claims = await provider.validateToken(issued.accessToken);
 
-    expect(claims.sub).toBe("smoke-tribe");
+    expect(claims.sub).toBe("smoke-api");
     expect(claims.tribeId).toBe("smoke-tribe");
+    expect(claims.projectId).toBe("smoke-core");
     expect(claims.sourceServiceId).toBe("smoke-api");
     expect(claims.environment).toBe("test");
-    expect(claims.permissions).toContain("tribe:smoke-tribe:read");
+    expect(claims.permissions).toContain("service:smoke-api:read");
     expect(claims.scopes).toContain("geo:read");
     expect(claims.jti).toEqual(expect.any(String));
     expect(issued.refreshToken).toBeTruthy();
@@ -134,17 +135,19 @@ describe("InternalJwtProvider", () => {
     const { provider } = createProvider();
     await provider.onModuleInit();
     const issued = await provider.issueToken(
-      "smoke-tribe",
-      ["tribe:smoke-tribe:read"],
+      "smoke-api",
+      ["service:smoke-api:read"],
       ["geo:read"],
-      { environment: "test", sourceServiceId: "smoke-api" },
+      { environment: "test", tribeId: "smoke-tribe", projectId: "smoke-core" },
     );
 
     const refreshed = await provider.refreshToken(issued.refreshToken!);
     const claims = await provider.validateToken(refreshed.accessToken);
 
-    expect(claims.sub).toBe("smoke-tribe");
-    expect(claims.permissions).toContain("tribe:smoke-tribe:read");
+    expect(claims.sub).toBe("smoke-api");
+    expect(claims.projectId).toBe("smoke-core");
+    expect(claims.tribeId).toBe("smoke-tribe");
+    expect(claims.permissions).toContain("service:smoke-api:read");
     expect(claims.scopes).toContain("geo:read");
   });
 

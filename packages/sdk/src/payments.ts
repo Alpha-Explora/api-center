@@ -17,10 +17,9 @@ export type {
   Refund,
   RequestOptions,
   Subscription,
-  TribeClientOptions,
+  PaymentsClientOptions,
 } from './types';
 
-export type PaymentsClientOptions = import('./types').TribeClientOptions;
 export type CheckoutCreateInput = import('./types').CreateCheckoutInput;
 export type CustomerCreateInput = import('./types').CreateCustomerInput;
 export type RefundCreateInput = import('./types').CreateRefundInput;

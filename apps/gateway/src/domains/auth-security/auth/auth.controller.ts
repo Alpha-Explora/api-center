@@ -7,6 +7,7 @@ import {
   Post,
   Get,
   Body,
+  Inject,
   Req,
   Res,
   HttpCode,
@@ -16,9 +17,10 @@ import {
 } from "@nestjs/common";
 import { ApiCreatedResponse } from "@nestjs/swagger";
 import { Response } from "express";
-import { AuthService } from "./auth.service";
+import { AuthService, type ServiceTokenGrant } from "./auth.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RegistryService } from "@registry/registry.service";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 import { LoggerService } from "@shared/logger.service";
 import {
   ForbiddenError,
@@ -43,12 +45,13 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly registry: RegistryService,
+    @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
     private readonly logger: LoggerService,
     private readonly config: ConfigService,
   ) {}
 
   // ---------------------------------------------------------------------------
-  // POST /api/v1/auth/token - Issue M2M JWT
+  // POST /api/v1/auth/token - Issue an M2M JWT for one tribe service
   // ---------------------------------------------------------------------------
 
   @Post("token")
@@ -57,26 +60,13 @@ export class AuthController {
     @Body() dto: TokenRequestDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const { tribeId, secret } = dto;
-    const sourceServiceId = dto.sourceServiceId ?? tribeId;
-    const environmentResolution = this.resolveTokenEnvironment(
-      dto.environment,
-    );
-    const { environment } = environmentResolution;
-
-    const service = this.registry.get(tribeId);
-    if (!service) {
-      throw new NotFoundError(`Unknown service: ${tribeId}`);
-    }
-
-    const sourceService = this.validateTokenSourceService(
-      tribeId,
-      sourceServiceId,
-      environment,
-    );
+    const { serviceId, secret } = dto;
+    const { environment } = this.resolveTokenEnvironment(dto.environment);
+    const service = this.validateTokenService(serviceId, environment);
+    const placement = this.resolvePlacement(service);
 
     const isValid = await this.registry.validateEnvironmentSecret(
-      tribeId,
+      serviceId,
       secret,
       environment,
     );
@@ -84,46 +74,17 @@ export class AuthController {
       throw new UnauthorizedError("Invalid credentials");
     }
 
-    const ownScopes = service.requiredScopes || [];
-    const ownedServiceScopes = this.registry
-      .getOwnedServices(tribeId)
-      .flatMap((ownedService) => ownedService.requiredScopes ?? []);
-    const effectiveConsumes =
-      this.registry.getEffectiveConsumesForTribe(tribeId);
-    const consumableScopes: string[] = [];
-    const externalApiScopes: string[] = [];
-    for (const targetId of effectiveConsumes) {
-      const target = this.registry.get(targetId);
-      if (target) {
-        consumableScopes.push(...target.requiredScopes);
-      } else {
-        externalApiScopes.push(...getPlatformCapabilityScopes(targetId));
-      }
-    }
-    const scopes = [
-      ...new Set([
-        ...ownScopes,
-        ...ownedServiceScopes,
-        ...consumableScopes,
-        ...externalApiScopes,
-      ]),
-    ];
-    const permissions = [
-      `tribe:${tribeId}:read`,
-      `tribe:${tribeId}:write`,
-      "external:read",
-    ];
+    const { identity, permissions, scopes } = this.buildGrant(serviceId, placement);
 
-    const token = await this.auth.issueTribeToken(
-      tribeId,
+    const token = await this.auth.issueServiceToken(
+      identity,
       permissions,
       scopes,
-      { environment, sourceServiceId },
+      environment,
     );
 
     this.logger.info("Token issued", {
-      serviceId: tribeId,
-      sourceServiceId: sourceService.serviceId,
+      ...identity,
       environment,
       scopes,
       correlationId: req.correlationId,
@@ -135,8 +96,7 @@ export class AuthController {
         accessToken: token.accessToken,
         refreshToken: token.refreshToken ?? null,
         expiresIn: token.expiresIn,
-        tribeId,
-        sourceServiceId,
+        ...identity,
         environment,
         permissions,
         scopes,
@@ -157,7 +117,18 @@ export class AuthController {
     @Body() dto: RefreshTokenDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const resp = await this.auth.refreshToken(dto.refreshToken);
+    // A refresh is a new grant: the service, project, and tribe must still be active, and scopes are
+    // recomputed from the registry as it stands now.
+    const resp = await this.auth.refreshToken(dto.refreshToken, (subject) => {
+      const service = this.validateTokenService(subject.serviceId, subject.environment);
+      const placement = this.resolvePlacement(service);
+      if (placement.project.projectId !== subject.projectId) {
+        throw new ForbiddenError(
+          `Service '${subject.serviceId}' is no longer in project '${subject.projectId}'; request a new token`,
+        );
+      }
+      return this.buildGrant(subject.serviceId, placement);
+    });
 
     this.logger.info("Token refreshed", { correlationId: req.correlationId });
 
@@ -230,31 +201,80 @@ export class AuthController {
 
     throw new ValidationError("environment is required");
   }
-  private validateTokenSourceService(
-    tribeId: string,
-    sourceServiceId: string,
+  private validateTokenService(
+    serviceId: string,
     environment: ApicenterRuntimeEnvironment,
   ): ServiceRegistryEntry {
-    const sourceService = this.registry.get(sourceServiceId);
-    if (!sourceService) {
-      throw new UnauthorizedError(`Unknown source service: ${sourceServiceId}`);
+    const service = this.registry.get(serviceId);
+    if (!service) {
+      throw new NotFoundError(`Unknown service: ${serviceId}`);
     }
 
-    if ((sourceService.ownerTribeId ?? sourceService.serviceId) !== tribeId) {
+    if ((service.serviceType ?? "tribe") !== "tribe") {
       throw new ForbiddenError(
-        `Source service '${sourceServiceId}' is not owned by tribe '${tribeId}'`,
+        `Service '${serviceId}' is a shared platform service and cannot request tribe tokens`,
       );
     }
 
-    const sourceEnvironment = sourceService.environments?.find(
+    const serviceEnvironment = service.environments?.find(
       (row) => row.environment === environment,
     );
-    if (!sourceEnvironment || sourceEnvironment.status !== "active") {
+    if (!serviceEnvironment || serviceEnvironment.status !== "active") {
       throw new ForbiddenError(
-        `Source service '${sourceServiceId}' is not active in '${environment}'`,
+        `Service '${serviceId}' is not active in '${environment}'`,
       );
     }
 
-    return sourceService;
+    return service;
+  }
+
+  /** The service's project and tribe must both be active; a suspended tribe cannot mint tokens. */
+  private resolvePlacement(service: ServiceRegistryEntry) {
+    let placement;
+    try {
+      placement = this.tenancy.requireActiveProject(service.projectId);
+    } catch (err) {
+      throw new ForbiddenError(
+        `Service '${service.serviceId}' cannot receive tokens: ${(err as Error).message}`,
+      );
+    }
+    if (placement.tribe.tribeId !== service.ownerTribeId) {
+      throw new ForbiddenError(
+        `Service '${service.serviceId}' tribe '${service.ownerTribeId ?? ""}' does not match project '${placement.project.projectId}'`,
+      );
+    }
+    return placement;
+  }
+
+  private buildGrant(
+    serviceId: string,
+    placement: ReturnType<AuthController["resolvePlacement"]>,
+  ): ServiceTokenGrant {
+    return {
+      identity: {
+        serviceId,
+        projectId: placement.project.projectId,
+        tribeId: placement.tribe.tribeId,
+      },
+      permissions: [
+        `service:${serviceId}:read`,
+        `service:${serviceId}:write`,
+        "external:read",
+      ],
+      scopes: this.scopesFor(serviceId),
+    };
+  }
+
+  /** Scopes of every service this caller may reach: its project siblings plus its explicit consumes. */
+  private scopesFor(serviceId: string): string[] {
+    const scopes = new Set<string>();
+    for (const targetId of this.registry.getCallableServiceIds(serviceId)) {
+      const target = this.registry.get(targetId);
+      const targetScopes = target
+        ? target.requiredScopes
+        : getPlatformCapabilityScopes(targetId);
+      for (const scope of targetScopes) scopes.add(scope);
+    }
+    return [...scopes];
   }
 }

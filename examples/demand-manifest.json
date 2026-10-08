@@ -2,6 +2,7 @@
   "serviceId": "demand-service",
   "name": "Demand Service",
   "baseUrl": "http://demand-service:4100",
+  "projectId": "demand-planning",
   "requiredScopes": [
     "demand:read",
     "external:kafka:read",

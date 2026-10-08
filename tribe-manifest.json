@@ -1,8 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "Sample tribe-manifest.json — This is what a service sends to POST /api/v1/registry/register to join the platform.",
+  "$comment": "Sample service manifest sent to POST /api/v1/registry/register. projectId must name an existing project (POST /api/v1/tenancy/tribes/:tribeId/projects); the owning tribe is derived from it.",
 
   "serviceId": "campusone",
+  "projectId": "campusone-core",
   "name": "CampusOne",
   "baseUrl": "http://campusone-service:4001",
   "requiredScopes": ["read:users", "write:users", "read:courses", "write:enrolments"],

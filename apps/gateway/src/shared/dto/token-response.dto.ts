@@ -14,16 +14,19 @@ export class TokenIssueDataDto {
   @ApiProperty({ example: 3600 })
   expiresIn!: number;
 
+  @ApiProperty({ example: "logistics-orders" })
+  serviceId!: string;
+
+  @ApiProperty({ example: "logistics-fulfilment" })
+  projectId!: string;
+
   @ApiProperty({ example: "logistics" })
   tribeId!: string;
-
-  @ApiProperty({ example: "logistics-orders" })
-  sourceServiceId!: string;
 
   @ApiProperty({ example: "test", enum: APICENTER_RUNTIME_ENVIRONMENT_KEYS })
   environment!: ApicenterRuntimeEnvironment;
 
-  @ApiProperty({ type: [String], example: ["tribe:logistics:read"] })
+  @ApiProperty({ type: [String], example: ["service:logistics-orders:read"] })
   permissions!: string[];
 
   @ApiProperty({ type: [String], example: ["payment:charge"] })

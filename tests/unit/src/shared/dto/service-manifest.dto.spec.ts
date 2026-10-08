@@ -15,7 +15,7 @@ describe("ServiceManifestDto", () => {
     requiredScopes: ["demand:read"],
     exposes: ["GET /demand/:id"],
     consumes: ["logistics-service"],
-    ownerTribeId: "demand",
+    projectId: "demand-planning",
     healthCheck: "/health",
     version: "1.0.0",
     serviceType: "tribe",
@@ -57,57 +57,41 @@ describe("ServiceManifestDto", () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  it("accepts ownerTribeId for microservices owned by a tribe", async () => {
-    const dto = transform({
-      ...baseManifest,
-      serviceId: "logistics-orders",
-      ownerTribeId: "logistics",
-      name: "Logistics Orders",
-      baseUrl: "http://logistics-orders:3000",
-      requiredScopes: ["orders:read"],
-      exposes: ["/orders", "/health"],
-      consumes: ["payment"],
-    });
+  const gatewayValidation = { whitelist: true, forbidNonWhitelisted: true };
 
-    const errors = await validate(dto);
+  it("accepts a projectId for tribe services", async () => {
+    const errors = await validate(transform({ ...baseManifest, projectId: "logistics-fulfilment" }), gatewayValidation);
 
     expect(errors).toHaveLength(0);
   });
 
-  it("rejects likely tribe microservices without ownerTribeId", async () => {
-    const dto = transform({
-      ...baseManifest,
-      serviceId: "logistics-orders",
-      ownerTribeId: undefined,
-      name: "Logistics Orders",
-      baseUrl: "http://logistics-orders:3000",
-      requiredScopes: ["orders:read"],
-      exposes: ["/orders", "/health"],
-      consumes: [],
+  it("rejects tribe services without a projectId", async () => {
+    const errors = await validate(transform({ ...baseManifest, projectId: undefined }));
+
+    expect(errors.find((error) => error.property === "projectId")?.constraints).toEqual({
+      projectId: "projectId is required for tribe services",
+    });
+  });
+
+  it("rejects shared services that name a project and accepts them without one", async () => {
+    const withProject = await validate(transform({ ...baseManifest, serviceType: "shared" }));
+    expect(withProject.find((error) => error.property === "projectId")?.constraints).toEqual({
+      projectId: "shared services cannot belong to a project",
     });
 
-    const errors = await validate(dto);
-
-    expect(errors.some((error) => error.property === "ownerTribeId")).toBe(
-      true,
+    const withoutProject = await validate(
+      transform({ ...baseManifest, serviceType: "shared", projectId: undefined }),
     );
+    expect(withoutProject).toHaveLength(0);
   });
 
-  it("accepts root tribe service manifests without ownerTribeId", async () => {
-    const dto = transform({
-      ...baseManifest,
-      serviceId: "logistics",
-      ownerTribeId: undefined,
-      name: "Logistics",
-      baseUrl: "http://logistics:3000",
-      requiredScopes: ["logistics:read"],
-      exposes: ["/health"],
-      consumes: [],
-    });
+  it("rejects ownerTribeId: the tribe is derived from the project", async () => {
+    const errors = await validate(
+      transform({ ...baseManifest, ownerTribeId: "demand" }),
+      gatewayValidation,
+    );
 
-    const errors = await validate(dto);
-
-    expect(errors).toHaveLength(0);
+    expect(errors.some((error) => error.property === "ownerTribeId")).toBe(true);
   });
 
   it("rejects duplicate service environment keys", async () => {
@@ -138,22 +122,9 @@ describe("ServiceManifestDto", () => {
     ).toBe(true);
   });
 
-  it("rejects invalid ownerTribeId values", async () => {
-    const dto = transform({
-      ...baseManifest,
-      serviceId: "logistics-orders",
-      ownerTribeId: "Logistics Orders!",
-      name: "Logistics Orders",
-      baseUrl: "http://logistics-orders:3000",
-      requiredScopes: ["orders:read"],
-      exposes: ["/orders"],
-      consumes: [],
-    });
+  it("rejects invalid projectId values", async () => {
+    const errors = await validate(transform({ ...baseManifest, projectId: "Demand Planning!" }));
 
-    const errors = await validate(dto);
-
-    expect(errors.some((error) => error.property === "ownerTribeId")).toBe(
-      true,
-    );
+    expect(errors.some((error) => error.property === "projectId")).toBe(true);
   });
 });

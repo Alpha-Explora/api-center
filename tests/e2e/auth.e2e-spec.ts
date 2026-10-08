@@ -4,6 +4,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "../../apps/gateway/src/domains/auth-security/auth/auth.controller";
 import { AuthService } from "../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { RegistryService } from "../../apps/gateway/src/domains/catalog-registry";
+import { TENANCY_DIRECTORY } from "../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types";
 import { LoggerService } from "../../apps/gateway/src/shared/logger.service";
 import { ConfigService } from "../../apps/gateway/src/config/config.service";
 import { JwtAuthGuard } from "../../apps/gateway/src/domains/auth-security";
@@ -13,7 +14,7 @@ describe("AuthController (e2e)", () => {
   let baseUrl: string;
 
   const authService = {
-    issueTribeToken: jest.fn().mockResolvedValue({
+    issueServiceToken: jest.fn().mockResolvedValue({
       accessToken: "access-token",
       refreshToken: "refresh-token",
       expiresIn: 3600,
@@ -34,8 +35,16 @@ describe("AuthController (e2e)", () => {
     get: jest.fn(),
     getEffectiveConsumesForTribe: jest.fn().mockReturnValue([]),
     getOwnedServices: jest.fn().mockReturnValue([]),
+    getCallableServiceIds: jest.fn().mockReturnValue([]),
     validateEnvironmentSecret: jest.fn().mockResolvedValue(true),
   } as unknown as RegistryService;
+
+  const tenancyDirectory = {
+    requireActiveProject: jest.fn().mockReturnValue({
+      tribe: { tribeId: "alpha", status: "active" },
+      project: { projectId: "alpha-default", tribeId: "alpha", status: "active" },
+    }),
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -43,6 +52,7 @@ describe("AuthController (e2e)", () => {
       providers: [
         { provide: AuthService, useValue: authService },
         { provide: RegistryService, useValue: registryService },
+        { provide: TENANCY_DIRECTORY, useValue: tenancyDirectory },
         {
           provide: LoggerService,
           useValue: {
@@ -90,11 +100,18 @@ describe("AuthController (e2e)", () => {
       [],
     );
     (registryService.getOwnedServices as jest.Mock).mockReturnValue([]);
+    (registryService.getCallableServiceIds as jest.Mock).mockReturnValue([]);
+    (tenancyDirectory.requireActiveProject as jest.Mock).mockReturnValue({
+      tribe: { tribeId: "alpha", status: "active" },
+      project: { projectId: "alpha-default", tribeId: "alpha", status: "active" },
+    });
     (registryService.get as jest.Mock).mockImplementation(
       (serviceId: string) => {
         if (serviceId === "svc-alpha") {
           return {
             serviceId: "svc-alpha",
+            projectId: "alpha-default",
+            ownerTribeId: "alpha",
             requiredScopes: ["scope:read"],
             consumes: [],
             environments: [{ environment: "test", status: "active" }],
@@ -110,7 +127,7 @@ describe("AuthController (e2e)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tribeId: "svc-alpha",
+        serviceId: "svc-alpha",
         environment: "test",
         secret: "svc-secret",
       }),
@@ -121,13 +138,19 @@ describe("AuthController (e2e)", () => {
         accessToken: string;
         refreshToken: string | null;
         tribeId: string;
+        projectId: string;
+        serviceId: string;
       };
     };
 
     expect(response.status).toBe(201);
     expect(body.success).toBe(true);
     expect(body.data.accessToken).toBe("access-token");
-    expect(body.data.tribeId).toBe("svc-alpha");
+    expect(body.data).toMatchObject({
+      serviceId: "svc-alpha",
+      projectId: "alpha-default",
+      tribeId: "alpha",
+    });
   });
 
   it("should reject token issuance for unknown services", async () => {
@@ -135,7 +158,7 @@ describe("AuthController (e2e)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tribeId: "unknown-service",
+        serviceId: "unknown-service",
         environment: "test",
         secret: "svc-secret",
       }),
