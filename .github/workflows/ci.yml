@@ -198,6 +198,11 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
 
+      - name: Test the payment event dispatcher against the replayed database
+        run: npm run db:test:payment-outbox
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
+
   # ---------------------------------------------------------------------------
   # Job 5: Docker Build (verify Dockerfile works)
   # ---------------------------------------------------------------------------
@@ -215,6 +220,9 @@ jobs:
 
       - name: Build payment runtime image
         run: docker build -f docker/Dockerfile.payments.gcp -t api-center-payments:${{ github.sha }} .
+
+      - name: Verify the payment image ships the event dispatcher
+        run: docker run --rm --entrypoint test api-center-payments:${{ github.sha }} -f dist/events/paymentEventDispatcher.js
 
       - name: Build shared runtime images
         run: |

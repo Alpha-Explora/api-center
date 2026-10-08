@@ -1,0 +1,44 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: apicenter-payment-event-dispatcher-live
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+spec:
+  template:
+    spec:
+      taskCount: 1
+      parallelism: 1
+      template:
+        spec:
+          timeoutSeconds: 300
+          maxRetries: 0
+          serviceAccountName: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+          containers:
+            - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-live
+              command: ["node"]
+              args: ["dist/events/paymentEventDispatcher.js"]
+              env:
+                - name: NODE_ENV
+                  value: production
+                - name: GCP_PROJECT_ID
+                  value: apicenter-alpha-20260623
+                - name: PUBSUB_DISPATCHER_ENABLED
+                  value: "true"
+                - name: APICENTER_PAYMENT_EVENTS_TOPIC_LIVE
+                  value: apicenter.payment-events.live
+                - name: SHARED_SERVICES_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: apicenter-payments-live-database-url
+                      key: latest
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          restartPolicy: Never
+      metadata:
+        annotations:
+          run.googleapis.com/service-account: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+          run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+          run.googleapis.com/vpc-access-egress: private-ranges-only
