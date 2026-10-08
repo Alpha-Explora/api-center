@@ -160,7 +160,46 @@ jobs:
           ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
 
   # ---------------------------------------------------------------------------
-  # Job 4: Docker Build (verify Dockerfile works)
+  # Job 4: Migration replay (the Supabase chain must build an empty database)
+  # ---------------------------------------------------------------------------
+  migrations:
+    name: Migration Replay
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: replay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d replay"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Replay migrations onto an empty database and verify the schema
+        run: npm run db:verify:replay
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Docker Build (verify Dockerfile works)
   # ---------------------------------------------------------------------------
   docker:
     name: Docker Build
