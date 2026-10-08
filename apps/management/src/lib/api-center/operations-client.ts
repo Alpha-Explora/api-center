@@ -252,11 +252,13 @@ export async function listTribePlanDefinitions(): Promise<
 
 export async function listTribePlanAssignments(input?: {
   ownerTribeId?: string;
+  projectId?: string;
   environment?: RuntimeEnvironment | PipelineLane;
   status?: string;
 }): Promise<TribePlanAssignment[]> {
   const params = new URLSearchParams();
   if (input?.ownerTribeId) params.set("ownerTribeId", input.ownerTribeId);
+  if (input?.projectId) params.set("projectId", input.projectId);
   if (input?.environment) {
     params.set("environment", toPlanStorageEnvironment(input.environment));
   }
