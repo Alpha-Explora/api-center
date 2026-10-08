@@ -16,8 +16,48 @@ model Organization {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   services Service[]
+  tribes   Tribe[]
 
   @@map("organizations")
+  @@schema("apic_catalog")
+}
+
+/// A tribe is the people and ownership boundary: admins, approvals, an optional tribe-wide quota ceiling,
+/// and reporting rollups. It owns projects; it never owns services directly.
+model Tribe {
+  tribeId        String   @id @map("tribe_id")
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  projects     Project[]
+
+  @@map("tribes")
+  @@schema("apic_catalog")
+}
+
+/// A project is a product or application inside a tribe. It owns plans, quota budgets, and cost attribution.
+/// Every tribe-type service belongs to exactly one project. A project never moves between tribes.
+model Project {
+  projectId   String   @id @map("project_id")
+  tribeId     String   @map("tribe_id")
+  name        String
+  description String?
+  costCenter  String?  @map("cost_center")
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tribe    Tribe     @relation(fields: [tribeId], references: [tribeId])
+  services Service[]
+
+  @@unique([projectId, tribeId], name: "projects_project_tribe_unique")
+  @@index([tribeId, status], name: "projects_tribe_status_idx")
+  @@map("projects")
   @@schema("apic_catalog")
 }
 
@@ -34,6 +74,7 @@ model Service {
   previousVersion      String?   @map("previous_version")
   description          String?
   tags                 Json      @default("[]")
+  projectId            String?   @map("project_id")
   ownerTribeId         String?   @map("owner_tribe_id")
   ownerTeam            String?   @map("owner_team")
   contact              String?
@@ -47,6 +88,7 @@ model Service {
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   organization       Organization            @relation(fields: [organizationId], references: [id])
+  project            Project?                @relation(fields: [projectId, ownerTribeId], references: [projectId, tribeId])
   routes             ServiceRoute[]
   scopes             ServiceScope[]
   dependencies       ServiceDependency[]     @relation("ServiceDependencies")
@@ -65,6 +107,7 @@ model Service {
   @@unique([organizationId, serviceId], name: "organization_service_id")
   @@index([serviceType, status], name: "services_type_status_idx")
   @@index([ownerTribeId], name: "services_owner_tribe_idx")
+  @@index([projectId], name: "services_project_idx")
   @@index([organizationId, ownerTribeId, serviceType, status], name: "services_org_owner_type_status_idx")
   @@index([ownerTeam], name: "services_owner_team_idx")
   @@map("services")
@@ -251,7 +294,8 @@ model ProvisioningJob {
 model RegistryChangeRequest {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId        String    @map("service_id")
-  ownerTribeId     String    @map("owner_tribe_id")
+  ownerTribeId     String?   @map("owner_tribe_id")
+  projectId        String?   @map("project_id")
   status           String    @default("pending")
   manifest         Json
   validationReport Json      @default("{}") @map("validation_report")
@@ -268,6 +312,7 @@ model RegistryChangeRequest {
   @@index([status, createdAt], name: "registry_change_requests_status_created_idx")
   @@index([serviceId], name: "registry_change_requests_service_idx")
   @@index([ownerTribeId], name: "registry_change_requests_owner_idx")
+  @@index([projectId], name: "registry_change_requests_project_idx")
   @@map("registry_change_requests")
   @@schema("apic_governance")
 }
@@ -404,6 +449,8 @@ model UsageRollup {
 model QuotaPolicy {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId    String   @map("owner_tribe_id")
+  /// Null means a tribe-wide ceiling; set means this project's budget.
+  projectId       String?  @map("project_id")
   scope           String   @default("all")
   targetServiceId String?  @map("target_service_id")
   windowSeconds   Int      @map("window_seconds")
@@ -418,6 +465,7 @@ model QuotaPolicy {
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([ownerTribeId, status], name: "quota_policies_owner_status_idx")
+  @@index([projectId, status], name: "quota_policies_project_status_idx")
   @@index([scope, targetServiceId], name: "quota_policies_scope_target_idx")
   @@map("quota_policies")
   @@schema("apic_governance")
@@ -426,6 +474,7 @@ model QuotaPolicy {
 model QuotaEvaluation {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId    String   @map("owner_tribe_id")
+  projectId       String?  @map("project_id")
   environment     String
   policyId        String?  @map("policy_id") @db.Uuid
   scope           String
@@ -445,6 +494,7 @@ model QuotaEvaluation {
   @@index([correlationId], name: "quota_evaluations_correlation_idx")
   @@index([environment, ownerTribeId, createdAt], name: "quota_evaluations_environment_owner_created_idx")
   @@index([environment, ownerTribeId, routeFamily, windowStart], name: "quota_evaluations_env_route_window_idx")
+  @@index([environment, projectId, createdAt], name: "quota_evaluations_environment_project_created_idx")
   @@map("quota_evaluations")
   @@schema("apic_runtime")
 }
@@ -484,6 +534,7 @@ model EntitlementPlan {
 model EntitlementAssignment {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId String   @map("owner_tribe_id")
+  projectId    String   @map("project_id")
   planKey      String   @map("plan_key")
   environment  String
   status       String   @default("active")
@@ -494,6 +545,7 @@ model EntitlementAssignment {
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([ownerTribeId, environment, status], name: "entitlement_assignments_owner_env_status_idx")
+  @@index([projectId, environment, status], name: "entitlement_assignments_project_env_status_idx")
   @@index([planKey, environment], name: "entitlement_assignments_plan_env_idx")
   @@map("entitlement_assignments")
   @@schema("apic_governance")
