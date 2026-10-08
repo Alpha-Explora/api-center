@@ -482,6 +482,64 @@ function collectPrismaSchemaOwnershipViolations(files, repoRoot) {
  * A stale path silently turns a public contract back into an internal file, so every import of it
  * becomes a violation or has to be added to the baseline. Update the path when a file moves.
  */
+const PRISMA_DELEGATE_METHODS = [
+  'findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'create', 'createMany',
+  'createManyAndReturn', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany', 'count', 'aggregate', 'groupBy',
+].join('|');
+
+/** Maps a Prisma delegate name (registryChangeRequest) to its model and the schema that owns the model. */
+function readPrismaModelOwners(repoRoot) {
+  const owners = new Map();
+  const schemaPath = path.join(repoRoot, 'prisma/schema.prisma');
+  if (!fs.existsSync(schemaPath)) return owners;
+  const content = fs.readFileSync(schemaPath, 'utf8');
+  for (const match of content.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)) {
+    const schema = /@@schema\("([^"]+)"\)/.exec(match[2]);
+    if (schema) owners.set(match[1][0].toLowerCase() + match[1].slice(1), { model: match[1], schema: schema[1] });
+  }
+  return owners;
+}
+
+/**
+ * Fails when a context calls a Prisma delegate for a model that another context's schema owns, for example
+ * this.prisma.registryChangeRequest.create(...) from the catalog context. The import and raw-SQL checks do not
+ * see this access, because it goes through the shared PrismaService. Existing cases are listed in
+ * scripts/boundary-legacy-prisma-access.json as "<file> -> <Model>"; that list may only shrink.
+ */
+function collectPrismaDelegateAccessViolations(files, repoRoot) {
+  const violations = [];
+  const owners = readPrismaModelOwners(repoRoot);
+  if (owners.size === 0) return violations;
+
+  const baselinePath = path.join(repoRoot, 'scripts/boundary-legacy-prisma-access.json');
+  const baseline = fs.existsSync(baselinePath) ? new Set(JSON.parse(fs.readFileSync(baselinePath, 'utf8'))) : new Set();
+  const access = new RegExp('(?:\\b\\w*[Pp]risma\\w*|\\btx)\\.(\\w+)\\.(?:' + PRISMA_DELEGATE_METHODS + ')\\s*\\(', 'g');
+
+  for (const relPath of files) {
+    if (!isProductionSourceFile(relPath)) continue;
+    const sourceContext = findContextForFile(relPath);
+    if (!sourceContext || sourceContext.public) continue;
+
+    const content = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+    const reported = new Set();
+    for (const match of content.matchAll(access)) {
+      const owner = owners.get(match[1]);
+      if (!owner) continue;
+      const ownerContext = SCHEMA_OWNERS.get(owner.schema);
+      if (!ownerContext || ownerContext === sourceContext.name) continue;
+      const key = relPath + ' -> ' + owner.model;
+      if (baseline.has(key) || reported.has(key)) continue;
+      reported.add(key);
+      violations.push({
+        file: relPath,
+        reason: 'Prisma access to ' + owner.model + ' (' + owner.schema + ') from ' + sourceContext.name + ' is forbidden; owner is ' + ownerContext + '. Call the owning context through a public interface instead.',
+      });
+    }
+  }
+
+  return violations;
+}
+
 function collectStaleAllowlistViolations(repoRoot = DEFAULT_REPO_ROOT) {
   const violations = [];
 
@@ -508,6 +566,19 @@ function collectStaleAllowlistViolations(repoRoot = DEFAULT_REPO_ROOT) {
     }
   }
 
+  const prismaBaselinePath = path.join(repoRoot, 'scripts/boundary-legacy-prisma-access.json');
+  if (fs.existsSync(prismaBaselinePath)) {
+    for (const entry of JSON.parse(fs.readFileSync(prismaBaselinePath, 'utf8'))) {
+      const file = entry.split(' -> ')[0];
+      if (!fs.existsSync(path.join(repoRoot, file))) {
+        violations.push({
+          file: 'scripts/boundary-legacy-prisma-access.json',
+          reason: 'Baseline entry "' + entry + '" names ' + file + ', which does not exist; remove the entry',
+        });
+      }
+    }
+  }
+
   return violations;
 }
 
@@ -521,6 +592,7 @@ function runBoundaryChecks(options = {}) {
   violations.push(...collectBoundedContextImportViolations(files, repoRoot));
   violations.push(...collectSchemaAccessViolations(files, repoRoot));
   violations.push(...collectPrismaSchemaOwnershipViolations(files, repoRoot));
+  violations.push(...collectPrismaDelegateAccessViolations(files, repoRoot));
 
   return violations;
 }

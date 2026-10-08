@@ -1,0 +1,6 @@
+[
+  "apps/gateway/src/domains/catalog-registry/registry/registration-requests.service.ts -> RegistryChangeRequest",
+  "apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service.ts -> QuotaEvaluation",
+  "apps/gateway/src/domains/runtime-ops/analytics/audit-events.service.ts -> AuditEvent"
+]
+
