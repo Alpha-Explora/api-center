@@ -134,6 +134,7 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
     return {
       sub: payload.sub ?? "",
       tribeId: payload["tribeId"] as string | undefined,
+      projectId: payload["projectId"] as string | undefined,
       sourceServiceId: payload["sourceServiceId"] as string | undefined,
       environment: payload["environment"] as JwtClaims["environment"],
       permissions: (payload["permissions"] as string[] | undefined) ?? [],
@@ -150,11 +151,10 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
     context: TokenIssueContext = {},
   ): Promise<IssuedToken> {
     const ttl = this.config.devJwt.tokenTtlSeconds ?? DEFAULT_TTL_SECONDS;
-    const tribeId = context.tribeId ?? serviceId;
-    const sourceServiceId = context.sourceServiceId ?? tribeId;
     const commonClaims = {
-      tribeId,
-      sourceServiceId,
+      tribeId: context.tribeId,
+      projectId: context.projectId,
+      sourceServiceId: context.sourceServiceId ?? serviceId,
       environment: context.environment,
       permissions,
       scopes,
@@ -187,11 +187,9 @@ export class DevJwtProvider implements AuthProvider, OnModuleInit {
     const scopes = (payload["scopes"] as string[] | undefined) ?? [];
 
     return this.issueToken(serviceId, permissions, scopes, {
-      tribeId: (payload["tribeId"] as string | undefined) ?? serviceId,
-      sourceServiceId:
-        (payload["sourceServiceId"] as string | undefined) ??
-        (payload["tribeId"] as string | undefined) ??
-        serviceId,
+      tribeId: payload["tribeId"] as string | undefined,
+      projectId: payload["projectId"] as string | undefined,
+      sourceServiceId: (payload["sourceServiceId"] as string | undefined) ?? serviceId,
       environment: payload["environment"] as JwtClaims["environment"],
     });
   }

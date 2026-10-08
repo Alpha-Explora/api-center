@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import {
   SecretManagerClientLike,
-  TribeSecretResolverService,
-} from "../../../../apps/gateway/src/domains/catalog-registry/registry/tribe-secret-resolver.service";
+  ServiceSecretResolverService,
+} from "../../../../apps/gateway/src/domains/catalog-registry/registry/service-secret-resolver.service";
 
 const mockLogger: Partial<LoggerService> = {
   warn: jest.fn(),
@@ -28,10 +28,10 @@ const secretResponse = (payload: string) =>
     },
   ]);
 
-describe("TribeSecretResolverService", () => {
+describe("ServiceSecretResolverService", () => {
   const originalEnv = process.env;
   let accessSecretVersion: jest.Mock;
-  let service: TribeSecretResolverService;
+  let service: ServiceSecretResolverService;
 
   beforeEach(() => {
     jest.useRealTimers();
@@ -46,7 +46,7 @@ describe("TribeSecretResolverService", () => {
 
     jest.clearAllMocks();
     accessSecretVersion = jest.fn();
-    service = new TribeSecretResolverService(
+    service = new ServiceSecretResolverService(
       mockLogger as LoggerService,
       {
         accessSecretVersion,
@@ -68,7 +68,7 @@ describe("TribeSecretResolverService", () => {
       .mockReturnValueOnce(
         secretResponse(
           JSON.stringify({
-            tribeId: "church-donations",
+            serviceId: "church-donations",
             environment: "test",
             secretHashSha256: testHash,
             status: "active",
@@ -78,7 +78,7 @@ describe("TribeSecretResolverService", () => {
       .mockReturnValueOnce(
         secretResponse(
           JSON.stringify({
-            tribeId: "church-donations",
+            serviceId: "church-donations",
             environment: "live",
             secretHashSha256: liveHash,
             status: "active",
@@ -98,10 +98,10 @@ describe("TribeSecretResolverService", () => {
 
     expect(accessSecretVersion).toHaveBeenCalledTimes(2);
     expect(accessSecretVersion).toHaveBeenNthCalledWith(1, {
-      name: "projects/api-center-test/secrets/api-center-tribe-secret-church-donations-test/versions/latest",
+      name: "projects/api-center-test/secrets/api-center-service-secret-church-donations-test/versions/latest",
     });
     expect(accessSecretVersion).toHaveBeenNthCalledWith(2, {
-      name: "projects/api-center-test/secrets/api-center-tribe-secret-church-donations-live/versions/latest",
+      name: "projects/api-center-test/secrets/api-center-service-secret-church-donations-live/versions/latest",
     });
   });
 
@@ -111,7 +111,7 @@ describe("TribeSecretResolverService", () => {
     accessSecretVersion.mockReturnValueOnce(
       secretResponse(
         JSON.stringify({
-          tribeId: "church-donations",
+          serviceId: "church-donations",
           environment: "live",
           secretHashSha256: hashSecret("live-secret"),
           status: "active",
@@ -124,7 +124,7 @@ describe("TribeSecretResolverService", () => {
     ).resolves.toBe(false);
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining("environment 'live' does not match 'test'"),
-      "TribeSecretResolverService",
+      "ServiceSecretResolverService",
     );
   });
 
@@ -132,22 +132,10 @@ describe("TribeSecretResolverService", () => {
     process.env[legacyPerTribeSecretKey] = hashSecret("plain-secret");
 
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "plain-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "plain-secret", "test"),
     ).resolves.toBe(false);
     expect(accessSecretVersion).not.toHaveBeenCalled();
   });
-  it("rejects legacy env-backed tribe secret validation after migration", async () => {
-    process.env[legacyPerTribeSecretKey] = hashSecret("plain-secret");
-
-    await expect(
-      service.validateSecret("smoke-tribe", "plain-secret"),
-    ).rejects.toThrow("Legacy tribe secret validation has been removed");
-    await expect(
-      service.validateLegacySecret("smoke-tribe", "plain-secret"),
-    ).rejects.toThrow("Legacy tribe secret validation has been removed");
-    expect(accessSecretVersion).not.toHaveBeenCalled();
-  });
-
   it("validates an environment-scoped GCP Secret Manager JSON payload", async () => {
     process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
     process.env.GCP_PROJECT_ID = "api-center-test";
@@ -155,7 +143,7 @@ describe("TribeSecretResolverService", () => {
     accessSecretVersion.mockReturnValueOnce(
       secretResponse(
         JSON.stringify({
-          tribeId: "smoke-tribe",
+          serviceId: "smoke-service",
           environment: "test",
           secretHashSha256: hash,
           status: "active",
@@ -164,11 +152,30 @@ describe("TribeSecretResolverService", () => {
     );
 
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "plain-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "plain-secret", "test"),
     ).resolves.toBe(true);
     expect(accessSecretVersion).toHaveBeenCalledWith({
-      name: "projects/api-center-test/secrets/api-center-tribe-secret-smoke-tribe-test/versions/latest",
+      name: "projects/api-center-test/secrets/api-center-service-secret-smoke-service-test/versions/latest",
     });
+  });
+
+  it("rejects a payload that names a different service, such as a sibling or the old tribe secret", async () => {
+    process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
+    process.env.GCP_PROJECT_ID = "api-center-test";
+    accessSecretVersion.mockReturnValueOnce(
+      secretResponse(
+        JSON.stringify({
+          serviceId: "smoke-sibling",
+          environment: "test",
+          secretHashSha256: hashSecret("plain-secret"),
+          status: "active",
+        }),
+      ),
+    );
+
+    await expect(
+      service.validateEnvironmentSecret("smoke-service", "plain-secret", "test"),
+    ).resolves.toBe(false);
   });
 
   it("accepts current and next hashes while a rotation is dual-valid", async () => {
@@ -179,7 +186,7 @@ describe("TribeSecretResolverService", () => {
     accessSecretVersion.mockReturnValueOnce(
       secretResponse(
         JSON.stringify({
-          tribeId: "smoke-tribe",
+          serviceId: "smoke-service",
           environment: "test",
           secretHashSha256: currentHash,
           nextSecretHashSha256: nextHash,
@@ -190,13 +197,13 @@ describe("TribeSecretResolverService", () => {
     );
 
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "current-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "current-secret", "test"),
     ).resolves.toBe(true);
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "next-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "next-secret", "test"),
     ).resolves.toBe(true);
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "wrong-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "wrong-secret", "test"),
     ).resolves.toBe(false);
   });
 
@@ -207,7 +214,7 @@ describe("TribeSecretResolverService", () => {
     accessSecretVersion.mockReturnValueOnce(
       secretResponse(
         JSON.stringify({
-          tribeId: "smoke-tribe",
+          serviceId: "smoke-service",
           environment: "test",
           secretHashSha256: promotedHash,
           previousSecretHashSha256: hashSecret("old-secret"),
@@ -218,10 +225,10 @@ describe("TribeSecretResolverService", () => {
     );
 
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "new-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "new-secret", "test"),
     ).resolves.toBe(true);
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "old-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "old-secret", "test"),
     ).resolves.toBe(false);
   });
 
@@ -232,7 +239,7 @@ describe("TribeSecretResolverService", () => {
     accessSecretVersion.mockReturnValueOnce(secretResponse(hash));
 
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "plain-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "plain-secret", "test"),
     ).resolves.toBe(false);
   });
 
@@ -242,7 +249,7 @@ describe("TribeSecretResolverService", () => {
     accessSecretVersion.mockReturnValueOnce(
       secretResponse(
         JSON.stringify({
-          tribeId: "smoke-tribe",
+          serviceId: "smoke-service",
           environment: "test",
           status: "active",
           secretHashSha256: "x",
@@ -251,11 +258,11 @@ describe("TribeSecretResolverService", () => {
     );
 
     await expect(
-      service.validateEnvironmentSecret("smoke-tribe", "plain-secret", "test"),
+      service.validateEnvironmentSecret("smoke-service", "plain-secret", "test"),
     ).resolves.toBe(false);
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining("secretHashSha256 is malformed"),
-      "TribeSecretResolverService",
+      "ServiceSecretResolverService",
     );
   });
 
@@ -270,7 +277,7 @@ describe("TribeSecretResolverService", () => {
       .mockReturnValueOnce(
         secretResponse(
           JSON.stringify({
-            tribeId: "smoke-tribe",
+            serviceId: "smoke-service",
             environment: "test",
             secretHashSha256: firstHash,
             status: "active",
@@ -280,7 +287,7 @@ describe("TribeSecretResolverService", () => {
       .mockReturnValueOnce(
         secretResponse(
           JSON.stringify({
-            tribeId: "smoke-tribe",
+            serviceId: "smoke-service",
             environment: "test",
             secretHashSha256: secondHash,
             status: "active",
@@ -289,16 +296,16 @@ describe("TribeSecretResolverService", () => {
       );
 
     await expect(
-      service.resolveEnvironmentSecretHash("smoke-tribe", "test"),
+      service.resolveEnvironmentSecretHash("smoke-service", "test"),
     ).resolves.toBe(firstHash);
     await expect(
-      service.resolveEnvironmentSecretHash("smoke-tribe", "test"),
+      service.resolveEnvironmentSecretHash("smoke-service", "test"),
     ).resolves.toBe(firstHash);
 
     jest.setSystemTime(new Date("2026-05-14T00:00:01.001Z"));
 
     await expect(
-      service.resolveEnvironmentSecretHash("smoke-tribe", "test"),
+      service.resolveEnvironmentSecretHash("smoke-service", "test"),
     ).resolves.toBe(secondHash);
     expect(accessSecretVersion).toHaveBeenCalledTimes(2);
   });

@@ -6,7 +6,6 @@ export type { PaymentEvent } from './payment/events';
 export * from './types';
 
 // Compatibility aliases for the initial SDK package shape.
-export type PaymentsClientOptions = import('./types').TribeClientOptions;
 export type CheckoutCreateInput = import('./types').CreateCheckoutInput;
 export type CustomerCreateInput = import('./types').CreateCustomerInput;
 export type RefundCreateInput = import('./types').CreateRefundInput;

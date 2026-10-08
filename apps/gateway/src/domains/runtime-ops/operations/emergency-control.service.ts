@@ -9,7 +9,7 @@ export type EmergencyMode =
   | "observe_only";
 
 export interface EmergencyControl {
-  targetType: "tribe" | "service" | "shared-service";
+  targetType: "tribe" | "project" | "service" | "shared-service";
   targetId: string;
   mode: EmergencyMode;
   reason: string;
@@ -18,7 +18,7 @@ export interface EmergencyControl {
 }
 
 const emergencyControlSchema = z.object({
-  targetType: z.enum(["tribe", "service", "shared-service"]),
+  targetType: z.enum(["tribe", "project", "service", "shared-service"]),
   targetId: z.string().trim().min(1),
   mode: z.enum(["pause", "isolate", "quota_lockdown", "observe_only"]),
   reason: z.string().trim().min(1),
@@ -33,7 +33,7 @@ const emergencyControlSchema = z.object({
 });
 
 const emergencyControlTargetSchema = z.object({
-  targetType: z.enum(["tribe", "service", "shared-service"]),
+  targetType: z.enum(["tribe", "project", "service", "shared-service"]),
   targetId: z.string().trim().min(1),
 });
 
@@ -81,8 +81,19 @@ export class EmergencyControlService {
     return Array.from(this.controls.values());
   }
 
-  evaluate(input: { ownerTribeId: string; serviceId: string }) {
+  /**
+   * Most specific first: the calling service, its project, its tribe, then the target.
+   * A stop on any of them blocks the call unless that control is observe-only.
+   */
+  evaluate(input: {
+    ownerTribeId: string;
+    projectId?: string;
+    sourceServiceId?: string;
+    serviceId: string;
+  }) {
     const control =
+      (input.sourceServiceId ? this.controls.get(`service:${input.sourceServiceId}`) : undefined) ??
+      (input.projectId ? this.controls.get(`project:${input.projectId}`) : undefined) ??
       this.controls.get(`tribe:${input.ownerTribeId}`) ??
       this.controls.get(`service:${input.serviceId}`) ??
       this.controls.get(`shared-service:${input.serviceId}`);

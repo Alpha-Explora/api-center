@@ -36,15 +36,16 @@ describe("JwtAuthGuard", () => {
     );
   });
 
-  it("should attach claims and tribe identity when token is valid", async () => {
+  it("should attach the calling service, its project, and its tribe when token is valid", async () => {
     const request: Record<string, unknown> = {
       headers: { authorization: "Bearer valid-token" },
       ip: "127.0.0.1",
       path: "/api/v1/tribes",
     };
     (mockAuth.validateToken as jest.Mock).mockResolvedValue({
-      sub: "svc-alpha",
-      tribeId: "svc-alpha",
+      sub: "svc-alpha-worker",
+      tribeId: "alpha",
+      projectId: "alpha-core",
       sourceServiceId: "svc-alpha-worker",
       scopes: ["scope:read"],
       permissions: [],
@@ -53,13 +54,14 @@ describe("JwtAuthGuard", () => {
     const allowed = await guard.canActivate(createContext(request));
 
     expect(allowed).toBe(true);
-    expect(request.user).toEqual(expect.objectContaining({ sub: "svc-alpha" }));
-    expect(request.tribeId).toBe("svc-alpha");
+    expect(request.user).toEqual(expect.objectContaining({ sub: "svc-alpha-worker" }));
+    expect(request.tribeId).toBe("alpha");
+    expect(request.projectId).toBe("alpha-core");
     expect(request.sourceServiceId).toBe("svc-alpha-worker");
   });
 
 
-  it("falls back to sub when tribe and source claims are absent", async () => {
+  it("uses sub as the calling service and never invents a tribe from it", async () => {
     const request: Record<string, unknown> = {
       headers: { authorization: "Bearer valid-token" },
       ip: "127.0.0.1",
@@ -73,7 +75,8 @@ describe("JwtAuthGuard", () => {
 
     await guard.canActivate(createContext(request));
 
-    expect(request.tribeId).toBe("svc-alpha");
+    expect(request.tribeId).toBeUndefined();
+    expect(request.projectId).toBeUndefined();
     expect(request.sourceServiceId).toBe("svc-alpha");
   });
   it("should reject invalid tokens and emit guard warning", async () => {

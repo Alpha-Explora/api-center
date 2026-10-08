@@ -4,6 +4,7 @@
   "serviceId": "analytics-service",
   "name": "Analytics Service",
   "baseUrl": "http://analytics-service:4005",
+  "projectId": "analytics-reporting",
   "requiredScopes": ["read:analytics", "write:reports"],
   "exposes": ["/reports", "/dashboards", "/metrics"],
   "consumes": ["campusone", "payment-service"],

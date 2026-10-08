@@ -12,13 +12,21 @@ export type {
   OtpVerifyResponse,
 } from '@apicenter/contracts';
 
-export interface TribeClientOptions {
+export interface ClientOptions {
   baseUrl: string;
-  apiKey: string;
-  tribeId: string;
-  environment?: PaymentEnvironment;
   fetchImpl?: typeof fetch;
 }
+
+export interface PaymentsClientOptions extends ClientOptions {
+  apiKey: string;
+}
+
+export interface SharedServicesClientOptions extends ClientOptions {
+  serviceToken: string;
+}
+
+/** Composite client options; payment keys and service tokens authorize different APIs. */
+export interface TribeClientOptions extends PaymentsClientOptions, SharedServicesClientOptions {}
 
 export interface RequestOptions {
   headers?: Record<string, string>;
@@ -63,7 +71,14 @@ export interface Subscription { subscriptionId: string; customerId: string; stat
 export interface Invoice { invoiceId: string; status: 'draft' | 'open' | 'paid' | 'past_due' | 'void' | string; amount: Money; }
 export interface PendingResource { status: 'pending'; resourceId: string; }
 export type PaymentResource<T> = T | PendingResource;
-export interface PaymentCapabilities { currency: 'PHP'; paymentMethods: string[]; resources: string[]; }
+export interface PaymentCapabilities {
+  currency: 'PHP';
+  paymentMethods: string[];
+  resources: string[];
+  resourceStatus?: 'implemented';
+  paymentMethodsStatus?: 'unverified';
+  providerAccountStatus?: 'unverified';
+}
 export interface ApiErrorDetails { code?: string; message?: string; details?: unknown; status: number; }
 
 export type SharedMessageRecipient = string | { email: string };

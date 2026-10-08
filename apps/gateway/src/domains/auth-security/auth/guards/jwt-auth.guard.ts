@@ -7,8 +7,10 @@
 // REPLACES: src/auth/guards/descope-auth.guard.ts (Descope-specific guard)
 //
 // On success, attaches the normalised JwtClaims to:
-//   req.user     — the full claims object
-//   req.tribeId  — the service/tribe identifier from the claims
+//   req.user             — the full claims object
+//   req.sourceServiceId  — the calling service (sourceServiceId claim, else sub)
+//   req.projectId        — the calling service's project
+//   req.tribeId          — the tribe that owns that project
 //
 // Apply per-controller:  @UseGuards(JwtAuthGuard)
 // Apply per-route:       @UseGuards(JwtAuthGuard) on a method
@@ -48,9 +50,9 @@ export class JwtAuthGuard implements CanActivate {
       // Attach normalised claims so controllers and downstream guards can read them
       const authenticatedRequest = request as AuthenticatedRequest;
       authenticatedRequest.user = claims;
-      authenticatedRequest.tribeId = claims.tribeId ?? claims.sub;
-      authenticatedRequest.sourceServiceId =
-        claims.sourceServiceId ?? authenticatedRequest.tribeId;
+      authenticatedRequest.sourceServiceId = claims.sourceServiceId ?? claims.sub;
+      authenticatedRequest.projectId = claims.projectId;
+      authenticatedRequest.tribeId = claims.tribeId;
       return true;
     } catch (_err) {
       this.logger.warn(

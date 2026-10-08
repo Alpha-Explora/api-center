@@ -53,11 +53,11 @@ describe("AuthService", () => {
       environment: "test",
     } as Partial<JwtClaims>);
 
-    await service.issueTribeToken(
-      "svc-alpha",
+    await service.issueServiceToken(
+      { serviceId: "svc-alpha", projectId: "alpha-core", tribeId: "alpha" },
       ["perm:read"],
       ["scope:read"],
-      { environment: "test", sourceServiceId: "svc-alpha-worker" },
+      "test",
     );
 
     expect(mockProvider.issueToken).toHaveBeenCalledWith(
@@ -65,8 +65,9 @@ describe("AuthService", () => {
       ["perm:read"],
       ["scope:read"],
       expect.objectContaining({
-        tribeId: "svc-alpha",
-        sourceServiceId: "svc-alpha-worker",
+        tribeId: "alpha",
+        projectId: "alpha-core",
+        sourceServiceId: "svc-alpha",
         environment: "test",
       }),
     );
@@ -74,8 +75,9 @@ describe("AuthService", () => {
       expect.objectContaining({
         jti: "new-jti",
         sub: "svc-alpha",
-        tribeId: "svc-alpha",
-        sourceServiceId: "svc-alpha-worker",
+        tribeId: "alpha",
+        projectId: "alpha-core",
+        sourceServiceId: "svc-alpha",
         environment: "test",
         permissions: ["perm:read"],
         scopes: ["scope:read"],
@@ -83,9 +85,14 @@ describe("AuthService", () => {
     );
   });
 
-  it("should reject tribe token issuance without an environment", async () => {
+  it("should reject service token issuance without an environment", async () => {
     await expect(
-      service.issueTribeToken("svc-alpha", [], [], {}),
+      service.issueServiceToken(
+        { serviceId: "svc-alpha", projectId: "alpha-core", tribeId: "alpha" },
+        [],
+        [],
+        undefined as never,
+      ),
     ).rejects.toThrow(ValidationError);
     expect(mockProvider.issueToken).not.toHaveBeenCalled();
   });
@@ -97,7 +104,12 @@ describe("AuthService", () => {
       expiresIn: 60,
     } as IssuedToken);
 
-    await service.issueTribeToken("svc-alpha", [], [], { environment: "test" });
+    await service.issueServiceToken(
+      { serviceId: "svc-alpha", projectId: "alpha-core", tribeId: "alpha" },
+      [],
+      [],
+      "test",
+    );
 
     expect(mockTokenStore.store).not.toHaveBeenCalled();
   });
@@ -109,53 +121,90 @@ describe("AuthService", () => {
     } as Partial<JwtClaims>);
     (mockTokenStore.isValid as jest.Mock).mockResolvedValue(false);
 
-    await expect(service.refreshToken("refresh-token")).rejects.toThrow(
+    const revalidate = jest.fn();
+    await expect(service.refreshToken("refresh-token", revalidate)).rejects.toThrow(
       UnauthorizedError,
     );
+    expect(revalidate).not.toHaveBeenCalled();
   });
 
-  it("should rotate refresh tokens and preserve stored live environment metadata", async () => {
+  describe("refresh revalidation", () => {
     const oldRecord: RefreshTokenRecord = {
       jti: "jti-1",
       sub: "svc-alpha",
-      tribeId: "svc-alpha",
-      sourceServiceId: "svc-alpha-worker",
+      tribeId: "alpha",
+      projectId: "alpha-core",
+      sourceServiceId: "svc-alpha",
       environment: "live",
       issuedAt: 1,
       expiresAt: 999,
       permissions: ["perm:read"],
-      scopes: ["scope:read"],
+      scopes: ["old:scope"],
     };
-    (mockProvider.validateToken as jest.Mock).mockImplementation(
-      async (token: string) => {
-        if (token === "refresh-token") {
-          return { sub: "svc-alpha", jti: "jti-1" } as Partial<JwtClaims>;
-        }
-        return { sub: "svc-alpha", jti: "jti-2" } as Partial<JwtClaims>;
-      },
-    );
-    (mockTokenStore.isValid as jest.Mock).mockResolvedValue(true);
-    (mockTokenStore.get as jest.Mock).mockResolvedValue(oldRecord);
-    (mockProvider.refreshToken as jest.Mock).mockResolvedValue({
-      accessToken: "new-access",
-      refreshToken: "new-refresh",
-      expiresIn: 120,
-    } as IssuedToken);
+    const grant = {
+      identity: { serviceId: "svc-alpha", projectId: "alpha-core", tribeId: "alpha" },
+      permissions: ["perm:read"],
+      scopes: ["new:scope"],
+    };
 
-    await service.refreshToken("refresh-token");
+    beforeEach(() => {
+      (mockProvider.validateToken as jest.Mock).mockImplementation(
+        async (token: string) =>
+          token === "refresh-token"
+            ? ({ sub: "svc-alpha", jti: "jti-1" } as Partial<JwtClaims>)
+            : ({ sub: "svc-alpha", jti: "jti-2", environment: "live" } as Partial<JwtClaims>),
+      );
+      (mockTokenStore.isValid as jest.Mock).mockResolvedValue(true);
+      (mockTokenStore.get as jest.Mock).mockResolvedValue(oldRecord);
+      (mockProvider.issueToken as jest.Mock).mockResolvedValue({
+        accessToken: "new-access",
+        refreshToken: "new-refresh",
+        expiresIn: 120,
+      } as IssuedToken);
+    });
 
-    expect(mockTokenStore.revoke).toHaveBeenCalledWith("jti-1");
-    expect(mockTokenStore.store).toHaveBeenCalledWith(
-      expect.objectContaining({
-        jti: "jti-2",
-        sub: "svc-alpha",
-        tribeId: "svc-alpha",
-        sourceServiceId: "svc-alpha-worker",
+    it("rotates the refresh token and issues the scopes the service holds now", async () => {
+      const revalidate = jest.fn().mockReturnValue(grant);
+
+      await service.refreshToken("refresh-token", revalidate);
+
+      expect(revalidate).toHaveBeenCalledWith({
+        serviceId: "svc-alpha",
         environment: "live",
-        permissions: ["perm:read"],
-        scopes: ["scope:read"],
-      }),
-    );
+        projectId: "alpha-core",
+      });
+      expect(mockTokenStore.revoke).toHaveBeenCalledWith("jti-1");
+      expect(mockProvider.refreshToken).not.toHaveBeenCalled();
+      expect(mockProvider.issueToken).toHaveBeenCalledWith(
+        "svc-alpha",
+        ["perm:read"],
+        ["new:scope"],
+        expect.objectContaining({ projectId: "alpha-core", tribeId: "alpha", environment: "live" }),
+      );
+      expect(mockTokenStore.store).toHaveBeenCalledWith(
+        expect.objectContaining({ jti: "jti-2", projectId: "alpha-core", scopes: ["new:scope"] }),
+      );
+    });
+
+    it("keeps the refresh token usable when revalidation refuses the service", async () => {
+      const revalidate = jest.fn(() => {
+        throw new ForbiddenError("Tribe 'alpha' is suspended");
+      });
+
+      await expect(service.refreshToken("refresh-token", revalidate)).rejects.toThrow(ForbiddenError);
+      expect(mockTokenStore.revoke).not.toHaveBeenCalled();
+      expect(mockProvider.issueToken).not.toHaveBeenCalled();
+    });
+
+    it("refuses refresh tokens issued before project placement", async () => {
+      (mockTokenStore.get as jest.Mock).mockResolvedValue({ ...oldRecord, projectId: undefined });
+      const revalidate = jest.fn();
+
+      await expect(service.refreshToken("refresh-token", revalidate)).rejects.toThrow(
+        "Refresh token predates project placement",
+      );
+      expect(revalidate).not.toHaveBeenCalled();
+    });
   });
 
   it("should reject refresh token when metadata is missing for a valid jti", async () => {
@@ -166,7 +215,7 @@ describe("AuthService", () => {
     (mockTokenStore.isValid as jest.Mock).mockResolvedValue(true);
     (mockTokenStore.get as jest.Mock).mockResolvedValue(null);
 
-    await expect(service.refreshToken("refresh-token")).rejects.toThrow(
+    await expect(service.refreshToken("refresh-token", jest.fn())).rejects.toThrow(
       UnauthorizedError,
     );
   });

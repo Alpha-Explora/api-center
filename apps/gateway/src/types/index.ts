@@ -26,9 +26,11 @@ import type { PaymentPrincipal } from "../domains/payments";
 export interface AuthenticatedRequest extends Request {
   /** Normalised JWT claims attached by JwtAuthGuard after token validation */
   user?: JwtClaims;
-  /** The service/tribe ID extracted from the JWT's tribeId claim */
+  /** Tribe that owns the calling service (derived from its project when the token was issued) */
   tribeId?: string;
-  /** The source service ID extracted from the JWT sourceServiceId claim */
+  /** Project the calling service belongs to */
+  projectId?: string;
+  /** The calling service. Bound to the credential that minted the token; never caller-selected. */
   sourceServiceId?: string;
   /** Unique correlation ID for distributed request tracing */
   correlationId?: string;
@@ -43,6 +45,8 @@ export interface AuthenticatedRequest extends Request {
 export interface TokenResponse {
   accessToken: string;
   expiresIn: number;
+  serviceId: string;
+  projectId: string;
   tribeId: string;
   permissions: string[];
   scopes: string[];
@@ -97,8 +101,9 @@ export interface ServiceEnvironmentManifest {
 }
 
 /**
- * A service manifest is what a tribe/service sends when registering
- * with the API Center via POST /api/v1/registry/register.
+ * A service manifest is what a service sends when registering with the API Center.
+ * Tribe-type services name the project they belong to; the owning tribe is derived from that project.
+ * Shared platform services have no project.
  */
 export interface ServiceManifest {
   serviceId: string;
@@ -107,8 +112,8 @@ export interface ServiceManifest {
   requiredScopes: string[];
   exposes: string[];
   consumes: string[];
-  /** Tribe that owns this service. Defaults to serviceId for legacy tribe entries. */
-  ownerTribeId?: string;
+  /** Project that owns this service. Required for tribe services, forbidden for shared services. */
+  projectId?: string;
   /** Routing namespace â€” 'shared' for platform services, 'tribe' for tribe backends. Defaults to 'tribe'. */
   serviceType?: ServiceType;
   healthCheck?: string;
@@ -142,6 +147,8 @@ export interface ServiceManifest {
  * A registry entry extends ServiceManifest with platform-managed metadata.
  */
 export interface ServiceRegistryEntry extends ServiceManifest {
+  /** Tribe that owns this service, derived from projectId at registration. Never accepted from callers. */
+  ownerTribeId?: string;
   registeredAt: string;
   updatedAt: string;
   status: ServiceLifecycleStatus;
@@ -157,22 +164,6 @@ export interface ServiceRegistryEntry extends ServiceManifest {
 /** Map of service ID â†’ ServiceRegistryEntry */
 export interface ServiceRegistryMap {
   [serviceId: string]: ServiceRegistryEntry;
-}
-
-// ---------------------------------------------------------------------------
-// Legacy Tribe types (kept for backwards compatibility)
-// ---------------------------------------------------------------------------
-
-export interface TribeConfig {
-  name: string;
-  baseUrl: string;
-  permissions: string[];
-  exposes: string[];
-  consumes: string[];
-}
-
-export interface TribeConfigMap {
-  [tribeId: string]: TribeConfig;
 }
 
 // ---------------------------------------------------------------------------

@@ -95,6 +95,21 @@ export function mapDescopeClaims(payload: JWTPayload): JwtClaims {
     "attributes.tribeId",
   ]);
 
+  const projectId = firstString(rawPayload, [
+    "projectId",
+    "customClaims.projectId",
+    "custom_claims.projectId",
+    "attributes.projectId",
+  ]);
+
+  const sourceServiceId = firstString(rawPayload, [
+    "sourceServiceId",
+    "serviceId",
+    "customClaims.serviceId",
+    "custom_claims.serviceId",
+    "attributes.serviceId",
+  ]);
+
   const permissions = firstStringArray(rawPayload, [
     "permissions",
     "customClaims.permissions",
@@ -113,6 +128,8 @@ export function mapDescopeClaims(payload: JWTPayload): JwtClaims {
   return {
     sub,
     tribeId,
+    projectId,
+    sourceServiceId,
     permissions,
     scopes,
     exp: payload.exp,

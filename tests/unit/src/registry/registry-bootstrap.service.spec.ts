@@ -6,6 +6,7 @@ import { LoggerService } from "../../../../apps/gateway/src/shared/logger.servic
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import { RegistryBootstrapService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry-bootstrap.service";
 import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
+import { TenancyService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.service";
 
 jest.mock("node:fs/promises", () => ({
   readFile: jest.fn(),
@@ -35,6 +36,7 @@ describe("RegistryBootstrapService", () => {
   let mockRegistry: { register: jest.Mock };
   let mockLogger: { info: jest.Mock; warn: jest.Mock };
   let mockMetrics: { recordRegistryBootstrapSeed: jest.Mock };
+  let mockTenancy: { seed: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,6 +58,7 @@ describe("RegistryBootstrapService", () => {
     mockMetrics = {
       recordRegistryBootstrapSeed: jest.fn(),
     };
+    mockTenancy = { seed: jest.fn().mockResolvedValue({ tribes: 0, projects: 0 }) };
 
     const config = {
       registryBootstrap: {
@@ -69,6 +72,7 @@ describe("RegistryBootstrapService", () => {
       mockLogger as unknown as LoggerService,
       mockMetrics as unknown as MetricsService,
       mockRegistry as unknown as RegistryService,
+      mockTenancy as unknown as TenancyService,
     );
   });
 
@@ -85,11 +89,57 @@ describe("RegistryBootstrapService", () => {
       mockLogger as unknown as LoggerService,
       mockMetrics as unknown as MetricsService,
       mockRegistry as unknown as RegistryService,
+      mockTenancy as unknown as TenancyService,
     );
 
     await service.onApplicationBootstrap();
 
     expect(mockRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it("seeds tribes and projects before registering manifests and keeps projectId", async () => {
+    const seededConfig = {
+      registryBootstrap: {
+        enabled: true,
+        manifestPaths: ["examples/one.json"],
+        tenancySeedPath: "examples/tenancy-seed.json",
+      },
+    } as unknown as ConfigService;
+    service = new RegistryBootstrapService(
+      seededConfig,
+      mockLogger as unknown as LoggerService,
+      mockMetrics as unknown as MetricsService,
+      mockRegistry as unknown as RegistryService,
+      mockTenancy as unknown as TenancyService,
+    );
+    const order: string[] = [];
+    mockTenancy.seed.mockImplementation(async () => {
+      order.push("tenancy");
+      return { tribes: 1, projects: 1 };
+    });
+    mockRegistry.register.mockImplementation(async (manifest: ServiceManifest) => {
+      order.push(manifest.serviceId);
+      return { ...manifest, status: "active", registeredAt: "", updatedAt: "" };
+    });
+    readFileMock
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          tribes: [{ tribeId: "orders", name: "Orders" }],
+          projects: [{ projectId: "orders-core", tribeId: "orders", name: "Core" }],
+        }),
+      )
+      .mockResolvedValueOnce(JSON.stringify(createManifest({ projectId: "orders-core" })));
+
+    await service.onApplicationBootstrap();
+
+    expect(order).toEqual(["tenancy", "orders-service"]);
+    expect(mockTenancy.seed).toHaveBeenCalledWith({
+      tribes: [{ tribeId: "orders", name: "Orders" }],
+      projects: [{ projectId: "orders-core", tribeId: "orders", name: "Core" }],
+    });
+    expect(mockRegistry.register).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceId: "orders-service", projectId: "orders-core" }),
+    );
   });
 
   it("registers all valid manifests", async () => {

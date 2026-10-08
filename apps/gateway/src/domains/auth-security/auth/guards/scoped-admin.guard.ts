@@ -67,6 +67,9 @@ export class ScopedAdminGuard implements CanActivate {
           // Attach claims to request for downstream use
           (request as AuthenticatedRequest).user = claims;
           (request as AuthenticatedRequest).tribeId = claims.tribeId;
+          (request as AuthenticatedRequest).projectId = claims.projectId;
+          (request as AuthenticatedRequest).sourceServiceId =
+            claims.sourceServiceId ?? claims.sub;
           this.logger.debug(
             `Admin access via JWT scope '${ADMIN_SCOPE}' from ${request.ip}`,
             "ScopedAdminGuard",

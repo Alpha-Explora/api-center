@@ -26,30 +26,34 @@ import {
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { isOwnerTribeIdRequiredForManifest } from "../service-manifest-governance";
+import { PROJECT_ID_PATTERN } from "../tenancy-identifiers";
 
-@ValidatorConstraint({ name: "ownerTribeId", async: false })
-class OwnerTribeIdConstraint implements ValidatorConstraintInterface {
+/** Tribe services must name a project; shared platform services must not. */
+@ValidatorConstraint({ name: "projectId", async: false })
+class ProjectIdConstraint implements ValidatorConstraintInterface {
   validate(value: unknown, args: ValidationArguments): boolean {
-    const manifest = args.object as {
-      serviceId?: string;
-      serviceType?: string;
-      ownerTribeId?: string;
-    };
+    const shared = isSharedManifest(args.object);
     if (value === undefined || value === null || value === "") {
-      return !isOwnerTribeIdRequiredForManifest(manifest);
+      return shared;
     }
 
-    return typeof value === "string" && /^[a-z0-9-]+$/.test(value);
+    return !shared && typeof value === "string" && PROJECT_ID_PATTERN.test(value);
   }
 
   defaultMessage(args: ValidationArguments): string {
+    if (isSharedManifest(args.object)) {
+      return "shared services cannot belong to a project";
+    }
     if (args.value === undefined || args.value === null || args.value === "") {
-      return "ownerTribeId is required for tribe microservices or hyphenated tribe service IDs";
+      return "projectId is required for tribe services";
     }
 
-    return "ownerTribeId must be lowercase alphanumeric with hyphens only";
+    return "projectId must be a lowercase slug of 1-80 characters";
   }
+}
+
+function isSharedManifest(object: object): boolean {
+  return ((object as { serviceType?: string }).serviceType ?? "tribe") === "shared";
 }
 
 export class ServiceEnvironmentDto {
@@ -128,12 +132,12 @@ export class ServiceManifestDto {
   consumes?: string[] = [];
 
   @ApiPropertyOptional({
-    example: "logistics",
+    example: "logistics-fulfilment",
     description:
-      "Tribe that owns this service. Defaults to serviceId for legacy tribe entries.",
+      "Project that owns this tribe service. The owning tribe is derived from the project. Omit for shared services.",
   })
-  @Validate(OwnerTribeIdConstraint)
-  ownerTribeId?: string;
+  @Validate(ProjectIdConstraint)
+  projectId?: string;
 
   @ApiPropertyOptional({ example: "/health" })
   @IsString()

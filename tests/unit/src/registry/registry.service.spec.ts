@@ -10,7 +10,8 @@ import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-re
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
-import { TribeSecretResolverService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tribe-secret-resolver.service";
+import { ServiceSecretResolverService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/service-secret-resolver.service";
+import { TenancyService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.service";
 import { PostgresRegistryStoreService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/postgres-registry-store.service";
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import {
@@ -44,10 +45,8 @@ const mockMetrics: Partial<MetricsService> = {
   setRegistryServicesCountByStatus: jest.fn(),
 };
 
-const mockTribeSecretResolver: Partial<TribeSecretResolverService> = {
-  validateSecret: jest.fn(),
+const mockServiceSecretResolver: Partial<ServiceSecretResolverService> = {
   validateEnvironmentSecret: jest.fn(),
-  validateLegacySecret: jest.fn(),
 };
 
 const mockPostgresStore: Partial<PostgresRegistryStoreService> = {
@@ -69,8 +68,32 @@ function baseManifest(
     exposes: ["/health"],
     consumes: [],
     version: "1.0.0",
+    projectId: "alpha-core",
     ...overrides,
   };
+}
+
+async function seededTenancy(): Promise<TenancyService> {
+  const tenancy = new TenancyService(
+    mockLogger as LoggerService,
+    mockConfig as ConfigService,
+  );
+  await tenancy.seed({
+    tribes: [
+      { tribeId: "alpha", name: "Alpha" },
+      { tribeId: "commerce", name: "Commerce" },
+      { tribeId: "fulfillment", name: "Fulfillment" },
+      { tribeId: "logistics", name: "Logistics" },
+    ],
+    projects: [
+      { projectId: "alpha-core", tribeId: "alpha", name: "Alpha core" },
+      { projectId: "commerce-web", tribeId: "commerce", name: "Web" },
+      { projectId: "commerce-billing", tribeId: "commerce", name: "Billing" },
+      { projectId: "fulfillment-ops", tribeId: "fulfillment", name: "Ops" },
+      { projectId: "logistics-orders", tribeId: "logistics", name: "Orders" },
+    ],
+  });
+  return tenancy;
 }
 
 function registryEntry(overrides: Partial<ReturnType<typeof baseManifest>> = {}) {
@@ -87,8 +110,9 @@ function registryEntry(overrides: Partial<ReturnType<typeof baseManifest>> = {})
 
 describe("RegistryService", () => {
   let service: RegistryService;
+  let tenancy: TenancyService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     (mockConfig as any).database = {
       enabled: false,
@@ -100,12 +124,14 @@ describe("RegistryService", () => {
     (mockPostgresStore.loadAll as jest.Mock).mockResolvedValue({});
     (mockPostgresStore.upsert as jest.Mock).mockResolvedValue(undefined);
     (mockPostgresStore.remove as jest.Mock).mockResolvedValue(undefined);
-    // Construct without lifecycle hooks â€” avoids Redis connection
+    tenancy = await seededTenancy();
+    // Construct without lifecycle hooks — avoids Redis connection
     service = new RegistryService(
       mockLogger as LoggerService,
       mockConfig as ConfigService,
       mockMetrics as MetricsService,
-      mockTribeSecretResolver as TribeSecretResolverService,
+      mockServiceSecretResolver as ServiceSecretResolverService,
+      tenancy,
       mockPostgresStore as PostgresRegistryStoreService,
     );
   });
@@ -225,67 +251,29 @@ describe("RegistryService", () => {
       expect(second.previousVersion).toBe("1.0.0");
     });
 
-    it("keeps owner and consumer lookups current after registration updates", async () => {
+    it("keeps tribe, project, and consumer lookups current after registration updates", async () => {
       await service.register(
-        baseManifest({
-          serviceId: "commerce",
-          name: "Commerce",
-          ownerTribeId: "commerce",
-          consumes: [],
-        }),
+        baseManifest({ serviceId: "orders", projectId: "commerce-web", consumes: ["payment"] }),
       );
       await service.register(
-        baseManifest({
-          serviceId: "fulfillment",
-          name: "Fulfillment",
-          ownerTribeId: "fulfillment",
-          consumes: [],
-        }),
+        baseManifest({ serviceId: "checkout", projectId: "commerce-web", consumes: ["payment"] }),
       );
       await service.register(
-        baseManifest({
-          serviceId: "orders",
-          name: "Orders",
-          baseUrl: "https://orders.example.test",
-          requiredScopes: ["orders:read"],
-          exposes: ["/orders"],
-          consumes: ["payment"],
-          ownerTribeId: "commerce",
-          serviceType: "tribe",
-        }),
+        baseManifest({ serviceId: "invoices", projectId: "commerce-billing" }),
       );
       await service.register(
-        baseManifest({
-          serviceId: "checkout",
-          name: "Checkout",
-          baseUrl: "https://checkout.example.test",
-          requiredScopes: ["checkout:read"],
-          exposes: ["/checkout"],
-          consumes: ["payment"],
-          ownerTribeId: "commerce",
-          serviceType: "tribe",
-        }),
-      );
-      await service.register(
-        baseManifest({
-          serviceId: "orders",
-          name: "Orders",
-          baseUrl: "https://orders.example.test",
-          requiredScopes: ["orders:read"],
-          exposes: ["/orders"],
-          consumes: ["email"],
-          ownerTribeId: "fulfillment",
-          serviceType: "tribe",
-          version: "1.1.0",
-        }),
+        baseManifest({ serviceId: "orders", projectId: "commerce-web", consumes: ["email"], version: "1.1.0" }),
       );
 
-      expect(
-        service.getOwnedServices("commerce").map((entry) => entry.serviceId),
-      ).toEqual(["commerce", "checkout"]);
-      expect(
-        service.getOwnedServices("fulfillment").map((entry) => entry.serviceId),
-      ).toEqual(["fulfillment", "orders"]);
+      expect(service.getOwnedServices("commerce").map((entry) => entry.serviceId)).toEqual([
+        "checkout",
+        "invoices",
+        "orders",
+      ]);
+      expect(service.getProjectServices("commerce-web").map((entry) => entry.serviceId)).toEqual([
+        "checkout",
+        "orders",
+      ]);
       expect(service.getConsumers("payment")).toEqual(["checkout"]);
       expect(service.getConsumers("email")).toEqual(["orders"]);
     });
@@ -299,39 +287,66 @@ describe("RegistryService", () => {
       ).rejects.toThrow(ConflictError);
     });
 
-    it("rejects microservice registration when ownerTribeId is missing from registry", async () => {
-      await expect(
-        service.register(
-          baseManifest({
-            serviceId: "logistics-orders",
-            ownerTribeId: "logistics",
-            name: "Logistics Orders",
-          }),
-        ),
-      ).rejects.toThrow("Owner tribe 'logistics' must be registered");
+    it("derives the owning tribe from the project", async () => {
+      const entry = await service.register(
+        baseManifest({ serviceId: "logistics-api", projectId: "logistics-orders" }),
+      );
+
+      expect(entry).toMatchObject({ projectId: "logistics-orders", ownerTribeId: "logistics" });
+      expect(service.getEffectiveOwnerTribeId("logistics-api")).toBe("logistics");
     });
 
-    it("accepts microservice registration after owner tribe exists", async () => {
-      await service.register(
-        baseManifest({
-          serviceId: "logistics",
-          ownerTribeId: "logistics",
-          name: "Logistics",
-        }),
+    it("rejects tribe services without a project, with an unknown project, or in a suspended project", async () => {
+      await expect(
+        service.register(baseManifest({ projectId: undefined })),
+      ).rejects.toThrow("projectId is required for tribe services");
+      await expect(
+        service.register(baseManifest({ projectId: "missing-project" })),
+      ).rejects.toThrow("Project 'missing-project' is not registered");
+
+      await tenancy.updateProject("alpha-core", { status: "suspended" });
+      await expect(service.register(baseManifest())).rejects.toThrow(
+        "Project 'alpha-core' is suspended",
+      );
+    });
+
+    it("rejects registration while the owning tribe is suspended", async () => {
+      await tenancy.updateTribe("alpha", { status: "suspended" });
+
+      await expect(service.register(baseManifest())).rejects.toThrow("Tribe 'alpha' is suspended");
+    });
+
+    it("rejects shared services with placement and gives valid shared services no tribe", async () => {
+      await expect(
+        service.register(baseManifest({ serviceId: "email", serviceType: "shared" })),
+      ).rejects.toThrow("Shared service 'email' cannot have tribe or project placement");
+
+      const sharedWithOwner = Object.assign(
+        baseManifest({ serviceId: "email", serviceType: "shared", projectId: undefined }),
+        { ownerTribeId: "commerce" },
+      );
+      await expect(service.register(sharedWithOwner)).rejects.toThrow(
+        "Shared service 'email' cannot have tribe or project placement",
       );
 
-      const entry = await service.register(
-        baseManifest({
-          serviceId: "logistics-orders",
-          ownerTribeId: "logistics",
-          name: "Logistics Orders",
-        }),
+      const shared = await service.register(
+        baseManifest({ serviceId: "email", serviceType: "shared", projectId: undefined }),
       );
+      expect(shared.projectId).toBeUndefined();
+      expect(shared.ownerTribeId).toBeUndefined();
+    });
 
-      expect(entry).toMatchObject({
-        serviceId: "logistics-orders",
-        ownerTribeId: "logistics",
-      });
+    it("does not let a service move to another project", async () => {
+      await service.register(baseManifest({ serviceId: "orders", projectId: "commerce-web" }));
+
+      await expect(
+        service.register(
+          baseManifest({ serviceId: "orders", projectId: "fulfillment-ops", version: "1.1.0" }),
+        ),
+      ).rejects.toThrow(
+        "Service 'orders' belongs to project 'commerce-web' and cannot move to 'fulfillment-ops'",
+      );
+      expect(service.get("orders")?.ownerTribeId).toBe("commerce");
     });
   });
 
@@ -492,60 +507,67 @@ describe("RegistryService", () => {
   // Access Control & Consumers
   // =========================================================================
 
-  describe("canConsume()", () => {
-    it("returns true when source consumes target", async () => {
+  describe("canAccess()", () => {
+    beforeEach(async () => {
       await service.register(
-        baseManifest({ serviceId: "svc-a", consumes: ["svc-b"] }),
+        baseManifest({ serviceId: "web-api", projectId: "commerce-web", requiredScopes: ["web:read"] }),
       );
       await service.register(
-        baseManifest({ serviceId: "svc-b", consumes: [] }),
-      );
-      expect(service.canConsume("svc-a", "svc-b")).toBe(true);
-    });
-
-    it("returns false when source does not consume target", async () => {
-      await service.register(
-        baseManifest({ serviceId: "svc-a", consumes: [] }),
-      );
-      expect(service.canConsume("svc-a", "svc-b")).toBe(false);
-    });
-
-    it("uses ownerTribeId as the boundary for owned microservices", async () => {
-      await service.register(
-        baseManifest({
-          serviceId: "logistics",
-          ownerTribeId: "logistics",
-          name: "Logistics Tribe",
-          requiredScopes: ["logistics:read"],
-          consumes: ["payment"],
-        }),
+        baseManifest({ serviceId: "web-worker", projectId: "commerce-web", requiredScopes: ["worker:run"] }),
       );
       await service.register(
         baseManifest({
-          serviceId: "logistics-orders",
-          ownerTribeId: "logistics",
-          name: "Logistics Orders",
-          requiredScopes: ["orders:read"],
-          consumes: [],
+          serviceId: "billing-api",
+          projectId: "commerce-billing",
+          requiredScopes: ["billing:read"],
+          consumes: ["payment", "shipments"],
         }),
+      );
+      await service.register(
+        baseManifest({ serviceId: "shipments", projectId: "fulfillment-ops", requiredScopes: ["shipments:read"] }),
       );
       await service.register(
         baseManifest({
           serviceId: "payment",
-          name: "Payment",
           serviceType: "shared",
+          projectId: undefined,
           requiredScopes: ["payment:write"],
         }),
       );
+    });
 
-      expect(service.getEffectiveOwnerTribeId("logistics-orders")).toBe(
-        "logistics",
-      );
-      expect(
-        service.getOwnedServices("logistics").map((svc) => svc.serviceId),
-      ).toEqual(expect.arrayContaining(["logistics", "logistics-orders"]));
-      expect(service.canAccess("logistics", "logistics-orders")).toBe(true);
-      expect(service.canConsume("logistics", "payment")).toBe(true);
+    it("allows calls between services of the same project", () => {
+      expect(service.canAccess("web-api", "web-worker")).toBe(true);
+      expect(service.canAccess("web-worker", "web-api")).toBe(true);
+    });
+
+    it("denies calls into a sibling project of the same tribe without a consumes grant", () => {
+      expect(service.canAccess("web-api", "billing-api")).toBe(false);
+      expect(service.canAccess("billing-api", "web-api")).toBe(false);
+    });
+
+    it("allows calls the caller lists in consumes, across tribes and to shared services", () => {
+      expect(service.canAccess("billing-api", "shipments")).toBe(true);
+      expect(service.canAccess("billing-api", "payment")).toBe(true);
+    });
+
+    it("does not let one service borrow a sibling's grants", () => {
+      expect(service.canAccess("web-api", "payment")).toBe(false);
+      expect(service.canAccess("web-api", "shipments")).toBe(false);
+    });
+
+    it("lists only the callable services of the caller", () => {
+      expect(service.getCallableServiceIds("billing-api").sort()).toEqual([
+        "billing-api",
+        "payment",
+        "shipments",
+      ]);
+      expect(service.getCallableServiceIds("web-api").sort()).toEqual(["web-api", "web-worker"]);
+    });
+
+    it("rejects unknown callers and targets", () => {
+      expect(service.canAccess("unknown", "web-api")).toBe(false);
+      expect(service.canAccess("web-api", "unknown")).toBe(false);
     });
   });
 
@@ -570,36 +592,19 @@ describe("RegistryService", () => {
 
   describe("secret validation", () => {
     it("delegates environment-scoped validation to the resolver", async () => {
-      (mockTribeSecretResolver.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
+      (mockServiceSecretResolver.validateEnvironmentSecret as jest.Mock).mockResolvedValue(true);
 
       await expect(
         service.validateEnvironmentSecret("svc-alpha", "secret", "test"),
       ).resolves.toBe(true);
 
-      expect(mockTribeSecretResolver.validateEnvironmentSecret).toHaveBeenCalledWith(
+      expect(mockServiceSecretResolver.validateEnvironmentSecret).toHaveBeenCalledWith(
         "svc-alpha",
         "secret",
         "test",
       );
     });
 
-    it("rejects legacy validation after scoped secret migration", async () => {
-      (mockTribeSecretResolver.validateLegacySecret as jest.Mock).mockRejectedValue(
-        new Error("Legacy tribe secret validation has been removed"),
-      );
-
-      await expect(
-        service.validateLegacySecret("svc-alpha", "secret"),
-      ).rejects.toThrow("Legacy tribe secret validation has been removed");
-      await expect(
-        service.validateSecret("svc-alpha", "secret"),
-      ).rejects.toThrow("Legacy tribe secret validation has been removed");
-
-      expect(mockTribeSecretResolver.validateLegacySecret).toHaveBeenCalledWith(
-        "svc-alpha",
-        "secret",
-      );
-    });
   });
   // =========================================================================
   // Full lifecycle flow

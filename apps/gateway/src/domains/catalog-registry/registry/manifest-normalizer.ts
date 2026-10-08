@@ -5,17 +5,20 @@ type CreateRegistryEntryOptions = {
   existing?: ServiceRegistryEntry | null;
   now: string;
   previousVersion?: string;
+  /** Derived from the service's project by the registry; shared services have none. */
+  ownerTribeId?: string;
 };
 
 export function createRegistryEntry(
   manifest: ServiceManifest,
-  { existing, now, previousVersion }: CreateRegistryEntryOptions,
+  { existing, now, previousVersion, ownerTribeId }: CreateRegistryEntryOptions,
 ): ServiceRegistryEntry {
   const status = existing?.status === "deprecated" ? "deprecated" : "active";
 
   return {
     ...manifest,
     serviceType: manifest.serviceType || "tribe",
+    ...(ownerTribeId ? { ownerTribeId } : {}),
     environments: normalizeServiceEnvironments(manifest, { status }),
     registeredAt: existing?.registeredAt || now,
     updatedAt: now,

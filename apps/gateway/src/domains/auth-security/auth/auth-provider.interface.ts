@@ -22,9 +22,11 @@ import type { ApicenterRuntimeEnvironment } from "../../../types";
 export interface JwtClaims {
   /** Token subject - typically the service/user ID */
   sub: string;
-  /** Custom claim: tribe / service identifier embedded in the JWT */
+  /** Tribe that owns the calling service (derived from its project at issuance) */
   tribeId?: string;
-  /** Service that initiated the token request. Defaults to the tribe service. */
+  /** Project the calling service belongs to */
+  projectId?: string;
+  /** The calling service. Always the credential's service; equals sub for API Center tokens. */
   sourceServiceId?: string;
   /** API Center runtime environment represented by this token. */
   environment?: ApicenterRuntimeEnvironment;
@@ -42,6 +44,7 @@ export interface JwtClaims {
 /** Runtime context embedded when issuing API Center M2M tokens. */
 export interface TokenIssueContext {
   tribeId?: string;
+  projectId?: string;
   sourceServiceId?: string;
   environment?: ApicenterRuntimeEnvironment;
 }

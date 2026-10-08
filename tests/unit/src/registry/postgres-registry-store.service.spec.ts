@@ -13,6 +13,7 @@ function entry(
     exposes: ["/health", "/orders"],
     consumes: ["payment", "missing-service"],
     serviceType: "tribe",
+    projectId: "servease-core",
     ownerTribeId: "servease",
     healthCheck: "/health",
     version: "1.0.0",
@@ -110,8 +111,8 @@ describe("PostgresRegistryStoreService", () => {
     );
     expect(tx.service.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ ownerTribeId: "servease" }),
-        update: expect.objectContaining({ ownerTribeId: "servease" }),
+        create: expect.objectContaining({ projectId: "servease-core", ownerTribeId: "servease" }),
+        update: expect.objectContaining({ projectId: "servease-core", ownerTribeId: "servease" }),
       }),
     );
     expect(tx.serviceRoute.createMany).toHaveBeenCalledWith({
@@ -258,15 +259,15 @@ describe("PostgresRegistryStoreService", () => {
     );
   });
 
-  it("defaults tribe owner to serviceId when storing legacy tribe entries", async () => {
+  it("never invents an owner tribe from the service id", async () => {
     await service.upsert(
-      entry({ serviceId: "legacy-tribe", ownerTribeId: undefined }),
+      entry({ serviceId: "email", serviceType: "shared", projectId: undefined, ownerTribeId: undefined }),
     );
 
     expect(tx.service.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ ownerTribeId: "legacy-tribe" }),
-        update: expect.objectContaining({ ownerTribeId: "legacy-tribe" }),
+        create: expect.objectContaining({ projectId: null, ownerTribeId: null }),
+        update: expect.objectContaining({ projectId: null, ownerTribeId: null }),
       }),
     );
   });

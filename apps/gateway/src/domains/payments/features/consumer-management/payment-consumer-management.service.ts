@@ -1,10 +1,14 @@
 import { randomBytes, createHash } from "node:crypto";
-import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { z } from "zod";
 import { PrismaService } from "@database/prisma.service";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 
+/**
+ * A payment consumer is a registered tribe service. Its owner tribe comes from the registry
+ * (service -> project -> tribe), so callers send only the service; ownerTribeId is rejected.
+ */
 const ConsumerInput = z.object({
-  ownerTribeId: z.string().trim().min(1).max(100),
   consumerServiceId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
   eventEndpointUrl: z
@@ -17,9 +21,9 @@ const ConsumerInput = z.object({
     .min(1)
     .max(3)
     .default(["payments:read", "payments:write", "payments:subscriptions:cancel-immediately"]),
-});
+}).strict();
 
-type ConsumerInput = z.infer<typeof ConsumerInput>;
+type ConsumerInput = z.infer<typeof ConsumerInput> & { ownerTribeId: string };
 
 type KeyRow = {
   key_prefix: string;
@@ -31,7 +35,10 @@ type KeyRow = {
 
 @Injectable()
 export class PaymentConsumerManagementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
+  ) {}
 
   async register(input: unknown): Promise<{
     consumerServiceId: string;
@@ -121,8 +128,9 @@ export class PaymentConsumerManagementService {
   }
 
   private parseInput(input: unknown): ConsumerInput {
+    let parsed: z.infer<typeof ConsumerInput>;
     try {
-      return ConsumerInput.parse(input);
+      parsed = ConsumerInput.parse(input);
     } catch (error) {
       throw new BadRequestException({
         code: "INVALID_PAYMENT_CONSUMER",
@@ -130,6 +138,15 @@ export class PaymentConsumerManagementService {
         details: error instanceof z.ZodError ? error.issues : undefined,
       });
     }
+
+    const placement = this.tenancy.resolveServicePlacement(parsed.consumerServiceId);
+    if (!placement) {
+      throw new BadRequestException({
+        code: "UNKNOWN_PAYMENT_CONSUMER_SERVICE",
+        message: `'${parsed.consumerServiceId}' must be a registered tribe service before it can receive payment keys`,
+      });
+    }
+    return { ...parsed, ownerTribeId: placement.tribeId };
   }
 
   private requireDatabase(): void {

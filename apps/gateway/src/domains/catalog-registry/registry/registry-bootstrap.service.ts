@@ -7,6 +7,8 @@ import { MetricsService } from "@metrics/metrics.service";
 import { LoggerService } from "@shared/logger.service";
 import { ServiceManifest, ServiceTier, ServiceType } from "../../../types";
 import { RegistryService } from "./registry.service";
+import { TenancyService } from "./tenancy.service";
+import type { TenancySeed } from "./tenancy.types";
 
 const VALID_SERVICE_TYPES = new Set<ServiceType>(["shared", "tribe"]);
 const VALID_SERVICE_TIERS = new Set<ServiceTier>([
@@ -22,12 +24,15 @@ export class RegistryBootstrapService implements OnApplicationBootstrap {
     private readonly logger: LoggerService,
     private readonly metrics: MetricsService,
     private readonly registry: RegistryService,
+    private readonly tenancy: TenancyService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.config.registryBootstrap.enabled) {
       return;
     }
+
+    await this.seedTenancy();
 
     const manifestPaths = this.config.registryBootstrap.manifestPaths;
     const seededServiceIds = new Set<string>();
@@ -104,6 +109,28 @@ export class RegistryBootstrapService implements OnApplicationBootstrap {
     return this.normalizeManifest(parsed, manifestPath);
   }
 
+  private async seedTenancy(): Promise<void> {
+    const configuredPath = this.config.registryBootstrap.tenancySeedPath;
+    if (!configuredPath) return;
+    const seedPath = this.resolveManifestPath(configuredPath);
+    let raw: string;
+    try {
+      raw = await readFile(seedPath, "utf-8");
+    } catch {
+      this.logger.warn(
+        `Registry bootstrap tenancy seed not found at '${seedPath}'; tribe manifests need existing projects`,
+        "RegistryBootstrapService",
+      );
+      return;
+    }
+    const seed = JSON.parse(raw) as Partial<TenancySeed>;
+    const result = await this.tenancy.seed({
+      tribes: Array.isArray(seed.tribes) ? seed.tribes : [],
+      projects: Array.isArray(seed.projects) ? seed.projects : [],
+    });
+    this.logger.info("Registry bootstrap tenancy seeded", { seedPath, ...result });
+  }
+
   private normalizeManifest(
     parsed: Partial<ServiceManifest>,
     manifestPath: string,
@@ -154,6 +181,9 @@ export class RegistryBootstrapService implements OnApplicationBootstrap {
       serviceType,
     };
 
+    if (typeof parsed.projectId === "string" && parsed.projectId.trim().length > 0) {
+      manifest.projectId = parsed.projectId.trim();
+    }
     this.applyOptionalHealthCheck(parsed.healthCheck, manifestPath, manifest);
     this.applyOptionalStringField(parsed.version, "version", manifest);
     this.applyOptionalStringField(parsed.description, "description", manifest);

@@ -15,10 +15,13 @@ export class RuntimeDependencyMapController {
   getMap() {
     const services = Object.values(this.registry.getAll());
     const topics = services
-      .filter((service) => service.consumes?.includes("kafka"))
+      .filter(
+        (service) => service.consumes?.includes("kafka") && service.ownerTribeId,
+      )
       .map((service) => ({
-        ownerTribeId: service.ownerTribeId ?? service.serviceId,
-        topicName: `tribe.${service.ownerTribeId ?? service.serviceId}.events`,
+        ownerTribeId: service.ownerTribeId!,
+        projectId: service.projectId,
+        topicName: `tribe.${service.ownerTribeId}.events`,
       }));
 
     return {
