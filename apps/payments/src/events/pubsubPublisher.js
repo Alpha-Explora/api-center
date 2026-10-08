@@ -4,13 +4,13 @@ const { toPublicId } = require('../shared/payment-ids');
 
 function getPublisher(environment) {
   if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return null;
-  if (publisherCache.has(environment)) return publisherCache.get(environment);
+  if (publisherCache.has(environment)) return publisherCache.get(environment).publisher;
 
   const { PubSub } = require('@google-cloud/pubsub');
   const client = new PubSub({ projectId: process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT });
   const topicName = paymentEventTopicName(environment);
   const publisher = client.topic(topicName);
-  publisherCache.set(environment, publisher);
+  publisherCache.set(environment, { client, publisher });
   return publisher;
 }
 
@@ -102,4 +102,10 @@ async function publishPaymentEvent(event, { topic: providedTopic } = {}) {
   return { published: true, messageId };
 }
 
-module.exports = { paymentEventTopicName, publishPaymentEvent, toCanonicalPaymentEvent };
+/** Close every cached Pub/Sub client so a short-lived job can exit. */
+async function closePaymentEventPublishers() {
+  await Promise.all([...publisherCache.values()].map(({ client }) => client.close()));
+  publisherCache.clear();
+}
+
+module.exports = { closePaymentEventPublishers, paymentEventTopicName, publishPaymentEvent, toCanonicalPaymentEvent };

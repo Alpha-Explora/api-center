@@ -347,13 +347,26 @@ model PaymentEventOutbox {
   payload         Json
   status          String    @default("pending")
   attempts        Int       @default(0)
+  maxAttempts     Int       @default(8) @map("max_attempts")
+  claimToken      String?   @map("claim_token") @db.Uuid
+  claimedAt       DateTime? @map("claimed_at") @db.Timestamptz(6)
   availableAt     DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
   publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
   lastError       String?   @map("last_error")
+  ownerTribeId    String?   @map("owner_tribe_id")
+  consumerServiceId String? @map("consumer_service_id")
+  referenceId     String?   @map("reference_id")
+  quarantineReason String?  @map("quarantine_reason")
+  quarantineAttempts Int    @default(0) @map("quarantine_attempts")
+  quarantinedAt   DateTime? @map("quarantined_at") @db.Timestamptz(6)
+  quarantineExpiresAt DateTime? @map("quarantine_expires_at") @db.Timestamptz(6)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([environment, provider, providerEventId], name: "payment_outbox_env_provider_event_uidx")
   @@index([status, availableAt], name: "payment_outbox_status_available_idx")
+  @@index([consumerServiceId, environment, status, availableAt], name: "payment_outbox_consumer_pending_idx")
+  @@index([status, availableAt, createdAt], name: "payment_outbox_claimable_idx")
+  @@map("payment_event_outbox")
   @@schema("shared_payment")
 }
