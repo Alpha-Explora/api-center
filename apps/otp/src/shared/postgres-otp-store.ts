@@ -4,7 +4,6 @@ import { OtpRepositoryInterface } from './otp-repository.interface';
 
 export class PostgresOtpStore implements OtpRepositoryInterface {
   private readonly pool: Pool;
-  private initialized = false;
 
   constructor(connectionString?: string) {
     this.pool = new Pool({
@@ -13,31 +12,7 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
     });
   }
 
-  private async ensureInitialized(): Promise<void> {
-    if (this.initialized) return;
-    const client = await this.pool.connect();
-    try {
-      await client.query(`
-        CREATE SCHEMA IF NOT EXISTS shared_otp;
-        CREATE TABLE IF NOT EXISTS shared_otp.otp_records (
-          otp_id VARCHAR(64) PRIMARY KEY,
-          target VARCHAR(255) NOT NULL,
-          channel VARCHAR(16) NOT NULL,
-          code VARCHAR(32) NOT NULL,
-          expires_at BIGINT NOT NULL,
-          status VARCHAR(32) NOT NULL,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_otp_target ON shared_otp.otp_records(target);
-      `);
-      this.initialized = true;
-    } finally {
-      client.release();
-    }
-  }
-
   async save(record: OtpRecord): Promise<OtpRecord> {
-    await this.ensureInitialized();
     const query = `
       INSERT INTO shared_otp.otp_records (otp_id, target, channel, code, expires_at, status)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -57,7 +32,6 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
   }
 
   async findById(otpId: string): Promise<OtpRecord | null> {
-    await this.ensureInitialized();
     const result = await this.pool.query(
       `SELECT otp_id, target, channel, code, expires_at, status FROM shared_otp.otp_records WHERE otp_id = $1`,
       [otpId]
@@ -83,7 +57,6 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
   }
 
   async consume(otpId: string, codeHash: string): Promise<string> {
-    await this.ensureInitialized();
     const result = await this.pool.query(
       `UPDATE shared_otp.otp_records SET status = 'used'
        WHERE otp_id = $1 AND code = $2 AND status = 'pending' AND expires_at > $3
