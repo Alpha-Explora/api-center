@@ -1,0 +1,15 @@
+{
+  "$comment": "Tribes and projects seeded by REGISTRY_BOOTSTRAP_TENANCY before example manifests register. Every tribe service names one of these projects.",
+  "tribes": [
+    { "tribeId": "logistics", "name": "Logistics" },
+    { "tribeId": "demand", "name": "Demand" },
+    { "tribeId": "analytics", "name": "Analytics" },
+    { "tribeId": "campusone", "name": "CampusOne" }
+  ],
+  "projects": [
+    { "projectId": "logistics-fulfilment", "tribeId": "logistics", "name": "Fulfilment" },
+    { "projectId": "demand-planning", "tribeId": "demand", "name": "Demand planning" },
+    { "projectId": "analytics-reporting", "tribeId": "analytics", "name": "Reporting" },
+    { "projectId": "campusone-core", "tribeId": "campusone", "name": "CampusOne core" }
+  ]
+}
