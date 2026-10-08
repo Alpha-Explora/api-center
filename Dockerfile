@@ -27,7 +27,7 @@ WORKDIR /app
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
-COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY tsconfig.base.json tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY packages/ ./packages/
 COPY apps/gateway/ ./apps/gateway/
 COPY config/ ./config/
