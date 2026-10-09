@@ -142,6 +142,20 @@ const requiredCheckConstraints = [
 
 // Payment ownership is scoped by project. These tables need a required project_id, and the reference lookup index must exist.
 const requiredPaymentProjectTables = ["resource_owners", "payment_event_outbox"];
+const forbiddenPaymentTables = [
+  "customers",
+  "products",
+  "prices",
+  "subscriptions",
+  "subscription_events",
+  "invoices",
+  "invoice_line_items",
+  "checkout_sessions",
+  "payments",
+  "refunds",
+  "receipts",
+  "receipt_line_items",
+];
 const requiredPaymentIndexes = [
   "payment_resource_owners_project_reference_idx",
   "payment_resource_owners_project_environment_type_created_idx",
@@ -552,6 +566,17 @@ async function main(): Promise<void> {
       failures,
       "shared_payment tables without a required project_id column",
       requiredPaymentProjectTables.filter((name) => !nonNullProjectTables.has(name)),
+    );
+
+    const copiedPaymentTableRows = await queryRows(
+      client,
+      "select table_name as name from information_schema.tables where table_schema = 'shared_payment' and table_type = 'BASE TABLE' and table_name = any($1::text[]) order by table_name",
+      [forbiddenPaymentTables],
+    );
+    addFailure(
+      failures,
+      "Copied PayMongo resource tables still present in shared_payment",
+      copiedPaymentTableRows.map((row) => String(row.name)),
     );
 
     const paymentListingColumns = await queryRows(
