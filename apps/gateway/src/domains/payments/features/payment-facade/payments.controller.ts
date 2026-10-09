@@ -91,6 +91,7 @@ export class PaymentsController {
       'x-apicenter-environment': env,
       'x-apicenter-consumer-service-id': principal.consumerServiceId,
       'x-apicenter-owner-tribe-id': principal.ownerTribeId,
+      'x-apicenter-project-id': principal.projectId,
       'x-tribe-id': principal.ownerTribeId,
     };
     headers.authorization = `Bearer ${token}`;

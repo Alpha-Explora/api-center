@@ -140,6 +140,10 @@ const requiredCheckConstraints = [
   "audit_events_environment_check",
 ];
 
+// Payment ownership is scoped by project. These tables need a required project_id, and the reference lookup index must exist.
+const requiredPaymentProjectTables = ["resource_owners", "payment_event_outbox"];
+const requiredPaymentIndexes = ["payment_resource_owners_project_reference_idx"];
+
 const forbiddenLegacyObjectNames = [
   "service_registration_requests_status_created_idx",
   "service_registration_requests_service_idx",
@@ -529,6 +533,30 @@ async function main(): Promise<void> {
       failures,
       "Legacy index or constraint names still present",
       forbiddenLegacyObjectNames.filter((name) => indexNames.has(name) || constraintNames.has(name)),
+    );
+
+    const paymentProjectColumnRows = await queryRows(
+      client,
+      "select table_name as name, is_nullable as nullable from information_schema.columns where table_schema = 'shared_payment' and column_name = 'project_id'",
+    );
+    const nonNullProjectTables = new Set(
+      paymentProjectColumnRows.filter((row) => row.nullable === "NO").map((row) => String(row.name)),
+    );
+    addFailure(
+      failures,
+      "shared_payment tables without a required project_id column",
+      requiredPaymentProjectTables.filter((name) => !nonNullProjectTables.has(name)),
+    );
+
+    const paymentIndexRows = await queryRows(
+      client,
+      "select indexname as name from pg_indexes where schemaname = 'shared_payment'",
+    );
+    const paymentIndexNames = new Set(paymentIndexRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared_payment indexes",
+      requiredPaymentIndexes.filter((name) => !paymentIndexNames.has(name)),
     );
 
     const environmentDefaultRows = await queryRows(

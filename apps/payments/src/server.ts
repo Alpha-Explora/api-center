@@ -35,12 +35,13 @@ const owners = PaymentOwnerStore.getInstance();
 
 function paymentContext(req: Request): PaymentContext {
   const tribeId = req.get('X-APICenter-Owner-Tribe-ID');
+  const projectId = req.get('X-APICenter-Project-ID');
   const consumerServiceId = req.get('X-APICenter-Consumer-Service-ID');
   const environment = req.get('X-APICenter-Environment');
-  if (!tribeId || !consumerServiceId || (environment !== 'test' && environment !== 'live')) {
+  if (!tribeId || !projectId || !consumerServiceId || (environment !== 'test' && environment !== 'live')) {
     throw new PayMongoError('Trusted payment context is required', 401, 'UNAUTHORIZED');
   }
-  return { tribeId, consumerServiceId, environment };
+  return { tribeId, projectId, consumerServiceId, environment };
 }
 
 app.use((req: Request, res: Response, next) => {
