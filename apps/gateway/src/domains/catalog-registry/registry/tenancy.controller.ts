@@ -2,7 +2,7 @@
 // Tenancy admin API: tribes, projects, and the services inside them.
 // =============================================================================
 
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { AuditEventsService } from "@audit/audit-events.service";
 import { NotFoundError } from "@shared/errors";
@@ -27,9 +27,16 @@ export class TenancyController {
   ) {}
 
   @Get("tribes")
-  listTribes(@Req() req: AuthenticatedRequest) {
+  listTribes(
+    @Query("organizationId") organizationFilter: string | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const organizationIds = parseOrganizationFilter(organizationFilter);
+    const tribes = this.tenancy.listTribes().filter((tribe) =>
+      !organizationIds || (tribe.organizationId && organizationIds.has(tribe.organizationId)),
+    );
     return this.response(
-      this.tenancy.listTribes().map((tribe) => ({
+      tribes.map((tribe) => ({
         ...tribe,
         projects: this.tenancy
           .listProjects({ tribeId: tribe.tribeId })
@@ -50,8 +57,13 @@ export class TenancyController {
   }
 
   @Get("tribes/:tribeId")
-  getTribe(@Param("tribeId") tribeId: string, @Req() req: AuthenticatedRequest) {
+  getTribe(
+    @Param("tribeId") tribeId: string,
+    @Query("organizationId") organizationFilter: string | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const tribe = this.requireTribe(tribeId);
+    requireOrganizationMatch(tribe.organizationId, organizationFilter);
     return this.response(
       {
         ...tribe,
@@ -86,11 +98,17 @@ export class TenancyController {
   }
 
   @Get("projects/:projectId")
-  getProject(@Param("projectId") projectId: string, @Req() req: AuthenticatedRequest) {
+  getProject(
+    @Param("projectId") projectId: string,
+    @Query("organizationId") organizationFilter: string | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const project = this.tenancy.getProject(projectId);
     if (!project) throw new NotFoundError(`Project '${projectId}' is not registered`);
+    const tribe = this.requireTribe(project.tribeId);
+    requireOrganizationMatch(tribe.organizationId, organizationFilter);
     return this.response(
-      { ...this.projectView(project), tribe: this.requireTribe(project.tribeId) },
+      { ...this.projectView(project), tribe },
       req,
     );
   }
@@ -148,6 +166,20 @@ export class TenancyController {
       data,
       meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId },
     };
+  }
+}
+
+function parseOrganizationFilter(value?: string): Set<string> | undefined {
+  if (value === undefined) return undefined;
+  const ids = value.split(",").map((id) => id.trim()).filter(Boolean);
+  return new Set(ids);
+}
+
+function requireOrganizationMatch(organizationId?: string, filter?: string): void {
+  if (filter === undefined) return;
+  const ids = parseOrganizationFilter(filter);
+  if (!organizationId || !ids?.has(organizationId)) {
+    throw new NotFoundError("Resource was not found in the requested organization scope");
   }
 }
 

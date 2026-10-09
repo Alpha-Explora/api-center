@@ -35,6 +35,7 @@ export const managementSessionSchema = z.object({
   role: z.enum(["admin", "operator", "observer"]),
   source: z.enum(["local-dev", "google"]),
   organizationIds: z.array(z.string()),
+  organizationRoles: z.record(z.string(), z.enum(["admin", "operator", "observer"])),
   platformAdmin: z.boolean(),
 });
 

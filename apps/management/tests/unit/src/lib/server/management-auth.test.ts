@@ -88,6 +88,7 @@ describe("resolveManagementSessionFromGoogleClaims", () => {
       source: "google",
       platformAdmin: false,
       organizationIds: [ACME, BETA],
+      organizationRoles: { [ACME]: "observer", [BETA]: "operator" },
     });
   });
 
@@ -126,6 +127,7 @@ describe("resolveManagementSessionFromGoogleClaims", () => {
       role: "admin",
       platformAdmin: true,
       organizationIds: [],
+      organizationRoles: {},
       source: "google",
     });
   });

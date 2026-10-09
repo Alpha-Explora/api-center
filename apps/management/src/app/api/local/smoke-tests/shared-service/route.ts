@@ -3,6 +3,7 @@ import { createOperationPreview } from "@/lib/operation-preview";
 import { smokeTestRequestSchema } from "@/lib/schemas";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 const allowedRoutes = new Set([
   "GET gauth /health",
@@ -34,6 +35,8 @@ const allowedRoutePatterns = [
 ];
 
 export async function POST(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   const body = await request.json();
 
   if (isPreviewRequest(body)) {

@@ -5,12 +5,15 @@ import { createOperationPreview } from "@/lib/operation-preview";
 import { getManagementAuthConfig } from "@/lib/server/management-auth";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_NAMESPACE = "api-center";
 const DEFAULT_DEPLOYMENT = "api-center";
 
 export async function POST(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   if (process.env.ALLOW_DEPLOYMENT_RESTARTS !== "true") {
     return NextResponse.json(
       {
