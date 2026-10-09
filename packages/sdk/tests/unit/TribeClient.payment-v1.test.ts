@@ -15,6 +15,10 @@ describe('TribeClient payment v1', () => {
     }),
   })) as unknown as typeof fetch;
 
+  beforeEach(() => {
+    (fetchImpl as jest.Mock).mockClear();
+  });
+
   it('posts a checkout through the public payment namespace with idempotency', async () => {
     const client = new TribeClient({
       baseUrl: 'https://api-center.example.test/',
@@ -51,6 +55,38 @@ describe('TribeClient payment v1', () => {
     );
   });
 
+  it('creates PayMongo plans through the public payment namespace', async () => {
+    const client = new TribeClient({
+      baseUrl: 'https://api-center.example.test',
+      apiKey: 'ac_test_key',
+      serviceToken: 'jwt_service_token',
+      fetchImpl,
+    });
+
+    await client.payments.createPlan(
+      { name: 'Quarterly', amount: 150050, interval: 'monthly', intervalCount: 3 },
+      { headers: { 'Idempotency-Key': 'idem_plan_1' } },
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api-center.example.test/api/v1/payments/plans',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ name: 'Quarterly', amount: 150050, interval: 'monthly', intervalCount: 3 }),
+      }),
+    );
+    await client.payments.getPlan('plan_123');
+    await client.payments.listPlans();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api-center.example.test/api/v1/payments/plans/plan_123',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api-center.example.test/api/v1/payments/plans',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('exposes payment intent and capability operations on the same public client', async () => {
     const client = new TribeClient({
       baseUrl: 'https://api-center.example.test',
@@ -69,7 +105,7 @@ describe('TribeClient payment v1', () => {
     await client.payments.getPaymentCapabilities();
 
     expect(fetchImpl).toHaveBeenNthCalledWith(
-      3,
+      2,
       'https://api-center.example.test/api/v1/payments/capabilities',
       expect.objectContaining({ method: 'GET' }),
     );

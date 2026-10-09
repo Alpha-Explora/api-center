@@ -5,7 +5,21 @@ description: "Create subscriptions and inspect their invoices."
 
 # Subscriptions & Invoices API
 
-Subscriptions represent recurring billing against an APICenter-managed price and customer record. Reusable payment-method setup is not currently exposed by the public API.
+Subscriptions represent recurring billing against a PayMongo plan and customer record. Reusable payment-method setup is not currently exposed by the public API.
+
+## Plans
+
+Create an actual PayMongo subscription plan with `POST /api/v1/payments/plans`. Amounts use PHP centavos, so `150050` means PHP 1,500.50. Intervals are `weekly`, `monthly`, or `yearly`; `intervalCount` accepts 1 to 10. Omit `cycleCount` to bill indefinitely, or provide an integer of at least 2.
+
+```bash
+curl -X POST https://api-center.itsandbox.site/api/v1/payments/plans \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Idempotency-Key: plan-starter-monthly" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Starter monthly","amount":150050,"currency":"PHP","interval":"monthly","intervalCount":1}'
+```
+
+Use `GET /api/v1/payments/plans/{planId}` to retrieve a plan and `GET /api/v1/payments/plans` to list plans created by the calling project.
 
 ---
 
@@ -23,6 +37,6 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/subscriptions \
   -d '{
     "referenceId": "SUB-TIER-PRO-001",
     "customerId": "cus_9912041",
-    "priceId": "price_pro_monthly"
+    "planId": "plan_pro_monthly"
   }'
 ```

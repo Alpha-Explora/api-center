@@ -3,7 +3,6 @@ import { AuthModule } from "@auth/auth.module";
 import { DatabaseModule } from "@database/database.module";
 import { RegistryModule } from "@registry/registry.module";
 import { PaymentsController, PaymentApiKeyService } from "./features/payment-facade";
-import { PaymentCatalogManagementController, PaymentCatalogManagementService } from "./features/catalog-management";
 import { PaymentConsumerManagementController, PaymentConsumerManagementService } from "./features/consumer-management";
 import {
   PaymentPubSubProvisioningController,
@@ -20,14 +19,12 @@ import { PaymentRecordsManagementService } from "./features/records-management/p
   controllers: [
     PaymentsController,
     PaymentConsumerManagementController,
-    PaymentCatalogManagementController,
     PaymentPubSubProvisioningController,
     PaymentRecordsManagementController,
   ],
   providers: [
     PaymentApiKeyService,
     PaymentAuthGuard,
-    PaymentCatalogManagementService,
     PaymentConsumerManagementService,
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,

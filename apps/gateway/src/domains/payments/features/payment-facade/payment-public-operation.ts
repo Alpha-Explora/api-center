@@ -8,15 +8,19 @@ const schemas = {
     metadata: z.record(z.string(), z.string()).optional() }),
   intent: z.object({ referenceId: reference, amount: money }),
   customer: z.object({ customerReference: reference, email: z.email(), name: z.string().max(255).optional() }),
+  plan: z.object({ name: z.string().trim().min(1).max(255), description: z.string().max(1000).optional(),
+    amount: z.number().int().min(2000).max(Number.MAX_SAFE_INTEGER), currency: z.literal('PHP').optional(),
+    interval: z.enum(['weekly', 'monthly', 'yearly']), intervalCount: z.number().int().min(1).max(10).optional(),
+    cycleCount: z.number().int().min(2).max(Number.MAX_SAFE_INTEGER).optional(), metadata: z.record(z.string(), z.string()).optional() }),
   refund: z.object({ paymentId: z.string().min(1), amount: money, reason: z.string().optional() }),
   subscription: z.object({ customerId: z.string().min(1), referenceId: reference,
-    priceId: z.string().min(1) }),
+    planId: z.string().min(1) }),
   cancellation: z.object({ reason: z.string().optional() }),
   empty: z.object({}),
 };
 
 type Shape = keyof typeof schemas;
-type Resource = 'checkout' | 'intent' | 'customer' | 'refund' | 'subscription' | 'invoice' | 'capabilities' | 'records';
+type Resource = 'checkout' | 'intent' | 'customer' | 'plan' | 'refund' | 'subscription' | 'invoice' | 'capabilities' | 'records';
 type Operation = { method: string; pattern: RegExp; scope: string; target: (match: RegExpMatchArray) => string;
   resource: Resource; shape?: Shape };
 
@@ -32,6 +36,9 @@ const operations: Operation[] = [
   { method: 'POST', pattern: /^\/intents\/([^/]+)\/cancel$/, scope: 'payments:intents:write', target: (m) => `/payment-intents/${m[1]}/cancel`, resource: 'intent', shape: 'empty' },
   { method: 'POST', pattern: /^\/customers$/, scope: 'payments:customers:write', target: () => '/customers', resource: 'customer', shape: 'customer' },
   { method: 'GET', pattern: /^\/customers\/([^/]+)$/, scope: 'payments:customers:read', target: (m) => `/customers/${m[1]}`, resource: 'customer' },
+  { method: 'POST', pattern: /^\/plans$/, scope: 'payments:subscriptions:write', target: () => '/plans', resource: 'plan', shape: 'plan' },
+  { method: 'GET', pattern: /^\/plans$/, scope: 'payments:subscriptions:read', target: () => '/plans', resource: 'plan' },
+  { method: 'GET', pattern: /^\/plans\/([^/]+)$/, scope: 'payments:subscriptions:read', target: (m) => `/plans/${m[1]}`, resource: 'plan' },
   { method: 'POST', pattern: /^\/refunds$/, scope: 'payments:refunds:write', target: () => '/refunds', resource: 'refund', shape: 'refund' },
   { method: 'GET', pattern: /^\/refunds\/([^/]+)$/, scope: 'payments:refunds:read', target: (m) => `/refunds/${m[1]}`, resource: 'refund' },
   { method: 'POST', pattern: /^\/subscriptions$/, scope: 'payments:subscriptions:write', target: () => '/subscriptions', resource: 'subscription', shape: 'subscription' },
@@ -102,10 +109,13 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
         amount: amount(raw.amount, responseCurrency(raw)), aggregateVersion: raw.aggregateVersion };
       case 'customer': return { customerId: raw.customerId, customerReference: raw.customerReference,
         email: raw.email, name: raw.name };
+      case 'plan': return { planId: raw.planId, name: raw.name,
+        description: raw.description, amount: raw.amount, currency: raw.currency, interval: raw.interval,
+        intervalCount: raw.intervalCount, cycleCount: raw.cycleCount, metadata: raw.metadata };
       case 'refund': return { refundId: raw.refundId, paymentId: raw.paymentId,
         status: raw.status, amount: amount(raw.amount, responseCurrency(raw)) };
       case 'subscription': return { subscriptionId: raw.subscriptionId, customerId: raw.customerId,
-        status: raw.status, currentPeriodEnd: raw.currentPeriodEnd };
+        planId: raw.planId, status: raw.status, currentPeriodEnd: raw.currentPeriodEnd };
       case 'invoice': return { invoiceId: raw.invoiceId, status: raw.status,
         amount: amount(raw.amount, responseCurrency(raw)) };
       default: return raw;

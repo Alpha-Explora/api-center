@@ -64,10 +64,18 @@ export interface PaymentIntent {
 }
 export interface CreateCustomerInput { customerReference: string; email: string; name?: string; }
 export interface Customer { customerId: string; customerReference: string; email?: string; name?: string; }
+export interface CreatePlanInput {
+  name: string; description?: string; amount: number; currency?: 'PHP';
+  interval: 'weekly' | 'monthly' | 'yearly'; intervalCount?: number; cycleCount?: number; metadata?: Record<string, string>;
+}
+export interface Plan {
+  planId: string; name: string; description?: string; amount: number; currency: 'PHP';
+  interval: 'weekly' | 'monthly' | 'yearly'; intervalCount: number; cycleCount?: number; metadata?: Record<string, string>;
+}
 export interface CreateRefundInput { paymentId: string; amount: Money; reason?: string; }
 export interface Refund { refundId: string; paymentId: string; status: 'pending' | 'processing' | 'succeeded' | 'failed' | string; amount: Money; }
-export interface CreateSubscriptionInput { customerId: string; referenceId: string; priceId: string; }
-export interface Subscription { subscriptionId: string; customerId: string; status: 'active' | 'past_due' | 'cancelled' | 'pending' | string; currentPeriodEnd?: string; }
+export interface CreateSubscriptionInput { customerId: string; referenceId: string; planId: string; }
+export interface Subscription { subscriptionId: string; customerId: string; planId?: string; status: 'active' | 'past_due' | 'cancelled' | 'pending' | string; currentPeriodEnd?: string; }
 export interface Invoice { invoiceId: string; status: 'draft' | 'open' | 'paid' | 'past_due' | 'void' | string; amount: Money; }
 export interface PendingResource { status: 'pending'; resourceId: string; }
 export type PaymentResource<T> = T | PendingResource;

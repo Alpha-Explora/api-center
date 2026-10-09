@@ -50,39 +50,63 @@ export class CustomersCatalogService {
     };
   }
 
-  async createProduct(payload: any, options: { idempotencyKey?: string } = {}) {
-    const { name, description } = payload;
-    if (!name) throw new PayMongoError('name is required', 400);
-    return { productId: payload.productId || toPublicId('prd', `prod_${crypto.randomUUID().replace(/-/g, '')}`),
-      name, description, active: payload.active ?? true, metadata: payload.metadata || {} };
+  async createPlan(payload: any, options: { idempotencyKey?: string } = {}) {
+    const { name, description, amount, currency = 'PHP', interval, intervalCount = 1, cycleCount, metadata } = payload;
+    if (typeof name !== 'string' || !name.trim()) throw new PayMongoError('name is required', 400);
+    if (!Number.isSafeInteger(amount) || amount < 2000) {
+      throw new PayMongoError('amount must be an integer of at least 2000 centavos', 400);
+    }
+    if (currency !== 'PHP') throw new PayMongoError('Only PHP plans are supported', 400);
+    if (!['weekly', 'monthly', 'yearly'].includes(interval)) {
+      throw new PayMongoError('interval must be weekly, monthly, or yearly', 400);
+    }
+    if (!Number.isInteger(intervalCount) || intervalCount < 1 || intervalCount > 10) {
+      throw new PayMongoError('intervalCount must be an integer from 1 to 10', 400);
+    }
+    if (cycleCount !== undefined && (!Number.isSafeInteger(cycleCount) || cycleCount < 2)) {
+      throw new PayMongoError('cycleCount must be an integer of at least 2', 400);
+    }
+    if (description !== undefined && (typeof description !== 'string' || description.length > 1000)) {
+      throw new PayMongoError('description must be a string of at most 1000 characters', 400);
+    }
+    if (metadata !== undefined && (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)
+      || Object.values(metadata).some((value) => typeof value !== 'string'))) {
+      throw new PayMongoError('metadata values must be strings', 400);
+    }
+
+    const attributes = {
+      name: name.trim(), description, amount, currency, interval,
+      interval_count: intervalCount, ...(cycleCount === undefined ? {} : { cycle_count: cycleCount }), metadata,
+    };
+    const response = isMockMode()
+      ? { data: { id: `plan_mock_${crypto.randomUUID().replace(/-/g, '')}`, attributes } }
+      : await paymongoRequest('/subscriptions/plans', {
+        method: 'POST', body: { data: { attributes } }, idempotencyKey: options.idempotencyKey,
+      });
+    return this.planView(response?.data || {});
   }
 
-  async createPrice(payload: any, options: { idempotencyKey?: string } = {}) {
-    const { amount, currency = 'PHP', productId, unitAmount, recurring } = payload;
-    const finalAmount = typeof amount === 'object' ? Number(amount?.value) : Number(amount || unitAmount);
-    if (!Number.isInteger(finalAmount) || finalAmount <= 0 || !productId || !recurring) {
-      throw new PayMongoError('A positive amount, productId, and recurring interval are required', 400);
-    }
-    const interval = { week: 'weekly', month: 'monthly', year: 'yearly' }[recurring.interval as 'week' | 'month' | 'year'];
-    if (!interval) throw new PayMongoError('PayMongo supports weekly, monthly, or yearly plans', 400);
-
+  async getPlan(planId: string) {
     if (isMockMode()) {
-      return { priceId: toPublicId('pri', `plan_mock_${crypto.randomUUID().replace(/-/g, '')}`),
-        amount: { value: finalAmount, currency }, productId, recurring };
+      return this.planView({ id: planId, attributes: { name: 'Mock Plan', amount: 2000,
+        currency: 'PHP', interval: 'monthly', interval_count: 1 } });
     }
+    const response = await paymongoRequest(`/subscriptions/plans/${encodeURIComponent(planId)}`);
+    return this.planView(response?.data || {});
+  }
 
-    const response = await paymongoRequest('/subscriptions/plans', {
-      method: 'POST',
-      body: { data: { attributes: { name: payload.name || `Plan ${productId}`,
-        amount: finalAmount, currency, interval, interval_count: recurring.intervalCount || 1 } } },
-      idempotencyKey: options.idempotencyKey,
-    });
-
-    const providerData = response?.data || {};
-    const attributes = providerData.attributes || {};
-
-    return { priceId: toPublicId('pri', providerData.id),
-      amount: { value: attributes.amount || finalAmount, currency: attributes.currency || currency },
-      productId, recurring };
+  private planView(resource: any) {
+    const attributes = resource.attributes || {};
+    return {
+      planId: resource.id,
+      name: attributes.name,
+      description: attributes.description,
+      amount: attributes.amount,
+      currency: attributes.currency || 'PHP',
+      interval: attributes.interval,
+      intervalCount: attributes.interval_count,
+      cycleCount: attributes.cycle_count,
+      metadata: attributes.metadata || {},
+    };
   }
 }

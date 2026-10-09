@@ -5,9 +5,9 @@ import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
 
 export class SubscriptionsService {
   async createSubscription(payload: any, options: { idempotencyKey?: string; tribeId?: string } = {}) {
-    const { customerId, priceId } = payload;
-    if (!customerId || !priceId) {
-      throw new PayMongoError('customerId and priceId are required', 400);
+    const { customerId, planId } = payload;
+    if (!customerId || !planId) {
+      throw new PayMongoError('customerId and planId are required', 400);
     }
     if (payload.cancelAtPeriodEnd === true) {
       throw new PayMongoError('Scheduled cancellation is not supported by this provider', 422, 'UNSUPPORTED_OPTION');
@@ -18,14 +18,14 @@ export class SubscriptionsService {
         subscriptionId: toPublicId('sub', `sub_mock_${crypto.randomUUID().replace(/-/g, '')}`),
         status: 'pending',
         customerId,
-        priceId,
+        planId,
         createdAt: new Date().toISOString(),
       };
     }
 
     const response = await paymongoRequest('/subscriptions', {
       method: 'POST',
-      body: { data: { attributes: { customer_id: toProviderId('cus', customerId), plan_id: toProviderId('pri', priceId) } } },
+      body: { data: { attributes: { customer_id: toProviderId('cus', customerId), plan_id: planId } } },
       idempotencyKey: options.idempotencyKey,
     });
 
@@ -36,7 +36,7 @@ export class SubscriptionsService {
       subscriptionId: toPublicId('sub', providerData.id),
       status: attributes.status === 'incomplete' ? 'pending' : attributes.status || 'pending',
       customerId,
-      priceId,
+      planId,
       currentPeriodEnd: attributes.next_billing_schedule,
       createdAt: new Date().toISOString(),
     };
@@ -54,6 +54,7 @@ export class SubscriptionsService {
       subscriptionId: toPublicId('sub', providerData.id || subscriptionId),
       status: attributes.status === 'incomplete' ? 'pending' : attributes.status,
       customerId: attributes.customer_id ? toPublicId('cus', attributes.customer_id) : undefined,
+      planId: attributes.plan_id,
       currentPeriodEnd: attributes.next_billing_schedule,
     };
   }
