@@ -1,16 +1,13 @@
 # History retention
 
-Several tables only ever grow: audit events, quota evaluations, usage rollups, health snapshots, smoke test runs, pipeline feedback actions and promotion evidence. Each one declares its retention window in its table comment, for example `retention=400d`. `scripts/purge-expired-history.cjs` deletes rows older than that window, and the comment is the single source of the number.
+Several tables only ever grow: audit events, quota evaluations, usage rollups and pipeline feedback actions. Each one declares its retention window in its table comment, for example `retention=400d`. `scripts/purge-expired-history.cjs` deletes rows older than that window, and the comment is the single source of the number.
 
 | Table | Dated by | Window |
 | --- | --- | --- |
 | `apic_audit.audit_events` | `created_at` | 400 days |
 | `apic_runtime.quota_evaluations` | `created_at` | 180 days |
 | `apic_runtime.usage_rollups` | `window_end` | 400 days |
-| `apic_runtime.health_snapshots` | `checked_at` | 90 days |
-| `apic_runtime.smoke_test_runs` | `created_at` | 180 days |
 | `apic_runtime.pipeline_feedback_actions` | `created_at` | 365 days |
-| `apic_governance.promotion_evidence_bundles` | `created_at` | 400 days |
 
 To change a window, change the table comment in a migration. The verifier (`--require-retention-policy`) fails when a managed table has no policy.
 

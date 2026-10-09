@@ -121,7 +121,7 @@ export class PromotionEvidenceBundleService {
     return volatileSourceMetadata({
       sourceName: "promotion-evidence-memory-bundles",
       degradedReason:
-        "Promotion evidence bundles are process memory only until apic_governance.promotion_evidence_bundles or apic_audit.evidence_snapshots is implemented.",
+        "Promotion evidence bundles are held in process memory and are unavailable after a process restart.",
     });
   }
 }

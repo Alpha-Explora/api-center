@@ -23,7 +23,6 @@ const domainSchemas = [
   "shared_email",
   "shared_sms",
   "shared_otp",
-  "shared_geo",
   "shared_gauth",
 ];
 
@@ -34,24 +33,18 @@ const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "service_routes"],
   ["apic_catalog", "service_scopes"],
   ["apic_catalog", "service_dependencies"],
-  ["apic_catalog", "shared_service_runtime_routes"],
   ["apic_catalog", "service_lifecycle_events"],
-  ["apic_catalog", "service_secret_references"],
   ["apic_governance", "registry_change_requests"],
   ["apic_governance", "approval_requests"],
   ["apic_governance", "quota_policies"],
   ["apic_governance", "entitlement_plans"],
   ["apic_governance", "entitlement_assignments"],
-  ["apic_governance", "promotion_evidence_bundles"],
   ["apic_governance", "payment_consumer_services"],
   ["apic_governance", "payment_api_keys"],
-  ["apic_runtime", "provisioning_jobs"],
   ["apic_runtime", "event_topic_onboarding_states"],
   ["apic_runtime", "confluent_topics"],
   ["apic_runtime", "s3_sink_topics"],
   ["apic_runtime", "quota_evaluations"],
-  ["apic_runtime", "health_snapshots"],
-  ["apic_runtime", "smoke_test_runs"],
   ["apic_runtime", "usage_rollups"],
   ["apic_runtime", "pipeline_feedback_actions"],
   ["apic_audit", "audit_events"],
@@ -65,7 +58,6 @@ const compatibilityViews: QualifiedObject[] = [
   ["api_center", "service_scopes"],
   ["api_center", "service_dependencies"],
   ["api_center", "service_lifecycle_events"],
-  ["api_center", "tribe_secret_refs"],
   ["api_center", "confluent_topics"],
   ["api_center", "s3_sink_topics"],
   ["api_center_ops", "service_registration_requests"],
@@ -73,15 +65,26 @@ const compatibilityViews: QualifiedObject[] = [
   ["api_center_ops", "tribe_api_quota_policies"],
   ["api_center_ops", "tribe_plan_definitions"],
   ["api_center_ops", "tribe_plan_assignments"],
-  ["api_center_ops", "provisioning_jobs"],
   ["api_center_ops", "topic_onboarding_states"],
-  ["api_center_ops", "health_snapshots"],
-  ["api_center_ops", "smoke_test_runs"],
   ["api_center_ops", "usage_rollups"],
   ["api_center_ops", "tribe_api_quota_decisions"],
   ["api_center_ops", "pipeline_feedback_actions"],
   ["api_center_audit", "audit_events"],
 ].map(([schema, name]) => ({ schema, name }));
+
+const removedPersistenceObjects: QualifiedObject[] = [
+  ["apic_catalog", "service_secret_references"],
+  ["apic_catalog", "shared_service_runtime_routes"],
+  ["apic_governance", "promotion_evidence_bundles"],
+  ["apic_runtime", "provisioning_jobs"],
+  ["apic_runtime", "health_snapshots"],
+  ["apic_runtime", "smoke_test_runs"],
+  ["api_center", "tribe_secret_refs"],
+  ["api_center_ops", "provisioning_jobs"],
+  ["api_center_ops", "health_snapshots"],
+  ["api_center_ops", "smoke_test_runs"],
+].map(([schema, name]) => ({ schema, name }));
+const removedSchemas = ["shared_geo"];
 
 const requiredIndexes = [
   "service_environments_service_id_idx",
@@ -96,10 +99,6 @@ const requiredIndexes = [
   "quota_policies_scope_target_idx",
   "entitlement_assignments_owner_env_status_idx",
   "entitlement_assignments_plan_env_idx",
-  "promotion_evidence_service_env_created_idx",
-  "promotion_evidence_correlation_idx",
-  "shared_service_runtime_routes_service_env_uidx",
-  "shared_service_runtime_routes_env_status_idx",
   "event_topic_onboarding_states_env_owner_idx",
   "event_topic_onboarding_states_updated_idx",
   "quota_evaluations_owner_created_idx",
@@ -107,9 +106,6 @@ const requiredIndexes = [
   "quota_evaluations_correlation_idx",
   "quota_evaluations_environment_owner_created_idx",
   "quota_evaluations_env_route_window_idx",
-  "health_snapshots_service_env_checked_idx",
-  "smoke_test_runs_service_env_created_idx",
-  "smoke_test_runs_tribe_service_env_created_idx",
   "usage_rollups_environment_window_idx",
   "usage_rollups_env_service_target_window_uidx",
   "pipeline_feedback_actions_env_target_idx",
@@ -132,17 +128,10 @@ const requiredCheckConstraints = [
   "quota_policies_status_check",
   "entitlement_assignments_status_check",
   "entitlement_assignments_environment_check",
-  "promotion_evidence_source_environment_check",
-  "promotion_evidence_target_environment_check",
-  "promotion_evidence_distinct_environment_check",
-  "shared_service_runtime_routes_environment_check",
-  "shared_service_runtime_routes_status_check",
   "service_environments_environment_check",
   "event_topic_onboarding_states_environment_check",
   "pipeline_feedback_actions_environment_check",
   "quota_evaluations_environment_check",
-  "health_snapshots_environment_check",
-  "smoke_test_runs_environment_check",
   "usage_rollups_environment_check",
   "quota_evaluations_mode_check",
   "quota_evaluations_outcome_check",
@@ -171,10 +160,7 @@ const retentionManagedTables: QualifiedObject[] = [
   ["apic_audit", "audit_events"],
   ["apic_runtime", "quota_evaluations"],
   ["apic_runtime", "usage_rollups"],
-  ["apic_runtime", "health_snapshots"],
-  ["apic_runtime", "smoke_test_runs"],
   ["apic_runtime", "pipeline_feedback_actions"],
-  ["apic_governance", "promotion_evidence_bundles"],
 ].map(([schema, name]) => ({ schema, name }));
 
 const registryChildDeleteTables = new Set([
@@ -323,6 +309,25 @@ async function main(): Promise<void> {
       [controlledSchemas],
     );
     addFailure(failures, "Missing required enterprise tables", missingObjects(requiredTables, tableRows));
+
+    const removedObjectRows = await queryRows(
+      client,
+      "select table_schema as schema, table_name as name from information_schema.tables where table_schema = any($1::text[]) and table_name = any($2::text[])",
+      [[...controlledSchemas, ...legacySchemas], removedPersistenceObjects.map((object) => object.name)],
+    );
+    const presentRemovedObjects = new Set(removedObjectRows.map((row) => String(row.schema) + "." + String(row.name)));
+    addFailure(
+      failures,
+      "Removed persistence objects still present",
+      removedPersistenceObjects.map(key).filter((name) => presentRemovedObjects.has(name)),
+    );
+
+    const removedSchemaRows = await queryRows(
+      client,
+      "select nspname as schema from pg_namespace where nspname = any($1::text[]) order by nspname",
+      [removedSchemas],
+    );
+    addFailure(failures, "Removed schemas still present", removedSchemaRows.map((row) => String(row.schema)));
 
     if (hasFlag("--require-compat-views")) {
       const viewRows = await queryRows(

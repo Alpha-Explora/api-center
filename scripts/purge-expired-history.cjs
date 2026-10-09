@@ -15,10 +15,7 @@ const MANAGED_TABLES = [
   { schema: 'apic_audit', table: 'audit_events', column: 'created_at' },
   { schema: 'apic_runtime', table: 'quota_evaluations', column: 'created_at' },
   { schema: 'apic_runtime', table: 'usage_rollups', column: 'window_end' },
-  { schema: 'apic_runtime', table: 'health_snapshots', column: 'checked_at' },
-  { schema: 'apic_runtime', table: 'smoke_test_runs', column: 'created_at' },
   { schema: 'apic_runtime', table: 'pipeline_feedback_actions', column: 'created_at' },
-  { schema: 'apic_governance', table: 'promotion_evidence_bundles', column: 'created_at' },
 ];
 
 /** Reads the number of days from a comment such as "retention=400d; partition=monthly". */
