@@ -3,6 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DeploymentRestartCard } from "@/components/deployment-restart-card";
 import { ManagementSessionCard } from "@/components/management-session-card";
 import { PageHeading } from "@/components/page-heading";
+import { PlatformAdminOnly } from "@/components/platform-admin-only";
 import { SharedServiceProviderConfigHealthPanel } from "@/components/secret-health-panel";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -37,6 +38,7 @@ export default function SettingsPage() {
   const deployment = process.env.K8S_API_CENTER_DEPLOYMENT ?? "api-center";
 
   return (
+    <PlatformAdminOnly>
     <div className="flex max-w-4xl flex-col gap-6">
       <PageHeading
         title="Settings"
@@ -110,6 +112,7 @@ export default function SettingsPage() {
         </AlertDescription>
       </Alert>
     </div>
+    </PlatformAdminOnly>
   );
 }
 

@@ -18,8 +18,10 @@ Tribes do not configure PayMongo keys, PayMongo webhooks, or provider mode.
 
 API Center enforces auth, consumes policy, scopes, telemetry, and proxying.
 
-The payment shared service owns PayMongo credentials, provider mode, webhook
-signature validation, payment persistence, and subscription lifecycle state.
+The payment shared service owns PayMongo credentials, provider mode, and webhook
+signature validation. PayMongo owns payment and subscription records. APICenter keeps
+project ownership and reconciliation facts, verified webhook receipts, and event
+delivery state in its payment schema.
 
 ## Test Evidence Checklist
 

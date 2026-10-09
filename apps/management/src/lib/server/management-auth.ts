@@ -8,6 +8,37 @@ export type ManagementSession = {
   name?: string;
   role: ManagementRole;
   source: ManagementAuthMode;
+  /** Organizations this account belongs to. Platform admins act in every organization. */
+  organizationIds: string[];
+  /** Role attached to each membership; global role is only the highest role for UI hints. */
+  organizationRoles: Record<string, ManagementRole>;
+  /** True for PLATFORM_ADMIN_EMAILS operators, who act as admin in every organization. */
+  platformAdmin: boolean;
+};
+
+export type OrganizationMembership = {
+  organizationId: string;
+  organizationSlug: string;
+  organizationName: string;
+  role: ManagementRole;
+};
+
+/** Result of the gateway lookup for one email: its memberships and whether it is a platform admin. */
+export type MembershipLookup = {
+  email: string;
+  platformAdmin: boolean;
+  memberships: OrganizationMembership[];
+};
+
+export type MembershipLookupFn = (email: string) => Promise<MembershipLookup>;
+
+export const NO_ORGANIZATION_ACCESS_MESSAGE =
+  "This Google account does not have APICenter access. Ask an organization admin to add your email, then sign in again.";
+
+const ROLE_RANK: Record<ManagementRole, number> = {
+  observer: 1,
+  operator: 2,
+  admin: 3,
 };
 
 export type ManagementAuthConfig = {
@@ -95,23 +126,65 @@ export function createLocalDevSession(): ManagementSession {
     name: "Local Developer",
     role: "admin",
     source: "local-dev",
+    organizationIds: [],
+    organizationRoles: {},
+    platformAdmin: true,
   };
 }
 
-export function resolveManagementSessionFromGoogleClaims(
+export async function resolveManagementSessionFromGoogleClaims(
   claims: GoogleClaims,
-): ManagementSession {
+  lookupMemberships: MembershipLookupFn,
+): Promise<ManagementSession> {
   if (!claims.email || claims.email_verified !== true) {
     throw new Error("Verified Google email is required");
   }
 
   const email = claims.email.trim().toLowerCase();
+  let lookup: MembershipLookup;
+  try {
+    lookup = await lookupMemberships(email);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    throw new Error(
+      `Could not confirm APICenter access for ${email}: ${reason}. Sign-in was not completed; try again shortly.`,
+    );
+  }
 
-  return {
-    userId: claims.sub ?? email,
-    email,
-    name: claims.name,
-    role: "admin",
-    source: "google",
-  };
+  return sessionFromMembershipLookup(
+    { userId: claims.sub ?? email, email, name: claims.name },
+    lookup,
+  );
+}
+
+/**
+ * Platform admins act as admin everywhere. Everyone else gets the highest role across their
+ * memberships. An account with no membership cannot sign in.
+ */
+export function sessionFromMembershipLookup(
+  identity: { userId: string; email: string; name?: string },
+  lookup: MembershipLookup,
+): ManagementSession {
+  const organizationIds = lookup.memberships.map((membership) => membership.organizationId);
+  const organizationRoles = Object.fromEntries(
+    lookup.memberships.map(({ organizationId, role }) => [organizationId, role]),
+  );
+
+  if (lookup.platformAdmin) {
+    return { ...identity, role: "admin", source: "google", platformAdmin: true, organizationIds, organizationRoles };
+  }
+
+  const role = highestRole(lookup.memberships.map((membership) => membership.role));
+  if (!role) {
+    throw new Error(NO_ORGANIZATION_ACCESS_MESSAGE);
+  }
+
+  return { ...identity, role, source: "google", platformAdmin: false, organizationIds, organizationRoles };
+}
+
+function highestRole(roles: ManagementRole[]): ManagementRole | undefined {
+  return roles.reduce<ManagementRole | undefined>(
+    (best, role) => (!best || ROLE_RANK[role] > ROLE_RANK[best] ? role : best),
+    undefined,
+  );
 }

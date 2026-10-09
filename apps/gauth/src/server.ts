@@ -12,13 +12,28 @@ import { TokenExchangeService } from './features/token-exchange/token-exchange.s
 import { TokenRefreshService } from './features/token-refresh/token-refresh.service';
 import { LogoutService } from './features/logout/logout.service';
 import { VerifyTokenService } from './features/verify-token/verify-token.service';
-import { resolveGoogleOAuthCredential, GoogleOAuthCredential } from './shared/credential-resolver';
+import { GoogleOAuthCredential, resolveGoogleOAuthCredential } from './shared/credential-resolver';
+import { SecretManagerClientSecretReader } from './shared/client-secret-reader';
+import { createOAuthAppStore } from './shared/oauth-app-store';
+import { getStateSecret } from './shared/oauth-state.signer';
+import { createOAuthAppAdminHandler } from './shared/oauth-app-admin';
+
+// Throws at startup in production when GOOGLE_OAUTH_STATE_SECRET is missing, so the service never runs unsigned.
+getStateSecret(process.env);
 
 const port = Number(process.env.PORT || 4013);
-const defaultRedirectUri = process.env.GOOGLE_REDIRECT_URI;
 const authorizeLimit = Number(process.env.GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT || 20);
 const authorizeWindowMs = Number(process.env.GAUTH_AUTHORIZE_LIMIT_WINDOW_MS || 60_000);
 const rateLimitStore = createMemoryRateLimitStore();
+const credentialDependencies = {
+  store: createOAuthAppStore(process.env),
+  secrets: new SecretManagerClientSecretReader(),
+  env: process.env,
+};
+const oauthAppAdminHandler = createOAuthAppAdminHandler({
+  store: credentialDependencies.store,
+  expectedToken: process.env.GAUTH_ADMIN_TOKEN,
+});
 
 const { app } = createSharedServiceApp({
   serviceId: 'gauth-gateway',
@@ -27,8 +42,6 @@ const { app } = createSharedServiceApp({
     provider: 'google',
     architecture: 'enterprise-feature-sliced',
     configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-    redirectUriConfigured: Boolean(defaultRedirectUri),
-    tenantCredentialsConfigured: Boolean(process.env.GOOGLE_OAUTH_TENANT_CLIENTS_JSON),
   },
 });
 
@@ -38,16 +51,23 @@ const tokenRefreshService = new TokenRefreshService();
 const logoutService = new LogoutService();
 const verifyTokenService = new VerifyTokenService();
 
-function resolveCredentialForRequest(res: Response, payload: any, options: { requireRedirectUri?: boolean } = {}): GoogleOAuthCredential | null {
-  const { requireRedirectUri = true } = options;
+app.all('/admin/oauth-apps/:projectId/:environment', oauthAppAdminHandler);
+
+/** The gateway sets the project and environment headers and strips any the caller sends, so they can be trusted. */
+async function resolveCredentialForRequest(req: Request, res: Response): Promise<GoogleOAuthCredential | null> {
+  const redirectUri = typeof req.body?.redirectUri === 'string' ? req.body.redirectUri : null;
   let resolved;
   try {
-    resolved = resolveGoogleOAuthCredential({
-      tenantSlug: payload.tenantSlug,
-      redirectUri: payload.redirectUri,
-    });
-  } catch (error: any) {
-    fail(res, 500, 'GOOGLE_CONFIG_ERROR', error?.message || 'Google OAuth configuration is invalid.');
+    resolved = await resolveGoogleOAuthCredential(
+      {
+        projectId: req.header('X-APICenter-Project-Id'),
+        environment: req.header('X-APICenter-Environment'),
+        redirectUri,
+      },
+      credentialDependencies,
+    );
+  } catch {
+    fail(res, 503, 'OAUTH_APP_LOOKUP_FAILED', 'Google OAuth app registration could not be read.');
     return null;
   }
 
@@ -55,33 +75,25 @@ function resolveCredentialForRequest(res: Response, payload: any, options: { req
     fail(res, resolved.status, resolved.code, resolved.message);
     return null;
   }
-
-  if (requireRedirectUri && !resolved.credential.redirectUri) {
-    fail(
-      res,
-      400,
-      'MISSING_REDIRECT_URI',
-      'redirectUri is required in payload or Google OAuth tenant/default configuration.',
-    );
-    return null;
-  }
-
   return resolved.credential;
 }
 
 app.post('/oauth/authorize', async (req: Request, res: Response) => {
   const payload = req.body || {};
-  const credential = resolveCredentialForRequest(res, payload);
+  const credential = await resolveCredentialForRequest(req, res);
 
   if (!credential) {
     return;
   }
 
   const subject = payload.loginHint || payload.redirectUri || req.ip || 'anonymous';
-  const limit = await rateLimitStore.consume(`gauth:authorize:${String(subject).toLowerCase()}`, {
-    limit: authorizeLimit,
-    windowMs: authorizeWindowMs,
-  });
+  const limit = await rateLimitStore.consume(
+    `gauth:authorize:${credential.projectId}:${credential.environment}:${String(subject).toLowerCase()}`,
+    {
+      limit: authorizeLimit,
+      windowMs: authorizeWindowMs,
+    },
+  );
   if (!limit.allowed) {
     return fail(res, 429, 'RATE_LIMITED', 'Google authorization request limit exceeded.', {
       resetAt: new Date(limit.resetAt).toISOString(),
@@ -93,15 +105,14 @@ app.post('/oauth/authorize', async (req: Request, res: Response) => {
 });
 
 app.post('/oauth/token', async (req: Request, res: Response) => {
-  const payload = req.body || {};
-  const credential = resolveCredentialForRequest(res, payload);
+  const credential = await resolveCredentialForRequest(req, res);
 
   if (!credential) {
     return;
   }
 
   try {
-    const result = await tokenExchangeService.execute(payload, credential);
+    const result = await tokenExchangeService.execute(req.body || {}, credential);
     return ok(res, result);
   } catch (err: any) {
     return fail(res, err.status || 502, err.code || 'GOOGLE_TOKEN_EXCHANGE_FAILED', err.message, err.details);
@@ -109,15 +120,14 @@ app.post('/oauth/token', async (req: Request, res: Response) => {
 });
 
 app.post('/oauth/token/refresh', async (req: Request, res: Response) => {
-  const payload = req.body || {};
-  const credential = resolveCredentialForRequest(res, payload, { requireRedirectUri: false });
+  const credential = await resolveCredentialForRequest(req, res);
 
   if (!credential) {
     return;
   }
 
   try {
-    const result = await tokenRefreshService.execute(payload, credential);
+    const result = await tokenRefreshService.execute(req.body || {}, credential);
     return ok(res, result);
   } catch (err: any) {
     return fail(res, err.status || 502, err.code || 'GOOGLE_TOKEN_REFRESH_FAILED', err.message, err.details);

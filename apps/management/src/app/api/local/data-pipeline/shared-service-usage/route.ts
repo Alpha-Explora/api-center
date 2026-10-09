@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 import { ZodError } from "zod";
 import {
   parsePipelinePartitionDate,
@@ -14,6 +15,8 @@ import {
 } from "@/lib/environment-names";
 
 export async function GET(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   try {
     const searchParams = new URL(request.url).searchParams;
     const pipelineLane = readPipelineLaneQuery(searchParams);

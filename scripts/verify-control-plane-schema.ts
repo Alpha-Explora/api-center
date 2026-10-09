@@ -28,34 +28,28 @@ const domainSchemas = [
   "shared_email",
   "shared_sms",
   "shared_otp",
-  "shared_geo",
   "shared_gauth",
 ];
 
 const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "organizations"],
+  ["apic_catalog", "organization_members"],
   ["apic_catalog", "services"],
   ["apic_catalog", "service_environments"],
   ["apic_catalog", "service_routes"],
   ["apic_catalog", "service_scopes"],
   ["apic_catalog", "service_dependencies"],
-  ["apic_catalog", "shared_service_runtime_routes"],
   ["apic_catalog", "service_lifecycle_events"],
-  ["apic_catalog", "service_secret_references"],
   ["apic_governance", "registry_change_requests"],
   ["apic_governance", "approval_requests"],
   ["apic_governance", "quota_policies"],
   ["apic_governance", "entitlement_assignments"],
-  ["apic_governance", "promotion_evidence_bundles"],
   ["apic_governance", "payment_consumer_services"],
   ["apic_governance", "payment_api_keys"],
-  ["apic_runtime", "provisioning_jobs"],
   ["apic_runtime", "event_topic_onboarding_states"],
   ["apic_runtime", "confluent_topics"],
   ["apic_runtime", "s3_sink_topics"],
   ["apic_runtime", "quota_evaluations"],
-  ["apic_runtime", "health_snapshots"],
-  ["apic_runtime", "smoke_test_runs"],
   ["apic_runtime", "usage_rollups"],
   ["apic_runtime", "pipeline_feedback_actions"],
   ["apic_audit", "audit_events"],
@@ -69,24 +63,35 @@ const compatibilityViews: QualifiedObject[] = [
   ["api_center", "service_scopes"],
   ["api_center", "service_dependencies"],
   ["api_center", "service_lifecycle_events"],
-  ["api_center", "tribe_secret_refs"],
   ["api_center", "confluent_topics"],
   ["api_center", "s3_sink_topics"],
   ["api_center_ops", "service_registration_requests"],
   ["api_center_ops", "approval_requests"],
   ["api_center_ops", "tribe_api_quota_policies"],
   ["api_center_ops", "tribe_plan_assignments"],
-  ["api_center_ops", "provisioning_jobs"],
   ["api_center_ops", "topic_onboarding_states"],
-  ["api_center_ops", "health_snapshots"],
-  ["api_center_ops", "smoke_test_runs"],
   ["api_center_ops", "usage_rollups"],
   ["api_center_ops", "tribe_api_quota_decisions"],
   ["api_center_ops", "pipeline_feedback_actions"],
   ["api_center_audit", "audit_events"],
 ].map(([schema, name]) => ({ schema, name }));
 
+const removedPersistenceObjects: QualifiedObject[] = [
+  ["apic_catalog", "service_secret_references"],
+  ["apic_catalog", "shared_service_runtime_routes"],
+  ["apic_governance", "promotion_evidence_bundles"],
+  ["apic_runtime", "provisioning_jobs"],
+  ["apic_runtime", "health_snapshots"],
+  ["apic_runtime", "smoke_test_runs"],
+  ["api_center", "tribe_secret_refs"],
+  ["api_center_ops", "provisioning_jobs"],
+  ["api_center_ops", "health_snapshots"],
+  ["api_center_ops", "smoke_test_runs"],
+].map(([schema, name]) => ({ schema, name }));
+const removedSchemas = ["shared_geo"];
+
 const requiredIndexes = [
+  "organization_members_email_idx",
   "service_environments_service_id_idx",
   "service_environments_env_status_idx",
   "registry_change_requests_status_created_idx",
@@ -100,10 +105,6 @@ const requiredIndexes = [
   "entitlement_assignments_owner_env_status_idx",
   "entitlement_assignments_plan_env_idx",
   "entitlement_assignments_one_active_owner_project_env_uidx",
-  "promotion_evidence_service_env_created_idx",
-  "promotion_evidence_correlation_idx",
-  "shared_service_runtime_routes_service_env_uidx",
-  "shared_service_runtime_routes_env_status_idx",
   "event_topic_onboarding_states_env_owner_idx",
   "event_topic_onboarding_states_updated_idx",
   "quota_evaluations_owner_created_idx",
@@ -111,9 +112,6 @@ const requiredIndexes = [
   "quota_evaluations_correlation_idx",
   "quota_evaluations_environment_owner_created_idx",
   "quota_evaluations_env_route_window_idx",
-  "health_snapshots_service_env_checked_idx",
-  "smoke_test_runs_service_env_created_idx",
-  "smoke_test_runs_tribe_service_env_created_idx",
   "usage_rollups_environment_window_idx",
   "usage_rollups_env_service_target_window_uidx",
   "pipeline_feedback_actions_env_target_idx",
@@ -129,6 +127,8 @@ const requiredIndexes = [
 ];
 
 const requiredCheckConstraints = [
+  "organization_members_email_check",
+  "organization_members_role_check",
   "registry_change_requests_status_check",
   "approval_requests_status_check",
   "approval_requests_target_environment_check",
@@ -136,17 +136,10 @@ const requiredCheckConstraints = [
   "quota_policies_status_check",
   "entitlement_assignments_status_check",
   "entitlement_assignments_environment_check",
-  "promotion_evidence_source_environment_check",
-  "promotion_evidence_target_environment_check",
-  "promotion_evidence_distinct_environment_check",
-  "shared_service_runtime_routes_environment_check",
-  "shared_service_runtime_routes_status_check",
   "service_environments_environment_check",
   "event_topic_onboarding_states_environment_check",
   "pipeline_feedback_actions_environment_check",
   "quota_evaluations_environment_check",
-  "health_snapshots_environment_check",
-  "smoke_test_runs_environment_check",
   "usage_rollups_environment_check",
   "quota_evaluations_mode_check",
   "quota_evaluations_outcome_check",
@@ -154,6 +147,30 @@ const requiredCheckConstraints = [
   "audit_events_outcome_check",
   "audit_events_environment_check",
 ];
+
+// Payment ownership is scoped by project. These tables need a required project_id, and the reference lookup index must exist.
+const requiredPaymentProjectTables = ["resource_owners", "payment_event_outbox"];
+const forbiddenPaymentTables = [
+  "customers",
+  "products",
+  "prices",
+  "subscriptions",
+  "subscription_events",
+  "invoices",
+  "invoice_line_items",
+  "checkout_sessions",
+  "payments",
+  "refunds",
+  "receipts",
+  "receipt_line_items",
+];
+const requiredPaymentIndexes = [
+  "payment_resource_owners_project_reference_idx",
+  "payment_resource_owners_project_environment_type_created_idx",
+  "payment_resource_owners_project_environment_created_idx",
+  "payment_resource_owners_project_environment_status_created_idx",
+];
+const requiredPaymentListingColumns = ["amount_minor", "currency", "status"];
 
 const forbiddenLegacyObjectNames = [
   "service_registration_requests_status_created_idx",
@@ -171,14 +188,23 @@ const forbiddenLegacyObjectNames = [
   "topic_onboarding_states_updated_idx",
 ];
 
+const requiredSharedGauthTables = ["oauth_apps"];
+const retiredSharedGauthTables = ["oauth_sessions", "oauth_accounts", "oauth_token_refs"];
+const requiredOAuthAppConstraints = [
+  "oauth_apps_pkey",
+  "oauth_apps_environment_check",
+  "oauth_apps_status_check",
+  "oauth_apps_redirect_uris_check",
+  "oauth_apps_client_id_check",
+  "oauth_apps_client_pair_check",
+  "oauth_apps_secret_ref_check",
+];
+
 const retentionManagedTables: QualifiedObject[] = [
   ["apic_audit", "audit_events"],
   ["apic_runtime", "quota_evaluations"],
   ["apic_runtime", "usage_rollups"],
-  ["apic_runtime", "health_snapshots"],
-  ["apic_runtime", "smoke_test_runs"],
   ["apic_runtime", "pipeline_feedback_actions"],
-  ["apic_governance", "promotion_evidence_bundles"],
 ].map(([schema, name]) => ({ schema, name }));
 
 const registryChildDeleteTables = new Set([
@@ -187,6 +213,98 @@ const registryChildDeleteTables = new Set([
   "apic_catalog.service_scopes",
   "apic_catalog.service_dependencies",
 ]);
+
+// Record tables for the SMS, OTP, and email runtimes live in their own schemas and are checked by name.
+const requiredSharedTables = [
+  "shared_sms.sms_messages",
+  "shared_otp.otp_challenges",
+  "shared_email.email_messages",
+];
+const retiredSharedTables = [
+  "shared_sms.sms_records",
+  "shared_sms.sms_delivery_events",
+  "shared_otp.otp_records",
+  "shared_otp.otp_attempts",
+  "shared_otp.otp_delivery_events",
+  "shared_email.email_templates",
+  "shared_email.email_delivery_events",
+];
+
+type RuntimeRole = { role: string; schema: string; privileges: string[] };
+
+// Each shared-service runtime connects as its own role. A role may use its own schema and nothing else.
+const runtimeRoles: RuntimeRole[] = [
+  { role: "payments_runtime", schema: "shared_payment", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "email_runtime", schema: "shared_email", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "sms_runtime", schema: "shared_sms", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "otp_runtime", schema: "shared_otp", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "gauth_runtime", schema: "shared_gauth", privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"] },
+];
+const tablePrivileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE"];
+const tablePrivilegeColumns: Record<string, string> = {
+  SELECT: "sel",
+  INSERT: "ins",
+  UPDATE: "upd",
+  DELETE: "del",
+  TRUNCATE: "tru",
+};
+
+async function verifyRuntimeRoles(client: any, failures: string[]): Promise<void> {
+  for (const runtime of runtimeRoles) {
+    const roleRows = await queryRows(client, "select rolname from pg_roles where rolname = $1", [runtime.role]);
+    if (roleRows.length === 0) {
+      failures.push("Runtime database role does not exist: " + runtime.role);
+      continue;
+    }
+
+    const schemaRows = await queryRows(
+      client,
+      "select nspname as schema, has_schema_privilege($1, nspname, 'USAGE') as has_usage from pg_namespace where nspname = any($2::text[])",
+      [runtime.role, domainSchemas],
+    );
+    const usable = schemaRows.filter((row) => row.has_usage === true).map((row) => String(row.schema));
+    if (!usable.includes(runtime.schema)) {
+      failures.push(runtime.role + " lacks USAGE on its own schema " + runtime.schema);
+    }
+    addFailure(
+      failures,
+      runtime.role + " can use schemas other than " + runtime.schema,
+      usable.filter((schema) => schema !== runtime.schema),
+    );
+
+    const reachableTables = await queryRows(
+      client,
+      "select n.nspname as schema, c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and n.nspname = any($1::text[]) and n.nspname <> $2::text and (has_table_privilege($3::text, c.oid, 'SELECT') or has_table_privilege($3::text, c.oid, 'INSERT') or has_table_privilege($3::text, c.oid, 'UPDATE') or has_table_privilege($3::text, c.oid, 'DELETE') or has_table_privilege($3::text, c.oid, 'TRUNCATE'))",
+      [domainSchemas, runtime.schema, runtime.role],
+    );
+    addFailure(
+      failures,
+      runtime.role + " has table privileges outside " + runtime.schema,
+      reachableTables.map((row) => String(row.schema) + "." + String(row.name)),
+    );
+
+    const ownTables = await queryRows(
+      client,
+      "select c.relname as name, has_table_privilege($1::text, c.oid, 'SELECT') as sel, has_table_privilege($1::text, c.oid, 'INSERT') as ins, has_table_privilege($1::text, c.oid, 'UPDATE') as upd, has_table_privilege($1::text, c.oid, 'DELETE') as del, has_table_privilege($1::text, c.oid, 'TRUNCATE') as tru from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and n.nspname = $2::text",
+      [runtime.role, runtime.schema],
+    );
+    if (ownTables.length === 0) {
+      failures.push("No tables found in runtime schema " + runtime.schema);
+    }
+
+    const mismatches: string[] = [];
+    for (const table of ownTables) {
+      const objectName = runtime.schema + "." + String(table.name);
+      for (const privilege of tablePrivileges) {
+        const granted = table[tablePrivilegeColumns[privilege]] === true;
+        const required = runtime.privileges.includes(privilege);
+        if (required && !granted) mismatches.push(runtime.role + " lacks " + privilege + " on " + objectName);
+        if (!required && granted) mismatches.push(runtime.role + " must not have " + privilege + " on " + objectName);
+      }
+    }
+    addFailure(failures, "Runtime role table grants do not match its code", mismatches);
+  }
+}
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(name);
@@ -362,6 +480,68 @@ async function main(): Promise<void> {
       missingObjects(requiredTables, tableRows),
     );
 
+    const removedObjectRows = await queryRows(
+      client,
+      "select table_schema as schema, table_name as name from information_schema.tables where table_schema = any($1::text[]) and table_name = any($2::text[])",
+      [[...controlledSchemas, ...legacySchemas], removedPersistenceObjects.map((object) => object.name)],
+    );
+    const presentRemovedObjects = new Set(removedObjectRows.map((row) => String(row.schema) + "." + String(row.name)));
+    addFailure(
+      failures,
+      "Removed persistence objects still present",
+      removedPersistenceObjects.map(key).filter((name) => presentRemovedObjects.has(name)),
+    );
+
+    const removedSchemaRows = await queryRows(
+      client,
+      "select nspname as schema from pg_namespace where nspname = any($1::text[]) order by nspname",
+      [removedSchemas],
+    );
+    addFailure(failures, "Removed schemas still present", removedSchemaRows.map((row) => String(row.schema)));
+
+    const sharedTableRows = await queryRows(
+      client,
+      "select table_schema || '.' || table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema in ('shared_sms', 'shared_otp', 'shared_email')",
+    );
+    const sharedNames = new Set(sharedTableRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared-service record tables",
+      requiredSharedTables.filter((name) => !sharedNames.has(name)),
+    );
+    addFailure(
+      failures,
+      "Retired shared-service tables still present",
+      retiredSharedTables.filter((name) => sharedNames.has(name)),
+    );
+
+    const sharedGauthRows = await queryRows(
+      client,
+      "select table_name as name from information_schema.tables where table_schema = 'shared_gauth'",
+    );
+    const sharedGauthTables = new Set(sharedGauthRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing shared_gauth tables",
+      requiredSharedGauthTables.filter((name) => !sharedGauthTables.has(name)).map((name) => "shared_gauth." + name),
+    );
+    addFailure(
+      failures,
+      "Retired shared_gauth tables still present",
+      retiredSharedGauthTables.filter((name) => sharedGauthTables.has(name)).map((name) => "shared_gauth." + name),
+    );
+
+    const oauthAppConstraintRows = await queryRows(
+      client,
+      "select c.conname as name from pg_constraint c join pg_class r on r.oid = c.conrelid join pg_namespace n on n.oid = r.relnamespace where n.nspname = 'shared_gauth' and r.relname = 'oauth_apps'",
+    );
+    const oauthAppConstraints = new Set(oauthAppConstraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing shared_gauth.oauth_apps constraints",
+      requiredOAuthAppConstraints.filter((name) => !oauthAppConstraints.has(name)),
+    );
+
     if (hasFlag("--require-compat-views")) {
       const viewRows = await queryRows(
         client,
@@ -464,6 +644,53 @@ async function main(): Promise<void> {
       forbiddenLegacyObjectNames.filter(
         (name) => indexNames.has(name) || constraintNames.has(name),
       ),
+    );
+
+    const paymentProjectColumnRows = await queryRows(
+      client,
+      "select table_name as name, is_nullable as nullable from information_schema.columns where table_schema = 'shared_payment' and column_name = 'project_id'",
+    );
+    const nonNullProjectTables = new Set(
+      paymentProjectColumnRows.filter((row) => row.nullable === "NO").map((row) => String(row.name)),
+    );
+    addFailure(
+      failures,
+      "shared_payment tables without a required project_id column",
+      requiredPaymentProjectTables.filter((name) => !nonNullProjectTables.has(name)),
+    );
+
+    const copiedPaymentTableRows = await queryRows(
+      client,
+      "select table_name as name from information_schema.tables where table_schema = 'shared_payment' and table_type = 'BASE TABLE' and table_name = any($1::text[]) order by table_name",
+      [forbiddenPaymentTables],
+    );
+    addFailure(
+      failures,
+      "Copied PayMongo resource tables still present in shared_payment",
+      copiedPaymentTableRows.map((row) => String(row.name)),
+    );
+
+    const paymentListingColumns = await queryRows(
+      client,
+      "select column_name as name, data_type from information_schema.columns where table_schema = 'shared_payment' and table_name = 'resource_owners'",
+    );
+    const paymentListingColumnNames = new Set(paymentListingColumns.map((row) => String(row.name)));
+    addFailure(failures, "Missing shared_payment payment listing columns",
+      requiredPaymentListingColumns.filter((name) => !paymentListingColumnNames.has(name)));
+    const amountMinorColumn = paymentListingColumns.find((row) => String(row.name) === "amount_minor");
+    if (amountMinorColumn && String(amountMinorColumn.data_type) !== "bigint") {
+      failures.push("shared_payment.resource_owners.amount_minor must use bigint");
+    }
+
+    const paymentIndexRows = await queryRows(
+      client,
+      "select indexname as name from pg_indexes where schemaname = 'shared_payment'",
+    );
+    const paymentIndexNames = new Set(paymentIndexRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared_payment indexes",
+      requiredPaymentIndexes.filter((name) => !paymentIndexNames.has(name)),
     );
 
     const environmentDefaultRows = await queryRows(
@@ -598,6 +825,7 @@ async function main(): Promise<void> {
         }
       }
     }
+    await verifyRuntimeRoles(client, failures);
   } finally {
     await client.end();
   }

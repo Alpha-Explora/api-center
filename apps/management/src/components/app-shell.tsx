@@ -107,6 +107,7 @@ export function AppShell({
     staleTime: 60_000,
   });
   const session = sessionQuery.data;
+  const platformAdmin = session?.platformAdmin === true;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -118,7 +119,7 @@ export function AppShell({
       </Link>
       <div className="flex min-h-screen w-full">
         <aside className="sidebar-scroll sticky top-0 hidden h-screen w-64 shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar px-4 py-5 lg:block">
-          <SidebarContent pathname={pathname} />
+          <SidebarContent pathname={pathname} platformAdmin={platformAdmin} />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -128,7 +129,7 @@ export function AppShell({
           />
           <div className="min-w-0 overflow-hidden border-b border-border bg-card px-4 py-2 text-xs text-muted-foreground sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-[1480px] flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-              <WorkflowSearch />
+              <WorkflowSearch platformAdmin={platformAdmin} />
               <span className="flex min-w-0 items-center gap-2 text-balance">
                 <CircleIcon
                   data-icon="inline-start"
@@ -158,12 +159,12 @@ export function AppShell({
                   ) : null}
                   {authMode === "google" ? <GoogleSignOutButton /> : null}
                 </span>
-                <Link
+                {platformAdmin ? <Link
                   href="/readiness"
                   className="font-medium text-foreground underline-offset-4 hover:underline"
                 >
                   Check readiness
-                </Link>
+                </Link> : null}
               </div>
             </div>
           </div>
@@ -195,6 +196,7 @@ export function AppShell({
                     <div className="sidebar-scroll h-full overflow-y-auto bg-sidebar px-4 py-5">
                       <SidebarContent
                         pathname={pathname}
+                        platformAdmin={platformAdmin}
                         onNavigate={() => setMobileNavOpen(false)}
                       />
                     </div>
@@ -216,13 +218,13 @@ export function AppShell({
                 </Link>
               </div>
               <nav className="flex min-w-0 max-w-[44vw] gap-2 overflow-hidden text-xs text-muted-foreground min-[420px]:max-w-[60vw]">
-                <Link href="/readiness">Readiness</Link>
+                {platformAdmin ? <Link href="/readiness">Readiness</Link> : null}
                 <Link className="hidden sm:inline" href="/tribes">
                   Registry
                 </Link>
-                <Link className="hidden sm:inline" href="/settings">
+                {platformAdmin ? <Link className="hidden sm:inline" href="/settings">
                   Settings
-                </Link>
+                </Link> : null}
               </nav>
             </div>
           </header>
@@ -239,13 +241,13 @@ export function AppShell({
   );
 }
 
-function WorkflowSearch() {
+function WorkflowSearch({ platformAdmin }: { platformAdmin: boolean }) {
   const [query, setQuery] = React.useState("");
   const [focused, setFocused] = React.useState(false);
   const dataPipelineEnabled = isDataPipelineEnabled();
   const results = React.useMemo(
-    () => getNavSearchResults(navGroups, query, dataPipelineEnabled).slice(0, 6),
-    [dataPipelineEnabled, query],
+    () => getNavSearchResults(navGroups, query, dataPipelineEnabled, platformAdmin).slice(0, 6),
+    [dataPipelineEnabled, platformAdmin, query],
   );
   const showResults = focused && query.trim().length > 0;
 
@@ -326,14 +328,17 @@ function formatSessionAccess(role: string) {
 
 function SidebarContent({
   pathname,
+  platformAdmin,
   onNavigate,
 }: {
   pathname: string;
+  platformAdmin: boolean;
   onNavigate?: () => void;
 }) {
   const visibleNavGroups = getVisibleNavGroups(
     navGroups,
     isDataPipelineEnabled(),
+    platformAdmin,
   );
 
   return (

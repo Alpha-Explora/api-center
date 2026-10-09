@@ -58,7 +58,7 @@ export class PaymentsController {
     if (operation.resource === 'capabilities') {
       res.status(200).json({ success: true, data: { currency: 'PHP',
         paymentMethods: ['card', 'gcash', 'paymaya'],
-        resources: ['checkouts', 'intents', 'customers', 'refunds', 'subscriptions', 'invoices'] } });
+        resources: ['checkouts', 'intents', 'customers', 'refunds', 'subscriptions', 'invoices', 'records'] } });
       return;
     }
     if (!token) throw new ServiceUnavailableException('Payment runtime token is not configured');
@@ -91,6 +91,7 @@ export class PaymentsController {
       'x-apicenter-environment': env,
       'x-apicenter-consumer-service-id': principal.consumerServiceId,
       'x-apicenter-owner-tribe-id': principal.ownerTribeId,
+      'x-apicenter-project-id': principal.projectId,
       'x-tribe-id': principal.ownerTribeId,
     };
     headers.authorization = `Bearer ${token}`;

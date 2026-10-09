@@ -1,7 +1,7 @@
 // =============================================================================
-// src/registry/health-monitor.service.ts — Active Health Checking & Redis Drift
+// src/registry/health-monitor.service.ts — Active Health Checking
 // =============================================================================
-// Two scheduled jobs that keep the registry accurate at runtime:
+// Scheduled jobs that keep the registry accurate at runtime:
 //
 //  1. HEALTH CHECK (every 30 s)
 //     For every registered service that declares a `healthCheck` path, send an
@@ -10,10 +10,6 @@
 //     recovers, mark it healthy again.  Every transition emits a
 //     SERVICE_HEALTH_CHANGED Kafka event.
 //
-//  2. REDIS DRIFT RECONCILIATION (every 5 min)
-//     Compare the in-memory registry with the Redis source of truth.  If any
-//     discrepancy is found (missing keys in either direction), resync the local
-//     memory from Redis and log a warning so operators can investigate.
 // =============================================================================
 
 import { Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
@@ -28,8 +24,6 @@ import { ConfigService } from "@config/config.service";
 export class HealthMonitorService implements OnModuleDestroy {
   /** Tracks whether a health-check sweep is already in progress. */
   private healthCheckRunning = false;
-  /** Tracks whether a reconciliation sweep is already in progress. */
-  private reconciliationRunning = false;
 
   constructor(
     private readonly registry: RegistryService,
@@ -77,7 +71,7 @@ export class HealthMonitorService implements OnModuleDestroy {
             });
 
             // Mark healthy
-            const changed = this.registry.setHealthStatus(svc.serviceId, true);
+            const changed = await this.registry.setHealthStatus(svc.serviceId, true);
             if (changed) {
               this.logger.info(
                 `Service '${svc.serviceId}' recovered — marked healthy`,
@@ -85,20 +79,20 @@ export class HealthMonitorService implements OnModuleDestroy {
               );
             } else {
               // No state change — just touch the timestamp
-              this.registry.touchHealthCheck(svc.serviceId);
+              await this.registry.touchHealthCheck(svc.serviceId);
             }
           } catch (err) {
             const reason = (err as Error).message || "Unknown error";
 
             // Mark unhealthy
-            const changed = this.registry.setHealthStatus(svc.serviceId, false);
+            const changed = await this.registry.setHealthStatus(svc.serviceId, false);
             if (changed) {
               this.logger.warn(
                 `Service '${svc.serviceId}' is unreachable — marked unhealthy: ${reason}`,
                 "HealthMonitor",
               );
             } else {
-              this.registry.touchHealthCheck(svc.serviceId);
+              await this.registry.touchHealthCheck(svc.serviceId);
             }
           }
         }),
@@ -115,139 +109,6 @@ export class HealthMonitorService implements OnModuleDestroy {
     } finally {
       this.healthCheckRunning = false;
     }
-  }
-
-  // =========================================================================
-  // CRON 2 — Redis drift reconciliation (every 5 minutes)
-  // =========================================================================
-
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  async handleRedisDriftReconciliation(): Promise<void> {
-    if (this.reconciliationRunning) return;
-    this.reconciliationRunning = true;
-
-    try {
-      if (this.config.database?.registrySource === "postgres") {
-        this.logger.debug(
-          "Postgres registry source active — skipping Redis drift reconciliation",
-        );
-        return;
-      }
-
-      const redisEntries = await this.registry.getRedisEntries();
-
-      // Redis unavailable — nothing to reconcile against
-      if (redisEntries === null) {
-        this.logger.debug("Redis unavailable — skipping drift reconciliation");
-        return;
-      }
-
-      const memoryEntries = this.registry.getAll();
-
-      const redisKeys = new Set(Object.keys(redisEntries));
-      const memoryKeys = new Set(Object.keys(memoryEntries));
-
-      // Keys present in Redis but missing from local memory
-      const missingInMemory = [...redisKeys].filter((k) => !memoryKeys.has(k));
-
-      // Keys present in memory but missing from Redis
-      const missingInRedis = [...memoryKeys].filter((k) => !redisKeys.has(k));
-
-      // Check for data divergence (same key, different entry fingerprint)
-      const diverged: string[] = [];
-      for (const key of redisKeys) {
-        if (
-          memoryKeys.has(key) &&
-          this.registryEntryFingerprint(redisEntries[key]) !==
-            this.registryEntryFingerprint(memoryEntries[key])
-        ) {
-          diverged.push(key);
-        }
-      }
-
-      const hasDrift =
-        missingInMemory.length > 0 ||
-        missingInRedis.length > 0 ||
-        diverged.length > 0;
-
-      if (!hasDrift) {
-        this.logger.debug("Redis drift check passed — no discrepancies");
-        return;
-      }
-
-      // ── Drift detected — log details and resync ──────────────────────────
-      this.logger.warn(
-        `Redis drift detected — ` +
-          `missingInMemory=${missingInMemory.length}, ` +
-          `missingInRedis=${missingInRedis.length}, ` +
-          `diverged=${diverged.length}. ` +
-          `Resyncing local memory from Redis.`,
-        "HealthMonitor",
-      );
-
-      if (missingInMemory.length > 0) {
-        this.logger.warn(
-          `Services in Redis but missing locally: ${missingInMemory.join(", ")}`,
-          "HealthMonitor",
-        );
-      }
-      if (missingInRedis.length > 0) {
-        this.logger.warn(
-          `Services in memory but missing from Redis: ${missingInRedis.join(", ")}`,
-          "HealthMonitor",
-        );
-      }
-      if (diverged.length > 0) {
-        this.logger.warn(
-          `Services with diverged state: ${diverged.join(", ")}`,
-          "HealthMonitor",
-        );
-      }
-
-      // Resync: reload the authoritative Redis state into local memory
-      await this.registry.loadFromRedis();
-
-      this.logger.info(
-        "Registry resynced from Redis after drift detection",
-        {},
-      );
-    } catch (err) {
-      this.logger.error(
-        `Redis drift reconciliation failed: ${(err as Error).message}`,
-        (err as Error).stack,
-        "HealthMonitor",
-      );
-    } finally {
-      this.reconciliationRunning = false;
-    }
-  }
-
-  // =========================================================================
-  // Private helpers
-  // =========================================================================
-
-  private registryEntryFingerprint(entry: unknown): string {
-    return JSON.stringify(this.normalizeForFingerprint(entry));
-  }
-
-  private normalizeForFingerprint(value: unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map((item) => this.normalizeForFingerprint(item));
-    }
-
-    if (value && typeof value === "object") {
-      return Object.keys(value as Record<string, unknown>)
-        .filter((key) => key !== "lastHealthCheckAt")
-        .sort()
-        .reduce<Record<string, unknown>>((normalized, key) => {
-          normalized[key] = this.normalizeForFingerprint(
-            (value as Record<string, unknown>)[key],
-          );
-          return normalized;
-        }, {});
-    }
-
-    return value;
   }
 
   // =========================================================================

@@ -1,18 +1,23 @@
-// Runs the compiled Postgres SMS and OTP stores against a database built by "npm run db:verify:replay".
+// Runs the compiled Postgres SMS, OTP, and email stores against a database built by "npm run db:verify:replay".
 //
 //   DATABASE_URL=postgres://... npm run db:test:shared-stores
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const { Client } = require('pg');
 
 const databaseUrl = process.env.DATABASE_URL;
 const skip = databaseUrl ? false : 'DATABASE_URL is not set';
 
+// Two services in one project share records. The other project and the live environment do not.
+const alice = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'test' };
+const sibling = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-b', environment: 'test' };
+const otherProject = { tribeId: 'tribe-b', projectId: 'project-b', serviceId: 'service-b', environment: 'test' };
+const aliceLive = { ...alice, environment: 'live' };
+
 let client;
 let smsStore;
 let otpStore;
+let emailStore;
 let hashOtpCode;
 
 test.before(async () => {
@@ -21,69 +26,121 @@ test.before(async () => {
   await client.connect();
   const { PostgresSmsStore } = require('../../apps/sms/dist/shared/postgres-sms-store.js');
   const { PostgresOtpStore } = require('../../apps/otp/dist/shared/postgres-otp-store.js');
+  const { PostgresEmailStore } = require('../../apps/email/dist/shared/postgres-email-store.js');
   ({ hashOtpCode } = require('../../apps/otp/dist/shared/otp-hash.js'));
   smsStore = new PostgresSmsStore(databaseUrl);
   otpStore = new PostgresOtpStore(databaseUrl);
+  emailStore = new PostgresEmailStore(databaseUrl);
 });
 
 test.after(async () => {
-  if (smsStore) await smsStore.pool.end();
-  if (otpStore) await otpStore.pool.end();
+  for (const store of [smsStore, otpStore, emailStore]) {
+    if (store) await store.pool.end();
+  }
   if (client) await client.end();
 });
 
 test.beforeEach(async () => {
   if (!client) return;
-  await client.query('truncate shared_sms.sms_records, shared_otp.otp_records');
+  await client.query('truncate shared_sms.sms_messages, shared_otp.otp_challenges, shared_email.email_messages');
 });
 
-test('stores and reads back an SMS record, updating its status on save', { skip }, async () => {
-  const record = { messageId: 'sms_1', to: '+639170000000', message: 'hello', status: 'queued', senderId: 'APICENTER', createdAt: new Date().toISOString() };
-  await smsStore.save(record);
-  assert.equal((await smsStore.findById('sms_1')).to, '+639170000000');
+function smsRecord(messageId) {
+  return { messageId, to: '+639170000000', message: 'hello', status: 'queued', senderId: 'APICENTER', createdAt: new Date().toISOString() };
+}
 
-  await smsStore.save({ ...record, status: 'delivered' });
-  assert.equal((await smsStore.findById('sms_1')).status, 'delivered');
-  assert.equal(await smsStore.findById('missing'), null);
+test('the retired record tables are gone and only the three owned tables remain', { skip }, async () => {
+  const result = await client.query(
+    "select table_schema || '.' || table_name as name from information_schema.tables where table_schema in ('shared_sms', 'shared_otp', 'shared_email') order by 1",
+  );
+  assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_messages', 'shared_otp.otp_challenges', 'shared_sms.sms_messages']);
 });
 
-test('stores an OTP challenge whose code hash is a 64-character HMAC and verifies it once', { skip }, async () => {
+test('SMS: a second service in the same project reads the record; another project does not', { skip }, async () => {
+  await smsStore.save(smsRecord('sms_1'), alice);
+  assert.equal((await smsStore.findById('sms_1', alice)).to, '+639170000000');
+  assert.equal((await smsStore.findById('sms_1', sibling)).to, '+639170000000', 'a sibling service in the project can read it');
+  assert.equal(await smsStore.findById('sms_1', otherProject), null, 'another project cannot read the record');
+  assert.equal(await smsStore.findById('sms_1', aliceLive), null, 'live cannot read a test record');
+  assert.equal(await smsStore.findById('missing', alice), null);
+});
+
+test('SMS: a sibling service can update status, and another project cannot overwrite the record', { skip }, async () => {
+  await smsStore.save(smsRecord('sms_2'), alice);
+  await smsStore.save({ ...smsRecord('sms_2'), status: 'delivered' }, sibling);
+  assert.equal((await smsStore.findById('sms_2', alice)).status, 'delivered');
+
+  await assert.rejects(smsStore.save(smsRecord('sms_2'), otherProject), /another project/);
+  assert.equal((await smsStore.findById('sms_2', alice)).status, 'delivered');
+});
+
+function otpRecord(otpId, codeHash, expiresAt = Date.now() + 60_000) {
+  return { otpId, target: '+639170000000', channel: 'sms', codeHash, expiresAt, status: 'pending', attemptCount: 0 };
+}
+
+test('OTP: stores a 64-character hash and no code column, and counts failed attempts', { skip }, async () => {
   const otpId = 'otp_hash_1';
   const codeHash = hashOtpCode(otpId, '123456');
-  assert.equal(codeHash.length, 64, 'the hash that used to overflow varchar(32)');
+  assert.equal(codeHash.length, 64);
+  await otpStore.save(otpRecord(otpId, codeHash), alice);
 
-  await otpStore.save({ otpId, target: '+639170000000', channel: 'sms', codeHash, expiresAt: Date.now() + 60_000, status: 'pending' });
+  const columns = await client.query("select column_name from information_schema.columns where table_schema = 'shared_otp' and table_name = 'otp_challenges'");
+  const names = columns.rows.map((row) => row.column_name);
+  assert.ok(!names.includes('code'), 'the plaintext code is never stored');
+  assert.ok(names.includes('code_hash'));
 
-  assert.equal(await otpStore.consume(otpId, hashOtpCode(otpId, '000000')), 'OTP_INVALID');
-  assert.equal(await otpStore.consume(otpId, codeHash), 'VERIFIED');
-  assert.equal(await otpStore.consume(otpId, codeHash), 'OTP_ALREADY_USED');
+  assert.equal(await otpStore.consume(otpId, hashOtpCode(otpId, '000000'), alice), 'OTP_INVALID');
+  const row = await client.query('select status, attempt_count, code_hash from shared_otp.otp_challenges where otp_id = $1', [otpId]);
+  assert.equal(row.rows[0].status, 'pending');
+  assert.equal(row.rows[0].attempt_count, 1);
+  assert.equal(row.rows[0].code_hash, codeHash);
 });
 
-test('reports expired and unknown OTP challenges', { skip }, async () => {
-  const otpId = 'otp_expired_1';
+test('OTP: a sibling service in the project verifies once; a second attempt reports it used', { skip }, async () => {
+  const otpId = 'otp_single_use';
   const codeHash = hashOtpCode(otpId, '123456');
-  await otpStore.save({ otpId, target: 't', channel: 'email', codeHash, expiresAt: Date.now() - 1000, status: 'pending' });
+  await otpStore.save(otpRecord(otpId, codeHash), alice);
 
-  assert.equal(await otpStore.consume(otpId, codeHash), 'OTP_EXPIRED');
-  assert.equal(await otpStore.consume('otp_missing', codeHash), 'OTP_NOT_FOUND');
+  assert.equal(await otpStore.consume(otpId, codeHash, sibling), 'VERIFIED');
+  assert.equal(await otpStore.consume(otpId, codeHash, alice), 'OTP_ALREADY_USED');
 });
 
-test('the migration repairs an otp_records table the runtime created with varchar(32)', { skip }, async () => {
-  await client.query('drop table shared_otp.otp_records');
-  await client.query(`create table shared_otp.otp_records (
-    otp_id varchar(64) primary key, target varchar(255) not null, channel varchar(16) not null,
-    code varchar(32) not null, expires_at bigint not null, status varchar(32) not null,
-    created_at timestamp with time zone default current_timestamp)`);
-  await client.query("insert into shared_otp.otp_records (otp_id, target, channel, code, expires_at, status) values ('legacy_1', 't', 'sms', 'short', 1, 'pending')");
-  await assert.rejects(client.query("insert into shared_otp.otp_records (otp_id, target, channel, code, expires_at, status) values ('legacy_2', 't', 'sms', repeat('a', 64), 1, 'pending')"), /value too long/);
+test('OTP: of two concurrent verifications with the right code, exactly one succeeds', { skip }, async () => {
+  const otpId = 'otp_race';
+  const codeHash = hashOtpCode(otpId, '654321');
+  await otpStore.save(otpRecord(otpId, codeHash), alice);
 
-  const sql = fs.readFileSync(path.resolve(__dirname, '../../supabase/migrations/20261009000700_sms_otp_record_tables.sql'), 'utf8');
-  await client.query(sql);
+  const outcomes = await Promise.all([otpStore.consume(otpId, codeHash, alice), otpStore.consume(otpId, codeHash, sibling)]);
+  assert.deepEqual(outcomes.sort(), ['OTP_ALREADY_USED', 'VERIFIED']);
+});
 
-  const column = await client.query("select data_type from information_schema.columns where table_schema = 'shared_otp' and table_name = 'otp_records' and column_name = 'code'");
-  assert.equal(column.rows[0].data_type, 'text');
-  const kept = await client.query("select count(*)::int as n from shared_otp.otp_records where otp_id = 'legacy_1'");
-  assert.equal(kept.rows[0].n, 1, 'existing rows survive the repair');
-  await client.query("insert into shared_otp.otp_records (otp_id, target, channel, code, expires_at, status) values ('legacy_3', 't', 'sms', repeat('a', 64), 1, 'pending')");
+test('OTP: another project sees the challenge as not found, and an expired challenge is reported', { skip }, async () => {
+  const otpId = 'otp_owner';
+  const codeHash = hashOtpCode(otpId, '123456');
+  await otpStore.save(otpRecord(otpId, codeHash), alice);
+  assert.equal(await otpStore.consume(otpId, codeHash, otherProject), 'OTP_NOT_FOUND');
+
+  const expiredId = 'otp_expired';
+  const expiredHash = hashOtpCode(expiredId, '123456');
+  await otpStore.save(otpRecord(expiredId, expiredHash, Date.now() - 1000), alice);
+  assert.equal(await otpStore.consume(expiredId, expiredHash, alice), 'OTP_EXPIRED');
+});
+
+test('email: a sibling service reads the recipients; another project does not', { skip }, async () => {
+  const record = {
+    messageId: 'msg_1',
+    provider: 'resend',
+    status: 'queued',
+    recipient: ['a@example.test', 'b@example.test'],
+    recipientCount: 2,
+    sentAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  };
+  await emailStore.save(record, alice);
+
+  const found = await emailStore.findById('msg_1', sibling);
+  assert.deepEqual(found.recipient, record.recipient);
+  assert.equal(found.recipientCount, 2);
+  assert.equal(await emailStore.findById('msg_1', otherProject), null);
 });
 

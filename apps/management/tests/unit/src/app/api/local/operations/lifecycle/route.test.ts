@@ -16,7 +16,7 @@ describe("GET /api/local/operations/lifecycle", () => {
     const response = Response.json({ success: true, data: { entries: [] } });
     adminMocks.apiCenterAdminRequest.mockResolvedValue(response);
 
-    await expect(GET()).resolves.toBe(response);
+    await expect(GET(new Request("https://console.test/api/local/operations/lifecycle"))).resolves.toBe(response);
     expect(adminMocks.apiCenterAdminRequest).toHaveBeenCalledWith(
       "/api/v1/admin/operations/lifecycle",
     );

@@ -131,11 +131,15 @@ export class TribeQuotaPolicyService {
   }
 
   async listPolicies(
-    filter: { ownerTribeId?: string; projectId?: string } = {},
+    filter: { ownerTribeId?: string; ownerTribeIds?: string[]; projectId?: string } = {},
   ): Promise<TribeQuotaPolicy[]> {
     return this.quotaPrisma.quotaPolicy.findMany({
       where: {
-        ...(filter.ownerTribeId ? { ownerTribeId: filter.ownerTribeId } : {}),
+        ...(filter.ownerTribeIds
+          ? { ownerTribeId: { in: filter.ownerTribeIds } }
+          : filter.ownerTribeId
+            ? { ownerTribeId: filter.ownerTribeId }
+            : {}),
         ...(filter.projectId ? { projectId: filter.projectId } : {}),
       },
       orderBy: [{ updatedAt: "desc" }],

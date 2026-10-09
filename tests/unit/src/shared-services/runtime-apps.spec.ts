@@ -1,8 +1,7 @@
 import path from 'node:path';
 
 process.env.NODE_ENV = 'development';
-process.env.SMS_STORE_MODE = 'memory';
-process.env.OTP_STORE_MODE = 'memory';
+delete process.env.DATABASE_URL;
 process.env.SMS_PROVIDER_MODE = 'mock';
 process.env.OTP_DELIVERY_MODE = 'mock';
 
@@ -18,7 +17,14 @@ async function request(service: string, endpoint: string, init?: RequestInit): P
     headers.set('X-APICenter-Environment', 'test');
     headers.set('X-Tribe-Id', 'runtime-test-tribe');
     const response = await fetch(`http://127.0.0.1:${server.address().port}${endpoint}`, { ...init, headers });
-    return { status: response.status, body: await response.json(), replayed: response.headers.get('x-idempotency-replayed') };
+    const responseText = await response.text();
+    let body: any = responseText;
+    try {
+      body = JSON.parse(responseText);
+    } catch {
+      // Express' default not-found response is text/html.
+    }
+    return { status: response.status, body, replayed: response.headers.get('x-idempotency-replayed') };
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -69,6 +75,53 @@ describe('migrated shared-service runtimes', () => {
     expect(smsStatus.status).toBe(200);
   });
 
+  it('removes email and SMS template catalogs and rejects obsolete templateId requests', async () => {
+    for (const service of ['email', 'sms']) {
+      const catalog = await request(service, '/templates');
+      expect(catalog.status).toBe(404);
+    }
+
+    const email = await request('email', '/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: 'user@example.test', subject: 'Hello', text: 'World', templateId: 'legacy' }),
+    });
+    expect(email.status).toBe(400);
+    expect(email.body.error.code).toBe('UNSUPPORTED_TEMPLATE_ID');
+    expect(email.body.error.message).toContain('send email content in html or text');
+
+    const emailTemplateVariables = await request('email', '/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: 'user@example.test', subject: 'Hello', text: 'World', templateVariables: { name: 'Sam' } }),
+    });
+    expect(emailTemplateVariables.status).toBe(400);
+    expect(emailTemplateVariables.body.error.code).toBe('UNSUPPORTED_TEMPLATE_FIELD');
+    expect(emailTemplateVariables.body.error.message).toContain('send email content directly');
+
+    const sms = await request('sms', '/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: '+63900000000', message: 'Hello', templateId: 'legacy' }),
+    });
+    expect(sms.status).toBe(400);
+    expect(sms.body.error.code).toBe('UNSUPPORTED_TEMPLATE_ID');
+    expect(sms.body.error.message).toContain('send SMS content in message');
+  });
+
+  it('rejects email requests without meaningful HTML or text content', async () => {
+    for (const content of [{}, { html: '' }, { text: '   ' }, { html: '\n\t', text: '  ' }]) {
+      const result = await request('email', '/send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: 'user@example.test', subject: 'Hello', ...content }),
+      });
+      expect(result.status).toBe(400);
+      expect(result.body.error.code).toBe('EMAIL_CONTENT_REQUIRED');
+      expect(result.body.error.message).toContain('non-empty email content');
+    }
+  });
+
   it('generates and verifies a single-use OTP', async () => {
     const generateKey = 'otp-generate-runtime-0001';
     const generateInput = { target: 'user@example.test', channel: 'email' };
@@ -90,15 +143,18 @@ describe('migrated shared-service runtimes', () => {
     expect(reusedWithNewKey.status).toBe(400);
   });
 
-  it('supports deterministic geo behavior and rejects unconfigured Google OAuth', async () => {
+  it('supports deterministic geo behavior and rejects Google OAuth for unregistered projects', async () => {
     const geocode = await request('geo', '/geocode', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ address: 'Manila' }) });
     expect(geocode.status).toBe(200);
     expect(geocode.body.data.formattedAddress).toBe('Manila');
     const fence = await request('geo', '/geofence/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ latitude: 14.5995, longitude: 120.9842 }) });
     expect(fence.status).toBe(200);
     expect(fence.body.data.inside).toBe(true);
-    const oauth = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
-    expect(oauth.status).toBe(500);
-    expect(oauth.body.error.code).toBe('GOOGLE_CONFIG_ERROR');
+    const unscoped = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
+    expect(unscoped.status).toBe(400);
+    expect(unscoped.body.error.code).toBe('INVALID_PROJECT_CONTEXT');
+    const unregistered = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json', 'X-APICenter-Project-Id': 'unregistered-project', 'X-APICenter-Environment': 'live' }, body: JSON.stringify({}) });
+    expect(unregistered.status).toBe(403);
+    expect(unregistered.body.error.code).toBe('OAUTH_APP_NOT_REGISTERED');
   });
 });

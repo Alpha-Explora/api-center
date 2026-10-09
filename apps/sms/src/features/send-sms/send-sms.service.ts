@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { SmsSendRequest, SmsSendResponse } from '@apicenter/contracts';
+import type { SharedServiceCaller } from '@apicenter/runtime';
 import { SmsRecipient, SmsMessagePayload } from './send-sms.model';
 import { createSmsRepository } from '../../shared/sms-store';
 import type { SmsRepositoryInterface } from '../../shared/sms-repository.interface';
@@ -11,7 +12,7 @@ export class SendSmsService {
     private readonly provider = new TwilioSmsProvider(),
   ) {}
 
-  async execute(input: SmsSendRequest & { senderId?: string }): Promise<SmsSendResponse & { recipient: string }> {
+  async execute(input: SmsSendRequest & { senderId?: string }, owner: SharedServiceCaller): Promise<SmsSendResponse & { recipient: string }> {
     const recipientVo = new SmsRecipient(input.to);
     const messageVo = new SmsMessagePayload(input.message);
 
@@ -29,7 +30,7 @@ export class SendSmsService {
       createdAt: sentAt,
     };
 
-    await this.store.save(record);
+    await this.store.save(record, owner);
 
     return {
       messageId: delivery.messageId,

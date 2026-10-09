@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DELETE, GET } from "../../../../../../../../src/app/api/local/tribe-secrets/[serviceId]/route";
+import {
+  DELETE,
+  GET,
+} from "../../../../../../../../src/app/api/local/tribe-secrets/[serviceId]/route";
 
 const sessionMocks = vi.hoisted(() => ({
   requireManagementSession: vi.fn().mockResolvedValue({
@@ -12,6 +15,9 @@ const sessionMocks = vi.hoisted(() => ({
 const actionMocks = vi.hoisted(() => ({
   requireManagementAction: vi.fn().mockResolvedValue({ audit: {} }),
 }));
+const accessMocks = vi.hoisted(() => ({
+  authorizeService: vi.fn().mockResolvedValue("org-1"),
+}));
 const secretMocks = vi.hoisted(() => ({
   getProjectId: vi.fn(() => "api-center-test"),
   getSecretManagerAuthReadiness: vi.fn(() => ({ ok: true })),
@@ -21,6 +27,7 @@ const secretMocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/server/require-management-session", () => sessionMocks);
 vi.mock("@/lib/server/require-management-action", () => actionMocks);
+vi.mock("@/lib/server/organization-access", () => accessMocks);
 vi.mock("@/lib/server/gcp-secret-manager", () => secretMocks);
 
 describe("/api/local/tribe-secrets/[serviceId]", () => {
@@ -29,7 +36,7 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
   });
 
   it("requires a management session before reading Secret Manager status", async () => {
-    sessionMocks.requireManagementSession.mockRejectedValueOnce(
+    accessMocks.authorizeService.mockRejectedValueOnce(
       new Error("Management authentication required"),
     );
 
@@ -79,6 +86,20 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
     );
   });
 
+  it("does not read secret status for a service in another organization", async () => {
+    accessMocks.authorizeService.mockRejectedValueOnce(
+      new Error("Organization access denied"),
+    );
+
+    const response = await GET(
+      new Request("http://localhost/api/local/tribe-secrets/other-org-service"),
+      { params: Promise.resolve({ serviceId: "other-org-service" }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(secretMocks.getTribeSecretStatus).not.toHaveBeenCalled();
+  });
+
   it("authorizes live delete against the target environment", async () => {
     secretMocks.deleteTribeSecret.mockResolvedValue({
       serviceId: "campus-one",
@@ -89,6 +110,7 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
     const response = await DELETE(
       new Request("http://localhost/api/local/tribe-secrets/campus-one", {
         method: "DELETE",
+        headers: { authorization: "Bearer test-session" },
         body: JSON.stringify({
           mode: "delete",
           environment: "live",
@@ -115,5 +137,29 @@ describe("/api/local/tribe-secrets/[serviceId]", () => {
         secretId: "api-center-service-secret-campus-one-live",
       }),
     );
+  });
+
+  it("does not delete a secret when the service belongs to another organization", async () => {
+    accessMocks.authorizeService.mockRejectedValueOnce(
+      new Error("Organization access denied"),
+    );
+
+    const response = await DELETE(
+      new Request(
+        "http://localhost/api/local/tribe-secrets/other-org-service",
+        {
+          method: "DELETE",
+          body: JSON.stringify({
+            mode: "delete",
+            environment: "test",
+            confirmServiceId: "other-org-service",
+          }),
+        },
+      ),
+      { params: Promise.resolve({ serviceId: "other-org-service" }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(secretMocks.deleteTribeSecret).not.toHaveBeenCalled();
   });
 });

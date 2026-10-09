@@ -4,13 +4,16 @@ import {
   getManagementAuthConfig,
   resolveManagementSessionFromGoogleClaims,
   type GoogleClaims,
+  type MembershipLookupFn,
   type ManagementSession,
 } from "./management-auth";
+import { lookupOrganizationMemberships } from "./organization-membership";
 
 type RequireSessionInput = {
   env?: Record<string, string | undefined>;
   authorizationHeader?: string | null;
   verifier?: GoogleSessionVerifier;
+  membershipLookup?: MembershipLookupFn;
 };
 
 export type GoogleSessionVerifier = {
@@ -38,7 +41,10 @@ export async function requireManagementSession(
   const verifier = input.verifier ?? createGoogleVerifier();
   const claims = await verifier.verifyIdToken(token, config.googleClientId);
 
-  return resolveManagementSessionFromGoogleClaims(claims);
+  return resolveManagementSessionFromGoogleClaims(
+    claims,
+    input.membershipLookup ?? lookupOrganizationMemberships,
+  );
 }
 
 function getBearerToken(authorizationHeader: string | null | undefined) {

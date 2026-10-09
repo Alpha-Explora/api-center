@@ -4,30 +4,36 @@ import { callGoogleProvider } from '../../shared/google-provider';
 
 const googleTokenUrl = process.env.GOOGLE_TOKEN_URL || 'https://oauth2.googleapis.com/token';
 
+function assertStateIssuedForCredential(state: unknown, credential: GoogleOAuthCredential): void {
+  let verified: any = null;
+  try {
+    verified = verifySignedOAuthState(typeof state === 'string' ? state : undefined);
+  } catch {
+    verified = null;
+  }
+
+  const matches =
+    verified !== null &&
+    verified.projectId === credential.projectId &&
+    verified.environment === credential.environment &&
+    verified.redirectUri === credential.redirectUri;
+  if (!matches) {
+    throw {
+      status: 400,
+      code: 'INVALID_OAUTH_STATE',
+      message: 'state must come from an authorization request for this project, environment, and redirect URI.',
+    };
+  }
+}
+
 export class TokenExchangeService {
   async execute(payload: any, credential: GoogleOAuthCredential) {
     const { code, codeVerifier } = payload;
 
-    if (payload.tenantSlug) {
-      let verifiedState = null;
-      try {
-        verifiedState = verifySignedOAuthState(payload.state);
-      } catch {
-        verifiedState = null;
-      }
+    assertStateIssuedForCredential(payload.state, credential);
 
-      if (
-        !verifiedState ||
-        verifiedState.tenantSlug !== payload.tenantSlug ||
-        verifiedState.source !== credential.source ||
-        verifiedState.redirectUri !== credential.redirectUri
-      ) {
-        throw { status: 400, code: 'INVALID_OAUTH_STATE', message: 'Tenant Google OAuth token exchange requires a valid signed state.' };
-      }
-    }
-
-    if (!code || !credential.redirectUri) {
-      throw { status: 400, code: 'INVALID_TOKEN_EXCHANGE_REQUEST', message: 'code and redirectUri are required.' };
+    if (!code) {
+      throw { status: 400, code: 'INVALID_TOKEN_EXCHANGE_REQUEST', message: 'code is required.' };
     }
 
     const tokenPayload = new URLSearchParams({

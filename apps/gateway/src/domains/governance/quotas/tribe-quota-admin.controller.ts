@@ -48,9 +48,20 @@ export class TribeQuotaAdminController {
   async listPolicies(
     @Query("ownerTribeId") ownerTribeId: string | undefined,
     @Query("projectId") projectId: string | undefined,
+    @Query("organizationId") organizationFilter: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
-    const policies = await this.policies.listPolicies({ ownerTribeId, projectId });
+    const filter: { ownerTribeId?: string; ownerTribeIds?: string[]; projectId?: string } = { projectId };
+    if (organizationFilter !== undefined) {
+      const organizationIds = new Set(organizationFilter.split(",").map((id) => id.trim()).filter(Boolean));
+      filter.ownerTribeIds = (this.tenancy.listTribes?.() ?? [])
+        .filter((tribe) => tribe.organizationId && organizationIds.has(tribe.organizationId))
+        .map((tribe) => tribe.tribeId)
+        .filter((tribeId) => !ownerTribeId || ownerTribeId === tribeId);
+    } else if (ownerTribeId) {
+      filter.ownerTribeId = ownerTribeId;
+    }
+    const policies = await this.policies.listPolicies(filter);
     return this.response(
       policies.map((policy) => this.toPolicyResponse(policy)),
       req,

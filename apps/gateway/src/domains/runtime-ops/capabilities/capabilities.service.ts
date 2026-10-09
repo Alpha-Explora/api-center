@@ -7,7 +7,7 @@ export type CapabilitiesSnapshot = {
   coreGateway: {
     enabled: true;
     authProvider: string;
-    registrySource: string;
+    registrySource: "postgres" | "memory";
     registryBootstrapEnabled: boolean;
   };
   tribeSecrets: {
@@ -24,7 +24,7 @@ export class CapabilitiesService {
       coreGateway: {
         enabled: true,
         authProvider: this.config.authProvider,
-        registrySource: this.config.database.registrySource,
+        registrySource: this.config.database.enabled ? "postgres" : "memory",
         registryBootstrapEnabled: this.config.registryBootstrap.enabled,
       },
       tribeSecrets: {

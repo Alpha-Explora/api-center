@@ -16,7 +16,7 @@ describe("api-center-client runtime capabilities", () => {
           coreGateway: {
             enabled: true,
             authProvider: "internal-jwt",
-            registrySource: "redis",
+            registrySource: "memory",
             registryBootstrapEnabled: false,
           },
           dataPipeline: { enabled: false },
