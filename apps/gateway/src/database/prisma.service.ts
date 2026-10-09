@@ -7,7 +7,8 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  private readonly enabled = process.env.DATABASE_ENABLED === "true";
+  private readonly enabled =
+    process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL);
 
   constructor() {
     const connectionString =

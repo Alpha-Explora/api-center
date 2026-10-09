@@ -1,10 +1,8 @@
 // =============================================================================
 // Tenancy directory: tribes and projects.
 // =============================================================================
-// Storage mirrors the service registry so the two never run in different modes:
-//   memory (hot reads) -> Redis hash (shared across instances) -> Postgres when the database is the
-//   registry source or dual-write is enabled. Postgres is written first so the services table's
-//   composite foreign key always finds its project.
+// Postgres is the source of truth when DATABASE_URL is configured; otherwise, local development
+// and tests use memory. Writes persist to Postgres before updating the in-memory read cache.
 // =============================================================================
 
 import {
@@ -14,7 +12,6 @@ import {
   OnModuleInit,
   Optional,
 } from "@nestjs/common";
-import Redis from "ioredis";
 import { ConfigService } from "@config/config.service";
 import { LoggerService } from "@shared/logger.service";
 import { ConflictError, NotFoundError, ValidationError } from "@shared/errors";
@@ -34,9 +31,6 @@ import {
   UpdateTribeInput,
 } from "./tenancy.types";
 
-const REDIS_TRIBES_KEY = "api-center:tenancy:tribes";
-const REDIS_PROJECTS_KEY = "api-center:tenancy:projects";
-const REDIS_WRITE_TIMEOUT_MS = 2_000;
 const DEFAULT_REFRESH_SECONDS = 10;
 
 @Injectable()
@@ -44,7 +38,6 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
   private readonly tribes = new Map<string, Tribe>();
   private readonly projects = new Map<string, Project>();
   private readonly projectsByTribe = new Map<string, Set<string>>();
-  private redis: Redis | null = null;
   private refreshTimer: NodeJS.Timeout | null = null;
   private refreshing: Promise<void> | null = null;
   private writesInFlight = 0;
@@ -56,34 +49,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
   ) {}
 
   async onModuleInit(): Promise<void> {
-    try {
-      this.redis = new Redis(this.config.redis.cacheUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times) => Math.min(times * 200, 3000),
-      });
-      await this.redis.connect();
-    } catch (err) {
-      this.logger.warn(
-        `Tenancy Redis unavailable; running in memory-only mode: ${(err as Error).message}`,
-        "TenancyService",
-      );
-      this.redis = null;
-    }
-
-    if (this.config.database.registrySource === "postgres") {
-      await this.loadFromPostgres();
-      return;
-    }
-
-    try {
-      await this.loadFromRedis();
-    } catch (err) {
-      this.logger.warn(
-        `Tenancy Redis load failed; running in memory-only mode: ${(err as Error).message}`,
-        "TenancyService",
-      );
-    }
+    if (this.config.database.enabled) await this.loadFromPostgres();
   }
 
   /**
@@ -91,9 +57,11 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
    * tribe suspended or a project created on one instance reaches the others within a few seconds.
    */
   onApplicationBootstrap(): void {
+    if (!this.config.database.enabled) return;
     const configured = Number.parseInt(process.env.TENANCY_REFRESH_SECONDS ?? "", 10);
-    const seconds = Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_REFRESH_SECONDS;
-    if (!this.redis && this.config.database.registrySource !== "postgres") return;
+    const seconds = Number.isFinite(configured) && configured > 0
+      ? Math.min(configured, 30)
+      : DEFAULT_REFRESH_SECONDS;
     this.refreshTimer = setInterval(() => void this.refresh(), seconds * 1000);
     this.refreshTimer.unref();
   }
@@ -103,10 +71,6 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-    }
   }
 
   /** Re-read tribes and projects from the shared store. Keeps the current copy when the store is unreachable. */
@@ -115,8 +79,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
     if (!this.refreshing) {
       this.refreshing = (async () => {
         try {
-          if (this.config.database.registrySource === "postgres") await this.loadFromPostgres();
-          else await this.loadFromRedis();
+          await this.loadFromPostgres();
         } catch (err) {
           this.logger.warn(
             `Tenancy refresh failed; keeping the current directory: ${(err as Error).message}`,
@@ -212,7 +175,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
       createdAt: now,
       updatedAt: now,
     };
-    await this.persistTribe(tribe, null);
+    await this.persistTribe(tribe);
     return tribe;
   }
 
@@ -226,7 +189,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
       ...(input.status !== undefined ? { status: requireStatus(input.status) } : {}),
       updatedAt: new Date().toISOString(),
     };
-    await this.persistTribe(updated, existing);
+    await this.persistTribe(updated);
     return updated;
   }
 
@@ -254,7 +217,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
       createdAt: now,
       updatedAt: now,
     };
-    await this.persistProject(project, null);
+    await this.persistProject(project);
     return project;
   }
 
@@ -270,7 +233,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
       ...(input.status !== undefined ? { status: requireStatus(input.status) } : {}),
       updatedAt: new Date().toISOString(),
     };
-    await this.persistProject(updated, existing);
+    await this.persistProject(updated);
     return updated;
   }
 
@@ -295,21 +258,9 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
   // Persistence
   // ---------------------------------------------------------------------------
 
-  async loadFromRedis(): Promise<void> {
-    if (!this.redis) return;
-    const [tribes, projects] = await Promise.all([
-      this.redis.hgetall(REDIS_TRIBES_KEY),
-      this.redis.hgetall(REDIS_PROJECTS_KEY),
-    ]);
-    this.replaceAll(
-      Object.values(tribes).map((json) => JSON.parse(json) as Tribe),
-      Object.values(projects).map((json) => JSON.parse(json) as Project),
-    );
-  }
-
   async loadFromPostgres(): Promise<void> {
     if (!this.config.database.enabled || !this.postgresStore) {
-      throw new Error("DATABASE_ENABLED=true is required to load tenancy from Postgres");
+      throw new Error("DATABASE_URL is required to load tenancy from Postgres");
     }
     const snapshot = await this.postgresStore.loadAll();
     this.replaceAll(snapshot.tribes, snapshot.projects);
@@ -318,13 +269,6 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
   private replaceAll(tribes: Tribe[], projects: Project[]): void {
     // A write that started while this snapshot was loading would be overwritten by older data.
     if (this.writesInFlight > 0) return;
-    if (tribes.length === 0 && projects.length === 0 && this.tribes.size > 0) {
-      this.logger.warn(
-        "Tenancy store returned no tribes or projects; keeping the current directory",
-        "TenancyService",
-      );
-      return;
-    }
     this.tribes.clear();
     this.projects.clear();
     this.projectsByTribe.clear();
@@ -342,47 +286,28 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
     this.projectsByTribe.set(project.tribeId, ids);
   }
 
-  private shouldWritePostgres(): boolean {
-    return (
-      this.config.database.enabled &&
-      (this.config.database.dualWrite || this.config.database.registrySource === "postgres") &&
-      !!this.postgresStore
-    );
-  }
-
-  private async persistTribe(tribe: Tribe, previous: Tribe | null): Promise<void> {
+  private async persistTribe(tribe: Tribe): Promise<void> {
     this.writesInFlight += 1;
     try {
-      if (this.shouldWritePostgres()) await this.postgresStore!.upsertTribe(tribe);
-      this.tribes.set(tribe.tribeId, tribe);
-      try {
-        await this.writeRedis(REDIS_TRIBES_KEY, tribe.tribeId, tribe);
-      } catch (err) {
-        if (previous) this.tribes.set(previous.tribeId, previous);
-        else this.tribes.delete(tribe.tribeId);
-        throw err;
+      if (this.config.database.enabled) {
+        if (!this.postgresStore) throw new Error("Postgres tenancy store is not available");
+        await this.postgresStore.upsertTribe(tribe);
       }
+      this.tribes.set(tribe.tribeId, tribe);
       this.logger.info("Tribe saved", { tribeId: tribe.tribeId, status: tribe.status });
     } finally {
       this.writesInFlight -= 1;
     }
   }
 
-  private async persistProject(project: Project, previous: Project | null): Promise<void> {
+  private async persistProject(project: Project): Promise<void> {
     this.writesInFlight += 1;
     try {
-      if (this.shouldWritePostgres()) await this.postgresStore!.upsertProject(project);
-      this.indexProject(project);
-      try {
-        await this.writeRedis(REDIS_PROJECTS_KEY, project.projectId, project);
-      } catch (err) {
-        if (previous) this.indexProject(previous);
-        else {
-          this.projects.delete(project.projectId);
-          this.projectsByTribe.get(project.tribeId)?.delete(project.projectId);
-        }
-        throw err;
+      if (this.config.database.enabled) {
+        if (!this.postgresStore) throw new Error("Postgres tenancy store is not available");
+        await this.postgresStore.upsertProject(project);
       }
+      this.indexProject(project);
       this.logger.info("Project saved", {
         projectId: project.projectId,
         tribeId: project.tribeId,
@@ -393,23 +318,6 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
     }
   }
 
-  private async writeRedis(key: string, field: string, value: unknown): Promise<void> {
-    if (!this.redis) return;
-    let timer: NodeJS.Timeout | undefined;
-    try {
-      await Promise.race([
-        this.redis.hset(key, field, JSON.stringify(value)),
-        new Promise((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`Redis write timed out for ${key}:${field}`)),
-            REDIS_WRITE_TIMEOUT_MS,
-          );
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-  }
 }
 
 function requireName(value: string, kind: "tribe" | "project"): string {
