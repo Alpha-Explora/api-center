@@ -1,60 +1,74 @@
-import crypto from 'node:crypto';
-import { Resend } from 'resend';
-import type { EmailSendRequest, EmailSendResponse } from '@apicenter/contracts';
-import type { SharedServiceCaller } from '@apicenter/runtime';
-import { EmailRecipients, EmailSubject } from './send-email.model';
-import { createEmailStore } from '../../shared/email-store';
+import crypto from "node:crypto";
+import { Resend } from "resend";
+import type { EmailSendRequest, EmailSendResponse } from "@apicenter/contracts";
+import type { SharedServiceCaller } from "@apicenter/runtime";
+import { EmailRecipients, EmailSubject } from "./send-email.model";
+import { createEmailStore } from "../../shared/email-store";
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM_ADDRESS;
-const nodeEnv = process.env.NODE_ENV || 'development';
+const nodeEnv = process.env.NODE_ENV || "development";
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export class SendEmailService {
   constructor(private readonly store = createEmailStore()) {}
 
-  async execute(input: EmailSendRequest, owner: SharedServiceCaller): Promise<EmailSendResponse & { provider: string; recipient: string[] }> {
+  async execute(
+    input: EmailSendRequest,
+    owner: SharedServiceCaller,
+  ): Promise<EmailSendResponse & { provider: string; recipient: string[] }> {
     const recipientsVo = new EmailRecipients(input.to);
     const subjectVo = new EmailSubject(input.subject);
 
     const recipients = recipientsVo.getRecipients();
-    const htmlContent = input.html || (input.text ? `<p>${input.text}</p>` : '<p>(no content)</p>');
-
-    if ((!resend || !emailFrom) && nodeEnv === 'production') {
-      throw new Error('Resend API key and sender address are required in production');
+    if ((!resend || !emailFrom) && nodeEnv === "production") {
+      throw new Error(
+        "Resend API key and sender address are required in production",
+      );
     }
 
-    const messageId = `msg_${crypto.randomUUID().replace(/-/g, '')}`;
+    const messageId = `msg_${crypto.randomUUID().replace(/-/g, "")}`;
     let providerMessageId = messageId;
-    let status = 'queued';
+    let status = "queued";
 
     if (resend) {
-      if (!emailFrom) throw new Error('Resend sender address is required');
+      if (!emailFrom) throw new Error("Resend sender address is required");
+      const content =
+        input.html !== undefined && input.text !== undefined
+          ? { html: input.html, text: input.text }
+          : input.html !== undefined
+            ? { html: input.html }
+            : input.text !== undefined
+              ? { text: input.text }
+              : { html: "<p>(no content)</p>" };
       const payload = {
         from: emailFrom,
         to: recipients,
         subject: subjectVo.getValue(),
-        html: htmlContent,
+        ...content,
       };
       const { data, error } = await resend.emails.send(payload);
       if (error) throw new Error(error.message);
       providerMessageId = data?.id || messageId;
-      status = 'queued';
+      status = "queued";
     }
 
     const response = {
       messageId: providerMessageId,
-      status: status as EmailSendResponse['status'],
+      status: status as EmailSendResponse["status"],
       recipientCount: recipients.length,
       sentAt: new Date().toISOString(),
-      provider: resend ? 'resend' : 'mock',
+      provider: resend ? "resend" : "mock",
       recipient: recipients,
     };
 
-    await this.store.save({
-      ...response,
-      createdAt: new Date().toISOString(),
-    }, owner);
+    await this.store.save(
+      {
+        ...response,
+        createdAt: new Date().toISOString(),
+      },
+      owner,
+    );
 
     return response;
   }
