@@ -4,7 +4,8 @@ This document is the current source of truth for the reusable payments platform.
 
 ## Ownership
 
-- `api-center/apps/payments` is the private provider adapter. It owns PayMongo credentials, provider calls, webhook verification, the `shared_payment` database, public resource IDs, idempotency, and the payment outbox.
+- `api-center/apps/payments` is the private provider adapter. It owns PayMongo credentials, provider calls, webhook verification, public resource IDs, idempotency, and the payment outbox. PayMongo owns the canonical customer, product, price, subscription, checkout, payment, refund, invoice, and receipt records.
+- `shared_payment` stores APICenter's project-scoped resource ownership and reconciliation facts, verified webhook receipts, and event outbox. It does not mirror PayMongo's provider resource tables.
 - `api-center/apps/gateway` is the public boundary. Consumer services authenticate with an APICenter payment key and receive the provider-neutral `/api/v1/payments/*` contract.
 - AlphaCI keeps its own billing and subscription projection in `alphaci-be`. It calls APICenter through `@alpha-explora/apicenter-sdk`; it does not need PayMongo credentials for the APICenter command path.
 
@@ -21,7 +22,7 @@ Subscriptions are filtered by `consumerServiceId`, use OIDC push authentication,
 
 ## Data and recovery
 
-APICenter is the payment source of truth. AlphaCI stores only the local ledger and access projection it needs. AlphaCI's inbox uses a processing lease and can reclaim stale deliveries after five minutes. APICenter's outbox reclaims publishing rows after five minutes, retries with backoff, and quarantines after 20 failed attempts.
+PayMongo is the source of truth for payment resources and merchant settlement. APICenter is the source of truth for the project/environment ownership mapping, payment listing and reconciliation metadata it records, webhook verification receipts, and event delivery state. AlphaCI stores only the local ledger and access projection it needs. AlphaCI's inbox uses a processing lease and can reclaim stale deliveries after five minutes. APICenter's outbox reclaims publishing rows after five minutes, retries with backoff, and quarantines after 20 failed attempts.
 
 Public responses and events never expose raw PayMongo IDs. Provider IDs are encoded as opaque versioned IDs such as `pi_v1_*` and `chk_v1_*`.
 

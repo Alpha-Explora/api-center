@@ -60,6 +60,7 @@
     "db:test:plan-definitions": "node --test tests/db/plan-definitions.test.cjs",
     "db:test:payment-outbox": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",
     "db:test:payment-webhook": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-webhook-outbox.test.cjs",
+    "db:test:payment-schema": "node --test tests/db/payment-schema.test.cjs",
     "check:boundaries:test": "node tests/integration/scripts/check-boundaries.test.js",
     "registry:verify": "node scripts/collect-registry-parity-evidence.js --fail-on-blockers",
     "check:environment-naming": "node scripts/check-environment-naming.js",
