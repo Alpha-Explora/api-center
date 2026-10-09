@@ -154,7 +154,6 @@ export class TribePlanService {
       data: {
         status: input.status,
         reason: input.reason,
-        assignedBy: input.updatedBy,
       },
     });
   }

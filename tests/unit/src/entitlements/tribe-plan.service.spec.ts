@@ -233,7 +233,7 @@ describe("TribePlanService", () => {
       status: "archived",
       effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
       reason: "Retired service",
-      assignedBy: "platform",
+      assignedBy: "original-operator",
     });
 
     const result = await service.updatePlanAssignment({
@@ -248,10 +248,10 @@ describe("TribePlanService", () => {
       data: {
         status: "archived",
         reason: "Retired service",
-        assignedBy: "platform",
       },
     });
     expect(result.status).toBe("archived");
+    expect(result.assignedBy).toBe("original-operator");
   });
 
   it("does not expose effective limits on archived assignments", async () => {
