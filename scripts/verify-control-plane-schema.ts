@@ -29,6 +29,7 @@ const domainSchemas = [
 
 const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "organizations"],
+  ["apic_catalog", "organization_members"],
   ["apic_catalog", "services"],
   ["apic_catalog", "service_environments"],
   ["apic_catalog", "service_routes"],
@@ -84,6 +85,7 @@ const compatibilityViews: QualifiedObject[] = [
 ].map(([schema, name]) => ({ schema, name }));
 
 const requiredIndexes = [
+  "organization_members_email_idx",
   "service_environments_service_id_idx",
   "service_environments_env_status_idx",
   "registry_change_requests_status_created_idx",
@@ -125,6 +127,8 @@ const requiredIndexes = [
 ];
 
 const requiredCheckConstraints = [
+  "organization_members_email_check",
+  "organization_members_role_check",
   "registry_change_requests_status_check",
   "approval_requests_status_check",
   "approval_requests_target_environment_check",

@@ -17,8 +17,25 @@ model Organization {
 
   services Service[]
   tribes   Tribe[]
+  members  OrganizationMember[]
 
   @@map("organizations")
+  @@schema("apic_catalog")
+}
+
+/// A person allowed to use the management console for one organization. Platform admins are not rows here.
+model OrganizationMember {
+  organizationId String   @map("organization_id") @db.Uuid
+  email          String
+  role           String
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, email], name: "organization_members_pkey")
+  @@index([email], name: "organization_members_email_idx")
+  @@map("organization_members")
   @@schema("apic_catalog")
 }
 

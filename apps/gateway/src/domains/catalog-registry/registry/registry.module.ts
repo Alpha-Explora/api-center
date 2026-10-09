@@ -14,6 +14,9 @@ import { RegistrationRequestsController } from "./registration-requests.controll
 import { RegistrationRequestsService } from "./registration-requests.service";
 import { TenancyService } from "./tenancy.service";
 import { TenancyController } from "./tenancy.controller";
+import { OrganizationMembershipController } from "./organization-membership.controller";
+import { OrganizationMembershipService } from "./organization-membership.service";
+import { PostgresOrganizationMembershipStoreService } from "./postgres-organization-membership-store.service";
 import { PostgresTenancyStoreService } from "./postgres-tenancy-store.service";
 import { TenancyDirectoryService } from "./tenancy-directory.service";
 import { TENANCY_DIRECTORY } from "./tenancy.types";
@@ -33,11 +36,18 @@ import { RegistryChangeRequestModule } from "@change-requests/registry-change-re
     RegistryChangeRequestModule,
     forwardRef(() => AuthModule),
   ],
-  controllers: [RegistryController, RegistrationRequestsController, TenancyController],
+  controllers: [
+    RegistryController,
+    RegistrationRequestsController,
+    TenancyController,
+    OrganizationMembershipController,
+  ],
   providers: [
     RegistryService,
     TenancyService,
     PostgresTenancyStoreService,
+    OrganizationMembershipService,
+    PostgresOrganizationMembershipStoreService,
     TenancyDirectoryService,
     { provide: TENANCY_DIRECTORY, useExisting: TenancyDirectoryService },
     RegistrationRequestsService,
