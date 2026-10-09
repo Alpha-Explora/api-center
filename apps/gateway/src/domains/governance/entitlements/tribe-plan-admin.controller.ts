@@ -33,7 +33,11 @@ import {
 
 const PLAN_KEYS: TribePlanKey[] = ["starter", "standard", "pro", "enterprise"];
 const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "live"];
-const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = ["active", "disabled"];
+const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = [
+  "active",
+  "suspended",
+  "archived",
+];
 
 interface AssignPlanRequest {
   projectId?: string;
@@ -211,6 +215,9 @@ export class TribePlanAdminController {
       Number.isNaN(new Date(body.effectiveAt).getTime())
     ) {
       throw new ValidationError("effectiveAt must be a valid date");
+    }
+    if (body.effectiveAt && new Date(body.effectiveAt).getTime() > Date.now()) {
+      throw new ValidationError("effectiveAt cannot be in the future");
     }
   }
 

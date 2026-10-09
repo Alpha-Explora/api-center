@@ -69,6 +69,22 @@ describe("TribePlanTierPanel", () => {
         status: "active",
         effectiveAt: "2026-05-25T00:00:00.000Z",
         reason: "Production rollout",
+        effectiveLimits: [
+          {
+            scope: "all",
+            maxRequests: 25000,
+            windowSeconds: 86400,
+            mode: "enforce",
+            source: "plan",
+          },
+          {
+            scope: "kafka_publish",
+            maxRequests: 5000,
+            windowSeconds: 86400,
+            mode: "enforce",
+            source: "plan",
+          },
+        ],
       },
     ]);
     apiClient.assignTribePlan.mockResolvedValue({
@@ -82,28 +98,6 @@ describe("TribePlanTierPanel", () => {
         effectiveAt: "2026-05-25T01:00:00.000Z",
         reason: "Initial test rollout",
       },
-      quotaProposals: [
-        {
-          ownerTribeId: "logistics",
-          projectId: "logistics-core",
-          scope: "all",
-          targetServiceId: null,
-          windowSeconds: 86400,
-          maxRequests: 1000,
-          mode: "observe",
-          reason: "Plan starter default gateway quota for test",
-        },
-        {
-          ownerTribeId: "logistics",
-          projectId: "logistics-core",
-          scope: "kafka_publish",
-          targetServiceId: null,
-          windowSeconds: 86400,
-          maxRequests: 100,
-          mode: "observe",
-          reason: "Plan starter default Kafka publish quota for test",
-        },
-      ],
     });
   });
 
@@ -119,10 +113,12 @@ describe("TribePlanTierPanel", () => {
     expect(screen.getByText(/1,000 gateway calls\/day/)).toBeTruthy();
     expect(screen.getByText("live after approval")).toBeTruthy();
     expect(screen.getByText("campus-one-default")).toBeTruthy();
-    expect(screen.getByText("standard / live")).toBeTruthy();
+    expect(screen.getByText("standard · live")).toBeTruthy();
+    expect(screen.getByText("Gateway: 25,000 calls/day")).toBeTruthy();
+    expect(screen.getAllByText("plan · enforce")).toHaveLength(2);
   });
 
-  it("assigns a plan to a project and links generated quota proposals", async () => {
+  it("assigns a plan without generating quota proposals", async () => {
     renderWithClient(<TribePlanTierPanel />);
 
     await screen.findByText("Starter");
@@ -142,9 +138,6 @@ describe("TribePlanTierPanel", () => {
     const assignButton = screen.getByRole("button", {
       name: /assign plan/i,
     }) as HTMLButtonElement;
-    expect(assignButton.disabled).toBe(true);
-    fireEvent.click(screen.getByLabelText(/reviewed this plan assignment/i));
-    await waitFor(() => expect(assignButton.disabled).toBe(false));
     fireEvent.click(assignButton);
 
     await waitFor(() =>
@@ -155,28 +148,35 @@ describe("TribePlanTierPanel", () => {
         reason: "Initial test rollout",
       }),
     );
-    const links = await screen.findAllByRole("link", {
-      name: /open quota proposal/i,
-    });
-    expect(links[0].getAttribute("href")).toContain(
-      "/quotas?ownerTribeId=logistics",
-    );
-    expect(links[0].getAttribute("href")).toContain("projectId=logistics-core");
-    expect(links[0].getAttribute("href")).toContain("maxRequests=1000");
+    expect(screen.queryByText(/generated quota proposals/i)).toBeNull();
   });
 
-  it("associates the plan assignment review checkbox with an explicit label", async () => {
-    const { container } = renderWithClient(<TribePlanTierPanel />);
+  it("shows whether effective limits come from the plan or an override", async () => {
+    apiClient.listTribePlanAssignments.mockResolvedValueOnce([
+      {
+        id: "assignment-override",
+        ownerTribeId: "campus-one",
+        projectId: "campus-one-default",
+        planKey: "standard",
+        environment: "live",
+        status: "active",
+        effectiveAt: "2026-05-25T00:00:00.000Z",
+        reason: "Production rollout",
+        effectiveLimits: [
+          {
+            scope: "all",
+            maxRequests: 800,
+            windowSeconds: 3600,
+            mode: "enforce",
+            source: "override",
+          },
+        ],
+      },
+    ]);
+    renderWithClient(<TribePlanTierPanel />);
 
-    await screen.findByText("Starter");
-    const checkbox = screen.getByLabelText(
-      /reviewed this plan assignment/i,
-    ) as HTMLInputElement;
-
-    expect(checkbox.id).toBe("plan-assignment-reviewed");
-    expect(
-      container.querySelector('label[for="plan-assignment-reviewed"]'),
-    ).toBeTruthy();
+    expect(await screen.findByText("Gateway: 800 calls/3600s")).toBeTruthy();
+    expect(screen.getByText("override · enforce")).toBeTruthy();
   });
 });
 

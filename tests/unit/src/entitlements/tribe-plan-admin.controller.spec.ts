@@ -11,8 +11,17 @@ const tenancy: TenancyDirectory = {
   resolveProject: jest.fn((projectId: string) =>
     projectId === "campus-lms"
       ? ({
-          tribe: { tribeId: "campus-one", name: "Campus One", status: "active" },
-          project: { projectId, tribeId: "campus-one", name: "LMS", status: "active" },
+          tribe: {
+            tribeId: "campus-one",
+            name: "Campus One",
+            status: "active",
+          },
+          project: {
+            projectId,
+            tribeId: "campus-one",
+            name: "LMS",
+            status: "active",
+          },
         } as never)
       : null,
   ),
@@ -92,7 +101,7 @@ describe("TribePlanAdminController", () => {
     ]);
   });
 
-  it("creates a plan assignment and includes generated quota proposals", async () => {
+  it("creates a plan assignment without generated quota proposals", async () => {
     plans.assignPlan.mockResolvedValue({
       assignment: {
         id: "assignment-1",
@@ -103,17 +112,6 @@ describe("TribePlanAdminController", () => {
         effectiveAt: "2026-05-25T00:00:00.000Z",
         reason: "Initial rollout",
       },
-      quotaProposals: [
-        {
-          ownerTribeId: "campus-one",
-          scope: "all",
-          targetServiceId: null,
-          windowSeconds: 86400,
-          maxRequests: 25_000,
-          mode: "observe",
-          reason: "Plan standard default gateway quota for test",
-        },
-      ],
     });
 
     const response = await controller.assignPlan(
@@ -139,7 +137,7 @@ describe("TribePlanAdminController", () => {
       reason: "Initial rollout",
       assignedBy: "platform",
     });
-    expect(response.data.quotaProposals).toHaveLength(1);
+    expect(response.data).not.toHaveProperty("quotaProposals");
     expect(auditEvents.recordRequired).toHaveBeenCalledWith({
       type: "entitlement.assignment.created",
       actionFamily: "plan",
@@ -167,14 +165,14 @@ describe("TribePlanAdminController", () => {
       projectId: "campus-lms",
       planKey: "standard",
       environment: "live",
-      status: "disabled",
+      status: "archived",
       effectiveAt: "2026-05-25T00:00:00.000Z",
       reason: "Retired service",
     });
 
     const response = await controller.updateAssignment(
       "assignment-1",
-      { status: "disabled", reason: "Retired service" },
+      { status: "archived", reason: "Retired service" },
       {
         user: { sub: "platform" },
         correlationId: "corr-update",
@@ -183,11 +181,11 @@ describe("TribePlanAdminController", () => {
 
     expect(plans.updatePlanAssignment).toHaveBeenCalledWith({
       assignmentId: "assignment-1",
-      status: "disabled",
+      status: "archived",
       reason: "Retired service",
       updatedBy: "platform",
     });
-    expect(response.data.status).toBe("disabled");
+    expect(response.data.status).toBe("archived");
     expect(auditEvents.recordRequired).toHaveBeenCalledWith({
       type: "entitlement.assignment.updated",
       actionFamily: "plan",
@@ -204,7 +202,7 @@ describe("TribePlanAdminController", () => {
         projectId: "campus-lms",
         planKey: "standard",
         environment: "live",
-        status: "disabled",
+        status: "archived",
         reason: "Retired service",
         correlationId: "corr-update",
       },
@@ -217,7 +215,7 @@ describe("TribePlanAdminController", () => {
       ownerTribeId: "campus-one",
       planKey: "standard",
       environment: "live",
-      status: "disabled",
+      status: "archived",
       effectiveAt: "2026-05-25T00:00:00.000Z",
       reason: "Retired service",
     });
@@ -228,7 +226,7 @@ describe("TribePlanAdminController", () => {
     await expect(
       controller.updateAssignment(
         "assignment-1",
-        { status: "disabled", reason: "Retired service" },
+        { status: "archived", reason: "Retired service" },
         { user: { tribeId: "platform" } } as any,
       ),
     ).rejects.toThrow("audit unavailable");
@@ -238,7 +236,7 @@ describe("TribePlanAdminController", () => {
     await expect(
       controller.updateAssignment(
         "",
-        { status: "disabled", reason: "" },
+        { status: "archived", reason: "" },
         {} as any,
       ),
     ).rejects.toThrow(ValidationError);
@@ -247,7 +245,6 @@ describe("TribePlanAdminController", () => {
   it("fails closed when plan assignment audit evidence cannot be written", async () => {
     plans.assignPlan.mockResolvedValue({
       assignment: { id: "assignment-1" },
-      quotaProposals: [],
     });
     auditEvents.recordRequired.mockRejectedValueOnce(
       new Error("audit unavailable"),
@@ -280,16 +277,46 @@ describe("TribePlanAdminController", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("rejects a future effectiveAt before calling the plan service", async () => {
+    const effectiveAt = new Date(Date.now() + 60_000).toISOString();
+
+    await expect(
+      controller.assignPlan(
+        {
+          projectId: "campus-lms",
+          planKey: "standard",
+          environment: "test",
+          effectiveAt,
+          reason: "Schedule plan change",
+        },
+        {} as any,
+      ),
+    ).rejects.toThrow("effectiveAt cannot be in the future");
+
+    expect(plans.assignPlan).not.toHaveBeenCalled();
+    expect(auditEvents.recordRequired).not.toHaveBeenCalled();
+  });
+
   it("rejects tribe-level assignments and unknown projects", async () => {
     await expect(
       controller.assignPlan(
-        { ownerTribeId: "campus-one", planKey: "standard", environment: "test", reason: "x" },
+        {
+          ownerTribeId: "campus-one",
+          planKey: "standard",
+          environment: "test",
+          reason: "x",
+        },
         {} as any,
       ),
     ).rejects.toThrow("Plans are assigned to projects");
     await expect(
       controller.assignPlan(
-        { projectId: "missing", planKey: "standard", environment: "test", reason: "x" },
+        {
+          projectId: "missing",
+          planKey: "standard",
+          environment: "test",
+          reason: "x",
+        },
         {} as any,
       ),
     ).rejects.toThrow("Project 'missing' is not registered");

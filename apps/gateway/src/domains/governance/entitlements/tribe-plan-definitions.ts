@@ -1,9 +1,7 @@
 import type { TribePlanDefinition } from "./tribe-plan.types";
 
 /**
- * The plan catalogue. The gateway reads plans from here.
- * supabase/migrations seeds apic_governance.entitlement_plans with the same rows, and
- * tests/db/plan-definitions.test.cjs fails when the two differ.
+ * The plan catalogue is intentionally code-owned; assignments persist only the plan key.
  */
 export const PLAN_DEFINITIONS: TribePlanDefinition[] = [
   {

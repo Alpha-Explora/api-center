@@ -410,21 +410,6 @@ model QuotaEvaluation {
   @@schema("apic_runtime")
 }
 
-model EntitlementPlan {
-  planKey              String   @id @map("plan_key")
-  displayName          String   @map("display_name")
-  gatewayCallsPerDay   Int?     @map("gateway_calls_per_day")
-  kafkaPublishesPerDay Int?     @map("kafka_publishes_per_day")
-  retentionTier        String   @map("retention_tier")
-  sharedServiceAccess  String   @map("shared_service_access")
-  supportTier          String   @map("support_tier")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@map("entitlement_plans")
-  @@schema("apic_governance")
-}
-
 model EntitlementAssignment {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerTribeId String   @map("owner_tribe_id")
@@ -441,6 +426,7 @@ model EntitlementAssignment {
   @@index([ownerTribeId, environment, status], name: "entitlement_assignments_owner_env_status_idx")
   @@index([projectId, environment, status], name: "entitlement_assignments_project_env_status_idx")
   @@index([planKey, environment], name: "entitlement_assignments_plan_env_idx")
+  // Partial unique index for active assignments is maintained by SQL migration.
   @@map("entitlement_assignments")
   @@schema("apic_governance")
 }

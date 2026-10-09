@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowUpRightIcon, RefreshCwIcon, SaveIcon } from "lucide-react";
+import { RefreshCwIcon, SaveIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   assignTribePlan,
@@ -12,8 +11,6 @@ import {
 } from "@/lib/api-center-client";
 import { queryKeys } from "@/lib/query-keys";
 import type {
-  AssignTribePlanResult,
-  GeneratedQuotaPolicyProposal,
   TribePlanAssignment,
   TribePlanDefinition,
   TribePlanKey,
@@ -33,10 +30,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 const planKeys: TribePlanKey[] = ["starter", "standard", "pro", "enterprise"];
 const environments: RuntimeEnvironment[] = ["test", "live"];
@@ -57,9 +52,6 @@ export function TribePlanTierPanel() {
     environment: "test",
     reason: "",
   });
-  const [assignmentResult, setAssignmentResult] =
-    useState<AssignTribePlanResult | null>(null);
-  const [reviewedAssignment, setReviewedAssignment] = useState(false);
 
   const tribesQuery = useQuery({
     queryKey: queryKeys.tenancyTribes,
@@ -76,8 +68,7 @@ export function TribePlanTierPanel() {
   const assignMutation = useMutation({
     mutationFn: (input: Parameters<typeof assignTribePlan>[0]) =>
       assignTribePlan(input),
-    onSuccess: async (result) => {
-      setAssignmentResult(result);
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });
@@ -91,8 +82,6 @@ export function TribePlanTierPanel() {
     key: K,
     value: AssignmentFormState[K],
   ) {
-    setAssignmentResult(null);
-    setReviewedAssignment(false);
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -112,8 +101,9 @@ export function TribePlanTierPanel() {
         <CardHeader>
           <CardTitle>Assign project plan</CardTitle>
           <CardDescription>
-            Plans attach to one project in one environment. Generated quota
-            proposals become that project&apos;s budgets, in observe mode.
+            Plans attach to one project in one environment. Plan limits apply in
+            enforce mode; project quota overrides take precedence for their
+            scope.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -125,14 +115,22 @@ export function TribePlanTierPanel() {
                   id="plan-project-id"
                   className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   value={form.projectId}
-                  onChange={(event) => updateField("projectId", event.target.value)}
+                  onChange={(event) =>
+                    updateField("projectId", event.target.value)
+                  }
                   required
                 >
                   <option value="">Choose a project</option>
                   {(tribesQuery.data ?? []).map((tribe) => (
-                    <optgroup key={tribe.tribeId} label={`${tribe.name} (${tribe.tribeId})`}>
+                    <optgroup
+                      key={tribe.tribeId}
+                      label={`${tribe.name} (${tribe.tribeId})`}
+                    >
                       {tribe.projects.map((project) => (
-                        <option key={project.projectId} value={project.projectId}>
+                        <option
+                          key={project.projectId}
+                          value={project.projectId}
+                        >
                           {project.name} ({project.projectId})
                         </option>
                       ))}
@@ -193,40 +191,8 @@ export function TribePlanTierPanel() {
                 />
               </Field>
             </FieldGroup>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-sm font-medium">Review plan assignment</div>
-              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                <PlanReviewDetail
-                  label="Project"
-                  value={form.projectId || "Not set"}
-                />
-                <PlanReviewDetail label="Plan" value={formatLabel(form.planKey)} />
-                <PlanReviewDetail label="Environment" value={form.environment} />
-                <PlanReviewDetail label="Quota proposal mode" value="observe" />
-              </dl>
-              <label
-                htmlFor="plan-assignment-reviewed"
-                className="mt-3 flex items-start gap-2 text-sm"
-              >
-                <input
-                  id="plan-assignment-reviewed"
-                  type="checkbox"
-                  className="mt-1"
-                  checked={reviewedAssignment}
-                  onChange={(event) =>
-                    setReviewedAssignment(event.target.checked)
-                  }
-                />
-                <span>
-                  I reviewed this plan assignment and the generated quota proposal path.
-                </span>
-              </label>
-            </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="submit"
-                disabled={assignMutation.isPending || !reviewedAssignment}
-              >
+              <Button type="submit" disabled={assignMutation.isPending}>
                 <SaveIcon data-icon="inline-start" />
                 Assign plan
               </Button>
@@ -251,10 +217,6 @@ export function TribePlanTierPanel() {
               </p>
             ) : null}
           </form>
-
-          {assignmentResult ? (
-            <QuotaProposalList proposals={assignmentResult.quotaProposals} />
-          ) : null}
         </CardContent>
       </Card>
 
@@ -264,15 +226,6 @@ export function TribePlanTierPanel() {
         isLoading={definitionsQuery.isLoading || assignmentsQuery.isLoading}
         isError={definitionsQuery.isError || assignmentsQuery.isError}
       />
-    </div>
-  );
-}
-
-function PlanReviewDetail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value}</dd>
     </div>
   );
 }
@@ -348,9 +301,9 @@ function PlanDefinitions({
             </dl>
             <div className="flex flex-col gap-2">
               <div className="text-xs font-medium uppercase text-muted-foreground">
-                Assigned tribes
+                Assigned projects
               </div>
-              <AssignedTribes
+              <AssignedProjects
                 assignments={assignmentsByPlan.get(definition.planKey) ?? []}
               />
             </div>
@@ -370,76 +323,47 @@ function PlanDetail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AssignedTribes({
+function AssignedProjects({
   assignments,
 }: {
   assignments: TribePlanAssignment[];
 }) {
   if (!assignments.length) {
-    return <p className="text-sm text-muted-foreground">No active tribes</p>;
+    return <p className="text-sm text-muted-foreground">No active projects</p>;
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2">
       {assignments.map((assignment) => (
-        <Badge
-          key={
-            assignment.id ?? `${assignment.projectId}-${assignment.planKey}`
-          }
-          variant="outline"
-          className="gap-1"
-        >
-          <span className="font-mono">{assignment.projectId}</span>
-          <span className="text-muted-foreground">
-            {assignment.planKey} / {displayRuntimeEnvironment(assignment.environment)}
-          </span>
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
-function QuotaProposalList({
-  proposals,
-}: {
-  proposals: GeneratedQuotaPolicyProposal[];
-}) {
-  if (!proposals.length) {
-    return (
-      <div className="mt-5 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-        This plan uses custom quotas. Create policies manually after approval.
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-5 flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
-      <div className="text-sm font-medium">Generated quota proposals</div>
-      {proposals.map((proposal) => (
         <div
-          key={`${proposal.scope}-${proposal.maxRequests}`}
-          className="flex flex-col gap-2 rounded-md border bg-card p-3"
+          key={assignment.id ?? `${assignment.projectId}-${assignment.planKey}`}
+          className="rounded-lg border p-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm">
-              <span className="font-medium">{formatLabel(proposal.scope)}</span>{" "}
-              {proposal.maxRequests.toLocaleString()} / {proposal.windowSeconds}
-              s
-            </div>
-            <Badge
-              variant="secondary"
-              className={cn("bg-[#eef7ff] text-[#0b5c8f]")}
-            >
-              {proposal.mode}
-            </Badge>
+            <span className="font-mono text-sm">{assignment.projectId}</span>
+            <span className="text-xs text-muted-foreground">
+              {formatLabel(assignment.planKey)} ·{" "}
+              {displayRuntimeEnvironment(assignment.environment)}
+            </span>
           </div>
-          <Link
-            href={quotaProposalHref(proposal)}
-            className="inline-flex h-8 items-center gap-1.5 self-start rounded-full border px-3 text-sm font-medium hover:bg-muted"
-          >
-            <ArrowUpRightIcon className="size-3.5" />
-            Open quota proposal
-          </Link>
+          <div className="mt-2 flex flex-col gap-1">
+            {(assignment.effectiveLimits ?? []).map((limit) => (
+              <div
+                key={`${limit.scope}-${limit.targetServiceId ?? "all"}`}
+                className="flex flex-wrap items-center justify-between gap-2 text-xs"
+              >
+                <span>
+                  {formatLimitScope(limit.scope)}
+                  {limit.targetServiceId
+                    ? ` · ${limit.targetServiceId}`
+                    : ""}: {formatEffectiveLimit(limit)}
+                </span>
+                <Badge variant="outline">
+                  {limit.source} · {limit.mode}
+                </Badge>
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -456,21 +380,25 @@ function groupAssignmentsByPlan(assignments: TribePlanAssignment[]) {
   return result;
 }
 
-function quotaProposalHref(proposal: GeneratedQuotaPolicyProposal) {
-  const params = new URLSearchParams({
-    ownerTribeId: proposal.ownerTribeId,
-    projectId: proposal.projectId,
-    scope: proposal.scope,
-    windowSeconds: String(proposal.windowSeconds),
-    maxRequests: String(proposal.maxRequests),
-    mode: proposal.mode,
-    reason: proposal.reason,
-  });
-  if (proposal.targetServiceId) {
-    params.set("targetServiceId", proposal.targetServiceId);
-  }
+function formatEffectiveLimit(
+  limit: NonNullable<TribePlanAssignment["effectiveLimits"]>[number],
+) {
+  if (limit.maxRequests === null) return "Unlimited";
+  const unit =
+    limit.scope === "kafka_publish"
+      ? "Kafka publishes"
+      : limit.scope === "all"
+        ? "calls"
+        : "requests";
+  const window =
+    limit.windowSeconds === 86400 ? "day" : `${limit.windowSeconds}s`;
+  return `${limit.maxRequests.toLocaleString()} ${unit}/${window}`;
+}
 
-  return `/quotas?${params.toString()}`;
+function formatLimitScope(scope: string) {
+  if (scope === "all") return "Gateway";
+  if (scope === "kafka_publish") return "Kafka";
+  return formatLabel(scope);
 }
 
 function formatQuota(value: number | null, label: string) {

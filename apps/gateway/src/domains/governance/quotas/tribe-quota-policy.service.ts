@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
+import { PLAN_DEFINITIONS } from "@entitlements/tribe-plan-definitions";
 import {
   CreateTribeQuotaPolicyInput,
   ResolvedTribeQuotaPolicies,
@@ -23,6 +24,11 @@ interface QuotaPolicyDelegate {
 
 interface QuotaPolicyPrisma {
   quotaPolicy: QuotaPolicyDelegate;
+  entitlementAssignment: {
+    findFirst(args: { where: Record<string, unknown> }): Promise<{
+      planKey: string;
+    } | null>;
+  };
 }
 
 @Injectable()
@@ -64,6 +70,7 @@ export class TribeQuotaPolicyService {
         { targetServiceId: "desc" },
         { scope: "desc" },
         { updatedAt: "desc" },
+        { id: "desc" },
       ],
     });
 
@@ -71,13 +78,54 @@ export class TribeQuotaPolicyService {
       [...level].sort(
         (left, right) =>
           this.specificityScore(right, input.scope, input.targetServiceId) -
-          this.specificityScore(left, input.scope, input.targetServiceId),
+            this.specificityScore(left, input.scope, input.targetServiceId) ||
+          comparePolicyRecency(left, right),
       )[0] ?? null;
 
+    let project = input.projectId
+      ? best(policies.filter((policy) => policy.projectId === input.projectId))
+      : null;
+    const needsPlanDefault =
+      !project || (input.scope === "kafka_publish" && project.scope === "all");
+    if (
+      needsPlanDefault &&
+      input.projectId &&
+      isPlanEnvironment(input.environment)
+    ) {
+      const assignment = await this.quotaPrisma.entitlementAssignment.findFirst(
+        {
+          where: {
+            ownerTribeId: input.ownerTribeId,
+            projectId: input.projectId,
+            environment: input.environment,
+            status: "active",
+          },
+        },
+      );
+      const definition = PLAN_DEFINITIONS.find(
+        (plan) => plan.planKey === assignment?.planKey,
+      );
+      const maxRequests =
+        input.scope === "kafka_publish"
+          ? definition?.kafkaPublishesPerDay
+          : definition?.gatewayCallsPerDay;
+      if (definition && maxRequests !== null && maxRequests !== undefined) {
+        project = {
+          ownerTribeId: input.ownerTribeId,
+          projectId: input.projectId,
+          scope: input.scope === "kafka_publish" ? "kafka_publish" : "all",
+          targetServiceId: null,
+          windowSeconds: 24 * 60 * 60,
+          maxRequests,
+          mode: "enforce",
+          status: "active",
+          reason: `Plan ${definition.planKey} default ${input.scope === "kafka_publish" ? "Kafka publish" : "gateway"} quota for ${input.environment}`,
+        };
+      }
+    }
+
     return {
-      project: input.projectId
-        ? best(policies.filter((policy) => policy.projectId === input.projectId))
-        : null,
+      project,
       tribe: best(policies.filter((policy) => !policy.projectId)),
     };
   }
@@ -176,4 +224,20 @@ export class TribeQuotaPolicyService {
       Object.entries(input).filter(([, value]) => value !== undefined),
     );
   }
+}
+
+function comparePolicyRecency(left: TribeQuotaPolicy, right: TribeQuotaPolicy) {
+  const updatedAtDifference =
+    new Date(right.updatedAt ?? 0).getTime() -
+    new Date(left.updatedAt ?? 0).getTime();
+  if (updatedAtDifference !== 0 && Number.isFinite(updatedAtDifference)) {
+    return updatedAtDifference;
+  }
+  return (right.id ?? "").localeCompare(left.id ?? "");
+}
+
+function isPlanEnvironment(
+  environment: string | undefined,
+): environment is "test" | "live" {
+  return environment === "test" || environment === "live";
 }
