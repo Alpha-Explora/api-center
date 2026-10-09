@@ -9,7 +9,7 @@ const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() } as unknown
 function config(database: Record<string, unknown> = {}) {
   return {
     redis: { cacheUrl: "" },
-    database: { enabled: false, registrySource: "redis", dualWrite: false, ...database },
+    database: { enabled: false, ...database },
   } as unknown as ConfigService;
 }
 
@@ -84,7 +84,7 @@ describe("TenancyService", () => {
       }),
       loadAll: jest.fn(),
     } as unknown as PostgresTenancyStoreService;
-    durable = new TenancyService(logger, config({ enabled: true, dualWrite: true }), store);
+    durable = new TenancyService(logger, config({ enabled: true }), store);
 
     await durable.createTribe({ tribeId: "durable", name: "Durable" });
     await durable.createProject({ projectId: "durable-core", tribeId: "durable", name: "Core" });
@@ -99,7 +99,7 @@ describe("TenancyService", () => {
       upsertProject: jest.fn(),
       loadAll: jest.fn(),
     } as unknown as PostgresTenancyStoreService;
-    const durable = new TenancyService(logger, config({ enabled: true, registrySource: "postgres" }), store);
+    const durable = new TenancyService(logger, config({ enabled: true }), store);
 
     await expect(durable.createTribe({ tribeId: "durable", name: "Durable" })).rejects.toThrow("db down");
     expect(durable.getTribe("durable")).toBeNull();
@@ -118,7 +118,7 @@ describe("TenancyService", () => {
         upsertTribe: jest.fn(),
         upsertProject: jest.fn(),
       } as unknown as PostgresTenancyStoreService;
-      return new TenancyService(logger, config({ enabled: true, registrySource: "postgres" }), store);
+      return new TenancyService(logger, config({ enabled: true }), store);
     }
 
     it("finds a project that another instance created", async () => {
@@ -145,7 +145,7 @@ describe("TenancyService", () => {
       expect(() => local.requireActiveProject("shared-core")).toThrow("Tribe 'shared' is suspended");
     });
 
-    it("keeps the current directory when the store is unreachable or returns nothing", async () => {
+    it("keeps the current directory on store errors and clears it for an empty authoritative snapshot", async () => {
       let stored: { tribes: unknown[]; projects: unknown[] } | Error = { tribes: [tribe()], projects: [project] };
       const local = instance(() => {
         if (stored instanceof Error) throw stored;
@@ -159,7 +159,7 @@ describe("TenancyService", () => {
 
       stored = { tribes: [], projects: [] };
       await local.refresh();
-      expect(local.getProject("shared-core")).not.toBeNull();
+      expect(local.getProject("shared-core")).toBeNull();
     });
   });
 });
