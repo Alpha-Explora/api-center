@@ -624,6 +624,18 @@ describe("RegistryService", () => {
       expect(service.canAccess("billing-api", "web-api")).toBe(false);
     });
 
+    it("grants project API access only after approval and denies it after revocation", () => {
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      service.setSubscriptionStatus("commerce-web", "billing-api", "test", "approved");
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(true);
+      expect(service.canAccess("web-api", "billing-api", "live")).toBe(false);
+      service.setSubscriptionStatus("commerce-web", "billing-api", "test", "revoked");
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(true);
+      service.setSubscriptionStatus("commerce-billing", "shipments", "test", "revoked");
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
+    });
+
     it("allows calls the caller lists in consumes, across tribes and to shared services", () => {
       expect(service.canAccess("billing-api", "shipments")).toBe(true);
       expect(service.canAccess("billing-api", "payment")).toBe(true);

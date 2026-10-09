@@ -267,14 +267,22 @@ export class ProxyHandler {
   /**
    * List services visible to a calling service, filtered by this handler's namespace.
    */
-  listServices(callerServiceId: string | undefined, includeNonConsumable = false) {
+  listServices(
+    callerServiceId: string | undefined,
+    includeNonConsumable = false,
+    environment: "test" | "live" = "test",
+  ) {
     const services = this.deps.registry.getByType(this.opts.namespace);
 
     const visibleServices = services
       .filter((svc) => svc.status !== "retired")
       .map((svc) => ({
         canAccess: callerServiceId
-          ? this.deps.registry.canAccess(callerServiceId, svc.serviceId)
+          ? this.deps.registry.canAccess(
+              callerServiceId,
+              svc.serviceId,
+              environment,
+            )
           : false,
         serviceId: svc.serviceId,
         name: svc.name,
@@ -355,6 +363,7 @@ export class ProxyHandler {
       auth: this.deps.auth,
       emergencyControls: this.deps.emergencyControls,
       targetServiceId,
+      environment: targetEnvironment,
       sourceServiceId,
       tribeId,
       req,

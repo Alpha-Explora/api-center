@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   downloadServiceSpecDocument,
@@ -185,8 +185,47 @@ function ServiceSpecCatalog() {
 }
 
 function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
+  const queryClient = useQueryClient();
+  const [consumerProjectId, setConsumerProjectId] = useState("");
+  const [environment, setEnvironment] = useState<"test" | "live">("test");
+  const [reason, setReason] = useState("");
+  const requestMutation = useMutation({
+    mutationFn: async (apiServiceId: string) => {
+      const response = await fetch("/api/local/catalog/subscriptions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ consumerProjectId, apiServiceId, environment, reason }),
+      });
+      if (!response.ok) throw new Error("Could not request API access");
+      return response.json();
+    },
+    onSuccess: () => {
+      setReason("");
+      queryClient.invalidateQueries({ queryKey: ["api-subscriptions"] });
+    },
+  });
+
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
+        <label className="grid gap-1 text-sm">
+          Consumer project ID
+          <input className="h-9 rounded-md border bg-background px-3 font-mono text-xs" value={consumerProjectId} onChange={(event) => setConsumerProjectId(event.target.value)} placeholder="project-id" />
+        </label>
+        <label className="grid gap-1 text-sm">
+          Environment
+          <select className="h-9 rounded-md border bg-background px-3" value={environment} onChange={(event) => setEnvironment(event.target.value as "test" | "live")}>
+            <option value="test">Test</option>
+            <option value="live">Live</option>
+          </select>
+        </label>
+        <label className="grid min-w-56 flex-1 gap-1 text-sm">
+          Request reason
+          <input className="h-9 rounded-md border bg-background px-3" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="What will this API be used for?" />
+        </label>
+      </div>
+      {requestMutation.isError ? <p role="alert" className="text-sm text-destructive">{requestMutation.error.message}</p> : null}
+      <div className="overflow-hidden rounded-lg border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
@@ -199,6 +238,7 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
             <TableHead>Quota hint</TableHead>
             <TableHead>SLA</TableHead>
             <TableHead>Docs</TableHead>
+            <TableHead>Access</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -252,10 +292,83 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
                   <span className="text-sm text-muted-foreground">None</span>
                 )}
               </TableCell>
+              <TableCell className="min-w-48 space-y-2">
+                {(service.serviceType ?? "tribe") === "tribe" && service.projectId !== consumerProjectId ? (
+                  <Button type="button" size="sm" disabled={!consumerProjectId.trim() || requestMutation.isPending} onClick={() => requestMutation.mutate(service.serviceId)}>
+                    Request access
+                  </Button>
+                ) : null}
+                {service.projectId ? <AccessRequestsCell serviceId={service.serviceId} /> : null}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      </div>
+    </div>
+  );
+}
+
+type ApiSubscription = {
+  id: string;
+  consumerProjectId: string;
+  apiServiceId: string;
+  environment: "test" | "live";
+  status: "pending" | "approved" | "rejected" | "revoked";
+  requestedBy: string;
+  reason: string | null;
+};
+
+function AccessRequestsCell({ serviceId }: { serviceId: string }) {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const requestsQuery = useQuery({
+    queryKey: ["api-subscriptions", "owner", serviceId],
+    queryFn: async () => {
+      const response = await fetch(`/api/local/catalog/subscriptions?apiServiceId=${encodeURIComponent(serviceId)}`);
+      if (!response.ok) throw new Error("Could not load access requests");
+      const payload = (await response.json()) as { data?: ApiSubscription[] };
+      return payload.data ?? [];
+    },
+    enabled: open,
+  });
+  const decisionMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" | "revoke" }) => {
+      const response = await fetch(`/api/local/catalog/subscriptions/${encodeURIComponent(id)}/${action}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) throw new Error(`Could not ${action} access`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api-subscriptions", "owner", serviceId] }),
+  });
+
+  return (
+    <div className="space-y-2">
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(!open)}>
+        {open ? "Hide requests" : "Manage requests"}
+      </Button>
+      {open ? (
+        <div className="space-y-2">
+          {requestsQuery.isLoading ? <p className="text-xs text-muted-foreground">Loading requests…</p> : null}
+          {requestsQuery.isError ? <p role="alert" className="text-xs text-destructive">Could not load requests.</p> : null}
+          {requestsQuery.data?.length === 0 ? <p className="text-xs text-muted-foreground">No access requests.</p> : null}
+          {requestsQuery.data?.map((request) => (
+            <div key={request.id} className="rounded-md border p-2 text-xs">
+              <div className="font-mono">{request.consumerProjectId} · {request.environment} · {request.status}</div>
+              {request.reason ? <p className="mt-1 text-muted-foreground">{request.reason}</p> : null}
+              <div className="mt-2 flex flex-wrap gap-1">
+                {request.status === "pending" ? <>
+                  <Button size="sm" disabled={decisionMutation.isPending} onClick={() => decisionMutation.mutate({ id: request.id, action: "approve" })}>Approve</Button>
+                  <Button size="sm" variant="outline" disabled={decisionMutation.isPending} onClick={() => decisionMutation.mutate({ id: request.id, action: "reject" })}>Reject</Button>
+                </> : null}
+                {request.status === "approved" ? <Button size="sm" variant="outline" disabled={decisionMutation.isPending} onClick={() => decisionMutation.mutate({ id: request.id, action: "revoke" })}>Revoke</Button> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

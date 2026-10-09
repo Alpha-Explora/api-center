@@ -479,3 +479,23 @@ model ApprovalRequest {
   @@map("approval_requests")
   @@schema("apic_governance")
 }
+
+/// Cross-project API access requests. Domain identifiers intentionally have no relations/FKs.
+model ApiSubscription {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  consumerProjectId String    @map("consumer_project_id")
+  apiServiceId      String    @map("api_service_id")
+  environment       String
+  status            String    @default("pending")
+  requestedBy       String    @map("requested_by")
+  decidedBy         String?   @map("decided_by")
+  decidedAt         DateTime? @map("decided_at") @db.Timestamptz(6)
+  reason            String?
+  requestedAt       DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([consumerProjectId, environment, status, requestedAt(sort: Desc)], name: "api_subscriptions_consumer_idx")
+  @@index([apiServiceId, environment, status, requestedAt(sort: Desc)], name: "api_subscriptions_api_idx")
+  @@map("api_subscriptions")
+  @@schema("apic_governance")
+}

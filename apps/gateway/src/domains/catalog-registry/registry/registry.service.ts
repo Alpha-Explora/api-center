@@ -43,6 +43,14 @@ import { createRegistryEntry } from "./manifest-normalizer";
 
 const REGISTRY_REFRESH_INTERVAL_MS = 25_000;
 
+function subscriptionKey(
+  consumerProjectId: string,
+  apiServiceId: string,
+  environment: string,
+): string {
+  return `${consumerProjectId}\u0000${apiServiceId}\u0000${environment}`;
+}
+
 @Injectable()
 export class RegistryService implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
   private readonly services: ServiceRegistryMap = {};
@@ -53,6 +61,7 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
   private refreshing: Promise<void> | null = null;
   private writesInFlight = 0;
   private localMutationVersion = 0;
+  private readonly subscriptionStatuses = new Map<string, string>();
   private readonly cacheInvalidationListeners = new Set<
     (serviceId: string) => void
   >();
@@ -442,12 +451,15 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   /**
-   * Whether one service may call another.
-   *  - a tribe target in the caller's own project: allowed;
-   *  - a target the caller lists in consumes: allowed;
-   *  - anything else, including other projects of the same tribe: denied.
+   * Whether one service may call another. Cross-project API subscriptions override
+   * manifest consumes entries so a pending, rejected, or revoked request cannot
+   * leave an older static grant active.
    */
-  canAccess(sourceServiceId: string, targetServiceId: string): boolean {
+  canAccess(
+    sourceServiceId: string,
+    targetServiceId: string,
+    environment: "test" | "live" = "test",
+  ): boolean {
     const source = this.services[sourceServiceId];
     const target = this.services[targetServiceId];
     if (!source || !target) return false;
@@ -460,7 +472,53 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
       return true;
     }
 
+    if (
+      source.projectId &&
+      target.projectId &&
+      source.projectId !== target.projectId &&
+      (target.serviceType ?? "tribe") === "tribe"
+    ) {
+      const status = this.subscriptionStatuses.get(
+        subscriptionKey(source.projectId, targetServiceId, environment),
+      );
+      if (status !== undefined) return status === "approved";
+    }
     return (source.consumes ?? []).includes(targetServiceId);
+  }
+
+  replaceSubscriptions(
+    rows: Array<{
+      consumerProjectId: string;
+      apiServiceId: string;
+      environment: string;
+      status: string;
+    }>,
+  ): void {
+    this.subscriptionStatuses.clear();
+    for (const row of rows) {
+      if (row.environment === "test" || row.environment === "live") {
+        this.subscriptionStatuses.set(
+          subscriptionKey(
+            row.consumerProjectId,
+            row.apiServiceId,
+            row.environment,
+          ),
+          row.status,
+        );
+      }
+    }
+  }
+
+  setSubscriptionStatus(
+    consumerProjectId: string,
+    apiServiceId: string,
+    environment: "test" | "live",
+    status: string,
+  ): void {
+    this.subscriptionStatuses.set(
+      subscriptionKey(consumerProjectId, apiServiceId, environment),
+      status,
+    );
   }
 
   private entriesFor(ids: Set<string> | undefined): ServiceRegistryEntry[] {
