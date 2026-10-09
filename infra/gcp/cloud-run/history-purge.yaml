@@ -1,0 +1,41 @@
+# History purge job. Deletes rows past their declared retention (see docs/operations/history-retention.md).
+# The database URL must belong to a login role that is a member of api_center_retention, not the application role.
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: apicenter-history-purge
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+spec:
+  template:
+    spec:
+      taskCount: 1
+      parallelism: 1
+      template:
+        spec:
+          timeoutSeconds: 1800
+          maxRetries: 0
+          serviceAccountName: apicenter-history-purge@apicenter-alpha-20260623.iam.gserviceaccount.com
+          containers:
+            - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-history-purge:latest
+              command: ["node"]
+              # Remove "--dry-run" once a dry run looks right.
+              args: ["scripts/purge-expired-history.cjs", "--dry-run"]
+              env:
+                - name: NODE_ENV
+                  value: production
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: apicenter-history-purge-database-url
+                      key: latest
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 256Mi
+          restartPolicy: Never
+      metadata:
+        annotations:
+          run.googleapis.com/service-account: apicenter-history-purge@apicenter-alpha-20260623.iam.gserviceaccount.com
+          run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+          run.googleapis.com/vpc-access-egress: private-ranges-only
