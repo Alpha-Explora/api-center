@@ -42,6 +42,11 @@ spec:
                 secretKeyRef:
                   name: apicenter-shared-google-tenant-clients-prod
                   key: latest
+            - name: GAUTH_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-gauth-admin-token
+                  key: latest
 
             - name: DATABASE_URL
               valueFrom:
@@ -50,6 +55,8 @@ spec:
                   key: latest
             - name: NODE_ENV
               value: production
+            - name: GOOGLE_CLOUD_PROJECT
+              value: apicenter-alpha-20260623
             - name: GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT
               value: "20"
             - name: GAUTH_AUTHORIZE_LIMIT_WINDOW_MS

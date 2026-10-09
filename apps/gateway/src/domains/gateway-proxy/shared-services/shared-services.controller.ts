@@ -35,6 +35,8 @@ import { ProxyHandler } from "@shared/proxy-handler";
 import { AuthenticatedRequest } from "../../../types";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 import { SharedServiceRoutingService } from "./shared-service-routing.service";
+import { ForbiddenError } from "@shared/errors";
+import { stripApicenterIdentityHeaders } from "../../../shared/proxy/environment-leak-guard";
 
 @Controller("shared")
 @UseGuards(JwtAuthGuard)
@@ -108,6 +110,18 @@ export class SharedServicesController implements OnModuleDestroy {
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
+    if (serviceId.toLowerCase() === "gauth" && isGauthAdminPath(req.path)) {
+      stripApicenterIdentityHeaders(req.headers as Record<string, unknown> | undefined);
+      throw new ForbiddenError("GAuth administrative routes are not available through the shared-service proxy");
+    }
     await this.handler.proxyRequest(serviceId, req, res);
+  }
+}
+
+function isGauthAdminPath(path: string): boolean {
+  try {
+    return /\/admin(?:\/|$)/i.test(decodeURIComponent(path));
+  } catch {
+    return true;
   }
 }

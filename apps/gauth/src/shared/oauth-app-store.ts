@@ -9,12 +9,15 @@ export interface OAuthAppRecord {
   redirectUris: string[];
   clientId: string | null;
   clientSecretRef: string | null;
+  clientSecretUpdatedAt?: string | null;
   displayName: string;
   status: 'active' | 'disabled';
 }
 
 export interface OAuthAppStore {
   findByProjectAndEnvironment(projectId: string, environment: GauthEnvironment): Promise<OAuthAppRecord | null>;
+  save(record: OAuthAppRecord): Promise<void>;
+  delete(projectId: string, environment: GauthEnvironment): Promise<void>;
 }
 
 export function parseGauthEnvironment(value: unknown): GauthEnvironment | null {
@@ -37,6 +40,14 @@ export class MemoryOAuthAppStore implements OAuthAppStore {
 
   upsert(record: OAuthAppRecord): void {
     this.records.set(recordKey(record.projectId, record.environment), copyRecord(record));
+  }
+
+  async save(record: OAuthAppRecord): Promise<void> {
+    this.upsert(record);
+  }
+
+  async delete(projectId: string, environment: GauthEnvironment): Promise<void> {
+    this.records.delete(recordKey(projectId, environment));
   }
 
   async findByProjectAndEnvironment(projectId: string, environment: GauthEnvironment): Promise<OAuthAppRecord | null> {
