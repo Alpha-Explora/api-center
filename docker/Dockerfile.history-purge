@@ -1,0 +1,13 @@
+# Image for the history purge Cloud Run Job (scripts/purge-expired-history.cjs).
+# The script needs only the pg driver, so the image does not carry the monorepo.
+FROM node:24-bookworm-slim
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+RUN npm install --no-save --no-audit --no-fund --omit=dev pg@8.20.0
+COPY scripts/purge-expired-history.cjs ./scripts/purge-expired-history.cjs
+
+USER node
+# DATABASE_URL comes from the job's secret. Add --dry-run to the job args to report without deleting.
+CMD ["node", "scripts/purge-expired-history.cjs"]
