@@ -32,11 +32,7 @@ import {
 } from "@/lib/schemas";
 import { request } from "@/lib/api-center/client-core";
 import { listServices } from "@/lib/api-center/registry-client";
-import {
-  toPlanStorageEnvironment,
-  type PipelineLane,
-  type RuntimeEnvironment,
-} from "@/lib/environment-names";
+import type { RuntimeEnvironment } from "@/lib/environment-names";
 
 export type OperationalTrustUnavailableSection = {
   key: "dependencies" | "scorecards";
@@ -253,14 +249,14 @@ export async function listTribePlanDefinitions(): Promise<
 export async function listTribePlanAssignments(input?: {
   ownerTribeId?: string;
   projectId?: string;
-  environment?: RuntimeEnvironment | PipelineLane;
+  environment?: RuntimeEnvironment;
   status?: string;
 }): Promise<TribePlanAssignment[]> {
   const params = new URLSearchParams();
   if (input?.ownerTribeId) params.set("ownerTribeId", input.ownerTribeId);
   if (input?.projectId) params.set("projectId", input.projectId);
   if (input?.environment) {
-    params.set("environment", toPlanStorageEnvironment(input.environment));
+    params.set("environment", input.environment);
   }
   if (input?.status) params.set("status", input.status);
   const suffix = params.toString() ? `?${params.toString()}` : "";
@@ -270,14 +266,9 @@ export async function listTribePlanAssignments(input?: {
 }
 
 export async function assignTribePlan(
-  input: Omit<AssignTribePlanInput, "environment"> & {
-    environment: RuntimeEnvironment | PipelineLane;
-  },
+  input: AssignTribePlanInput,
 ): Promise<AssignTribePlanResult> {
-  const payload = assignTribePlanInputSchema.parse({
-    ...input,
-    environment: toPlanStorageEnvironment(input.environment),
-  });
+  const payload = assignTribePlanInputSchema.parse(input);
   const data = await request<unknown>("/api/local/plans/assignments", {
     method: "POST",
     body: JSON.stringify(payload),

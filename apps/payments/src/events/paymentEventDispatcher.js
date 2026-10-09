@@ -40,6 +40,7 @@ async function claimPendingPaymentEvents(pool, limit) {
        event.event_type AS "eventType", event.aggregate_type AS "aggregateType", event.aggregate_id AS "aggregateId",
        event.aggregate_version AS "aggregateVersion", event.payload, event.owner_tribe_id AS "ownerTribeId",
        event.consumer_service_id AS "consumerServiceId", event.reference_id AS "referenceId",
+       event.project_id AS "ownerProjectId",
        event.attempts, event.max_attempts AS "maxAttempts", event.claim_token AS "claimToken"`,
     [limit, CLAIM_LEASE_SECONDS],
   );

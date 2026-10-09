@@ -55,11 +55,21 @@ describe('ConfigService', () => {
       .toThrow('DATABASE_URL is required when DATABASE_ENABLED=true');
   });
 
-  it('rejects an unsupported registry source', () => {
+  it('requires a database URL in production', () => {
     validProductionEnv();
-    process.env.REGISTRY_SOURCE = 'mysql';
+    delete process.env.DATABASE_ENABLED;
+    delete process.env.DATABASE_URL;
     expect(() => new ConfigService().onApplicationBootstrap())
-      .toThrow('REGISTRY_SOURCE must be one of: redis, postgres');
+      .toThrow('DATABASE_URL is required in production');
+  });
+
+  it('enables Postgres registry storage when DATABASE_URL is configured', () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/apicenter';
+    delete process.env.DATABASE_ENABLED;
+    const config = new ConfigService();
+    expect(config.database.enabled).toBe(true);
+    expect(config.database).not.toHaveProperty('registrySource');
+    expect(config.database).not.toHaveProperty('dualWrite');
   });
 
   it('keeps environment routing enforcement enabled', () => {

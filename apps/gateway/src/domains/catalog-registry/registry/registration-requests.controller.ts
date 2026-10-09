@@ -8,7 +8,9 @@ import {
   Optional,
   Req,
   UseGuards,
+  Inject,
 } from "@nestjs/common";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "./tenancy.types";
 import { AuditEventsService } from "@audit/audit-events.service";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
@@ -34,6 +36,7 @@ export class RegistrationRequestsController {
   constructor(
     private readonly requests: RegistrationRequestsService,
     @Optional() private readonly auditEvents?: AuditEventsService,
+    @Inject(TENANCY_DIRECTORY) private readonly tenancy?: TenancyDirectory,
   ) {}
 
   @Post()
@@ -51,8 +54,19 @@ export class RegistrationRequestsController {
   }
 
   @Get()
-  async list(@Query("status") status?: "pending" | "rejected" | "applied") {
-    const requests = await this.requests.listRequests(status);
+  async list(
+    @Query("status") status?: "pending" | "rejected" | "applied",
+    @Query("organizationId") organizationFilter?: string,
+  ) {
+    const organizationIds = organizationFilter === undefined
+      ? undefined
+      : new Set(organizationFilter.split(",").map((id) => id.trim()).filter(Boolean));
+    const requests = (await this.requests.listRequests(status)).filter((registration) => {
+      if (!organizationIds) return true;
+      if (!registration.ownerTribeId || !this.tenancy) return false;
+      const tribe = this.tenancy.getTribe(registration.ownerTribeId);
+      return Boolean(tribe?.organizationId && organizationIds.has(tribe.organizationId));
+    });
     return response(requests, { total: requests.length });
   }
 

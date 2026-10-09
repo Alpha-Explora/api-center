@@ -1,16 +1,18 @@
 # APICenter Platform Setup
 
 This is the current operator guide for APICenter. The active production runtime is
-Cloud Run. Payment provider calls and payment state are owned by APICenter; AlphaCI
-uses the SDK and projects lifecycle events into its local database.
+Cloud Run. APICenter mediates payment provider calls and stores project ownership,
+reconciliation, webhook receipt, and event-delivery records. PayMongo remains the
+source of truth for provider-backed payment resources; AlphaCI uses the SDK and
+projects lifecycle events into its local database.
 
 ## Repository Ownership
 
-| Area | Source of truth |
+| Area | Code owner |
 | --- | --- |
 | Gateway, auth, registry, policy, quotas | `apps/gateway` |
 | Shared provider runtimes (email, SMS, OTP, Google Auth, geo) | `apps/email`, `apps/sms`, `apps/otp`, `apps/gauth`, `apps/geo` |
-| PayMongo credentials, provider calls, canonical payment state, outbox | `apps/payments` |
+| PayMongo credentials and provider calls; APICenter ownership/reconciliation records and outbox | `apps/payments` |
 | Management console and provisioning | `apps/management` |
 | Public contracts and TypeScript SDK | `packages/contracts`, `packages/sdk` |
 | AlphaCI-specific entitlement and local ledger projection | `alphaci-be` |

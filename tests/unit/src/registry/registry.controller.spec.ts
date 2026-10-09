@@ -37,6 +37,31 @@ describe("RegistryController", () => {
   });
 
   describe("listServices", () => {
+    it("filters services by the owning tribe organization", () => {
+      (mockRegistry.getAll as jest.Mock).mockReturnValue({
+        serviceA: { serviceId: "serviceA", ownerTribeId: "tribe-a", name: "A", baseUrl: "https://a.test", status: "active", exposes: [], requiredScopes: [], consumes: [], environments: [], registeredAt: "", updatedAt: "" },
+        serviceB: { serviceId: "serviceB", ownerTribeId: "tribe-b", name: "B", baseUrl: "https://b.test", status: "active", exposes: [], requiredScopes: [], consumes: [], environments: [], registeredAt: "", updatedAt: "" },
+      });
+      const tenancy = {
+        getTribe: jest.fn((tribeId: string) => ({
+          tribeId,
+          organizationId: tribeId === "tribe-a" ? "org-a" : "org-b",
+        })),
+      };
+      const scopedController = new RegistryController(
+        mockRegistry,
+        mockLogger,
+        mockAuditEvents,
+        mockApprovals as any,
+        tenancy as any,
+      );
+
+      const result = scopedController.listServices("org-a");
+
+      expect(result.data.map(({ serviceId }) => serviceId)).toEqual(["serviceA"]);
+      expect(result.meta.total).toBe(1);
+    });
+
     it("returns ownerTribeId in service list responses", () => {
       (mockRegistry.getAll as jest.Mock).mockReturnValue({
         "logistics-orders": {

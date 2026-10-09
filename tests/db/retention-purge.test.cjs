@@ -30,14 +30,8 @@ const inserts = {
     "insert into apic_runtime.quota_evaluations (owner_tribe_id, scope, route_family, window_start, window_end, request_count, max_requests, mode, outcome, environment, created_at) values ('t', 'all', 'tribes', now(), now(), 1, 10, 'observe', 'allowed', 'test', now() - make_interval(days => $1))", [days]),
   'apic_runtime.usage_rollups': (days) => client.query(
     "insert into apic_runtime.usage_rollups (window_start, window_end, route_family, environment) values (now() - make_interval(days => $1 + 1), now() - make_interval(days => $1), 'tribes', 'test')", [days]),
-  'apic_runtime.health_snapshots': (days) => client.query(
-    "insert into apic_runtime.health_snapshots (healthy, environment, checked_at) values (true, 'test', now() - make_interval(days => $1))", [days]),
-  'apic_runtime.smoke_test_runs': (days) => client.query(
-    "insert into apic_runtime.smoke_test_runs (test_type, status, environment, created_at) values ('t', 'passed', 'test', now() - make_interval(days => $1))", [days]),
   'apic_runtime.pipeline_feedback_actions': (days) => client.query(
     "insert into apic_runtime.pipeline_feedback_actions (action, environment, target_type, target_id, reason, actor_id, actor_role, status, created_at) values ('evidence.reviewed', 'test', 'topic', 'x', 'r', 'a', 'admin', 'pending', now() - make_interval(days => $1))", [days]),
-  'apic_governance.promotion_evidence_bundles': (days) => client.query(
-    "insert into apic_governance.promotion_evidence_bundles (service_id, source_environment, target_environment, bundle, created_at) values ('s', 'test', 'live', '{}', now() - make_interval(days => $1))", [days]),
 };
 
 async function count(qualified) {
@@ -89,23 +83,24 @@ test('deletes in batches until nothing expired is left', { skip }, async () => {
 });
 
 test('a dry run counts expired rows without deleting them', { skip }, async () => {
-  await inserts['apic_runtime.health_snapshots'](1000);
-  await inserts['apic_runtime.health_snapshots'](1);
+  await inserts['apic_runtime.pipeline_feedback_actions'](1000);
+  await inserts['apic_runtime.pipeline_feedback_actions'](1);
 
   const results = await purgeExpiredHistory(client, { dryRun: true });
-  assert.equal(results.find((result) => result.table === 'apic_runtime.health_snapshots').eligible, 1);
-  assert.equal(await count('apic_runtime.health_snapshots'), 2);
+  assert.equal(results.find((result) => result.table === 'apic_runtime.pipeline_feedback_actions').eligible, 1);
+  assert.equal(await count('apic_runtime.pipeline_feedback_actions'), 2);
 });
 
 test('a table without a retention comment is never purged', { skip }, async () => {
-  await inserts['apic_runtime.smoke_test_runs'](5000);
-  await client.query("comment on table apic_runtime.smoke_test_runs is 'no retention here'");
+  await inserts['apic_runtime.pipeline_feedback_actions'](5000);
+  const qualified = 'apic_runtime.pipeline_feedback_actions';
+  await client.query("comment on table apic_runtime.pipeline_feedback_actions is 'no retention here'");
   try {
     const results = await purgeExpiredHistory(client);
-    assert.match(results.find((result) => result.table === 'apic_runtime.smoke_test_runs').skipped, /no retention policy/);
-    assert.equal(await count('apic_runtime.smoke_test_runs'), 1);
+    assert.match(results.find((result) => result.table === qualified).skipped, /no retention policy/);
+    assert.equal(await count(qualified), 1);
   } finally {
-    await client.query("comment on table apic_runtime.smoke_test_runs is 'retention=180d; partition=row_count_threshold_1000000_per_180d'");
+    await client.query("comment on table apic_runtime.pipeline_feedback_actions is 'retention=365d; partition=row_count_threshold_100000_per_month'");
   }
 });
 

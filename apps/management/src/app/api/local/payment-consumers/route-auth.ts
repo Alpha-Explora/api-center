@@ -1,5 +1,4 @@
 import { PaymentConsumerService } from "../../../../lib/payment-consumer-service";
-import { requireManagementRouteAction } from "@/lib/server/require-management-action";
 
 export function managementError(error: unknown): Response {
   const explicitStatus =
@@ -10,13 +9,14 @@ export function managementError(error: unknown): Response {
     error instanceof Error ? error.message : "Management request failed";
   const status =
     explicitStatus ??
+    (message.includes("Organization access denied") || message.includes("Platform administrator required") ? 403 : undefined) ??
+    (message.includes("Organization scope could not be resolved") ? 503 : undefined) ??
     (message.toLowerCase().includes("authentication required") ? 401 : 500);
 
   return Response.json({ success: false, error: { message } }, { status });
 }
 
 export async function requireManagementService(
-  request: Request,
 ): Promise<PaymentConsumerService | Response> {
   const gatewayBaseUrl =
     process.env.APICENTER_GATEWAY_URL?.trim() ??
@@ -37,16 +37,6 @@ export async function requireManagementService(
       },
       { status: 503 },
     );
-  }
-
-  try {
-    await requireManagementRouteAction({
-      request,
-      actionRisk: "provider-write",
-      actionId: "payment.consumer.provision",
-    });
-  } catch (error) {
-    return managementError(error);
   }
 
   return new PaymentConsumerService({

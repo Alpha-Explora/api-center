@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { summarizeSharedServiceProviderConfigs } from "@/lib/secret-status";
-import { requireManagementSession } from "@/lib/server/require-management-session";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 export async function GET(request: Request) {
-  await requireManagementSession({
-    authorizationHeader: request.headers.get("authorization"),
-  });
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
 
   const observedKeyNames = parseObservedKeyNames(
     process.env.SHARED_SERVICES_SECRET_KEY_NAMES,

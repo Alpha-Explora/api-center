@@ -8,9 +8,22 @@ function base64UrlDecode(value: string): string {
   return Buffer.from(value, 'base64url').toString('utf8');
 }
 
-function getStateSecret(env: Record<string, string | undefined> = process.env): string {
-  const secret = env.GOOGLE_OAUTH_STATE_SECRET || 'default_oauth_state_secret_32chars_long_minimum_key';
-  return secret;
+let developmentStateSecret: string | undefined;
+
+/**
+ * Returns the key that signs OAuth state. Production must set GOOGLE_OAUTH_STATE_SECRET, and gauth refuses
+ * to start without it. Other environments get a random key per process, so state issued by one local process
+ * cannot be verified by another.
+ */
+export function getStateSecret(env: Record<string, string | undefined> = process.env): string {
+  if (env.GOOGLE_OAUTH_STATE_SECRET) {
+    return env.GOOGLE_OAUTH_STATE_SECRET;
+  }
+  if (env.NODE_ENV === 'production') {
+    throw new Error('GOOGLE_OAUTH_STATE_SECRET is required in production.');
+  }
+  developmentStateSecret ??= crypto.randomBytes(32).toString('base64url');
+  return developmentStateSecret;
 }
 
 function signPayload(payload: string, secret: string): string {

@@ -1,16 +1,21 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 
 export type PaymentPrincipal = {
   ownerTribeId: string;
+  /** Project of the consumer service, from its registry placement. Payment resources are scoped to it. */
+  projectId: string;
   consumerServiceId: string;
   environment: "test" | "live";
   scopes: string[];
   keyId?: string;
 };
 
-type ConfiguredKey = PaymentPrincipal & { keyHash: string };
+/** What a key proves before its consumer service is placed in a project. */
+type KeyCredential = Omit<PaymentPrincipal, "projectId">;
+type ConfiguredKey = KeyCredential & { keyHash: string };
 type DatabaseKey = {
   id: string;
   owner_tribe_id: string;
@@ -21,18 +26,30 @@ type DatabaseKey = {
 
 @Injectable()
 export class PaymentApiKeyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
+  ) {}
 
   async resolve(rawKey: string): Promise<PaymentPrincipal | null> {
     if (!/^apic_[A-Za-z0-9_-]+$/.test(rawKey)) return null;
 
     const presentedHash = createHash("sha256").update(rawKey).digest("hex");
-    if (process.env.DATABASE_ENABLED === "true") {
-      return this.resolveFromDatabase(presentedHash);
-    }
+    const credential = process.env.DATABASE_ENABLED === "true"
+      ? await this.resolveFromDatabase(presentedHash)
+      : this.resolveConfigured(presentedHash);
+    if (!credential) return null;
 
+    // The project is never read from the key. It comes from the consumer service's registry placement, and a
+    // key whose service is unplaced or belongs to another tribe than the key's owner does not authenticate.
+    const placement = this.tenancy.resolveServicePlacement(credential.consumerServiceId);
+    if (!placement || placement.tribeId !== credential.ownerTribeId) return null;
+    return { ...credential, projectId: placement.projectId };
+  }
+
+  private resolveConfigured(keyHash: string): KeyCredential | null {
     for (const candidate of this.configuredKeys()) {
-      if (!this.safeEqualHex(presentedHash, candidate.keyHash)) continue;
+      if (!this.safeEqualHex(keyHash, candidate.keyHash)) continue;
       return {
         ownerTribeId: candidate.ownerTribeId,
         consumerServiceId: candidate.consumerServiceId,
@@ -44,7 +61,7 @@ export class PaymentApiKeyService {
     return null;
   }
 
-  private async resolveFromDatabase(keyHash: string): Promise<PaymentPrincipal | null> {
+  private async resolveFromDatabase(keyHash: string): Promise<KeyCredential | null> {
     try {
       const rows = await this.prisma.$queryRawUnsafe<DatabaseKey[]>(
         "SELECT k.id, s.owner_tribe_id, s.consumer_service_id, s.environment, k.scopes " +

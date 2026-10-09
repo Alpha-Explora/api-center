@@ -19,6 +19,7 @@ export { PROJECT_ID_PATTERN, TRIBE_ID_PATTERN } from "@shared/tenancy-identifier
 
 export interface Tribe {
   tribeId: string;
+  organizationId?: string;
   name: string;
   description?: string;
   status: TenancyStatus;
@@ -45,6 +46,7 @@ export interface ProjectPlacement {
 
 export interface CreateTribeInput {
   tribeId: string;
+  organizationId?: string;
   name: string;
   description?: string;
 }
@@ -100,6 +102,8 @@ export interface ServicePlacement {
  */
 export interface TenancyDirectory {
   getTribe(tribeId: string): Tribe | null;
+  listTribes?(): Tribe[];
+  listProjects?(filter?: { tribeId?: string }): Project[];
   resolveProject(projectId: string): ProjectPlacement | null;
   /** Both project and tribe active, or a ValidationError naming the problem. */
   requireActiveProject(projectId: string | undefined): ProjectPlacement;

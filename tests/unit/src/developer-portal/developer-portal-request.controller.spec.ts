@@ -66,4 +66,36 @@ describe("DeveloperPortalRequestController", () => {
       ),
     ).rejects.toThrow("Quota increase requests require a tribe token.");
   });
+
+  it("lets the requesting tribe cancel its own pending request", async () => {
+    const approvals = {
+      cancelRequest: jest
+        .fn()
+        .mockResolvedValue({ id: "approval-1", status: "cancelled" }),
+    };
+    const controller = new DeveloperPortalRequestController(approvals as any);
+
+    const response = await controller.cancelQuotaRequest("approval-1", {
+      user: { tribeId: "campus-one" },
+    } as any);
+
+    expect(response.data.status).toBe("cancelled");
+    expect(approvals.cancelRequest).toHaveBeenCalledWith(
+      "approval-1",
+      "campus-one",
+      {
+        isAdmin: false,
+      },
+    );
+  });
+
+  it("requires a tribe token to cancel a request", async () => {
+    const approvals = { cancelRequest: jest.fn() };
+    const controller = new DeveloperPortalRequestController(approvals as any);
+
+    await expect(
+      controller.cancelQuotaRequest("approval-1", {} as any),
+    ).rejects.toThrow(ForbiddenError);
+    expect(approvals.cancelRequest).not.toHaveBeenCalled();
+  });
 });

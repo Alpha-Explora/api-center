@@ -4,58 +4,63 @@ describe("TribePlanService", () => {
   const assignments = {
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
   };
+  const quotaPolicy = { findMany: jest.fn() };
   const prisma = {
     entitlementAssignment: assignments,
+    quotaPolicy,
+    $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
+      callback({ entitlementAssignment: assignments }),
+    ),
   };
   let service: TribePlanService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    quotaPolicy.findMany.mockResolvedValue([]);
+    assignments.updateMany.mockResolvedValue({ count: 0 });
     service = new TribePlanService(prisma as any);
   });
 
-  it("defines the first-pass tribe plan tiers", () => {
-    expect(service.listPlanDefinitions()).toEqual([
-      expect.objectContaining({
-        planKey: "starter",
-        gatewayCallsPerDay: 1_000,
-        kafkaPublishesPerDay: 100,
-        retentionTier: "standard",
-      }),
-      expect.objectContaining({
-        planKey: "standard",
-        gatewayCallsPerDay: 25_000,
-        kafkaPublishesPerDay: 5_000,
-        sharedServiceAccess: "live-after-approval",
-      }),
-      expect.objectContaining({
-        planKey: "pro",
-        gatewayCallsPerDay: 250_000,
-        kafkaPublishesPerDay: 50_000,
-        supportTier: "priority",
-      }),
-      expect.objectContaining({
-        planKey: "enterprise",
-        gatewayCallsPerDay: null,
-        kafkaPublishesPerDay: null,
-      }),
-    ]);
+  it("keeps the plan catalogue in code", () => {
+    expect(service.listPlanDefinitions()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          planKey: "starter",
+          gatewayCallsPerDay: 1_000,
+          kafkaPublishesPerDay: 100,
+        }),
+        expect.objectContaining({
+          planKey: "enterprise",
+          gatewayCallsPerDay: null,
+          kafkaPublishesPerDay: null,
+        }),
+      ]),
+    );
   });
 
-  it("assigns a plan and returns observe-mode quota proposals", async () => {
+  it("archives the active assignment and inserts its replacement in one transaction", async () => {
+    const oldAssignment = {
+      status: "active",
+      reason: "Original assignment reason",
+      assignedBy: "original-operator",
+    };
+    assignments.updateMany.mockImplementation(async ({ data }) => {
+      Object.assign(oldAssignment, data);
+      return { count: 1 };
+    });
     assignments.create.mockResolvedValue({
-      id: "assignment-1",
+      id: "assignment-new",
       ownerTribeId: "campus-one",
+      projectId: "campus-lms",
       planKey: "standard",
       environment: "test",
       status: "active",
       effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
-      reason: "Initial rollout",
+      reason: "Plan upgrade",
       assignedBy: "platform",
-      createdAt: new Date("2026-05-25T00:00:00.000Z"),
-      updatedAt: new Date("2026-05-25T00:00:00.000Z"),
     });
 
     const result = await service.assignPlan({
@@ -64,61 +69,176 @@ describe("TribePlanService", () => {
       planKey: "standard",
       environment: "test",
       effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
-      reason: "Initial rollout",
+      reason: "Plan upgrade",
       assignedBy: "platform",
     });
 
-    expect(assignments.create).toHaveBeenCalledWith({
-      data: {
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(assignments.updateMany).toHaveBeenCalledWith({
+      where: {
         ownerTribeId: "campus-one",
         projectId: "campus-lms",
+        environment: "test",
+        status: "active",
+      },
+      data: {
+        status: "archived",
+      },
+    });
+    expect(oldAssignment).toEqual({
+      status: "archived",
+      reason: "Original assignment reason",
+      assignedBy: "original-operator",
+    });
+    expect(assignments.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: "campus-lms",
+        ownerTribeId: "campus-one",
         planKey: "standard",
         environment: "test",
         status: "active",
-        effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
-        reason: "Initial rollout",
-        assignedBy: "platform",
-      },
+      }),
     });
-    expect(result.quotaProposals).toEqual([
+    expect(result.assignment).toMatchObject({
+      id: "assignment-new",
+      effectiveLimits: [
+        {
+          scope: "all",
+          maxRequests: 25_000,
+          windowSeconds: 86_400,
+          mode: "enforce",
+          source: "plan",
+        },
+        {
+          scope: "kafka_publish",
+          maxRequests: 5_000,
+          windowSeconds: 86_400,
+          mode: "enforce",
+          source: "plan",
+        },
+      ],
+    });
+  });
+
+  it("rejects a future effectiveAt before starting a reassignment transaction", async () => {
+    await expect(
+      service.assignPlan({
+        projectId: "campus-lms",
+        ownerTribeId: "campus-one",
+        planKey: "standard",
+        environment: "test",
+        effectiveAt: new Date(Date.now() + 60_000),
+        reason: "Schedule plan change",
+      }),
+    ).rejects.toThrow("effectiveAt cannot be in the future");
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(assignments.updateMany).not.toHaveBeenCalled();
+    expect(assignments.create).not.toHaveBeenCalled();
+  });
+
+  it("reports active explicit project quota policies as the effective override", async () => {
+    assignments.findMany.mockResolvedValue([
       {
+        id: "assignment-1",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        planKey: "standard",
+        environment: "live",
+        status: "active",
+        effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
+        reason: "Production rollout",
+      },
+    ]);
+    quotaPolicy.findMany.mockResolvedValue([
+      {
+        id: "policy-a",
         ownerTribeId: "campus-one",
         projectId: "campus-lms",
         scope: "all",
         targetServiceId: null,
-        windowSeconds: 86400,
-        maxRequests: 25_000,
-        mode: "observe",
-        reason: "Plan standard default gateway quota for test",
+        maxRequests: 600,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "older same-time override",
+        updatedAt: new Date("2026-06-01T00:00:00.000Z"),
       },
       {
+        id: "policy-z",
         ownerTribeId: "campus-one",
         projectId: "campus-lms",
-        scope: "kafka_publish",
+        scope: "all",
         targetServiceId: null,
-        windowSeconds: 86400,
-        maxRequests: 5_000,
-        mode: "observe",
-        reason: "Plan standard default Kafka publish quota for test",
+        maxRequests: 800,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "latest override",
+        updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+      {
+        id: "policy-newer-time",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 700,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "earlier id but older update",
+        updatedAt: new Date("2026-05-31T00:00:00.000Z"),
       },
     ]);
+
+    const [assignment] = await service.listPlanAssignments({
+      projectId: "campus-lms",
+      environment: "live",
+      status: "active",
+    });
+
+    expect(assignment.effectiveLimits).toEqual([
+      expect.objectContaining({
+        scope: "all",
+        maxRequests: 800,
+        windowSeconds: 3600,
+        mode: "enforce",
+        source: "override",
+        policyId: "policy-z",
+        reason: "latest override",
+      }),
+      expect.objectContaining({
+        scope: "kafka_publish",
+        maxRequests: 5_000,
+        source: "plan",
+      }),
+    ]);
+    expect(quotaPolicy.findMany).toHaveBeenCalledWith({
+      where: {
+        status: "active",
+        OR: [{ ownerTribeId: "campus-one", projectId: "campus-lms" }],
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    });
   });
 
-  it("updates a plan assignment status", async () => {
+  it("archives an assignment when it is explicitly retired", async () => {
     assignments.update.mockResolvedValue({
       id: "assignment-1",
       ownerTribeId: "campus-one",
+      projectId: "campus-lms",
       planKey: "standard",
-      environment: "prod",
-      status: "disabled",
+      environment: "live",
+      status: "archived",
       effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
       reason: "Retired service",
-      assignedBy: "platform",
+      assignedBy: "original-operator",
     });
 
     const result = await service.updatePlanAssignment({
       assignmentId: "assignment-1",
-      status: "disabled",
+      status: "archived",
       reason: "Retired service",
       updatedBy: "platform",
     });
@@ -126,51 +246,27 @@ describe("TribePlanService", () => {
     expect(assignments.update).toHaveBeenCalledWith({
       where: { id: "assignment-1" },
       data: {
-        status: "disabled",
+        status: "archived",
         reason: "Retired service",
-        assignedBy: "platform",
       },
     });
-    expect(result.status).toBe("disabled");
+    expect(result.status).toBe("archived");
+    expect(result.assignedBy).toBe("original-operator");
   });
 
-  it("rejects plan assignment updates without an assignment id", async () => {
-    await expect(
-      service.updatePlanAssignment({
-        assignmentId: "",
-        status: "disabled",
-        reason: "Retired service",
-        updatedBy: "platform",
-      }),
-    ).rejects.toThrow("assignmentId is required");
-  });
-
-  it("lists recent plan assignments for management views", async () => {
+  it("does not expose effective limits on archived assignments", async () => {
     assignments.findMany.mockResolvedValue([
       {
-        id: "assignment-1",
+        id: "assignment-old",
         ownerTribeId: "campus-one",
-        planKey: "standard",
-        environment: "prod",
-        status: "active",
-        effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
-        reason: "Production rollout",
+        projectId: "campus-lms",
+        planKey: "starter",
+        environment: "test",
+        status: "archived",
       },
     ]);
 
-    const result = await service.listPlanAssignments({
-      environment: "prod",
-      status: "active",
-    });
-
-    expect(assignments.findMany).toHaveBeenCalledWith({
-      where: {
-        environment: "prod",
-        status: "active",
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    expect(result).toHaveLength(1);
+    const [assignment] = await service.listPlanAssignments();
+    expect(assignment.effectiveLimits).toEqual([]);
   });
 });

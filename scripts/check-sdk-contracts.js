@@ -34,6 +34,7 @@ const requiredOperations = {
   'GET /api/v1/payments/subscriptions/{subscriptionId}/invoices': 'listSubscriptionInvoices',
   'GET /api/v1/payments/invoices/{invoiceId}': 'getInvoice',
   'GET /api/v1/payments/capabilities': 'getPaymentCapabilities',
+  'GET /api/v1/payments/records': 'listPaymentRecords',
 };
 
 for (const [operation, operationId] of Object.entries(requiredOperations)) {

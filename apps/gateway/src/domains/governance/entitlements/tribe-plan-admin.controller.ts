@@ -12,7 +12,10 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
-import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
+import {
+  TENANCY_DIRECTORY,
+  type TenancyDirectory,
+} from "@registry/tenancy.types";
 import { ValidationError } from "@shared/errors";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";
 import { AuthenticatedRequest } from "../../../types";
@@ -29,8 +32,12 @@ import {
 } from "./tribe-plan.types";
 
 const PLAN_KEYS: TribePlanKey[] = ["starter", "standard", "pro", "enterprise"];
-const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "prod"];
-const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = ["active", "disabled"];
+const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "live"];
+const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = [
+  "active",
+  "suspended",
+  "archived",
+];
 
 interface AssignPlanRequest {
   projectId?: string;
@@ -64,10 +71,19 @@ export class TribePlanAdminController {
   @Get("assignments")
   async listAssignments(
     @Query() query: ListTribePlanAssignmentsInput,
+    @Query("organizationId") organizationFilter: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     this.validateAssignmentFilters(query);
-    return this.response(await this.plans.listPlanAssignments(query), req);
+    if (organizationFilter === undefined) {
+      return this.response(await this.plans.listPlanAssignments(query), req);
+    }
+    const organizationIds = new Set(organizationFilter.split(",").map((id) => id.trim()).filter(Boolean));
+    const ownerTribeIds = (this.tenancy.listTribes?.() ?? [])
+      .filter((tribe) => tribe.organizationId && organizationIds.has(tribe.organizationId))
+      .map((tribe) => tribe.tribeId)
+      .filter((tribeId) => !query.ownerTribeId || query.ownerTribeId === tribeId);
+    return this.response(await this.plans.listPlanAssignments({ ...query, ownerTribeIds }), req);
   }
 
   @Post("assignments")
@@ -78,7 +94,9 @@ export class TribePlanAdminController {
     this.validateAssignment(body);
     const placement = this.tenancy.resolveProject(body.projectId!.trim());
     if (!placement) {
-      throw new ValidationError(`Project '${body.projectId}' is not registered`);
+      throw new ValidationError(
+        `Project '${body.projectId}' is not registered`,
+      );
     }
     const ownerTribeId = placement.tribe.tribeId;
     const projectId = placement.project.projectId;
@@ -197,6 +215,9 @@ export class TribePlanAdminController {
       Number.isNaN(new Date(body.effectiveAt).getTime())
     ) {
       throw new ValidationError("effectiveAt must be a valid date");
+    }
+    if (body.effectiveAt && new Date(body.effectiveAt).getTime() > Date.now()) {
+      throw new ValidationError("effectiveAt cannot be in the future");
     }
   }
 

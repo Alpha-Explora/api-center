@@ -9,7 +9,12 @@ export type ApprovalActionType =
   | "plan.assign_live";
 
 export type ApprovalRiskLevel = "low" | "medium" | "high" | "critical";
-export type ApprovalRequestStatus = "pending" | "approved" | "rejected";
+export type ApprovalRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "applied";
 
 export interface ApprovalRequest {
   id?: string;
@@ -27,6 +32,9 @@ export interface ApprovalRequest {
   rejectedBy?: string | null;
   rejectedAt?: Date | string | null;
   rejectionReason?: string | null;
+  cancelledBy?: string | null;
+  cancelledAt?: Date | string | null;
+  appliedAt?: Date | string | null;
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }

@@ -1,9 +1,11 @@
 import axios from "axios";
-import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { z } from "zod";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 
 const ProductInput = z.object({
   ownerTribeId: z.string().trim().min(1).max(100),
+  projectId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
   productId: z.string().trim().min(1).max(150).optional(),
   name: z.string().trim().min(1).max(255),
@@ -14,6 +16,7 @@ const ProductInput = z.object({
 
 const PriceInput = z.object({
   ownerTribeId: z.string().trim().min(1).max(100),
+  projectId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
   priceId: z.string().trim().min(1).max(150).optional(),
   productId: z.string().trim().min(1).max(150),
@@ -32,20 +35,26 @@ const PriceInput = z.object({
 
 @Injectable()
 export class PaymentCatalogManagementService {
+  constructor(@Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory) {}
+
   async createProduct(input: unknown): Promise<Record<string, unknown>> {
     const parsed = this.parse(ProductInput, input);
-    const result = await this.request("/products", parsed, parsed.ownerTribeId, parsed.environment);
+    this.requireProjectInTribe(parsed.projectId, parsed.ownerTribeId);
+    const { projectId, ...body } = parsed;
+    const result = await this.request("/products", body, parsed.ownerTribeId, parsed.environment, projectId);
     return this.productView(result);
   }
 
   async createPrice(input: unknown): Promise<Record<string, unknown>> {
     const parsed = this.parse(PriceInput, input);
-    const { ownerTribeId, environment, amountMinor, currency, ...rest } = parsed;
+    this.requireProjectInTribe(parsed.projectId, parsed.ownerTribeId);
+    const { ownerTribeId, environment, projectId, amountMinor, currency, ...rest } = parsed;
     const result = await this.request(
       "/prices",
       { ...rest, amount: { value: amountMinor, currency } },
       ownerTribeId,
       environment,
+      projectId,
     );
     return this.priceView(result);
   }
@@ -55,6 +64,7 @@ export class PaymentCatalogManagementService {
     body: Record<string, unknown>,
     tribeId: string,
     environment: "test" | "live",
+    projectId: string,
   ): Promise<Record<string, unknown>> {
     const baseUrl = process.env.APICENTER_PAYMENTS_URL
       || (environment === 'live' ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST);
@@ -72,6 +82,7 @@ export class PaymentCatalogManagementService {
       headers: {
         Authorization: `Bearer ${internalToken}`,
         "X-APICenter-Owner-Tribe-ID": tribeId,
+        "X-APICenter-Project-ID": projectId,
         "X-APICenter-Consumer-Service-ID": 'apicenter-management',
         "X-APICenter-Environment": environment,
         "Idempotency-Key": this.idempotencyKey(path, body),
@@ -109,6 +120,15 @@ export class PaymentCatalogManagementService {
       active: value.active,
       metadata: value.metadata,
     };
+  }
+
+  private requireProjectInTribe(projectId: string, tribeId: string): void {
+    const placement = this.tenancy.resolveProject(projectId);
+    if (!placement || placement.tribe.tribeId !== tribeId) {
+      const error = new Error("Payment catalog project must belong to the owner tribe");
+      Object.assign(error, { status: 400, details: [{ path: ["projectId"], message: "projectId is not in ownerTribeId" }] });
+      throw error;
+    }
   }
 
   private parse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.output<T> {

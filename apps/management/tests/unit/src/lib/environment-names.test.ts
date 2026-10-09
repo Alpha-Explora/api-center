@@ -4,7 +4,6 @@ import {
   parseRuntimeEnvironment,
   readPipelineLaneQuery,
   toPipelineLane,
-  toPlanStorageEnvironment,
   toRuntimeEnvironment,
 } from "../../../../src/lib/environment-names";
 import { describe, expect, it } from "vitest";
@@ -47,10 +46,5 @@ describe("Management environment naming", () => {
     expect(readPipelineLaneQuery(new URLSearchParams("environment=live"))).toBe(
       "prod",
     );
-  });
-
-  it("maps public live plan assignments to the current storage environment", () => {
-    expect(toPlanStorageEnvironment("live")).toBe("prod");
-    expect(toPlanStorageEnvironment("test")).toBe("test");
   });
 });

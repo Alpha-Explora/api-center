@@ -34,6 +34,9 @@ export const managementSessionSchema = z.object({
   name: z.string().optional(),
   role: z.enum(["admin", "operator", "observer"]),
   source: z.enum(["local-dev", "google"]),
+  organizationIds: z.array(z.string()),
+  organizationRoles: z.record(z.string(), z.enum(["admin", "operator", "observer"])),
+  platformAdmin: z.boolean(),
 });
 
 export const managementSessionResponseSchema = z.object({
@@ -562,8 +565,12 @@ export const tribePlanKeySchema = z.enum([
   "pro",
   "enterprise",
 ]);
-export const tribePlanEnvironmentSchema = z.enum(["test", "prod"]);
-export const tribePlanAssignmentStatusSchema = z.enum(["active", "disabled"]);
+export const tribePlanEnvironmentSchema = z.enum(["test", "live"]);
+export const tribePlanAssignmentStatusSchema = z.enum([
+  "active",
+  "suspended",
+  "archived",
+]);
 
 export const tribePlanDefinitionSchema = z.object({
   planKey: tribePlanKeySchema,
@@ -573,6 +580,17 @@ export const tribePlanDefinitionSchema = z.object({
   retentionTier: z.string(),
   sharedServiceAccess: z.string(),
   supportTier: z.string(),
+});
+
+export const effectivePlanLimitSchema = z.object({
+  scope: quotaScopeSchema,
+  targetServiceId: z.string().optional(),
+  maxRequests: z.number().int().positive().nullable(),
+  windowSeconds: z.number().int().positive().nullable(),
+  mode: quotaModeSchema,
+  source: z.enum(["plan", "override"]),
+  policyId: z.string().optional(),
+  reason: z.string().optional(),
 });
 
 export const tribePlanAssignmentSchema = z.object({
@@ -587,17 +605,7 @@ export const tribePlanAssignmentSchema = z.object({
   assignedBy: z.string().nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-});
-
-export const generatedQuotaPolicyProposalSchema = z.object({
-  ownerTribeId: z.string(),
-  projectId: z.string(),
-  scope: quotaScopeSchema,
-  targetServiceId: z.string().nullable().optional(),
-  windowSeconds: z.number().int().positive(),
-  maxRequests: z.number().int().positive(),
-  mode: quotaModeSchema,
-  reason: z.string(),
+  effectiveLimits: z.array(effectivePlanLimitSchema).optional(),
 });
 
 /** Plans are assigned to a project; the gateway derives its tribe. */
@@ -635,7 +643,6 @@ export const assignTribePlanResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     assignment: tribePlanAssignmentSchema,
-    quotaProposals: z.array(generatedQuotaPolicyProposalSchema),
   }),
   meta: z
     .object({
@@ -806,9 +813,7 @@ export type TribePlanAssignmentStatus = z.infer<
 >;
 export type TribePlanDefinition = z.infer<typeof tribePlanDefinitionSchema>;
 export type TribePlanAssignment = z.infer<typeof tribePlanAssignmentSchema>;
-export type GeneratedQuotaPolicyProposal = z.infer<
-  typeof generatedQuotaPolicyProposalSchema
->;
+export type EffectivePlanLimit = z.infer<typeof effectivePlanLimitSchema>;
 export type AssignTribePlanInput = z.infer<typeof assignTribePlanInputSchema>;
 export type AssignTribePlanResult = z.infer<
   typeof assignTribePlanResponseSchema

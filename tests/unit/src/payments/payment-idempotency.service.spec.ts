@@ -4,6 +4,7 @@ import { PaymentPrincipal } from "../../../../apps/gateway/src/domains/payments/
 describe("PaymentIdempotencyService", () => {
   const principal: PaymentPrincipal = {
     ownerTribeId: "alphaci",
+    projectId: "alphaci-core",
     consumerServiceId: "alphaci-backend",
     environment: "test",
     scopes: ["payments:write"],

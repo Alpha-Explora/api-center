@@ -29,6 +29,21 @@ export interface SharedServiceManifest {
 
 export type PaymentEnvironment = 'test' | 'live';
 
+export interface PaymentRecord {
+  type: string;
+  id: string;
+  projectId: string;
+  environment: PaymentEnvironment;
+  referenceId: string | null;
+  amountMinor: string | null;
+  currency: string | null;
+  status: string | null;
+  createdAt: string;
+  relatedResourceId: string | null;
+}
+
+export interface PaymentRecordPage { records: PaymentRecord[]; nextCursor?: string; }
+
 export type CheckoutStatus =
   | 'draft'
   | 'pending'
@@ -118,8 +133,6 @@ export interface EmailSendRequest {
   subject: string;
   html?: string;
   text?: string;
-  templateId?: string;
-  templateVariables?: Record<string, unknown>;
   tags?: Record<string, string>;
 }
 
@@ -130,13 +143,6 @@ export interface EmailSendResponse {
   sentAt: string;
 }
 
-export interface EmailTemplateInfo {
-  templateId: string;
-  name: string;
-  description?: string;
-  requiredVariables: string[];
-}
-
 // ---------------------------------------------------------------------------
 // 4. SMS Shared Service Contracts
 // ---------------------------------------------------------------------------
@@ -145,7 +151,6 @@ export interface SmsSendRequest {
   to: string;
   message: string;
   senderId?: string;
-  templateId?: string;
 }
 
 export interface SmsSendResponse {

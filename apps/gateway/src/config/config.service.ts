@@ -98,6 +98,14 @@ export class ConfigService implements OnApplicationBootstrap {
     return process.env.PLATFORM_ADMIN_SECRET || "";
   }
 
+  /** Lowercased platform operator emails. They act as admin in every organization. */
+  get platformAdminEmails(): string[] {
+    return (process.env.PLATFORM_ADMIN_EMAILS || "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
   readonly redis = {
     rateLimitUrl: process.env.REDIS_RATE_LIMIT_URL || "redis://localhost:6380",
     cacheUrl: process.env.REDIS_CACHE_URL || "redis://localhost:6381",
@@ -112,12 +120,10 @@ export class ConfigService implements OnApplicationBootstrap {
   };
 
   readonly database = {
-    enabled: process.env.DATABASE_ENABLED === "true",
+    enabled:
+      process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL),
     provider: process.env.DATABASE_PROVIDER || "",
     url: process.env.DATABASE_URL || "",
-    registrySource:
-      process.env.REGISTRY_SOURCE === "postgres" ? "postgres" : "redis",
-    dualWrite: process.env.REGISTRY_DUAL_WRITE === "true",
   };
 
   readonly registryBootstrap = {
@@ -270,20 +276,8 @@ export class ConfigService implements OnApplicationBootstrap {
       errors.push("DATABASE_URL is required when DATABASE_ENABLED=true");
     }
 
-    const validRegistrySources = ["redis", "postgres"];
-    if (
-      process.env.REGISTRY_SOURCE &&
-      !validRegistrySources.includes(process.env.REGISTRY_SOURCE)
-    ) {
-      errors.push(
-        `REGISTRY_SOURCE must be one of: ${validRegistrySources.join(", ")}`,
-      );
-    }
-
-    if (this.database.registrySource === "postgres" && !this.database.enabled) {
-      errors.push(
-        "DATABASE_ENABLED=true is required when REGISTRY_SOURCE=postgres",
-      );
+    if (this.isProduction && !this.database.url) {
+      errors.push("DATABASE_URL is required in production");
     }
 
     if (

@@ -28,6 +28,7 @@ export interface TribeQuotaPolicy {
 export interface ResolveTribeQuotaPolicyInput {
   ownerTribeId: string;
   projectId?: string;
+  environment?: string;
   scope: TribeQuotaScope;
   targetServiceId?: string;
 }

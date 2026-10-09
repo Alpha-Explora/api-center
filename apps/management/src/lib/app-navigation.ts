@@ -189,11 +189,17 @@ export const commandCenterNavGroups: AppNavGroup[] = [
 export function getVisibleNavGroups<TItem extends AppNavItem>(
   groups: AppNavGroup<TItem>[],
   dataPipelineEnabled: boolean,
+  platformAdmin = true,
 ) {
+  const platformOnlyHrefs = new Set([
+    "/readiness", "/data-pipeline", "/cost", "/compliance", "/smoke-tests", "/settings",
+  ]);
   return groups.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => dataPipelineEnabled || item.href !== "/data-pipeline",
+      (item) =>
+        (dataPipelineEnabled || item.href !== "/data-pipeline") &&
+        (platformAdmin || !platformOnlyHrefs.has(item.href)),
     ),
   }));
 }
@@ -202,12 +208,13 @@ export function getNavSearchResults<TItem extends AppNavItem>(
   groups: AppNavGroup<TItem>[],
   query: string,
   dataPipelineEnabled = true,
+  platformAdmin = true,
 ): AppNavSearchResult<TItem>[] {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return [];
 
   const terms = normalizedQuery.split(/\s+/);
-  const items = getVisibleNavGroups(groups, dataPipelineEnabled)
+  const items = getVisibleNavGroups(groups, dataPipelineEnabled, platformAdmin)
     .flatMap((group) =>
       group.items.map((item) => ({
         ...item,

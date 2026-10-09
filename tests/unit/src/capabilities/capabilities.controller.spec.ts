@@ -7,7 +7,7 @@ describe("CapabilitiesController", () => {
       coreGateway: {
         enabled: true,
         authProvider: "internal-jwt",
-        registrySource: "redis",
+        registrySource: "memory",
         registryBootstrapEnabled: false,
       },
       tribeSecrets: {

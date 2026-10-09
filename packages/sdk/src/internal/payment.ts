@@ -4,6 +4,7 @@ import type {
   CreateRefundInput, CreateSubscriptionInput, Customer, IdempotentRequestOptions, Invoice,
   PaymentCapabilities, PaymentIntent, PaymentResource, Refund, RequestOptions, Subscription,
   PaymentsClientOptions,
+  ListPaymentRecordsOptions, PaymentRecordPage,
 } from '../types';
 
 interface ApiEnvelope<T> { success: boolean; data?: T; error?: { code?: string; message?: string; details?: unknown }; }
@@ -44,6 +45,15 @@ export class PaymentsClient {
   getInvoice(id: string, options?: RequestOptions): Promise<Invoice> { return this.read(`/invoices/${encodeURIComponent(id)}`, options); }
   getCapabilities(options?: RequestOptions): Promise<PaymentCapabilities> { return this.read('/capabilities', options); }
   getPaymentCapabilities(options?: RequestOptions): Promise<PaymentCapabilities> { return this.getCapabilities(options); }
+  listPaymentRecords(options: ListPaymentRecordsOptions = {}): Promise<PaymentRecordPage> {
+    const query = new URLSearchParams();
+    for (const key of ['type', 'status', 'createdAfter', 'createdBefore', 'limit', 'cursor'] as const) {
+      const value = options[key];
+      if (value !== undefined) query.set(key, String(value));
+    }
+    const suffix = query.size ? `?${query.toString()}` : '';
+    return this.read(`/records${suffix}`, options);
+  }
 
   private read<T>(path: string, options?: RequestOptions): Promise<T> { return this.request<T>(path, { method: 'GET', options }); }
   private mutate<T>(path: string, body: unknown, options: IdempotentRequestOptions): Promise<PaymentResource<T>> {

@@ -15,9 +15,14 @@ const actionMocks = vi.hoisted(() => ({
     },
   }),
 }));
+const accessMocks = vi.hoisted(() => ({
+  authorizeProject: vi.fn().mockResolvedValue("org-1"),
+  authorizeTribe: vi.fn().mockResolvedValue("org-1"),
+}));
 
 vi.mock("@/lib/server/api-center-admin", () => adminMocks);
 vi.mock("@/lib/server/require-management-action", () => actionMocks);
+vi.mock("@/lib/server/organization-access", () => accessMocks);
 
 describe("POST /api/local/developer-portal/requests/quota-increase", () => {
   afterEach(() => {
@@ -82,5 +87,58 @@ describe("POST /api/local/developer-portal/requests/quota-increase", () => {
         body: expect.not.stringContaining('"requestedBy":"campus-one"'),
       }),
     );
+  });
+
+  it("does not submit a quota increase for a project outside the operator's organizations", async () => {
+    accessMocks.authorizeProject.mockRejectedValueOnce(
+      new Error("Organization access denied"),
+    );
+
+    const response = await POST(
+      new Request(
+        "http://localhost/api/local/developer-portal/requests/quota-increase",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ownerTribeId: "tribe-b",
+            projectId: "project-b",
+            requestedMaxRequests: 50000,
+            reason: "Capacity increase",
+          }),
+        },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(accessMocks.authorizeProject).toHaveBeenCalledWith(
+      expect.any(Request),
+      "project-b",
+      "operator",
+    );
+    expect(adminMocks.apiCenterAdminRequest).not.toHaveBeenCalled();
+  });
+
+  it("does not let an observer submit a quota increase", async () => {
+    actionMocks.requireManagementRouteAction.mockRejectedValueOnce(
+      new Error("observer cannot perform this action"),
+    );
+
+    const response = await POST(
+      new Request(
+        "http://localhost/api/local/developer-portal/requests/quota-increase",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ownerTribeId: "tribe-a",
+            requestedMaxRequests: 50000,
+            reason: "Capacity increase",
+          }),
+        },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(accessMocks.authorizeTribe).not.toHaveBeenCalled();
+    expect(adminMocks.apiCenterAdminRequest).not.toHaveBeenCalled();
   });
 });

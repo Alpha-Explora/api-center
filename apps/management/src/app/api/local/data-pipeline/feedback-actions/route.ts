@@ -4,8 +4,11 @@ import { apiCenterAdminRequest } from "@/lib/server/api-center-admin";
 import { pipelineFeedbackActionRequestSchema } from "@/lib/schemas";
 import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 import { requireManagementRouteAction } from "@/lib/server/require-management-action";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 export async function POST(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   try {
     await requireManagementRouteAction({
       request,
@@ -26,6 +29,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   const search = new URL(request.url).search;
   return apiCenterAdminRequest(
     `/api/v1/data-pipeline/feedback-actions${search}`,

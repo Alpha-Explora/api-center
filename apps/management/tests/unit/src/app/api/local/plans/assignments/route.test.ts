@@ -66,12 +66,12 @@ describe("POST /api/local/plans/assignments", () => {
       "/api/v1/plans/assignments",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"environment":"prod"'),
+        body: expect.stringContaining('"environment":"live"'),
       }),
     );
   });
 
-  it("maps public live assignment filters to the storage environment", async () => {
+  it("passes live assignment filters through unchanged", async () => {
     adminMocks.apiCenterAdminRequest.mockResolvedValue(
       new Response(JSON.stringify({ success: true, data: [] }), {
         status: 200,
@@ -85,7 +85,16 @@ describe("POST /api/local/plans/assignments", () => {
     );
 
     expect(adminMocks.apiCenterAdminRequest).toHaveBeenCalledWith(
-      "/api/v1/plans/assignments?projectId=campus-one-default&environment=prod&status=active",
+      "/api/v1/plans/assignments?projectId=campus-one-default&environment=live&status=active",
     );
+  });
+
+  it("rejects the retired prod environment filter", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/local/plans/assignments?environment=prod"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(adminMocks.apiCenterAdminRequest).not.toHaveBeenCalled();
   });
 });
