@@ -42,6 +42,15 @@ describe("TribePlanService", () => {
   });
 
   it("archives the active assignment and inserts its replacement in one transaction", async () => {
+    const oldAssignment = {
+      status: "active",
+      reason: "Original assignment reason",
+      assignedBy: "original-operator",
+    };
+    assignments.updateMany.mockImplementation(async ({ data }) => {
+      Object.assign(oldAssignment, data);
+      return { count: 1 };
+    });
     assignments.create.mockResolvedValue({
       id: "assignment-new",
       ownerTribeId: "campus-one",
@@ -74,9 +83,12 @@ describe("TribePlanService", () => {
       },
       data: {
         status: "archived",
-        reason: "Plan upgrade",
-        assignedBy: "platform",
       },
+    });
+    expect(oldAssignment).toEqual({
+      status: "archived",
+      reason: "Original assignment reason",
+      assignedBy: "original-operator",
     });
     expect(assignments.create).toHaveBeenCalledWith({
       data: expect.objectContaining({

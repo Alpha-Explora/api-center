@@ -112,8 +112,6 @@ export class TribePlanService {
           },
           data: {
             status: "archived",
-            reason: input.reason,
-            assignedBy: input.assignedBy,
           },
         });
         return transaction.entitlementAssignment.create({
