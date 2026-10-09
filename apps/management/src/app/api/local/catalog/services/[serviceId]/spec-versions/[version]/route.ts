@@ -1,10 +1,14 @@
 import { apiCenterAdminRequest } from "@/lib/server/api-center-admin";
 import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
+import { requireManagementSession } from "@/lib/server/require-management-session";
 
 type RouteContext = { params: Promise<{ serviceId: string; version: string }> };
 
 export async function GET(request: Request, context: RouteContext) {
   try {
+    await requireManagementSession({
+      authorizationHeader: request.headers.get("authorization"),
+    });
     const { serviceId, version } = await context.params;
     const upstream = await apiCenterAdminRequest(
       `/api/v1/admin/catalog/services/${encodeURIComponent(serviceId)}/spec-versions/${encodeURIComponent(version)}`,

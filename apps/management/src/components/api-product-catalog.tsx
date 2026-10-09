@@ -4,12 +4,19 @@ import Link from "next/link";
 import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { listServices } from "@/lib/api-center-client";
+import {
+  downloadServiceSpecDocument,
+  getServiceSpecDocument,
+  listServiceSpecCatalog,
+  listServiceSpecVersions,
+  listServices,
+} from "@/lib/api-center-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { ServiceRegistryEntry } from "@/lib/schemas";
 import { ActionFailedState, EmptyDataState } from "@/components/query-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -34,50 +41,142 @@ export function ApiProductCatalog() {
   });
 
   return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>API products</CardTitle>
+            <CardDescription>
+              Scan shared services and tribe APIs as governed platform products.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => servicesQuery.refetch()}
+            disabled={servicesQuery.isFetching}
+          >
+            <RefreshCwIcon data-icon="inline-start" />
+            Refresh
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {servicesQuery.isLoading ? (
+            <Skeleton className="h-96 rounded-xl" />
+          ) : servicesQuery.isError ? (
+            <ActionFailedState
+              title="Could not load API catalog"
+              description="Check API Center admin credentials and registry availability."
+              recoverySteps={[
+                {
+                  label: "Check registry access",
+                  description:
+                    "Confirm API Center is reachable and the protected registry route responds.",
+                },
+                {
+                  label: "Refresh the catalog",
+                  description: "Retry after the registry becomes available.",
+                },
+              ]}
+            />
+          ) : servicesQuery.data?.length ? (
+            <CatalogTable services={servicesQuery.data} />
+          ) : (
+            <EmptyDataState
+              title="No APIs registered"
+              description="Registered services appear here as API products."
+            />
+          )}
+        </CardContent>
+      </Card>
+      <ServiceSpecCatalog />
+    </>
+  );
+}
+
+function ServiceSpecCatalog() {
+  const catalogQuery = useQuery({
+    queryKey: ["service-spec-catalog"],
+    queryFn: listServiceSpecCatalog,
+  });
+
+  return (
     <Card>
-      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <CardTitle>API products</CardTitle>
-          <CardDescription>
-            Scan shared services and tribe APIs as governed platform products.
-          </CardDescription>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => servicesQuery.refetch()}
-          disabled={servicesQuery.isFetching}
-        >
-          <RefreshCwIcon data-icon="inline-start" />
-          Refresh
-        </Button>
+      <CardHeader>
+        <CardTitle>API contracts</CardTitle>
+        <CardDescription>
+          Published specifications are scoped to the exact service record. The
+          organization and project identify services that share a slug.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {servicesQuery.isLoading ? (
-          <Skeleton className="h-96 rounded-xl" />
-        ) : servicesQuery.isError ? (
+        {catalogQuery.isLoading ? (
+          <Skeleton className="h-40 rounded-xl" />
+        ) : catalogQuery.isError ? (
           <ActionFailedState
-            title="Could not load API catalog"
-            description="Check API Center admin credentials and registry availability."
+            title="Could not load the service contract catalog"
+            description="Check management authentication and API Center catalog availability."
             recoverySteps={[
               {
-                label: "Check registry access",
+                label: "Check catalog access",
                 description:
-                  "Confirm API Center is reachable and the admin secret is configured.",
+                  "Confirm the management session and platform admin credentials are valid.",
               },
               {
                 label: "Refresh the catalog",
-                description:
-                  "Retry after the protected registry route responds.",
+                description: "Retry after API Center responds.",
               },
             ]}
           />
-        ) : servicesQuery.data?.length ? (
-          <CatalogTable services={servicesQuery.data} />
+        ) : catalogQuery.data?.length ? (
+          <div className="overflow-hidden rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Organization</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Specifications</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {catalogQuery.data.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell>
+                      <div className="font-medium">
+                        {service.organizationName}
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {service.organizationSlug}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{service.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {service.serviceId}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {service.projectName ??
+                        service.projectId ??
+                        "Shared service"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{service.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <ServiceSpecsCell serviceIdentity={service.id} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         ) : (
           <EmptyDataState
-            title="No APIs registered"
-            description="Registered services appear here as API products."
+            title="No services available for contracts"
+            description="Services registered in the database appear here by organization and project."
           />
         )}
       </CardContent>
@@ -100,7 +199,6 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
             <TableHead>Quota hint</TableHead>
             <TableHead>SLA</TableHead>
             <TableHead>Docs</TableHead>
-            <TableHead>Contract</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -154,9 +252,6 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
                   <span className="text-sm text-muted-foreground">None</span>
                 )}
               </TableCell>
-              <TableCell>
-                <ServiceSpecsCell serviceId={service.serviceId} />
-              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -165,25 +260,17 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
   );
 }
 
-type ServiceSpecVersion = {
-  version: string;
-  format: string;
-  sha256: string;
-  publishedBy: string;
-  publishedAt: string;
-};
-
-function ServiceSpecsCell({ serviceId }: { serviceId: string }) {
+function ServiceSpecsCell({ serviceIdentity }: { serviceIdentity: string }) {
   const [open, setOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const versionsQuery = useQuery({
-    queryKey: ["service-spec-versions", serviceId],
-    queryFn: () => fetchSpecVersions(serviceId),
+    queryKey: ["service-spec-versions", serviceIdentity],
+    queryFn: () => listServiceSpecVersions(serviceIdentity),
     enabled: open,
   });
   const specQuery = useQuery({
-    queryKey: ["service-spec", serviceId, selectedVersion],
-    queryFn: () => fetchServiceSpec(serviceId, selectedVersion!),
+    queryKey: ["service-spec", serviceIdentity, selectedVersion],
+    queryFn: () => getServiceSpecDocument(serviceIdentity, selectedVersion!),
     enabled: open && selectedVersion !== null,
   });
 
@@ -229,12 +316,22 @@ function ServiceSpecsCell({ serviceId }: { serviceId: string }) {
                 >
                   View
                 </button>
-                <a
+                <button
+                  type="button"
                   className="underline underline-offset-2"
-                  href={specDownloadUrl(serviceId, spec.version)}
+                  onClick={() => {
+                    void downloadServiceSpecDocument(
+                      serviceIdentity,
+                      spec.version,
+                    ).catch(() =>
+                      toast.error(
+                        "Could not download the service specification",
+                      ),
+                    );
+                  }}
                 >
                   Download
-                </a>
+                </button>
               </div>
             </div>
           ))}
@@ -247,33 +344,6 @@ function ServiceSpecsCell({ serviceId }: { serviceId: string }) {
       ) : null}
     </div>
   );
-}
-
-async function fetchSpecVersions(
-  serviceId: string,
-): Promise<ServiceSpecVersion[]> {
-  const response = await fetch(
-    `/api/local/catalog/services/${encodeURIComponent(serviceId)}/spec-versions`,
-  );
-  if (!response.ok) throw new Error("Could not load specification versions");
-  const payload = (await response.json()) as { data?: ServiceSpecVersion[] };
-  return payload.data ?? [];
-}
-
-async function fetchServiceSpec(
-  serviceId: string,
-  version: string,
-): Promise<unknown> {
-  const response = await fetch(
-    `/api/local/catalog/services/${encodeURIComponent(serviceId)}/spec-versions/${encodeURIComponent(version)}`,
-  );
-  if (!response.ok) throw new Error("Could not load specification");
-  const payload = (await response.json()) as { data?: { document?: unknown } };
-  return payload.data?.document;
-}
-
-function specDownloadUrl(serviceId: string, version: string) {
-  return `/api/local/catalog/services/${encodeURIComponent(serviceId)}/spec-versions/${encodeURIComponent(version)}?download=1`;
 }
 
 function TokenList({ items }: { items: string[] }) {
