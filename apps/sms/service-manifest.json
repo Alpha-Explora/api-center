@@ -4,7 +4,7 @@
   "name": "SMS Service",
   "baseUrl": "http://sms-service:4011",
   "requiredScopes": ["sms:send", "sms:status"],
-  "exposes": ["/send", "/status", "/templates"],
+  "exposes": ["/send", "/status"],
   "consumes": [],
   "healthCheck": "/health",
   "version": "1.0.0",

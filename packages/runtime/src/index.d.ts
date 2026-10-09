@@ -76,5 +76,23 @@ export function registerWithGateway(options: {
 }): Promise<unknown>;
 
 export function shouldRegisterWithGateway(): boolean;
+
+export interface SharedServiceCaller {
+  tribeId: string;
+  projectId: string;
+  serviceId: string;
+  environment: 'test' | 'live';
+}
+
+export class SharedServiceCallerError extends Error {}
+
+/** Reads the gateway-authenticated caller. Production rejects a request that lacks any caller header. */
+export function readSharedServiceCaller(
+  req: { get(name: string): string | undefined },
+  options?: { production?: boolean },
+): SharedServiceCaller;
+
+/** True when both callers share a project and environment. Any service in that project can read the records. */
+export function sameProject(left: SharedServiceCaller, right: SharedServiceCaller): boolean;
 export function ok(res: Response, data?: unknown, statusCode?: number): void;
 export function fail(res: Response, statusCode: number, code: string, message: string, details?: unknown): void;

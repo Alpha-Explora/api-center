@@ -29,33 +29,48 @@ describe('private payment runtime identity', () => {
     if (saved.database === undefined) delete process.env.SHARED_SERVICES_DATABASE_URL; else process.env.SHARED_SERVICES_DATABASE_URL = saved.database;
   });
 
-  function headers(tribeId: string, token = 'test-runtime-token') {
-    return { authorization: `Bearer ${token}`, 'content-type': 'application/json',
+  function headers(tribeId: string, projectId: string | undefined, token = 'test-runtime-token') {
+    const values: Record<string, string> = { authorization: `Bearer ${token}`, 'content-type': 'application/json',
       'x-apicenter-owner-tribe-id': tribeId,
       'x-apicenter-consumer-service-id': 'service-a',
       'x-apicenter-environment': 'test' };
+    if (projectId) values['x-apicenter-project-id'] = projectId;
+    return values;
   }
 
   it('requires the internal token and rejects cross-tenant reads despite a forged body tenant', async () => {
     const anonymous = await fetch(`${baseUrl}/checkout/sessions`, {
-      method: 'POST', headers: headers('tribe-a', 'wrong'), body: '{}',
+      method: 'POST', headers: headers('tribe-a', 'project-a', 'wrong'), body: '{}',
     });
     expect(anonymous.status).toBe(401);
 
     const created = await fetch(`${baseUrl}/checkout/sessions`, {
-      method: 'POST', headers: { ...headers('tribe-a'), 'idempotency-key': 'runtime-owner-checkout-1' },
+      method: 'POST', headers: { ...headers('tribe-a', 'project-a'), 'idempotency-key': 'runtime-owner-checkout-1' },
       body: JSON.stringify({ referenceId: 'order-ownership', amount: 100, currency: 'PHP',
         successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel', tribeId: 'tribe-b' }),
     });
     expect(created.status).toBe(201);
     const checkoutId = ((await created.json()) as { data: { checkoutId: string } }).data.checkoutId;
 
-    const other = await fetch(`${baseUrl}/checkout/sessions/${checkoutId}`, {
-      headers: { ...headers('tribe-b'), 'x-tribe-id': 'tribe-a' },
+    const otherTribe = await fetch(`${baseUrl}/checkout/sessions/${checkoutId}`, {
+      headers: { ...headers('tribe-b', 'project-b'), 'x-tribe-id': 'tribe-a' },
     });
-    expect(other.status).toBe(404);
+    expect(otherTribe.status).toBe(404);
 
-    const owner = await fetch(`${baseUrl}/checkout/sessions/${checkoutId}`, { headers: headers('tribe-a') });
+    const otherProjectInSameTribe = await fetch(`${baseUrl}/checkout/sessions/${checkoutId}`, {
+      headers: headers('tribe-a', 'project-b'),
+    });
+    expect(otherProjectInSameTribe.status).toBe(404);
+
+    const owner = await fetch(`${baseUrl}/checkout/sessions/${checkoutId}`, { headers: headers('tribe-a', 'project-a') });
     expect(owner.status).toBe(200);
   });
+
+  it('rejects a request that does not name the calling project', async () => {
+    const response = await fetch(`${baseUrl}/checkout/sessions`, {
+      method: 'POST', headers: { ...headers('tribe-a', undefined), 'idempotency-key': 'runtime-no-project-1' }, body: '{}',
+    });
+    expect(response.status).toBe(401);
+  });
 });
+

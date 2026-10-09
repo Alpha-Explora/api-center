@@ -25,7 +25,7 @@ if (!skip) {
   webhooks = new WebhooksService(owners);
 }
 
-const owner = { tribeId: 'tribe-a', consumerServiceId: 'service-a', environment: 'test' };
+const owner = { tribeId: 'tribe-a', projectId: 'project-a', consumerServiceId: 'service-a', environment: 'test' };
 
 test.after(async () => { if (pool) await pool.end(); });
 test.beforeEach(async () => {
@@ -70,6 +70,7 @@ test('a paid checkout updates the owner, records the receipt and queues one even
   assert.equal(events[0].owner_tribe_id, 'tribe-a');
   assert.equal(events[0].consumer_service_id, 'service-a');
   assert.equal(events[0].reference_id, 'ORDER-1');
+  assert.equal(events[0].project_id, 'project-a');
   assert.equal(events[0].payload.amount, 10000);
 });
 
@@ -105,9 +106,17 @@ test('an event ID reused with different content is rejected and leaves state alo
   assert.equal(await count('payment_event_outbox'), 1);
 });
 
+test('another project in the same tribe cannot read or reference-look-up a checkout', { skip }, async () => {
+  const otherProject = { ...owner, projectId: 'project-b' };
+  await assert.rejects(owners.assertOwned('checkout', 'chk_123', otherProject), { statusCode: 404 });
+  await assert.rejects(owners.findByReference('checkout', 'ORDER-1', otherProject), { statusCode: 404 });
+  const found = await owners.findByReference('checkout', 'ORDER-1', owner);
+  assert.equal(found.resourceId, 'chk_123');
+});
+
 test('a failure part way rolls back the receipt, the state change and the event', { skip }, async () => {
   // The payment record already belongs to another tribe, so the owner update inside the transaction fails.
-  await owners.save({ tribeId: 'tribe-b', consumerServiceId: 'service-b', environment: 'test',
+  await owners.save({ tribeId: 'tribe-b', projectId: 'project-b', consumerServiceId: 'service-b', environment: 'test',
     resourceType: 'payment', resourceId: 'pay_123', snapshot: {} });
   const payload = checkoutPaid('evt_1');
   await assert.rejects(webhooks.processWebhook(payload, signed(payload)), { statusCode: 403 });

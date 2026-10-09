@@ -43,13 +43,6 @@ export function toRuntimeEnvironment(pipelineLane: PipelineLane): RuntimeEnviron
   return pipelineLane === "prod" ? "live" : "test";
 }
 
-export function toPlanStorageEnvironment(
-  environment: unknown,
-): PipelineLane {
-  if (environment === "prod") return "prod";
-  return toPipelineLane(parseRuntimeEnvironment(environment));
-}
-
 export function readPipelineLaneQuery(searchParams: URLSearchParams): PipelineLane {
   const pipelineLane = searchParams.get("pipelineLane");
   if (pipelineLane !== null) return parsePipelineLane(pipelineLane);

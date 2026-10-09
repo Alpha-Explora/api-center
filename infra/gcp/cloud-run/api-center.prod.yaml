@@ -64,6 +64,11 @@ spec:
                 secretKeyRef:
                   name: apicenter-payments-live-internal-token
                   key: latest
+            - name: GAUTH_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-gauth-admin-token
+                  key: latest
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-prod
             - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE

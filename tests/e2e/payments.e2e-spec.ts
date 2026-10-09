@@ -32,6 +32,7 @@ describe('Payments facade (e2e)', () => {
             resolve: jest.fn(async (key: string) => key === 'apic_test_valid'
               ? {
                 ownerTribeId: 'tribe-alpha',
+                projectId: 'project-alpha',
                 consumerServiceId: 'service-alpha',
                 environment: 'test',
                 scopes: ['payments:read', 'payments:write'],
@@ -102,6 +103,7 @@ describe('Payments facade (e2e)', () => {
     expect(response.status).toBe(201);
     const config = mockedAxios.request.mock.calls[0][0] as any;
     expect(config.headers['x-apicenter-owner-tribe-id']).toBe('tribe-alpha');
+    expect(config.headers['x-apicenter-project-id']).toBe('project-alpha');
     expect(config.headers['x-apicenter-environment']).toBe('test');
   });
 

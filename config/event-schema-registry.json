@@ -5,7 +5,7 @@
       "tribeId": "logistics",
       "eventType": "order.created",
       "schemaVersion": "1.0.0",
-      "environment": "prod",
+      "environment": "live",
       "owner": "logistics-platform-owner",
       "steward": "logistics-data-steward",
       "status": "approved",
