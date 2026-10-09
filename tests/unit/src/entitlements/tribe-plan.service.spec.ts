@@ -120,6 +120,23 @@ describe("TribePlanService", () => {
     });
   });
 
+  it("rejects a future effectiveAt before starting a reassignment transaction", async () => {
+    await expect(
+      service.assignPlan({
+        projectId: "campus-lms",
+        ownerTribeId: "campus-one",
+        planKey: "standard",
+        environment: "test",
+        effectiveAt: new Date(Date.now() + 60_000),
+        reason: "Schedule plan change",
+      }),
+    ).rejects.toThrow("effectiveAt cannot be in the future");
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(assignments.updateMany).not.toHaveBeenCalled();
+    expect(assignments.create).not.toHaveBeenCalled();
+  });
+
   it("reports active explicit project quota policies as the effective override", async () => {
     assignments.findMany.mockResolvedValue([
       {
@@ -135,7 +152,20 @@ describe("TribePlanService", () => {
     ]);
     quotaPolicy.findMany.mockResolvedValue([
       {
-        id: "policy-1",
+        id: "policy-a",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 600,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "older same-time override",
+        updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+      {
+        id: "policy-z",
         ownerTribeId: "campus-one",
         projectId: "campus-lms",
         scope: "all",
@@ -144,7 +174,21 @@ describe("TribePlanService", () => {
         windowSeconds: 3600,
         mode: "enforce",
         status: "active",
-        reason: "Approved capacity exception",
+        reason: "latest override",
+        updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+      {
+        id: "policy-newer-time",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 700,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "earlier id but older update",
+        updatedAt: new Date("2026-05-31T00:00:00.000Z"),
       },
     ]);
 
@@ -161,8 +205,8 @@ describe("TribePlanService", () => {
         windowSeconds: 3600,
         mode: "enforce",
         source: "override",
-        policyId: "policy-1",
-        reason: "Approved capacity exception",
+        policyId: "policy-z",
+        reason: "latest override",
       }),
       expect.objectContaining({
         scope: "kafka_publish",
@@ -175,6 +219,7 @@ describe("TribePlanService", () => {
         status: "active",
         OR: [{ ownerTribeId: "campus-one", projectId: "campus-lms" }],
       },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     });
   });
 

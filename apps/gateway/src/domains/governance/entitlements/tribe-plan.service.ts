@@ -43,6 +43,7 @@ interface PlanQuotaPolicy {
   mode: "observe" | "enforce";
   reason: string;
   status: string;
+  updatedAt?: Date | string;
 }
 
 interface TribePlanPrisma {
@@ -50,6 +51,7 @@ interface TribePlanPrisma {
   quotaPolicy: {
     findMany(args: {
       where: Record<string, unknown>;
+      orderBy: Array<Record<string, string>>;
     }): Promise<PlanQuotaPolicy[]>;
   };
   $transaction<T>(
@@ -100,7 +102,14 @@ export class TribePlanService {
     input: AssignTribePlanInput,
   ): Promise<AssignTribePlanResult> {
     this.definitionFor(input.planKey);
-    const effectiveAt = input.effectiveAt ?? new Date();
+    const now = new Date();
+    const effectiveAt = input.effectiveAt ?? now;
+    if (!Number.isFinite(effectiveAt.getTime())) {
+      throw new ValidationError("effectiveAt must be a valid date");
+    }
+    if (effectiveAt.getTime() > now.getTime()) {
+      throw new ValidationError("effectiveAt cannot be in the future");
+    }
     const assignment = await this.planPrisma.$transaction(
       async (transaction) => {
         await transaction.entitlementAssignment.updateMany({
@@ -172,6 +181,7 @@ export class TribePlanService {
               projectId,
             })),
           },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         })
       : [];
     return assignments.map((assignment) => ({
@@ -186,12 +196,14 @@ export class TribePlanService {
   ): EffectivePlanLimit[] {
     if (assignment.status !== "active") return [];
     const definition = this.definitionFor(assignment.planKey);
-    const policies = allPolicies.filter(
-      (policy) =>
-        policy.ownerTribeId === assignment.ownerTribeId &&
-        policy.projectId === assignment.projectId &&
-        policy.status === "active",
-    );
+    const policies = allPolicies
+      .filter(
+        (policy) =>
+          policy.ownerTribeId === assignment.ownerTribeId &&
+          policy.projectId === assignment.projectId &&
+          policy.status === "active",
+      )
+      .sort(comparePolicyRecency);
     const defaults = [
       { scope: "all" as const, maxRequests: definition.gatewayCallsPerDay },
       {
@@ -223,6 +235,14 @@ export class TribePlanService {
     });
     const targetedOverrides = policies
       .filter((policy) => Boolean(policy.targetServiceId))
+      .filter(
+        (policy, index, matching) =>
+          matching.findIndex(
+            (candidate) =>
+              candidate.scope === policy.scope &&
+              candidate.targetServiceId === policy.targetServiceId,
+          ) === index,
+      )
       .map((policy) => ({
         scope: policy.scope as EffectivePlanLimit["scope"],
         targetServiceId: policy.targetServiceId ?? undefined,
@@ -235,4 +255,14 @@ export class TribePlanService {
       }));
     return [...baseLimits, ...targetedOverrides];
   }
+}
+
+function comparePolicyRecency(left: PlanQuotaPolicy, right: PlanQuotaPolicy) {
+  const updatedAtDifference =
+    new Date(right.updatedAt ?? 0).getTime() -
+    new Date(left.updatedAt ?? 0).getTime();
+  if (updatedAtDifference !== 0 && Number.isFinite(updatedAtDifference)) {
+    return updatedAtDifference;
+  }
+  return (right.id ?? "").localeCompare(left.id ?? "");
 }

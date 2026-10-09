@@ -292,4 +292,70 @@ describe("TribeQuotaPolicyService", () => {
       tribe: null,
     });
   });
+
+  it("selects the same latest same-scope override reported by the plans view", async () => {
+    prisma.quotaPolicy.findMany.mockResolvedValue([
+      {
+        id: "policy-a",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 600,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "older same-time override",
+        updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+      {
+        id: "policy-z",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 800,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "latest override",
+        updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+      {
+        id: "policy-newer-time",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 700,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "earlier id but older update",
+        updatedAt: new Date("2026-05-31T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await service.resolvePolicies({
+      ownerTribeId: "campus-one",
+      projectId: "campus-lms",
+      scope: "all",
+    });
+
+    expect(result.project).toMatchObject({
+      id: "policy-z",
+      maxRequests: 800,
+      reason: "latest override",
+    });
+    expect(prisma.quotaPolicy.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { targetServiceId: "desc" },
+          { scope: "desc" },
+          { updatedAt: "desc" },
+          { id: "desc" },
+        ],
+      }),
+    );
+  });
 });

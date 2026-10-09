@@ -207,6 +207,9 @@ export class TribePlanAdminController {
     ) {
       throw new ValidationError("effectiveAt must be a valid date");
     }
+    if (body.effectiveAt && new Date(body.effectiveAt).getTime() > Date.now()) {
+      throw new ValidationError("effectiveAt cannot be in the future");
+    }
   }
 
   private validateAssignmentFilters(query: ListTribePlanAssignmentsInput) {

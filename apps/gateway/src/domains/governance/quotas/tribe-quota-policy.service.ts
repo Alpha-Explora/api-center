@@ -70,6 +70,7 @@ export class TribeQuotaPolicyService {
         { targetServiceId: "desc" },
         { scope: "desc" },
         { updatedAt: "desc" },
+        { id: "desc" },
       ],
     });
 
@@ -77,7 +78,8 @@ export class TribeQuotaPolicyService {
       [...level].sort(
         (left, right) =>
           this.specificityScore(right, input.scope, input.targetServiceId) -
-          this.specificityScore(left, input.scope, input.targetServiceId),
+            this.specificityScore(left, input.scope, input.targetServiceId) ||
+          comparePolicyRecency(left, right),
       )[0] ?? null;
 
     let project = input.projectId
@@ -218,6 +220,16 @@ export class TribeQuotaPolicyService {
       Object.entries(input).filter(([, value]) => value !== undefined),
     );
   }
+}
+
+function comparePolicyRecency(left: TribeQuotaPolicy, right: TribeQuotaPolicy) {
+  const updatedAtDifference =
+    new Date(right.updatedAt ?? 0).getTime() -
+    new Date(left.updatedAt ?? 0).getTime();
+  if (updatedAtDifference !== 0 && Number.isFinite(updatedAtDifference)) {
+    return updatedAtDifference;
+  }
+  return (right.id ?? "").localeCompare(left.id ?? "");
 }
 
 function isPlanEnvironment(

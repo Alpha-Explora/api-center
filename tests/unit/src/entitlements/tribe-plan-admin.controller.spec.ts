@@ -276,6 +276,26 @@ describe("TribePlanAdminController", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("rejects a future effectiveAt before calling the plan service", async () => {
+    const effectiveAt = new Date(Date.now() + 60_000).toISOString();
+
+    await expect(
+      controller.assignPlan(
+        {
+          projectId: "campus-lms",
+          planKey: "standard",
+          environment: "test",
+          effectiveAt,
+          reason: "Schedule plan change",
+        },
+        {} as any,
+      ),
+    ).rejects.toThrow("effectiveAt cannot be in the future");
+
+    expect(plans.assignPlan).not.toHaveBeenCalled();
+    expect(auditEvents.recordRequired).not.toHaveBeenCalled();
+  });
+
   it("rejects tribe-level assignments and unknown projects", async () => {
     await expect(
       controller.assignPlan(
