@@ -213,6 +213,11 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
 
+      - name: Test payment webhook handling against the replayed database
+        run: npm run db:test:payment-webhook
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
+
   # ---------------------------------------------------------------------------
   # Job 5: Docker Build (verify Dockerfile works)
   # ---------------------------------------------------------------------------

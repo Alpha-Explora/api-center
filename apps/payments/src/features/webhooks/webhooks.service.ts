@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 import { PayMongoError } from '../../shared/payment-errors';
-import { PaymentOwnerStore } from '../../shared/payment-owner-store';
+import { OwnerRecord, PaymentOwnerStore, VerifiedWebhook } from '../../shared/payment-owner-store';
 import { toPublicId } from '../../shared/payment-ids';
+
+const isPaidPayment = (payment: any): boolean => payment?.type === 'payment'
+  && typeof payment.id === 'string' && payment.id.startsWith('pay_') && payment.attributes?.status === 'paid';
 
 export class WebhooksService {
   constructor(private readonly owners = PaymentOwnerStore.getInstance()) {}
@@ -24,6 +27,10 @@ export class WebhooksService {
       || !crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
       throw new PayMongoError('Invalid PayMongo webhook signature', 401, 'INVALID_SIGNATURE');
     }
+    const providerEventId = payload?.data?.id;
+    if (typeof providerEventId !== 'string' || !providerEventId.trim()) {
+      throw new PayMongoError('PayMongo webhook event ID is required', 400, 'INVALID_WEBHOOK_EVENT');
+    }
     const eventType = payload?.data?.attributes?.type;
     const resourceData = payload?.data?.attributes?.data || {};
     if (payload?.data?.attributes?.livemode !== (environment === 'live')) {
@@ -42,21 +49,73 @@ export class WebhooksService {
       }
     }
     if (!source) return { event: 'ignored', data: { eventType, updated: false } };
-    let updated = 0;
-    for (const payment of payments) {
-      if (payment?.type !== 'payment' || typeof payment.id !== 'string' || !payment.id.startsWith('pay_')
-        || payment.attributes?.status !== 'paid') continue;
-      await this.owners.save({ ...source, resourceType: 'payment', resourceId: payment.id,
-        snapshot: { paymentId: payment.id, status: 'paid', amount: payment.attributes.amount,
-          currency: payment.attributes.currency, sourceId: source.resourceId } });
-      updated++;
+
+    const paid = payments.filter(isPaidPayment);
+    if (paid.length === 0) return { event: 'processed', data: { eventType, updated: 0 } };
+    const updates: OwnerRecord[] = paid.map((payment) => ({
+      ...source, resourceType: 'payment', resourceId: payment.id,
+      snapshot: { paymentId: payment.id, status: 'paid', amount: payment.attributes.amount,
+        currency: payment.attributes.currency, sourceId: source.resourceId },
+    }));
+    updates.push({ ...source, snapshot: { ...source.snapshot,
+      status: eventType === 'payment.paid' ? 'succeeded' : 'paid', paymentId: paid[0].id } });
+
+    const queued = eventType === 'checkout_session.payment.paid'
+      ? this.checkoutPaidEvent(source, paid[0], payload)
+      : { receiptStatus: 'processed' as const };
+    const applied = await this.owners.applyVerifiedWebhook({
+      providerEventId,
+      environment,
+      eventType,
+      payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
+      updates,
+      ...queued,
+    });
+    if (queued.receiptStatus === 'needs_reconciliation' && !applied.duplicate) {
+      console.warn(JSON.stringify({ type: 'apicenter_payment_webhook_needs_reconciliation',
+        providerEventId, environment, reason: queued.receiptNote }));
     }
-    if (updated > 0) {
-      const firstPayment = payments.find((payment) => payment?.attributes?.status === 'paid');
-      await this.owners.save({ ...source, snapshot: { ...source.snapshot,
-        status: eventType === 'payment.paid' ? 'succeeded' : 'paid',
-        paymentId: firstPayment?.id } });
+    return { event: applied.duplicate ? 'duplicate' : 'processed',
+      data: { eventType, updated: applied.duplicate ? 0 : paid.length, queued: applied.queued } };
+  }
+
+  /**
+   * The event consumers receive for a paid checkout. A checkout that cannot be described completely is
+   * still recorded as paid, but flagged for reconciliation instead of queueing an event the publisher rejects.
+   */
+  private checkoutPaidEvent(source: OwnerRecord, payment: any, payload: any):
+    Pick<VerifiedWebhook, 'outbox' | 'receiptStatus' | 'receiptNote'> {
+    const amount = Number(payment.attributes.amount);
+    if (!source.referenceId) {
+      return { receiptStatus: 'needs_reconciliation',
+        receiptNote: 'Checkout owner has no merchant reference ID; no event was queued.' };
     }
-    return { event: 'processed', data: { eventType, updated } };
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return { receiptStatus: 'needs_reconciliation',
+        receiptNote: 'Paid checkout amount is missing or invalid; no event was queued.' };
+    }
+    const createdAt = Number(payload.data.attributes?.created_at);
+    return {
+      receiptStatus: 'processed',
+      outbox: {
+        eventType: 'payment.checkout.paid',
+        aggregateType: 'checkout',
+        aggregateId: source.resourceId,
+        ownerTribeId: source.tribeId,
+        consumerServiceId: source.consumerServiceId,
+        referenceId: source.referenceId,
+        payload: {
+          ownerTribeId: source.tribeId,
+          consumerServiceId: source.consumerServiceId,
+          referenceId: source.referenceId,
+          occurredAt: new Date(Number.isFinite(createdAt) && createdAt > 0 ? createdAt * 1000 : Date.now()).toISOString(),
+          checkoutId: source.resourceId,
+          paymentId: payment.id,
+          status: 'paid',
+          amount,
+          currency: String(payment.attributes.currency || 'PHP').toUpperCase(),
+        },
+      },
+    };
   }
 }
