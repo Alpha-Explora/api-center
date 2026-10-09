@@ -1,6 +1,7 @@
 import { apiCenterAdminRequest } from "@/lib/server/api-center-admin";
 import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 import { requireManagementRouteAction } from "@/lib/server/require-management-action";
+import { authorizeService } from "@/lib/server/organization-access";
 
 type RouteContext = { params: Promise<{ id: string; action: string }> };
 
@@ -30,6 +31,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 400 },
       );
     }
+    await authorizeService(request, body.apiServiceId, "operator");
     return apiCenterAdminRequest(
       `/api/v1/admin/api-subscriptions/${encodeURIComponent(id)}/${action}`,
       {

@@ -166,11 +166,9 @@ export class ApiSubscriptionsService
     consumerProjectId?: string;
     apiProjectId?: string;
     apiServiceId?: string;
+    organizationIds?: string[];
   }) {
-    if (!filters.consumerProjectId && !filters.apiServiceId) {
-      throw new ValidationError("Specify a consumerProjectId or apiServiceId");
-    }
-    return this.prisma.apiSubscription.findMany({
+    const rows = await this.prisma.apiSubscription.findMany({
       where: {
         ...(filters.apiProjectId ? { apiProjectId: filters.apiProjectId } : {}),
         ...(filters.consumerProjectId
@@ -179,6 +177,20 @@ export class ApiSubscriptionsService
         ...(filters.apiServiceId ? { apiServiceId: filters.apiServiceId } : {}),
       },
       orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+    });
+    if (filters.organizationIds === undefined) return rows;
+    const organizationIds = new Set(filters.organizationIds);
+    return rows.filter((row) => {
+      const consumerOrganizationId = this.tenancy.resolveProject(
+        row.consumerProjectId,
+      )?.tribe.organizationId;
+      const apiOrganizationId = this.tenancy.resolveProject(
+        row.apiProjectId,
+      )?.tribe.organizationId;
+      return Boolean(
+        (consumerOrganizationId && organizationIds.has(consumerOrganizationId)) ||
+        (apiOrganizationId && organizationIds.has(apiOrganizationId)),
+      );
     });
   }
 

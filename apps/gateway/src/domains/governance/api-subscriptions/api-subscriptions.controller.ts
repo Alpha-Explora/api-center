@@ -49,6 +49,7 @@ export class ApiSubscriptionsController {
   async list(
     @Query("consumerProjectId") consumerProjectId: string | undefined,
     @Query("apiServiceId") apiServiceId: string | undefined,
+    @Query("organizationId") organizationId: string | undefined,
     @Req() req: ApiSubscriptionRequest,
   ) {
     if (consumerProjectId) this.requireConsumerAccess(consumerProjectId, req);
@@ -57,6 +58,14 @@ export class ApiSubscriptionsController {
       success: true,
       data: await this.subscriptions.list({
         consumerProjectId,
+        ...(organizationId !== undefined
+          ? {
+              organizationIds: organizationId
+                .split(",")
+                .map((id) => id.trim())
+                .filter(Boolean),
+            }
+          : {}),
         ...(apiServiceId && req.projectId && !this.isPlatformAdmin(req)
           ? { apiProjectId: req.projectId }
           : {}),

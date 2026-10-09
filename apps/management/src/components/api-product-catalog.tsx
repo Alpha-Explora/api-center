@@ -337,7 +337,7 @@ function AccessRequestsCell({ serviceId }: { serviceId: string }) {
       const response = await fetch(`/api/local/catalog/subscriptions/${encodeURIComponent(id)}/${action}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ apiServiceId: serviceId }),
       });
       if (!response.ok) throw new Error(`Could not ${action} access`);
     },

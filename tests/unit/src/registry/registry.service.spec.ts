@@ -764,7 +764,7 @@ describe("RegistryService", () => {
       jest.useRealTimers();
     });
 
-    it("does not transfer an approved grant when a service slug is reused by another project", async () => {
+    it("does not transfer an approved grant when a retired service slug is registered by another project", async () => {
       service.replaceSubscriptions([
         {
           consumerProjectId: "commerce-web",
@@ -775,10 +775,18 @@ describe("RegistryService", () => {
         },
       ]);
       await service.deregister("billing-api");
-      await service.register(
-        baseManifest({ serviceId: "billing-api", projectId: "logistics-orders" }),
+      await expect(
+        service.register(
+          baseManifest({ serviceId: "billing-api", projectId: "logistics-orders" }),
+        ),
+      ).rejects.toThrow(
+        "Service 'billing-api' belongs to project 'commerce-billing' and cannot move to 'logistics-orders'",
       );
-      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      await service.register(
+        baseManifest({ serviceId: "logistics-worker", projectId: "logistics-orders" }),
+      );
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(true);
+      expect(service.canAccess("logistics-worker", "billing-api", "test")).toBe(false);
     });
 
     it("denies static consumes to a project API when the caller has no project identity", async () => {

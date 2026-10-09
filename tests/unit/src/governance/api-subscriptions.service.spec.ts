@@ -25,7 +25,21 @@ describe("ApiSubscriptionsService", () => {
     replaceSubscriptions: jest.fn(),
     setSubscriptionStatus: jest.fn(),
   };
-  const tenancy = { requireActiveProject: jest.fn() };
+  const tenancy = {
+    requireActiveProject: jest.fn(),
+    resolveProject: jest.fn((projectId: string) => {
+      const organizationId: Record<string, string> = {
+        "consumer-project": "org-a",
+        "owner-project": "org-b",
+        "consumer-project-2": "org-c",
+        "owner-project-2": "org-a",
+        "consumer-project-3": "org-c",
+        "owner-project-3": "org-d",
+      };
+      const resolved = organizationId[projectId];
+      return resolved ? { tribe: { organizationId: resolved } } : null;
+    }),
+  };
   const prisma = {
     apiSubscription: {
       findFirst: jest.fn(),
@@ -128,6 +142,27 @@ describe("ApiSubscriptionsService", () => {
       service.decide("subscription-1", "owner-user", "approve"),
     ).rejects.toThrow("Cannot approve a rejected subscription");
     expect(registry.setSubscriptionStatus).not.toHaveBeenCalled();
+  });
+
+  it("filters subscription listings to either side's allowed organizations", async () => {
+    const other = (id: string, consumerProjectId: string, apiProjectId: string) => ({
+      ...row,
+      id,
+      consumerProjectId,
+      apiProjectId,
+    });
+    prisma.apiSubscription.findMany.mockResolvedValue([
+      row,
+      other("subscription-2", "consumer-project-2", "owner-project-2"),
+      other("subscription-3", "consumer-project-3", "owner-project-3"),
+    ]);
+
+    const result = await service.list({ organizationIds: ["org-a"] });
+
+    expect(result.map((subscription) => subscription.id)).toEqual([
+      "subscription-1",
+      "subscription-2",
+    ]);
   });
 
   it("does not approve a pending request after the API slug changes owner", async () => {
