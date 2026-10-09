@@ -98,6 +98,14 @@ export class ConfigService implements OnApplicationBootstrap {
     return process.env.PLATFORM_ADMIN_SECRET || "";
   }
 
+  /** Lowercased platform operator emails. They act as admin in every organization. */
+  get platformAdminEmails(): string[] {
+    return (process.env.PLATFORM_ADMIN_EMAILS || "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
   readonly redis = {
     rateLimitUrl: process.env.REDIS_RATE_LIMIT_URL || "redis://localhost:6380",
     cacheUrl: process.env.REDIS_CACHE_URL || "redis://localhost:6381",

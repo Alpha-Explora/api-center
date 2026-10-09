@@ -27,7 +27,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { setManagementSessionToken } from "@/lib/api-center-client";
+import {
+  getManagementSession,
+  setManagementSessionToken,
+} from "@/lib/api-center-client";
 
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
 const SESSION_STORAGE_KEY = "apicenter.management.googleCredential";
@@ -123,9 +126,24 @@ export function ManagementAuthGate({
     [],
   );
 
-  const handleCredential = useCallback((response: GoogleCredentialResponse) => {
+  const handleCredential = useCallback(async (response: GoogleCredentialResponse) => {
     if (!response.credential) {
       setError("Google did not finish the sign-in. Try the Google button again.");
+      return;
+    }
+
+    // Confirm the account has APICenter access before keeping the credential, so a denied account
+    // sees why it cannot sign in instead of landing on an empty console.
+    setManagementSessionToken(response.credential);
+    try {
+      await getManagementSession();
+    } catch (accessError) {
+      setManagementSessionToken(undefined);
+      setError(
+        accessError instanceof Error
+          ? accessError.message
+          : "We could not confirm your APICenter access. Try again in a moment.",
+      );
       return;
     }
 
