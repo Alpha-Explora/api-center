@@ -4,7 +4,7 @@ import {
 } from "@quotas/tribe-quota-policy.types";
 
 export type TribePlanKey = "starter" | "standard" | "pro" | "enterprise";
-export type TribePlanEnvironment = "test" | "prod";
+export type TribePlanEnvironment = "test" | "live";
 export type TribePlanAssignmentStatus = "active" | "disabled";
 
 export interface TribePlanDefinition {

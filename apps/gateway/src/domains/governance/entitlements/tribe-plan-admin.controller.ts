@@ -12,7 +12,10 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
-import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
+import {
+  TENANCY_DIRECTORY,
+  type TenancyDirectory,
+} from "@registry/tenancy.types";
 import { ValidationError } from "@shared/errors";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";
 import { AuthenticatedRequest } from "../../../types";
@@ -29,7 +32,7 @@ import {
 } from "./tribe-plan.types";
 
 const PLAN_KEYS: TribePlanKey[] = ["starter", "standard", "pro", "enterprise"];
-const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "prod"];
+const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "live"];
 const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = ["active", "disabled"];
 
 interface AssignPlanRequest {
@@ -78,7 +81,9 @@ export class TribePlanAdminController {
     this.validateAssignment(body);
     const placement = this.tenancy.resolveProject(body.projectId!.trim());
     if (!placement) {
-      throw new ValidationError(`Project '${body.projectId}' is not registered`);
+      throw new ValidationError(
+        `Project '${body.projectId}' is not registered`,
+      );
     }
     const ownerTribeId = placement.tribe.tribeId;
     const projectId = placement.project.projectId;

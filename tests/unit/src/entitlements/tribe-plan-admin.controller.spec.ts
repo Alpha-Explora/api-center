@@ -70,20 +70,20 @@ describe("TribePlanAdminController", () => {
         id: "assignment-1",
         ownerTribeId: "campus-one",
         planKey: "standard",
-        environment: "prod",
+        environment: "live",
         status: "active",
       },
     ]);
 
     const response = await controller.listAssignments(
-      { environment: "prod", status: "active" },
+      { environment: "live", status: "active" },
       {
         correlationId: "corr-assignments",
       } as any,
     );
 
     expect(plans.listPlanAssignments).toHaveBeenCalledWith({
-      environment: "prod",
+      environment: "live",
       status: "active",
     });
     expect(response.data).toEqual([
@@ -165,7 +165,7 @@ describe("TribePlanAdminController", () => {
       ownerTribeId: "campus-one",
       projectId: "campus-lms",
       planKey: "standard",
-      environment: "prod",
+      environment: "live",
       status: "disabled",
       effectiveAt: "2026-05-25T00:00:00.000Z",
       reason: "Retired service",
@@ -193,7 +193,7 @@ describe("TribePlanAdminController", () => {
       actor: "platform",
       resourceType: "entitlement_assignment",
       resourceId: "assignment-1",
-      environment: "prod",
+      environment: "live",
       correlationId: "corr-update",
       severity: "info",
       message: "Plan assignment assignment-1 updated",
@@ -202,7 +202,7 @@ describe("TribePlanAdminController", () => {
         ownerTribeId: "campus-one",
         projectId: "campus-lms",
         planKey: "standard",
-        environment: "prod",
+        environment: "live",
         status: "disabled",
         reason: "Retired service",
         correlationId: "corr-update",
@@ -215,7 +215,7 @@ describe("TribePlanAdminController", () => {
       id: "assignment-1",
       ownerTribeId: "campus-one",
       planKey: "standard",
-      environment: "prod",
+      environment: "live",
       status: "disabled",
       effectiveAt: "2026-05-25T00:00:00.000Z",
       reason: "Retired service",

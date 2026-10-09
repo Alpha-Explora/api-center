@@ -212,7 +212,7 @@ describe("EnvironmentPromotionPanel", () => {
         ownerTribeId: "logistics",
         projectId: "logistics-default",
         planKey: "standard",
-        environment: "prod",
+        environment: "live",
         status: "active",
         effectiveAt: "2026-05-25T01:00:00.000Z",
         reason: "approved live rollout",

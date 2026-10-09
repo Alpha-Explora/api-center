@@ -109,7 +109,7 @@ describe("TribePlanService", () => {
       id: "assignment-1",
       ownerTribeId: "campus-one",
       planKey: "standard",
-      environment: "prod",
+      environment: "live",
       status: "disabled",
       effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
       reason: "Retired service",
@@ -151,7 +151,7 @@ describe("TribePlanService", () => {
         id: "assignment-1",
         ownerTribeId: "campus-one",
         planKey: "standard",
-        environment: "prod",
+        environment: "live",
         status: "active",
         effectiveAt: new Date("2026-05-25T00:00:00.000Z"),
         reason: "Production rollout",
@@ -159,13 +159,13 @@ describe("TribePlanService", () => {
     ]);
 
     const result = await service.listPlanAssignments({
-      environment: "prod",
+      environment: "live",
       status: "active",
     });
 
     expect(assignments.findMany).toHaveBeenCalledWith({
       where: {
-        environment: "prod",
+        environment: "live",
         status: "active",
       },
       orderBy: { createdAt: "desc" },
