@@ -27,14 +27,24 @@ export class PaymentRecordsManagementController {
     if (query.format === 'csv') {
       response.setHeader('content-type', 'text/csv; charset=utf-8');
       response.setHeader('content-disposition', 'attachment; filename="apicenter-payment-records.csv"');
-      response.write(paymentRecordsCsvHeader());
       let cursor = parsed.cursor;
-      do {
-        const page = await this.records.list({ ...parsed, limit: 200, cursor });
-        for (const record of page.records) response.write(paymentRecordCsvRow(record));
-        cursor = page.nextCursor;
-      } while (cursor);
-      response.end();
+      try {
+        let page = await this.records.list({ ...parsed, limit: 200, cursor });
+        response.write(paymentRecordsCsvHeader());
+        while (true) {
+          for (const record of page.records) response.write(paymentRecordCsvRow(record));
+          cursor = page.nextCursor;
+          if (!cursor) break;
+          page = await this.records.list({ ...parsed, limit: 200, cursor });
+        }
+        response.end();
+      } catch (error) {
+        if (response.headersSent) {
+          response.destroy();
+          return;
+        }
+        throw error;
+      }
       return;
     }
     const page = await this.records.list(parsed);
