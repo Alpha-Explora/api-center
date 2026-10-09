@@ -43,12 +43,15 @@ export class PaymentRecordsManagementController {
 }
 
 const PAYMENT_RECORD_COLUMNS = ['createdAt', 'type', 'id', 'projectId', 'environment', 'referenceId', 'relatedResourceId', 'amountMinor', 'currency', 'status'];
-const csvCell = (value: unknown) => {
+const csvCell = (value: unknown, column: string) => {
   let text = value == null ? '' : String(value);
-  // Prevent spreadsheet applications from evaluating untrusted cells as formulas.
-  if (/^[\u0000-\u0020\uFEFF]*[=+\-@]/.test(text)) text = `'${text}`;
+  const isIntegerAmount = column === 'amountMinor' && /^-?\d+$/.test(text);
+  // Neutralize formula-leading text without turning numeric amounts into text.
+  if (!isIntegerAmount && /^[\u0000-\u0020\uFEFF]*[=+\-@]/.test(text)) {
+    text = "'" + text;
+  }
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 const paymentRecordsCsvHeader = () => `${PAYMENT_RECORD_COLUMNS.join(',')}\r\n`;
 const paymentRecordCsvRow = (record: Record<string, unknown>) =>
-  `${PAYMENT_RECORD_COLUMNS.map((column) => csvCell(record[column])).join(',')}\r\n`;
+  `${PAYMENT_RECORD_COLUMNS.map((column) => csvCell(record[column], column)).join(',')}\r\n`;

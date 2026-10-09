@@ -5,17 +5,6 @@ ALTER TABLE shared_payment.resource_owners
   ADD COLUMN IF NOT EXISTS currency text,
   ADD COLUMN IF NOT EXISTS status text;
 
-UPDATE shared_payment.resource_owners
-SET amount_minor = CASE
-      WHEN snapshot->>'amountMinor' ~ '^-?[0-9]+$' THEN (snapshot->>'amountMinor')::bigint
-      WHEN jsonb_typeof(snapshot->'amount') = 'number' THEN (snapshot->>'amount')::bigint
-      WHEN COALESCE(snapshot->'amount'->>'amountMinor', snapshot->'amount'->>'value', snapshot->'amount'->>'amount') ~ '^-?[0-9]+$'
-        THEN COALESCE(snapshot->'amount'->>'amountMinor', snapshot->'amount'->>'value', snapshot->'amount'->>'amount')::bigint
-      ELSE amount_minor
-    END,
-    currency = UPPER(COALESCE(snapshot->>'currency', snapshot->'amount'->>'currency', currency)),
-    status = LOWER(COALESCE(snapshot->>'status', status));
-
 DO $$
 BEGIN
   IF NOT EXISTS (
