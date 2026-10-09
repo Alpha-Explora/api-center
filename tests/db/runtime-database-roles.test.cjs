@@ -38,16 +38,18 @@ test('the retired shared_services_app role no longer exists', { skip }, async ()
 });
 
 test('sms_runtime runs the upsert the SMS store uses on its own schema', { skip }, async () => {
-  const upsert = 'insert into shared_sms.sms_records (message_id, recipient, message, status, sender_id) ' +
-    "values ('sms_role_check', '+639170000000', 'hello', 'queued', 'APICENTER') " +
-    'on conflict (message_id) do update set status = excluded.status';
+  const upsert = 'insert into shared_sms.sms_messages as m ' +
+    '(message_id, tribe_id, project_id, service_id, environment, recipient, message, status, sender_id, created_at) ' +
+    "values ('sms_role_check', 'tribe-a', 'project-a', 'service-a', 'test', '+639170000000', 'hello', 'queued', 'APICENTER', now()) " +
+    'on conflict (message_id) do update set status = excluded.status, updated_at = now() ' +
+    'where m.project_id = excluded.project_id and m.environment = excluded.environment';
   await assert.doesNotReject(asRole('sms_runtime', upsert));
 });
 
 test('payments_runtime can read and write payment tables but cannot delete outbox rows or read SMS records', { skip }, async () => {
   await assert.doesNotReject(asRole('payments_runtime', 'select 1 from shared_payment.payment_event_outbox limit 1'));
   await assert.rejects(asRole('payments_runtime', 'delete from shared_payment.payment_event_outbox'), /permission denied/);
-  await assert.rejects(asRole('payments_runtime', 'select 1 from shared_sms.sms_records'), /permission denied/);
+  await assert.rejects(asRole('payments_runtime', 'select 1 from shared_sms.sms_messages'), /permission denied/);
 });
 
 test('otp_runtime cannot read payment or email tables', { skip }, async () => {
@@ -57,5 +59,5 @@ test('otp_runtime cannot read payment or email tables', { skip }, async () => {
 
 test('gauth_runtime can delete from its own schema, which sms_runtime may not do', { skip }, async () => {
   await assert.doesNotReject(asRole('gauth_runtime', 'delete from shared_gauth.oauth_sessions where false'));
-  await assert.rejects(asRole('sms_runtime', 'delete from shared_sms.sms_records where false'), /permission denied/);
+  await assert.rejects(asRole('sms_runtime', 'delete from shared_sms.sms_messages where false'), /permission denied/);
 });
