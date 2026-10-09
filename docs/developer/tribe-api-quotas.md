@@ -48,8 +48,13 @@ usage is reviewed.
 The deployed quota smoke requires:
 
 - `APICENTER_SMOKE_BASE_URL`
-- `APICENTER_SMOKE_SERVICE_TOKEN`
+- `APICENTER_SMOKE_TRIBE_TOKEN`
+- `APICENTER_SMOKE_APPROVER_TOKEN`
 - `API_CENTER_PLATFORM_ADMIN_SECRET`
+
+Create `APICENTER_SMOKE_APPROVER_TOKEN` from a dedicated operator identity in the identity provider configured for the deployed API Center. Grant that identity the `platform:admin` scope, authenticate it to obtain a JWT, and save the JWT as a repository Actions secret named `APICENTER_SMOKE_APPROVER_TOKEN`. Keep it separate from the identity represented by `APICENTER_SMOKE_TRIBE_TOKEN`: approvals reject a requester's own identity, and `API_CENTER_PLATFORM_ADMIN_SECRET` is a separate credential rather than an approver JWT. Use a token with sufficient lifetime for the manual smoke run and replace it when it expires or is rotated.
+
+The manual workflow passes the approver token to the smoke when all three smoke tokens/settings are present. If the base URL and tribe token exist but the approver token is absent, it emits a warning naming the missing repository secret and skips the deployed quota smoke.
 
 The smoke creates and approves a short-window enforced tribe ceiling for
 `APICENTER_SMOKE_TRIBE_ID`, sends three calls through a shared-service route,
