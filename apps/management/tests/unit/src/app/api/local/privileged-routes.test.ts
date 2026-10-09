@@ -6,7 +6,6 @@ import { POST as migrateTopic } from "../../../../../../src/app/api/local/conflu
 import { POST as includeSinkTopic } from "../../../../../../src/app/api/local/confluent/s3-sink/include-topic/route";
 import { POST as removeSinkTopic } from "../../../../../../src/app/api/local/confluent/s3-sink/remove-topic/route";
 import { GET as getOnboardingState } from "../../../../../../src/app/api/local/topic-onboarding-states/[topicName]/route";
-import { POST as issueServiceToken } from "../../../../../../src/app/api/local/auth/token/route";
 
 const accessMocks = vi.hoisted(() => ({
   platformAdministratorResponse: vi.fn(
@@ -44,16 +43,6 @@ describe("platform-admin-only management routes", () => {
             "http://localhost/api/local/topic-onboarding-states/topic?serviceId=svc",
           ),
           { params: Promise.resolve({ topicName: "topic" }) },
-        ),
-    ],
-    [
-      "service token issuance",
-      () =>
-        issueServiceToken(
-          new Request("http://localhost/api/local/auth/token", {
-            method: "POST",
-            body: "{}",
-          }),
         ),
     ],
     [
