@@ -14,6 +14,10 @@ export type OwnerRecord = PaymentContext & {
   resourceId: string;
   referenceId?: string;
   snapshot: Record<string, unknown>;
+  amountMinor?: string | null;
+  currency?: string | null;
+  status?: string | null;
+  createdAt?: string;
   /** Counts state changes of this resource. Set by the store; callers never write it. */
   aggregateVersion?: number;
 };
@@ -47,19 +51,72 @@ export type VerifiedWebhook = {
 export type AppliedWebhook = { duplicate: boolean; queued: boolean };
 
 const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
-    (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+    (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
+     amount_minor, currency, status)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = EXCLUDED.snapshot,
+     amount_minor = COALESCE(EXCLUDED.amount_minor, shared_payment.resource_owners.amount_minor),
+     currency = COALESCE(EXCLUDED.currency, shared_payment.resource_owners.currency),
+     status = COALESCE(EXCLUDED.status, shared_payment.resource_owners.status),
      aggregate_version = shared_payment.resource_owners.aggregate_version + 1,
      updated_at = now()
    WHERE shared_payment.resource_owners.tribe_id = EXCLUDED.tribe_id
      AND shared_payment.resource_owners.project_id = EXCLUDED.project_id
    RETURNING aggregate_version`;
 
+function ownerFacts(record: OwnerRecord): { amountMinor: string | null; currency: string | null; status: string | null } {
+  const amount = record.amountMinor ?? record.snapshot.amountMinor ?? (typeof record.snapshot.amount === 'number'
+    || typeof record.snapshot.amount === 'string' ? record.snapshot.amount : undefined)
+    ?? (record.snapshot.amount && typeof record.snapshot.amount === 'object'
+      ? (record.snapshot.amount as Record<string, unknown>).amountMinor
+        ?? (record.snapshot.amount as Record<string, unknown>).value
+        ?? (record.snapshot.amount as Record<string, unknown>).amount
+      : undefined);
+  const currency = record.currency ?? record.snapshot.currency
+    ?? (record.snapshot.amount && typeof record.snapshot.amount === 'object'
+      ? (record.snapshot.amount as Record<string, unknown>).currency : undefined);
+  const status = record.status ?? record.snapshot.status;
+  return {
+    amountMinor: amount == null || !/^-?\d+$/.test(String(amount))
+      || (typeof amount === 'number' && !Number.isSafeInteger(amount)) ? null : String(amount),
+    currency: typeof currency === 'string' ? currency.toUpperCase() : null,
+    status: typeof status === 'string' ? status.toLowerCase() : null,
+  };
+}
+
 function ownerParams(record: OwnerRecord): unknown[] {
+  const facts = ownerFacts(record);
   return [record.resourceType, record.resourceId, record.environment, record.tribeId,
-    record.projectId, record.consumerServiceId, record.referenceId || null, JSON.stringify(record.snapshot)];
+    record.projectId, record.consumerServiceId, record.referenceId || null, JSON.stringify(record.snapshot),
+    facts.amountMinor, facts.currency, facts.status];
+}
+
+export type PaymentRecordFilters = {
+  type?: string;
+  status?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type PaymentRecordPage = { records: Array<Record<string, unknown>>; nextCursor?: string };
+
+function encodeCursor(createdAt: string, type: string, id: string): string {
+  return Buffer.from(JSON.stringify({ createdAt, type, id })).toString('base64url');
+}
+
+function decodeCursor(cursor?: string): { createdAt: string; type: string; id: string } | undefined {
+  if (!cursor) return undefined;
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))
+      || typeof value.type !== 'string' || typeof value.id !== 'string') throw new Error();
+    return value;
+  } catch {
+    throw new PayMongoError('Invalid payment records cursor', 400, 'INVALID_CURSOR');
+  }
 }
 
 /** Persists payment resource ownership and rejects cross-tenant lookups. */
@@ -191,7 +248,12 @@ export class PaymentOwnerStore {
     const key = this.key(record.environment, record.resourceType, record.resourceId);
     const existing = this.memory.get(key);
     const aggregateVersion = (existing?.aggregateVersion ?? 0) + 1;
-    this.memory.set(key, { ...record, referenceId: record.referenceId || existing?.referenceId, aggregateVersion });
+    const facts = ownerFacts(record);
+    this.memory.set(key, { ...record, referenceId: record.referenceId || existing?.referenceId,
+      amountMinor: facts.amountMinor ?? existing?.amountMinor ?? null,
+      currency: facts.currency ?? existing?.currency ?? null,
+      status: facts.status ?? existing?.status ?? null,
+      createdAt: existing?.createdAt ?? record.createdAt ?? new Date().toISOString(), aggregateVersion });
     return aggregateVersion;
   }
 
@@ -244,6 +306,63 @@ export class PaymentOwnerStore {
     return record;
   }
 
+  async listRecords(context: PaymentContext, filters: PaymentRecordFilters = {}): Promise<PaymentRecordPage> {
+    const limit = filters.limit ?? 50;
+    const cursor = decodeCursor(filters.cursor);
+    const conditions = ['project_id = $1', 'environment = $2', 'tribe_id = $3'];
+    const values: unknown[] = [context.projectId, context.environment, context.tribeId];
+    const add = (condition: string, value: unknown) => { values.push(value); conditions.push(condition.replace('?', `$${values.length}`)); };
+    if (filters.type) add('resource_type = ?', filters.type);
+    if (filters.status) add('status = ?', filters.status.toLowerCase());
+    if (filters.createdAfter) add('created_at >= ?::timestamptz', filters.createdAfter);
+    if (filters.createdBefore) add('created_at < ?::timestamptz', filters.createdBefore);
+    if (cursor) {
+      values.push(cursor.createdAt, cursor.type, cursor.id);
+      const n = values.length - 2;
+      conditions.push(`(created_at, resource_type, resource_id) < ($${n}::timestamptz, $${n + 1}, $${n + 2})`);
+    }
+    values.push(limit + 1);
+    const sql = `SELECT resource_type, resource_id, project_id, environment, reference_id, amount_minor,
+        currency, status, created_at, snapshot,
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
+      FROM shared_payment.resource_owners WHERE ${conditions.join(' AND ')}
+      ORDER BY created_at DESC, resource_type DESC, resource_id DESC LIMIT $${values.length}`;
+    let rows: any[];
+    if (this.pool) {
+      rows = (await this.pool.query(sql, values)).rows;
+    } else {
+      const lower = filters.createdAfter ? Date.parse(filters.createdAfter) : Number.NEGATIVE_INFINITY;
+      const upper = filters.createdBefore ? Date.parse(filters.createdBefore) : Number.POSITIVE_INFINITY;
+      rows = [...this.memory.values()].filter((row) => row.projectId === context.projectId && row.tribeId === context.tribeId
+        && row.environment === context.environment && (!filters.type || row.resourceType === filters.type)
+        && (!filters.status || row.status?.toLowerCase() === filters.status.toLowerCase())
+        && (!cursor || `${row.createdAt || ''}|${row.resourceType}|${row.resourceId}` < `${cursor.createdAt}|${cursor.type}|${cursor.id}`)
+        && Date.parse(row.createdAt || '') >= lower && Date.parse(row.createdAt || '') < upper)
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || b.resourceType.localeCompare(a.resourceType)
+          || b.resourceId.localeCompare(a.resourceId)).slice(0, limit + 1);
+    }
+    const hasMore = rows.length > limit;
+    const pageRows = rows.slice(0, limit);
+    const records = pageRows.map((row) => ({
+      type: row.resource_type ?? row.resourceType,
+      id: row.resource_id ?? row.resourceId,
+      projectId: row.project_id ?? row.projectId,
+      environment: row.environment,
+      referenceId: row.reference_id ?? row.referenceId ?? null,
+      amountMinor: row.amount_minor == null ? (row.amountMinor ?? null) : String(row.amount_minor),
+      currency: row.currency ?? null,
+      status: row.status ?? null,
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at ?? row.createdAt,
+      relatedResourceId: row.snapshot?.paymentId ?? row.snapshot?.sourceId ?? null,
+    }));
+    const last = pageRows[pageRows.length - 1];
+    const createdAt = last?.created_at instanceof Date ? last.created_at.toISOString() : last?.created_at ?? last?.createdAt;
+    const cursorCreatedAt = last?.cursor_created_at ?? createdAt;
+    return { records, ...(hasMore && last && cursorCreatedAt
+      ? { nextCursor: encodeCursor(cursorCreatedAt, last.resource_type ?? last.resourceType, last.resource_id ?? last.resourceId) }
+      : {}) };
+  }
+
   private async find(type: string, id: string, environment: string): Promise<OwnerRecord | undefined> {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(
@@ -260,7 +379,8 @@ export class PaymentOwnerStore {
       environment: row.environment, tribeId: row.tribe_id,
       projectId: row.project_id,
       consumerServiceId: row.consumer_service_id, referenceId: row.reference_id,
-      snapshot: row.snapshot, aggregateVersion: Number(row.aggregate_version ?? 1) };
+      snapshot: row.snapshot, amountMinor: row.amount_minor == null ? null : String(row.amount_minor),
+      currency: row.currency, status: row.status, aggregateVersion: Number(row.aggregate_version ?? 1) };
   }
 
   private key(environment: string, type: string, id: string): string {

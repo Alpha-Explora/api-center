@@ -153,7 +153,13 @@ const requiredCheckConstraints = [
 
 // Payment ownership is scoped by project. These tables need a required project_id, and the reference lookup index must exist.
 const requiredPaymentProjectTables = ["resource_owners", "payment_event_outbox"];
-const requiredPaymentIndexes = ["payment_resource_owners_project_reference_idx"];
+const requiredPaymentIndexes = [
+  "payment_resource_owners_project_reference_idx",
+  "payment_resource_owners_project_environment_type_created_idx",
+  "payment_resource_owners_project_environment_created_idx",
+  "payment_resource_owners_project_environment_status_created_idx",
+];
+const requiredPaymentListingColumns = ["amount_minor", "currency", "status"];
 
 const forbiddenLegacyObjectNames = [
   "service_registration_requests_status_created_idx",
@@ -395,6 +401,18 @@ async function main(): Promise<void> {
       "shared_payment tables without a required project_id column",
       requiredPaymentProjectTables.filter((name) => !nonNullProjectTables.has(name)),
     );
+
+    const paymentListingColumns = await queryRows(
+      client,
+      "select column_name as name, data_type from information_schema.columns where table_schema = 'shared_payment' and table_name = 'resource_owners'",
+    );
+    const paymentListingColumnNames = new Set(paymentListingColumns.map((row) => String(row.name)));
+    addFailure(failures, "Missing shared_payment payment listing columns",
+      requiredPaymentListingColumns.filter((name) => !paymentListingColumnNames.has(name)));
+    const amountMinorColumn = paymentListingColumns.find((row) => String(row.name) === "amount_minor");
+    if (amountMinorColumn && String(amountMinorColumn.data_type) !== "bigint") {
+      failures.push("shared_payment.resource_owners.amount_minor must use bigint");
+    }
 
     const paymentIndexRows = await queryRows(
       client,

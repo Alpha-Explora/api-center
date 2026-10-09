@@ -16,11 +16,12 @@ const schemas = {
 };
 
 type Shape = keyof typeof schemas;
-type Resource = 'checkout' | 'intent' | 'customer' | 'refund' | 'subscription' | 'invoice' | 'capabilities';
+type Resource = 'checkout' | 'intent' | 'customer' | 'refund' | 'subscription' | 'invoice' | 'capabilities' | 'records';
 type Operation = { method: string; pattern: RegExp; scope: string; target: (match: RegExpMatchArray) => string;
   resource: Resource; shape?: Shape };
 
 const operations: Operation[] = [
+  { method: 'GET', pattern: /^\/records$/, scope: 'payments:read', target: () => '/payments/records', resource: 'records' },
   { method: 'POST', pattern: /^\/checkouts$/, scope: 'payments:checkout:write', target: () => '/checkout/sessions', resource: 'checkout', shape: 'checkout' },
   { method: 'GET', pattern: /^\/checkouts\/by-reference\/([^/]+)$/, scope: 'payments:checkout:read', target: (m) => `/checkout/sessions/by-reference/${m[1]}`, resource: 'checkout' },
   { method: 'GET', pattern: /^\/checkouts\/([^/]+)$/, scope: 'payments:checkout:read', target: (m) => `/checkout/sessions/${m[1]}`, resource: 'checkout' },

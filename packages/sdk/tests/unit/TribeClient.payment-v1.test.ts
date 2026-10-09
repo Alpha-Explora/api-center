@@ -90,4 +90,24 @@ describe('TribeClient payment v1', () => {
       cancelUrl: 'https://alpha.example.test/cancel',
     }, { headers: { 'Idempotency-Key': 'idem_pending_1' } })).resolves.toEqual({ status: 'pending', resourceId: 'chk_v1_pending' });
   });
+
+  it('lists project payment records with encoded filters and cursor', async () => {
+    const listFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: { records: [], nextCursor: 'cursor-next' } }),
+    })) as unknown as typeof fetch;
+    const client = new TribeClient({ baseUrl: 'https://api-center.example.test', apiKey: 'ac_test_key',
+      serviceToken: 'jwt_service_token', fetchImpl: listFetch });
+
+    await expect(client.payments.listPaymentRecords({ type: 'payment', status: 'paid', limit: 200,
+      createdAfter: '2026-10-01T00:00:00.000Z', cursor: 'cursor / +' }))
+      .resolves.toMatchObject({ records: [], nextCursor: 'cursor-next' });
+    const [url, options] = listFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/api/v1/payments/records?');
+    expect(url).toContain('type=payment');
+    expect(url).toContain('status=paid');
+    expect(url).toContain('cursor=cursor+%2F+%2B');
+    expect(options.method).toBe('GET');
+  });
 });
