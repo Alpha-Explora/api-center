@@ -77,3 +77,22 @@ create table shared_email.email_messages (
 create index email_messages_project_created_idx
   on shared_email.email_messages (project_id, environment, created_at);
 
+-- If the per-runtime roles already exist, grant each runtime only its own table. If they are
+-- created later, the role migration grants access to all current tables in each schema.
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'sms_runtime') then
+    grant usage on schema shared_sms to sms_runtime;
+    grant select, insert, update on shared_sms.sms_messages to sms_runtime;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'otp_runtime') then
+    grant usage on schema shared_otp to otp_runtime;
+    grant select, insert, update on shared_otp.otp_challenges to otp_runtime;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'email_runtime') then
+    grant usage on schema shared_email to email_runtime;
+    grant select, insert, update on shared_email.email_messages to email_runtime;
+  end if;
+end
+$$;
+
