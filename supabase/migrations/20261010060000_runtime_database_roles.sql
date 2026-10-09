@@ -36,9 +36,9 @@ $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'shared_services_app') THEN
-    REVOKE ALL ON ALL TABLES IN SCHEMA shared_payment, shared_sms, shared_otp FROM shared_services_app;
-    REVOKE ALL ON ALL SEQUENCES IN SCHEMA shared_payment, shared_sms, shared_otp FROM shared_services_app;
-    REVOKE ALL ON SCHEMA shared_payment, shared_sms, shared_otp FROM shared_services_app;
+    REVOKE ALL ON ALL TABLES IN SCHEMA shared_payment, shared_sms, shared_otp, shared_email, shared_gauth FROM shared_services_app;
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA shared_payment, shared_sms, shared_otp, shared_email, shared_gauth FROM shared_services_app;
+    REVOKE ALL ON SCHEMA shared_payment, shared_sms, shared_otp, shared_email, shared_gauth FROM shared_services_app;
     DROP ROLE shared_services_app;
   END IF;
 END
