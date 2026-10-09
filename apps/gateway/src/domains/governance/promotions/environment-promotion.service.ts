@@ -1,5 +1,5 @@
 import { Injectable, Optional } from "@nestjs/common";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 
 export type EnvironmentPromotionGateId =
   | "health_check"

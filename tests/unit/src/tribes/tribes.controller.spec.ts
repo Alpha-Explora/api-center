@@ -3,7 +3,7 @@ import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-re
 import { AuthService } from "../../../../apps/gateway/src/domains/auth-security/auth/auth.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service";
 
 describe("TribesController", () => {

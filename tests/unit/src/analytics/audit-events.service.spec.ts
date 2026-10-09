@@ -1,4 +1,4 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 
 describe("AuditEventsService", () => {
   let service: AuditEventsService;

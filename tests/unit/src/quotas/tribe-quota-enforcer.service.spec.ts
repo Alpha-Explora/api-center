@@ -1,6 +1,6 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
-import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
+import { QuotaEvaluationLedger } from "../../../../apps/gateway/src/domains/runtime-ops/quota-ledger/quota-evaluation-ledger.types";
 import { TribeCostService } from "../../../../apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service";
 import { TribeQuotaEnforcerService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service";
 import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service";
@@ -9,11 +9,7 @@ describe("TribeQuotaEnforcerService", () => {
   let policies: {
     resolvePolicies: jest.Mock;
   };
-  let prisma: {
-    quotaEvaluation: {
-      create: jest.Mock;
-    };
-  };
+  let ledger: { record: jest.Mock };
   let auditEvents: { record: jest.Mock };
   let service: TribeQuotaEnforcerService;
 
@@ -21,15 +17,11 @@ describe("TribeQuotaEnforcerService", () => {
     policies = {
       resolvePolicies: jest.fn(),
     };
-    prisma = {
-      quotaEvaluation: {
-        create: jest.fn().mockResolvedValue({}),
-      },
-    };
+    ledger = { record: jest.fn().mockResolvedValue(undefined) };
     auditEvents = { record: jest.fn().mockResolvedValue(undefined) };
     service = new TribeQuotaEnforcerService(
       policies as unknown as TribeQuotaPolicyService,
-      prisma as unknown as PrismaService,
+      ledger as unknown as QuotaEvaluationLedger,
       {
         redis: { rateLimitUrl: "" },
       } as ConfigService,
@@ -44,17 +36,15 @@ describe("TribeQuotaEnforcerService", () => {
     await expect(service.check(request())).resolves.toBeUndefined();
     await expect(service.check(request())).resolves.toBeUndefined();
 
-    expect(prisma.quotaEvaluation.create).toHaveBeenCalledTimes(2);
-    expect(prisma.quotaEvaluation.create).toHaveBeenLastCalledWith({
-      data: expect.objectContaining({
-        ownerTribeId: "campus-one",
-        requestCount: 2,
-        maxRequests: 2,
-        mode: "enforce",
-        outcome: "allowed",
-        environment: "test",
-      }),
-    });
+    expect(ledger.record).toHaveBeenCalledTimes(2);
+    expect(ledger.record).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerTribeId: "campus-one",
+      requestCount: 2,
+      maxRequests: 2,
+      mode: "enforce",
+      outcome: "allowed",
+      environment: "test",
+    }));
     expect(auditEvents.record).toHaveBeenLastCalledWith(
       expect.objectContaining({
         type: "quota.evaluation.allowed",
@@ -92,14 +82,12 @@ describe("TribeQuotaEnforcerService", () => {
     await service.check(request());
     await expect(service.check(request())).resolves.toBeUndefined();
 
-    expect(prisma.quotaEvaluation.create).toHaveBeenLastCalledWith({
-      data: expect.objectContaining({
-        requestCount: 2,
-        maxRequests: 1,
-        mode: "observe",
-        outcome: "observed_exceeded",
-      }),
-    });
+    expect(ledger.record).toHaveBeenLastCalledWith(expect.objectContaining({
+      requestCount: 2,
+      maxRequests: 1,
+      mode: "observe",
+      outcome: "observed_exceeded",
+    }));
   });
 
   it("throws QuotaExceededError when an enforce policy is exceeded", async () => {
@@ -162,7 +150,7 @@ describe("TribeQuotaEnforcerService", () => {
 
     await expect(service.check(request())).resolves.toBeUndefined();
 
-    expect(prisma.quotaEvaluation.create).not.toHaveBeenCalled();
+    expect(ledger.record).not.toHaveBeenCalled();
   });
 
   it("counts a call against both the project budget and the tribe ceiling", async () => {
@@ -173,9 +161,9 @@ describe("TribeQuotaEnforcerService", () => {
 
     await service.check({ ...request(), projectId: "campus-lms" });
 
-    expect(prisma.quotaEvaluation.create).toHaveBeenCalledTimes(2);
-    const policyIds = prisma.quotaEvaluation.create.mock.calls.map(
-      ([args]: [{ data: { policyId: string; projectId: string } }]) => [args.data.policyId, args.data.projectId],
+    expect(ledger.record).toHaveBeenCalledTimes(2);
+    const policyIds = ledger.record.mock.calls.map(
+      ([entry]: [{ policyId: string; projectId: string }]) => [entry.policyId, entry.projectId],
     );
     expect(policyIds).toEqual([
       ["lms-budget", "campus-lms"],
@@ -194,9 +182,7 @@ describe("TribeQuotaEnforcerService", () => {
       status: 429,
       detail: expect.objectContaining({ level: "project", projectId: "campus-lms" }),
     });
-    expect(prisma.quotaEvaluation.create).toHaveBeenLastCalledWith({
-      data: expect.objectContaining({ policyId: "lms-budget", outcome: "blocked", requestCount: 2 }),
-    });
+    expect(ledger.record).toHaveBeenLastCalledWith(expect.objectContaining({ policyId: "lms-budget", outcome: "blocked", requestCount: 2 }));
   });
 
   it("does not count a project-blocked call against the shared tribe ceiling", async () => {
@@ -212,8 +198,8 @@ describe("TribeQuotaEnforcerService", () => {
       });
     }
 
-    const ceilingCounts = prisma.quotaEvaluation.create.mock.calls
-      .map(([args]: [{ data: { policyId: string; requestCount: number } }]) => args.data)
+    const ceilingCounts = ledger.record.mock.calls
+      .map(([entry]: [{ policyId: string; requestCount: number }]) => entry)
       .filter((data: { policyId: string }) => data.policyId === "tribe-ceiling");
     expect(ceilingCounts).toHaveLength(1);
     expect(ceilingCounts[0].requestCount).toBe(1);

@@ -5,7 +5,7 @@ jest.mock("@governance", () => ({
 }));
 jest.mock("@auth/guards/scoped-admin.guard", () => ({ ScopedAdminGuard: class {} }));
 
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { PromotionEvidenceBundleController } from "../../../../apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.controller";
 import { PromotionEvidenceBundleService } from "../../../../apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.service";

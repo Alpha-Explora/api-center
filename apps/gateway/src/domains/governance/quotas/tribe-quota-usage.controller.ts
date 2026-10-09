@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Inject,
   Optional,
   Query,
   Req,
@@ -8,49 +9,27 @@ import {
 } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { TribeCostService } from "@costs/tribe-cost.service";
-import { PrismaService } from "@database/prisma.service";
 import { QuotaForecastService } from "@forecasting/quota-forecast.service";
+import {
+  QUOTA_EVALUATION_LEDGER,
+  QuotaEvaluationLedger,
+  QuotaEvaluationRecord,
+} from "@quota-ledger/quota-evaluation-ledger.types";
 import { ValidationError } from "@shared/errors";
 import { AuthenticatedRequest } from "../../../types";
 
 type UsageWindow = "1h" | "24h" | "7d" | "30d";
 const USAGE_WINDOWS: UsageWindow[] = ["1h", "24h", "7d", "30d"];
 
-interface QuotaDecisionRow {
-  id: string;
-  ownerTribeId: string;
-  policyId?: string | null;
-  scope: string;
-  targetServiceId?: string | null;
-  routeFamily: string;
-  windowStart: Date | string;
-  windowEnd: Date | string;
-  requestCount: number;
-  maxRequests: number;
-  mode: string;
-  outcome: string;
-  correlationId?: string | null;
-  createdAt: Date | string;
-}
-
-interface QuotaDecisionDelegate {
-  findMany(args: Record<string, unknown>): Promise<QuotaDecisionRow[]>;
-}
-
 @Controller("quotas/usage")
 @UseGuards(ScopedAdminGuard)
 export class TribeQuotaUsageController {
-  private readonly decisions: QuotaDecisionDelegate;
-
   constructor(
-    prisma: PrismaService,
+    @Inject(QUOTA_EVALUATION_LEDGER)
+    private readonly ledger: QuotaEvaluationLedger,
     @Optional() private readonly costs?: TribeCostService,
     @Optional() private readonly forecasts?: QuotaForecastService,
-  ) {
-    this.decisions = (
-      prisma as unknown as { quotaEvaluation: QuotaDecisionDelegate }
-    ).quotaEvaluation;
-  }
+  ) {}
 
   @Get()
   async getUsage(
@@ -59,13 +38,10 @@ export class TribeQuotaUsageController {
     @Req() req: AuthenticatedRequest,
   ) {
     const selectedWindow = this.parseWindow(window);
-    const rows = await this.decisions.findMany({
-      where: {
-        ...(ownerTribeId ? { ownerTribeId } : {}),
-        createdAt: { gte: this.windowStart(selectedWindow) },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
+    const rows = await this.ledger.listSince({
+      ownerTribeId,
+      since: this.windowStart(selectedWindow),
+      limit: 200,
     });
 
     return {
@@ -117,7 +93,7 @@ export class TribeQuotaUsageController {
     return value instanceof Date ? value.toISOString() : value;
   }
 
-  private estimatedChargeback(row: QuotaDecisionRow) {
+  private estimatedChargeback(row: QuotaEvaluationRecord) {
     if (!this.costs || row.maxRequests <= 0) return undefined;
     if (row.requestCount / row.maxRequests < 0.8) return undefined;
 
@@ -128,7 +104,7 @@ export class TribeQuotaUsageController {
     });
   }
 
-  private forecast(row: QuotaDecisionRow) {
+  private forecast(row: QuotaEvaluationRecord) {
     if (!this.forecasts) return undefined;
 
     return this.forecasts.forecast({

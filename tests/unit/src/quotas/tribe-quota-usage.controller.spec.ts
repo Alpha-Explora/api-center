@@ -1,24 +1,20 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
 import { TribeCostService } from "../../../../apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service";
-import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
+import { QuotaEvaluationLedger } from "../../../../apps/gateway/src/domains/runtime-ops/quota-ledger/quota-evaluation-ledger.types";
 import { QuotaForecastService } from "../../../../apps/gateway/src/domains/runtime-ops/forecasting/quota-forecast.service";
 import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 import { TribeQuotaUsageController } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-usage.controller";
 
 describe("TribeQuotaUsageController", () => {
-  const prisma = {
-    quotaEvaluation: {
-      findMany: jest.fn(),
-    },
-  };
+  const ledger = { listSince: jest.fn() };
 
   let controller: TribeQuotaUsageController;
 
   beforeEach(() => {
     jest.clearAllMocks();
     controller = new TribeQuotaUsageController(
-      prisma as unknown as PrismaService,
+      ledger as unknown as QuotaEvaluationLedger,
       new TribeCostService(),
       new QuotaForecastService(),
     );
@@ -42,7 +38,7 @@ describe("TribeQuotaUsageController", () => {
   });
 
   it("returns safe quota decision history for a tribe", async () => {
-    prisma.quotaEvaluation.findMany.mockResolvedValue([
+    ledger.listSince.mockResolvedValue([
       {
         id: "decision-1",
         ownerTribeId: "campus-one",
@@ -93,12 +89,10 @@ describe("TribeQuotaUsageController", () => {
       correlationId: "corr-decision",
       createdAt: "2026-05-25T00:00:30.000Z",
     });
-    expect(prisma.quotaEvaluation.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ ownerTribeId: "campus-one" }),
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      }),
-    );
+    expect(ledger.listSince).toHaveBeenCalledWith({
+      ownerTribeId: "campus-one",
+      since: expect.any(Date),
+      limit: 200,
+    });
   });
 });

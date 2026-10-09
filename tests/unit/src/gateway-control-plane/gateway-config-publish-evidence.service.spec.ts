@@ -1,4 +1,4 @@
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { GatewayConfigPublishEvidenceService } from "../../../../apps/gateway/src/domains/gateway-proxy/gateway-control-plane/gateway-config-publish-evidence.service";
 
 describe("GatewayConfigPublishEvidenceService", () => {

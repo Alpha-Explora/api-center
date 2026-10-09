@@ -1,9 +1,12 @@
-import { Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
+import { Inject, Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
 import Redis from "ioredis";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { ConfigService } from "@config/config.service";
 import { TribeCostService } from "@costs/tribe-cost.service";
-import { PrismaService } from "@database/prisma.service";
+import {
+  QUOTA_EVALUATION_LEDGER,
+  QuotaEvaluationLedger,
+} from "@quota-ledger/quota-evaluation-ledger.types";
 import { QuotaExceededError } from "@shared/errors";
 import { TribeQuotaPolicyService } from "./tribe-quota-policy.service";
 import {
@@ -23,34 +26,8 @@ interface CheckTribeQuotaInput {
   environment?: string;
 }
 
-interface QuotaDecisionDelegate {
-  create(args: {
-    data: {
-      ownerTribeId: string;
-      projectId?: string | null;
-      policyId?: string;
-      scope: TribeQuotaScope;
-      targetServiceId?: string | null;
-      routeFamily: string;
-      windowStart: Date;
-      windowEnd: Date;
-      requestCount: number;
-      maxRequests: number;
-      mode: string;
-      outcome: TribeQuotaDecisionOutcome;
-      correlationId?: string;
-      environment?: string;
-    };
-  }): Promise<unknown>;
-}
-
-interface QuotaDecisionPrisma {
-  quotaEvaluation: QuotaDecisionDelegate;
-}
-
 @Injectable()
 export class TribeQuotaEnforcerService implements OnModuleDestroy {
-  private readonly quotaPrisma: QuotaDecisionPrisma;
   private readonly memoryCounters = new Map<
     string,
     { count: number; expiresAt: number }
@@ -60,13 +37,12 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
 
   constructor(
     private readonly policies: TribeQuotaPolicyService,
-    prisma: PrismaService,
+    @Inject(QUOTA_EVALUATION_LEDGER)
+    private readonly ledger: QuotaEvaluationLedger,
     private readonly config: ConfigService,
     @Optional() private readonly costs?: TribeCostService,
     @Optional() private readonly auditEvents?: AuditEventsService,
-  ) {
-    this.quotaPrisma = prisma as unknown as QuotaDecisionPrisma;
-  }
+  ) {}
 
   async onModuleDestroy() {
     if (this.redis) {
@@ -221,23 +197,21 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     requestCount: number,
     outcome: TribeQuotaDecisionOutcome,
   ): Promise<void> {
-    await this.quotaPrisma.quotaEvaluation.create({
-      data: {
-        ownerTribeId: input.ownerTribeId,
-        projectId: input.projectId ?? null,
-        policyId: policy.id,
-        scope: policy.scope,
-        targetServiceId: policy.targetServiceId ?? null,
-        routeFamily: input.routeFamily,
-        windowStart,
-        windowEnd,
-        requestCount,
-        maxRequests: policy.maxRequests,
-        mode: policy.mode,
-        outcome,
-        correlationId: input.correlationId,
-        environment: input.environment ?? "unknown",
-      },
+    await this.ledger.record({
+      ownerTribeId: input.ownerTribeId,
+      projectId: input.projectId ?? null,
+      policyId: policy.id,
+      scope: policy.scope,
+      targetServiceId: policy.targetServiceId ?? null,
+      routeFamily: input.routeFamily,
+      windowStart,
+      windowEnd,
+      requestCount,
+      maxRequests: policy.maxRequests,
+      mode: policy.mode,
+      outcome,
+      correlationId: input.correlationId,
+      environment: input.environment ?? "unknown",
     });
     this.recordAudit(
       policy,

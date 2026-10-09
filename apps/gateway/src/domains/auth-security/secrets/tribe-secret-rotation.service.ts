@@ -1,6 +1,6 @@
 import { Injectable, Optional } from "@nestjs/common";
 import crypto from "node:crypto";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";
 
 export type TribeSecretRotationState =

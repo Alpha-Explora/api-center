@@ -1,8 +1,10 @@
 import { Controller, Get, Optional, Param, Query, UseGuards } from "@nestjs/common";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { ManagementSourceMetadata } from "@shared/source-metadata";
-import { ApprovalRequestService, TribePlanService, TribeQuotaPolicyService } from "@governance";
+import { ApprovalRequestService } from "@approvals/approval-request.service";
+import { TribePlanService } from "@entitlements/tribe-plan.service";
+import { TribeQuotaPolicyService } from "@quotas/tribe-quota-policy.service";
 import { RegistryService } from "@registry/registry.service";
 import { PromotionEvidenceBundleService } from "./promotion-evidence-bundle.service";
 

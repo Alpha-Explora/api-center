@@ -152,12 +152,19 @@ const RAW_SCHEMA_ACCESS_PATTERN = /\b(select\s+.*from|from|join|update|insert\s+
 const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/domains/auth-security/auth/auth.service.ts',
   'apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard.ts',
+  'apps/gateway/src/domains/auth-security/auth/guards/platform-admin.guard.ts',
   'apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard.ts',
   'apps/gateway/src/domains/auth-security/auth/token-store.service.ts',
   'apps/gateway/src/domains/auth-security/auth/vault.service.ts',
+  // Stateless pricing calculator that governance uses for chargeback estimates.
+  'apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service.ts',
+  // The route-to-scope lookup the registry uses to describe a service's external routes.
+  'apps/gateway/src/domains/gateway-proxy/external/guards/external-policy.guard.ts',
+  // Health reports on external services, so it asks the proxy for their status.
+  'apps/gateway/src/domains/gateway-proxy/external/external.service.ts',
   'apps/gateway/src/domains/catalog-registry/registry/registry.service.ts',
   'apps/gateway/src/domains/governance/approvals/approval-request.service.ts',
-  'apps/gateway/src/domains/runtime-ops/analytics/audit-events.service.ts',
+  'apps/gateway/src/domains/compliance/audit/audit-events.service.ts',
   'apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service.ts',
   'apps/gateway/src/domains/runtime-ops/analytics/shared-service-usage.service.ts',
   'apps/gateway/src/domains/governance/entitlements/tribe-plan.service.ts',

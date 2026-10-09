@@ -1,6 +1,6 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
 import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { ValidationError } from "../../../../apps/gateway/src/shared/errors";
 import { TribeQuotaAdminController } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-admin.controller";
 import { TribeQuotaPolicyService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service";

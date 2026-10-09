@@ -1,11 +1,1 @@
-[
-  "apps/gateway/src/domains/catalog-registry/registry/registry.controller.ts -> apps/gateway/src/domains/gateway-proxy/external/guards/external-policy.guard.ts",
-  "apps/gateway/src/domains/governance/quotas/quotas.module.ts -> apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service.ts",
-  "apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service.ts -> apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service.ts",
-  "apps/gateway/src/domains/governance/quotas/tribe-quota-usage.controller.ts -> apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service.ts",
-  "apps/gateway/src/domains/runtime-ops/capabilities/capabilities.controller.ts -> apps/gateway/src/domains/auth-security/auth/guards/platform-admin.guard.ts",
-  "apps/gateway/src/domains/runtime-ops/health/health.controller.ts -> apps/gateway/src/domains/gateway-proxy/external/external.service.ts",
-  "apps/gateway/src/domains/runtime-ops/operations/operations.module.ts -> apps/gateway/src/domains/governance/index.ts",
-  "apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.controller.ts -> apps/gateway/src/domains/governance/index.ts",
-  "apps/gateway/src/domains/runtime-ops/operations/service-lifecycle-evidence.controller.ts -> apps/gateway/src/domains/governance/index.ts"
-]
+[]

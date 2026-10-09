@@ -9,7 +9,7 @@ import {
 } from "@nestjs/common";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Request, Response } from "express";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { ConfigService } from "@config/config.service";
 import { RegistryService } from "@registry/registry.service";
 import {
