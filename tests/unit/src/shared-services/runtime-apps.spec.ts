@@ -90,6 +90,15 @@ describe('migrated shared-service runtimes', () => {
     expect(email.body.error.code).toBe('UNSUPPORTED_TEMPLATE_ID');
     expect(email.body.error.message).toContain('send email content in html or text');
 
+    const emailTemplateVariables = await request('email', '/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: 'user@example.test', subject: 'Hello', text: 'World', templateVariables: { name: 'Sam' } }),
+    });
+    expect(emailTemplateVariables.status).toBe(400);
+    expect(emailTemplateVariables.body.error.code).toBe('UNSUPPORTED_TEMPLATE_FIELD');
+    expect(emailTemplateVariables.body.error.message).toContain('send email content directly');
+
     const sms = await request('sms', '/send', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -98,6 +107,19 @@ describe('migrated shared-service runtimes', () => {
     expect(sms.status).toBe(400);
     expect(sms.body.error.code).toBe('UNSUPPORTED_TEMPLATE_ID');
     expect(sms.body.error.message).toContain('send SMS content in message');
+  });
+
+  it('rejects email requests without meaningful HTML or text content', async () => {
+    for (const content of [{}, { html: '' }, { text: '   ' }, { html: '\n\t', text: '  ' }]) {
+      const result = await request('email', '/send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: 'user@example.test', subject: 'Hello', ...content }),
+      });
+      expect(result.status).toBe(400);
+      expect(result.body.error.code).toBe('EMAIL_CONTENT_REQUIRED');
+      expect(result.body.error.message).toContain('non-empty email content');
+    }
   });
 
   it('generates and verifies a single-use OTP', async () => {

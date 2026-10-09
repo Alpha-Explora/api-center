@@ -5,7 +5,7 @@ description: "Send HTML/text transactional email notifications via @apicenter/co
 
 # Email Shared Service API
 
-Send transactional emails with HTML or plain-text content and message status tracking. Teams provide the content in each request; APICenter does not store email templates.
+Send transactional emails with HTML or plain-text content and message status tracking. Each request must include non-empty `html` or `text` content. Teams provide the content in each request; APICenter does not store email templates.
 
 ---
 
@@ -73,4 +73,4 @@ Retries with the same key and request body replay the original status and respon
 ```
 
 ---
-Requests containing the obsolete `templateId` field return `400`. Send the rendered content in `html` or `text` instead.
+Requests without non-empty `html` or `text` content return `400 EMAIL_CONTENT_REQUIRED`. Requests containing the obsolete `templateId` or `templateVariables` fields also return `400`; send the rendered email content directly in `html` or `text` instead.

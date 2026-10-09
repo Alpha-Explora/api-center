@@ -54,6 +54,9 @@ app.post('/send', async (req: Request, res: Response) => {
   if (Object.prototype.hasOwnProperty.call(body, 'templateId')) {
     return fail(res, 400, 'UNSUPPORTED_TEMPLATE_ID', 'templateId is no longer supported; send email content in html or text instead');
   }
+  if (Object.prototype.hasOwnProperty.call(body, 'templateVariables')) {
+    return fail(res, 400, 'UNSUPPORTED_TEMPLATE_FIELD', 'templateVariables is no longer supported; send email content directly in html or text instead');
+  }
   const { to, subject } = body;
 
   if (!to || !subject) {
@@ -63,6 +66,12 @@ app.post('/send', async (req: Request, res: Response) => {
       'INVALID_REQUEST',
       'Recipient (to) and subject are required',
     );
+  }
+
+  const hasHtml = typeof body.html === 'string' && body.html.trim().length > 0;
+  const hasText = typeof body.text === 'string' && body.text.trim().length > 0;
+  if (!hasHtml && !hasText) {
+    return fail(res, 400, 'EMAIL_CONTENT_REQUIRED', 'Provide non-empty email content in html or text');
   }
 
   let recipients: string[];
