@@ -1,5 +1,5 @@
 import type { SharedServiceCaller } from '@apicenter/runtime';
-import { sameSharedServiceCaller } from '@apicenter/runtime';
+import { sameProject } from '@apicenter/runtime';
 import { PostgresSmsStore } from './postgres-sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
 
@@ -30,16 +30,16 @@ export class MemorySmsStore implements SmsRepositoryInterface {
 
   async save(record: SmsRecord, owner: SharedServiceCaller): Promise<SmsRecord> {
     const existing = this.store.get(record.messageId);
-    if (existing && !sameSharedServiceCaller(existing.owner, owner)) {
-      throw new Error('SMS message id belongs to another owner');
+    if (existing && !sameProject(existing.owner, owner)) {
+      throw new Error('SMS message id belongs to another project');
     }
-    this.store.set(record.messageId, { record: { ...record }, owner: { ...owner } });
+    this.store.set(record.messageId, { record: { ...record }, owner: { ...(existing?.owner ?? owner) } });
     return record;
   }
 
   async findById(messageId: string, owner: SharedServiceCaller): Promise<SmsRecord | null> {
     const entry = this.store.get(messageId);
-    if (!entry || !sameSharedServiceCaller(entry.owner, owner)) return null;
+    if (!entry || !sameProject(entry.owner, owner)) return null;
     return { ...entry.record };
   }
 }

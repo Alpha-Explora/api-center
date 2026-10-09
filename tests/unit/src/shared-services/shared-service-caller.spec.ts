@@ -1,4 +1,4 @@
-import { readSharedServiceCaller, sameSharedServiceCaller, SharedServiceCallerError } from '@apicenter/runtime';
+import { readSharedServiceCaller, sameProject, SharedServiceCallerError } from '@apicenter/runtime';
 
 const gatewayHeaders = {
   'X-Tribe-Id': 'tribe-a',
@@ -48,13 +48,16 @@ describe('readSharedServiceCaller', () => {
   });
 });
 
-describe('sameSharedServiceCaller', () => {
+describe('sameProject', () => {
   const caller = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'live' as const };
 
-  it('matches only when every field matches', () => {
-    expect(sameSharedServiceCaller(caller, { ...caller })).toBe(true);
-    expect(sameSharedServiceCaller(caller, { ...caller, projectId: 'project-b' })).toBe(false);
-    expect(sameSharedServiceCaller(caller, { ...caller, environment: 'test' })).toBe(false);
+  it('matches a different service in the same project and environment', () => {
+    expect(sameProject(caller, { ...caller, serviceId: 'service-b' })).toBe(true);
+  });
+
+  it('does not match another project or another environment', () => {
+    expect(sameProject(caller, { ...caller, projectId: 'project-b' })).toBe(false);
+    expect(sameProject(caller, { ...caller, environment: 'test' })).toBe(false);
   });
 });
 

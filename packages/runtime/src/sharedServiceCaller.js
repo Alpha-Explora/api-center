@@ -52,9 +52,12 @@ function readSharedServiceCaller(req, { production = process.env.NODE_ENV === 'p
   return caller;
 }
 
-/** Compares two callers field by field. A record is visible only to the caller that created it. */
-function sameSharedServiceCaller(left, right) {
-  return Object.keys(CALLER_HEADERS).every((field) => left[field] === right[field]);
+/**
+ * True when both callers belong to the same project and environment. Any service in the project
+ * can read the records another service in that project created. Tribe is implied by the project.
+ */
+function sameProject(left, right) {
+  return left.projectId === right.projectId && left.environment === right.environment;
 }
 
-module.exports = { SharedServiceCallerError, readSharedServiceCaller, sameSharedServiceCaller };
+module.exports = { SharedServiceCallerError, readSharedServiceCaller, sameProject };

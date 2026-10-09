@@ -1,5 +1,5 @@
 import type { SharedServiceCaller } from '@apicenter/runtime';
-import { sameSharedServiceCaller } from '@apicenter/runtime';
+import { sameProject } from '@apicenter/runtime';
 import type { EmailRepositoryInterface } from './email-repository.interface';
 import { PostgresEmailStore } from './postgres-email-store';
 
@@ -31,16 +31,16 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
 
   async save(record: EmailRecord, owner: SharedServiceCaller): Promise<EmailRecord> {
     const existing = this.store.get(record.messageId);
-    if (existing && !sameSharedServiceCaller(existing.owner, owner)) {
-      throw new Error('Email message id belongs to another owner');
+    if (existing && !sameProject(existing.owner, owner)) {
+      throw new Error('Email message id belongs to another project');
     }
-    this.store.set(record.messageId, { record: { ...record }, owner: { ...owner } });
+    this.store.set(record.messageId, { record: { ...record }, owner: { ...(existing?.owner ?? owner) } });
     return record;
   }
 
   async findById(messageId: string, owner: SharedServiceCaller): Promise<EmailRecord | null> {
     const entry = this.store.get(messageId);
-    if (!entry || !sameSharedServiceCaller(entry.owner, owner)) return null;
+    if (!entry || !sameProject(entry.owner, owner)) return null;
     return { ...entry.record };
   }
 }

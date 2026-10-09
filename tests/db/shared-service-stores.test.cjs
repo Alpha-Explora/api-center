@@ -8,8 +8,10 @@ const { Client } = require('pg');
 const databaseUrl = process.env.DATABASE_URL;
 const skip = databaseUrl ? false : 'DATABASE_URL is not set';
 
+// Two services in one project share records. The other project and the live environment do not.
 const alice = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'test' };
-const bob = { tribeId: 'tribe-b', projectId: 'project-b', serviceId: 'service-b', environment: 'test' };
+const sibling = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-b', environment: 'test' };
+const otherProject = { tribeId: 'tribe-b', projectId: 'project-b', serviceId: 'service-b', environment: 'test' };
 const aliceLive = { ...alice, environment: 'live' };
 
 let client;
@@ -54,20 +56,21 @@ test('the retired record tables are gone and only the three owned tables remain'
   assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_messages', 'shared_otp.otp_challenges', 'shared_sms.sms_messages']);
 });
 
-test('SMS: returns a record only to the owner that created it', { skip }, async () => {
+test('SMS: a second service in the same project reads the record; another project does not', { skip }, async () => {
   await smsStore.save(smsRecord('sms_1'), alice);
   assert.equal((await smsStore.findById('sms_1', alice)).to, '+639170000000');
-  assert.equal(await smsStore.findById('sms_1', bob), null, 'another project cannot read the record');
+  assert.equal((await smsStore.findById('sms_1', sibling)).to, '+639170000000', 'a sibling service in the project can read it');
+  assert.equal(await smsStore.findById('sms_1', otherProject), null, 'another project cannot read the record');
   assert.equal(await smsStore.findById('sms_1', aliceLive), null, 'live cannot read a test record');
   assert.equal(await smsStore.findById('missing', alice), null);
 });
 
-test('SMS: the owner can update status, and another owner cannot overwrite the record', { skip }, async () => {
+test('SMS: a sibling service can update status, and another project cannot overwrite the record', { skip }, async () => {
   await smsStore.save(smsRecord('sms_2'), alice);
-  await smsStore.save({ ...smsRecord('sms_2'), status: 'delivered' }, alice);
+  await smsStore.save({ ...smsRecord('sms_2'), status: 'delivered' }, sibling);
   assert.equal((await smsStore.findById('sms_2', alice)).status, 'delivered');
 
-  await assert.rejects(smsStore.save(smsRecord('sms_2'), bob), /another owner/);
+  await assert.rejects(smsStore.save(smsRecord('sms_2'), otherProject), /another project/);
   assert.equal((await smsStore.findById('sms_2', alice)).status, 'delivered');
 });
 
@@ -93,12 +96,12 @@ test('OTP: stores a 64-character hash and no code column, and counts failed atte
   assert.equal(row.rows[0].code_hash, codeHash);
 });
 
-test('OTP: a correct code verifies once and a second attempt reports it used', { skip }, async () => {
+test('OTP: a sibling service in the project verifies once; a second attempt reports it used', { skip }, async () => {
   const otpId = 'otp_single_use';
   const codeHash = hashOtpCode(otpId, '123456');
   await otpStore.save(otpRecord(otpId, codeHash), alice);
 
-  assert.equal(await otpStore.consume(otpId, codeHash, alice), 'VERIFIED');
+  assert.equal(await otpStore.consume(otpId, codeHash, sibling), 'VERIFIED');
   assert.equal(await otpStore.consume(otpId, codeHash, alice), 'OTP_ALREADY_USED');
 });
 
@@ -107,15 +110,15 @@ test('OTP: of two concurrent verifications with the right code, exactly one succ
   const codeHash = hashOtpCode(otpId, '654321');
   await otpStore.save(otpRecord(otpId, codeHash), alice);
 
-  const outcomes = await Promise.all([otpStore.consume(otpId, codeHash, alice), otpStore.consume(otpId, codeHash, alice)]);
+  const outcomes = await Promise.all([otpStore.consume(otpId, codeHash, alice), otpStore.consume(otpId, codeHash, sibling)]);
   assert.deepEqual(outcomes.sort(), ['OTP_ALREADY_USED', 'VERIFIED']);
 });
 
-test('OTP: another owner sees the challenge as not found, and an expired challenge is reported', { skip }, async () => {
+test('OTP: another project sees the challenge as not found, and an expired challenge is reported', { skip }, async () => {
   const otpId = 'otp_owner';
   const codeHash = hashOtpCode(otpId, '123456');
   await otpStore.save(otpRecord(otpId, codeHash), alice);
-  assert.equal(await otpStore.consume(otpId, codeHash, bob), 'OTP_NOT_FOUND');
+  assert.equal(await otpStore.consume(otpId, codeHash, otherProject), 'OTP_NOT_FOUND');
 
   const expiredId = 'otp_expired';
   const expiredHash = hashOtpCode(expiredId, '123456');
@@ -123,7 +126,7 @@ test('OTP: another owner sees the challenge as not found, and an expired challen
   assert.equal(await otpStore.consume(expiredId, expiredHash, alice), 'OTP_EXPIRED');
 });
 
-test('email: returns the recipients and the message only to its owner', { skip }, async () => {
+test('email: a sibling service reads the recipients; another project does not', { skip }, async () => {
   const record = {
     messageId: 'msg_1',
     provider: 'resend',
@@ -135,9 +138,9 @@ test('email: returns the recipients and the message only to its owner', { skip }
   };
   await emailStore.save(record, alice);
 
-  const found = await emailStore.findById('msg_1', alice);
+  const found = await emailStore.findById('msg_1', sibling);
   assert.deepEqual(found.recipient, record.recipient);
   assert.equal(found.recipientCount, 2);
-  assert.equal(await emailStore.findById('msg_1', bob), null);
+  assert.equal(await emailStore.findById('msg_1', otherProject), null);
 });
 

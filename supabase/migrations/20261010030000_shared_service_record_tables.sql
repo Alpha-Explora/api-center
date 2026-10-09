@@ -1,12 +1,14 @@
 -- Durable records for the SMS, OTP, and email runtimes.
 --
--- Each runtime keeps one table per concept. Every row records the caller that created it: tribe, project,
--- source service, and environment. Lookups and OTP verification match all four, so a caller reads only its
--- own records. OTP challenges store the HMAC of the code, never the code.
+-- Each runtime keeps one table per concept. Every row records the tribe, project, source service, and
+-- environment that created it. Visibility follows the project: a lookup or OTP verification matches the
+-- project and environment, so any service in that project can read the record, and no other project can.
+-- The tribe is implied by the project. OTP challenges store the HMAC of the code, never the code.
 --
 -- The runtime tables from 20261009000700_sms_otp_record_tables.sql and the unused tables from
 -- 20260516000000_init_shared_service_schemas.sql are dropped. Production kept these records in Redis,
 -- so none of these tables holds production rows.
+-- Role grants for the runtime roles are managed by the per-runtime role migration, not here.
 
 drop table if exists shared_sms.sms_delivery_events cascade;
 drop table if exists shared_sms.sms_records cascade;
@@ -33,8 +35,8 @@ create table shared_sms.sms_messages (
   updated_at timestamptz not null default now()
 );
 
-create index sms_messages_owner_created_idx
-  on shared_sms.sms_messages (tribe_id, project_id, service_id, environment, created_at);
+create index sms_messages_project_created_idx
+  on shared_sms.sms_messages (project_id, environment, created_at);
 
 create table shared_otp.otp_challenges (
   otp_id text primary key,
@@ -52,8 +54,8 @@ create table shared_otp.otp_challenges (
   updated_at timestamptz not null default now()
 );
 
-create index otp_challenges_owner_created_idx
-  on shared_otp.otp_challenges (tribe_id, project_id, service_id, environment, created_at);
+create index otp_challenges_project_created_idx
+  on shared_otp.otp_challenges (project_id, environment, created_at);
 create index otp_challenges_status_expires_idx
   on shared_otp.otp_challenges (status, expires_at);
 
@@ -72,14 +74,6 @@ create table shared_email.email_messages (
   updated_at timestamptz not null default now()
 );
 
-create index email_messages_owner_created_idx
-  on shared_email.email_messages (tribe_id, project_id, service_id, environment, created_at);
-
-do $$
-begin
-  if exists (select 1 from pg_roles where rolname = 'shared_services_app') then
-    grant usage on schema shared_sms, shared_otp, shared_email to shared_services_app;
-    grant select, insert, update on shared_sms.sms_messages, shared_otp.otp_challenges, shared_email.email_messages to shared_services_app;
-  end if;
-end $$;
+create index email_messages_project_created_idx
+  on shared_email.email_messages (project_id, environment, created_at);
 

@@ -1,5 +1,5 @@
 import type { SharedServiceCaller } from '@apicenter/runtime';
-import { sameSharedServiceCaller } from '@apicenter/runtime';
+import { sameProject } from '@apicenter/runtime';
 import type { OtpRepositoryInterface } from './otp-repository.interface';
 import { PostgresOtpStore } from './postgres-otp-store';
 
@@ -31,10 +31,10 @@ export class MemoryOtpStore implements OtpRepositoryInterface {
 
   async save(record: OtpRecord, owner: SharedServiceCaller): Promise<OtpRecord> {
     const existing = this.store.get(record.otpId);
-    if (existing && !sameSharedServiceCaller(existing.owner, owner)) {
-      throw new Error('OTP challenge id belongs to another owner');
+    if (existing && !sameProject(existing.owner, owner)) {
+      throw new Error('OTP challenge id belongs to another project');
     }
-    this.store.set(record.otpId, { record: { ...record }, owner: { ...owner } });
+    this.store.set(record.otpId, { record: { ...record }, owner: { ...(existing?.owner ?? owner) } });
     return record;
   }
 
@@ -65,7 +65,7 @@ export class MemoryOtpStore implements OtpRepositoryInterface {
 
   private ownedEntry(otpId: string, owner: SharedServiceCaller): OwnedOtpRecord | undefined {
     const entry = this.store.get(otpId);
-    return entry && sameSharedServiceCaller(entry.owner, owner) ? entry : undefined;
+    return entry && sameProject(entry.owner, owner) ? entry : undefined;
   }
 }
 

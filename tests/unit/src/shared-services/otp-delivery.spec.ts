@@ -4,7 +4,8 @@ import { VerifyOtpService } from '../../../../apps/otp/src/features/verify-otp/v
 import { MemoryOtpStore } from '../../../../apps/otp/src/shared/otp-store';
 
 const owner: SharedServiceCaller = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'test' };
-const otherProject: SharedServiceCaller = { ...owner, projectId: 'project-b' };
+const sibling: SharedServiceCaller = { ...owner, serviceId: 'service-b' };
+const otherProject: SharedServiceCaller = { tribeId: 'tribe-b', projectId: 'project-b', serviceId: 'service-a', environment: 'test' };
 
 describe('OTP generation and consumption', () => {
   const originalMode = process.env.OTP_DELIVERY_MODE;
@@ -30,6 +31,16 @@ describe('OTP generation and consumption', () => {
     expect([first.verified, second.verified].sort()).toEqual([false, true]);
   });
 
+  it('lets another service in the same project verify the challenge', async () => {
+    const store = new MemoryOtpStore();
+    const generated = await new GenerateOtpService(store).execute({
+      channel: 'email', recipient: 'user@example.test', purpose: 'verification',
+    }, owner);
+    const input = { otpId: generated.otpId, code: generated.code!, recipient: 'user@example.test' };
+
+    expect((await new VerifyOtpService(store).execute(input, sibling)).verified).toBe(true);
+  });
+
   it('does not verify a challenge for a different project', async () => {
     const store = new MemoryOtpStore();
     const generated = await new GenerateOtpService(store).execute({
@@ -38,7 +49,6 @@ describe('OTP generation and consumption', () => {
     const input = { otpId: generated.otpId, code: generated.code!, recipient: 'user@example.test' };
 
     expect((await new VerifyOtpService(store).execute(input, otherProject)).reason).toBe('OTP_NOT_FOUND');
-    expect((await new VerifyOtpService(store).execute(input, owner)).verified).toBe(true);
   });
 });
 

@@ -92,6 +92,7 @@ export function readSharedServiceCaller(
   options?: { production?: boolean },
 ): SharedServiceCaller;
 
-export function sameSharedServiceCaller(left: SharedServiceCaller, right: SharedServiceCaller): boolean;
+/** True when both callers share a project and environment. Any service in that project can read the records. */
+export function sameProject(left: SharedServiceCaller, right: SharedServiceCaller): boolean;
 export function ok(res: Response, data?: unknown, statusCode?: number): void;
 export function fail(res: Response, statusCode: number, code: string, message: string, details?: unknown): void;
