@@ -131,6 +131,35 @@ import {
 import { request } from "@/lib/api-center/client-core";
 
 export type { OperationPreview, RuntimeCapabilities } from "@/lib/schemas";
+
+export type ServiceSpecCatalogEntry = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+  serviceId: string;
+  name: string;
+  serviceType: string;
+  status: string;
+  projectId: string | null;
+  projectName: string | null;
+  ownerTribeId: string | null;
+  ownerTribeName: string | null;
+  ownerTeam: string | null;
+  contact: string | null;
+  serviceTier: string | null;
+  requiredScopes: string[];
+  exposes: string[];
+};
+
+export type ServiceSpecVersion = {
+  version: string;
+  format: string;
+  sha256: string;
+  publishedBy: string;
+  publishedAt: string;
+};
+
 export {
   getApiCenterBaseUrl,
   setManagementSessionToken,
@@ -141,6 +170,56 @@ export * from "@/lib/api-center/quotas-client";
 export * from "@/lib/api-center/registry-client";
 export * from "@/lib/api-center/secrets-client";
 export * from "@/lib/api-center/tenancy-client";
+
+export async function listServiceSpecCatalog(): Promise<
+  ServiceSpecCatalogEntry[]
+> {
+  const response = await request<{ data: ServiceSpecCatalogEntry[] }>(
+    "/api/local/catalog/service-specs",
+  );
+  return response.data;
+}
+
+export async function listServiceSpecVersions(
+  serviceIdentity: string,
+): Promise<ServiceSpecVersion[]> {
+  const response = await request<{ data?: ServiceSpecVersion[] }>(
+    `/api/local/catalog/services/${encodeURIComponent(serviceIdentity)}/spec-versions`,
+  );
+  return response.data ?? [];
+}
+
+export async function getServiceSpecDocument(
+  serviceIdentity: string,
+  version: string,
+): Promise<unknown> {
+  const response = await request<{ data?: { document?: unknown } }>(
+    `/api/local/catalog/services/${encodeURIComponent(serviceIdentity)}/spec-versions/${encodeURIComponent(version)}`,
+  );
+  return response.data?.document;
+}
+
+export async function downloadServiceSpecDocument(
+  serviceIdentity: string,
+  version: string,
+): Promise<void> {
+  const documentValue = await getServiceSpecDocument(serviceIdentity, version);
+  const blobUrl = URL.createObjectURL(
+    new Blob([`${JSON.stringify(documentValue ?? {}, null, 2)}\n`], {
+      type: "application/json; charset=utf-8",
+    }),
+  );
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = `${serviceIdentity}-${version}.json`.replace(
+    /[^a-zA-Z0-9._-]/g,
+    "_",
+  );
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1_000);
+}
 
 export async function getReadiness(): Promise<ReadinessResponse> {
   const data = await request<unknown>("/api/local/readiness");
