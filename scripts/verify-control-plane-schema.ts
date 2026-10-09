@@ -14,7 +14,12 @@ type InventoryObject = {
 };
 
 const repoRoot = path.resolve(__dirname, "..");
-const controlledSchemas = ["apic_catalog", "apic_governance", "apic_runtime", "apic_audit"];
+const controlledSchemas = [
+  "apic_catalog",
+  "apic_governance",
+  "apic_runtime",
+  "apic_audit",
+];
 const legacySchemas = ["api_center", "api_center_ops", "api_center_audit"];
 // Every schema the platform owns. Each is a bounded context: no foreign key may cross between them.
 const domainSchemas = [
@@ -40,7 +45,6 @@ const requiredTables: QualifiedObject[] = [
   ["apic_governance", "registry_change_requests"],
   ["apic_governance", "approval_requests"],
   ["apic_governance", "quota_policies"],
-  ["apic_governance", "entitlement_plans"],
   ["apic_governance", "entitlement_assignments"],
   ["apic_governance", "promotion_evidence_bundles"],
   ["apic_governance", "payment_consumer_services"],
@@ -71,7 +75,6 @@ const compatibilityViews: QualifiedObject[] = [
   ["api_center_ops", "service_registration_requests"],
   ["api_center_ops", "approval_requests"],
   ["api_center_ops", "tribe_api_quota_policies"],
-  ["api_center_ops", "tribe_plan_definitions"],
   ["api_center_ops", "tribe_plan_assignments"],
   ["api_center_ops", "provisioning_jobs"],
   ["api_center_ops", "topic_onboarding_states"],
@@ -96,6 +99,7 @@ const requiredIndexes = [
   "quota_policies_scope_target_idx",
   "entitlement_assignments_owner_env_status_idx",
   "entitlement_assignments_plan_env_idx",
+  "entitlement_assignments_one_active_owner_project_env_uidx",
   "promotion_evidence_service_env_created_idx",
   "promotion_evidence_correlation_idx",
   "shared_service_runtime_routes_service_env_uidx",
@@ -198,16 +202,24 @@ function key(object: QualifiedObject): string {
 }
 
 function missingObjects(required: QualifiedObject[], rows: Row[]): string[] {
-  const found = new Set(rows.map((row) => String(row.schema) + "." + String(row.name)));
+  const found = new Set(
+    rows.map((row) => String(row.schema) + "." + String(row.name)),
+  );
   return required.map(key).filter((name) => !found.has(name));
 }
 
 function addFailure(failures: string[], label: string, values: string[]): void {
   if (values.length === 0) return;
-  failures.push(label + ":\n" + values.map((value) => "  - " + value).join("\n"));
+  failures.push(
+    label + ":\n" + values.map((value) => "  - " + value).join("\n"),
+  );
 }
 
-async function queryRows(client: any, sql: string, params: unknown[] = []): Promise<Row[]> {
+async function queryRows(
+  client: any,
+  sql: string,
+  params: unknown[] = [],
+): Promise<Row[]> {
   const result = await client.query(sql, params);
   return result.rows as Row[];
 }
@@ -232,10 +244,17 @@ async function printRowCountInventory(client: any): Promise<void> {
     let rowCount = "unavailable";
 
     try {
-      const rows = await queryRows(client, "select count(*)::text as row_count from " + quoteIdent(schema) + "." + quoteIdent(name));
+      const rows = await queryRows(
+        client,
+        "select count(*)::text as row_count from " +
+          quoteIdent(schema) +
+          "." +
+          quoteIdent(name),
+      );
       rowCount = String(rows[0]?.row_count ?? "0");
     } catch (error) {
-      rowCount = "error: " + (error instanceof Error ? error.message : String(error));
+      rowCount =
+        "error: " + (error instanceof Error ? error.message : String(error));
     }
 
     inventory.push({ schema, name, objectType, rowCount });
@@ -246,11 +265,22 @@ async function printRowCountInventory(client: any): Promise<void> {
     console.log("  No APIC legacy or enterprise schema objects found.");
   } else {
     for (const object of inventory) {
-      console.log("  " + object.schema + "." + object.name + " (" + object.objectType + "): " + object.rowCount);
+      console.log(
+        "  " +
+          object.schema +
+          "." +
+          object.name +
+          " (" +
+          object.objectType +
+          "): " +
+          object.rowCount,
+      );
     }
   }
 
-  const baseTables = objects.filter((object) => object.object_type === "BASE TABLE");
+  const baseTables = objects.filter(
+    (object) => object.object_type === "BASE TABLE",
+  );
   const views = objects.filter((object) => object.object_type === "VIEW");
   console.log("\nMissing enterprise tables:");
   const missingTables = missingObjects(requiredTables, baseTables);
@@ -293,7 +323,9 @@ function readApiSchemasFromConfig(): string[] {
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required to verify the control-plane schema.");
+    throw new Error(
+      "DATABASE_URL is required to verify the control-plane schema.",
+    );
   }
 
   const appRole = readArg("--app-role");
@@ -302,7 +334,9 @@ async function main(): Promise<void> {
   addFailure(
     failures,
     "APIC private schemas exposed through supabase/config.toml [api].schemas",
-    readApiSchemasFromConfig().filter((schema) => controlledSchemas.includes(schema)),
+    readApiSchemasFromConfig().filter((schema) =>
+      controlledSchemas.includes(schema),
+    ),
   );
 
   const client = new Client({ connectionString: databaseUrl });
@@ -322,7 +356,11 @@ async function main(): Promise<void> {
       "select table_schema as schema, table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema = any($1::text[])",
       [controlledSchemas],
     );
-    addFailure(failures, "Missing required enterprise tables", missingObjects(requiredTables, tableRows));
+    addFailure(
+      failures,
+      "Missing required enterprise tables",
+      missingObjects(requiredTables, tableRows),
+    );
 
     if (hasFlag("--require-compat-views")) {
       const viewRows = await queryRows(
@@ -330,7 +368,11 @@ async function main(): Promise<void> {
         "select table_schema as schema, table_name as name from information_schema.views where table_schema = any($1::text[])",
         [legacySchemas],
       );
-      addFailure(failures, "Missing compatibility views", missingObjects(compatibilityViews, viewRows));
+      addFailure(
+        failures,
+        "Missing compatibility views",
+        missingObjects(compatibilityViews, viewRows),
+      );
     }
 
     if (hasFlag("--forbid-legacy-schemas")) {
@@ -339,7 +381,11 @@ async function main(): Promise<void> {
         "select nspname as schema from pg_namespace where nspname = any($1::text[]) order by nspname",
         [legacySchemas],
       );
-      addFailure(failures, "Legacy compatibility schemas still present", legacySchemaRows.map((row) => String(row.schema)));
+      addFailure(
+        failures,
+        "Legacy compatibility schemas still present",
+        legacySchemaRows.map((row) => String(row.schema)),
+      );
     }
 
     const crossSchemaForeignKeys = await queryRows(
@@ -350,7 +396,14 @@ async function main(): Promise<void> {
     addFailure(
       failures,
       "Foreign keys across schemas (reference other contexts by identifier and validate through their public interface)",
-      crossSchemaForeignKeys.map((row) => String(row.source) + " (" + String(row.name) + ") -> " + String(row.target)),
+      crossSchemaForeignKeys.map(
+        (row) =>
+          String(row.source) +
+          " (" +
+          String(row.name) +
+          ") -> " +
+          String(row.target),
+      ),
     );
 
     const indexRows = await queryRows(
@@ -359,14 +412,46 @@ async function main(): Promise<void> {
       [controlledSchemas],
     );
     const indexNames = new Set(indexRows.map((row) => String(row.name)));
-    addFailure(failures, "Missing required indexes", requiredIndexes.filter((name) => !indexNames.has(name)));
+    addFailure(
+      failures,
+      "Missing required indexes",
+      requiredIndexes.filter((name) => !indexNames.has(name)),
+    );
+    const activePlanIndex = await queryRows(
+      client,
+      `select i.indisunique as is_unique, i.indpred is not null as is_partial,
+              pg_get_indexdef(i.indexrelid) as definition
+       from pg_index i
+       join pg_class index_class on index_class.oid = i.indexrelid
+       join pg_namespace n on n.oid = index_class.relnamespace
+       where n.nspname = 'apic_governance'
+         and index_class.relname = 'entitlement_assignments_one_active_owner_project_env_uidx'`,
+    );
+    const activePlanIndexDefinition = String(
+      activePlanIndex[0]?.definition ?? "",
+    ).toLowerCase();
+    if (
+      !activePlanIndex.length ||
+      activePlanIndex[0].is_unique !== true ||
+      activePlanIndex[0].is_partial !== true ||
+      !activePlanIndexDefinition.includes(
+        "(owner_tribe_id, project_id, environment)",
+      ) ||
+      !activePlanIndexDefinition.includes("status = 'active'")
+    ) {
+      failures.push(
+        "Active plan assignment index must uniquely cover tribe/project/environment rows where status is active",
+      );
+    }
 
     const constraintRows = await queryRows(
       client,
       "select n.nspname as schema, c.conname as name from pg_constraint c join pg_class r on r.oid = c.conrelid join pg_namespace n on n.oid = r.relnamespace where c.contype = 'c' and n.nspname = any($1::text[])",
       [controlledSchemas],
     );
-    const constraintNames = new Set(constraintRows.map((row) => String(row.name)));
+    const constraintNames = new Set(
+      constraintRows.map((row) => String(row.name)),
+    );
     addFailure(
       failures,
       "Missing required check constraints",
@@ -376,7 +461,9 @@ async function main(): Promise<void> {
     addFailure(
       failures,
       "Legacy index or constraint names still present",
-      forbiddenLegacyObjectNames.filter((name) => indexNames.has(name) || constraintNames.has(name)),
+      forbiddenLegacyObjectNames.filter(
+        (name) => indexNames.has(name) || constraintNames.has(name),
+      ),
     );
 
     const environmentDefaultRows = await queryRows(
@@ -387,7 +474,16 @@ async function main(): Promise<void> {
     addFailure(
       failures,
       "Runtime environment columns with database defaults",
-      environmentDefaultRows.map((row) => String(row.schema) + "." + String(row.name) + "." + String(row.column_name) + " default " + String(row.column_default)),
+      environmentDefaultRows.map(
+        (row) =>
+          String(row.schema) +
+          "." +
+          String(row.name) +
+          "." +
+          String(row.column_name) +
+          " default " +
+          String(row.column_default),
+      ),
     );
 
     if (hasFlag("--require-retention-policy")) {
@@ -396,13 +492,22 @@ async function main(): Promise<void> {
         "select n.nspname as schema, c.relname as name, obj_description(c.oid) as comment, (pt.partrelid is not null) as partitioned from pg_class c join pg_namespace n on n.oid = c.relnamespace left join pg_partitioned_table pt on pt.partrelid = c.oid where n.nspname = any($1::text[]) and c.relkind in ('r', 'p')",
         [controlledSchemas],
       );
-      const retentionByName = new Map(retentionRows.map((row) => [String(row.schema) + "." + String(row.name), row]));
+      const retentionByName = new Map(
+        retentionRows.map((row) => [
+          String(row.schema) + "." + String(row.name),
+          row,
+        ]),
+      );
       addFailure(
         failures,
         "Missing retention comments or partition metadata",
         retentionManagedTables.map(key).filter((name) => {
           const row = retentionByName.get(name);
-          return !row || (row.partitioned !== true && !String(row.comment ?? "").includes("retention="));
+          return (
+            !row ||
+            (row.partitioned !== true &&
+              !String(row.comment ?? "").includes("retention="))
+          );
         }),
       );
     }
@@ -415,12 +520,26 @@ async function main(): Promise<void> {
     addFailure(
       failures,
       "anon/authenticated direct grants on private APIC tables",
-      publicGrantRows.map((row) => String(row.grantee) + " " + String(row.privilege_type) + " on " + String(row.schema) + "." + String(row.name)),
+      publicGrantRows.map(
+        (row) =>
+          String(row.grantee) +
+          " " +
+          String(row.privilege_type) +
+          " on " +
+          String(row.schema) +
+          "." +
+          String(row.name),
+      ),
     );
 
     if (appRole) {
-      const appRoleRows = await queryRows(client, "select rolname from pg_roles where rolname = $1", [appRole]);
-      if (appRoleRows.length === 0) failures.push("Configured app role does not exist: " + appRole);
+      const appRoleRows = await queryRows(
+        client,
+        "select rolname from pg_roles where rolname = $1",
+        [appRole],
+      );
+      if (appRoleRows.length === 0)
+        failures.push("Configured app role does not exist: " + appRole);
 
       const schemaPrivilegeRows = await queryRows(
         client,
@@ -430,7 +549,9 @@ async function main(): Promise<void> {
       addFailure(
         failures,
         "Missing USAGE grants for app role " + appRole,
-        schemaPrivilegeRows.filter((row) => row.has_usage !== true).map((row) => String(row.schema)),
+        schemaPrivilegeRows
+          .filter((row) => row.has_usage !== true)
+          .map((row) => String(row.schema)),
       );
 
       const appGrantRows = await queryRows(
@@ -456,15 +577,24 @@ async function main(): Promise<void> {
             : ["SELECT", "INSERT", "UPDATE"];
         if (registryChildDeleteTables.has(objectName)) required.push("DELETE");
         for (const privilege of required) {
-          if (!grants.has(privilege)) missingGrants.push(appRole + " lacks " + privilege + " on " + objectName);
+          if (!grants.has(privilege))
+            missingGrants.push(
+              appRole + " lacks " + privilege + " on " + objectName,
+            );
         }
       }
       addFailure(failures, "Missing app-role table grants", missingGrants);
 
-      const auditGrants = grantsByTable.get("apic_audit.audit_events") ?? new Set<string>();
+      const auditGrants =
+        grantsByTable.get("apic_audit.audit_events") ?? new Set<string>();
       for (const privilege of ["UPDATE", "DELETE", "TRUNCATE"]) {
         if (auditGrants.has(privilege)) {
-          failures.push(appRole + " must not have " + privilege + " on apic_audit.audit_events; audit events are append-only.");
+          failures.push(
+            appRole +
+              " must not have " +
+              privilege +
+              " on apic_audit.audit_events; audit events are append-only.",
+          );
         }
       }
     }

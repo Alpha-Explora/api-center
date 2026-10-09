@@ -87,14 +87,14 @@ model Service {
   registeredAt         DateTime  @default(now()) @map("registered_at") @db.Timestamptz(6)
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization       Organization            @relation(fields: [organizationId], references: [id])
-  project            Project?                @relation(fields: [projectId, ownerTribeId], references: [projectId, tribeId])
-  routes             ServiceRoute[]
-  scopes             ServiceScope[]
-  dependencies       ServiceDependency[]     @relation("ServiceDependencies")
-  dependedOnBy       ServiceDependency[]     @relation("DependsOnService")
-  lifecycleEvents    ServiceLifecycleEvent[]
-  environments       ServiceEnvironment[]
+  organization           Organization            @relation(fields: [organizationId], references: [id])
+  project                Project?                @relation(fields: [projectId, ownerTribeId], references: [projectId, tribeId])
+  routes                 ServiceRoute[]
+  scopes                 ServiceScope[]
+  dependencies           ServiceDependency[]     @relation("ServiceDependencies")
+  dependedOnBy           ServiceDependency[]     @relation("DependsOnService")
+  lifecycleEvents        ServiceLifecycleEvent[]
+  environments           ServiceEnvironment[]
   serviceSecretReference ServiceSecretReference?
 
   @@unique([organizationId, serviceId], name: "organization_service_id")
@@ -189,6 +189,7 @@ model SharedServiceRuntimeRoute {
   @@map("shared_service_runtime_routes")
   @@schema("apic_catalog")
 }
+
 model ServiceLifecycleEvent {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId       String   @map("service_id") @db.Uuid
@@ -498,20 +499,6 @@ model PromotionEvidenceBundle {
   @@map("promotion_evidence_bundles")
   @@schema("apic_governance")
 }
-model EntitlementPlan {
-  planKey              String   @id @map("plan_key")
-  displayName          String   @map("display_name")
-  gatewayCallsPerDay   Int?     @map("gateway_calls_per_day")
-  kafkaPublishesPerDay Int?     @map("kafka_publishes_per_day")
-  retentionTier        String   @map("retention_tier")
-  sharedServiceAccess  String   @map("shared_service_access")
-  supportTier          String   @map("support_tier")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@map("entitlement_plans")
-  @@schema("apic_governance")
-}
 
 model EntitlementAssignment {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -529,6 +516,7 @@ model EntitlementAssignment {
   @@index([ownerTribeId, environment, status], name: "entitlement_assignments_owner_env_status_idx")
   @@index([projectId, environment, status], name: "entitlement_assignments_project_env_status_idx")
   @@index([planKey, environment], name: "entitlement_assignments_plan_env_idx")
+  // Partial unique index for active assignments is maintained by SQL migration.
   @@map("entitlement_assignments")
   @@schema("apic_governance")
 }

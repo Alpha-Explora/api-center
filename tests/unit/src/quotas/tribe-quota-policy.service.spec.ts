@@ -6,6 +6,7 @@ describe("TribeQuotaPolicyService", () => {
     quotaPolicy: {
       findMany: jest.Mock;
     };
+    entitlementAssignment: { findFirst: jest.Mock };
   };
   let service: TribeQuotaPolicyService;
 
@@ -14,6 +15,7 @@ describe("TribeQuotaPolicyService", () => {
       quotaPolicy: {
         findMany: jest.fn(),
       },
+      entitlementAssignment: { findFirst: jest.fn() },
     };
     service = new TribeQuotaPolicyService(prisma as unknown as PrismaService);
   });
@@ -110,9 +112,42 @@ describe("TribeQuotaPolicyService", () => {
 
   it("resolves the caller's project budget and the tribe ceiling separately, ignoring sibling projects", async () => {
     prisma.quotaPolicy.findMany.mockResolvedValue([
-      { id: "tribe-ceiling", ownerTribeId: "campus-one", projectId: null, scope: "all", targetServiceId: null, maxRequests: 10000, windowSeconds: 60, mode: "enforce", status: "active", reason: "ceiling" },
-      { id: "lms-budget", ownerTribeId: "campus-one", projectId: "campus-lms", scope: "all", targetServiceId: null, maxRequests: 500, windowSeconds: 60, mode: "enforce", status: "active", reason: "lms" },
-      { id: "billing-budget", ownerTribeId: "campus-one", projectId: "campus-billing", scope: "all", targetServiceId: null, maxRequests: 50, windowSeconds: 60, mode: "enforce", status: "active", reason: "billing" },
+      {
+        id: "tribe-ceiling",
+        ownerTribeId: "campus-one",
+        projectId: null,
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 10000,
+        windowSeconds: 60,
+        mode: "enforce",
+        status: "active",
+        reason: "ceiling",
+      },
+      {
+        id: "lms-budget",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 500,
+        windowSeconds: 60,
+        mode: "enforce",
+        status: "active",
+        reason: "lms",
+      },
+      {
+        id: "billing-budget",
+        ownerTribeId: "campus-one",
+        projectId: "campus-billing",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 50,
+        windowSeconds: 60,
+        mode: "enforce",
+        status: "active",
+        reason: "billing",
+      },
     ]);
 
     const resolved = await service.resolvePolicies({
@@ -138,11 +173,123 @@ describe("TribeQuotaPolicyService", () => {
 
   it("returns no project budget when the caller has no project", async () => {
     prisma.quotaPolicy.findMany.mockResolvedValue([
-      { id: "lms-budget", ownerTribeId: "campus-one", projectId: "campus-lms", scope: "all", targetServiceId: null, maxRequests: 500, windowSeconds: 60, mode: "enforce", status: "active", reason: "lms" },
+      {
+        id: "lms-budget",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 500,
+        windowSeconds: 60,
+        mode: "enforce",
+        status: "active",
+        reason: "lms",
+      },
     ]);
 
     await expect(
       service.resolvePolicies({ ownerTribeId: "campus-one", scope: "all" }),
     ).resolves.toEqual({ project: null, tribe: null });
+  });
+
+  it("resolves active plan defaults as enforcing project policies per environment", async () => {
+    prisma.quotaPolicy.findMany.mockResolvedValue([]);
+    prisma.entitlementAssignment.findFirst.mockResolvedValue({
+      planKey: "standard",
+    });
+
+    await expect(
+      service.resolvePolicies({
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        environment: "live",
+        scope: "all",
+      }),
+    ).resolves.toMatchObject({
+      project: {
+        projectId: "campus-lms",
+        scope: "all",
+        maxRequests: 25_000,
+        windowSeconds: 86_400,
+        mode: "enforce",
+        reason: "Plan standard default gateway quota for live",
+      },
+      tribe: null,
+    });
+    expect(prisma.entitlementAssignment.findFirst).toHaveBeenCalledWith({
+      where: {
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        environment: "live",
+        status: "active",
+      },
+    });
+  });
+
+  it("uses explicit project quota policies instead of the plan default", async () => {
+    prisma.quotaPolicy.findMany.mockResolvedValue([
+      {
+        id: "project-override",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 700,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "Approved override",
+      },
+    ]);
+
+    await expect(
+      service.resolvePolicies({
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        environment: "test",
+        scope: "all",
+      }),
+    ).resolves.toMatchObject({
+      project: { id: "project-override", maxRequests: 700 },
+      tribe: null,
+    });
+    expect(prisma.entitlementAssignment.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("keeps a plan's Kafka limit when a project has only a broad all-scope override", async () => {
+    prisma.quotaPolicy.findMany.mockResolvedValue([
+      {
+        id: "project-gateway-override",
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        scope: "all",
+        targetServiceId: null,
+        maxRequests: 700,
+        windowSeconds: 3600,
+        mode: "enforce",
+        status: "active",
+        reason: "Gateway override only",
+      },
+    ]);
+    prisma.entitlementAssignment.findFirst.mockResolvedValue({
+      planKey: "standard",
+    });
+
+    await expect(
+      service.resolvePolicies({
+        ownerTribeId: "campus-one",
+        projectId: "campus-lms",
+        environment: "test",
+        scope: "kafka_publish",
+      }),
+    ).resolves.toMatchObject({
+      project: {
+        scope: "kafka_publish",
+        maxRequests: 5_000,
+        windowSeconds: 86_400,
+        mode: "enforce",
+      },
+      tribe: null,
+    });
   });
 });

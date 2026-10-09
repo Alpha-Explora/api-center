@@ -33,7 +33,11 @@ import {
 
 const PLAN_KEYS: TribePlanKey[] = ["starter", "standard", "pro", "enterprise"];
 const ENVIRONMENTS: TribePlanEnvironment[] = ["test", "live"];
-const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = ["active", "disabled"];
+const ASSIGNMENT_STATUSES: TribePlanAssignmentStatus[] = [
+  "active",
+  "suspended",
+  "archived",
+];
 
 interface AssignPlanRequest {
   projectId?: string;

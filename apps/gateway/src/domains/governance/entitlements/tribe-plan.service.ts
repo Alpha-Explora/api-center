@@ -6,11 +6,11 @@ import {
   AssignTribePlanInput,
   AssignTribePlanResult,
   UpdateTribePlanAssignmentInput,
-  GeneratedQuotaPolicyProposal,
   ListTribePlanAssignmentsInput,
   TribePlanAssignment,
   TribePlanDefinition,
   TribePlanKey,
+  EffectivePlanLimit,
 } from "./tribe-plan.types";
 
 const DAY_SECONDS = 24 * 60 * 60;
@@ -21,6 +21,10 @@ interface EntitlementAssignmentDelegate {
     where: { id: string };
     data: Record<string, unknown>;
   }): Promise<TribePlanAssignment>;
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<{ count: number }>;
   findMany(args: {
     where: Record<string, unknown>;
     orderBy: { createdAt: "desc" };
@@ -28,8 +32,31 @@ interface EntitlementAssignmentDelegate {
   }): Promise<TribePlanAssignment[]>;
 }
 
+interface PlanQuotaPolicy {
+  id?: string;
+  ownerTribeId: string;
+  projectId: string | null;
+  scope: string;
+  targetServiceId: string | null;
+  maxRequests: number;
+  windowSeconds: number;
+  mode: "observe" | "enforce";
+  reason: string;
+  status: string;
+}
+
 interface TribePlanPrisma {
   entitlementAssignment: EntitlementAssignmentDelegate;
+  quotaPolicy: {
+    findMany(args: {
+      where: Record<string, unknown>;
+    }): Promise<PlanQuotaPolicy[]>;
+  };
+  $transaction<T>(
+    callback: (
+      transaction: Pick<TribePlanPrisma, "entitlementAssignment">,
+    ) => Promise<T>,
+  ): Promise<T>;
 }
 
 @Injectable()
@@ -48,41 +75,64 @@ export class TribePlanService {
     input: ListTribePlanAssignmentsInput = {},
   ): Promise<TribePlanAssignment[]> {
     const where: Record<string, unknown> = {};
-    if (input.ownerTribeId) where.ownerTribeId = input.ownerTribeId;
+    if (input.ownerTribeIds) {
+      const ownerTribeIds = input.ownerTribeId
+        ? input.ownerTribeIds.filter((id) => id === input.ownerTribeId)
+        : input.ownerTribeIds;
+      where.ownerTribeId = { in: ownerTribeIds };
+    } else if (input.ownerTribeId) {
+      where.ownerTribeId = input.ownerTribeId;
+    }
     if (input.projectId) where.projectId = input.projectId;
     if (input.planKey) where.planKey = input.planKey;
     if (input.environment) where.environment = input.environment;
     if (input.status) where.status = input.status;
 
-    return this.planPrisma.entitlementAssignment.findMany({
+    const assignments = await this.planPrisma.entitlementAssignment.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+    return this.enrichAssignments(assignments);
   }
 
   async assignPlan(
     input: AssignTribePlanInput,
   ): Promise<AssignTribePlanResult> {
-    const definition = this.definitionFor(input.planKey);
+    this.definitionFor(input.planKey);
     const effectiveAt = input.effectiveAt ?? new Date();
-    const assignment = await this.planPrisma.entitlementAssignment.create({
-      data: {
-        ownerTribeId: input.ownerTribeId,
-        projectId: input.projectId,
-        planKey: input.planKey,
-        environment: input.environment,
-        status: "active",
-        effectiveAt,
-        reason: input.reason,
-        assignedBy: input.assignedBy,
+    const assignment = await this.planPrisma.$transaction(
+      async (transaction) => {
+        await transaction.entitlementAssignment.updateMany({
+          where: {
+            ownerTribeId: input.ownerTribeId,
+            projectId: input.projectId,
+            environment: input.environment,
+            status: "active",
+          },
+          data: {
+            status: "archived",
+            reason: input.reason,
+            assignedBy: input.assignedBy,
+          },
+        });
+        return transaction.entitlementAssignment.create({
+          data: {
+            ownerTribeId: input.ownerTribeId,
+            projectId: input.projectId,
+            planKey: input.planKey,
+            environment: input.environment,
+            status: "active",
+            effectiveAt,
+            reason: input.reason,
+            assignedBy: input.assignedBy,
+          },
+        });
       },
-    });
+    );
 
-    return {
-      assignment,
-      quotaProposals: this.buildQuotaProposals(definition, input),
-    };
+    const [enrichedAssignment] = await this.enrichAssignments([assignment]);
+    return { assignment: enrichedAssignment };
   }
 
   async updatePlanAssignment(
@@ -112,38 +162,79 @@ export class TribePlanService {
     return definition;
   }
 
-  private buildQuotaProposals(
-    definition: TribePlanDefinition,
-    input: AssignTribePlanInput,
-  ): GeneratedQuotaPolicyProposal[] {
-    const proposals: GeneratedQuotaPolicyProposal[] = [];
+  private async enrichAssignments(
+    assignments: TribePlanAssignment[],
+  ): Promise<TribePlanAssignment[]> {
+    const policies = assignments.length
+      ? await this.planPrisma.quotaPolicy.findMany({
+          where: {
+            status: "active",
+            OR: assignments.map(({ ownerTribeId, projectId }) => ({
+              ownerTribeId,
+              projectId,
+            })),
+          },
+        })
+      : [];
+    return assignments.map((assignment) => ({
+      ...assignment,
+      effectiveLimits: this.effectiveLimits(assignment, policies),
+    }));
+  }
 
-    if (definition.gatewayCallsPerDay !== null) {
-      proposals.push({
-        ownerTribeId: input.ownerTribeId,
-        projectId: input.projectId,
-        scope: "all",
-        targetServiceId: null,
-        windowSeconds: DAY_SECONDS,
-        maxRequests: definition.gatewayCallsPerDay,
-        mode: "observe",
-        reason: `Plan ${definition.planKey} default gateway quota for ${input.environment}`,
-      });
-    }
-
-    if (definition.kafkaPublishesPerDay !== null) {
-      proposals.push({
-        ownerTribeId: input.ownerTribeId,
-        projectId: input.projectId,
-        scope: "kafka_publish",
-        targetServiceId: null,
-        windowSeconds: DAY_SECONDS,
+  private effectiveLimits(
+    assignment: TribePlanAssignment,
+    allPolicies: PlanQuotaPolicy[],
+  ): EffectivePlanLimit[] {
+    if (assignment.status !== "active") return [];
+    const definition = this.definitionFor(assignment.planKey);
+    const policies = allPolicies.filter(
+      (policy) =>
+        policy.ownerTribeId === assignment.ownerTribeId &&
+        policy.projectId === assignment.projectId &&
+        policy.status === "active",
+    );
+    const defaults = [
+      { scope: "all" as const, maxRequests: definition.gatewayCallsPerDay },
+      {
+        scope: "kafka_publish" as const,
         maxRequests: definition.kafkaPublishesPerDay,
-        mode: "observe",
-        reason: `Plan ${definition.planKey} default Kafka publish quota for ${input.environment}`,
-      });
-    }
-
-    return proposals;
+      },
+    ];
+    const baseLimits = defaults.map(({ scope, maxRequests }) => {
+      const override = policies.filter(
+        (policy) => !policy.targetServiceId && policy.scope === scope,
+      )[0];
+      return override
+        ? {
+            scope,
+            maxRequests: override.maxRequests,
+            windowSeconds: override.windowSeconds,
+            mode: override.mode,
+            source: "override" as const,
+            policyId: override.id,
+            reason: override.reason,
+          }
+        : {
+            scope,
+            maxRequests,
+            windowSeconds: maxRequests === null ? null : DAY_SECONDS,
+            mode: "enforce" as const,
+            source: "plan" as const,
+          };
+    });
+    const targetedOverrides = policies
+      .filter((policy) => Boolean(policy.targetServiceId))
+      .map((policy) => ({
+        scope: policy.scope as EffectivePlanLimit["scope"],
+        targetServiceId: policy.targetServiceId ?? undefined,
+        maxRequests: policy.maxRequests,
+        windowSeconds: policy.windowSeconds,
+        mode: policy.mode,
+        source: "override" as const,
+        policyId: policy.id,
+        reason: policy.reason,
+      }));
+    return [...baseLimits, ...targetedOverrides];
   }
 }
