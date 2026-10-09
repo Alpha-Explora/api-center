@@ -58,6 +58,6 @@ test('otp_runtime cannot read payment or email tables', { skip }, async () => {
 });
 
 test('gauth_runtime can delete from its own schema, which sms_runtime may not do', { skip }, async () => {
-  await assert.doesNotReject(asRole('gauth_runtime', 'delete from shared_gauth.oauth_sessions where false'));
+  await assert.doesNotReject(asRole('gauth_runtime', 'delete from shared_gauth.oauth_apps where false'));
   await assert.rejects(asRole('sms_runtime', 'delete from shared_sms.sms_messages where false'), /permission denied/);
 });

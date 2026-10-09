@@ -156,6 +156,18 @@ const forbiddenLegacyObjectNames = [
   "topic_onboarding_states_updated_idx",
 ];
 
+const requiredSharedGauthTables = ["oauth_apps"];
+const retiredSharedGauthTables = ["oauth_sessions", "oauth_accounts", "oauth_token_refs"];
+const requiredOAuthAppConstraints = [
+  "oauth_apps_pkey",
+  "oauth_apps_environment_check",
+  "oauth_apps_status_check",
+  "oauth_apps_redirect_uris_check",
+  "oauth_apps_client_id_check",
+  "oauth_apps_client_pair_check",
+  "oauth_apps_secret_ref_check",
+];
+
 const retentionManagedTables: QualifiedObject[] = [
   ["apic_audit", "audit_events"],
   ["apic_runtime", "quota_evaluations"],
@@ -435,6 +447,33 @@ async function main(): Promise<void> {
       failures,
       "Retired shared-service tables still present",
       retiredSharedTables.filter((name) => sharedNames.has(name)),
+    );
+
+    const sharedGauthRows = await queryRows(
+      client,
+      "select table_name as name from information_schema.tables where table_schema = 'shared_gauth'",
+    );
+    const sharedGauthTables = new Set(sharedGauthRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing shared_gauth tables",
+      requiredSharedGauthTables.filter((name) => !sharedGauthTables.has(name)).map((name) => "shared_gauth." + name),
+    );
+    addFailure(
+      failures,
+      "Retired shared_gauth tables still present",
+      retiredSharedGauthTables.filter((name) => sharedGauthTables.has(name)).map((name) => "shared_gauth." + name),
+    );
+
+    const oauthAppConstraintRows = await queryRows(
+      client,
+      "select c.conname as name from pg_constraint c join pg_class r on r.oid = c.conrelid join pg_namespace n on n.oid = r.relnamespace where n.nspname = 'shared_gauth' and r.relname = 'oauth_apps'",
+    );
+    const oauthAppConstraints = new Set(oauthAppConstraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing shared_gauth.oauth_apps constraints",
+      requiredOAuthAppConstraints.filter((name) => !oauthAppConstraints.has(name)),
     );
 
     if (hasFlag("--require-compat-views")) {

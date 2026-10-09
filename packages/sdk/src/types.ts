@@ -83,10 +83,10 @@ export interface ApiErrorDetails { code?: string; message?: string; details?: un
 
 export type SharedMessageRecipient = string | { email: string };
 export interface SharedMessageStatus { messageId: string; status: string; recipient?: string | string[]; createdAt?: string; metadata?: Record<string, unknown>; }
-export interface GoogleAuthorizationUrlRequest { tenantSlug?: string; redirectUri?: string; scopes?: string[]; state?: string; loginHint?: string; accessType?: 'online' | 'offline'; includeGrantedScopes?: boolean; prompt?: string; codeChallenge?: string; codeChallengeMethod?: 'plain' | 'S256'; }
-export interface GoogleAuthorizationUrlResponse { authorizationUrl: string; state: string; tenantSlug?: string; credentialSource?: string; expiresAt?: string; }
-export interface GoogleTokenExchangeRequest { code: string; codeVerifier?: string; state?: string; tenantSlug?: string; redirectUri?: string; }
-export interface GoogleTokenRefreshRequest { refreshToken: string; tenantSlug?: string; redirectUri?: string; }
+export interface GoogleAuthorizationUrlRequest { redirectUri?: string; scopes?: string[]; state?: string; loginHint?: string; accessType?: 'online' | 'offline'; includeGrantedScopes?: boolean; prompt?: string; codeChallenge?: string; codeChallengeMethod?: 'plain' | 'S256'; }
+export interface GoogleAuthorizationUrlResponse { authorizationUrl: string; state: string; credentialSource?: string; expiresAt?: string; }
+export interface GoogleTokenExchangeRequest { code: string; codeVerifier?: string; state: string; redirectUri?: string; }
+export interface GoogleTokenRefreshRequest { refreshToken: string; redirectUri?: string; }
 export interface GoogleOAuthTokenResponse { accessToken: string; refreshToken: string | null; idToken?: string; expiresIn?: number; tokenType?: string; scope?: string; }
 export interface GoogleLogoutRequest { token: string; tokenTypeHint?: 'access_token' | 'refresh_token'; }
 export interface GoogleLogoutResponse { revoked: boolean; }

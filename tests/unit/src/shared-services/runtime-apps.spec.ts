@@ -143,15 +143,18 @@ describe('migrated shared-service runtimes', () => {
     expect(reusedWithNewKey.status).toBe(400);
   });
 
-  it('supports deterministic geo behavior and rejects unconfigured Google OAuth', async () => {
+  it('supports deterministic geo behavior and rejects Google OAuth for unregistered projects', async () => {
     const geocode = await request('geo', '/geocode', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ address: 'Manila' }) });
     expect(geocode.status).toBe(200);
     expect(geocode.body.data.formattedAddress).toBe('Manila');
     const fence = await request('geo', '/geofence/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ latitude: 14.5995, longitude: 120.9842 }) });
     expect(fence.status).toBe(200);
     expect(fence.body.data.inside).toBe(true);
-    const oauth = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
-    expect(oauth.status).toBe(500);
-    expect(oauth.body.error.code).toBe('GOOGLE_CONFIG_ERROR');
+    const unscoped = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
+    expect(unscoped.status).toBe(400);
+    expect(unscoped.body.error.code).toBe('INVALID_PROJECT_CONTEXT');
+    const unregistered = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json', 'X-APICenter-Project-Id': 'unregistered-project', 'X-APICenter-Environment': 'live' }, body: JSON.stringify({}) });
+    expect(unregistered.status).toBe(403);
+    expect(unregistered.body.error.code).toBe('OAUTH_APP_NOT_REGISTERED');
   });
 });

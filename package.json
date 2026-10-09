@@ -53,6 +53,7 @@
     "format": "prettier --write \"apps/gateway/src/**/*.ts\"",
     "db:verify:control-plane": "ts-node scripts/verify-control-plane-schema.ts",
     "db:test:shared-stores": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/sms && npm run build --workspace @apicenter/otp && npm run build --workspace @apicenter/email && node --test tests/db/shared-service-stores.test.cjs",
+    "db:test:gauth-oauth-apps": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/gauth && node --test tests/db/gauth-oauth-apps.test.cjs",
     "db:purge:history": "node scripts/purge-expired-history.cjs",
     "db:test:retention": "node --test tests/db/retention-purge.test.cjs",
     "db:test:runtime-roles": "node --test tests/db/runtime-database-roles.test.cjs",
