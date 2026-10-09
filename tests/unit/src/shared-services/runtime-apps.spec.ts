@@ -99,7 +99,7 @@ describe('migrated shared-service runtimes', () => {
     const unscoped = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
     expect(unscoped.status).toBe(400);
     expect(unscoped.body.error.code).toBe('INVALID_PROJECT_CONTEXT');
-    const unregistered = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json', 'X-APICenter-Project-Id': 'unregistered-project' }, body: JSON.stringify({}) });
+    const unregistered = await request('gauth', '/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/json', 'X-APICenter-Project-Id': 'unregistered-project', 'X-APICenter-Environment': 'live' }, body: JSON.stringify({}) });
     expect(unregistered.status).toBe(403);
     expect(unregistered.body.error.code).toBe('OAUTH_APP_NOT_REGISTERED');
   });
