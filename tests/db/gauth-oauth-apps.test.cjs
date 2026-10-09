@@ -33,7 +33,7 @@ test.beforeEach(async () => {
 
 async function insertRow(values = {}) {
   await client.query(
-    'insert into shared_gauth.oauth_apps (project_id, environment, redirect_uris, client_id, client_secret_ref, display_name, status) values ($1, $2, $3, $4, $5, $6, $7)',
+    'insert into shared_gauth.oauth_apps (project_id, environment, redirect_uris, client_id, client_secret_ref, display_name, status, client_secret_updated_at) values ($1, $2, $3, $4, $5, $6, $7, $8)',
     [
       values.projectId ?? 'alphaci',
       values.environment ?? 'live',
@@ -42,6 +42,7 @@ async function insertRow(values = {}) {
       values.clientSecretRef ?? null,
       values.displayName ?? 'AlphaCI',
       values.status ?? 'active',
+      values.clientSecretUpdatedAt ?? null,
     ],
   );
 }
@@ -50,6 +51,7 @@ test('returns the registration with its own client, and null for an unregistered
   await insertRow({
     clientId: 'alphaci-client-id',
     clientSecretRef: validSecretRef,
+    clientSecretUpdatedAt: null,
     redirectUris: ['https://alphaci.com/callback', 'https://staging.alphaci.com/callback'],
   });
 
@@ -64,6 +66,23 @@ test('returns the registration with its own client, and null for an unregistered
   });
   assert.equal(await store.findByProjectAndEnvironment('alphaci', 'test'), null);
   assert.equal(await store.findByProjectAndEnvironment('other-project', 'live'), null);
+});
+
+test('saves and deletes an OAuth app with secret change metadata', { skip }, async () => {
+  const changedAt = '2026-10-10T00:00:00.000Z';
+  await store.save({
+    projectId: 'alphaci',
+    environment: 'live',
+    redirectUris: ['https://alphaci.com/callback'],
+    clientId: 'alphaci-client-id',
+    clientSecretRef: validSecretRef,
+    clientSecretUpdatedAt: changedAt,
+    displayName: 'AlphaCI',
+    status: 'active',
+  });
+  assert.equal((await store.findByProjectAndEnvironment('alphaci', 'live')).clientSecretUpdatedAt, changedAt);
+  await store.delete('alphaci', 'live');
+  assert.equal(await store.findByProjectAndEnvironment('alphaci', 'live'), null);
 });
 
 test('returns a registration without a client so the shared client applies', { skip }, async () => {

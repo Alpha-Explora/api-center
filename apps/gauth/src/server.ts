@@ -16,6 +16,7 @@ import { GoogleOAuthCredential, resolveGoogleOAuthCredential } from './shared/cr
 import { SecretManagerClientSecretReader } from './shared/client-secret-reader';
 import { createOAuthAppStore } from './shared/oauth-app-store';
 import { getStateSecret } from './shared/oauth-state.signer';
+import { createOAuthAppAdminHandler } from './shared/oauth-app-admin';
 
 // Throws at startup in production when GOOGLE_OAUTH_STATE_SECRET is missing, so the service never runs unsigned.
 getStateSecret(process.env);
@@ -29,6 +30,10 @@ const credentialDependencies = {
   secrets: new SecretManagerClientSecretReader(),
   env: process.env,
 };
+const oauthAppAdminHandler = createOAuthAppAdminHandler({
+  store: credentialDependencies.store,
+  expectedToken: process.env.GAUTH_ADMIN_TOKEN,
+});
 
 const { app } = createSharedServiceApp({
   serviceId: 'gauth-gateway',
@@ -45,6 +50,8 @@ const tokenExchangeService = new TokenExchangeService();
 const tokenRefreshService = new TokenRefreshService();
 const logoutService = new LogoutService();
 const verifyTokenService = new VerifyTokenService();
+
+app.all('/admin/oauth-apps/:projectId/:environment', oauthAppAdminHandler);
 
 /** The gateway sets the project and environment headers and strips any the caller sends, so they can be trusted. */
 async function resolveCredentialForRequest(req: Request, res: Response): Promise<GoogleOAuthCredential | null> {
