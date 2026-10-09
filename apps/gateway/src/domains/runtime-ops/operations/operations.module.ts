@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "@auth/auth.module";
 import { DatabaseModule } from "@database/database.module";
-import { GovernanceModule } from "@governance";
+import { GovernanceModule } from "@governance/governance.module";
 import { RegistryModule } from "@registry/registry.module";
 import { ConsumerScorecardController } from "./consumer-scorecard.controller";
 import { ConsumerScorecardService } from "./consumer-scorecard.service";

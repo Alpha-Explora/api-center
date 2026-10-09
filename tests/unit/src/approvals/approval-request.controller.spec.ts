@@ -1,5 +1,5 @@
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service";
+import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { ScopedAdminGuard } from "../../../../apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard";
 import { ApprovalRequestController } from "../../../../apps/gateway/src/domains/governance/approvals/approval-request.controller";
 import { ApprovalRequestService } from "../../../../apps/gateway/src/domains/governance/approvals/approval-request.service";

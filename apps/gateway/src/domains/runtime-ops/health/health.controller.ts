@@ -15,7 +15,7 @@ import {
   HealthCheckResult,
   HealthIndicatorResult,
 } from "@nestjs/terminus";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { GatewayTrafficService } from "@analytics/gateway-traffic.service";
 import { ConfigService } from "@config/config.service";
 import { RegistryService } from "@registry/registry.service";

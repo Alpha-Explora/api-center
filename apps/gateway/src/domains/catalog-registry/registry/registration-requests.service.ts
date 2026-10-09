@@ -1,5 +1,9 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "@database/prisma.service";
+import { Inject, Injectable } from "@nestjs/common";
+import {
+  REGISTRY_CHANGE_REQUEST_STORE,
+  RegistryChangeRequestRecord,
+  RegistryChangeRequestStore,
+} from "@change-requests/registry-change-request.types";
 import { ConflictError, NotFoundError, ValidationError } from "@shared/errors";
 import { isPlatformCapability } from "@shared/platform-capabilities";
 import { ServiceManifest } from "../../../types";
@@ -11,25 +15,6 @@ type RegistrationRequestStatus =
   | "approved"
   | "rejected"
   | "applied";
-
-type RegistrationRequestRow = {
-  id: string;
-  serviceId: string;
-  ownerTribeId: string | null;
-  projectId: string | null;
-  status: string;
-  manifest: unknown;
-  validationReport: unknown;
-  requestedBy: string | null;
-  approvedBy: string | null;
-  rejectedBy: string | null;
-  rejectionReason: string | null;
-  appliedServiceId: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  decidedAt: Date | string | null;
-  appliedAt: Date | string | null;
-};
 
 export type RegistrationPlanIssue = {
   severity: "info" | "warning" | "blocking";
@@ -66,7 +51,8 @@ export type ServiceRegistrationRequest = {
 @Injectable()
 export class RegistrationRequestsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(REGISTRY_CHANGE_REQUEST_STORE)
+    private readonly requests: RegistryChangeRequestStore,
     private readonly registry: RegistryService,
     private readonly tenancy: TenancyService,
   ) {}
@@ -79,16 +65,13 @@ export class RegistrationRequestsService {
     await this.tenancy.refreshIfMissing(manifest.projectId);
     const placement = this.resolveRequestPlacement(manifest);
     const validationReport = this.buildValidationReport(manifest);
-    const row = await this.prisma.registryChangeRequest.create({
-      data: {
-        serviceId: manifest.serviceId,
-        ownerTribeId: placement?.tribeId ?? null,
-        projectId: placement?.projectId ?? null,
-        status: "pending",
-        manifest: manifest as any,
-        validationReport: validationReport as any,
-        requestedBy: input.requestedBy,
-      },
+    const row = await this.requests.create({
+      serviceId: manifest.serviceId,
+      ownerTribeId: placement?.tribeId ?? null,
+      projectId: placement?.projectId ?? null,
+      manifest,
+      validationReport,
+      requestedBy: input.requestedBy,
     });
 
     return mapRow(row);
@@ -97,10 +80,7 @@ export class RegistrationRequestsService {
   async listRequests(
     status?: RegistrationRequestStatus,
   ): Promise<ServiceRegistrationRequest[]> {
-    const rows = await this.prisma.registryChangeRequest.findMany({
-      where: status ? { status } : undefined,
-      orderBy: { createdAt: "desc" },
-    });
+    const rows = await this.requests.list(status);
 
     return rows.map(mapRow);
   }
@@ -121,10 +101,7 @@ export class RegistrationRequestsService {
     const validationReport = this.buildValidationReport(manifest);
 
     if (!validationReport.canApply) {
-      await this.prisma.registryChangeRequest.update({
-        where: { id: requestId },
-        data: { validationReport: validationReport as any },
-      });
+      await this.requests.saveValidationReport(requestId, validationReport);
 
       const blockingMessages = validationReport.issues
         .filter((issue) => issue.severity === "blocking")
@@ -137,16 +114,10 @@ export class RegistrationRequestsService {
     }
 
     const entry = await this.registry.register(manifest);
-    const row = await this.prisma.registryChangeRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "applied",
-        approvedBy,
-        appliedServiceId: entry.serviceId,
-        validationReport: validationReport as any,
-        decidedAt: new Date(),
-        appliedAt: new Date(),
-      },
+    const row = await this.requests.markApplied(requestId, {
+      approvedBy,
+      appliedServiceId: entry.serviceId,
+      validationReport,
     });
 
     return mapRow(row);
@@ -157,20 +128,12 @@ export class RegistrationRequestsService {
     rejectedBy: string,
     reason: string,
   ): Promise<ServiceRegistrationRequest> {
-    const result = await this.prisma.registryChangeRequest.updateMany({
-      where: {
-        id: requestId,
-        status: "pending",
-      },
-      data: {
-        status: "rejected",
-        rejectedBy,
-        rejectionReason: reason,
-        decidedAt: new Date(),
-      },
+    const rejected = await this.requests.rejectIfPending(requestId, {
+      rejectedBy,
+      reason,
     });
 
-    if (result.count === 0) {
+    if (!rejected) {
       throw new ConflictError(
         "Only pending registration requests can be rejected",
       );
@@ -182,9 +145,7 @@ export class RegistrationRequestsService {
   private async getRequest(
     requestId: string,
   ): Promise<ServiceRegistrationRequest> {
-    const row = await this.prisma.registryChangeRequest.findUnique({
-      where: { id: requestId },
-    });
+    const row = await this.requests.find(requestId);
 
     if (!row) {
       throw new NotFoundError(`Registration request '${requestId}' not found`);
@@ -276,7 +237,7 @@ function normalizeManifest(manifest: ServiceManifest): ServiceManifest {
   return normalized;
 }
 
-function mapRow(row: RegistrationRequestRow): ServiceRegistrationRequest {
+function mapRow(row: RegistryChangeRequestRecord): ServiceRegistrationRequest {
   return {
     id: row.id,
     serviceId: row.serviceId,

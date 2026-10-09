@@ -9,7 +9,7 @@ import {
   UseGuards,
   Optional,
 } from "@nestjs/common";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { ValidationError } from "@shared/errors";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";

@@ -6,7 +6,7 @@ import { LoggerService } from '../../apps/gateway/src/shared/logger.service';
 import { ScopedAdminGuard } from '../../apps/gateway/src/domains/auth-security';
 import { ConfigService } from '../../apps/gateway/src/config/config.service';
 import { AuthService } from '../../apps/gateway/src/domains/auth-security/auth/auth.service';
-import { AuditEventsService } from '../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service';
+import { AuditEventsService } from '../../apps/gateway/src/domains/compliance/audit/audit-events.service';
 import { ApprovalRequestService } from '../../apps/gateway/src/domains/governance';
 
 describe('RegistryController scopes (e2e)', () => {

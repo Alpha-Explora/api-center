@@ -27,7 +27,7 @@ import {
   TribeQuotaStatus,
   UpdateTribeQuotaPolicyInput,
 } from "./tribe-quota-policy.types";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 
 const SCOPES: TribeQuotaScope[] = ["all", "shared", "tribe", "kafka_publish"];
 const MODES: TribeQuotaMode[] = ["observe", "enforce"];

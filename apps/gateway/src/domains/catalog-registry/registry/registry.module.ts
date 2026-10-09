@@ -22,6 +22,7 @@ import { AuthModule } from "@auth/auth.module";
 import { DatabaseModule } from "@database/database.module";
 import { TribeSecretRotationService } from "@secrets/tribe-secret-rotation.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
+import { RegistryChangeRequestModule } from "@change-requests/registry-change-request.module";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     VaultModule,
     forwardRef(() => ApprovalsModule),
     DatabaseModule,
+    RegistryChangeRequestModule,
     forwardRef(() => AuthModule),
   ],
   controllers: [RegistryController, RegistrationRequestsController, TenancyController],

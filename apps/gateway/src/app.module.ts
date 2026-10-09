@@ -58,6 +58,7 @@ import { ExternalModule } from "./domains/gateway-proxy/external/external.module
 import { SharedServicesModule } from "./domains/gateway-proxy/shared-services/shared-services.module";
 import { HealthModule } from "./domains/runtime-ops/health/health.module";
 import { MetricsModule } from "./metrics/metrics.module";
+import { AuditModule } from "./domains/compliance/audit/audit.module";
 import { AnalyticsModule } from "./domains/runtime-ops/analytics/analytics.module";
 import { GovernanceModule } from "@governance";
 import { CatalogModule } from "./domains/catalog-registry/catalog/catalog.module";
@@ -98,6 +99,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
 
     // ── 4. Observability & Bounded Contexts ──────────────────────────────────
     MetricsModule, // Prometheus counters / histograms / gauges
+    AuditModule, // Audit event ledger (apic_audit)
     AnalyticsModule, // Protected JSON analytics for the management console
     GovernanceModule, // Complete governance bounded context (quotas, entitlements, approvals, policy, dev portal)
     ForecastingModule, // Quota pressure projections

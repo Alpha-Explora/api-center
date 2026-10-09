@@ -1,8 +1,8 @@
-import { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { RegistrationRequestsService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registration-requests.service";
 import { TenancyService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.service";
+import { RegistryChangeRequestStore } from "../../../../apps/gateway/src/domains/governance/change-requests/registry-change-request.types";
 
 const activePlacement = {
   tribe: { tribeId: "logistics", name: "Logistics", status: "active" },
@@ -47,14 +47,13 @@ function row(overrides: Record<string, unknown> = {}) {
 }
 
 describe("RegistrationRequestsService", () => {
-  let prisma: {
-    registryChangeRequest: {
-      create: jest.Mock;
-      findMany: jest.Mock;
-      findUnique: jest.Mock;
-      update: jest.Mock;
-      updateMany: jest.Mock;
-    };
+  let requests: {
+    create: jest.Mock;
+    list: jest.Mock;
+    find: jest.Mock;
+    saveValidationReport: jest.Mock;
+    markApplied: jest.Mock;
+    rejectIfPending: jest.Mock;
   };
   let registry: {
     getAll: jest.Mock;
@@ -68,14 +67,13 @@ describe("RegistrationRequestsService", () => {
       resolveProject: jest.fn().mockReturnValue(activePlacement),
       refreshIfMissing: jest.fn().mockResolvedValue(undefined),
     };
-    prisma = {
-      registryChangeRequest: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn(),
-      },
+    requests = {
+      create: jest.fn(),
+      list: jest.fn(),
+      find: jest.fn(),
+      saveValidationReport: jest.fn().mockResolvedValue(undefined),
+      markApplied: jest.fn(),
+      rejectIfPending: jest.fn(),
     };
     registry = {
       getAll: jest.fn().mockReturnValue({
@@ -93,30 +91,27 @@ describe("RegistrationRequestsService", () => {
       }),
     };
     service = new RegistrationRequestsService(
-      prisma as unknown as PrismaService,
+      requests as unknown as RegistryChangeRequestStore,
       registry as unknown as RegistryService,
       tenancy as unknown as TenancyService,
     );
   });
 
   it("creates a pending request with the project and its derived tribe", async () => {
-    prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
+    requests.create.mockResolvedValueOnce(row());
 
     const result = await service.createRequest({
       manifest: manifest(),
       requestedBy: "github:logistics/orders",
     });
 
-    expect(prisma.registryChangeRequest.create).toHaveBeenCalledWith({
-      data: {
-        serviceId: "logistics-orders",
-        ownerTribeId: "logistics",
-        projectId: "logistics-fulfilment",
-        status: "pending",
-        manifest: expect.objectContaining({ serviceId: "logistics-orders" }),
-        validationReport: { canApply: true, issues: [] },
-        requestedBy: "github:logistics/orders",
-      },
+    expect(requests.create).toHaveBeenCalledWith({
+      serviceId: "logistics-orders",
+      ownerTribeId: "logistics",
+      projectId: "logistics-fulfilment",
+      manifest: expect.objectContaining({ serviceId: "logistics-orders" }),
+      validationReport: { canApply: true, issues: [] },
+      requestedBy: "github:logistics/orders",
     });
     expect(result).toMatchObject({
       id: "00000000-0000-0000-0000-000000000001",
@@ -127,8 +122,8 @@ describe("RegistrationRequestsService", () => {
   });
 
   it("approves a pending request by registering the manifest and marking it applied", async () => {
-    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
-    prisma.registryChangeRequest.update.mockResolvedValueOnce(
+    requests.find.mockResolvedValueOnce(row());
+    requests.markApplied.mockResolvedValueOnce(
       row({
         status: "applied",
         approvedBy: "platform-admin",
@@ -138,28 +133,21 @@ describe("RegistrationRequestsService", () => {
       }),
     );
 
-    const result = await service.approveRequest(
-      "00000000-0000-0000-0000-000000000001",
-      "platform-admin",
-    );
+    const result = await service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin");
 
     expect(registry.register).toHaveBeenCalledWith(
       expect.objectContaining({ serviceId: "logistics-orders" }),
     );
-    expect(prisma.registryChangeRequest.update).toHaveBeenCalledWith({
-      where: { id: "00000000-0000-0000-0000-000000000001" },
-      data: expect.objectContaining({
-        status: "applied",
-        approvedBy: "platform-admin",
-        appliedServiceId: "logistics-orders",
-        validationReport: { canApply: true, issues: [] },
-      }),
+    expect(requests.markApplied).toHaveBeenCalledWith("00000000-0000-0000-0000-000000000001", {
+      approvedBy: "platform-admin",
+      appliedServiceId: "logistics-orders",
+      validationReport: { canApply: true, issues: [] },
     });
     expect(result.status).toBe("applied");
   });
 
   it("looks for a project created on another gateway instance before rejecting the request", async () => {
-    prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
+    requests.create.mockResolvedValueOnce(row());
 
     await service.createRequest({ manifest: manifest() });
 
@@ -168,10 +156,10 @@ describe("RegistrationRequestsService", () => {
 
   it("drops a tribe left on a shared-service request by the pre-hierarchy format", async () => {
     const stored = { ...manifest(), serviceType: "shared", projectId: undefined, ownerTribeId: "logistics" };
-    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(
+    requests.find.mockResolvedValueOnce(
       row({ manifest: stored, ownerTribeId: null, projectId: null }),
     );
-    prisma.registryChangeRequest.update.mockResolvedValueOnce(row({ status: "applied" }));
+    requests.markApplied.mockResolvedValueOnce(row({ status: "applied" }));
 
     await service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin");
 
@@ -182,61 +170,40 @@ describe("RegistrationRequestsService", () => {
 
   it("recomputes validation at approval time and blocks stale requests", async () => {
     tenancy.resolveProject.mockReturnValue(null);
-    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
-    prisma.registryChangeRequest.update.mockResolvedValueOnce(
-      row({
-        validationReport: {
-          canApply: false,
-          issues: [
-            {
-              severity: "blocking",
-              code: "project-missing",
-              serviceId: "logistics-orders",
-              message: "Project is missing.",
-            },
-          ],
-        },
-      }),
-    );
+    requests.find.mockResolvedValueOnce(row());
 
     await expect(
-      service.approveRequest(
-        "00000000-0000-0000-0000-000000000001",
-        "platform-admin",
-      ),
+      service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin"),
     ).rejects.toThrow(
       "Project 'logistics-fulfilment' must exist before 'logistics-orders' can be registered.",
     );
 
     expect(registry.register).not.toHaveBeenCalled();
-    expect(prisma.registryChangeRequest.update).toHaveBeenCalledWith({
-      where: { id: "00000000-0000-0000-0000-000000000001" },
-      data: {
-        validationReport: expect.objectContaining({ canApply: false }),
-      },
-    });
+    expect(requests.markApplied).not.toHaveBeenCalled();
+    expect(requests.saveValidationReport).toHaveBeenCalledWith(
+      "00000000-0000-0000-0000-000000000001",
+      expect.objectContaining({ canApply: false }),
+    );
   });
 
   it("treats kafka consumes as a platform capability instead of an unknown service", async () => {
-    prisma.registryChangeRequest.create.mockResolvedValueOnce(row());
+    requests.create.mockResolvedValueOnce(row());
 
     await service.createRequest({
       manifest: manifest({ consumes: ["kafka"] }),
       requestedBy: "github:logistics/orders",
     });
 
-    expect(prisma.registryChangeRequest.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(requests.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         validationReport: { canApply: true, issues: [] },
       }),
-    });
+    );
   });
 
   it("rejects a pending request without registering the manifest", async () => {
-    prisma.registryChangeRequest.updateMany.mockResolvedValueOnce({
-      count: 1,
-    });
-    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(
+    requests.rejectIfPending.mockResolvedValueOnce(true);
+    requests.find.mockResolvedValueOnce(
       row({
         status: "rejected",
         rejectedBy: "platform-admin",
@@ -251,16 +218,9 @@ describe("RegistrationRequestsService", () => {
     );
 
     expect(registry.register).not.toHaveBeenCalled();
-    expect(prisma.registryChangeRequest.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: "00000000-0000-0000-0000-000000000001",
-        status: "pending",
-      },
-      data: expect.objectContaining({
-        status: "rejected",
-        rejectedBy: "platform-admin",
-        rejectionReason: "Consumes list not approved.",
-      }),
+    expect(requests.rejectIfPending).toHaveBeenCalledWith("00000000-0000-0000-0000-000000000001", {
+      rejectedBy: "platform-admin",
+      reason: "Consumes list not approved.",
     });
     expect(result).toMatchObject({
       status: "rejected",
@@ -269,17 +229,25 @@ describe("RegistrationRequestsService", () => {
     });
   });
 
+  it("does not reject a request that is no longer pending", async () => {
+    requests.rejectIfPending.mockResolvedValueOnce(false);
+
+    await expect(
+      service.rejectRequest("00000000-0000-0000-0000-000000000001", "platform-admin", "Too late."),
+    ).rejects.toThrow("Only pending registration requests can be rejected");
+  });
+
   it("refuses to create a request for an unknown project", async () => {
     tenancy.resolveProject.mockReturnValue(null);
 
     await expect(
       service.createRequest({ manifest: manifest(), requestedBy: "github:logistics/orders" }),
     ).rejects.toThrow("Project 'logistics-fulfilment' is not registered");
-    expect(prisma.registryChangeRequest.create).not.toHaveBeenCalled();
+    expect(requests.create).not.toHaveBeenCalled();
   });
 
   it("stores no tribe or project for shared-service requests", async () => {
-    prisma.registryChangeRequest.create.mockResolvedValueOnce(
+    requests.create.mockResolvedValueOnce(
       row({ serviceId: "email", ownerTribeId: null, projectId: null }),
     );
 
@@ -287,17 +255,16 @@ describe("RegistrationRequestsService", () => {
       manifest: manifest({ serviceId: "email", serviceType: "shared", projectId: undefined }),
     });
 
-    expect(prisma.registryChangeRequest.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ ownerTribeId: null, projectId: null }),
-    });
+    expect(requests.create).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerTribeId: null, projectId: null }),
+    );
   });
 
   it("blocks approval when the service already belongs to another project", async () => {
     registry.getAll.mockReturnValue({
       "logistics-orders": { serviceId: "logistics-orders", projectId: "logistics-returns", consumes: [] },
     });
-    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(row());
-    prisma.registryChangeRequest.update.mockResolvedValueOnce(row());
+    requests.find.mockResolvedValueOnce(row());
 
     await expect(
       service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin"),
@@ -306,15 +273,10 @@ describe("RegistrationRequestsService", () => {
   });
 
   it("does not approve a non-pending request", async () => {
-    prisma.registryChangeRequest.findUnique.mockResolvedValueOnce(
-      row({ status: "rejected" }),
-    );
+    requests.find.mockResolvedValueOnce(row({ status: "rejected" }));
 
     await expect(
-      service.approveRequest(
-        "00000000-0000-0000-0000-000000000001",
-        "platform-admin",
-      ),
+      service.approveRequest("00000000-0000-0000-0000-000000000001", "platform-admin"),
     ).rejects.toThrow("Only pending registration requests can be approved");
   });
 });

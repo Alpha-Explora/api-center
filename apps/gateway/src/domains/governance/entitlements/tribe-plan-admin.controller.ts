@@ -16,7 +16,7 @@ import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.type
 import { ValidationError } from "@shared/errors";
 import { requireGovernanceDependency } from "@shared/governance-dependencies";
 import { AuthenticatedRequest } from "../../../types";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { TribePlanService } from "./tribe-plan.service";
 import {
   AssignTribePlanResult,

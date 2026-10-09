@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { PromotionEvidenceBundleService } from "@operations/promotion-evidence-bundle.service";
 import { ComplianceExportService } from "./compliance-export.service";
 

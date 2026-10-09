@@ -28,7 +28,7 @@ import {
 } from "@nestjs/common";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { RegistryService } from "./registry.service";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { LoggerService } from "@shared/logger.service";
 import { ServiceManifestDto } from "@shared/dto/service-manifest.dto";

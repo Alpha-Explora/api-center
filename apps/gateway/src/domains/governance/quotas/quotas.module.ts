@@ -5,6 +5,7 @@ import { ConfigModule } from "@config/config.module";
 import { TribeCostService } from "@costs/tribe-cost.service";
 import { DatabaseModule } from "@database/database.module";
 import { ForecastingModule } from "@forecasting/forecasting.module";
+import { QuotaLedgerModule } from "@quota-ledger/quota-ledger.module";
 import { RegistryModule } from "@registry/registry.module";
 import { TribeQuotaAdminController } from "./tribe-quota-admin.controller";
 import { TribeQuotaEnforcerService } from "./tribe-quota-enforcer.service";
@@ -19,6 +20,7 @@ import { TribeQuotaUsageController } from "./tribe-quota-usage.controller";
     DatabaseModule,
     ConfigModule,
     ForecastingModule,
+    QuotaLedgerModule,
     forwardRef(() => RegistryModule),
   ],
   controllers: [TribeQuotaAdminController, TribeQuotaUsageController],

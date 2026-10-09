@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { RegistryService } from "@registry/registry.service";
-import { AuditEventsService } from "./audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { GatewayTrafficService } from "./gateway-traffic.service";
 import {
   SharedServiceUsageService,

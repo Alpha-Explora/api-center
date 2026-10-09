@@ -6,7 +6,7 @@ import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry
 import { ExternalService } from '../../apps/gateway/src/domains/gateway-proxy/external/external.service';
 import { TokenStoreService } from '../../apps/gateway/src/domains/auth-security/auth/token-store.service';
 import { GatewayTrafficService } from '../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service';
-import { AuditEventsService } from '../../apps/gateway/src/domains/runtime-ops/analytics/audit-events.service';
+import { AuditEventsService } from '../../apps/gateway/src/domains/compliance/audit/audit-events.service';
 import { GovernanceReadinessService } from '../../apps/gateway/src/domains/runtime-ops/health/governance-readiness.service';
 import { ConfigService } from '../../apps/gateway/src/config/config.service';
 

@@ -25,7 +25,7 @@ import { JwtAuthGuard } from "@auth/guards/jwt-auth.guard";
 import { AuthService } from "@auth/auth.service";
 import { LoggerService } from "@shared/logger.service";
 import { MetricsService } from "@metrics/metrics.service";
-import { AuditEventsService } from "@analytics/audit-events.service";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { GatewayTrafficService } from "@analytics/gateway-traffic.service";
 import { SharedServiceUsageService } from "@analytics/shared-service-usage.service";
 import { TribeQuotaEnforcerService } from "@quotas/tribe-quota-enforcer.service";
