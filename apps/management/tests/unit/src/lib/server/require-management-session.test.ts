@@ -81,7 +81,7 @@ describe("requireManagementSession", () => {
       source: "google",
       platformAdmin: false,
       organizationIds: [ACME],
-      organizationRoles: { [ACME]: "operator" },
+      organizationRoles: { [ACME]: "admin" },
     });
   });
 
