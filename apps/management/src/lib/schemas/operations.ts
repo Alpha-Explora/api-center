@@ -562,7 +562,7 @@ export const tribePlanKeySchema = z.enum([
   "pro",
   "enterprise",
 ]);
-export const tribePlanEnvironmentSchema = z.enum(["test", "prod"]);
+export const tribePlanEnvironmentSchema = z.enum(["test", "live"]);
 export const tribePlanAssignmentStatusSchema = z.enum(["active", "disabled"]);
 
 export const tribePlanDefinitionSchema = z.object({

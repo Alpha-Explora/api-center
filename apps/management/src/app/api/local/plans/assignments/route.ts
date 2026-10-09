@@ -3,11 +3,8 @@ import { ZodError } from "zod";
 import {
   assignTribePlanInputSchema,
   tribePlanAssignmentStatusSchema,
+  tribePlanEnvironmentSchema,
 } from "@/lib/schemas";
-import {
-  isEnvironmentNameError,
-  toPlanStorageEnvironment,
-} from "@/lib/environment-names";
 import { apiCenterAdminRequest } from "@/lib/server/api-center-admin";
 import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 import { requireManagementRouteAction } from "@/lib/server/require-management-action";
@@ -23,14 +20,9 @@ export async function GET(request: Request) {
   if (ownerTribeId) params.set("ownerTribeId", ownerTribeId);
   if (projectId) params.set("projectId", projectId);
   if (environment) {
-    try {
-      params.set("environment", toPlanStorageEnvironment(environment));
-    } catch (error) {
-      if (isEnvironmentNameError(error)) {
-        return invalidRequest("Unsupported environment.");
-      }
-      throw error;
-    }
+    const result = tribePlanEnvironmentSchema.safeParse(environment);
+    if (!result.success) return invalidRequest("Unsupported environment.");
+    params.set("environment", result.data);
   }
   if (status) {
     const result = tribePlanAssignmentStatusSchema.safeParse(status);
@@ -51,22 +43,15 @@ export async function POST(request: Request) {
     });
 
     const body = await request.json();
-    const input = assignTribePlanInputSchema.parse({
-      ...body,
-      environment: toPlanStorageEnvironment(body?.environment),
-    });
+    const input = assignTribePlanInputSchema.parse(body);
 
     return apiCenterAdminRequest("/api/v1/plans/assignments", {
       method: "POST",
       body: JSON.stringify(input),
     });
   } catch (error) {
-    if (error instanceof ZodError || isEnvironmentNameError(error)) {
-      return invalidRequest(
-        error instanceof ZodError
-          ? (error.issues[0]?.message ?? "Invalid request.")
-          : error.message,
-      );
+    if (error instanceof ZodError) {
+      return invalidRequest(error.issues[0]?.message ?? "Invalid request.");
     }
 
     return managementRouteErrorResponse(

@@ -66,7 +66,7 @@ describe("POST /api/local/plans/assignments", () => {
       "/api/v1/plans/assignments",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"environment":"prod"'),
+        body: expect.stringContaining('"environment":"live"'),
       }),
     );
   });
