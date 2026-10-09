@@ -95,7 +95,6 @@ model Service {
   dependedOnBy       ServiceDependency[]     @relation("DependsOnService")
   lifecycleEvents    ServiceLifecycleEvent[]
   environments       ServiceEnvironment[]
-  serviceSecretReference ServiceSecretReference?
 
   @@unique([organizationId, serviceId], name: "organization_service_id")
   @@index([serviceType, status], name: "services_type_status_idx")
@@ -173,22 +172,6 @@ model ServiceDependency {
   @@schema("apic_catalog")
 }
 
-model SharedServiceRuntimeRoute {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sharedServiceId String   @map("shared_service_id")
-  environment     String
-  runtimeUrl      String   @map("runtime_url")
-  status          String   @default("active")
-  providerMode    String?  @map("provider_mode")
-  metadata        Json     @default("{}")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@unique([sharedServiceId, environment], name: "shared_service_runtime_routes_service_env_uidx")
-  @@index([environment, status], name: "shared_service_runtime_routes_env_status_idx")
-  @@map("shared_service_runtime_routes")
-  @@schema("apic_catalog")
-}
 model ServiceLifecycleEvent {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   serviceId       String   @map("service_id") @db.Uuid
@@ -205,22 +188,6 @@ model ServiceLifecycleEvent {
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@map("service_lifecycle_events")
-  @@schema("apic_catalog")
-}
-
-model ServiceSecretReference {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId         String    @unique @map("service_id") @db.Uuid
-  secretManagerName String    @map("secret_manager_name")
-  latestVersion     String?   @map("latest_version")
-  status            String    @default("active")
-  rotatedAt         DateTime? @map("rotated_at") @db.Timestamptz(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@map("service_secret_references")
   @@schema("apic_catalog")
 }
 
@@ -258,26 +225,6 @@ model S3SinkTopic {
 
   @@unique([topicId, connectorName])
   @@map("s3_sink_topics")
-  @@schema("apic_runtime")
-}
-
-model ProvisioningJob {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId    String?   @map("service_id") @db.Uuid
-  jobType      String    @map("job_type")
-  status       String    @default("pending")
-  requestedBy  String?   @map("requested_by")
-  request      Json      @default("{}")
-  result       Json      @default("{}")
-  errorMessage String?   @map("error_message")
-  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
-  finishedAt   DateTime? @map("finished_at") @db.Timestamptz(6)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@index([serviceId], name: "provisioning_jobs_service_idx")
-  @@index([status, createdAt], name: "provisioning_jobs_status_created_idx")
-  @@map("provisioning_jobs")
   @@schema("apic_runtime")
 }
 
@@ -371,41 +318,6 @@ model AuditEvent {
   @@schema("apic_audit")
 }
 
-model HealthSnapshot {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId    String   @map("service_id") @db.Uuid
-  environment  String
-  healthy      Boolean
-  statusCode   Int?     @map("status_code")
-  latencyMs    Int?     @map("latency_ms")
-  errorMessage String?  @map("error_message")
-  checkedAt    DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
-
-  @@index([serviceId, environment, checkedAt], name: "health_snapshots_service_env_checked_idx")
-  @@map("health_snapshots")
-  @@schema("apic_runtime")
-}
-
-model SmokeTestRun {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId         String?  @map("service_id") @db.Uuid
-  tribeServiceId    String?  @map("tribe_service_id") @db.Uuid
-  environment       String
-  testType          String   @map("test_type")
-  providerImpacting Boolean  @default(false) @map("provider_impacting")
-  status            String
-  statusCode        Int?     @map("status_code")
-  latencyMs         Int?     @map("latency_ms")
-  responsePreview   String?  @map("response_preview")
-  errorMessage      String?  @map("error_message")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@index([serviceId, environment, createdAt], name: "smoke_test_runs_service_env_created_idx")
-  @@index([tribeServiceId, environment, createdAt], name: "smoke_test_runs_tribe_service_env_created_idx")
-  @@map("smoke_test_runs")
-  @@schema("apic_runtime")
-}
-
 model UsageRollup {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   windowStart       DateTime @map("window_start") @db.Timestamptz(6)
@@ -481,23 +393,6 @@ model QuotaEvaluation {
   @@schema("apic_runtime")
 }
 
-model PromotionEvidenceBundle {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId         String   @map("service_id")
-  sourceEnvironment String   @map("source_environment")
-  targetEnvironment String   @map("target_environment")
-  correlationId     String?  @map("correlation_id")
-  generatedBy       String?  @map("generated_by")
-  ready             Boolean  @default(false)
-  bundle            Json
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  generatedAt       DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
-
-  @@index([serviceId, sourceEnvironment, targetEnvironment, createdAt], name: "promotion_evidence_service_env_created_idx")
-  @@index([correlationId], name: "promotion_evidence_correlation_idx")
-  @@map("promotion_evidence_bundles")
-  @@schema("apic_governance")
-}
 model EntitlementPlan {
   planKey              String   @id @map("plan_key")
   displayName          String   @map("display_name")
