@@ -9,8 +9,7 @@
     "start": "node dist/server.js",
     "dev": "node --watch --loader ts-node/esm src/server.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
-    "db:validate": "prisma validate --schema prisma/schema.prisma"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@apicenter/contracts": "*",

@@ -208,6 +208,11 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
 
+      - name: Check the plan catalogue in code against the replayed database
+        run: npm run db:test:plan-definitions
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
+
       - name: Test the payment event dispatcher against the replayed database
         run: npm run db:test:payment-outbox
         env:

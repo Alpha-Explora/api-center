@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import { ValidationError } from "@shared/errors";
+import { PLAN_DEFINITIONS } from "./tribe-plan-definitions";
 import {
   AssignTribePlanInput,
   AssignTribePlanResult,
@@ -13,45 +14,6 @@ import {
 } from "./tribe-plan.types";
 
 const DAY_SECONDS = 24 * 60 * 60;
-
-const PLAN_DEFINITIONS: TribePlanDefinition[] = [
-  {
-    planKey: "starter",
-    displayName: "Starter",
-    gatewayCallsPerDay: 1_000,
-    kafkaPublishesPerDay: 100,
-    retentionTier: "standard",
-    sharedServiceAccess: "test-only-provider-impacting-smoke",
-    supportTier: "standard",
-  },
-  {
-    planKey: "standard",
-    displayName: "Standard",
-    gatewayCallsPerDay: 25_000,
-    kafkaPublishesPerDay: 5_000,
-    retentionTier: "standard",
-    sharedServiceAccess: "live-after-approval",
-    supportTier: "standard",
-  },
-  {
-    planKey: "pro",
-    displayName: "Pro",
-    gatewayCallsPerDay: 250_000,
-    kafkaPublishesPerDay: 50_000,
-    retentionTier: "extended",
-    sharedServiceAccess: "live",
-    supportTier: "priority",
-  },
-  {
-    planKey: "enterprise",
-    displayName: "Enterprise",
-    gatewayCallsPerDay: null,
-    kafkaPublishesPerDay: null,
-    retentionTier: "custom",
-    sharedServiceAccess: "custom",
-    supportTier: "dedicated",
-  },
-];
 
 interface EntitlementAssignmentDelegate {
   create(args: { data: Record<string, unknown> }): Promise<TribePlanAssignment>;
