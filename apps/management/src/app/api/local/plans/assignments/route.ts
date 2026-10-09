@@ -3,11 +3,8 @@ import { ZodError } from "zod";
 import {
   assignTribePlanInputSchema,
   tribePlanAssignmentStatusSchema,
+  tribePlanEnvironmentSchema,
 } from "@/lib/schemas";
-import {
-  isEnvironmentNameError,
-  toPlanStorageEnvironment,
-} from "@/lib/environment-names";
 import { apiCenterAdminRequest } from "@/lib/server/api-center-admin";
 import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 import { authorizeProject, managementOrganizationFilter } from "@/lib/server/organization-access";
@@ -26,12 +23,9 @@ export async function GET(request: Request) {
     }
     const environment = url.searchParams.get("environment");
     if (environment) {
-      try {
-        params.set("environment", toPlanStorageEnvironment(environment));
-      } catch (error) {
-        if (isEnvironmentNameError(error)) return invalidRequest("Unsupported environment.");
-        throw error;
-      }
+      const parsed = tribePlanEnvironmentSchema.safeParse(environment);
+      if (!parsed.success) return invalidRequest("Unsupported environment.");
+      params.set("environment", parsed.data);
     }
     const status = url.searchParams.get("status");
     if (status) {
@@ -40,8 +34,8 @@ export async function GET(request: Request) {
       params.set("status", status);
     }
 
-    const suffix = params.size ? `?${params.toString()}` : "";
-    return apiCenterAdminRequest(`/api/v1/plans/assignments${suffix}`);
+    const suffix = params.size ? "?" + params.toString() : "";
+    return apiCenterAdminRequest("/api/v1/plans/assignments" + suffix);
   } catch (error) {
     return managementRouteErrorResponse(error, "Plan assignment list failed.");
   }
@@ -50,10 +44,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const input = assignTribePlanInputSchema.parse({
-      ...body,
-      environment: toPlanStorageEnvironment(body?.environment),
-    });
+    const input = assignTribePlanInputSchema.parse(body);
     await authorizeProject(request, input.projectId, "operator");
     await requireManagementRouteAction({ request, actionRisk: "state-write", actionId: "plans.assignments.create" });
     return apiCenterAdminRequest("/api/v1/plans/assignments", {
@@ -61,8 +52,8 @@ export async function POST(request: Request) {
       body: JSON.stringify(input),
     });
   } catch (error) {
-    if (error instanceof ZodError || isEnvironmentNameError(error)) {
-      return invalidRequest(error instanceof ZodError ? (error.issues[0]?.message ?? "Invalid request.") : error.message);
+    if (error instanceof ZodError) {
+      return invalidRequest(error.issues[0]?.message ?? "Invalid request.");
     }
     return managementRouteErrorResponse(error, "Plan assignment request failed.");
   }

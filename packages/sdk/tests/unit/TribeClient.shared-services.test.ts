@@ -1,6 +1,28 @@
 import { TribeClient } from '../../src';
 
 describe('TribeClient shared services', () => {
+  it('excludes removed template fields from email and SMS request types', () => {
+    const emailRequest: Parameters<TribeClient['shared']['emailSend']>[0] = {
+      to: 'a@example.test',
+      subject: 'Hello',
+      text: 'World',
+    };
+    const smsRequest: Parameters<TribeClient['shared']['smsSend']>[0] = {
+      to: '+63900000000',
+      message: 'Hello',
+    };
+
+    // @ts-expect-error Email template IDs and variables are no longer part of the public request contract.
+    const legacyEmailRequest: Parameters<TribeClient['shared']['emailSend']>[0] = { ...emailRequest, templateId: 'legacy', templateVariables: {} };
+    // @ts-expect-error SMS template IDs are no longer part of the public request contract.
+    const legacySmsRequest: Parameters<TribeClient['shared']['smsSend']>[0] = { ...smsRequest, templateId: 'legacy' };
+
+    expect(emailRequest).not.toHaveProperty('templateId');
+    expect(smsRequest).not.toHaveProperty('templateId');
+    expect(legacyEmailRequest).toHaveProperty('templateId');
+    expect(legacySmsRequest).toHaveProperty('templateId');
+  });
+
   it('sends email through the authenticated shared namespace', async () => {
     const requestOptions: RequestInit[] = [];
     const fetchImpl = jest.fn(async () => ({

@@ -13,6 +13,7 @@ import { PolicyEngineModule } from "@policy/policy-engine.module";
 import { OperationsModule } from "@operations/operations.module";
 import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 import { SharedServiceRoutingService } from "./shared-service-routing.service";
+import { GoogleSignInAdminController } from "./google-sign-in-admin.controller";
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { SharedServiceRoutingService } from "./shared-service-routing.service";
     PolicyEngineModule,
     OperationsModule,
   ],
-  controllers: [PaymentWebhookController, SharedServicesController],
+  controllers: [PaymentWebhookController, SharedServicesController, GoogleSignInAdminController],
   providers: [SharedServiceEventPublisher, SharedServiceRoutingService],
 })
 export class SharedServicesModule {}

@@ -10,6 +10,7 @@ describe("ApprovalRequestController", () => {
     createRequest: jest.fn(),
     listRequests: jest.fn(),
     rejectRequest: jest.fn(),
+    cancelRequest: jest.fn(),
   };
   let auditEvents: { recordRequired: jest.Mock };
   let controller: ApprovalRequestController;
@@ -124,6 +125,27 @@ describe("ApprovalRequestController", () => {
     );
     expect(auditEvents.recordRequired).toHaveBeenCalledWith(
       expect.objectContaining({ type: "approval.request.rejected" }),
+    );
+  });
+
+  it("cancels a request as an admin and records the audit event", async () => {
+    approvals.cancelRequest.mockResolvedValue(request({ status: "cancelled" }));
+
+    const response = await controller.cancel("approval-1", {
+      user: { tribeId: "platform" },
+      correlationId: "corr-cancel",
+    } as any);
+
+    expect(approvals.cancelRequest).toHaveBeenCalledWith(
+      "approval-1",
+      "platform",
+      {
+        isAdmin: true,
+      },
+    );
+    expect(response.data).toMatchObject({ status: "cancelled" });
+    expect(auditEvents.recordRequired).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "approval.request.cancelled" }),
     );
   });
 });

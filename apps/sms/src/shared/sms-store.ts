@@ -1,6 +1,7 @@
-import { SmsRepositoryInterface } from './sms-repository.interface';
+import type { SharedServiceCaller } from '@apicenter/runtime';
+import { sameProject } from '@apicenter/runtime';
 import { PostgresSmsStore } from './postgres-sms-store';
-import { RedisSmsStore } from './redis-sms-store';
+import type { SmsRepositoryInterface } from './sms-repository.interface';
 
 export interface SmsRecord {
   messageId: string;
@@ -11,9 +12,14 @@ export interface SmsRecord {
   createdAt: string;
 }
 
+interface OwnedSmsRecord {
+  record: SmsRecord;
+  owner: SharedServiceCaller;
+}
+
 export class MemorySmsStore implements SmsRepositoryInterface {
   private static instance: MemorySmsStore;
-  private readonly store = new Map<string, SmsRecord>();
+  private readonly store = new Map<string, OwnedSmsRecord>();
 
   public static getInstance(): MemorySmsStore {
     if (!MemorySmsStore.instance) {
@@ -22,24 +28,27 @@ export class MemorySmsStore implements SmsRepositoryInterface {
     return MemorySmsStore.instance;
   }
 
-  async save(record: SmsRecord): Promise<SmsRecord> {
-    this.store.set(record.messageId, record);
+  async save(record: SmsRecord, owner: SharedServiceCaller): Promise<SmsRecord> {
+    const existing = this.store.get(record.messageId);
+    if (existing && !sameProject(existing.owner, owner)) {
+      throw new Error('SMS message id belongs to another project');
+    }
+    this.store.set(record.messageId, { record: { ...record }, owner: { ...(existing?.owner ?? owner) } });
     return record;
   }
 
-  async findById(messageId: string): Promise<SmsRecord | null> {
-    return this.store.get(messageId) || null;
+  async findById(messageId: string, owner: SharedServiceCaller): Promise<SmsRecord | null> {
+    const entry = this.store.get(messageId);
+    if (!entry || !sameProject(entry.owner, owner)) return null;
+    return { ...entry.record };
   }
 }
 
+/** Uses Postgres when DATABASE_URL is set. Production refuses to start without it. */
 export function createSmsRepository(): SmsRepositoryInterface {
-  const mode = process.env.SMS_STORE_MODE || (process.env.DATABASE_URL ? 'postgres' : 'memory');
-  if (mode === 'postgres') {
-    return new PostgresSmsStore();
-  }
-  if (mode === 'redis') return new RedisSmsStore();
-  if (mode !== 'memory' || process.env.NODE_ENV === 'production') {
-    throw new Error('A shared SMS store is required in production');
+  if (process.env.DATABASE_URL) return new PostgresSmsStore();
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DATABASE_URL is required for the SMS record store in production');
   }
   return MemorySmsStore.getInstance();
 }

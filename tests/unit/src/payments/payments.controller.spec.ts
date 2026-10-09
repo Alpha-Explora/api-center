@@ -17,6 +17,7 @@ function request(path: string, method: string, body?: Record<string, unknown>) {
     body,
     paymentPrincipal: {
       ownerTribeId: 'tribe-alpha',
+      projectId: 'project-alpha',
       consumerServiceId: 'service-alpha',
       environment: 'test' as const,
       scopes: ['payments:read', 'payments:write'],
@@ -125,6 +126,7 @@ describe('PaymentsController', () => {
 
     const config = mockedAxios.request.mock.calls[0][0] as any;
     expect(config.headers['x-tribe-id']).toBe('tribe-alpha');
+    expect(config.headers['x-apicenter-project-id']).toBe('project-alpha');
     expect(config.headers['x-apicenter-environment']).toBe('test');
     expect(config.data).not.toHaveProperty('tribeId');
     expect(config.data).not.toHaveProperty('environment');

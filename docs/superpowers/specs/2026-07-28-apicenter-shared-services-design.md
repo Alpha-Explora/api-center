@@ -43,8 +43,8 @@ The migration preserves the existing endpoint shapes and response envelopes:
 
 | Service | Endpoints |
 | --- | --- |
-| Email | `/send`, `/status/:messageId`, `/templates` |
-| SMS | `/send`, `/status/:messageId`, `/templates` |
+| Email | `/send`, `/status/:messageId` |
+| SMS | `/send`, `/status/:messageId` |
 | OTP | `/generate`, `/verify`, `/status/:otpId` |
 | Google Auth | Existing `/oauth/*` flows, including tenant credentials and signed state |
 | Geo | `/geocode`, `/reverse-geocode`, `/geofence/check` |

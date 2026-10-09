@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import {
+  ConflictError,
   ForbiddenError,
   NotFoundError,
   ValidationError,
@@ -8,6 +9,7 @@ import {
 import {
   ApprovalCheckInput,
   ApprovalRequest,
+  ApprovalRequestStatus,
   CreateApprovalRequestInput,
 } from "./approval-request.types";
 
@@ -19,10 +21,10 @@ interface ApprovalRequestDelegate {
     take: number;
   }): Promise<ApprovalRequest[]>;
   findUnique(args: { where: { id: string } }): Promise<ApprovalRequest | null>;
-  update(args: {
-    where: { id: string };
+  updateMany(args: {
+    where: { id: string; status: ApprovalRequestStatus };
     data: Record<string, unknown>;
-  }): Promise<ApprovalRequest>;
+  }): Promise<{ count: number }>;
 }
 
 interface ApprovalPrisma {
@@ -64,14 +66,17 @@ export class ApprovalRequestService {
     approvalRequestId: string,
     approvedBy: string,
   ): Promise<ApprovalRequest> {
-    await this.getRequired(approvalRequestId);
-    return this.approvalPrisma.approvalRequest.update({
-      where: { id: approvalRequestId },
-      data: {
-        status: "approved",
-        approvedBy,
-        approvedAt: new Date(),
-      },
+    const request = await this.getRequired(approvalRequestId);
+    this.assertStatus(request, "pending");
+    if (request.requestedBy === approvedBy) {
+      throw new ForbiddenError(
+        "Requesters cannot approve their own approval request",
+      );
+    }
+    return this.transition(approvalRequestId, "pending", {
+      status: "approved",
+      approvedBy,
+      approvedAt: new Date(),
     });
   }
 
@@ -80,15 +85,30 @@ export class ApprovalRequestService {
     rejectedBy: string,
     rejectionReason: string,
   ): Promise<ApprovalRequest> {
-    await this.getRequired(approvalRequestId);
-    return this.approvalPrisma.approvalRequest.update({
-      where: { id: approvalRequestId },
-      data: {
-        status: "rejected",
-        rejectedBy,
-        rejectedAt: new Date(),
-        rejectionReason,
-      },
+    return this.transition(approvalRequestId, "pending", {
+      status: "rejected",
+      rejectedBy,
+      rejectedAt: new Date(),
+      rejectionReason,
+    });
+  }
+
+  async cancelRequest(
+    approvalRequestId: string,
+    cancelledBy: string,
+    options: { isAdmin: boolean },
+  ): Promise<ApprovalRequest> {
+    const request = await this.getRequired(approvalRequestId);
+    if (!options.isAdmin && request.requestedBy !== cancelledBy) {
+      throw new ForbiddenError(
+        "Only the requester or an admin can cancel an approval request",
+      );
+    }
+    this.assertStatus(request, "pending");
+    return this.transition(approvalRequestId, "pending", {
+      status: "cancelled",
+      cancelledBy,
+      cancelledAt: new Date(),
     });
   }
 
@@ -103,6 +123,9 @@ export class ApprovalRequestService {
     }
 
     const request = await this.getRequired(input.approvalRequestId);
+    if (request.status === "applied") {
+      throw new ConflictError("Approval request has already been applied");
+    }
     if (request.status !== "approved") {
       throw new ForbiddenError("Approval request is not approved");
     }
@@ -120,7 +143,43 @@ export class ApprovalRequestService {
       throw new ForbiddenError("Approval request target does not match");
     }
 
-    return request;
+    return this.transition(input.approvalRequestId, "approved", {
+      status: "applied",
+      appliedAt: new Date(),
+    });
+  }
+
+  private assertStatus(
+    request: ApprovalRequest,
+    expected: ApprovalRequestStatus,
+  ): void {
+    if (request.status !== expected) {
+      throw new ConflictError(
+        `Approval request is ${request.status}, not ${expected}`,
+      );
+    }
+  }
+
+  /**
+   * Moves a request out of `fromStatus` in one conditional update. If another
+   * request already moved it, the update matches nothing and the caller gets a 409.
+   */
+  private async transition(
+    approvalRequestId: string,
+    fromStatus: ApprovalRequestStatus,
+    data: Record<string, unknown>,
+  ): Promise<ApprovalRequest> {
+    const result = await this.approvalPrisma.approvalRequest.updateMany({
+      where: { id: approvalRequestId, status: fromStatus },
+      data,
+    });
+    if (result.count === 0) {
+      const current = await this.getRequired(approvalRequestId);
+      throw new ConflictError(
+        `Approval request is ${current.status}, not ${fromStatus}`,
+      );
+    }
+    return this.getRequired(approvalRequestId);
   }
 
   private async getRequired(approvalRequestId: string) {

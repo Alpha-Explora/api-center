@@ -3,13 +3,13 @@ import type { OtpGenerateRequest, OtpGenerateResponse } from '@apicenter/contrac
 import { OtpTarget } from './generate-otp.model';
 import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
-import { sendResendEmail, sendTwilioSms } from '@apicenter/runtime';
+import { sendResendEmail, sendTwilioSms, type SharedServiceCaller } from '@apicenter/runtime';
 import { hashOtpCode } from '../../shared/otp-hash';
 
 export class GenerateOtpService {
   constructor(private readonly store: OtpRepositoryInterface = createOtpRepository()) {}
 
-  async execute(input: OtpGenerateRequest & { recipient?: string; target?: string; digits?: number; ttlSeconds?: number }): Promise<OtpGenerateResponse & { target: string; code?: string }> {
+  async execute(input: OtpGenerateRequest & { recipient?: string; target?: string; digits?: number; ttlSeconds?: number }, owner: SharedServiceCaller): Promise<OtpGenerateResponse & { target: string; code?: string }> {
     const rawTarget = input.recipient || input.target;
     const targetVo = new OtpTarget(rawTarget!, input.channel);
 
@@ -28,7 +28,8 @@ export class GenerateOtpService {
       codeHash: hashOtpCode(otpId, code),
       expiresAt,
       status: 'pending',
-    });
+      attemptCount: 0,
+    }, owner);
 
     const mock = process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production';
     try {
@@ -42,7 +43,7 @@ export class GenerateOtpService {
         });
       }
     } catch (error) {
-      await this.store.update(otpId, { status: 'expired' });
+      await this.store.update(otpId, { status: 'expired' }, owner);
       throw error;
     }
 

@@ -3,30 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
-import { ChevronLeftIcon, EyeIcon, EyeOffIcon } from "lucide-react";
-import {
-  type ChangeEvent,
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSeparator,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { FieldError } from "@/components/ui/field";
 import {
   getManagementSession,
   setManagementSessionToken,
@@ -36,10 +15,6 @@ const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
 const SESSION_STORAGE_KEY = "apicenter.management.googleCredential";
 export const MANAGEMENT_SIGN_OUT_EVENT = "apicenter-management-sign-out";
 const PRESS_FEEDBACK_MS = 650;
-const VERIFICATION_CODE_LENGTH = 6;
-const RESEND_SECONDS = 29;
-const primaryAuthButtonClass =
-  "h-11 w-full rounded-[7px] border border-[#111416] bg-[#111416] text-sm font-semibold text-white shadow-[0_6px_18px_rgba(15,23,42,0.12)] transition-[background-color,border-color,box-shadow,transform] duration-150 hover:bg-[#050607] focus:ring-0 focus-visible:ring-2 focus-visible:ring-[#cfd5dc]/70 active:translate-y-px active:bg-[#e9ecef] active:text-[#9aa1aa] active:shadow-none data-[pressed=true]:border-[#e5e7eb] data-[pressed=true]:bg-[#e9ecef] data-[pressed=true]:text-[#a5abb3] data-[pressed=true]:shadow-none disabled:pointer-events-none disabled:border-[#e5e7eb] disabled:bg-[#eef0f2] disabled:text-[#a6adb5] disabled:shadow-none";
 const secondaryAuthButtonClass =
   "h-11 w-full rounded-[7px] border-[#cfd5dc] bg-white text-sm font-semibold text-[#111827] shadow-none transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#aeb7c2] hover:bg-[#f8fafc] focus:ring-0 focus-visible:ring-2 focus-visible:ring-[#cfd5dc]/70 active:translate-y-px active:border-[#d7dde3] active:bg-[#f1f3f5] active:text-[#9aa1aa] data-[pressed=true]:border-[#d7dde3] data-[pressed=true]:bg-[#f1f3f5] data-[pressed=true]:text-[#a5abb3] disabled:pointer-events-none disabled:border-[#d9dee4] disabled:bg-[#f6f7f8] disabled:text-[#a6adb5]";
 
@@ -93,38 +68,12 @@ export function ManagementAuthGate({
       : (window.sessionStorage.getItem(SESSION_STORAGE_KEY) ?? undefined),
   );
   const [error, setError] = useState<string | undefined>();
-  const [signupStep, setSignupStep] = useState<
-    "profile" | "password" | "verify"
-  >("profile");
-  const [signupForm, setSignupForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-  });
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [verificationCode, setVerificationCode] = useState<string[]>(
-    Array.from({ length: VERIFICATION_CODE_LENGTH }, () => ""),
-  );
-  const [resendSeconds, setResendSeconds] = useState(0);
-  const [isSendingVerification, setIsSendingVerification] = useState(false);
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
-  const [pressedAction, setPressedAction] = useState<
-    "continue" | "google" | undefined
-  >();
-  const verificationInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const [googlePressed, setGooglePressed] = useState(false);
 
-  const showPressedFeedback = useCallback(
-    (action: "continue" | "google") => {
-      setPressedAction(action);
-      window.setTimeout(() => {
-        setPressedAction((currentAction) =>
-          currentAction === action ? undefined : currentAction,
-        );
-      }, PRESS_FEEDBACK_MS);
-    },
-    [],
-  );
+  const showGooglePressedFeedback = useCallback(() => {
+    setGooglePressed(true);
+    window.setTimeout(() => setGooglePressed(false), PRESS_FEEDBACK_MS);
+  }, []);
 
   const handleCredential = useCallback(async (response: GoogleCredentialResponse) => {
     if (!response.credential) {
@@ -152,116 +101,6 @@ export function ManagementAuthGate({
     setError(undefined);
   }, []);
 
-  const updateSignupField = useCallback(
-    (field: keyof typeof signupForm, value: string) => {
-      setSignupForm((currentForm) => ({
-        ...currentForm,
-        [field]: value,
-      }));
-    },
-    [],
-  );
-
-  const sendVerificationCode = useCallback(async () => {
-    setIsSendingVerification(true);
-
-    try {
-      const response = await fetch("/api/local/signup/email-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: signupForm.email,
-          firstName: signupForm.firstName,
-          lastName: signupForm.lastName,
-        }),
-      });
-
-      if (!response.ok) {
-        setError("We could not send the email code. Try again in a moment.");
-        return false;
-      }
-
-      setVerificationCode(Array.from({ length: VERIFICATION_CODE_LENGTH }, () => ""));
-      setResendSeconds(RESEND_SECONDS);
-      setError(undefined);
-      return true;
-    } catch {
-      setError("We could not reach the email service. Check your connection and try again.");
-      return false;
-    } finally {
-      setIsSendingVerification(false);
-    }
-  }, [signupForm.email, signupForm.firstName, signupForm.lastName]);
-
-  const handleVerificationChange = useCallback(
-    (index: number, event: ChangeEvent<HTMLInputElement>) => {
-      const digit = event.target.value.replace(/\D/g, "").slice(-1);
-
-      setVerificationCode((currentCode) => {
-        const nextCode = [...currentCode];
-        nextCode[index] = digit;
-        return nextCode;
-      });
-
-      if (digit && index < VERIFICATION_CODE_LENGTH - 1) {
-        verificationInputRefs.current[index + 1]?.focus();
-      }
-    },
-    [],
-  );
-
-  const handleVerificationKeyDown = useCallback(
-    (index: number, event: KeyboardEvent<HTMLInputElement>) => {
-      if (
-        event.key === "Backspace" &&
-        !verificationCode[index] &&
-        index > 0
-      ) {
-        verificationInputRefs.current[index - 1]?.focus();
-      }
-    },
-    [verificationCode],
-  );
-
-  const verifyEmailCode = useCallback(async () => {
-    const code = verificationCode.join("");
-
-    if (code.length !== VERIFICATION_CODE_LENGTH) {
-      setError("Enter the six-digit code from your email.");
-      return false;
-    }
-
-    setIsVerifyingCode(true);
-
-    try {
-      const response = await fetch("/api/local/signup/verify-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code,
-          email: signupForm.email,
-        }),
-      });
-
-      if (!response.ok) {
-        setError("That code is not right. Check the email and try again.");
-        return false;
-      }
-
-      setError(undefined);
-      return true;
-    } catch {
-      setError("We could not verify the code. Check your connection and try again.");
-      return false;
-    } finally {
-      setIsVerifyingCode(false);
-    }
-  }, [signupForm.email, verificationCode]);
-
   useEffect(() => {
     setManagementSessionToken(sessionToken);
 
@@ -273,18 +112,6 @@ export function ManagementAuthGate({
       window.location.assign(authenticatedRedirectHref);
     }
   }, [authenticatedRedirectHref, sessionToken]);
-
-  useEffect(() => {
-    if (signupStep !== "verify" || resendSeconds <= 0) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setResendSeconds((currentSeconds) => Math.max(0, currentSeconds - 1));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [resendSeconds, signupStep]);
 
   useEffect(() => {
     const handleSignOut = () => {
@@ -354,340 +181,63 @@ export function ManagementAuthGate({
           <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center">
             <ApicenterGlyph />
             <h1 className="mt-6 text-[28px] font-semibold leading-tight tracking-normal text-[#07111f]">
-              {signupStep === "verify" ? "Verify your email" : "Sign up for APICenter"}
+              Sign in to APICenter
             </h1>
+            <p className="mt-2 text-sm leading-6 text-[#59616d]">
+              Use your organization Google account to sign in.
+            </p>
 
-            <form
-              className="mt-8"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                showPressedFeedback("continue");
-
-                if (signupStep === "profile") {
-                  const email = signupForm.email.trim();
-
-                  if (!email) {
-                    setError("Add your email first, then we can create your account.");
-                    return;
-                  }
-
-                  setSignupForm((currentForm) => ({
-                    ...currentForm,
-                    email,
-                  }));
-                  setSignupStep("password");
-                  setError(undefined);
-                  return;
-                }
-
-                if (signupStep === "verify") {
-                  await verifyEmailCode();
-                  return;
-                }
-
-                if (!signupForm.password.trim()) {
-                  setError("Create a password to continue.");
-                  return;
-                }
-
-                const sent = await sendVerificationCode();
-
-                if (sent) {
-                  setSignupStep("verify");
-                  window.setTimeout(
-                    () => verificationInputRefs.current[0]?.focus(),
-                    0,
-                  );
-                }
-              }}
-            >
-              {signupStep === "profile" ? (
-                <FieldGroup className="gap-5">
-                  <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel className="text-[#111827]" htmlFor="first-name">
-                        First name
-                      </FieldLabel>
-                      <Input
-                        id="first-name"
-                        className="h-11 rounded-[7px] border-[#d0d7de] bg-white px-3 text-base text-[#111827] shadow-[0_1px_1px_rgba(15,23,42,0.02)] placeholder:text-[#8b95a1] focus-visible:border-[#6a8dff] focus-visible:ring-[#6a8dff]/25"
-                        placeholder="Your first name"
-                        autoComplete="given-name"
-                        value={signupForm.firstName}
-                        onChange={(event) =>
-                          updateSignupField("firstName", event.target.value)
-                        }
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel className="text-[#111827]" htmlFor="last-name">
-                        Last name
-                      </FieldLabel>
-                      <Input
-                        id="last-name"
-                        className="h-11 rounded-[7px] border-[#d0d7de] bg-white px-3 text-base text-[#111827] shadow-[0_1px_1px_rgba(15,23,42,0.02)] placeholder:text-[#8b95a1] focus-visible:border-[#6a8dff] focus-visible:ring-[#6a8dff]/25"
-                        placeholder="Your last name"
-                        autoComplete="family-name"
-                        value={signupForm.lastName}
-                        onChange={(event) =>
-                          updateSignupField("lastName", event.target.value)
-                        }
-                      />
-                    </Field>
-                  </FieldGroup>
-
-                  <Field>
-                    <FieldLabel className="text-[#111827]" htmlFor="email">
-                      Email
-                    </FieldLabel>
-                    <Input
-                      id="email"
-                      className="h-11 rounded-[7px] border-[#d0d7de] bg-white px-3 text-base text-[#111827] shadow-[0_1px_1px_rgba(15,23,42,0.02)] placeholder:text-[#8b95a1] focus-visible:border-[#6a8dff] focus-visible:ring-[#6a8dff]/25"
-                      placeholder="Your email address"
-                      autoComplete="email"
-                      type="email"
-                      value={signupForm.email}
-                      onChange={(event) =>
-                        updateSignupField("email", event.target.value)
-                      }
+            <div className="mt-8">
+              <div className="flex min-h-11 w-full items-center justify-center overflow-hidden">
+                {googleClientId ? (
+                  scriptReady ? (
+                    <div
+                      ref={buttonRef}
+                      className="flex w-full justify-center rounded-[7px] border border-[#cfd5dc] bg-white transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#aeb7c2] hover:bg-[#f8fafc] active:translate-y-px active:bg-[#f1f3f5] focus-within:ring-2 focus-within:ring-[#cfd5dc]/70"
                     />
-                  </Field>
-
-                  <Button
-                    className={primaryAuthButtonClass}
-                    data-pressed={pressedAction === "continue"}
-                    type="submit"
-                  >
-                    Continue
-                  </Button>
-                </FieldGroup>
-              ) : signupStep === "password" ? (
-                <FieldGroup className="gap-5">
-                  <Field>
-                    <FieldLabel className="text-[#111827]" htmlFor="confirmed-email">
-                      Email
-                    </FieldLabel>
-                    <Input
-                      id="confirmed-email"
-                      className="h-11 cursor-default rounded-[7px] border-[#e5e7eb] bg-[#eceeef] px-3 text-base text-[#475569] shadow-none disabled:cursor-default disabled:opacity-100"
-                      value={signupForm.email}
-                      disabled
-                      readOnly
-                      tabIndex={-1}
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="text-[#111827]" htmlFor="password">
-                      Password
-                    </FieldLabel>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        className="h-11 rounded-[7px] border-[#d0d7de] bg-white px-3 pr-10 text-base text-[#111827] shadow-[0_1px_1px_rgba(15,23,42,0.02)] placeholder:text-[#8b95a1] focus-visible:border-[#6a8dff] focus-visible:ring-[#6a8dff]/25"
-                        placeholder="Create a password"
-                        autoComplete="new-password"
-                        type={passwordVisible ? "text" : "password"}
-                        value={signupForm.password}
-                        onChange={(event) =>
-                          updateSignupField("password", event.target.value)
-                        }
-                      />
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger
-                            aria-label={
-                              passwordVisible ? "Hide password" : "Show password"
-                            }
-                            className="absolute right-1.5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-[6px] text-[#5f6875] transition-colors hover:bg-[#f1f3f5] hover:text-[#111827] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cfd5dc]/80"
-                            type="button"
-                            onClick={() =>
-                              setPasswordVisible((isVisible) => !isVisible)
-                            }
-                          >
-                            {passwordVisible ? (
-                              <EyeIcon aria-hidden="true" className="size-4" />
-                            ) : (
-                              <EyeOffIcon aria-hidden="true" className="size-4" />
-                            )}
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-[#111416] text-white">
-                            {passwordVisible ? "Hide password" : "Show password"}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </Field>
-
-                  <Button
-                    className={primaryAuthButtonClass}
-                    data-pressed={pressedAction === "continue"}
-                    disabled={isSendingVerification}
-                    type="submit"
-                  >
-                    {isSendingVerification ? "Sending code..." : "Continue"}
-                  </Button>
-                  <Button
-                    className="mx-auto h-auto rounded-[7px] px-2 py-1 text-sm font-medium text-[#4b5563] hover:bg-transparent hover:text-[#111827] focus:ring-0 focus-visible:ring-2 focus-visible:ring-[#cfd5dc]/70"
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setSignupStep("profile");
-                      setError(undefined);
-                    }}
-                  >
-                    <ChevronLeftIcon data-icon="inline-start" />
-                    Go back
-                  </Button>
-                </FieldGroup>
-              ) : (
-                <FieldGroup className="gap-5">
-                  <div>
-                    <p className="text-sm text-[#111827]">
-                      Enter the code sent to{" "}
-                      <span className="font-semibold">{signupForm.email}</span>
-                    </p>
-                    <div className="mt-5 grid grid-cols-6 gap-3">
-                      {verificationCode.map((digit, index) => (
-                        <Input
-                          aria-label={`Verification code digit ${index + 1}`}
-                          autoComplete={index === 0 ? "one-time-code" : "off"}
-                          className="h-12 rounded-[7px] border-[#cfd5dc] bg-white p-0 text-center text-xl font-medium text-[#111827] shadow-[0_1px_1px_rgba(15,23,42,0.02)] focus-visible:border-[#6a8dff] focus-visible:ring-[#6a8dff]/25"
-                          inputMode="numeric"
-                          key={`verification-code-${index}`}
-                          maxLength={1}
-                          pattern="[0-9]*"
-                          ref={(element) => {
-                            verificationInputRefs.current[index] = element;
-                          }}
-                          type="text"
-                          value={digit}
-                          onChange={(event) =>
-                            handleVerificationChange(index, event)
-                          }
-                          onKeyDown={(event) =>
-                            handleVerificationKeyDown(index, event)
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="text-center text-sm">
-                    <p className="text-[#111827]">Didn&apos;t receive a code?</p>
-                    {resendSeconds > 0 ? (
-                      <p className="mt-1 text-[#59616d]">
-                        Resend in {resendSeconds}
-                      </p>
-                    ) : (
-                      <Button
-                        className="mx-auto mt-1 h-auto rounded-[7px] px-2 py-1 text-sm font-medium text-[#005bd3] hover:bg-transparent hover:text-[#003f94] focus:ring-0 focus-visible:ring-2 focus-visible:ring-[#cfd5dc]/70"
-                        disabled={isSendingVerification}
-                        type="button"
-                        variant="ghost"
-                        onClick={sendVerificationCode}
-                      >
-                        {isSendingVerification ? "Sending..." : "Resend code"}
-                      </Button>
-                    )}
-                  </div>
-
-                  <Button
-                    className={primaryAuthButtonClass}
-                    data-pressed={pressedAction === "continue"}
-                    disabled={isVerifyingCode}
-                    type="submit"
-                  >
-                    {isVerifyingCode ? "Verifying..." : "Continue"}
-                  </Button>
-
-                  <Button
-                    className="mx-auto h-auto rounded-[7px] px-2 py-1 text-sm font-medium text-[#4b5563] hover:bg-transparent hover:text-[#111827] focus:ring-0 focus-visible:ring-2 focus-visible:ring-[#cfd5dc]/70"
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setSignupStep("password");
-                      setError(undefined);
-                    }}
-                  >
-                    <ChevronLeftIcon data-icon="inline-start" />
-                    Back to sign-in
-                  </Button>
-                </FieldGroup>
-              )}
-            </form>
-
-            {signupStep === "profile" ? (
-              <>
-                <FieldSeparator className="my-7 [&_[data-slot=field-separator-content]]:bg-white [&_[data-slot=field-separator-content]]:text-xs [&_[data-slot=field-separator-content]]:font-medium [&_[data-slot=field-separator-content]]:uppercase [&_[data-slot=separator]]:bg-[#e0e4e8]">
-                  or
-                </FieldSeparator>
-
-                <div className="flex min-h-11 w-full items-center justify-center overflow-hidden">
-                  {googleClientId ? (
-                    scriptReady ? (
-                      <div
-                        ref={buttonRef}
-                        className="flex w-full justify-center rounded-[7px] border border-[#cfd5dc] bg-white transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#aeb7c2] hover:bg-[#f8fafc] active:translate-y-px active:bg-[#f1f3f5] focus-within:ring-2 focus-within:ring-[#cfd5dc]/70"
-                      />
-                    ) : (
-                      <Button
-                        className={secondaryAuthButtonClass}
-                        type="button"
-                        variant="outline"
-                        disabled
-                      >
-                        <GoogleGlyph />
-                        Continue with Google
-                      </Button>
-                    )
                   ) : (
                     <Button
                       className={secondaryAuthButtonClass}
-                      data-pressed={pressedAction === "google"}
                       type="button"
                       variant="outline"
-                      onClick={() => {
-                        showPressedFeedback("google");
-                        setError(
-                          "Google sign-in is not connected yet. Add your Google client ID, then try again.",
-                        );
-                      }}
+                      disabled
                     >
                       <GoogleGlyph />
                       Continue with Google
                     </Button>
-                  )}
-                </div>
-                {!scriptReady && !error && googleClientId ? (
-                  <p className="mt-3 text-sm text-[#59616d]">
-                    Loading Google sign-up...
-                  </p>
-                ) : null}
-              </>
-            ) : null}
+                  )
+                ) : (
+                  <Button
+                    className={secondaryAuthButtonClass}
+                    data-pressed={googlePressed}
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      showGooglePressedFeedback();
+                      setError(
+                        "Google sign-in is not connected yet. Add your Google client ID, then try again.",
+                      );
+                    }}
+                  >
+                    <GoogleGlyph />
+                    Continue with Google
+                  </Button>
+                )}
+              </div>
+              {!scriptReady && !error && googleClientId ? (
+                <p className="mt-3 text-sm text-[#59616d]">
+                  Loading Google sign-in...
+                </p>
+              ) : null}
+            </div>
             <FieldError className="mt-3 rounded-[7px] border border-[#ffd7d7] bg-[#fff7f7] px-3 py-2 text-[#9f1c1c]">
               {error}
             </FieldError>
-            {signupStep === "profile" ? (
-              <p className="mt-7 text-sm text-[#59616d]">
-                Already have an account?{" "}
-                <Link
-                  className="font-medium text-[#005bd3] hover:text-[#003f94]"
-                  href="/dashboard"
-                >
-                  Sign in
-                </Link>
-              </p>
-            ) : null}
           </div>
 
           <p className="mx-auto mt-auto max-w-[320px] pt-10 text-center text-sm leading-5 text-[#59616d]">
-            <span className="block">By creating an account, you agree to the</span>
-            <Link
-              className="block text-[#1d4ed8] hover:text-[#143a9e]"
-              href="/#terms"
-            >
+            By signing in, you agree to the{" "}
+            <Link className="text-[#1d4ed8] hover:text-[#143a9e]" href="/#terms">
               Terms of Service
             </Link>
           </p>
@@ -711,7 +261,6 @@ export function ManagementAuthGate({
     </main>
   );
 }
-
 function GoogleGlyph() {
   return (
     <svg

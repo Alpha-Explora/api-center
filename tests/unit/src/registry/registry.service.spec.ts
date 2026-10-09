@@ -35,8 +35,6 @@ const mockConfig: Partial<ConfigService> = {
     enabled: false,
     provider: "",
     url: "",
-    registrySource: "redis",
-    dualWrite: false,
   } as any,
 };
 
@@ -53,6 +51,7 @@ const mockPostgresStore: Partial<PostgresRegistryStoreService> = {
   loadAll: jest.fn(),
   upsert: jest.fn(),
   remove: jest.fn(),
+  updateHealthStatus: jest.fn(),
 };
 
 // â”€â”€ Fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -118,14 +117,13 @@ describe("RegistryService", () => {
       enabled: false,
       provider: "",
       url: "",
-      registrySource: "redis",
-      dualWrite: false,
     };
     (mockPostgresStore.loadAll as jest.Mock).mockResolvedValue({});
     (mockPostgresStore.upsert as jest.Mock).mockResolvedValue(undefined);
     (mockPostgresStore.remove as jest.Mock).mockResolvedValue(undefined);
+    (mockPostgresStore.updateHealthStatus as jest.Mock).mockResolvedValue(undefined);
     tenancy = await seededTenancy();
-    // Construct without lifecycle hooks — avoids Redis connection
+    // Construct without lifecycle hooks — avoids background refresh timers.
     service = new RegistryService(
       mockLogger as LoggerService,
       mockConfig as ConfigService,
@@ -136,25 +134,72 @@ describe("RegistryService", () => {
     );
   });
 
+  describe("Postgres refresh", () => {
+    it("replaces the local snapshot with changes written by another gateway instance", async () => {
+      (mockConfig as any).database.enabled = true;
+      let persisted: Record<string, any> = {};
+      (mockPostgresStore.loadAll as jest.Mock).mockImplementation(async () => ({ ...persisted }));
+      (mockPostgresStore.upsert as jest.Mock).mockImplementation(async (entry) => {
+        persisted[entry.serviceId] = { ...entry };
+      });
+      (mockPostgresStore.remove as jest.Mock).mockImplementation(async (serviceId) => {
+        persisted[serviceId] = {
+          ...persisted[serviceId],
+          status: "retired",
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      const peer = new RegistryService(
+        mockLogger as LoggerService,
+        mockConfig as ConfigService,
+        mockMetrics as MetricsService,
+        mockServiceSecretResolver as ServiceSecretResolverService,
+        tenancy,
+        mockPostgresStore as PostgresRegistryStoreService,
+      );
+      await service.onModuleInit();
+      await peer.onModuleInit();
+
+      const invalidated: string[] = [];
+      peer.onCacheInvalidation((serviceId) => invalidated.push(serviceId));
+      await service.register(baseManifest());
+      await peer.refreshFromPostgres();
+      expect(peer.get("svc-alpha")?.status).toBe("active");
+
+      await service.deprecate("svc-alpha");
+      await peer.refreshFromPostgres();
+      expect(peer.get("svc-alpha")?.status).toBe("deprecated");
+
+      await service.deregister("svc-alpha");
+      await peer.refreshFromPostgres();
+      expect(peer.get("svc-alpha")?.status).toBe("retired");
+      expect(invalidated).toEqual(["svc-alpha", "svc-alpha", "svc-alpha"]);
+    });
+
+    it("keeps the current snapshot when a refresh fails", async () => {
+      (mockConfig as any).database.enabled = true;
+      await service.register(baseManifest());
+      (mockPostgresStore.loadAll as jest.Mock).mockRejectedValueOnce(new Error("db down"));
+
+      await expect(service.refreshFromPostgres()).resolves.toBeUndefined();
+      expect(service.get("svc-alpha")?.status).toBe("active");
+    });
+  });
+
   // =========================================================================
   // Lifecycle
   // =========================================================================
 
   describe("onModuleInit()", () => {
-    it("loads Postgres registry source even when Redis is unavailable", async () => {
+    it("loads the registry from Postgres when configured", async () => {
       (mockConfig as any).database = {
         ...mockConfig.database,
         enabled: true,
-        registrySource: "postgres",
       };
       (mockPostgresStore.loadAll as jest.Mock).mockResolvedValueOnce({
         "svc-alpha": registryEntry(),
       });
-      jest.spyOn(service as any, "createRedisClient").mockReturnValueOnce({
-        connect: jest.fn().mockRejectedValue(new Error("redis down")),
-        quit: jest.fn().mockResolvedValue(undefined),
-      });
-
       await service.onModuleInit();
 
       expect(mockPostgresStore.loadAll).toHaveBeenCalledTimes(1);
@@ -169,16 +214,10 @@ describe("RegistryService", () => {
       (mockConfig as any).database = {
         ...mockConfig.database,
         enabled: true,
-        registrySource: "postgres",
       };
       (mockPostgresStore.loadAll as jest.Mock).mockRejectedValueOnce(
         new Error("db down"),
       );
-      jest.spyOn(service as any, "createRedisClient").mockReturnValueOnce({
-        connect: jest.fn().mockRejectedValue(new Error("redis down")),
-        quit: jest.fn().mockResolvedValue(undefined),
-      });
-
       await expect(service.onModuleInit()).rejects.toThrow("db down");
       expect(service.count()).toBe(0);
     });
@@ -203,23 +242,26 @@ describe("RegistryService", () => {
       expect(mockMetrics.setRegistryServicesCount).toHaveBeenCalledWith(1);
     });
 
-    it("dual-writes to Postgres when enabled", async () => {
+    it("persists to Postgres before making a service visible", async () => {
       (mockConfig as any).database = {
         ...mockConfig.database,
         enabled: true,
-        dualWrite: true,
       };
+      const visibleDuringWrite: boolean[] = [];
+      (mockPostgresStore.upsert as jest.Mock).mockImplementation(async () => {
+        visibleDuringWrite.push(service.get("svc-alpha") !== null);
+      });
 
       const entry = await service.register(baseManifest());
 
       expect(mockPostgresStore.upsert).toHaveBeenCalledWith(entry);
+      expect(visibleDuringWrite).toEqual([false]);
     });
 
-    it("does not write to Postgres when dual-write is disabled", async () => {
+    it("uses memory when no database is configured", async () => {
       (mockConfig as any).database = {
         ...mockConfig.database,
-        enabled: true,
-        dualWrite: false,
+        enabled: false,
       };
 
       await service.register(baseManifest());
@@ -227,18 +269,17 @@ describe("RegistryService", () => {
       expect(mockPostgresStore.upsert).not.toHaveBeenCalled();
     });
 
-    it("rejects registration and restores memory when Postgres dual-write fails", async () => {
+    it("does not expose a registration when its Postgres write fails", async () => {
       (mockConfig as any).database = {
         ...mockConfig.database,
         enabled: true,
-        dualWrite: true,
       };
       (mockPostgresStore.upsert as jest.Mock).mockRejectedValueOnce(
         new Error("db down"),
       );
 
       await expect(service.register(baseManifest())).rejects.toThrow(
-        "Registry Postgres write failed for 'svc-alpha'",
+        "db down",
       );
       expect(service.get("svc-alpha")).toBeNull();
     });
@@ -355,11 +396,13 @@ describe("RegistryService", () => {
   // =========================================================================
 
   describe("deregister()", () => {
-    it("removes the service and emits a Kafka event", async () => {
+    it("marks the service retired in Postgres and local reads", async () => {
+      (mockConfig as any).database.enabled = true;
       await service.register(baseManifest());
       await service.deregister("svc-alpha");
 
-      expect(service.get("svc-alpha")).toBeNull();
+      expect(mockPostgresStore.remove).toHaveBeenCalledWith("svc-alpha");
+      expect(service.get("svc-alpha")?.status).toBe("retired");
     });
 
     it("throws NotFoundError for unknown service", async () => {
@@ -479,6 +522,41 @@ describe("RegistryService", () => {
   // =========================================================================
   // Routability
   // =========================================================================
+
+  describe("health status", () => {
+    it("keeps health probe observations local when Postgres persistence fails and recovers", async () => {
+      (mockConfig as any).database.enabled = true;
+      await service.register(baseManifest());
+
+      const invalidated = jest.fn();
+      service.onCacheInvalidation(invalidated);
+      (mockPostgresStore.updateHealthStatus as jest.Mock).mockImplementationOnce(
+        async () => {
+          expect(service.get("svc-alpha")?.healthy).toBe(false);
+          expect(service.isRoutable("svc-alpha")).toBe(false);
+          expect(invalidated).toHaveBeenCalledWith("svc-alpha");
+          throw new Error("database unavailable");
+        },
+      );
+
+      await expect(service.setHealthStatus("svc-alpha", false)).resolves.toBe(
+        true,
+      );
+      expect(service.get("svc-alpha")?.healthy).toBe(false);
+      expect(service.isRoutable("svc-alpha")).toBe(false);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("database unavailable"),
+        "RegistryService",
+      );
+
+      await expect(service.setHealthStatus("svc-alpha", true)).resolves.toBe(
+        true,
+      );
+      expect(service.get("svc-alpha")?.healthy).toBe(true);
+      expect(service.isRoutable("svc-alpha")).toBe(true);
+      expect(invalidated).toHaveBeenCalledTimes(2);
+    });
+  });
 
   describe("isRoutable()", () => {
     it("returns true for active services", async () => {

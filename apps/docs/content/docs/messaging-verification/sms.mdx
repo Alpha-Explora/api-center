@@ -5,7 +5,7 @@ description: "Send single transactional SMS notifications and track message deli
 
 # SMS Shared Service API
 
-The SMS Shared Service allows product backends to dispatch transactional SMS messages without directly integrating with telecommunication providers.
+The SMS Shared Service allows product backends to dispatch transactional SMS messages without directly integrating with telecommunication providers. Teams provide the message content in each request; APICenter does not store SMS templates.
 
 ---
 
@@ -70,20 +70,4 @@ Retries with the same key and request body replay the original status and respon
 ```
 
 ---
-
-## 3. List Available SMS Templates
-
-- **Endpoint**: `GET /api/v1/shared/sms/templates`
-
-### Response — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": [
-    "otp",
-    "verification",
-    "notification"
-  ]
-}
-```
+Requests containing the obsolete `templateId` field return `400`. Send the message content in `message` instead.

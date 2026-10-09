@@ -27,6 +27,7 @@ test.beforeEach(async () => { if (pool) await pool.query('TRUNCATE shared_paymen
 async function insertEvent(overrides = {}) {
   const row = {
     environment: 'test',
+    project_id: 'project-a',
     provider_event_id: 'evt_' + Math.random().toString(36).slice(2),
     event_type: 'payment.checkout.paid',
     aggregate_type: 'checkout',
@@ -64,6 +65,13 @@ test('publishes a pending event and records the acknowledgement', { skip }, asyn
   assert.equal(row.attempts, 1);
   assert.equal(row.claim_token, null);
   assert.ok(row.published_at);
+});
+
+test('a claimed event carries the project that owns it', { skip }, async () => {
+  const event = await insertEvent({ project_id: 'project-b' });
+  const [claimed] = await dispatcher.claimPendingPaymentEvents(pool, 1);
+  assert.equal(claimed.id, event.id);
+  assert.equal(claimed.ownerProjectId, 'project-b');
 });
 
 test('does not claim an event that is not yet available', { skip }, async () => {

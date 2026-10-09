@@ -65,7 +65,7 @@ describe("TribePlanTierPanel", () => {
         ownerTribeId: "campus-one",
         projectId: "campus-one-default",
         planKey: "standard",
-        environment: "prod",
+        environment: "live",
         status: "active",
         effectiveAt: "2026-05-25T00:00:00.000Z",
         reason: "Production rollout",
