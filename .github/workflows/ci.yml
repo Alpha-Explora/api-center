@@ -1,7 +1,9 @@
 # =============================================================================
 # GitHub Actions CI/CD Pipeline — API Center
 # =============================================================================
-# This workflow runs on every push and pull request to main.
+# This workflow runs only when started by hand, to save Actions minutes:
+#   gh workflow run ci.yml --ref <branch>
+# The Docker job takes about 35 minutes, so it is the costly one.
 #
 # WHAT IT DOES:
 #  1. Lint    — Checks code style and catches common issues
@@ -11,9 +13,7 @@
 #
 # WHY CI/CD:
 #  - Catches bugs BEFORE they reach production
-#  - Every PR is automatically validated
-#  - No manual "did you run the tests?" — the pipeline enforces it
-#  - The team can trust that main branch always compiles and passes tests
+#  - Run it on a branch before you merge, since PRs no longer trigger it
 #
 # SECRETS NEEDED (set in GitHub repo → Settings → Secrets):
 #  - None for basic CI. For deployment, add DOCKER_USERNAME, DOCKER_PASSWORD, etc.
@@ -22,10 +22,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   NODE_VERSION: '24'

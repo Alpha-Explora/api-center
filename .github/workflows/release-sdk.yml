@@ -1,9 +1,7 @@
 name: Publish APICenter SDK to GitHub Packages
 
+# Manual only. Publish with: gh workflow run release-sdk.yml --ref sdk-vX.Y.Z
 on:
-  push:
-    tags:
-      - 'sdk-v*'
   workflow_dispatch:
 
 permissions:
