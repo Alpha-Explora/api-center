@@ -12,6 +12,8 @@ import {
 } from "./features/pubsub-provisioning";
 import { PaymentAuthGuard } from "./shared/payment-auth.guard";
 import { PaymentIdempotencyService } from "./shared/payment-idempotency.service";
+import { PaymentRecordsManagementController } from "./features/records-management/payment-records-management.controller";
+import { PaymentRecordsManagementService } from "./features/records-management/payment-records-management.service";
 
 @Module({
   imports: [AuthModule, DatabaseModule, RegistryModule],
@@ -20,6 +22,7 @@ import { PaymentIdempotencyService } from "./shared/payment-idempotency.service"
     PaymentConsumerManagementController,
     PaymentCatalogManagementController,
     PaymentPubSubProvisioningController,
+    PaymentRecordsManagementController,
   ],
   providers: [
     PaymentApiKeyService,
@@ -29,6 +32,7 @@ import { PaymentIdempotencyService } from "./shared/payment-idempotency.service"
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
+    PaymentRecordsManagementService,
   ],
   exports: [
     PaymentApiKeyService,

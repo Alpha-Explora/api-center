@@ -466,6 +466,42 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Invoice"
+  /api/v1/payments/records:
+    get:
+      operationId: listPaymentRecords
+      tags: [Payments]
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: createdAfter
+          in: query
+          description: Inclusive ISO 8601 lower bound.
+          schema: { type: string, format: date-time }
+        - name: createdBefore
+          in: query
+          description: Exclusive ISO 8601 upper bound.
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Project-scoped payment record page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data: { $ref: "#/components/schemas/PaymentRecordPage" }
   /api/v1/payments/capabilities:
     get:
       operationId: getPaymentCapabilities
@@ -848,6 +884,28 @@ components:
           type: array
           items:
             type: string
+    PaymentRecord:
+      type: object
+      required: [type, id, projectId, environment, referenceId, relatedResourceId, amountMinor, currency, status, createdAt]
+      properties:
+        type: { type: string }
+        id: { type: string }
+        projectId: { type: string }
+        environment: { type: string, enum: [test, live] }
+        referenceId: { type: [string, 'null'] }
+        amountMinor: { type: [string, 'null'], pattern: '^-?[0-9]+$' }
+        currency: { type: [string, 'null'] }
+        status: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        relatedResourceId: { type: [string, 'null'] }
+    PaymentRecordPage:
+      type: object
+      required: [records]
+      properties:
+        records:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentRecord" }
+        nextCursor: { type: string }
     PendingResource:
       type: object
       required:

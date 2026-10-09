@@ -79,6 +79,28 @@ export interface PaymentCapabilities {
   paymentMethodsStatus?: 'unverified';
   providerAccountStatus?: 'unverified';
 }
+export interface PaymentRecord {
+  type: string;
+  id: string;
+  projectId: string;
+  environment: PaymentEnvironment;
+  referenceId: string | null;
+  /** Decimal integer string to preserve PostgreSQL bigint precision. */
+  amountMinor: string | null;
+  currency: string | null;
+  status: string | null;
+  createdAt: string;
+  relatedResourceId: string | null;
+}
+export interface ListPaymentRecordsOptions extends RequestOptions {
+  type?: string;
+  status?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  limit?: number;
+  cursor?: string;
+}
+export interface PaymentRecordPage { records: PaymentRecord[]; nextCursor?: string; }
 export interface ApiErrorDetails { code?: string; message?: string; details?: unknown; status: number; }
 
 export type SharedMessageRecipient = string | { email: string };

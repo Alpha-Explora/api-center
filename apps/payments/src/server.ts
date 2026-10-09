@@ -10,7 +10,7 @@ import { InvoicesService } from './features/invoices/invoices.service';
 import { PayMongoError } from './shared/payment-errors';
 import { providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
-import { PaymentContext, PaymentOwnerStore } from './shared/payment-owner-store';
+import { PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
 
 const port = Number(process.env.PORT || 4010);
 const { app, ok, fail } = createSharedServiceApp({
@@ -32,6 +32,33 @@ const refundsService = new RefundsService();
 const webhooksService = new WebhooksService();
 const invoicesService = new InvoicesService();
 const owners = PaymentOwnerStore.getInstance();
+
+function recordFilters(query: Request['query']): PaymentRecordFilters {
+  const one = (key: string): string | undefined => {
+    const value = query[key];
+    return typeof value === 'string' && value.length ? value : undefined;
+  };
+  const type = one('type');
+  const status = one('status');
+  const createdAfter = one('createdAfter');
+  const createdBefore = one('createdBefore');
+  const rawLimit = one('limit');
+  const limit = rawLimit === undefined ? 50 : Number(rawLimit);
+  if (rawLimit !== undefined && (!/^\d+$/.test(rawLimit) || !Number.isInteger(limit) || limit < 1 || limit > 200)) {
+    throw new PayMongoError('limit must be an integer from 1 to 200', 400, 'INVALID_LIMIT');
+  }
+  for (const [name, value] of [['createdAfter', createdAfter], ['createdBefore', createdBefore]] as const) {
+    if (value && (!Number.isFinite(Date.parse(value)) || !/^\d{4}-\d\d-\d\dT/.test(value))) {
+      throw new PayMongoError(`${name} must be an ISO 8601 timestamp`, 400, 'INVALID_DATE_FILTER');
+    }
+  }
+  if (createdAfter && createdBefore && Date.parse(createdAfter) >= Date.parse(createdBefore)) {
+    throw new PayMongoError('createdAfter must be earlier than createdBefore', 400, 'INVALID_DATE_FILTER');
+  }
+  if (type && !/^[a-z][a-z0-9_-]{0,63}$/.test(type)) throw new PayMongoError('Invalid type filter', 400, 'INVALID_TYPE_FILTER');
+  if (status && !/^[a-z][a-z0-9_-]{0,63}$/i.test(status)) throw new PayMongoError('Invalid status filter', 400, 'INVALID_STATUS_FILTER');
+  return { type, status, createdAfter, createdBefore, limit, cursor: one('cursor') };
+}
 
 function paymentContext(req: Request): PaymentContext {
   const tribeId = req.get('X-APICenter-Owner-Tribe-ID');
@@ -93,6 +120,19 @@ function handleCustomError(res: Response, err: any) {
   const status = err.statusCode || 502;
   return fail(res, status, err.code || 'PROVIDER_ERROR', err.message || 'Payment processing failed', err.details);
 }
+
+app.get('/payments/records', async (req: Request, res: Response) => {
+  try {
+    return ok(res, await owners.listRecords(paymentContext(req), recordFilters(req.query)));
+  } catch (err) { return handleCustomError(res, err); }
+});
+
+app.get('/admin/payments/records', async (req: Request, res: Response) => {
+  try {
+    const context = paymentContext(req);
+    return ok(res, await owners.listRecords(context, recordFilters(req.query)));
+  } catch (err) { return handleCustomError(res, err); }
+});
 
 // Payment Intents
 app.post('/payment-intents', async (req: Request, res: Response) => {

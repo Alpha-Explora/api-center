@@ -29,6 +29,21 @@ export interface SharedServiceManifest {
 
 export type PaymentEnvironment = 'test' | 'live';
 
+export interface PaymentRecord {
+  type: string;
+  id: string;
+  projectId: string;
+  environment: PaymentEnvironment;
+  referenceId: string | null;
+  amountMinor: string | null;
+  currency: string | null;
+  status: string | null;
+  createdAt: string;
+  relatedResourceId: string | null;
+}
+
+export interface PaymentRecordPage { records: PaymentRecord[]; nextCursor?: string; }
+
 export type CheckoutStatus =
   | 'draft'
   | 'pending'
