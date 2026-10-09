@@ -64,6 +64,13 @@ export class ConflictError extends AppError {
   }
 }
 
+/** 413 — Request document exceeds the supported size */
+export class PayloadTooLargeError extends AppError {
+  constructor(message = "Payload too large") {
+    super(message, HttpStatus.PAYLOAD_TOO_LARGE, "PAYLOAD_TOO_LARGE");
+  }
+}
+
 /** 429 — Rate limit exceeded */
 export class RateLimitError extends AppError {
   constructor(message = "Too many requests") {

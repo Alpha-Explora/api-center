@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { listServices } from "@/lib/api-center-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { ServiceRegistryEntry } from "@/lib/schemas";
@@ -99,6 +100,7 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
             <TableHead>Quota hint</TableHead>
             <TableHead>SLA</TableHead>
             <TableHead>Docs</TableHead>
+            <TableHead>Contract</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -152,12 +154,126 @@ function CatalogTable({ services }: { services: ServiceRegistryEntry[] }) {
                   <span className="text-sm text-muted-foreground">None</span>
                 )}
               </TableCell>
+              <TableCell>
+                <ServiceSpecsCell serviceId={service.serviceId} />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
     </div>
   );
+}
+
+type ServiceSpecVersion = {
+  version: string;
+  format: string;
+  sha256: string;
+  publishedBy: string;
+  publishedAt: string;
+};
+
+function ServiceSpecsCell({ serviceId }: { serviceId: string }) {
+  const [open, setOpen] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const versionsQuery = useQuery({
+    queryKey: ["service-spec-versions", serviceId],
+    queryFn: () => fetchSpecVersions(serviceId),
+    enabled: open,
+  });
+  const specQuery = useQuery({
+    queryKey: ["service-spec", serviceId, selectedVersion],
+    queryFn: () => fetchServiceSpec(serviceId, selectedVersion!),
+    enabled: open && selectedVersion !== null,
+  });
+
+  return (
+    <div className="min-w-48 space-y-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? "Hide versions" : "View versions"}
+      </Button>
+      {open ? (
+        <div className="space-y-2">
+          {versionsQuery.isLoading ? (
+            <span className="text-xs text-muted-foreground">Loading…</span>
+          ) : null}
+          {versionsQuery.isError ? (
+            <span className="text-xs text-destructive">
+              Could not load specifications.
+            </span>
+          ) : null}
+          {versionsQuery.data?.length === 0 ? (
+            <span className="text-xs text-muted-foreground">
+              No published contract
+            </span>
+          ) : null}
+          {versionsQuery.data?.map((spec) => (
+            <div
+              key={`${spec.version}:${spec.sha256}`}
+              className="rounded-md border p-2 text-xs"
+            >
+              <div className="font-medium">
+                {spec.version}{" "}
+                <span className="text-muted-foreground">· {spec.format}</span>
+              </div>
+              <div className="mt-1 flex gap-3">
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => setSelectedVersion(spec.version)}
+                >
+                  View
+                </button>
+                <a
+                  className="underline underline-offset-2"
+                  href={specDownloadUrl(serviceId, spec.version)}
+                >
+                  Download
+                </a>
+              </div>
+            </div>
+          ))}
+          {specQuery.data ? (
+            <pre className="max-h-72 max-w-96 overflow-auto rounded-md bg-muted p-3 text-xs">
+              {JSON.stringify(specQuery.data, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+async function fetchSpecVersions(
+  serviceId: string,
+): Promise<ServiceSpecVersion[]> {
+  const response = await fetch(
+    `/api/local/catalog/services/${encodeURIComponent(serviceId)}/spec-versions`,
+  );
+  if (!response.ok) throw new Error("Could not load specification versions");
+  const payload = (await response.json()) as { data?: ServiceSpecVersion[] };
+  return payload.data ?? [];
+}
+
+async function fetchServiceSpec(
+  serviceId: string,
+  version: string,
+): Promise<unknown> {
+  const response = await fetch(
+    `/api/local/catalog/services/${encodeURIComponent(serviceId)}/spec-versions/${encodeURIComponent(version)}`,
+  );
+  if (!response.ok) throw new Error("Could not load specification");
+  const payload = (await response.json()) as { data?: { document?: unknown } };
+  return payload.data?.document;
+}
+
+function specDownloadUrl(serviceId: string, version: string) {
+  return `/api/local/catalog/services/${encodeURIComponent(serviceId)}/spec-versions/${encodeURIComponent(version)}?download=1`;
 }
 
 function TokenList({ items }: { items: string[] }) {
