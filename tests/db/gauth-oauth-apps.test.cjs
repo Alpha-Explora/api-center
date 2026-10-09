@@ -61,6 +61,7 @@ test('returns the registration with its own client, and null for an unregistered
     redirectUris: ['https://alphaci.com/callback', 'https://staging.alphaci.com/callback'],
     clientId: 'alphaci-client-id',
     clientSecretRef: validSecretRef,
+    clientSecretUpdatedAt: null,
     displayName: 'AlphaCI',
     status: 'active',
   });
