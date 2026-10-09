@@ -38,6 +38,7 @@ export const tenancyProjectSchema = z.object({
 
 export const tenancyTribeSchema = z.object({
   tribeId: z.string(),
+  organizationId: z.string().uuid().optional(),
   name: z.string(),
   description: z.string().optional(),
   status: tenancyStatusSchema,
@@ -69,6 +70,7 @@ export const tenancyProjectResponseSchema = z.object({
 });
 
 export const createTribeInputSchema = z.object({
+  organizationId: z.string().uuid().optional(),
   tribeId: tribeIdSchema,
   name: z.string().trim().min(1, "Name is required").max(128),
   description: z.string().trim().max(500).optional(),

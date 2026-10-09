@@ -1,10 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from "class-validator";
+import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from "class-validator";
 import { PROJECT_ID_PATTERN, TRIBE_ID_PATTERN } from "../tenancy-identifiers";
 
 const STATUSES = ["active", "suspended", "archived"] as const;
 
 export class CreateTribeDto {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
+
   @ApiProperty({ example: "alphaci" })
   @IsString()
   @Matches(TRIBE_ID_PATTERN, { message: "tribeId must be a lowercase slug of 1-64 characters" })

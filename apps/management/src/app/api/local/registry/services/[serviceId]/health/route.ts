@@ -1,6 +1,8 @@
 import { apiCenterAdminJson } from "@/lib/server/api-center-admin";
 import { registryDetailResponseSchema } from "@/lib/schemas";
 import { requireManagementRouteAction } from "@/lib/server/require-management-action";
+import { authorizeService } from "@/lib/server/organization-access";
+import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 
 type Context = {
   params: Promise<{ serviceId: string }>;
@@ -9,11 +11,12 @@ type Context = {
 export async function POST(request: Request, context: Context) {
   const { serviceId } = await context.params;
   const checkedAt = new Date().toISOString();
-  await requireManagementRouteAction({
-    request,
-    actionRisk: "low-write",
-    actionId: "registry.service.health-check",
-  });
+  try {
+    await authorizeService(request, serviceId, "operator");
+    await requireManagementRouteAction({ request, actionRisk: "low-write", actionId: "registry.service.health-check" });
+  } catch (error) {
+    return managementRouteErrorResponse(error, "Service health check is not authorized.");
+  }
 
   try {
     const detail = await apiCenterAdminJson<unknown>(

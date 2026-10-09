@@ -67,10 +67,19 @@ export class TribePlanAdminController {
   @Get("assignments")
   async listAssignments(
     @Query() query: ListTribePlanAssignmentsInput,
+    @Query("organizationId") organizationFilter: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     this.validateAssignmentFilters(query);
-    return this.response(await this.plans.listPlanAssignments(query), req);
+    if (organizationFilter === undefined) {
+      return this.response(await this.plans.listPlanAssignments(query), req);
+    }
+    const organizationIds = new Set(organizationFilter.split(",").map((id) => id.trim()).filter(Boolean));
+    const ownerTribeIds = (this.tenancy.listTribes?.() ?? [])
+      .filter((tribe) => tribe.organizationId && organizationIds.has(tribe.organizationId))
+      .map((tribe) => tribe.tribeId)
+      .filter((tribeId) => !query.ownerTribeId || query.ownerTribeId === tribeId);
+    return this.response(await this.plans.listPlanAssignments({ ...query, ownerTribeIds }), req);
   }
 
   @Post("assignments")

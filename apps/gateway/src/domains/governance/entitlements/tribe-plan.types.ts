@@ -52,6 +52,7 @@ export interface UpdateTribePlanAssignmentInput {
 
 export interface ListTribePlanAssignmentsInput {
   ownerTribeId?: string;
+  ownerTribeIds?: string[];
   projectId?: string;
   planKey?: TribePlanKey;
   environment?: TribePlanEnvironment;

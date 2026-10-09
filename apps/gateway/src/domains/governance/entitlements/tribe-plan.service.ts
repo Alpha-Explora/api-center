@@ -48,7 +48,8 @@ export class TribePlanService {
     input: ListTribePlanAssignmentsInput = {},
   ): Promise<TribePlanAssignment[]> {
     const where: Record<string, unknown> = {};
-    if (input.ownerTribeId) where.ownerTribeId = input.ownerTribeId;
+    if (input.ownerTribeIds) where.ownerTribeId = { in: input.ownerTribeIds };
+    else if (input.ownerTribeId) where.ownerTribeId = input.ownerTribeId;
     if (input.projectId) where.projectId = input.projectId;
     if (input.planKey) where.planKey = input.planKey;
     if (input.environment) where.environment = input.environment;

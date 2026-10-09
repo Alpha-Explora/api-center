@@ -9,6 +9,7 @@ import { createOperationPreview } from "@/lib/operation-preview";
 import { getManagementAuthConfig } from "@/lib/server/management-auth";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 export async function POST(request: Request) {
   if (process.env.NEXT_PUBLIC_LOCAL_MANAGEMENT_MODE === "false") {
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
 
   try {
     const body = await request.json();
@@ -91,8 +94,8 @@ export async function POST(request: Request) {
 function isPreviewRequest(body: unknown): body is { preview: true } {
   return Boolean(
     body &&
-      typeof body === "object" &&
-      "preview" in body &&
-      (body as { preview?: unknown }).preview === true,
+    typeof body === "object" &&
+    "preview" in body &&
+    (body as { preview?: unknown }).preview === true,
   );
 }

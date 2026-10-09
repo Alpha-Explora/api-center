@@ -16,6 +16,14 @@ export function managementRouteErrorResponse(
     );
   }
 
+  if (message.includes("Organization access denied") || message.includes("Platform administrator required")) {
+    return NextResponse.json({ success: false, error: message }, { status: 403 });
+  }
+
+  if (message.includes("Organization scope could not be resolved")) {
+    return NextResponse.json({ success: false, error: message }, { status: 503 });
+  }
+
   if (
     message.includes("observer cannot perform") ||
     message.includes("live write actions require admin role")

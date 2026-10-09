@@ -77,6 +77,7 @@ describe("TribePlanAdminController", () => {
 
     const response = await controller.listAssignments(
       { environment: "live", status: "active" },
+      undefined,
       {
         correlationId: "corr-assignments",
       } as any,

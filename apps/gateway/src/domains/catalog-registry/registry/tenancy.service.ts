@@ -169,6 +169,7 @@ export class TenancyService implements OnModuleInit, OnApplicationBootstrap, OnM
     const now = new Date().toISOString();
     const tribe: Tribe = {
       tribeId,
+      ...(input.organizationId ? { organizationId: input.organizationId } : {}),
       name: requireName(input.name, "tribe"),
       ...(input.description?.trim() ? { description: input.description.trim() } : {}),
       status: "active",
