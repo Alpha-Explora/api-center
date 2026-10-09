@@ -5,7 +5,7 @@ describe("CapabilitiesService", () => {
   it("reports gateway and registry capabilities", () => {
     const service = new CapabilitiesService({
       authProvider: "internal-jwt",
-      database: { registrySource: "redis" },
+      database: { enabled: false },
       registryBootstrap: { enabled: false },
     } as unknown as ConfigService);
 
@@ -13,7 +13,7 @@ describe("CapabilitiesService", () => {
       coreGateway: {
         enabled: true,
         authProvider: "internal-jwt",
-        registrySource: "redis",
+        registrySource: "memory",
         registryBootstrapEnabled: false,
       },
       tribeSecrets: {
@@ -26,7 +26,7 @@ describe("CapabilitiesService", () => {
     process.env.TRIBE_SECRET_SOURCE = "gcp-secret-manager";
     const service = new CapabilitiesService({
       authProvider: "composite",
-      database: { registrySource: "postgres" },
+      database: { enabled: true },
       registryBootstrap: { enabled: true },
     } as unknown as ConfigService);
 
