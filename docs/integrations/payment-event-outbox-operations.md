@@ -4,7 +4,7 @@ Payment events are published from `shared_payment.payment_event_outbox` by a Clo
 
 ## Deploy order
 
-1. Apply the Supabase migrations through the environment's migration owner. `20261009000500_payment_outbox_claim_leases` is required before the dispatcher runs. It adds expiring worker claim tokens and a retry limit to the outbox. Confirm the `shared_services_app` role exists and has the grants from the payment runtime role migration.
+1. Apply the Supabase migrations through the environment's migration owner. `20261009000500_payment_outbox_claim_leases` is required before the dispatcher runs. It adds expiring worker claim tokens and a retry limit to the outbox. Confirm the `payments_runtime` role exists and that the dispatcher's login user is a member of it. See `docs/operations/shared-service-database-roles.md`.
 2. Confirm the test/live Pub/Sub topics in `infra/gcp/pubsub/` exist. The payments runtime identity needs `roles/pubsub.publisher` on each topic. The dispatcher identity needs Secret Manager access to its database URL and network reachability to the database.
 3. Deploy the matching payment image. The job runs `dist/events/paymentEventDispatcher.js` from that image, so deploy the image before replacing the job.
 4. Replace the Cloud Run Job definition for the environment being deployed. Deploy test first; run only one command per deployment:

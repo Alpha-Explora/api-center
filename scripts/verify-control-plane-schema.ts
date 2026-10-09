@@ -184,6 +184,82 @@ const registryChildDeleteTables = new Set([
   "apic_catalog.service_dependencies",
 ]);
 
+type RuntimeRole = { role: string; schema: string; privileges: string[] };
+
+// Each shared-service runtime connects as its own role. A role may use its own schema and nothing else.
+const runtimeRoles: RuntimeRole[] = [
+  { role: "payments_runtime", schema: "shared_payment", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "email_runtime", schema: "shared_email", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "sms_runtime", schema: "shared_sms", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "otp_runtime", schema: "shared_otp", privileges: ["SELECT", "INSERT", "UPDATE"] },
+  { role: "gauth_runtime", schema: "shared_gauth", privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"] },
+];
+const tablePrivileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE"];
+const tablePrivilegeColumns: Record<string, string> = {
+  SELECT: "sel",
+  INSERT: "ins",
+  UPDATE: "upd",
+  DELETE: "del",
+  TRUNCATE: "tru",
+};
+
+async function verifyRuntimeRoles(client: any, failures: string[]): Promise<void> {
+  for (const runtime of runtimeRoles) {
+    const roleRows = await queryRows(client, "select rolname from pg_roles where rolname = $1", [runtime.role]);
+    if (roleRows.length === 0) {
+      failures.push("Runtime database role does not exist: " + runtime.role);
+      continue;
+    }
+
+    const schemaRows = await queryRows(
+      client,
+      "select nspname as schema, has_schema_privilege($1, nspname, 'USAGE') as has_usage from pg_namespace where nspname = any($2::text[])",
+      [runtime.role, domainSchemas],
+    );
+    const usable = schemaRows.filter((row) => row.has_usage === true).map((row) => String(row.schema));
+    if (!usable.includes(runtime.schema)) {
+      failures.push(runtime.role + " lacks USAGE on its own schema " + runtime.schema);
+    }
+    addFailure(
+      failures,
+      runtime.role + " can use schemas other than " + runtime.schema,
+      usable.filter((schema) => schema !== runtime.schema),
+    );
+
+    const reachableTables = await queryRows(
+      client,
+      "select n.nspname as schema, c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and n.nspname = any($1::text[]) and n.nspname <> $2::text and (has_table_privilege($3::text, c.oid, 'SELECT') or has_table_privilege($3::text, c.oid, 'INSERT') or has_table_privilege($3::text, c.oid, 'UPDATE') or has_table_privilege($3::text, c.oid, 'DELETE') or has_table_privilege($3::text, c.oid, 'TRUNCATE'))",
+      [domainSchemas, runtime.schema, runtime.role],
+    );
+    addFailure(
+      failures,
+      runtime.role + " has table privileges outside " + runtime.schema,
+      reachableTables.map((row) => String(row.schema) + "." + String(row.name)),
+    );
+
+    const ownTables = await queryRows(
+      client,
+      "select c.relname as name, has_table_privilege($1::text, c.oid, 'SELECT') as sel, has_table_privilege($1::text, c.oid, 'INSERT') as ins, has_table_privilege($1::text, c.oid, 'UPDATE') as upd, has_table_privilege($1::text, c.oid, 'DELETE') as del, has_table_privilege($1::text, c.oid, 'TRUNCATE') as tru from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and n.nspname = $2::text",
+      [runtime.role, runtime.schema],
+    );
+    if (ownTables.length === 0) {
+      failures.push("No tables found in runtime schema " + runtime.schema);
+    }
+
+    const mismatches: string[] = [];
+    for (const table of ownTables) {
+      const objectName = runtime.schema + "." + String(table.name);
+      for (const privilege of tablePrivileges) {
+        const granted = table[tablePrivilegeColumns[privilege]] === true;
+        const required = runtime.privileges.includes(privilege);
+        if (required && !granted) mismatches.push(runtime.role + " lacks " + privilege + " on " + objectName);
+        if (!required && granted) mismatches.push(runtime.role + " must not have " + privilege + " on " + objectName);
+      }
+    }
+    addFailure(failures, "Runtime role table grants do not match its code", mismatches);
+  }
+}
+
 function hasFlag(name: string): boolean {
   return process.argv.includes(name);
 }
@@ -468,6 +544,7 @@ async function main(): Promise<void> {
         }
       }
     }
+    await verifyRuntimeRoles(client, failures);
   } finally {
     await client.end();
   }
