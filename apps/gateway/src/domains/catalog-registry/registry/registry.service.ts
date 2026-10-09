@@ -543,8 +543,16 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
       lastHealthCheckAt: now,
       updatedAt: now,
     };
-    await this.persistHealthStatus(updated);
     this.replaceEntry(updated, entry);
+
+    try {
+      await this.persistHealthStatus(updated);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to persist health status for '${serviceId}': ${(err as Error).message}`,
+        "RegistryService",
+      );
+    }
 
     return true;
   }

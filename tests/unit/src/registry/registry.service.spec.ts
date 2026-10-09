@@ -523,6 +523,41 @@ describe("RegistryService", () => {
   // Routability
   // =========================================================================
 
+  describe("health status", () => {
+    it("keeps health probe observations local when Postgres persistence fails and recovers", async () => {
+      (mockConfig as any).database.enabled = true;
+      await service.register(baseManifest());
+
+      const invalidated = jest.fn();
+      service.onCacheInvalidation(invalidated);
+      (mockPostgresStore.updateHealthStatus as jest.Mock).mockImplementationOnce(
+        async () => {
+          expect(service.get("svc-alpha")?.healthy).toBe(false);
+          expect(service.isRoutable("svc-alpha")).toBe(false);
+          expect(invalidated).toHaveBeenCalledWith("svc-alpha");
+          throw new Error("database unavailable");
+        },
+      );
+
+      await expect(service.setHealthStatus("svc-alpha", false)).resolves.toBe(
+        true,
+      );
+      expect(service.get("svc-alpha")?.healthy).toBe(false);
+      expect(service.isRoutable("svc-alpha")).toBe(false);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("database unavailable"),
+        "RegistryService",
+      );
+
+      await expect(service.setHealthStatus("svc-alpha", true)).resolves.toBe(
+        true,
+      );
+      expect(service.get("svc-alpha")?.healthy).toBe(true);
+      expect(service.isRoutable("svc-alpha")).toBe(true);
+      expect(invalidated).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe("isRoutable()", () => {
     it("returns true for active services", async () => {
       await service.register(baseManifest());
