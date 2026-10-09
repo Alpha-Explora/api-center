@@ -11,6 +11,7 @@ import { getManagementAuthConfig } from "@/lib/server/management-auth";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
 import { updateTopicOnboardingStateRecord } from "@/lib/server/topic-onboarding-state-store";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 export async function POST(request: Request) {
   if (process.env.NEXT_PUBLIC_LOCAL_MANAGEMENT_MODE === "false") {
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
 
   try {
     const input = topicMigrationRequestSchema.parse(await request.json());
@@ -72,7 +75,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { success: false, error: error.issues[0]?.message ?? "Invalid request." },
+        {
+          success: false,
+          error: error.issues[0]?.message ?? "Invalid request.",
+        },
         { status: 400 },
       );
     }

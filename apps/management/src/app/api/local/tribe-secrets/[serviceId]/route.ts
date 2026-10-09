@@ -6,6 +6,7 @@ import { getTribeSecretRotationWarning } from "@/lib/secret-status";
 import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { authorizeService } from "@/lib/server/organization-access";
 import {
   deleteTribeSecret,
   accessLatestSecretPayload,
@@ -39,9 +40,7 @@ export async function GET(request: Request, context: Context) {
   const { serviceId } = await context.params;
 
   try {
-    await requireManagementSession({
-      authorizationHeader: request.headers.get("authorization"),
-    });
+    await authorizeService(request, serviceId, "operator");
 
     const environment = readEnvironmentFromUrl(request.url);
     const setup = getSecretSetup(serviceId, environment);
@@ -78,6 +77,7 @@ export async function DELETE(request: Request, context: Context) {
   try {
     const body = await request.json();
     const input = tribeSecretDeleteRequestSchema.parse(body);
+    await authorizeService(request, serviceId, "operator");
 
     if (isPreviewRequest(body)) {
       await requireManagementSession({
@@ -139,14 +139,24 @@ export async function DELETE(request: Request, context: Context) {
       );
     }
 
+    if (isManagementAccessError(error)) {
+      return managementRouteErrorResponse(
+        error,
+        formatSecretDeleteError(error),
+      );
+    }
     return NextResponse.json(
-      {
-        success: false,
-        error: formatSecretDeleteError(error),
-      },
+      { success: false, error: formatSecretDeleteError(error) },
       { status: 500 },
     );
   }
+}
+
+function isManagementAccessError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /Management authentication required|Management authentication issuer mismatch|Organization access denied|Organization scope could not be resolved|Platform administrator required|observer cannot perform|live write actions require admin role|Type APPLY LIVE CHANGE|reason is required/.test(
+    error.message,
+  );
 }
 
 /** True while the secret payload is still the copy made when credentials moved from tribe to service. */
@@ -164,9 +174,9 @@ async function readMigrationMarker(secretName: string): Promise<boolean> {
 function isPreviewRequest(body: unknown): body is { preview: true } {
   return Boolean(
     body &&
-      typeof body === "object" &&
-      "preview" in body &&
-      (body as { preview?: unknown }).preview === true,
+    typeof body === "object" &&
+    "preview" in body &&
+    (body as { preview?: unknown }).preview === true,
   );
 }
 

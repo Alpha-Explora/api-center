@@ -5,6 +5,8 @@ import { tribeSecretProvisionRequestSchema } from "@/lib/schemas";
 import { createOperationPreview } from "@/lib/operation-preview";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { authorizeService } from "@/lib/server/organization-access";
+import { managementRouteErrorResponse } from "@/lib/server/management-route-error";
 import {
   createSecretManagerClient,
   getProjectId,
@@ -19,7 +21,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = tribeSecretProvisionRequestSchema.parse(body);
-    const actionRisk = input.environment === "live" ? "provider-write" : "state-write";
+    await authorizeService(request, input.serviceId, "operator");
+    const actionRisk =
+      input.environment === "live" ? "provider-write" : "state-write";
 
     if (isPreviewRequest(body)) {
       await requireManagementSession({
@@ -139,28 +143,40 @@ export async function POST(request: Request) {
       );
     }
 
+    if (isManagementAccessError(error)) {
+      return managementRouteErrorResponse(
+        error,
+        formatProvisioningError(error),
+      );
+    }
     return NextResponse.json(
-      {
-        success: false,
-        error: formatProvisioningError(error),
-      },
+      { success: false, error: formatProvisioningError(error) },
       { status: 500 },
     );
   }
 }
 
+function isManagementAccessError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /Management authentication required|Management authentication issuer mismatch|Organization access denied|Organization scope could not be resolved|Platform administrator required|observer cannot perform|live write actions require admin role|Type APPLY LIVE CHANGE|reason is required/.test(
+    error.message,
+  );
+}
+
 function isPreviewRequest(body: unknown): body is { preview: true } {
   return Boolean(
     body &&
-      typeof body === "object" &&
-      "preview" in body &&
-      (body as { preview?: unknown }).preview === true,
+    typeof body === "object" &&
+    "preview" in body &&
+    (body as { preview?: unknown }).preview === true,
   );
 }
 
 function formatProvisioningError(error: unknown) {
   const message =
-    error instanceof Error ? error.message : "Tribe secret provisioning failed.";
+    error instanceof Error
+      ? error.message
+      : "Tribe secret provisioning failed.";
 
   if (
     message.includes("Could not load the default credentials") ||
@@ -170,7 +186,9 @@ function formatProvisioningError(error: unknown) {
   }
 
   if (
-    message.includes("Unable to mint a local gcloud impersonated access token") ||
+    message.includes(
+      "Unable to mint a local gcloud impersonated access token",
+    ) ||
     message.includes("gcloud.cmd") ||
     message.includes("PERMISSION_DENIED") ||
     message.includes("iam.serviceAccounts.getAccessToken")
