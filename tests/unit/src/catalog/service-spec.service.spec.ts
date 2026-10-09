@@ -7,11 +7,15 @@ describe("ServiceSpecService identity scoping", () => {
     id: "11111111-1111-4111-8111-111111111111",
     serviceId: "billing-api",
     projectId: "project-a",
+    organizationId: "org-a",
+    project: { tribe: { organizationId: "org-a" } },
   };
   const secondService = {
     id: "22222222-2222-4222-8222-222222222222",
     serviceId: "billing-api",
     projectId: "project-b",
+    organizationId: "org-b",
+    project: { tribe: { organizationId: "org-b" } },
   };
 
   function createService(prisma: Record<string, unknown>) {
@@ -119,6 +123,32 @@ describe("ServiceSpecService identity scoping", () => {
         { serviceId: "billing-api", projectId: "project-b" },
       ),
     ).rejects.toThrow("authenticated project");
+    expect(prisma.serviceSpecVersion.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects publishing when the service organization differs from its project's tribe organization", async () => {
+    const prisma = {
+      service: {
+        findUnique: jest.fn().mockResolvedValue({
+          ...firstService,
+          project: { tribe: { organizationId: "org-b" } },
+        }),
+      },
+      serviceSpecVersion: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+      },
+    };
+    const service = createService(prisma);
+
+    await expect(
+      service.publish(firstService.id, "admin", {
+        version: "1.0.0",
+        format: "openapi-3.1",
+        document,
+      }),
+    ).rejects.toThrow("project's owning organization");
+    expect(prisma.serviceSpecVersion.findUnique).not.toHaveBeenCalled();
     expect(prisma.serviceSpecVersion.create).not.toHaveBeenCalled();
   });
 

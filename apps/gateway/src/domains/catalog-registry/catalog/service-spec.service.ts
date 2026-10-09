@@ -36,10 +36,28 @@ export class ServiceSpecService {
 
     const service = await this.prisma.service.findUnique({
       where: { id: serviceIdentity },
-      select: { id: true, serviceId: true, projectId: true },
+      select: {
+        id: true,
+        serviceId: true,
+        projectId: true,
+        organizationId: true,
+        project: {
+          select: {
+            tribe: { select: { organizationId: true } },
+          },
+        },
+      },
     });
     if (!service) {
       throw new NotFoundError(`Service '${serviceIdentity}' was not found`);
+    }
+    if (
+      service.projectId &&
+      service.organizationId !== service.project?.tribe.organizationId
+    ) {
+      throw new ForbiddenError(
+        "A project-bound service must belong to its project's owning organization",
+      );
     }
     if (
       publisher &&

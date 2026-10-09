@@ -18,7 +18,8 @@ export function managementRouteErrorResponse(
 
   if (
     message.includes("observer cannot perform") ||
-    message.includes("live write actions require admin role")
+    message.includes("live write actions require admin role") ||
+    message === "Platform administrator access required"
   ) {
     return NextResponse.json(
       { success: false, error: message },

@@ -7,6 +7,7 @@ export type ManagementSession = {
   email: string;
   name?: string;
   role: ManagementRole;
+  platformAdmin: boolean;
   source: ManagementAuthMode;
 };
 
@@ -94,12 +95,14 @@ export function createLocalDevSession(): ManagementSession {
     email: "local-dev@api-center.internal",
     name: "Local Developer",
     role: "admin",
+    platformAdmin: true,
     source: "local-dev",
   };
 }
 
 export function resolveManagementSessionFromGoogleClaims(
   claims: GoogleClaims,
+  env: EnvLike = process.env,
 ): ManagementSession {
   if (!claims.email || claims.email_verified !== true) {
     throw new Error("Verified Google email is required");
@@ -112,6 +115,12 @@ export function resolveManagementSessionFromGoogleClaims(
     email,
     name: claims.name,
     role: "admin",
+    platformAdmin: new Set(
+      (env.PLATFORM_ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    ).has(email),
     source: "google",
   };
 }

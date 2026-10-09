@@ -55,20 +55,51 @@ describe("getManagementAuthConfig", () => {
 
 describe("resolveManagementSessionFromGoogleClaims", () => {
   it("maps verified Google emails into admin management sessions", () => {
-    const session = resolveManagementSessionFromGoogleClaims({
-      sub: "user-1",
-      email: "ops@example.com",
-      email_verified: true,
-      name: "Ops User",
-    });
+    const session = resolveManagementSessionFromGoogleClaims(
+      {
+        sub: "user-1",
+        email: "Ops@example.com",
+        email_verified: true,
+        name: "Ops User",
+      },
+      { PLATFORM_ADMIN_EMAILS: "ops@example.com, other@example.com" },
+    );
 
     expect(session).toEqual({
       userId: "user-1",
       email: "ops@example.com",
       name: "Ops User",
       role: "admin",
+      platformAdmin: true,
       source: "google",
     });
+  });
+
+  it("does not grant platform-admin status to a verified non-allowlisted email", () => {
+    const session = resolveManagementSessionFromGoogleClaims(
+      {
+        sub: "member-1",
+        email: "member@example.com",
+        email_verified: true,
+      },
+      { PLATFORM_ADMIN_EMAILS: "platform-admin@example.com" },
+    );
+
+    expect(session.role).toBe("admin");
+    expect(session.platformAdmin).toBe(false);
+  });
+
+  it("fails closed when the platform-admin email list is missing", () => {
+    const session = resolveManagementSessionFromGoogleClaims(
+      {
+        sub: "admin-1",
+        email: "admin@example.com",
+        email_verified: true,
+      },
+      {},
+    );
+
+    expect(session.platformAdmin).toBe(false);
   });
 
   it("rejects unverified Google emails", () => {

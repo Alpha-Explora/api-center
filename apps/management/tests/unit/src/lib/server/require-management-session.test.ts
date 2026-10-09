@@ -11,6 +11,7 @@ describe("requireManagementSession", () => {
     });
 
     expect(session.role).toBe("admin");
+    expect(session.platformAdmin).toBe(true);
     expect(session.source).toBe("local-dev");
   });
 
@@ -45,6 +46,7 @@ describe("requireManagementSession", () => {
         MANAGEMENT_AUTH_MODE: "google",
         MANAGEMENT_ENVIRONMENT: "live",
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: "client-id.apps.googleusercontent.com",
+        PLATFORM_ADMIN_EMAILS: "ops@example.com",
       },
       authorizationHeader: "Bearer google-id-token",
       verifier: {
@@ -65,6 +67,7 @@ describe("requireManagementSession", () => {
       userId: "user-1",
       email: "ops@example.com",
       role: "admin",
+      platformAdmin: true,
       source: "google",
     });
   });

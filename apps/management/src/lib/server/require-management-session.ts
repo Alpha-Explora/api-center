@@ -38,7 +38,7 @@ export async function requireManagementSession(
   const verifier = input.verifier ?? createGoogleVerifier();
   const claims = await verifier.verifyIdToken(token, config.googleClientId);
 
-  return resolveManagementSessionFromGoogleClaims(claims);
+  return resolveManagementSessionFromGoogleClaims(claims, input.env);
 }
 
 function getBearerToken(authorizationHeader: string | null | undefined) {
