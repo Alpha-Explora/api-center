@@ -5,9 +5,19 @@ delete process.env.DATABASE_URL;
 process.env.SMS_PROVIDER_MODE = 'mock';
 process.env.OTP_DELIVERY_MODE = 'mock';
 
+const runtimeApps = new Map<string, { listen: (port: number, callback: () => void) => any }>();
+
+beforeAll(() => {
+  for (const service of ['email', 'sms', 'otp', 'gauth', 'geo']) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require(path.resolve(__dirname, `../../../../apps/${service}/src/server.ts`)) as { app: { listen: (port: number, callback: () => void) => any } };
+    runtimeApps.set(service, app);
+  }
+}, 120000);
+
 async function request(service: string, endpoint: string, init?: RequestInit): Promise<{ status: number; body: any; replayed: string | null }> {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { app } = require(path.resolve(__dirname, `../../../../apps/${service}/src/server.ts`)) as { app: { listen: (port: number, callback: () => void) => any } };
+  const app = runtimeApps.get(service);
+  if (!app) throw new Error(`Runtime app '${service}' was not loaded before the test.`);
   const server = await new Promise<any>((resolve) => {
     const instance = app.listen(0, () => resolve(instance));
   });
