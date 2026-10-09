@@ -37,10 +37,6 @@ drop table if exists shared_gauth.oauth_sessions;
 
 do $$
 begin
-  if exists (select 1 from pg_roles where rolname = 'shared_services_app') then
-    grant usage on schema shared_gauth to shared_services_app;
-    grant select on shared_gauth.oauth_apps to shared_services_app;
-  end if;
   if exists (select 1 from pg_roles where rolname = 'gauth_runtime') then
     grant usage on schema shared_gauth to gauth_runtime;
     grant select on shared_gauth.oauth_apps to gauth_runtime;
