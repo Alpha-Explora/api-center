@@ -65,9 +65,9 @@ describe("POST /api/local/signup/email-code", () => {
 
     expect(body).toMatchObject({
       subject: "Verify your APICenter email address",
-      templateId: "account_verification",
       to: "t.anthony.playz@gmail.com",
     });
+    expect(body).not.toHaveProperty("templateId");
     expect(body.text).toContain("Enter this code in your open browser window");
     expect(body.metadata).toMatchObject({
       productName: "APICenter",

@@ -131,11 +131,11 @@ git commit -m "feat(apicenter): add shared service runtime apps"
 
 **Interfaces:**
 - Consumes: runtime helpers from Task 1.
-- Produces: unchanged `/send`, `/status/:messageId`, and `/templates` routes with the existing `201`, `404`, `429`, and provider-error behavior.
+- Produces: `/send` and `/status/:messageId` routes with the existing `201`, `404`, `429`, and provider-error behavior. Email and SMS content is supplied by each caller; no template catalog is provided.
 
 - [ ] **Step 1: Write failing route contract tests**
 
-Cover missing recipient/content (`400 INVALID_REQUEST`), idempotent replay (`idempotencyStatus: "replayed"`), rate limiting (`429 RATE_LIMITED`), successful send (`201`), status lookup, and templates for both services.
+Cover missing recipient/content (`400 INVALID_REQUEST`), idempotent replay (`idempotencyStatus: "replayed"`), rate limiting (`429 RATE_LIMITED`), successful send (`201`), status lookup, and rejection of obsolete `templateId` requests for both services.
 
 - [ ] **Step 2: Run focused tests and verify the pre-implementation failures**
 

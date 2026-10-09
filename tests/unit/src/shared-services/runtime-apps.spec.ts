@@ -17,7 +17,14 @@ async function request(service: string, endpoint: string, init?: RequestInit): P
     headers.set('X-APICenter-Environment', 'test');
     headers.set('X-Tribe-Id', 'runtime-test-tribe');
     const response = await fetch(`http://127.0.0.1:${server.address().port}${endpoint}`, { ...init, headers });
-    return { status: response.status, body: await response.json(), replayed: response.headers.get('x-idempotency-replayed') };
+    const responseText = await response.text();
+    let body: any = responseText;
+    try {
+      body = JSON.parse(responseText);
+    } catch {
+      // Express' default not-found response is text/html.
+    }
+    return { status: response.status, body, replayed: response.headers.get('x-idempotency-replayed') };
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -66,6 +73,31 @@ describe('migrated shared-service runtimes', () => {
     expect(smsReplay.replayed).toBe('true');
     const smsStatus = await request('sms', `/status/${encodeURIComponent(sms.body.data.messageId)}`);
     expect(smsStatus.status).toBe(200);
+  });
+
+  it('removes email and SMS template catalogs and rejects obsolete templateId requests', async () => {
+    for (const service of ['email', 'sms']) {
+      const catalog = await request(service, '/templates');
+      expect(catalog.status).toBe(404);
+    }
+
+    const email = await request('email', '/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: 'user@example.test', subject: 'Hello', text: 'World', templateId: 'legacy' }),
+    });
+    expect(email.status).toBe(400);
+    expect(email.body.error.code).toBe('UNSUPPORTED_TEMPLATE_ID');
+    expect(email.body.error.message).toContain('send email content in html or text');
+
+    const sms = await request('sms', '/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: '+63900000000', message: 'Hello', templateId: 'legacy' }),
+    });
+    expect(sms.status).toBe(400);
+    expect(sms.body.error.code).toBe('UNSUPPORTED_TEMPLATE_ID');
+    expect(sms.body.error.message).toContain('send SMS content in message');
   });
 
   it('generates and verifies a single-use OTP', async () => {

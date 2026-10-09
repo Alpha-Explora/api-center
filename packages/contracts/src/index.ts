@@ -118,8 +118,6 @@ export interface EmailSendRequest {
   subject: string;
   html?: string;
   text?: string;
-  templateId?: string;
-  templateVariables?: Record<string, unknown>;
   tags?: Record<string, string>;
 }
 
@@ -130,13 +128,6 @@ export interface EmailSendResponse {
   sentAt: string;
 }
 
-export interface EmailTemplateInfo {
-  templateId: string;
-  name: string;
-  description?: string;
-  requiredVariables: string[];
-}
-
 // ---------------------------------------------------------------------------
 // 4. SMS Shared Service Contracts
 // ---------------------------------------------------------------------------
@@ -145,7 +136,6 @@ export interface SmsSendRequest {
   to: string;
   message: string;
   senderId?: string;
-  templateId?: string;
 }
 
 export interface SmsSendResponse {
