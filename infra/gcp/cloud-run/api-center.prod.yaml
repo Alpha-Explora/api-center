@@ -74,6 +74,18 @@ spec:
                 secretKeyRef:
                   name: apicenter-email-admin-token
                   key: latest
+            - name: RESEND_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-resend-webhook-secret-prod
+                  key: latest
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-shared-twilio-auth-token-prod
+                  key: latest
+            - name: TWILIO_STATUS_CALLBACK_URL
+              value: https://api-center.itsandbox.site/api/v1/webhooks/twilio
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-prod
             - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE

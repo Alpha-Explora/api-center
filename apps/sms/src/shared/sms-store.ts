@@ -2,6 +2,7 @@ import type { SharedServiceCaller } from '@apicenter/runtime';
 import { sameProject } from '@apicenter/runtime';
 import { PostgresSmsStore } from './postgres-sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
+import type { SmsDeliveryEvent } from './sms-repository.interface';
 
 export interface SmsRecord {
   messageId: string;
@@ -20,6 +21,7 @@ interface OwnedSmsRecord {
 export class MemorySmsStore implements SmsRepositoryInterface {
   private static instance: MemorySmsStore;
   private readonly store = new Map<string, OwnedSmsRecord>();
+  private readonly deliveryEventIds = new Set<string>();
 
   public static getInstance(): MemorySmsStore {
     if (!MemorySmsStore.instance) {
@@ -41,6 +43,15 @@ export class MemorySmsStore implements SmsRepositoryInterface {
     const entry = this.store.get(messageId);
     if (!entry || !sameProject(entry.owner, owner)) return null;
     return { ...entry.record };
+  }
+
+  async applyDeliveryEvent(event: SmsDeliveryEvent): Promise<{ duplicate: boolean }> {
+    if (this.deliveryEventIds.has(event.providerEventId)) return { duplicate: true };
+    const entry = this.store.get(event.messageId);
+    if (!entry) throw new Error('SMS message is not yet recorded');
+    this.deliveryEventIds.add(event.providerEventId);
+    this.store.set(event.messageId, { ...entry, record: { ...entry.record, status: event.status } });
+    return { duplicate: false };
   }
 }
 

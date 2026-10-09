@@ -32,6 +32,10 @@ const inserts = {
     "insert into apic_runtime.usage_rollups (window_start, window_end, route_family, environment) values (now() - make_interval(days => $1 + 1), now() - make_interval(days => $1), 'tribes', 'test')", [days]),
   'apic_runtime.pipeline_feedback_actions': (days) => client.query(
     "insert into apic_runtime.pipeline_feedback_actions (action, environment, target_type, target_id, reason, actor_id, actor_role, status, created_at) values ('evidence.reviewed', 'test', 'topic', 'x', 'r', 'a', 'admin', 'pending', now() - make_interval(days => $1))", [days]),
+  'shared_email.email_delivery_events': (days) => client.query(
+    "insert into shared_email.email_delivery_events (provider_event_id, message_id, status, payload, received_at) values ($1, 'msg_retention', 'delivered', '{}'::jsonb, now() - make_interval(days => $2))", [`email_retention_${Date.now()}_${Math.random()}`, days]),
+  'shared_sms.sms_delivery_events': (days) => client.query(
+    "insert into shared_sms.sms_delivery_events (provider_event_id, message_id, status, payload, received_at) values ($1, 'SMretention', 'delivered', '{}'::jsonb, now() - make_interval(days => $2))", [`sms_retention_${Date.now()}_${Math.random()}`, days]),
 };
 
 async function count(qualified) {

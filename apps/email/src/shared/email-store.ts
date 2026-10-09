@@ -1,7 +1,7 @@
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import { sameProject } from '@apicenter/runtime';
 import type { EmailRepositoryInterface } from './email-repository.interface';
-import type { ProjectEmailSender } from './email-repository.interface';
+import type { EmailDeliveryEvent, ProjectEmailSender } from './email-repository.interface';
 import { PostgresEmailStore } from './postgres-email-store';
 import { DailyLimitReachedError, SenderNotApprovedError } from './email-policy-errors';
 
@@ -25,6 +25,7 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
   private readonly store = new Map<string, OwnedEmailRecord>();
   private readonly projectSenders = new Map<string, ProjectEmailSender>();
   private readonly projectLocks = new Map<string, Promise<void>>();
+  private readonly deliveryEventIds = new Set<string>();
 
   public static getInstance(): MemoryEmailStore {
     if (!MemoryEmailStore.instance) {
@@ -98,6 +99,15 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
       release();
       if (this.projectLocks.get(key) === queued) this.projectLocks.delete(key);
     }
+  }
+
+  async applyDeliveryEvent(event: EmailDeliveryEvent): Promise<{ duplicate: boolean }> {
+    if (this.deliveryEventIds.has(event.providerEventId)) return { duplicate: true };
+    const entry = this.store.get(event.messageId);
+    if (!entry) throw new Error('Email message is not yet recorded');
+    this.deliveryEventIds.add(event.providerEventId);
+    this.store.set(event.messageId, { ...entry, record: { ...entry.record, status: event.status } });
+    return { duplicate: false };
   }
 }
 

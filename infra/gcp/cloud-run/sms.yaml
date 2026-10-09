@@ -46,6 +46,8 @@ spec:
                 secretKeyRef:
                   name: apicenter-shared-twilio-messaging-service-sid-prod
                   key: latest
+            - name: TWILIO_STATUS_CALLBACK_URL
+              value: https://api-center.itsandbox.site/api/v1/webhooks/twilio
             - name: SMS_SEND_LIMIT_PER_RECIPIENT
               value: "10"
             - name: SMS_SEND_LIMIT_WINDOW_MS

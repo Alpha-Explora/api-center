@@ -189,6 +189,23 @@ app.post('/send', async (req: Request, res: Response) => {
 
 app.put('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
 
+app.post('/webhooks/resend', async (req: Request, res: Response) => {
+  const event = req.body || {};
+  const validStatuses = new Set(['sent', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'failed', 'suppressed', 'opened', 'clicked']);
+  if (typeof event.providerEventId !== 'string' || !event.providerEventId ||
+      typeof event.messageId !== 'string' || !event.messageId ||
+      typeof event.status !== 'string' || !validStatuses.has(event.status) ||
+      !event.payload || typeof event.payload !== 'object') {
+    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Resend delivery event is invalid');
+  }
+  try {
+    const result = await emailStore.applyDeliveryEvent(event);
+    return res.status(200).json({ received: true, ...result });
+  } catch {
+    return fail(res, 503, 'EMAIL_MESSAGE_PENDING', 'Email delivery event could not be applied yet');
+  }
+});
+
 app.get('/status/:messageId', async (req: Request, res: Response) => {
   const caller = readCaller(req, res);
   if (!caller) return;

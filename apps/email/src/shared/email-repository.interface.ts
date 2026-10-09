@@ -13,6 +13,7 @@ export interface EmailRepositoryInterface {
     defaultDailyLimit: number,
     send: (fromAddress: string) => Promise<EmailRecord>,
   ): Promise<EmailRecord>;
+  applyDeliveryEvent(event: EmailDeliveryEvent): Promise<{ duplicate: boolean }>;
 }
 
 export interface ProjectEmailSender {
@@ -20,4 +21,11 @@ export interface ProjectEmailSender {
   environment: 'test' | 'live';
   fromAddress: string;
   dailyLimit: number | null;
+}
+
+export interface EmailDeliveryEvent {
+  providerEventId: string;
+  messageId: string;
+  status: 'sent' | 'delivered' | 'delivery_delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed' | 'opened' | 'clicked';
+  payload: unknown;
 }

@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { SmsRecord } from './sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
+import type { SmsDeliveryEvent } from './sms-repository.interface';
 
 export class PostgresSmsStore implements SmsRepositoryInterface {
   private readonly pool: Pool;
@@ -48,5 +49,35 @@ export class PostgresSmsStore implements SmsRepositoryInterface {
       senderId: row.sender_id,
       createdAt: new Date(row.created_at).toISOString(),
     };
+  }
+
+  async applyDeliveryEvent(event: SmsDeliveryEvent): Promise<{ duplicate: boolean }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const inserted = await client.query(
+        `INSERT INTO shared_sms.sms_delivery_events (provider_event_id, message_id, status, payload)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (provider_event_id) DO NOTHING
+         RETURNING provider_event_id`,
+        [event.providerEventId, event.messageId, event.status, event.payload],
+      );
+      if (inserted.rowCount === 0) {
+        await client.query('commit');
+        return { duplicate: true };
+      }
+      const updated = await client.query(
+        `UPDATE shared_sms.sms_messages SET status = $2, updated_at = now() WHERE message_id = $1 RETURNING message_id`,
+        [event.messageId, event.status],
+      );
+      if (updated.rowCount === 0) throw new Error('SMS message is not yet recorded');
+      await client.query('commit');
+      return { duplicate: false };
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

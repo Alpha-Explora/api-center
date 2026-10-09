@@ -42,7 +42,7 @@ test.after(async () => {
 
 test.beforeEach(async () => {
   if (!client) return;
-  await client.query('truncate shared_sms.sms_messages, shared_otp.otp_challenges, shared_email.email_messages, shared_email.project_senders');
+  await client.query('truncate shared_sms.sms_messages, shared_sms.sms_delivery_events, shared_otp.otp_challenges, shared_email.email_messages, shared_email.project_senders, shared_email.email_delivery_events');
 });
 
 function smsRecord(messageId) {
@@ -53,7 +53,7 @@ test('the retired record tables are gone and the owned record and sender tables 
   const result = await client.query(
     "select table_schema || '.' || table_name as name from information_schema.tables where table_schema in ('shared_sms', 'shared_otp', 'shared_email') order by 1",
   );
-  assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_messages', 'shared_email.project_senders', 'shared_otp.otp_challenges', 'shared_sms.sms_messages']);
+  assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_delivery_events', 'shared_email.email_messages', 'shared_email.project_senders', 'shared_otp.otp_challenges', 'shared_sms.sms_delivery_events', 'shared_sms.sms_messages']);
 });
 
 test('SMS: a second service in the same project reads the record; another project does not', { skip }, async () => {
@@ -177,5 +177,37 @@ test('email: approved sender and daily limit are enforced from persisted project
   );
   assert.deepEqual(sent, ['approved@example.test']);
   assert.equal(await emailStore.findById('msg_policy_1', otherProject), null);
+});
+
+test('email: Resend delivery events update once and repeated provider IDs are a no-op', { skip }, async () => {
+  const sentAt = new Date().toISOString();
+  await emailStore.save({
+    messageId: 'msg_email_webhook', provider: 'resend', status: 'queued', recipient: ['a@example.test'],
+    recipientCount: 1, sentAt, createdAt: sentAt,
+  }, alice);
+  const event = {
+    providerEventId: 'svix_email_evt_1', messageId: 'msg_email_webhook', status: 'delivered',
+    payload: { type: 'email.delivered', data: { email_id: 'msg_email_webhook' } },
+  };
+
+  assert.deepEqual(await emailStore.applyDeliveryEvent(event), { duplicate: false });
+  assert.deepEqual(await emailStore.applyDeliveryEvent(event), { duplicate: true });
+  assert.equal((await emailStore.findById(event.messageId, alice)).status, 'delivered');
+  const stored = await client.query('select count(*)::int as count from shared_email.email_delivery_events where provider_event_id = $1', [event.providerEventId]);
+  assert.equal(stored.rows[0].count, 1);
+});
+
+test('SMS: Twilio delivery events update once and repeated provider IDs are a no-op', { skip }, async () => {
+  await smsStore.save(smsRecord('SM_webhook_1'), alice);
+  const event = {
+    providerEventId: 'twilio_event_1', messageId: 'SM_webhook_1', status: 'delivered',
+    payload: { MessageSid: 'SM_webhook_1', MessageStatus: 'delivered' },
+  };
+
+  assert.deepEqual(await smsStore.applyDeliveryEvent(event), { duplicate: false });
+  assert.deepEqual(await smsStore.applyDeliveryEvent(event), { duplicate: true });
+  assert.equal((await smsStore.findById(event.messageId, alice)).status, 'delivered');
+  const stored = await client.query('select count(*)::int as count from shared_sms.sms_delivery_events where provider_event_id = $1', [event.providerEventId]);
+  assert.equal(stored.rows[0].count, 1);
 });
 
