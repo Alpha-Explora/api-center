@@ -22,7 +22,6 @@ COPY --from=builder --chown=node:node /app/packages/contracts/package.json ./pac
 COPY --from=builder --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder --chown=node:node /app/apps/payments/package.json ./apps/payments/package.json
 COPY --from=builder --chown=node:node /app/apps/payments/dist ./apps/payments/dist
-COPY --from=builder --chown=node:node /app/apps/payments/prisma ./apps/payments/prisma
 
 WORKDIR /app/apps/payments
 USER node

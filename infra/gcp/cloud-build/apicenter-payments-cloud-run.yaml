@@ -18,7 +18,6 @@ steps:
         npm ci
         npm run contracts:validate
         npm run typecheck
-        npm --workspace @apicenter/payments run db:validate
         npm run build --workspace @apicenter/contracts
         npm run build --workspace @apicenter/payments
         node --check apps/payments/dist/server.js
