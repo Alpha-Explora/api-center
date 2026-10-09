@@ -42,18 +42,18 @@ test.after(async () => {
 
 test.beforeEach(async () => {
   if (!client) return;
-  await client.query('truncate shared_sms.sms_messages, shared_otp.otp_challenges, shared_email.email_messages');
+  await client.query('truncate shared_sms.sms_messages, shared_otp.otp_challenges, shared_email.email_messages, shared_email.project_senders');
 });
 
 function smsRecord(messageId) {
   return { messageId, to: '+639170000000', message: 'hello', status: 'queued', senderId: 'APICENTER', createdAt: new Date().toISOString() };
 }
 
-test('the retired record tables are gone and only the three owned tables remain', { skip }, async () => {
+test('the retired record tables are gone and the owned record and sender tables remain', { skip }, async () => {
   const result = await client.query(
     "select table_schema || '.' || table_name as name from information_schema.tables where table_schema in ('shared_sms', 'shared_otp', 'shared_email') order by 1",
   );
-  assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_messages', 'shared_otp.otp_challenges', 'shared_sms.sms_messages']);
+  assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_messages', 'shared_email.project_senders', 'shared_otp.otp_challenges', 'shared_sms.sms_messages']);
 });
 
 test('SMS: a second service in the same project reads the record; another project does not', { skip }, async () => {
@@ -142,5 +142,40 @@ test('email: a sibling service reads the recipients; another project does not', 
   assert.deepEqual(found.recipient, record.recipient);
   assert.equal(found.recipientCount, 2);
   assert.equal(await emailStore.findById('msg_1', otherProject), null);
+});
+
+test('email: approved sender and daily limit are enforced from persisted project policy and messages', { skip }, async () => {
+  await emailStore.setProjectSender({
+    projectId: alice.projectId,
+    environment: alice.environment,
+    fromAddress: 'approved@example.test',
+    dailyLimit: 1,
+  });
+  const sent = [];
+  const send = async (fromAddress) => {
+    sent.push(fromAddress);
+    const sentAt = new Date().toISOString();
+    return {
+      messageId: `msg_policy_${sent.length}`,
+      provider: 'resend',
+      status: 'queued',
+      recipient: ['a@example.test'],
+      recipientCount: 1,
+      sentAt,
+      createdAt: sentAt,
+    };
+  };
+
+  await assert.rejects(
+    emailStore.sendWithinDailyLimit(alice, 'other@example.test', 'default@example.test', 500, send),
+    (error) => error.code === 'SENDER_NOT_APPROVED',
+  );
+  await emailStore.sendWithinDailyLimit(alice, undefined, 'default@example.test', 500, send);
+  await assert.rejects(
+    emailStore.sendWithinDailyLimit(alice, 'approved@example.test', 'default@example.test', 500, send),
+    (error) => error.code === 'DAILY_LIMIT_REACHED',
+  );
+  assert.deepEqual(sent, ['approved@example.test']);
+  assert.equal(await emailStore.findById('msg_policy_1', otherProject), null);
 });
 

@@ -68,6 +68,11 @@ spec:
                 secretKeyRef:
                   name: apicenter-gauth-admin-token
                   key: latest
+            - name: EMAIL_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-email-admin-token
+                  key: latest
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-staging
             - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE

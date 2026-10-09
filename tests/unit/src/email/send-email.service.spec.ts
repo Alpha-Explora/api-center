@@ -39,6 +39,14 @@ describe("SendEmailService provider payload", () => {
     const store = {
       save: jest.fn(async (record) => record),
       findById: jest.fn(async () => null),
+      setProjectSender: jest.fn(),
+      sendWithinDailyLimit: jest.fn(async (
+        _owner: SharedServiceCaller,
+        _requestedFrom: string | undefined,
+        defaultFrom: string,
+        _limit: number,
+        send: (fromAddress: string) => Promise<any>,
+      ) => send(defaultFrom)),
     };
     await new SendEmailService(store).execute(input, owner);
   }
@@ -70,5 +78,34 @@ describe("SendEmailService provider payload", () => {
       html,
       text,
     });
+  });
+
+  it('uses the project approved sender and rejects a different requested sender', async () => {
+    const { MemoryEmailStore } = require('../../../../apps/email/src/shared/email-store') as typeof import('../../../../apps/email/src/shared/email-store');
+    const { SenderNotApprovedError } = require('../../../../apps/email/src/shared/email-policy-errors') as typeof import('../../../../apps/email/src/shared/email-policy-errors');
+    const store = new MemoryEmailStore();
+    await store.setProjectSender({ projectId: owner.projectId, environment: owner.environment, fromAddress: 'approved@example.test', dailyLimit: 3 });
+    const { SendEmailService } = require('../../../../apps/email/src/features/send-email/send-email.service') as typeof import('../../../../apps/email/src/features/send-email/send-email.service');
+    const service = new SendEmailService(store);
+
+    await service.execute({ to: 'user@example.test', subject: 'Approved', text: 'Hello' }, owner);
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({ from: 'approved@example.test' }));
+    await expect(service.execute({ from: 'other@example.test', to: 'user@example.test', subject: 'Rejected', text: 'Hello' }, owner))
+      .rejects.toBeInstanceOf(SenderNotApprovedError);
+    expect(mockResendSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects sends after the project UTC-day limit is reached', async () => {
+    const { MemoryEmailStore } = require('../../../../apps/email/src/shared/email-store') as typeof import('../../../../apps/email/src/shared/email-store');
+    const { DailyLimitReachedError } = require('../../../../apps/email/src/shared/email-policy-errors') as typeof import('../../../../apps/email/src/shared/email-policy-errors');
+    const store = new MemoryEmailStore();
+    await store.setProjectSender({ projectId: owner.projectId, environment: owner.environment, fromAddress: 'approved@example.test', dailyLimit: 1 });
+    const { SendEmailService } = require('../../../../apps/email/src/features/send-email/send-email.service') as typeof import('../../../../apps/email/src/features/send-email/send-email.service');
+    const service = new SendEmailService(store);
+
+    await service.execute({ to: 'user@example.test', subject: 'First', text: 'Hello' }, owner);
+    await expect(service.execute({ to: 'user@example.test', subject: 'Second', text: 'Hello' }, owner))
+      .rejects.toBeInstanceOf(DailyLimitReachedError);
+    expect(mockResendSend).toHaveBeenCalledTimes(1);
   });
 });

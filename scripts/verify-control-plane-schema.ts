@@ -226,6 +226,7 @@ const requiredSharedTables = [
   "shared_sms.sms_messages",
   "shared_otp.otp_challenges",
   "shared_email.email_messages",
+  "shared_email.project_senders",
 ];
 const retiredSharedTables = [
   "shared_sms.sms_records",
@@ -235,6 +236,13 @@ const retiredSharedTables = [
   "shared_otp.otp_delivery_events",
   "shared_email.email_templates",
   "shared_email.email_delivery_events",
+];
+const requiredSharedEmailSenderIndexes = ["project_senders_pkey"];
+const requiredSharedEmailSenderConstraints = [
+  "project_senders_pkey",
+  "project_senders_environment_check",
+  "project_senders_from_address_check",
+  "project_senders_daily_limit_check",
 ];
 
 type RuntimeRole = { role: string; schema: string; privileges: string[] };
@@ -520,6 +528,27 @@ async function main(): Promise<void> {
       failures,
       "Retired shared-service tables still present",
       retiredSharedTables.filter((name) => sharedNames.has(name)),
+    );
+
+    const sharedEmailIndexRows = await queryRows(
+      client,
+      "select indexname as name from pg_indexes where schemaname = 'shared_email'",
+    );
+    const sharedEmailIndexNames = new Set(sharedEmailIndexRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared_email indexes",
+      requiredSharedEmailSenderIndexes.filter((name) => !sharedEmailIndexNames.has(name)),
+    );
+    const sharedEmailConstraintRows = await queryRows(
+      client,
+      "select c.conname as name from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace where n.nspname = 'shared_email' and t.relname = 'project_senders'",
+    );
+    const sharedEmailConstraintNames = new Set(sharedEmailConstraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared_email.project_senders constraints",
+      requiredSharedEmailSenderConstraints.filter((name) => !sharedEmailConstraintNames.has(name)),
     );
 
     const sharedGauthRows = await queryRows(
