@@ -549,6 +549,9 @@ model ApprovalRequest {
   rejectedBy        String?   @map("rejected_by")
   rejectedAt        DateTime? @map("rejected_at") @db.Timestamptz(6)
   rejectionReason   String?   @map("rejection_reason")
+  cancelledBy       String?   @map("cancelled_by")
+  cancelledAt       DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  appliedAt         DateTime? @map("applied_at") @db.Timestamptz(6)
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
