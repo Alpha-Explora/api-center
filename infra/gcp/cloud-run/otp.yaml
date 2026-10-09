@@ -29,8 +29,6 @@ spec:
                   key: latest
             - name: NODE_ENV
               value: production
-            - name: OTP_STORE_MODE
-              value: redis
             - name: OTP_REDIS_URL
               value: redis://10.121.26.59:6379
             - name: OTP_IDEMPOTENCY_TTL_MS

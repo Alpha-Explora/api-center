@@ -7,10 +7,14 @@ const { createMemoryRateLimitStore } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
 const { sendTwilioSms, sendResendEmail } = require('./delivery');
 const { registerWithGateway, shouldRegisterWithGateway } = require('./registerWithGateway');
+const { SharedServiceCallerError, readSharedServiceCaller, sameProject } = require('./sharedServiceCaller');
 
 module.exports = {
   ProviderGuardError,
+  SharedServiceCallerError,
   createCircuitBreaker,
+  readSharedServiceCaller,
+  sameProject,
   createMemoryCacheStore,
   createMemoryIdempotencyStore,
   createScopedIdempotencyKey,

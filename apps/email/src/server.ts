@@ -5,7 +5,9 @@ import {
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
   createSharedServiceApp,
+  readSharedServiceCaller,
   createSuccessResponse,
+  type SharedServiceCaller,
   registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { SendEmailService } from './features/send-email/send-email.service';
@@ -15,6 +17,15 @@ import { ListTemplatesService } from './features/list-templates/list-templates.s
 
 const port = Number(process.env.PORT || 4012);
 const nodeEnv = process.env.NODE_ENV || 'development';
+
+function readCaller(req: Request, res: Response): SharedServiceCaller | null {
+  try {
+    return readSharedServiceCaller(req);
+  } catch (error) {
+    fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Caller context is required');
+    return null;
+  }
+}
 const resendApiKey = process.env.RESEND_API_KEY;
 
 const { app, ok, fail } = createSharedServiceApp({
@@ -39,6 +50,8 @@ const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.EMAIL_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 
 app.post('/send', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const body = req.body || {};
   const { to, subject } = body;
 
@@ -124,7 +137,7 @@ app.post('/send', async (req: Request, res: Response) => {
 
   let data;
   try {
-    data = await sendEmailService.execute(body);
+    data = await sendEmailService.execute(body, caller);
   } catch (error: any) {
     try {
       await idempotencyStore.markUnknown(storageKey, body);
@@ -147,8 +160,10 @@ app.post('/send', async (req: Request, res: Response) => {
 });
 
 app.get('/status/:messageId', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const messageId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
-  const entry = await getEmailStatusService.execute(messageId);
+  const entry = await getEmailStatusService.execute(messageId, caller);
 
   if (!entry) {
     return fail(res, 404, 'NOT_FOUND', 'Message not found');

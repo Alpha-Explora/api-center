@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import type { EmailSendRequest, EmailSendResponse } from '@apicenter/contracts';
+import type { SharedServiceCaller } from '@apicenter/runtime';
 import { EmailRecipients, EmailSubject } from './send-email.model';
 import { createEmailStore } from '../../shared/email-store';
 
@@ -12,7 +13,7 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 export class SendEmailService {
   constructor(private readonly store = createEmailStore()) {}
 
-  async execute(input: EmailSendRequest): Promise<EmailSendResponse & { provider: string; recipient: string[] }> {
+  async execute(input: EmailSendRequest, owner: SharedServiceCaller): Promise<EmailSendResponse & { provider: string; recipient: string[] }> {
     const recipientsVo = new EmailRecipients(input.to);
     const subjectVo = new EmailSubject(input.subject);
 
@@ -58,7 +59,7 @@ export class SendEmailService {
     await this.store.save({
       ...response,
       createdAt: new Date().toISOString(),
-    });
+    }, owner);
 
     return response;
   }

@@ -170,6 +170,22 @@ const registryChildDeleteTables = new Set([
   "apic_catalog.service_dependencies",
 ]);
 
+// Record tables for the SMS, OTP, and email runtimes live in their own schemas and are checked by name.
+const requiredSharedTables = [
+  "shared_sms.sms_messages",
+  "shared_otp.otp_challenges",
+  "shared_email.email_messages",
+];
+const retiredSharedTables = [
+  "shared_sms.sms_records",
+  "shared_sms.sms_delivery_events",
+  "shared_otp.otp_records",
+  "shared_otp.otp_attempts",
+  "shared_otp.otp_delivery_events",
+  "shared_email.email_templates",
+  "shared_email.email_delivery_events",
+];
+
 type RuntimeRole = { role: string; schema: string; privileges: string[] };
 
 // Each shared-service runtime connects as its own role. A role may use its own schema and nothing else.
@@ -404,6 +420,22 @@ async function main(): Promise<void> {
       [removedSchemas],
     );
     addFailure(failures, "Removed schemas still present", removedSchemaRows.map((row) => String(row.schema)));
+
+    const sharedTableRows = await queryRows(
+      client,
+      "select table_schema || '.' || table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema in ('shared_sms', 'shared_otp', 'shared_email')",
+    );
+    const sharedNames = new Set(sharedTableRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared-service record tables",
+      requiredSharedTables.filter((name) => !sharedNames.has(name)),
+    );
+    addFailure(
+      failures,
+      "Retired shared-service tables still present",
+      retiredSharedTables.filter((name) => sharedNames.has(name)),
+    );
 
     if (hasFlag("--require-compat-views")) {
       const viewRows = await queryRows(

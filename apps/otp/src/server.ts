@@ -6,7 +6,9 @@ import {
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
   createSharedServiceApp,
+  readSharedServiceCaller,
   createSuccessResponse,
+  type SharedServiceCaller,
   registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { GenerateOtpService } from './features/generate-otp/generate-otp.service';
@@ -22,7 +24,7 @@ const { app, ok, fail } = createSharedServiceApp({
     status: 'ok',
     service: 'otp-gateway',
     architecture: 'enterprise-feature-sliced',
-    mode: process.env.OTP_STORE_MODE || 'memory',
+    recordStore: process.env.DATABASE_URL ? 'postgres' : 'memory',
   },
 });
 
@@ -39,7 +41,18 @@ const generateWindowMs = Number(process.env.OTP_GENERATE_LIMIT_WINDOW_MS || 60_0
 const verifyLimit = Number(process.env.OTP_VERIFY_LIMIT_PER_OTP || 5);
 const verifyWindowMs = Number(process.env.OTP_VERIFY_LIMIT_WINDOW_MS || 60_000);
 
+function readCaller(req: Request, res: Response): SharedServiceCaller | null {
+  try {
+    return readSharedServiceCaller(req);
+  } catch (error) {
+    fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Caller context is required');
+    return null;
+  }
+}
+
 app.post('/generate', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const { recipient, target, channel } = req.body || {};
   const rawTarget = recipient || target;
 
@@ -132,7 +145,7 @@ app.post('/generate', async (req: Request, res: Response) => {
 
   let result;
   try {
-    result = await generateOtpService.execute(req.body);
+    result = await generateOtpService.execute(req.body, caller);
   } catch (error: any) {
     try {
       await idempotencyStore.markUnknown(storageKey, req.body);
@@ -155,6 +168,8 @@ app.post('/generate', async (req: Request, res: Response) => {
 });
 
 app.post('/verify', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const { otpId, code } = req.body || {};
 
   if (!otpId || !code) {
@@ -222,7 +237,7 @@ app.post('/verify', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await verifyOtpService.execute(req.body);
+    const result = await verifyOtpService.execute(req.body, caller);
 
     const response = result.verified
       ? createSuccessResponse(result)
@@ -244,8 +259,10 @@ app.post('/verify', async (req: Request, res: Response) => {
 });
 
 app.get('/status/:otpId', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const otpId = Array.isArray(req.params.otpId) ? req.params.otpId[0] : req.params.otpId;
-  const result = await getOtpStatusService.execute(otpId);
+  const result = await getOtpStatusService.execute(otpId, caller);
 
   if (!result) {
     return fail(res, 404, 'OTP_NOT_FOUND', 'OTP not found');
