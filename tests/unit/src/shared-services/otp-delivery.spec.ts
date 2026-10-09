@@ -51,4 +51,3 @@ describe('OTP generation and consumption', () => {
     expect((await new VerifyOtpService(store).execute(input, otherProject)).reason).toBe('OTP_NOT_FOUND');
   });
 });
-

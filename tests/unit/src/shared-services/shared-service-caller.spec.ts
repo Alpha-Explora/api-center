@@ -60,4 +60,3 @@ describe('sameProject', () => {
     expect(sameProject(caller, { ...caller, environment: 'test' })).toBe(false);
   });
 });
-
