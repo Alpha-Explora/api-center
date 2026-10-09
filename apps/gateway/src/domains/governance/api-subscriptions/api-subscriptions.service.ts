@@ -1,4 +1,9 @@
-import { Inject, Injectable, OnApplicationBootstrap } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  OnApplicationBootstrap,
+  OnModuleDestroy,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "@database/prisma.service";
 import { ConflictError, NotFoundError, ValidationError } from "@shared/errors";
@@ -6,27 +11,62 @@ import { RegistryService } from "@registry/registry.service";
 import { TENANCY_DIRECTORY } from "@registry/tenancy.types";
 import type { TenancyDirectory } from "@registry/tenancy.types";
 import type { RequestApiSubscriptionDto } from "./api-subscriptions.dto";
+import { LoggerService } from "@shared/logger.service";
 
 @Injectable()
-export class ApiSubscriptionsService implements OnApplicationBootstrap {
+export class ApiSubscriptionsService
+  implements OnApplicationBootstrap, OnModuleDestroy
+{
+  private refreshTimer?: ReturnType<typeof setInterval>;
+  private refreshInProgress = false;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: RegistryService,
     @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
+    private readonly logger: LoggerService,
   ) {}
 
   async onApplicationBootstrap() {
     if (process.env.DATABASE_ENABLED !== "true") return;
-    const rows = await this.prisma.apiSubscription.findMany({
-      orderBy: [{ requestedAt: "asc" }, { id: "asc" }],
-      select: {
-        consumerProjectId: true,
-        apiServiceId: true,
-        environment: true,
-        status: true,
-      },
-    });
-    this.registry.replaceSubscriptions(rows);
+    await this.refreshSubscriptionStatuses();
+    const configuredInterval = Number(process.env.API_SUBSCRIPTION_REFRESH_MS);
+    const intervalMs =
+      Number.isFinite(configuredInterval) && configuredInterval > 0
+        ? configuredInterval
+        : 15_000;
+    this.refreshTimer = setInterval(() => {
+      void this.refreshSubscriptionStatuses();
+    }, intervalMs);
+    this.refreshTimer.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+  }
+
+  private async refreshSubscriptionStatuses() {
+    if (this.refreshInProgress) return;
+    this.refreshInProgress = true;
+    try {
+      const rows = await this.prisma.apiSubscription.findMany({
+        orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+        select: {
+          consumerProjectId: true,
+          apiServiceId: true,
+          environment: true,
+          status: true,
+        },
+      });
+      this.registry.replaceSubscriptions(rows);
+    } catch (error) {
+      this.logger.warn(
+        `API subscription status refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+        "ApiSubscriptionsService",
+      );
+    } finally {
+      this.refreshInProgress = false;
+    }
   }
 
   async request(actor: string, input: RequestApiSubscriptionDto) {

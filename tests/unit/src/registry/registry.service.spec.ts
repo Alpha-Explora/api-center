@@ -631,13 +631,34 @@ describe("RegistryService", () => {
       expect(service.canAccess("web-api", "billing-api", "live")).toBe(false);
       service.setSubscriptionStatus("commerce-web", "billing-api", "test", "revoked");
       expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      service.setSubscriptionStatus("commerce-billing", "shipments", "test", "approved");
       expect(service.canAccess("billing-api", "shipments", "test")).toBe(true);
       service.setSubscriptionStatus("commerce-billing", "shipments", "test", "revoked");
       expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
     });
 
-    it("allows calls the caller lists in consumes, across tribes and to shared services", () => {
-      expect(service.canAccess("billing-api", "shipments")).toBe(true);
+    it("requires an approved subscription for static cross-project consumes grants", () => {
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
+      service.setSubscriptionStatus("commerce-billing", "shipments", "test", "approved");
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(true);
+      expect(service.canAccess("billing-api", "shipments", "live")).toBe(false);
+      service.setSubscriptionStatus("commerce-billing", "shipments", "test", "revoked");
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
+    });
+
+    it("denies static consumes to a project API when the caller has no project identity", async () => {
+      await service.register(
+        baseManifest({
+          serviceId: "unplaced-worker",
+          serviceType: "shared",
+          projectId: undefined,
+          consumes: ["shipments"],
+        }),
+      );
+      expect(service.canAccess("unplaced-worker", "shipments", "test")).toBe(false);
+    });
+
+    it("allows manifest consumes for shared services", () => {
       expect(service.canAccess("billing-api", "payment")).toBe(true);
     });
 

@@ -29,6 +29,11 @@ export class RequestApiSubscriptionDto {
 }
 
 export class SubscriptionDecisionDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
+  apiServiceId!: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

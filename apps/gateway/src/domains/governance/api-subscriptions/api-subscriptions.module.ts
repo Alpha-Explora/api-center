@@ -4,10 +4,11 @@ import { DatabaseModule } from "@database/database.module";
 import { RegistryModule } from "@registry/registry.module";
 import { ApiSubscriptionsController } from "./api-subscriptions.controller";
 import { ApiSubscriptionsService } from "./api-subscriptions.service";
+import { PlatformAdminOrServiceGuard } from "@auth/guards/platform-admin-or-service.guard";
 
 @Module({
   imports: [AuthModule, DatabaseModule, RegistryModule],
   controllers: [ApiSubscriptionsController],
-  providers: [ApiSubscriptionsService],
+  providers: [ApiSubscriptionsService, PlatformAdminOrServiceGuard],
 })
 export class ApiSubscriptionsModule {}

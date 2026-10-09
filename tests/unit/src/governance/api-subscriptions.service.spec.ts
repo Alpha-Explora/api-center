@@ -35,6 +35,7 @@ describe("ApiSubscriptionsService", () => {
       findUniqueOrThrow: jest.fn(),
     },
   };
+  const logger = { warn: jest.fn() };
   let service: ApiSubscriptionsService;
 
   beforeEach(() => {
@@ -54,11 +55,20 @@ describe("ApiSubscriptionsService", () => {
     prisma.apiSubscription.findUniqueOrThrow.mockImplementation(async () => ({
       ...row,
     }));
+    prisma.apiSubscription.findMany.mockResolvedValue([]);
     service = new ApiSubscriptionsService(
       prisma as never,
       registry as never,
       tenancy as never,
+      logger as never,
     );
+  });
+
+  afterEach(() => {
+    service.onModuleDestroy();
+    jest.useRealTimers();
+    delete process.env.DATABASE_ENABLED;
+    delete process.env.API_SUBSCRIPTION_REFRESH_MS;
   });
 
   it("starts pending, grants only after approval, and clears access after revoke", async () => {
@@ -103,5 +113,32 @@ describe("ApiSubscriptionsService", () => {
       service.decide("subscription-1", "owner-user", "approve"),
     ).rejects.toThrow("Cannot approve a rejected subscription");
     expect(registry.setSubscriptionStatus).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the shared snapshot periodically and keeps the last snapshot on failure", async () => {
+    jest.useFakeTimers();
+    process.env.DATABASE_ENABLED = "true";
+    process.env.API_SUBSCRIPTION_REFRESH_MS = "1000";
+    prisma.apiSubscription.findMany.mockResolvedValueOnce([row]);
+    await service.onApplicationBootstrap();
+    expect(registry.replaceSubscriptions).toHaveBeenLastCalledWith([row]);
+
+    prisma.apiSubscription.findMany.mockRejectedValueOnce(
+      new Error("db offline"),
+    );
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(registry.replaceSubscriptions).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("API subscription status refresh failed"),
+      "ApiSubscriptionsService",
+    );
+
+    prisma.apiSubscription.findMany.mockResolvedValueOnce([
+      { ...row, status: "revoked" },
+    ]);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(registry.replaceSubscriptions).toHaveBeenLastCalledWith([
+      { ...row, status: "revoked" },
+    ]);
   });
 });

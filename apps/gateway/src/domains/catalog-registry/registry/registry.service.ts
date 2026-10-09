@@ -473,15 +473,15 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
     }
 
     if (
-      source.projectId &&
       target.projectId &&
-      source.projectId !== target.projectId &&
-      (target.serviceType ?? "tribe") === "tribe"
+      (target.serviceType ?? "tribe") === "tribe" &&
+      source.projectId !== target.projectId
     ) {
-      const status = this.subscriptionStatuses.get(
-        subscriptionKey(source.projectId, targetServiceId, environment),
-      );
-      if (status !== undefined) return status === "approved";
+      return source.projectId
+        ? this.subscriptionStatuses.get(
+            subscriptionKey(source.projectId, targetServiceId, environment),
+          ) === "approved"
+        : false;
     }
     return (source.consumes ?? []).includes(targetServiceId);
   }
@@ -497,12 +497,15 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
     this.subscriptionStatuses.clear();
     for (const row of rows) {
       if (row.environment === "test" || row.environment === "live") {
+        const key = subscriptionKey(
+          row.consumerProjectId,
+          row.apiServiceId,
+          row.environment,
+        );
+        // Callers provide newest-first rows; retain the latest state per environment.
+        if (this.subscriptionStatuses.has(key)) continue;
         this.subscriptionStatuses.set(
-          subscriptionKey(
-            row.consumerProjectId,
-            row.apiServiceId,
-            row.environment,
-          ),
+          key,
           row.status,
         );
       }
