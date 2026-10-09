@@ -1,8 +1,7 @@
 import path from 'node:path';
 
 process.env.NODE_ENV = 'development';
-process.env.SMS_STORE_MODE = 'memory';
-process.env.OTP_STORE_MODE = 'memory';
+delete process.env.DATABASE_URL;
 process.env.SMS_PROVIDER_MODE = 'mock';
 process.env.OTP_DELIVERY_MODE = 'mock';
 
