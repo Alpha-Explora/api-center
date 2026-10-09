@@ -3,7 +3,7 @@ import { WebhooksService } from '../../../../apps/payments/src/features/webhooks
 import { PaymentOwnerStore } from '../../../../apps/payments/src/shared/payment-owner-store';
 
 describe('verified payment ownership', () => {
-  const owner = { tribeId: 'tribe-a', consumerServiceId: 'service-a', environment: 'test' as const };
+  const owner = { tribeId: 'tribe-a', projectId: 'project-a', consumerServiceId: 'service-a', environment: 'test' as const };
   const previousSecret = process.env.PAYMONGO_TEST_WEBHOOK_SECRET;
 
   beforeEach(() => { process.env.PAYMONGO_TEST_WEBHOOK_SECRET = 'test-webhook-secret'; });
@@ -34,6 +34,21 @@ describe('verified payment ownership', () => {
     await expect(owners.assertOwned('checkout', 'chk_123', owner))
       .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: 'pay_123' } });
     await expect(owners.assertOwned('payment', 'pay_123', { ...owner, tribeId: 'tribe-b' }))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('keeps the project of the checkout a webhook updates and hides that payment from another project', async () => {
+    const owners = new PaymentOwnerStore('');
+    await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', referenceId: 'ORDER-0',
+      snapshot: { checkoutId: 'chk_123' } });
+    const payload = { data: { id: 'evt_paid_project', attributes: { type: 'checkout_session.payment.paid', livemode: false,
+      data: { id: 'cs_123', attributes: { payments: [{ id: 'pay_123', type: 'payment',
+        attributes: { status: 'paid', amount: 10000, currency: 'PHP' } }] } } } } };
+    await new WebhooksService(owners).processWebhook(payload, signed(payload));
+
+    await expect(owners.assertOwned('payment', 'pay_123', owner))
+      .resolves.toMatchObject({ projectId: 'project-a' });
+    await expect(owners.assertOwned('payment', 'pay_123', { ...owner, projectId: 'project-b' }))
       .rejects.toMatchObject({ statusCode: 404 });
   });
 
@@ -71,7 +86,7 @@ describe('verified payment ownership', () => {
 
       expect(owners.queuedEvents()).toEqual([expect.objectContaining({
         providerEventId: 'evt_1', eventType: 'payment.checkout.paid', aggregateType: 'checkout',
-        aggregateId: 'chk_123', aggregateVersion: 2, ownerTribeId: 'tribe-a',
+        aggregateId: 'chk_123', aggregateVersion: 2, ownerTribeId: 'tribe-a', ownerProjectId: 'project-a',
         consumerServiceId: 'service-a', referenceId: 'ORDER-1',
         payload: expect.objectContaining({ checkoutId: 'chk_123', paymentId: 'pay_123', amount: 10000,
           currency: 'PHP', status: 'paid', occurredAt: '2025-10-09T08:53:20.000Z' }),

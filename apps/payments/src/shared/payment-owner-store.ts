@@ -4,6 +4,7 @@ import { PayMongoError } from './payment-errors';
 /** Trusted tenant identity used to scope payment resources. */
 export type PaymentContext = {
   tribeId: string;
+  projectId: string;
   consumerServiceId: string;
   environment: 'test' | 'live';
 };
@@ -24,6 +25,7 @@ export type WebhookOutboxEvent = {
   aggregateType: string;
   aggregateId: string;
   ownerTribeId: string;
+  ownerProjectId: string;
   consumerServiceId: string;
   referenceId: string;
   payload: Record<string, unknown>;
@@ -45,18 +47,19 @@ export type VerifiedWebhook = {
 export type AppliedWebhook = { duplicate: boolean; queued: boolean };
 
 const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
-    (resource_type, resource_id, environment, tribe_id, consumer_service_id, reference_id, snapshot)
-   VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+    (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = EXCLUDED.snapshot,
      aggregate_version = shared_payment.resource_owners.aggregate_version + 1,
      updated_at = now()
    WHERE shared_payment.resource_owners.tribe_id = EXCLUDED.tribe_id
+     AND shared_payment.resource_owners.project_id = EXCLUDED.project_id
    RETURNING aggregate_version`;
 
 function ownerParams(record: OwnerRecord): unknown[] {
   return [record.resourceType, record.resourceId, record.environment, record.tribeId,
-    record.consumerServiceId, record.referenceId || null, JSON.stringify(record.snapshot)];
+    record.projectId, record.consumerServiceId, record.referenceId || null, JSON.stringify(record.snapshot)];
 }
 
 /** Persists payment resource ownership and rejects cross-tenant lookups. */
@@ -130,13 +133,13 @@ export class PaymentOwnerStore {
         const queued = await client.query(
           `INSERT INTO shared_payment.payment_event_outbox
              (environment, provider, provider_event_id, event_type, aggregate_type, aggregate_id,
-              aggregate_version, payload, owner_tribe_id, consumer_service_id, reference_id)
-           VALUES ($1, 'paymongo', $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+              aggregate_version, payload, owner_tribe_id, project_id, consumer_service_id, reference_id)
+           VALUES ($1, 'paymongo', $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
            ON CONFLICT (environment, provider, provider_event_id) DO NOTHING
            RETURNING id`,
           [webhook.environment, webhook.providerEventId, outbox.eventType, outbox.aggregateType, outbox.aggregateId,
-            aggregateVersion, JSON.stringify(outbox.payload), outbox.ownerTribeId, outbox.consumerServiceId,
-            outbox.referenceId],
+            aggregateVersion, JSON.stringify(outbox.payload), outbox.ownerTribeId, outbox.ownerProjectId,
+            outbox.consumerServiceId, outbox.referenceId],
         );
         // An outbox row without a receipt means the receipt was purged. The event was already queued.
         if (!queued.rowCount) {
@@ -194,7 +197,7 @@ export class PaymentOwnerStore {
 
   private foreignOwner(record: OwnerRecord): boolean {
     const existing = this.memory.get(this.key(record.environment, record.resourceType, record.resourceId));
-    return Boolean(existing && existing.tribeId !== record.tribeId);
+    return Boolean(existing && (existing.tribeId !== record.tribeId || existing.projectId !== record.projectId));
   }
 
   private isAggregate(outbox: WebhookOutboxEvent | undefined, record: OwnerRecord): boolean {
@@ -209,7 +212,7 @@ export class PaymentOwnerStore {
 
   async assertOwned(type: string, id: string, context: PaymentContext): Promise<OwnerRecord> {
     const record = await this.find(type, id, context.environment);
-    if (!record || record.tribeId !== context.tribeId) {
+    if (!record || record.tribeId !== context.tribeId || record.projectId !== context.projectId) {
       throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
     }
     return record;
@@ -224,18 +227,18 @@ export class PaymentOwnerStore {
     let record: OwnerRecord | undefined;
     if (this.pool) {
       const result = await this.pool.query(
-        `SELECT resource_type, resource_id, environment, tribe_id, consumer_service_id, reference_id, snapshot, aggregate_version
+        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, aggregate_version
          FROM shared_payment.resource_owners
-         WHERE environment = $1 AND resource_type = $2 AND tribe_id = $3
-           AND reference_id = $4
+         WHERE environment = $1 AND resource_type = $2 AND tribe_id = $3 AND project_id = $4
+           AND reference_id = $5
          LIMIT 1`,
-        [context.environment, type, context.tribeId, referenceId],
+        [context.environment, type, context.tribeId, context.projectId, referenceId],
       );
       if (result.rows[0]) record = this.fromRow(result.rows[0]);
     } else {
       record = [...this.memory.values()].find((entry) => entry.resourceType === type
         && entry.referenceId === referenceId && entry.environment === context.environment
-        && entry.tribeId === context.tribeId);
+        && entry.tribeId === context.tribeId && entry.projectId === context.projectId);
     }
     if (!record) throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
     return record;
@@ -244,7 +247,7 @@ export class PaymentOwnerStore {
   private async find(type: string, id: string, environment: string): Promise<OwnerRecord | undefined> {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(
-      `SELECT resource_type, resource_id, environment, tribe_id, consumer_service_id, reference_id, snapshot, aggregate_version
+      `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, aggregate_version
        FROM shared_payment.resource_owners
        WHERE environment = $1 AND resource_type = $2 AND resource_id = $3`,
       [environment, type, id],
@@ -255,6 +258,7 @@ export class PaymentOwnerStore {
   private fromRow(row: any): OwnerRecord {
     return { resourceType: row.resource_type, resourceId: row.resource_id,
       environment: row.environment, tribeId: row.tribe_id,
+      projectId: row.project_id,
       consumerServiceId: row.consumer_service_id, referenceId: row.reference_id,
       snapshot: row.snapshot, aggregateVersion: Number(row.aggregate_version ?? 1) };
   }
