@@ -13,7 +13,6 @@ import {
 import { SendEmailService } from './features/send-email/send-email.service';
 import { EmailRecipients, EmailSubject } from './features/send-email/send-email.model';
 import { GetEmailStatusService } from './features/get-email-status/get-email-status.service';
-import { ListTemplatesService } from './features/list-templates/list-templates.service';
 
 const port = Number(process.env.PORT || 4012);
 const nodeEnv = process.env.NODE_ENV || 'development';
@@ -40,7 +39,6 @@ const { app, ok, fail } = createSharedServiceApp({
 
 const sendEmailService = new SendEmailService();
 const getEmailStatusService = new GetEmailStatusService();
-const listTemplatesService = new ListTemplatesService();
 
 const stateUrl = process.env.EMAIL_REDIS_URL || process.env.REDIS_URL;
 const idempotencyStore = createSharedIdempotencyStore({ url: stateUrl, namespace: 'email' });
@@ -53,6 +51,12 @@ app.post('/send', async (req: Request, res: Response) => {
   const caller = readCaller(req, res);
   if (!caller) return;
   const body = req.body || {};
+  if (Object.prototype.hasOwnProperty.call(body, 'templateId')) {
+    return fail(res, 400, 'UNSUPPORTED_TEMPLATE_ID', 'templateId is no longer supported; send email content in html or text instead');
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'templateVariables')) {
+    return fail(res, 400, 'UNSUPPORTED_TEMPLATE_FIELD', 'templateVariables is no longer supported; send email content directly in html or text instead');
+  }
   const { to, subject } = body;
 
   if (!to || !subject) {
@@ -62,6 +66,12 @@ app.post('/send', async (req: Request, res: Response) => {
       'INVALID_REQUEST',
       'Recipient (to) and subject are required',
     );
+  }
+
+  const hasHtml = typeof body.html === 'string' && body.html.trim().length > 0;
+  const hasText = typeof body.text === 'string' && body.text.trim().length > 0;
+  if (!hasHtml && !hasText) {
+    return fail(res, 400, 'EMAIL_CONTENT_REQUIRED', 'Provide non-empty email content in html or text');
   }
 
   let recipients: string[];
@@ -170,11 +180,6 @@ app.get('/status/:messageId', async (req: Request, res: Response) => {
   }
 
   return ok(res, entry);
-});
-
-app.get('/templates', (_req: Request, res: Response) => {
-  const templates = listTemplatesService.execute();
-  return ok(res, templates);
 });
 
 export async function registerWithGateway() {

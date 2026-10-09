@@ -49,6 +49,9 @@ app.post('/send', async (req: Request, res: Response) => {
   const caller = readCaller(req, res);
   if (!caller) return;
   const body = req.body || {};
+  if (Object.prototype.hasOwnProperty.call(body, 'templateId')) {
+    return fail(res, 400, 'UNSUPPORTED_TEMPLATE_ID', 'templateId is no longer supported; send SMS content in message instead');
+  }
   const { to, message } = body;
 
   if (!to || !message) {
@@ -171,10 +174,6 @@ app.get('/status/:messageId', async (req: Request, res: Response) => {
   }
 
   return ok(res, entry);
-});
-
-app.get('/templates', (_req: Request, res: Response) => {
-  return ok(res, ['otp', 'verification', 'notification']);
 });
 
 export async function registerWithGateway() {

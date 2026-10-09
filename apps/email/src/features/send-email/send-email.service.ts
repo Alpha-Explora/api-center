@@ -36,11 +36,6 @@ export class SendEmailService {
         subject: subjectVo.getValue(),
         html: htmlContent,
       };
-      if (input.templateId) {
-        console.log(
-          `[email-gateway] templateId=${input.templateId} templateVariables=${JSON.stringify(input.templateVariables)}`,
-        );
-      }
       const { data, error } = await resend.emails.send(payload);
       if (error) throw new Error(error.message);
       providerMessageId = data?.id || messageId;

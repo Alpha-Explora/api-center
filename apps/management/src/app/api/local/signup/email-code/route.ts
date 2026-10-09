@@ -160,12 +160,6 @@ async function sendSignupVerificationEmail({
         purpose: "signup_email_verification",
       },
       subject,
-      templateData: {
-        code,
-        email,
-        productName,
-      },
-      templateId: "account_verification",
       to: email,
       text,
     }),
