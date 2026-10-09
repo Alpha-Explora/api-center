@@ -55,6 +55,7 @@
     "db:test:shared-stores": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/sms && npm run build --workspace @apicenter/otp && node --test tests/db/shared-service-stores.test.cjs",
     "db:purge:history": "node scripts/purge-expired-history.cjs",
     "db:test:retention": "node --test tests/db/retention-purge.test.cjs",
+    "db:test:runtime-roles": "node --test tests/db/runtime-database-roles.test.cjs",
     "db:verify:replay": "node scripts/replay-supabase-migrations.cjs && ts-node scripts/verify-control-plane-schema.ts --forbid-legacy-schemas --app-role api_center_app --require-retention-policy",
     "db:test:plan-definitions": "node --test tests/db/plan-definitions.test.cjs",
     "db:test:payment-outbox": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",

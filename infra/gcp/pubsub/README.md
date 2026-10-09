@@ -54,7 +54,7 @@ The private payments service is deployed from
 keys, webhook secrets, the database URL, and the internal gateway token in
 Secret Manager references. Create these secrets before replacing the service:
 
-- `apicenter-payments-<environment>-database-url`
+- `apicenter-payments-database-url-<environment>`
 - `apicenter-payments-<environment>-secret-key`
 - `apicenter-payments-<environment>-webhook-secret`
 - `apicenter-payments-<environment>-internal-token`

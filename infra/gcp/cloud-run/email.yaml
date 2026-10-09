@@ -22,6 +22,11 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-email-database-url-live
+                  key: latest
             - name: NODE_ENV
               value: production
             - name: EMAIL_SEND_LIMIT_PER_RECIPIENT
