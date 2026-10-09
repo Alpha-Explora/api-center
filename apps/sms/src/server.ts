@@ -5,7 +5,9 @@ import {
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
   createSharedServiceApp,
+  readSharedServiceCaller,
   createSuccessResponse,
+  type SharedServiceCaller,
   registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { SendSmsService } from './features/send-sms/send-sms.service';
@@ -34,8 +36,22 @@ const sendWindowMs = Number(process.env.SMS_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.SMS_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+function readCaller(req: Request, res: Response): SharedServiceCaller | null {
+  try {
+    return readSharedServiceCaller(req);
+  } catch (error) {
+    fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Caller context is required');
+    return null;
+  }
+}
+
 app.post('/send', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const body = req.body || {};
+  if (Object.prototype.hasOwnProperty.call(body, 'templateId')) {
+    return fail(res, 400, 'UNSUPPORTED_TEMPLATE_ID', 'templateId is no longer supported; send SMS content in message instead');
+  }
   const { to, message } = body;
 
   if (!to || !message) {
@@ -122,7 +138,7 @@ app.post('/send', async (req: Request, res: Response) => {
 
   let data;
   try {
-    data = await sendSmsService.execute(body);
+    data = await sendSmsService.execute(body, caller);
   } catch (error: any) {
     try {
       await idempotencyStore.markUnknown(storageKey, body);
@@ -148,18 +164,16 @@ app.post('/send', async (req: Request, res: Response) => {
 });
 
 app.get('/status/:messageId', async (req: Request, res: Response) => {
+  const caller = readCaller(req, res);
+  if (!caller) return;
   const messageId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
-  const entry = await getSmsStatusService.execute(messageId);
+  const entry = await getSmsStatusService.execute(messageId, caller);
 
   if (!entry) {
     return fail(res, 404, 'NOT_FOUND', 'Message not found');
   }
 
   return ok(res, entry);
-});
-
-app.get('/templates', (_req: Request, res: Response) => {
-  return ok(res, ['otp', 'verification', 'notification']);
 });
 
 export async function registerWithGateway() {

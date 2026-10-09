@@ -16,13 +16,13 @@ A registered product backend that calls APICenter via `@alpha-explora/apicenter-
 The APICenter tenancy and authorization boundary that owns consumer services and their resources.
 
 ### 4. Payment Resource
-A provider-neutral APICenter record for a checkout session, payment intent, refund, subscription, invoice, customer, or payment-method setup.
+A provider-neutral APICenter handle for a PayMongo-backed checkout session, payment intent, refund, subscription, invoice, customer, or payment-method setup. APICenter stores its project/environment ownership and selected listing or reconciliation metadata; PayMongo stores the canonical provider resource.
 
 ### 5. Reference ID
 The stable consumer-defined identifier linking an APICenter resource to a consumer service's local record. Unique within `(ownerTribeId, consumerServiceId, environment)`.
 
 ### 6. Payment Data Plane (`apps/payments`)
-The private microservice runtime managing PayMongo credentials, provider REST calls, webhook signature verification, canonical payment state, and transactional outbox events.
+The private microservice runtime managing PayMongo credentials and provider REST calls, webhook signature verification, APICenter ownership/reconciliation records, and transactional outbox events. PayMongo remains the source of truth for provider-backed payment resources.
 
 ### 7. Gateway Control Plane (`apps/gateway`)
 The central NestJS API Gateway managing consumer authentication, tenant authorization, quotas, rate limiting, domain routing (`auth-security`, `catalog-registry`, `compliance`, `gateway-proxy`, `governance`, `payments`, `runtime-ops`), audit logging, and public facade routing.

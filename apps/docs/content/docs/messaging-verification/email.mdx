@@ -1,11 +1,11 @@
 ---
 title: "Email Shared Service API"
-description: "Send HTML/text transactional email notifications and template renders via @apicenter/contracts."
+description: "Send HTML/text transactional email notifications via @apicenter/contracts."
 ---
 
 # Email Shared Service API
 
-Send transactional emails with HTML layout support, template rendering, and message status tracking.
+Send transactional emails with HTML or plain-text content and message status tracking. Each request must include non-empty `html` or `text` content. Teams provide the content in each request; APICenter does not store email templates.
 
 ---
 
@@ -28,7 +28,6 @@ Send transactional emails with HTML layout support, template rendering, and mess
   "to": "customer@example.com",
   "subject": "Payment Receipt for ORDER-991204",
   "html": "<h1>Payment Successful</h1><p>Thank you for your purchase of PHP 499.00.</p>",
-  "templateId": "general_notification",
   "tags": {
     "category": "receipt"
   }
@@ -74,20 +73,4 @@ Retries with the same key and request body replay the original status and respon
 ```
 
 ---
-
-## 3. List Available Email Templates
-
-- **Endpoint**: `GET /api/v1/shared/email/templates`
-
-### Response — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": [
-    "account_verification",
-    "password_reset",
-    "general_notification"
-  ]
-}
-```
+Requests without non-empty `html` or `text` content return `400 EMAIL_CONTENT_REQUIRED`. Requests containing the obsolete `templateId` or `templateVariables` fields also return `400`; send the rendered email content directly in `html` or `text` instead.

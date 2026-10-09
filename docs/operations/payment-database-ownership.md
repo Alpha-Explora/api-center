@@ -1,7 +1,9 @@
 # Payment Database Ownership
 
-APICenter is the system of record for provider-backed payment resources, normalized
-payment state, public IDs, webhook verification, and outbox events.
+PayMongo is the system of record for provider-backed payment resources and merchant
+settlement. APICenter stores the project/environment ownership mapping and payment
+listing/reconciliation facts it needs, verifies webhooks, and persists webhook receipts
+and outbox events. It does not keep copied PayMongo resource tables.
 
 AlphaCI keeps a local projection for payment attempts, receipts, subscription and
 entitlement state, event inbox status, and reconciliation metadata. It uses the

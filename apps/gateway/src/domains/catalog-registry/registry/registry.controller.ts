@@ -25,7 +25,11 @@ import {
   Param,
   UseGuards,
   Req,
+  Query,
+  Inject,
+  Optional,
 } from "@nestjs/common";
+import { TENANCY_DIRECTORY, type TenancyDirectory } from "./tenancy.types";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { RegistryService } from "./registry.service";
 import { AuditEventsService } from "@audit/audit-events.service";
@@ -54,6 +58,7 @@ export class RegistryController {
     private readonly logger: LoggerService,
     private readonly auditEvents: AuditEventsService,
     private readonly approvals: ApprovalRequestService,
+    @Optional() @Inject(TENANCY_DIRECTORY) private readonly tenancy?: TenancyDirectory,
   ) {}
 
   /**
@@ -65,12 +70,6 @@ export class RegistryController {
     @Req() req: AuthenticatedRequest,
   ) {
     const approvalTargetEnvironment = resolveApprovalTargetEnvironment(dto);
-    await this.requireApproval({
-      approvalRequestId: dto.approvalRequestId,
-      actionType: "service.register_live",
-      targetEnvironment: approvalTargetEnvironment,
-      targetId: dto.serviceId,
-    });
     const {
       approvalRequestId: _approvalRequestId,
       targetEnvironment: _targetEnvironment,
@@ -83,6 +82,12 @@ export class RegistryController {
       serviceTier: manifestDto.serviceTier as ServiceTier | undefined,
       serviceType: (manifestDto.serviceType ?? "tribe") as ServiceType,
     };
+    await this.requireApproval({
+      approvalRequestId: dto.approvalRequestId,
+      actionType: "service.register_live",
+      targetEnvironment: approvalTargetEnvironment,
+      targetId: dto.serviceId,
+    });
     const entry = await this.registry.register(manifest);
 
     this.logger.info("Service registered via API", {
@@ -112,12 +117,22 @@ export class RegistryController {
    * GET /api/v1/registry/services
    */
   @Get("services")
-  listServices() {
+  listServices(@Query("organizationId") organizationFilter?: string) {
     const all = this.registry.getAll();
+    const organizationIds = organizationFilter === undefined
+      ? undefined
+      : new Set(organizationFilter.split(",").map((id) => id.trim()).filter(Boolean));
+    const services = Object.values(all).filter((service) => {
+      if (!organizationIds) return true;
+      const placement = service.ownerTribeId
+        ? this.tenancy?.getTribe(service.ownerTribeId)
+        : null;
+      return Boolean(placement?.organizationId && organizationIds.has(placement.organizationId));
+    });
 
     return {
       success: true,
-      data: Object.values(all).map((svc) => ({
+      data: services.map((svc) => ({
         serviceId: svc.serviceId,
         name: svc.name,
         baseUrl: svc.baseUrl,
@@ -149,7 +164,7 @@ export class RegistryController {
         updatedAt: svc.updatedAt,
       })),
       meta: {
-        total: this.registry.count(),
+        total: services.length,
         timestamp: new Date().toISOString(),
       },
     };
@@ -201,10 +216,20 @@ export class RegistryController {
    * GET /api/v1/registry/services/:serviceId
    */
   @Get("services/:serviceId")
-  getService(@Param("serviceId") serviceId: string) {
+  getService(
+    @Param("serviceId") serviceId: string,
+    @Query("organizationId") organizationFilter?: string,
+  ) {
     const entry = this.registry.get(serviceId);
     if (!entry) {
       throw new NotFoundError(`Service '${serviceId}' is not registered`);
+    }
+    if (organizationFilter !== undefined) {
+      const allowed = new Set(organizationFilter.split(",").map((id) => id.trim()).filter(Boolean));
+      const tribe = entry.ownerTribeId ? this.tenancy?.getTribe(entry.ownerTribeId) : null;
+      if (!tribe?.organizationId || !allowed.has(tribe.organizationId)) {
+        throw new NotFoundError("Service was not found in the requested organization scope");
+      }
     }
 
     return {

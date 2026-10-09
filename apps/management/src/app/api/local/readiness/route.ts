@@ -12,8 +12,11 @@ import {
 } from "@/lib/server/gcp-secret-manager";
 import { getDeploymentConfigCheck } from "@/lib/server/deployment-config";
 import type { ServiceRegistryEntry } from "@/lib/schemas";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   const config = getApiCenterAdminConfig();
   const managementEnvironment = getManagementEnvironment();
   const kafkaTopicPrefix = getKafkaTopicPrefix();

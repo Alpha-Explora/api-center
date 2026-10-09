@@ -1,11 +1,11 @@
 ---
 title: "Google Auth (GAuth) Shared Service API"
-description: "Multi-tenant Google OAuth 2.0 authorization, code exchange, token refresh, and OIDC token verification via @apicenter/contracts."
+description: "Per-project Google OAuth 2.0 authorization, code exchange, token refresh, and OIDC token verification via @apicenter/contracts."
 ---
 
 # Google Auth (GAuth) Shared Service API
 
-The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorization, state HMAC signing, code-to-token exchange, token revocation, and OIDC ID Token verification.
+The GAuth Shared Service handles per-project Google OAuth 2.0 flow authorization, state HMAC signing, code-to-token exchange, token revocation, and OIDC ID Token verification.
 
 ---
 
@@ -13,6 +13,18 @@ The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorizatio
 
 - **Base Route**: `/api/v1/shared/gauth`
 - **Required Header**: `Authorization: Bearer <API_KEY>`
+
+---
+
+## Project Registration
+
+gauth picks the Google client from the calling project and the environment (`test` or `live`). The gateway sets both from the caller's authenticated project, so request bodies do not name a project. Each project needs an active row in `shared_gauth.oauth_apps` for every environment it uses.
+
+- **Shared client**: a row with no `client_id` or `client_secret_ref` signs in with APICenter's Google client.
+- **Own client**: a row with `client_id` and `client_secret_ref` (a Secret Manager version name) signs in with the team's Google client. gauth reads the secret from Secret Manager and caches it for up to five minutes.
+- **Redirect URIs**: `redirect_uris` lists every URI gauth accepts. When a request omits `redirectUri`, gauth uses the first entry. A URI that is not listed fails with `REDIRECT_URI_NOT_REGISTERED`.
+
+A project with no active row for the environment gets `403 OAUTH_APP_NOT_REGISTERED`.
 
 ---
 
@@ -24,7 +36,6 @@ The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorizatio
 
 ```json
 {
-  "tenantSlug": "alphaci",
   "redirectUri": "https://alphaci.com/callback",
   "scopes": ["openid", "email", "profile"],
   "accessType": "offline"
@@ -39,8 +50,7 @@ The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorizatio
   "data": {
     "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
     "state": "eyK10a...",
-    "tenantSlug": "alphaci",
-    "credentialSource": "tenant",
+    "credentialSource": "project",
     "expiresAt": "2026-07-31T23:30:00.000Z"
   }
 }
@@ -50,6 +60,9 @@ The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorizatio
 
 ## 2. Exchange Code for Tokens
 
+`state` is required. Send the value returned by the authorize call, and send the same `redirectUri` that the authorize call used. gauth rejects a state issued for another project or environment with `INVALID_OAUTH_STATE`.
+
+
 - **Endpoint**: `POST /api/v1/shared/gauth/oauth/token`
 
 ### Request Body (`GauthTokenExchangeRequest`)
@@ -58,7 +71,6 @@ The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorizatio
 {
   "code": "4/0AeaY...",
   "state": "eyK10a...",
-  "tenantSlug": "alphaci",
   "redirectUri": "https://alphaci.com/callback"
 }
 ```
@@ -89,8 +101,7 @@ The GAuth Shared Service handles multi-tenant Google OAuth 2.0 flow authorizatio
 
 ```json
 {
-  "refreshToken": "1//04...",
-  "tenantSlug": "alphaci"
+  "refreshToken": "1//04..."
 }
 ```
 

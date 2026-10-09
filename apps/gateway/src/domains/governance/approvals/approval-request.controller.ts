@@ -32,7 +32,13 @@ const ACTION_TYPES: ApprovalActionType[] = [
   "plan.assign_live",
 ];
 const RISK_LEVELS: ApprovalRiskLevel[] = ["low", "medium", "high", "critical"];
-const STATUSES: ApprovalRequestStatus[] = ["pending", "approved", "rejected"];
+const STATUSES: ApprovalRequestStatus[] = [
+  "pending",
+  "approved",
+  "rejected",
+  "cancelled",
+  "applied",
+];
 
 interface CreateApprovalRequestBody {
   actionType?: ApprovalActionType;
@@ -112,6 +118,20 @@ export class ApprovalRequestController {
     await this.recordAudit("approval.request.rejected", request, req, {
       rejectionReason: body.reason,
     });
+    return this.response(request, req);
+  }
+
+  @Post(":approvalRequestId/cancel")
+  async cancel(
+    @Param("approvalRequestId") approvalRequestId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const request = await this.approvals.cancelRequest(
+      approvalRequestId,
+      this.resolveActor(req),
+      { isAdmin: true },
+    );
+    await this.recordAudit("approval.request.cancelled", request, req);
     return this.response(request, req);
   }
 

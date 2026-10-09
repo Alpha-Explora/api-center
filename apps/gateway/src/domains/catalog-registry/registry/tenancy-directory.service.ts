@@ -20,6 +20,14 @@ export class TenancyDirectoryService implements TenancyDirectory {
     return this.tenancy.getTribe(tribeId);
   }
 
+  listTribes(): Tribe[] {
+    return this.tenancy.listTribes();
+  }
+
+  listProjects(filter?: { tribeId?: string }) {
+    return this.tenancy.listProjects(filter);
+  }
+
   resolveProject(projectId: string): ProjectPlacement | null {
     return this.tenancy.resolveProject(projectId);
   }

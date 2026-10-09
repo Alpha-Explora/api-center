@@ -16,6 +16,7 @@ export class PostgresTenancyStoreService implements TenancyStore {
     return {
       tribes: tribes.map((row) => ({
         tribeId: row.tribeId,
+        organizationId: row.organizationId,
         name: row.name,
         ...(row.description ? { description: row.description } : {}),
         status: row.status as TenancyStatus,
@@ -36,11 +37,18 @@ export class PostgresTenancyStoreService implements TenancyStore {
   }
 
   async upsertTribe(tribe: Tribe): Promise<void> {
-    const organization = await this.prisma.organization.upsert({
-      where: { slug: DEFAULT_ORGANIZATION.slug },
-      update: {},
-      create: DEFAULT_ORGANIZATION,
-    });
+    const organization = tribe.organizationId
+      ? await this.prisma.organization.findUnique({
+          where: { id: tribe.organizationId },
+          select: { id: true },
+        })
+      : await this.prisma.organization.upsert({
+          where: { slug: DEFAULT_ORGANIZATION.slug },
+          update: {},
+          create: DEFAULT_ORGANIZATION,
+          select: { id: true },
+        });
+    if (!organization) throw new Error("Tribe organization was not found");
     const data = {
       name: tribe.name,
       description: tribe.description ?? null,

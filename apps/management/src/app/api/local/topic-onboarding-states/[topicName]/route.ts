@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { confluentTopicNameSchema } from "@/lib/schemas";
 import { normalizeTopicIdentifier } from "@/lib/event-topics";
 import { getOrCreateTopicOnboardingStateRecord } from "@/lib/server/topic-onboarding-state-store";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 const SERVICE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
@@ -11,6 +12,8 @@ type Context = {
 };
 
 export async function GET(request: Request, context: Context) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   if (process.env.NEXT_PUBLIC_LOCAL_MANAGEMENT_MODE === "false") {
     return NextResponse.json(
       { success: false, error: "Local management routes are disabled." },

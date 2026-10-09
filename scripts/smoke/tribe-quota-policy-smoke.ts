@@ -1,6 +1,7 @@
 type SmokeConfig = {
   baseUrl: string;
   adminSecret: string;
+  approverToken: string;
   tribeId: string;
   token: string;
   targetServiceId: string;
@@ -14,6 +15,7 @@ function readConfig(): SmokeConfig {
   const adminSecret = process.env.API_CENTER_PLATFORM_ADMIN_SECRET;
   const tribeId = process.env.APICENTER_SMOKE_TRIBE_ID ?? "smoke-tribe";
   const token = process.env.APICENTER_SMOKE_TRIBE_TOKEN;
+  const approverToken = process.env.APICENTER_SMOKE_APPROVER_TOKEN;
   const targetServiceId =
     process.env.APICENTER_SMOKE_TARGET_SERVICE_ID ?? "payment-service";
   const smokePath = process.env.APICENTER_SMOKE_PATH ?? "/health";
@@ -24,7 +26,21 @@ function readConfig(): SmokeConfig {
     );
   }
 
-  return { baseUrl, adminSecret, tribeId, token, targetServiceId, smokePath };
+  if (!approverToken) {
+    throw new Error(
+      "Missing APICENTER_SMOKE_APPROVER_TOKEN. Use a platform:admin JWT for a different identity than the requester; the admin secret cannot approve its own request.",
+    );
+  }
+
+  return {
+    baseUrl,
+    adminSecret,
+    approverToken,
+    tribeId,
+    token,
+    targetServiceId,
+    smokePath,
+  };
 }
 
 async function request(
@@ -125,15 +141,45 @@ async function createApprovedQuotaApproval(config: SmokeConfig) {
   });
   const approvalRequestId = readResponseId(approval.body, "approval request");
 
-  await adminRequest(
+  const decision = await approverRequest(
     config,
     `/api/v1/approvals/requests/${encodeURIComponent(
       approvalRequestId,
     )}/approve`,
-    { method: "POST" },
   );
+  assertDistinctApprover(decision.body, approval.body);
 
   return approvalRequestId;
+}
+
+async function approverRequest(config: SmokeConfig, path: string) {
+  const result = await request(`${config.baseUrl}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${config.approverToken}` },
+  });
+
+  if (!result.response.ok) {
+    throw new Error(
+      `Approver request POST ${path} failed: ${result.response.status} ${result.bodyText}`,
+    );
+  }
+
+  return result;
+}
+
+function assertDistinctApprover(decided: unknown, created: unknown) {
+  const requestedBy = (created as { data?: { requestedBy?: unknown } } | undefined)
+    ?.data?.requestedBy;
+  const approvedBy = (decided as { data?: { approvedBy?: unknown } } | undefined)
+    ?.data?.approvedBy;
+  if (typeof approvedBy !== "string" || !approvedBy) {
+    throw new Error("Approve response did not include data.approvedBy.");
+  }
+  if (approvedBy === requestedBy) {
+    throw new Error(
+      `Approver and requester are both '${approvedBy}'. Use a separate approver token.`,
+    );
+  }
 }
 
 async function adminRequest(

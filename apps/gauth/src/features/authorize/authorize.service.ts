@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { createSignedOAuthState } from '../../shared/oauth-state.signer';
 import { GoogleOAuthCredential } from '../../shared/credential-resolver';
 
@@ -14,19 +13,18 @@ function normalizeScopes(scopes: any): string[] {
 
 export class AuthorizeService {
   execute(payload: any, credential: GoogleOAuthCredential) {
-    const state = credential.tenantSlug
-      ? createSignedOAuthState({
-        tenantSlug: credential.tenantSlug,
-        source: credential.source,
-        redirectUri: credential.redirectUri,
-        callerState: typeof payload.state === 'string' ? payload.state : undefined,
-      })
-      : payload.state || crypto.randomUUID().replace(/-/g, '');
+    // The state always names the project, environment and redirect URI, so token exchange can check them.
+    const state = createSignedOAuthState({
+      projectId: credential.projectId,
+      environment: credential.environment,
+      redirectUri: credential.redirectUri,
+      callerState: typeof payload.state === 'string' ? payload.state : undefined,
+    });
     const scopes = normalizeScopes(payload.scopes);
 
     const params = new URLSearchParams({
       client_id: credential.clientId,
-      redirect_uri: credential.redirectUri!,
+      redirect_uri: credential.redirectUri,
       response_type: 'code',
       scope: scopes.join(' '),
       state,
@@ -49,7 +47,6 @@ export class AuthorizeService {
     return {
       authorizationUrl,
       state,
-      tenantSlug: credential.tenantSlug,
       credentialSource: credential.source,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     };

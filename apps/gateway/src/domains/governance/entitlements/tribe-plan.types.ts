@@ -4,8 +4,19 @@ import {
 } from "@quotas/tribe-quota-policy.types";
 
 export type TribePlanKey = "starter" | "standard" | "pro" | "enterprise";
-export type TribePlanEnvironment = "test" | "prod";
-export type TribePlanAssignmentStatus = "active" | "disabled";
+export type TribePlanEnvironment = "test" | "live";
+export type TribePlanAssignmentStatus = "active" | "suspended" | "archived";
+
+export interface EffectivePlanLimit {
+  scope: TribeQuotaScope;
+  targetServiceId?: string;
+  maxRequests: number | null;
+  windowSeconds: number | null;
+  mode: TribeQuotaMode;
+  source: "plan" | "override";
+  policyId?: string;
+  reason?: string;
+}
 
 export interface TribePlanDefinition {
   planKey: TribePlanKey;
@@ -30,6 +41,7 @@ export interface TribePlanAssignment {
   assignedBy?: string;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  effectiveLimits?: EffectivePlanLimit[];
 }
 
 export interface AssignTribePlanInput {
@@ -52,24 +64,13 @@ export interface UpdateTribePlanAssignmentInput {
 
 export interface ListTribePlanAssignmentsInput {
   ownerTribeId?: string;
+  ownerTribeIds?: string[];
   projectId?: string;
   planKey?: TribePlanKey;
   environment?: TribePlanEnvironment;
   status?: TribePlanAssignmentStatus;
 }
 
-export interface GeneratedQuotaPolicyProposal {
-  ownerTribeId: string;
-  projectId: string;
-  scope: TribeQuotaScope;
-  targetServiceId: string | null;
-  windowSeconds: number;
-  maxRequests: number;
-  mode: TribeQuotaMode;
-  reason: string;
-}
-
 export interface AssignTribePlanResult {
   assignment: TribePlanAssignment;
-  quotaProposals: GeneratedQuotaPolicyProposal[];
 }

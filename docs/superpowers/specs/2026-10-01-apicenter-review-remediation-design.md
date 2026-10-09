@@ -18,7 +18,7 @@ Repair the seven findings from the 2026-10-01 repository review so that the publ
 
 The gateway maps each public operation to an explicit runtime operation and translates request and response bodies. Authorization is a table keyed by HTTP method and public route pattern, with a required scope for every entry. The runtime receives gateway identity in dedicated headers protected by an internal shared secret; it validates the secret before accepting tenant identity. Runtime reads and mutations query ownership by tenant and environment before reaching the provider. Webhooks retain independent signature validation.
 
-The shared_payment schema is the durable owner registry for checkout, customer, subscription, intent, refund, and invoice resources. A resource without an owner record fails closed rather than falling back to a provider-wide fetch. HTTP integration tests send requests through both gateway and payment runtime and verify the public response shape.
+The shared_payment schema durably maps checkout, customer, subscription, intent, refund, and invoice references to their owning projects and environments, and stores the reconciliation metadata APICenter needs. PayMongo remains the source of truth for provider resource records. A resource without an owner record fails closed rather than falling back to a provider-wide fetch. HTTP integration tests send requests through both gateway and payment runtime and verify the public response shape.
 
 ## Retry behavior
 

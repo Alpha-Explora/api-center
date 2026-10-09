@@ -61,7 +61,6 @@
                                             ],
                                "endpoints":  [
                                                  "/send",
-                                                 "/templates",
                                                  "/status"
                                              ]
                            },
@@ -74,8 +73,7 @@
                                             ],
                                "endpoints":  [
                                                  "/send",
-                                                 "/status",
-                                                 "/templates"
+                                                 "/status"
                                              ]
                            },
                            {

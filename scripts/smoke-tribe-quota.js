@@ -13,6 +13,7 @@ const targetServiceId = env(
 );
 const token = process.env.APICENTER_QUOTA_SMOKE_TOKEN;
 const tribeSecret = process.env.APICENTER_QUOTA_SMOKE_SECRET;
+const approverToken = process.env.APICENTER_QUOTA_SMOKE_APPROVER_TOKEN;
 const smokePath = env("APICENTER_QUOTA_SMOKE_PATH", "/health");
 
 async function main() {
@@ -76,6 +77,11 @@ async function main() {
 }
 
 async function createApprovedQuotaApproval() {
+  if (!approverToken) {
+    throw new Error(
+      "Set APICENTER_QUOTA_SMOKE_APPROVER_TOKEN to a platform:admin JWT for a different identity than the requester; the admin secret cannot approve its own request.",
+    );
+  }
   const approval = await adminRequest("/api/v1/approvals/requests", {
     method: "POST",
     body: {
@@ -105,14 +111,39 @@ async function createApprovedQuotaApproval() {
     throw new Error("Approval request response did not include data.id.");
   }
 
-  await adminRequest(
+  const decision = await approveAsApprover(
     `/api/v1/approvals/requests/${encodeURIComponent(approvalRequestId)}/approve`,
-    {
-      method: "POST",
-    },
   );
+  assertDistinctApprover(decision, approval);
   console.log(`Approved quota enforcement request ${approvalRequestId}.`);
   return approvalRequestId;
+}
+
+async function approveAsApprover(path) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${approverToken}` },
+  });
+  const body = await readJson(response);
+  if (!response.ok) {
+    throw new Error(
+      `Approver request POST ${path} failed with HTTP ${response.status}: ${JSON.stringify(body)}`,
+    );
+  }
+  return body;
+}
+
+function assertDistinctApprover(decided, created) {
+  const requestedBy = created?.data?.requestedBy;
+  const approvedBy = decided?.data?.approvedBy;
+  if (typeof approvedBy !== "string" || !approvedBy) {
+    throw new Error("Approve response did not include data.approvedBy.");
+  }
+  if (approvedBy === requestedBy) {
+    throw new Error(
+      `Approver and requester are both '${approvedBy}'. Use a separate approver token.`,
+    );
+  }
 }
 
 async function requestSmokeToken() {

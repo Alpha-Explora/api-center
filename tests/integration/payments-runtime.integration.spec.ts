@@ -51,6 +51,7 @@ describe('payment gateway to runtime integration', () => {
             resolve: jest.fn(async (key: string) => key === 'apic_integration_valid'
               ? {
                 ownerTribeId: 'tribe-integration',
+                projectId: 'project-integration',
                 consumerServiceId: 'service-integration',
                 environment: 'test',
                 scopes: ['payments:read', 'payments:write'],

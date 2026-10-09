@@ -30,7 +30,7 @@ spec:
                 - name: SHARED_SERVICES_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: apicenter-payments-test-database-url
+                      name: apicenter-payments-database-url-test
                       key: latest
               resources:
                 limits:

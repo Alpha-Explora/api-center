@@ -1,11 +1,16 @@
 import { apiCenterAdminRequest } from "@/lib/server/api-center-admin";
 import { requireManagementRouteAction } from "@/lib/server/require-management-action";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   return apiCenterAdminRequest("/api/v1/admin/operations/emergency");
 }
 
 export async function POST(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   await requireManagementRouteAction({
     request,
     actionRisk: "destructive",
@@ -20,6 +25,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   await requireManagementRouteAction({
     request,
     actionRisk: "destructive",

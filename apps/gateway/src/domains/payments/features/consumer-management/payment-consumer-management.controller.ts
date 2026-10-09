@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { ScopedAdminGuard } from "@auth/guards/scoped-admin.guard";
 import { PaymentConsumerManagementService } from "./payment-consumer-management.service";
 
@@ -6,6 +6,18 @@ import { PaymentConsumerManagementService } from "./payment-consumer-management.
 @UseGuards(ScopedAdminGuard)
 export class PaymentConsumerManagementController {
   constructor(private readonly consumers: PaymentConsumerManagementService) {}
+
+  @Get()
+  async list(@Query("organizationId") organizationFilter?: string) {
+    let organizationIds: string[] | undefined;
+    if (organizationFilter !== undefined) {
+      organizationIds = organizationFilter.split(",").map((id) => id.trim()).filter(Boolean);
+      if (organizationIds.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) {
+        throw new BadRequestException("organizationId must contain UUID values");
+      }
+    }
+    return { success: true, data: await this.consumers.list(organizationIds) };
+  }
 
   @Post()
   async register(@Body() body: unknown) {

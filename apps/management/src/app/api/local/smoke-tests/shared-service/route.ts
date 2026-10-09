@@ -3,6 +3,7 @@ import { createOperationPreview } from "@/lib/operation-preview";
 import { smokeTestRequestSchema } from "@/lib/schemas";
 import { requireManagementAction } from "@/lib/server/require-management-action";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { platformAdministratorResponse } from "@/lib/server/organization-access";
 
 const allowedRoutes = new Set([
   "GET gauth /health",
@@ -19,10 +20,8 @@ const allowedRoutes = new Set([
   "POST payment /subscriptions",
   "GET email /health",
   "POST email /send",
-  "GET email /templates",
   "GET sms /health",
   "POST sms /send",
-  "GET sms /templates",
   "GET otp /health",
   "POST otp /generate",
   "POST otp /verify",
@@ -34,6 +33,8 @@ const allowedRoutePatterns = [
 ];
 
 export async function POST(request: Request) {
+  const denied = await platformAdministratorResponse(request);
+  if (denied) return denied;
   const body = await request.json();
 
   if (isPreviewRequest(body)) {

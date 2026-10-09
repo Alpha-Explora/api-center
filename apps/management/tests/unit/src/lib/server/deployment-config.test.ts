@@ -10,7 +10,6 @@ const completeEnv = {
   NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api-center.itsandbox.site",
   MANAGEMENT_AUTH_MODE: "google",
   MANAGEMENT_ENVIRONMENT: "test",
-  PLATFORM_ADMIN_EMAILS: "platform-admin@example.com",
   NEXT_PUBLIC_MANAGEMENT_ENV: "test",
   MANAGEMENT_PUBLIC_BASE_URL:
     "https://api-center-management-test.itsandbox.site",
@@ -103,7 +102,6 @@ describe("deployment config check", () => {
 
     expect(check.missingEnv).toContain("API_CENTER_BASE_URL");
     expect(check.missingEnv).toContain("MANAGEMENT_PUBLIC_BASE_URL");
-    expect(check.missingEnv).toContain("PLATFORM_ADMIN_EMAILS");
     expect(serialized).not.toContain("server-secret");
     expect(serialized).not.toContain("kafka-secret");
   });
