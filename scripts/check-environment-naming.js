@@ -7,10 +7,8 @@ const { execFileSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 // Temporary compatibility exceptions: the data pipeline stores its production
 // lane as "prod", and issue #93 removes the legacy tenant OAuth setup paths.
-// The plan cutover migration mentions "prod" only to convert stored values to "live".
 const allowlist = [
   /(^|[/\\])data-pipeline([/\\]|$)/,
-  /supabase[/\\]migrations[/\\]20261010050100_validate_entitlement_assignment_environment\.sql$/,
   /apps[/\\]gateway[/\\]src[/\\]shared[/\\]environment-names\.ts$/,
   /apps[/\\]management[/\\]src[/\\]lib[/\\]environment-names\.ts$/,
   /apps[/\\]management[/\\]src[/\\]app[/\\]\(management\)[/\\]shared-services[/\\]tenant-oauth([/\\]|$)/,
