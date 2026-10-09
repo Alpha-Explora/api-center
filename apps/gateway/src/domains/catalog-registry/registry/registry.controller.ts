@@ -65,12 +65,6 @@ export class RegistryController {
     @Req() req: AuthenticatedRequest,
   ) {
     const approvalTargetEnvironment = resolveApprovalTargetEnvironment(dto);
-    await this.requireApproval({
-      approvalRequestId: dto.approvalRequestId,
-      actionType: "service.register_live",
-      targetEnvironment: approvalTargetEnvironment,
-      targetId: dto.serviceId,
-    });
     const {
       approvalRequestId: _approvalRequestId,
       targetEnvironment: _targetEnvironment,
@@ -83,6 +77,12 @@ export class RegistryController {
       serviceTier: manifestDto.serviceTier as ServiceTier | undefined,
       serviceType: (manifestDto.serviceType ?? "tribe") as ServiceType,
     };
+    await this.requireApproval({
+      approvalRequestId: dto.approvalRequestId,
+      actionType: "service.register_live",
+      targetEnvironment: approvalTargetEnvironment,
+      targetId: dto.serviceId,
+    });
     const entry = await this.registry.register(manifest);
 
     this.logger.info("Service registered via API", {

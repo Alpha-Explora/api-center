@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { JwtAuthGuard } from "@auth/guards/jwt-auth.guard";
 import { ForbiddenError } from "@shared/errors";
@@ -32,7 +32,8 @@ export class DeveloperPortalRequestController {
     }
     // A service token carries its project, so the request targets that project's budget. Without one the
     // request is for the tribe-wide ceiling.
-    const authenticatedProjectId: string | undefined = req.projectId ?? req.user?.projectId;
+    const authenticatedProjectId: string | undefined =
+      req.projectId ?? req.user?.projectId;
     if (input.projectId && input.projectId !== authenticatedProjectId) {
       throw new ForbiddenError(
         "Services can only request quota changes for their own project.",
@@ -58,6 +59,25 @@ export class DeveloperPortalRequestController {
       },
     });
 
+    return { success: true, data: request };
+  }
+
+  @Post(":approvalRequestId/cancel")
+  async cancelQuotaRequest(
+    @Param("approvalRequestId") approvalRequestId: string,
+    @Req() req: any,
+  ) {
+    const authenticatedTribeId = req.user?.tribeId ?? req.tribeId;
+    if (!authenticatedTribeId) {
+      throw new ForbiddenError(
+        "Quota increase requests require a tribe token.",
+      );
+    }
+    const request = await this.approvals.cancelRequest(
+      approvalRequestId,
+      authenticatedTribeId,
+      { isAdmin: false },
+    );
     return { success: true, data: request };
   }
 }
