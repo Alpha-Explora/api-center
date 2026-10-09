@@ -37,6 +37,7 @@ const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "shared_service_runtime_routes"],
   ["apic_catalog", "service_lifecycle_events"],
   ["apic_catalog", "service_secret_references"],
+  ["apic_catalog", "service_spec_versions"],
   ["apic_governance", "registry_change_requests"],
   ["apic_governance", "approval_requests"],
   ["apic_governance", "quota_policies"],
@@ -122,6 +123,7 @@ const requiredIndexes = [
   "audit_events_env_resource_correlation_idx",
   "audit_events_source_env_created_idx",
   "audit_events_tribe_env_created_idx",
+  "service_spec_versions_service_published_idx",
 ];
 
 const requiredCheckConstraints = [
@@ -149,6 +151,7 @@ const requiredCheckConstraints = [
   "audit_events_actor_type_check",
   "audit_events_outcome_check",
   "audit_events_environment_check",
+  "service_spec_versions_format_check",
 ];
 
 const forbiddenLegacyObjectNames = [
@@ -182,6 +185,10 @@ const registryChildDeleteTables = new Set([
   "apic_catalog.service_routes",
   "apic_catalog.service_scopes",
   "apic_catalog.service_dependencies",
+]);
+const immutableTables = new Set([
+  "apic_audit.audit_events",
+  "apic_catalog.service_spec_versions",
 ]);
 
 function hasFlag(name: string): boolean {
@@ -450,10 +457,9 @@ async function main(): Promise<void> {
       for (const table of requiredTables) {
         const objectName = key(table);
         const grants = grantsByTable.get(objectName) ?? new Set<string>();
-        const required =
-          table.schema === "apic_audit"
-            ? ["SELECT", "INSERT"]
-            : ["SELECT", "INSERT", "UPDATE"];
+        const required = immutableTables.has(objectName)
+          ? ["SELECT", "INSERT"]
+          : ["SELECT", "INSERT", "UPDATE"];
         if (registryChildDeleteTables.has(objectName)) required.push("DELETE");
         for (const privilege of required) {
           if (!grants.has(privilege)) missingGrants.push(appRole + " lacks " + privilege + " on " + objectName);
@@ -461,10 +467,12 @@ async function main(): Promise<void> {
       }
       addFailure(failures, "Missing app-role table grants", missingGrants);
 
-      const auditGrants = grantsByTable.get("apic_audit.audit_events") ?? new Set<string>();
-      for (const privilege of ["UPDATE", "DELETE", "TRUNCATE"]) {
-        if (auditGrants.has(privilege)) {
-          failures.push(appRole + " must not have " + privilege + " on apic_audit.audit_events; audit events are append-only.");
+      for (const tableName of immutableTables) {
+        const grants = grantsByTable.get(tableName) ?? new Set<string>();
+        for (const privilege of ["UPDATE", "DELETE", "TRUNCATE"]) {
+          if (grants.has(privilege)) {
+            failures.push(appRole + " must not have " + privilege + " on " + tableName + "; records are append-only.");
+          }
         }
       }
     }

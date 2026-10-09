@@ -96,6 +96,7 @@ model Service {
   lifecycleEvents    ServiceLifecycleEvent[]
   environments       ServiceEnvironment[]
   serviceSecretReference ServiceSecretReference?
+  specVersions          ServiceSpecVersion[]
 
   @@unique([organizationId, serviceId], name: "organization_service_id")
   @@index([serviceType, status], name: "services_type_status_idx")
@@ -104,6 +105,25 @@ model Service {
   @@index([organizationId, ownerTribeId, serviceType, status], name: "services_org_owner_type_status_idx")
   @@index([ownerTeam], name: "services_owner_team_idx")
   @@map("services")
+  @@schema("apic_catalog")
+}
+
+model ServiceSpecVersion {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId   String   @map("service_id") @db.Uuid
+  version     String
+  format      String
+  document    Json
+  sha256      String   @db.Char(64)
+  publishedBy String   @map("published_by")
+  publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([serviceId, version], name: "service_spec_versions_service_version_key")
+  @@unique([serviceId, sha256], name: "service_spec_versions_service_sha256_key")
+  @@index([serviceId, publishedAt(sort: Desc)], name: "service_spec_versions_service_published_idx")
+  @@map("service_spec_versions")
   @@schema("apic_catalog")
 }
 

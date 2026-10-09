@@ -46,6 +46,11 @@ import { initTracing } from "./tracing";
 initTracing();
 
 import { NestFactory } from "@nestjs/core";
+import express, {
+  NextFunction,
+  Request,
+  Response as ExpressResponse,
+} from "express";
 import { ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
@@ -66,8 +71,45 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    rawBody: true,
+    bodyParser: false,
   });
+
+  const captureRawBody = (
+    request: Request,
+    _response: unknown,
+    body: Buffer,
+  ) => {
+    (request as Request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
+  };
+  const defaultJsonParser = express.json({
+    limit: "100kb",
+    verify: captureRawBody,
+  });
+  const serviceSpecJsonParser = express.json({
+    limit: "2mb",
+    verify: captureRawBody,
+  });
+  app.use((request: Request, response: ExpressResponse, next: NextFunction) => {
+    const isServiceSpecPublish =
+      request.method === "POST" &&
+      /^\/api\/v1\/admin\/catalog\/services\/[^/]+\/spec-versions\/?$/.test(
+        request.path,
+      );
+    return (isServiceSpecPublish ? serviceSpecJsonParser : defaultJsonParser)(
+      request,
+      response,
+      next,
+    );
+  });
+  app.use(
+    express.urlencoded({
+      extended: true,
+      limit: "100kb",
+      verify: (request, _response, body) => {
+        (request as Request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
+      },
+    }),
+  );
 
   const logger = app.get(LoggerService);
   const config = app.get(ConfigService);
