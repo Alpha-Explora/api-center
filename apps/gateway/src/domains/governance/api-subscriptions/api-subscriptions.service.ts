@@ -20,6 +20,11 @@ export class ApiSubscriptionsService
   private refreshTimer?: ReturnType<typeof setInterval>;
   private refreshInProgress = false;
 
+  private get subscriptionMaxStalenessMs(): number {
+    const configured = Number(process.env.API_SUBSCRIPTION_MAX_STALENESS_MS);
+    return Number.isFinite(configured) && configured > 0 ? configured : 45_000;
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: RegistryService,
@@ -53,12 +58,13 @@ export class ApiSubscriptionsService
         orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
         select: {
           consumerProjectId: true,
+          apiProjectId: true,
           apiServiceId: true,
           environment: true,
           status: true,
         },
       });
-      this.registry.replaceSubscriptions(rows);
+      this.registry.replaceSubscriptions(rows, this.subscriptionMaxStalenessMs);
     } catch (error) {
       this.logger.warn(
         `API subscription status refresh failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -91,6 +97,7 @@ export class ApiSubscriptionsService
     const existing = await this.prisma.apiSubscription.findFirst({
       where: {
         consumerProjectId: input.consumerProjectId,
+        apiProjectId: target.projectId,
         apiServiceId: input.apiServiceId,
         environment: input.environment,
         status: { in: ["pending", "approved"] },
@@ -99,6 +106,7 @@ export class ApiSubscriptionsService
     if (existing) {
       this.registry.setSubscriptionStatus(
         input.consumerProjectId,
+        target.projectId,
         input.apiServiceId,
         input.environment,
         existing.status,
@@ -110,6 +118,7 @@ export class ApiSubscriptionsService
       const created = await this.prisma.apiSubscription.create({
         data: {
           consumerProjectId: input.consumerProjectId,
+          apiProjectId: target.projectId,
           apiServiceId: input.apiServiceId,
           environment: input.environment,
           requestedBy: actor,
@@ -118,6 +127,7 @@ export class ApiSubscriptionsService
       });
       this.registry.setSubscriptionStatus(
         input.consumerProjectId,
+        target.projectId,
         input.apiServiceId,
         input.environment,
         "pending",
@@ -131,6 +141,7 @@ export class ApiSubscriptionsService
         const pending = await this.prisma.apiSubscription.findFirst({
           where: {
             consumerProjectId: input.consumerProjectId,
+            apiProjectId: target.projectId,
             apiServiceId: input.apiServiceId,
             environment: input.environment,
             status: "pending",
@@ -139,6 +150,7 @@ export class ApiSubscriptionsService
         if (pending) {
           this.registry.setSubscriptionStatus(
             input.consumerProjectId,
+            target.projectId,
             input.apiServiceId,
             input.environment,
             pending.status,
@@ -150,12 +162,17 @@ export class ApiSubscriptionsService
     }
   }
 
-  async list(filters: { consumerProjectId?: string; apiServiceId?: string }) {
+  async list(filters: {
+    consumerProjectId?: string;
+    apiProjectId?: string;
+    apiServiceId?: string;
+  }) {
     if (!filters.consumerProjectId && !filters.apiServiceId) {
       throw new ValidationError("Specify a consumerProjectId or apiServiceId");
     }
     return this.prisma.apiSubscription.findMany({
       where: {
+        ...(filters.apiProjectId ? { apiProjectId: filters.apiProjectId } : {}),
         ...(filters.consumerProjectId
           ? { consumerProjectId: filters.consumerProjectId }
           : {}),
@@ -183,6 +200,10 @@ export class ApiSubscriptionsService
     if (row.status !== fromStatus) {
       throw new ConflictError(`Cannot ${action} a ${row.status} subscription`);
     }
+    const currentApi = this.registry.get(row.apiServiceId);
+    if (!currentApi || currentApi.projectId !== row.apiProjectId) {
+      throw new ConflictError("API owner changed");
+    }
     const status =
       action === "approve"
         ? "approved"
@@ -202,6 +223,7 @@ export class ApiSubscriptionsService
       throw new ConflictError("Subscription status changed; refresh and retry");
     this.registry.setSubscriptionStatus(
       row.consumerProjectId,
+      row.apiProjectId,
       row.apiServiceId,
       row.environment as "test" | "live",
       status,

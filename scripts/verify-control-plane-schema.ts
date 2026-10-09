@@ -557,6 +557,25 @@ async function main(): Promise<void> {
       requiredOAuthAppConstraints.filter((name) => !oauthAppConstraints.has(name)),
     );
 
+    const apiSubscriptionColumns = await queryRows(
+      client,
+      "select column_name from information_schema.columns where table_schema = 'apic_governance' and table_name = 'api_subscriptions'",
+    );
+    const apiSubscriptionColumnNames = new Set(
+      apiSubscriptionColumns.map((row) => String(row.column_name)),
+    );
+    addFailure(
+      failures,
+      "Missing required api_subscriptions columns",
+      [
+        "consumer_project_id",
+        "api_project_id",
+        "api_service_id",
+        "environment",
+        "status",
+      ].filter((name) => !apiSubscriptionColumnNames.has(name)),
+    );
+
     if (hasFlag("--require-compat-views")) {
       const viewRows = await queryRows(
         client,

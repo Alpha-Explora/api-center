@@ -4,6 +4,7 @@ describe("ApiSubscriptionsService", () => {
   const row = {
     id: "subscription-1",
     consumerProjectId: "consumer-project",
+    apiProjectId: "owner-project",
     apiServiceId: "owner-api",
     environment: "test",
     status: "pending",
@@ -69,6 +70,7 @@ describe("ApiSubscriptionsService", () => {
     jest.useRealTimers();
     delete process.env.DATABASE_ENABLED;
     delete process.env.API_SUBSCRIPTION_REFRESH_MS;
+    delete process.env.API_SUBSCRIPTION_MAX_STALENESS_MS;
   });
 
   it("starts pending, grants only after approval, and clears access after revoke", async () => {
@@ -78,14 +80,25 @@ describe("ApiSubscriptionsService", () => {
       environment: "test",
       reason: "Need customer profile lookup",
     });
+    expect(prisma.apiSubscription.findFirst).toHaveBeenCalledWith({
+      where: {
+        consumerProjectId: "consumer-project",
+        apiProjectId: "owner-project",
+        apiServiceId: "owner-api",
+        environment: "test",
+        status: { in: ["pending", "approved"] },
+      },
+    });
     expect(prisma.apiSubscription.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         consumerProjectId: "consumer-project",
+        apiProjectId: "owner-project",
         requestedBy: "consumer-user",
       }),
     });
     expect(registry.setSubscriptionStatus).toHaveBeenLastCalledWith(
       "consumer-project",
+      "owner-project",
       "owner-api",
       "test",
       "pending",
@@ -94,6 +107,7 @@ describe("ApiSubscriptionsService", () => {
     await service.decide("subscription-1", "owner-user", "approve");
     expect(registry.setSubscriptionStatus).toHaveBeenLastCalledWith(
       "consumer-project",
+      "owner-project",
       "owner-api",
       "test",
       "approved",
@@ -101,6 +115,7 @@ describe("ApiSubscriptionsService", () => {
     await service.decide("subscription-1", "owner-user", "revoke");
     expect(registry.setSubscriptionStatus).toHaveBeenLastCalledWith(
       "consumer-project",
+      "owner-project",
       "owner-api",
       "test",
       "revoked",
@@ -115,13 +130,31 @@ describe("ApiSubscriptionsService", () => {
     expect(registry.setSubscriptionStatus).not.toHaveBeenCalled();
   });
 
+  it("does not approve a pending request after the API slug changes owner", async () => {
+    registry.get.mockReturnValue({
+      serviceId: "owner-api",
+      projectId: "new-owner-project",
+      serviceType: "tribe",
+      environments: [{ environment: "test" }],
+    } as never);
+
+    await expect(
+      service.decide("subscription-1", "new-owner-user", "approve"),
+    ).rejects.toThrow("API owner changed");
+    expect(prisma.apiSubscription.updateMany).not.toHaveBeenCalled();
+    expect(registry.setSubscriptionStatus).not.toHaveBeenCalled();
+  });
+
   it("refreshes the shared snapshot periodically and keeps the last snapshot on failure", async () => {
     jest.useFakeTimers();
     process.env.DATABASE_ENABLED = "true";
     process.env.API_SUBSCRIPTION_REFRESH_MS = "1000";
     prisma.apiSubscription.findMany.mockResolvedValueOnce([row]);
     await service.onApplicationBootstrap();
-    expect(registry.replaceSubscriptions).toHaveBeenLastCalledWith([row]);
+    expect(registry.replaceSubscriptions).toHaveBeenLastCalledWith(
+      [row],
+      45_000,
+    );
 
     prisma.apiSubscription.findMany.mockRejectedValueOnce(
       new Error("db offline"),
@@ -137,8 +170,16 @@ describe("ApiSubscriptionsService", () => {
       { ...row, status: "revoked" },
     ]);
     await jest.advanceTimersByTimeAsync(1000);
-    expect(registry.replaceSubscriptions).toHaveBeenLastCalledWith([
-      { ...row, status: "revoked" },
-    ]);
+    expect(registry.replaceSubscriptions).toHaveBeenLastCalledWith(
+      [{ ...row, status: "revoked" }],
+      45_000,
+    );
+  });
+
+  it("does not load a fresh snapshot when database support is disabled", async () => {
+    process.env.DATABASE_ENABLED = "false";
+    await service.onApplicationBootstrap();
+    expect(prisma.apiSubscription.findMany).not.toHaveBeenCalled();
+    expect(registry.replaceSubscriptions).not.toHaveBeenCalled();
   });
 });

@@ -55,7 +55,13 @@ export class ApiSubscriptionsController {
     if (apiServiceId) this.requireApiOwner(apiServiceId, req);
     return {
       success: true,
-      data: await this.subscriptions.list({ consumerProjectId, apiServiceId }),
+      data: await this.subscriptions.list({
+        consumerProjectId,
+        ...(apiServiceId && req.projectId && !this.isPlatformAdmin(req)
+          ? { apiProjectId: req.projectId }
+          : {}),
+        apiServiceId,
+      }),
     };
   }
 

@@ -45,11 +45,14 @@ const REGISTRY_REFRESH_INTERVAL_MS = 25_000;
 
 function subscriptionKey(
   consumerProjectId: string,
+  apiProjectId: string,
   apiServiceId: string,
   environment: string,
 ): string {
-  return `${consumerProjectId}\u0000${apiServiceId}\u0000${environment}`;
+  return `${consumerProjectId}\u0000${apiProjectId}\u0000${apiServiceId}\u0000${environment}`;
 }
+
+const DEFAULT_SUBSCRIPTION_MAX_STALENESS_MS = 45_000;
 
 @Injectable()
 export class RegistryService implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
@@ -62,6 +65,7 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
   private writesInFlight = 0;
   private localMutationVersion = 0;
   private readonly subscriptionStatuses = new Map<string, string>();
+  private subscriptionsFreshUntil = 0;
   private readonly cacheInvalidationListeners = new Set<
     (serviceId: string) => void
   >();
@@ -477,11 +481,17 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
       (target.serviceType ?? "tribe") === "tribe" &&
       source.projectId !== target.projectId
     ) {
-      return source.projectId
-        ? this.subscriptionStatuses.get(
-            subscriptionKey(source.projectId, targetServiceId, environment),
-          ) === "approved"
-        : false;
+      if (!source.projectId || Date.now() > this.subscriptionsFreshUntil) {
+        return false;
+      }
+      return this.subscriptionStatuses.get(
+        subscriptionKey(
+          source.projectId,
+          target.projectId,
+          targetServiceId,
+          environment,
+        ),
+      ) === "approved";
     }
     return (source.consumes ?? []).includes(targetServiceId);
   }
@@ -489,16 +499,19 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
   replaceSubscriptions(
     rows: Array<{
       consumerProjectId: string;
+      apiProjectId: string;
       apiServiceId: string;
       environment: string;
       status: string;
     }>,
+    maxStalenessMs = DEFAULT_SUBSCRIPTION_MAX_STALENESS_MS,
   ): void {
     this.subscriptionStatuses.clear();
     for (const row of rows) {
       if (row.environment === "test" || row.environment === "live") {
         const key = subscriptionKey(
           row.consumerProjectId,
+          row.apiProjectId,
           row.apiServiceId,
           row.environment,
         );
@@ -510,16 +523,23 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
         );
       }
     }
+    this.subscriptionsFreshUntil = Date.now() + maxStalenessMs;
   }
 
   setSubscriptionStatus(
     consumerProjectId: string,
+    apiProjectId: string,
     apiServiceId: string,
     environment: "test" | "live",
     status: string,
   ): void {
     this.subscriptionStatuses.set(
-      subscriptionKey(consumerProjectId, apiServiceId, environment),
+      subscriptionKey(
+        consumerProjectId,
+        apiProjectId,
+        apiServiceId,
+        environment,
+      ),
       status,
     );
   }
