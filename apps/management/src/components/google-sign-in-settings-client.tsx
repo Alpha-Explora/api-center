@@ -75,7 +75,9 @@ export function GoogleSignInSettingsClient() {
         body: JSON.stringify(payload),
       });
       const body = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(body?.message ?? body?.error ?? "Settings could not be saved.");
+      if (!response.ok) {
+        throw new Error(responseErrorMessage(body, "Settings could not be saved."));
+      }
       return body as Settings;
     },
     onSuccess: async (settings) => {
@@ -90,7 +92,10 @@ export function GoogleSignInSettingsClient() {
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(settingsPath(projectId, environment), { method: "DELETE" });
-      if (!response.ok) throw new Error("Registration could not be removed.");
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(responseErrorMessage(body, "Registration could not be removed."));
+      }
       return fetch(settingsPath(projectId, environment), { cache: "no-store" }).then((result) => result.json() as Promise<Settings>);
     },
     onSuccess: (settings) => {
@@ -106,6 +111,15 @@ export function GoogleSignInSettingsClient() {
   });
 
   const settings = settingsQuery.data;
+  const selectedProject = projects.find((project) => project.projectId === projectId);
+  const confirmRemoveRegistration = () => {
+    const projectName = selectedProject?.name ?? projectId;
+    const confirmed = window.confirm(
+      `Remove Google sign-in registration for ${projectName} (${projectId}) in the ${environment} environment? Google sign-in will stop working there.`,
+    );
+    if (confirmed) deleteMutation.mutate();
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -156,7 +170,7 @@ export function GoogleSignInSettingsClient() {
           {settings.secretLastChangedAt ? <p className="text-sm text-muted-foreground">Client secret last changed {new Date(settings.secretLastChangedAt).toLocaleString()}.</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || settingsQuery.isLoading || !projectId}>Save settings</Button>
-            <Button variant="outline" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending || !projectId}>Remove registration</Button>
+            <Button variant="outline" onClick={confirmRemoveRegistration} disabled={deleteMutation.isPending || !projectId}>Remove registration</Button>
           </div>
           {feedback ? <p role="status">{feedback}</p> : null}
         </CardContent>
@@ -167,4 +181,18 @@ export function GoogleSignInSettingsClient() {
 
 function settingsPath(projectId: string, environment: Environment) {
   return `/api/local/google-sign-in/projects/${encodeURIComponent(projectId)}/${environment}`;
+}
+
+function responseErrorMessage(body: unknown, fallback: string): string {
+  const value = body && typeof body === "object" && !Array.isArray(body)
+    ? body as Record<string, unknown>
+    : {};
+  const error = value.error;
+  if (error && typeof error === "object" && !Array.isArray(error)) {
+    const message = (error as Record<string, unknown>).message;
+    if (typeof message === "string" && message) return message;
+  }
+  if (typeof error === "string" && error) return error;
+  if (typeof value.message === "string" && value.message) return value.message;
+  return fallback;
 }

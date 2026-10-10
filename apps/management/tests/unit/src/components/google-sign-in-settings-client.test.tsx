@@ -46,4 +46,50 @@ describe("GoogleSignInSettingsClient", () => {
     expect((screen.getByLabelText("Client secret") as HTMLInputElement).value).toBe("");
     queryClient.clear();
   });
+
+  it("shows the gateway message when a save returns a structured error", async () => {
+    tenancyMocks.listTribes.mockResolvedValue([{
+      tribeId: "acme", name: "Acme", projects: [{ projectId: "shop", name: "Shop", status: "active" }],
+    }]);
+    const gatewayMessage = "Provide between 1 and 10 redirect URIs.";
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "PUT") {
+        return Response.json({ success: false, error: { code: "INVALID_OAUTH_APP", message: gatewayMessage } }, { status: 400 });
+      }
+      return Response.json({
+        projectId: "shop", environment: "test", redirectUris: ["http://localhost:3000/callback"],
+        displayName: "Shop", hasOwnClient: false, clientId: null, secretLastChangedAt: null,
+      });
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><GoogleSignInSettingsClient /></QueryClientProvider>);
+
+    await screen.findByText("OAuth settings");
+    fireEvent.change(screen.getByRole("textbox", { name: "Redirect URLs" }), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(await screen.findByText(gatewayMessage)).toBeTruthy();
+    queryClient.clear();
+  });
+
+  it("asks before removing a registration and sends no DELETE when canceled", async () => {
+    tenancyMocks.listTribes.mockResolvedValue([{
+      tribeId: "acme", name: "Acme", projects: [{ projectId: "shop", name: "Shop", status: "active" }],
+    }]);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({
+      projectId: "shop", environment: "test", redirectUris: ["https://shop.example.test/callback"],
+      displayName: "Shop", hasOwnClient: false, clientId: null, secretLastChangedAt: null,
+    }));
+    const confirmMock = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><GoogleSignInSettingsClient /></QueryClientProvider>);
+
+    await screen.findByText("OAuth settings");
+    fireEvent.click(screen.getByRole("button", { name: "Remove registration" }));
+
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining("Shop (shop) in the test environment"));
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining("Google sign-in will stop working there"));
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    queryClient.clear();
+  });
 });
