@@ -324,6 +324,7 @@ function secretName(
 ): string {
   const cloudProjectId =
     deps.cloudProjectId ??
+    process.env.GAUTH_SECRETS_PROJECT_ID ??
     process.env.GOOGLE_CLOUD_PROJECT ??
     process.env.GCLOUD_PROJECT;
   if (!cloudProjectId)

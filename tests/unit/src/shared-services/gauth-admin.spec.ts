@@ -26,12 +26,14 @@ function responseRecorder() {
 }
 
 function fakeSecretManager() {
-  const state: { value?: string; version: number; deleted: string[] } = {
+  const state: { value?: string; version: number; deleted: string[]; created: string[] } = {
     version: 0,
     deleted: [],
+    created: [],
   };
   const client: OAuthAdminSecretManager = {
-    async createSecret() {
+    async createSecret({ parent, secretId }) {
+      state.created.push(`${parent}/secrets/${secretId}`);
       if (state.version) throw { code: 6 };
       return [{ name: "created" }];
     },
@@ -89,6 +91,76 @@ const validInput = {
 };
 
 describe("GAuth OAuth app admin handler", () => {
+  it("uses an injected secret project first, then GAUTH_SECRETS_PROJECT_ID and Google Cloud fallbacks", async () => {
+    const envNames = [
+      "GAUTH_SECRETS_PROJECT_ID",
+      "GOOGLE_CLOUD_PROJECT",
+      "GCLOUD_PROJECT",
+    ] as const;
+    const originalEnv = Object.fromEntries(
+      envNames.map((name) => [name, process.env[name]]),
+    );
+    const cases = [
+      {
+        configured: {
+          GAUTH_SECRETS_PROJECT_ID: "isolated-secrets-project",
+          GOOGLE_CLOUD_PROJECT: "runtime-project",
+          GCLOUD_PROJECT: "legacy-project",
+        },
+        injectedProject: undefined,
+        expectedProject: "isolated-secrets-project",
+      },
+      {
+        configured: {
+          GOOGLE_CLOUD_PROJECT: "runtime-project",
+          GCLOUD_PROJECT: "legacy-project",
+        },
+        injectedProject: undefined,
+        expectedProject: "runtime-project",
+      },
+      {
+        configured: { GCLOUD_PROJECT: "legacy-project" },
+        injectedProject: undefined,
+        expectedProject: "legacy-project",
+      },
+      {
+        configured: {
+          GAUTH_SECRETS_PROJECT_ID: "isolated-secrets-project",
+          GOOGLE_CLOUD_PROJECT: "runtime-project",
+        },
+        injectedProject: "injected-project",
+        expectedProject: "injected-project",
+      },
+    ];
+
+    try {
+      for (const { configured, injectedProject, expectedProject } of cases) {
+        for (const name of envNames) delete process.env[name];
+        Object.assign(process.env, configured);
+        const secrets = fakeSecretManager();
+        const handler = createOAuthAppAdminHandler({
+          store: new MemoryOAuthAppStore(),
+          expectedToken: "expected-admin-token",
+          secretManager: secrets.client,
+          cloudProjectId: injectedProject,
+        });
+        const put = responseRecorder();
+        await handler(request("PUT", validInput), put.response as never);
+
+        expect(put.result.statusCode).toBe(200);
+        expect(secrets.state.created).toEqual([
+          `projects/${expectedProject}/secrets/apic-gauth-sample-test`,
+        ]);
+      }
+    } finally {
+      for (const name of envNames) {
+        const value = originalEnv[name];
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
   it("checks the admin token and validates the redirect URI limit and environment rules", async () => {
     const store = new MemoryOAuthAppStore();
     const handler = createOAuthAppAdminHandler({

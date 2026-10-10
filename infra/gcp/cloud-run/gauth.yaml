@@ -10,13 +10,13 @@ spec:
       annotations:
         autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "3"
-        run.googleapis.com/service-account: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+        run.googleapis.com/service-account: apicenter-gauth-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
         run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
         run.googleapis.com/vpc-access-egress: private-ranges-only
     spec:
       containerConcurrency: 40
       timeoutSeconds: 300
-      serviceAccountName: apicenter-shared-services-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+      serviceAccountName: apicenter-gauth-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
       containers:
         - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:cloud-run
           ports:
@@ -37,25 +37,27 @@ spec:
                 secretKeyRef:
                   name: apicenter-shared-google-redirect-uri-prod
                   key: latest
-            - name: GOOGLE_OAUTH_TENANT_CLIENTS_JSON
-              valueFrom:
-                secretKeyRef:
-                  name: apicenter-shared-google-tenant-clients-prod
-                  key: latest
             - name: GAUTH_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: apicenter-gauth-admin-token
                   key: latest
 
-            - name: DATABASE_URL
+            - name: GAUTH_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: apicenter-gauth-database-url-live
                   key: latest
+            - name: GOOGLE_OAUTH_STATE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-gauth-google-oauth-state-secret
+                  key: latest
             - name: NODE_ENV
               value: production
             - name: GOOGLE_CLOUD_PROJECT
+              value: apicenter-alpha-20260623
+            - name: GAUTH_SECRETS_PROJECT_ID
               value: apicenter-alpha-20260623
             - name: GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT
               value: "20"
