@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { Resend } from "resend";
 import type { EmailSendRequest, EmailSendResponse } from "@apicenter/contracts";
 import type { SharedServiceCaller } from "@apicenter/runtime";
@@ -35,41 +34,32 @@ export class SendEmailService {
     if (resend && !emailFrom) throw new Error("Resend sender address is required");
     const record = await this.store.sendWithinDailyLimit(
       owner,
-      input.from,
-      emailFrom || 'no-reply@example.test',
-      defaultDailyLimit,
+      {
+        requestedFrom: input.from,
+        defaultFrom: emailFrom || "no-reply@example.test",
+        defaultDailyLimit,
+        provider: resend ? "resend" : "mock",
+        recipients,
+      },
       async (approvedFrom) => {
-        let providerMessageId = `msg_${crypto.randomUUID().replace(/-/g, "")}`;
-        if (resend) {
-          const content =
-            input.html !== undefined && input.text !== undefined
-              ? { html: input.html, text: input.text }
-              : input.html !== undefined
-                ? { html: input.html }
-                : input.text !== undefined
-                  ? { text: input.text }
-                  : { html: "<p>(no content)</p>" };
-          const payload = {
-            from: approvedFrom,
-            to: recipients,
-            subject: subjectVo.getValue(),
-            ...content,
-          };
-          const { data, error } = await resend.emails.send(payload);
-          if (error) throw new Error(error.message);
-          providerMessageId = data?.id || providerMessageId;
-        }
-        const sentAt = new Date().toISOString();
-        const record = {
-          messageId: providerMessageId,
-          status: "queued" as EmailSendResponse["status"],
-          recipientCount: recipients.length,
-          sentAt,
-          provider: resend ? "resend" : "mock",
-          recipient: recipients,
-          createdAt: sentAt,
+        if (!resend) return undefined;
+        const content =
+          input.html !== undefined && input.text !== undefined
+            ? { html: input.html, text: input.text }
+            : input.html !== undefined
+              ? { html: input.html }
+              : input.text !== undefined
+                ? { text: input.text }
+                : { html: "<p>(no content)</p>" };
+        const payload = {
+          from: approvedFrom,
+          to: recipients,
+          subject: subjectVo.getValue(),
+          ...content,
         };
-        return record;
+        const { data, error } = await resend.emails.send(payload);
+        if (error) throw new Error(error.message);
+        return data?.id || undefined;
       },
     );
 
