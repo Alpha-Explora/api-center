@@ -46,6 +46,15 @@ test('sms_runtime runs the upsert the SMS store uses on its own schema', { skip 
   await assert.doesNotReject(asRole('sms_runtime', upsert));
 });
 
+test('email and SMS runtime roles can record delivery events only in their own schema', { skip }, async () => {
+  await assert.doesNotReject(asRole('email_runtime',
+    "insert into shared_email.email_delivery_events (provider_event_id, message_id, status, payload) values ('email_role_check', 'msg_role_check', 'delivered', '{}'::jsonb)"));
+  await assert.doesNotReject(asRole('sms_runtime',
+    "insert into shared_sms.sms_delivery_events (provider_event_id, message_id, status, payload) values ('sms_role_check', 'SMrolecheck', 'delivered', '{}'::jsonb)"));
+  await assert.rejects(asRole('email_runtime', 'select 1 from shared_sms.sms_delivery_events'), /permission denied/);
+  await assert.rejects(asRole('sms_runtime', 'select 1 from shared_email.email_delivery_events'), /permission denied/);
+});
+
 test('payments_runtime can read and write payment tables but cannot delete outbox rows or read SMS records', { skip }, async () => {
   await assert.doesNotReject(asRole('payments_runtime', 'select 1 from shared_payment.payment_event_outbox limit 1'));
   await assert.rejects(asRole('payments_runtime', 'delete from shared_payment.payment_event_outbox'), /permission denied/);

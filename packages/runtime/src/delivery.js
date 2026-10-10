@@ -1,5 +1,5 @@
 /** Send one SMS with Twilio and return the normalized delivery record. */
-async function sendTwilioSms({ to, message, senderId }) {
+async function sendTwilioSms({ to, message, senderId, statusCallback }) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
@@ -8,6 +8,9 @@ async function sendTwilioSms({ to, message, senderId }) {
     throw new Error('Twilio account, auth token, and sender configuration are required');
   }
   const form = new URLSearchParams({ To: to, Body: message });
+  const callbackUrl = statusCallback || process.env.TWILIO_STATUS_CALLBACK_URL;
+  if (callbackUrl) form.set('StatusCallback', callbackUrl);
+  else if (process.env.NODE_ENV === 'production') throw new Error('Twilio status callback URL is required in production');
   if (messagingServiceSid && !senderId) form.set('MessagingServiceSid', messagingServiceSid);
   else form.set('From', from);
   const response = await fetch(

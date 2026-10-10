@@ -14,6 +14,7 @@ import { SendSmsService } from './features/send-sms/send-sms.service';
 import { SmsMessagePayload, SmsRecipient } from './features/send-sms/send-sms.model';
 import { GetSmsStatusService } from './features/get-sms-status/get-sms-status.service';
 import { SmsProviderError } from './shared/twilio-sms-provider';
+import { createSmsRepository } from './shared/sms-store';
 
 const port = Number(process.env.PORT || 4011);
 const { app, ok, fail } = createSharedServiceApp({
@@ -26,8 +27,9 @@ const { app, ok, fail } = createSharedServiceApp({
   },
 });
 
-const sendSmsService = new SendSmsService();
-const getSmsStatusService = new GetSmsStatusService();
+const smsStore = createSmsRepository();
+const sendSmsService = new SendSmsService(smsStore);
+const getSmsStatusService = new GetSmsStatusService(smsStore);
 const stateUrl = process.env.SMS_REDIS_URL || process.env.REDIS_URL;
 const idempotencyStore = createSharedIdempotencyStore({ url: stateUrl, namespace: 'sms' });
 const rateLimitStore = createSharedRateLimitStore({ url: stateUrl, namespace: 'sms' });
@@ -161,6 +163,23 @@ app.post('/send', async (req: Request, res: Response) => {
     return fail(res, 503, 'IDEMPOTENCY_OUTCOME_UNKNOWN', 'SMS was sent but its response could not be recorded; reconcile before retrying');
   }
   return res.status(response.status).json(response.body);
+});
+
+app.post('/webhooks/twilio', async (req: Request, res: Response) => {
+  const event = req.body || {};
+  const validStatuses = new Set(['accepted', 'scheduled', 'queued', 'sending', 'sent', 'delivered', 'undelivered', 'failed', 'read', 'canceled']);
+  if (typeof event.providerEventId !== 'string' || !event.providerEventId ||
+      typeof event.messageId !== 'string' || !event.messageId ||
+      typeof event.status !== 'string' || !validStatuses.has(event.status) ||
+      !event.payload || typeof event.payload !== 'object') {
+    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Twilio delivery event is invalid');
+  }
+  try {
+    const result = await smsStore.applyDeliveryEvent(event);
+    return res.status(200).json({ received: true, ...result });
+  } catch {
+    return fail(res, 503, 'SMS_MESSAGE_PENDING', 'SMS delivery event could not be applied yet');
+  }
 });
 
 app.get('/status/:messageId', async (req: Request, res: Response) => {

@@ -16,6 +16,8 @@ const MANAGED_TABLES = [
   { schema: 'apic_runtime', table: 'quota_evaluations', column: 'created_at' },
   { schema: 'apic_runtime', table: 'usage_rollups', column: 'window_end' },
   { schema: 'apic_runtime', table: 'pipeline_feedback_actions', column: 'created_at' },
+  { schema: 'shared_email', table: 'email_delivery_events', column: 'received_at' },
+  { schema: 'shared_sms', table: 'sms_delivery_events', column: 'received_at' },
 ];
 
 /** Reads the number of days from a comment such as "retention=400d; partition=monthly". */
