@@ -91,7 +91,7 @@ const validInput = {
 };
 
 describe("GAuth OAuth app admin handler", () => {
-  it("uses the configured secret project before Google Cloud project fallbacks", async () => {
+  it("uses an injected secret project first, then GAUTH_SECRETS_PROJECT_ID and Google Cloud fallbacks", async () => {
     const envNames = [
       "GAUTH_SECRETS_PROJECT_ID",
       "GOOGLE_CLOUD_PROJECT",
@@ -107,6 +107,7 @@ describe("GAuth OAuth app admin handler", () => {
           GOOGLE_CLOUD_PROJECT: "runtime-project",
           GCLOUD_PROJECT: "legacy-project",
         },
+        injectedProject: undefined,
         expectedProject: "isolated-secrets-project",
       },
       {
@@ -114,16 +115,26 @@ describe("GAuth OAuth app admin handler", () => {
           GOOGLE_CLOUD_PROJECT: "runtime-project",
           GCLOUD_PROJECT: "legacy-project",
         },
+        injectedProject: undefined,
         expectedProject: "runtime-project",
       },
       {
         configured: { GCLOUD_PROJECT: "legacy-project" },
+        injectedProject: undefined,
         expectedProject: "legacy-project",
+      },
+      {
+        configured: {
+          GAUTH_SECRETS_PROJECT_ID: "isolated-secrets-project",
+          GOOGLE_CLOUD_PROJECT: "runtime-project",
+        },
+        injectedProject: "injected-project",
+        expectedProject: "injected-project",
       },
     ];
 
     try {
-      for (const { configured, expectedProject } of cases) {
+      for (const { configured, injectedProject, expectedProject } of cases) {
         for (const name of envNames) delete process.env[name];
         Object.assign(process.env, configured);
         const secrets = fakeSecretManager();
@@ -131,6 +142,7 @@ describe("GAuth OAuth app admin handler", () => {
           store: new MemoryOAuthAppStore(),
           expectedToken: "expected-admin-token",
           secretManager: secrets.client,
+          cloudProjectId: injectedProject,
         });
         const put = responseRecorder();
         await handler(request("PUT", validInput), put.response as never);
