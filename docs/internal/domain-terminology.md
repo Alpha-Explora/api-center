@@ -1,3 +1,13 @@
+---
+title: "APICenter Domain Terminology & System Architecture Reference"
+status: canonical
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "2026-10-10"
+verification: repository
+sources: ["AGENTS.md","docs/architecture/current-architecture.md"]
+---
 # APICenter Domain Terminology & System Architecture Reference
 
 This internal reference defines the canonical domain vocabulary, tenancy model, and system architecture across the APICenter monorepo.

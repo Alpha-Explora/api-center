@@ -3,7 +3,7 @@ import { getDetailedOperations } from "@/lib/contracts";
 
 export const metadata = {
   title: "APICenter REST API Reference",
-  description: "Interactive API reference for all APICenter REST endpoints — payments, messaging, OTP, identity, and registry.",
+  description: "Contract-derived reference for APICenter payment endpoints.",
 };
 
 export default function ApiOverviewPage() {
@@ -33,8 +33,8 @@ export default function ApiOverviewPage() {
     >
       <DocsTitle>APICenter REST API</DocsTitle>
       <DocsDescription>
-        Interact programmatically with your APICenter account via direct HTTP requests or the TypeScript SDK.
-        Covers payments, SMS/Email, OTP, geolocation, authentication, and service registry.
+        This reference describes payment operations declared in the public OpenAPI contract.
+        Shared services have separate integration guides; their endpoints are not included in this contract.
       </DocsDescription>
 
       <DocsBody>
@@ -42,7 +42,7 @@ export default function ApiOverviewPage() {
           <h2 className="fd-section-title">API basics</h2>
           <p className="fd-param-desc">
             All endpoints live under{" "}
-            <code className="fd-inline-code">https://api-center.itsandbox.site</code>{" "}
+            <code className="fd-inline-code">{operations[0]?.serverUrl}</code>{" "}
             and follow REST conventions with JSON request/response bodies over HTTPS.
           </p>
         </section>
@@ -50,11 +50,11 @@ export default function ApiOverviewPage() {
         <section id="authentication" className="fd-section">
           <h2 className="fd-section-title">Authentication</h2>
           <p className="fd-param-desc" style={{ marginBottom: "10px" }}>
-            Include a Bearer Token in the <code className="fd-inline-code">Authorization</code> header. Obtain tokens via{" "}
-            <code className="fd-inline-code">POST /api/v1/auth/token</code> with your tribe credentials.
+            Use your consumer payment API key in the <code className="fd-inline-code">Authorization</code> header.
+            See the <a href="/guides/authentication">authentication guide</a> for credential ownership and shared-service tokens.
           </p>
           <pre className="fd-codeblock">
-            <code>Authorization: Bearer &lt;TOKEN&gt;</code>
+            <code>Authorization: Bearer &lt;PAYMENT_API_KEY&gt;</code>
           </pre>
         </section>
 
@@ -71,11 +71,8 @@ export default function ApiOverviewPage() {
         <section id="rate-limits" className="fd-section">
           <h2 className="fd-section-title">Rate limits</h2>
           <p className="fd-param-desc">
-            Rate limits are signalled via{" "}
-            <code className="fd-inline-code">X-RateLimit-Limit</code>,{" "}
-            <code className="fd-inline-code">X-RateLimit-Remaining</code>, and{" "}
-            <code className="fd-inline-code">X-RateLimit-Reset</code> headers.
-            Standard quota: 20 mutations and 100 reads per minute per tribe.
+            Quotas depend on the configured consumer policy. See the <a href="/guides/payments/limits">rate-limit guide</a>
+            for handling throttling; this contract does not declare fixed per-minute quotas.
           </p>
         </section>
 

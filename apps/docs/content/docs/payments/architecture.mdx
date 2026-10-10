@@ -1,10 +1,13 @@
-# Current architecture
+---
+title: "Current architecture"
+description: "Integration guidance for current architecture."
+---
 
 APICenter owns the reusable payment runtime, PayMongo credentials, payment database, idempotency records, webhook verification, and the durable outbox. Consumer services call the public gateway with `@alpha-explora/apicenter-sdk` and never call PayMongo directly.
 
 ## AlphaCI
 
-AlphaCI keeps its own billing ledger and subscription/access projection. Its command path uses the APICenter SDK; APICenter remains the provider source of truth. AlphaCI consumes filtered Pub/Sub events to project paid, failed, refunded, past-due, active, and cancelled lifecycle changes.
+AlphaCI keeps its own billing ledger and subscription/access projection. Its command path uses the APICenter SDK; PayMongo remains the source of truth for provider-backed payment resources. APICenter owns project/environment ownership, webhook receipts, reconciliation metadata, and event delivery. AlphaCI consumes filtered Pub/Sub events to project paid, failed, refunded, past-due, active, and cancelled lifecycle changes.
 
 ## Event delivery
 

@@ -1,3 +1,13 @@
+---
+title: "Database Control Plane"
+status: canonical
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "unverified"
+verification: unverified
+sources: ["supabase/migrations"]
+---
 # Database Control Plane
 
 APICenter owns gateway control-plane state and the project-scoped payment

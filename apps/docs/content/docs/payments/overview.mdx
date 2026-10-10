@@ -1,4 +1,7 @@
-# Payments overview
+---
+title: "Payments Overview"
+description: "Provider-neutral PayMongo facade and payments engine overview."
+---
 
 APICenter exposes provider-neutral payment resources. Your service sends domain references and amounts; provider-specific identifiers, secret keys, and raw provider payloads remain inside the platform boundary.
 
@@ -22,4 +25,4 @@ All provider-impacting creates, confirmations, cancellations, and refunds use `I
 
 Call `GET /api/v1/payments/capabilities` during onboarding to discover enabled operations and supported payment methods for the selected environment. Treat capabilities as runtime configuration, not as a license to bypass authorization or business rules.
 
-Use [payment links](./payment-links) for a hosted checkout URL or create a QR Ph payment intent when you need to display a QR code in your application.
+Use [payment links](/guides/payments/payment-links) for a hosted checkout URL or create a QR Ph payment intent when you need to display a QR code in your application.

@@ -3,8 +3,6 @@ title: "Idempotency & Rate Limits"
 description: "Guidelines for safe retries across payment, messaging, and OTP APIs."
 ---
 
-# Idempotency & Rate Limits
-
 Payment mutations use idempotency keys to prevent duplicate provider operations when a request is retried after a network failure or timeout.
 
 ## Idempotency-Key header

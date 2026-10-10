@@ -1,3 +1,13 @@
+---
+title: "Tribe Governance Scorecard Rubric"
+status: canonical
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "unverified"
+verification: unverified
+sources: ["apps/gateway/src/domains/governance"]
+---
 # Tribe Governance Scorecard Rubric
 
 This rubric gives the governing tribe a consistent way to score every tribe's

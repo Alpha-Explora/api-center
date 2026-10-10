@@ -1,3 +1,13 @@
+---
+title: "Tribe API Quotas"
+status: canonical
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "unverified"
+verification: unverified
+sources: ["apps/gateway/src/domains/governance"]
+---
 # Tribe API Quotas
 
 API Center supports project API budgets and optional tribe-wide quota ceilings.

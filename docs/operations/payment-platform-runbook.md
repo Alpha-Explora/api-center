@@ -1,3 +1,13 @@
+---
+title: "APICenter Payment Platform Runbook"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
+---
 # APICenter Payment Platform Runbook
 
 This runbook is for the APICenter payment facade, the private payments runtime,

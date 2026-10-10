@@ -1,6 +1,18 @@
-# api-center Cloud Run Deployment
+---
+title: "api-center Cloud Run Deployment"
+status: reference
+authority: reference
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["infra/gcp"]
+---
+# Cloud Run deployment and recorded evidence
 
-## Current Staging State
+The revision, DNS, IAM, and health statements below are historical observations for their recorded dates. They have not been refreshed by this documentation update. Use checked-in `infra/gcp/` manifests and current operator checks before making a deployment or rollback decision.
+
+## Recorded staging snapshot
 
 | Parameter | Value |
 | --- | --- |

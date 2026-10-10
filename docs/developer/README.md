@@ -1,3 +1,13 @@
+---
+title: "APICenter Developer Guide"
+status: canonical
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "2026-10-10"
+verification: repository
+sources: ["AGENTS.md","docs/architecture/current-architecture.md"]
+---
 # APICenter Developer Guide
 
 This guide covers the active APICenter Turborepo monorepo. Cloud Run is the deployment target; Google Pub/Sub is the payment lifecycle event transport; `@apicenter/contracts` and `@alpha-explora/apicenter-sdk` form the public integration surface.
@@ -36,3 +46,9 @@ Use `docs/deployment-cloud-run.md` for the Cloud Run deployment record and `docs
 - `apps/docs/content/docs/`
 
 Consumer services must call APICenter through the SDK or contract endpoints. Provider credentials remain inside APICenter-owned runtime secrets.
+
+## Documentation checks
+
+Use [the documentation index](../index.md) for internal authorities. Consumer guides are registered in apps/docs/content/guides.json; the existing Fumadocs MDX integration renders their headings, links, tables, and code blocks.
+
+Run npm run check:documentation, npm run test:documentation, npm run docs:build, npm run docs:test, and npm run typecheck --workspace @apicenter/docs. Documentation checks run automatically on relevant PRs; full CI and release publication stay manual.

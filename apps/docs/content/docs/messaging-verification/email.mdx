@@ -3,8 +3,6 @@ title: "Email Shared Service API"
 description: "Send HTML/text transactional email notifications via @apicenter/contracts."
 ---
 
-# Email Shared Service API
-
 Send transactional emails with HTML or plain-text content and message status tracking. Each request must include non-empty `html` or `text` content. Teams provide the content in each request; APICenter does not store email templates.
 
 ---
@@ -12,7 +10,7 @@ Send transactional emails with HTML or plain-text content and message status tra
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/email`
-- **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Required Header**: `Authorization: Bearer <SERVICE_ACCESS_TOKEN>`
 - **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---

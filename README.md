@@ -13,7 +13,7 @@ APICenter is the **single, centralized API gateway** and shared service platform
 2. [Quick Start — dev-jwt](#quick-start--dev-jwt)
 3. [Shared Microservices & Contracts](#shared-microservices--contracts)
 4. [SDK Usage](#sdk-usage)
-5. [API Reference](#api-reference)
+5. [Documentation](#documentation--license)
 
 ---
 
@@ -27,7 +27,7 @@ tribe service / browser / external client
   -> registered tribe or shared microservice runtime (apps/*)
 ```
 
-APICenter instances are stateless and operate with pure in-memory rate limiting and optional PostgreSQL table persistence for business and control-plane state.
+The gateway composes authentication, routing, governance, and control-plane persistence. Runtime apps own durable service state. See the current architecture and database ownership docs for exact boundaries.
 
 ### Route Namespaces
 
@@ -97,7 +97,9 @@ const otp = await client.otpGenerate({
 
 ## Documentation & License
 
+Start at [docs/index.md](docs/index.md) for the canonical architecture, operations, decisions, and evidence map. Follow [docs/constitution.md](docs/constitution.md) when maintaining documentation.
+
 - **Developer Guide**: [docs/developer/README.md](docs/developer/README.md)
 - **Public API Documentation**: [apps/docs](apps/docs)
 - **Internal Domain Terminology**: [docs/internal/domain-terminology.md](docs/internal/domain-terminology.md)
-- **License**: Proprietary and Confidential — AlphaExplora ([LICENSE.md](LICENSE.md))
+- **License**: Proprietary and Confidential — AlphaExplora.

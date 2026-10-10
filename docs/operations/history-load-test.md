@@ -1,3 +1,13 @@
+---
+title: "History write load test"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["supabase/migrations"]
+---
 # History write load test
 
 This opt-in benchmark exercises writes to the control-plane tables covered by

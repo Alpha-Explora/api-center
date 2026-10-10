@@ -1,3 +1,13 @@
+---
+title: "History retention"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["supabase/migrations"]
+---
 # History retention
 
 Several tables only ever grow: audit events, quota evaluations, usage rollups and pipeline feedback actions. Each one declares its retention window in its table comment, for example `retention=400d`. `scripts/purge-expired-history.cjs` deletes rows older than that window, and the comment is the single source of the number.

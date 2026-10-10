@@ -1,3 +1,13 @@
+---
+title: "Payment event outbox operations"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
+---
 # Payment event outbox operations
 
 Payment events are published from `shared_payment.payment_event_outbox` by a Cloud Run Job that claims bounded batches of pending rows and publishes them to Pub/Sub. This document covers running and operating that job. The job only drains the outbox; rows are added by the payment runtime. The consumer must deduplicate the stable `eventId`; Pub/Sub can redeliver a message after APICenter publishes but before its database acknowledgement.

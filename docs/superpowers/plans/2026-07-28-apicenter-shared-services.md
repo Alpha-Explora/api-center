@@ -1,4 +1,16 @@
+---
+title: "APICenter Shared Services Migration Implementation Plan"
+status: active
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "unverified"
+verification: unverified
+sources: ["AGENTS.md","docs/architecture/current-architecture.md"]
+---
 # APICenter Shared Services Migration Implementation Plan
+
+This working document preserves prior scope and checklists. It does not establish current deployment state or override the maintained docs bundle. See [the working-document register](../plans/README.md) for verification gaps and disposition.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

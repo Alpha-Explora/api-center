@@ -3,8 +3,6 @@ title: "Google Auth (GAuth) Shared Service API"
 description: "Per-project Google OAuth 2.0 authorization, code exchange, token refresh, and OIDC token verification via @apicenter/contracts."
 ---
 
-# Google Auth (GAuth) Shared Service API
-
 The GAuth Shared Service handles per-project Google OAuth 2.0 flow authorization, state HMAC signing, code-to-token exchange, token revocation, and OIDC ID Token verification.
 
 ---
@@ -12,7 +10,7 @@ The GAuth Shared Service handles per-project Google OAuth 2.0 flow authorization
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/gauth`
-- **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Required Header**: `Authorization: Bearer <SERVICE_ACCESS_TOKEN>`
 
 ---
 

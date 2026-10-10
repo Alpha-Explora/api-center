@@ -3,8 +3,6 @@ title: "Payment Intents API"
 description: "Create, retrieve, confirm, and cancel payment intents through the public payment API."
 ---
 
-# Payment Intents API
-
 Payment intents expose a provider-neutral way to create and track a payment. The public API currently accepts an amount and a reference when creating an intent. Payment-method tokenization and manual capture are not part of this contract.
 
 ## Create a payment intent
@@ -15,7 +13,7 @@ Payment intents expose a provider-neutral way to create and track a payment. The
 
 ```bash
 curl -X POST https://api-center.itsandbox.site/api/v1/payments/intents \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Authorization: Bearer $PAYMENT_API_KEY" \
   -H "Idempotency-Key: intent-create-1002" \
   -H "Content-Type: application/json" \
   -d '{

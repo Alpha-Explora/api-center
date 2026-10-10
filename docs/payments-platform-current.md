@@ -1,3 +1,13 @@
+---
+title: "APICenter Payments Current Architecture"
+status: canonical
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "2026-10-10"
+verification: repository
+sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
+---
 # APICenter Payments Current Architecture
 
 This document is the current source of truth for the reusable payments platform.
