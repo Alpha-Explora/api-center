@@ -7,6 +7,11 @@ const schemas = {
   checkout: z.object({ referenceId: reference, amount: money, successUrl: z.url(), cancelUrl: z.url(),
     metadata: z.record(z.string(), z.string()).optional() }),
   intent: z.object({ referenceId: reference, amount: money }),
+  qrph: z.object({ referenceId: reference, amount: money, description: z.string().max(255).optional(),
+    expirySeconds: z.number().int().min(60).max(9000).optional() }),
+  paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().max(255).optional(),
+    remarks: z.string().max(255).optional(), metadata: z.record(z.string(), z.string()).optional() }),
+  archive: z.object({ archive: z.boolean() }),
   customer: z.object({ customerReference: reference, email: z.email(), name: z.string().max(255).optional() }),
   plan: z.object({ name: z.string().trim().min(1).max(255), description: z.string().max(1000).optional(),
     amount: z.number().int().min(2000).max(Number.MAX_SAFE_INTEGER), currency: z.literal('PHP').optional(),
@@ -20,7 +25,7 @@ const schemas = {
 };
 
 type Shape = keyof typeof schemas;
-type Resource = 'checkout' | 'intent' | 'customer' | 'plan' | 'refund' | 'subscription' | 'invoice' | 'capabilities' | 'records';
+type Resource = 'checkout' | 'intent' | 'qrph' | 'payment_link' | 'customer' | 'plan' | 'refund' | 'subscription' | 'invoice' | 'capabilities' | 'records';
 type Operation = { method: string; pattern: RegExp; scope: string; target: (match: RegExpMatchArray) => string;
   resource: Resource; shape?: Shape };
 
@@ -31,6 +36,7 @@ const operations: Operation[] = [
   { method: 'GET', pattern: /^\/checkouts\/([^/]+)$/, scope: 'payments:checkout:read', target: (m) => `/checkout/sessions/${m[1]}`, resource: 'checkout' },
   { method: 'POST', pattern: /^\/checkouts\/([^/]+)\/cancel$/, scope: 'payments:checkout:write', target: (m) => `/checkout/sessions/${m[1]}/cancel`, resource: 'checkout', shape: 'cancellation' },
   { method: 'POST', pattern: /^\/intents$/, scope: 'payments:intents:write', target: () => '/payment-intents', resource: 'intent', shape: 'intent' },
+  { method: 'POST', pattern: /^\/intents\/qrph$/, scope: 'payments:intents:write', target: () => '/payment-intents/qrph', resource: 'qrph', shape: 'qrph' },
   { method: 'GET', pattern: /^\/intents\/([^/]+)$/, scope: 'payments:intents:read', target: (m) => `/payment-intents/${m[1]}`, resource: 'intent' },
   { method: 'POST', pattern: /^\/intents\/([^/]+)\/confirm$/, scope: 'payments:intents:write', target: (m) => `/payment-intents/${m[1]}/confirm`, resource: 'intent', shape: 'empty' },
   { method: 'POST', pattern: /^\/intents\/([^/]+)\/cancel$/, scope: 'payments:intents:write', target: (m) => `/payment-intents/${m[1]}/cancel`, resource: 'intent', shape: 'empty' },
@@ -39,6 +45,10 @@ const operations: Operation[] = [
   { method: 'POST', pattern: /^\/plans$/, scope: 'payments:subscriptions:write', target: () => '/plans', resource: 'plan', shape: 'plan' },
   { method: 'GET', pattern: /^\/plans$/, scope: 'payments:subscriptions:read', target: () => '/plans', resource: 'plan' },
   { method: 'GET', pattern: /^\/plans\/([^/]+)$/, scope: 'payments:subscriptions:read', target: (m) => `/plans/${m[1]}`, resource: 'plan' },
+  { method: 'POST', pattern: /^\/payment-links$/, scope: 'payments:payment-links:write', target: () => '/payment-links', resource: 'payment_link', shape: 'paymentLink' },
+  { method: 'GET', pattern: /^\/payment-links$/, scope: 'payments:payment-links:read', target: () => '/payment-links', resource: 'payment_link' },
+  { method: 'GET', pattern: /^\/payment-links\/([^/]+)$/, scope: 'payments:payment-links:read', target: (m) => `/payment-links/${m[1]}`, resource: 'payment_link' },
+  { method: 'PATCH', pattern: /^\/payment-links\/([^/]+)$/, scope: 'payments:payment-links:write', target: (m) => `/payment-links/${m[1]}`, resource: 'payment_link', shape: 'archive' },
   { method: 'POST', pattern: /^\/refunds$/, scope: 'payments:refunds:write', target: () => '/refunds', resource: 'refund', shape: 'refund' },
   { method: 'GET', pattern: /^\/refunds\/([^/]+)$/, scope: 'payments:refunds:read', target: (m) => `/refunds/${m[1]}`, resource: 'refund' },
   { method: 'POST', pattern: /^\/subscriptions$/, scope: 'payments:subscriptions:write', target: () => '/subscriptions', resource: 'subscription', shape: 'subscription' },
@@ -107,6 +117,12 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
       case 'intent': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId,
         status: raw.status === 'awaiting_payment_method' ? 'requires_action' : raw.status,
         amount: amount(raw.amount, responseCurrency(raw)), aggregateVersion: raw.aggregateVersion };
+      case 'qrph': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId, status: raw.status,
+        amount: amount(raw.amount, responseCurrency(raw)), qrCodeImageUrl: raw.qrCodeImageUrl, expirySeconds: raw.expirySeconds };
+      case 'payment_link': return { paymentLinkId: raw.paymentLinkId, referenceId: raw.referenceId,
+        amount: amount(raw.amount, responseCurrency(raw)), description: raw.description, url: raw.url,
+        status: raw.status, active: raw.active, archived: raw.archived, referenceNumber: raw.referenceNumber,
+        metadata: raw.metadata, createdAt: raw.createdAt, updatedAt: raw.updatedAt };
       case 'customer': return { customerId: raw.customerId, customerReference: raw.customerReference,
         email: raw.email, name: raw.name };
       case 'plan': return { planId: raw.planId, name: raw.name,

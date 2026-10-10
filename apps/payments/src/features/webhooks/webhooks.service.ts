@@ -38,6 +38,7 @@ export class WebhooksService {
     }
     let source;
     let payments: any[] = [];
+    const paymentLinkPaid = eventType === 'link.payment.paid';
     if (eventType === 'checkout_session.payment.paid' && resourceData.id?.startsWith('cs_')) {
       source = await this.owners.findWebhookSource('checkout', toPublicId('chk', resourceData.id), environment);
       payments = Array.isArray(resourceData.attributes?.payments) ? resourceData.attributes.payments : [];
@@ -47,8 +48,27 @@ export class WebhooksService {
         source = await this.owners.findWebhookSource('intent', intentId, environment);
         payments = [resourceData];
       }
+    } else if (paymentLinkPaid) {
+      const rawId = resourceData.id;
+      if (typeof rawId === 'string' && (rawId.startsWith('link_') || rawId.startsWith('pl_'))) {
+        source = await this.owners.findWebhookSource('payment_link', toPublicId('pl', rawId), environment);
+      }
+      const reference = resourceData.attributes?.reference_number || resourceData.attributes?.reference_id;
+      if (!source && typeof reference === 'string') {
+        source = await this.owners.findWebhookSourceByReference('payment_link', reference, environment);
+      }
     }
     if (!source) return { event: 'ignored', data: { eventType, updated: false } };
+
+    if (paymentLinkPaid) {
+      const attributes = resourceData.attributes || {};
+      const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
+        payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
+        receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
+          snapshot: { ...source.snapshot, status: 'paid', paidAt: new Date().toISOString(),
+            ...(attributes.payments?.[0]?.id ? { paymentId: attributes.payments[0].id } : {}) } }] });
+      return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
+    }
 
     const paid = payments.filter(isPaidPayment);
     if (paid.length === 0) return { event: 'processed', data: { eventType, updated: 0 } };

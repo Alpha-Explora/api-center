@@ -6,6 +6,7 @@ const PREFIX_MAP: Record<string, string> = {
   cus: 'cus_',
   inv: 'in_',
   ref: 'ref_',
+  pl: 'link_',
 };
 
 export function toProviderId(prefix: string, id: string): string {

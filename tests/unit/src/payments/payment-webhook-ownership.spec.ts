@@ -143,6 +143,19 @@ describe('verified payment ownership', () => {
       expect(owners.queuedEvents()).toHaveLength(0);
     });
 
+    it('marks an owned payment link paid once when PayMongo sends link.payment.paid', async () => {
+      const owners = new PaymentOwnerStore('');
+      await owners.save({ ...owner, resourceType: 'payment_link', resourceId: 'pl_123', referenceId: 'ORDER-LINK',
+        snapshot: { paymentLinkId: 'pl_123', status: 'active' } });
+      const payload = { data: { id: 'evt_link_paid', attributes: { type: 'link.payment.paid', livemode: false,
+        data: { id: 'link_123', attributes: { reference_number: 'ORDER-LINK' } } } } };
+      const webhooks = new WebhooksService(owners);
+      await expect(webhooks.processWebhook(payload, signed(payload))).resolves.toMatchObject({ event: 'processed', data: { updated: 1 } });
+      await expect(webhooks.processWebhook(payload, signed(payload))).resolves.toMatchObject({ event: 'duplicate', data: { updated: 0 } });
+      await expect(owners.assertOwned('payment_link', 'pl_123', owner))
+        .resolves.toMatchObject({ snapshot: { status: 'paid' } });
+    });
+
     it('rejects a signed event that has no event ID', async () => {
       const owners = await ownersWithCheckout();
       const payload = { data: { attributes: checkoutPaid('x').data.attributes } };

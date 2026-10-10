@@ -285,6 +285,19 @@ export class PaymentOwnerStore {
     return this.find(type, id, environment);
   }
 
+  async findWebhookSourceByReference(type: string, referenceId: string, environment: 'test' | 'live'): Promise<OwnerRecord | undefined> {
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, aggregate_version
+         FROM shared_payment.resource_owners WHERE environment = $1 AND resource_type = $2 AND reference_id = $3 LIMIT 1`,
+        [environment, type, referenceId],
+      );
+      return result.rows[0] ? this.fromRow(result.rows[0]) : undefined;
+    }
+    return [...this.memory.values()].find((record) => record.environment === environment
+      && record.resourceType === type && record.referenceId === referenceId);
+  }
+
   async findByReference(type: string, referenceId: string, context: PaymentContext): Promise<OwnerRecord> {
     let record: OwnerRecord | undefined;
     if (this.pool) {

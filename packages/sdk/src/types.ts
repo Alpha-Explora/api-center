@@ -54,6 +54,11 @@ export interface Checkout {
   aggregateVersion?: number;
 }
 export interface CreatePaymentIntentInput { referenceId: string; amount: Money; }
+export interface CreateQrPhPaymentIntentInput { referenceId: string; amount: Money; description?: string; expirySeconds?: number; }
+export interface QrPhPaymentIntent extends PaymentIntent { qrCodeImageUrl: string; expirySeconds: number; }
+export interface CreatePaymentLinkInput { referenceId: string; amount: Money; description?: string; remarks?: string; metadata?: Record<string, string>; }
+export interface PaymentLink { paymentLinkId: string; referenceId: string; amount: Money; description?: string; url?: string;
+  status: string; active?: boolean; archived?: boolean; referenceNumber?: string; metadata?: Record<string, string>; createdAt?: string; updatedAt?: string; }
 export type ConfirmPaymentIntentInput = Record<string, never>;
 export interface PaymentIntent {
   paymentIntentId: string;

@@ -82,6 +82,7 @@ describe('PaymentsController', () => {
     ['GET', '/checkouts/by-reference/order-123', undefined],
     ['POST', '/checkouts/chk_123/cancel', {}],
     ['POST', '/intents', { referenceId: 'order-123', amount: { amountMinor: 39900, currency: 'PHP' } }],
+    ['POST', '/intents/qrph', { referenceId: 'qr-123', amount: { amountMinor: 39900, currency: 'PHP' }, expirySeconds: 300 }],
     ['GET', '/intents/pi_123', undefined],
     ['POST', '/intents/pi_123/confirm', {}],
     ['POST', '/intents/pi_123/cancel', {}],
@@ -90,6 +91,10 @@ describe('PaymentsController', () => {
     ['POST', '/plans', { name: 'Starter', amount: 2000, interval: 'monthly' }],
     ['GET', '/plans', undefined],
     ['GET', '/plans/plan_123', undefined],
+    ['POST', '/payment-links', { referenceId: 'link-123', amount: { amountMinor: 39900, currency: 'PHP' } }],
+    ['GET', '/payment-links', undefined],
+    ['GET', '/payment-links/pl_123', undefined],
+    ['PATCH', '/payment-links/pl_123', { archive: true }],
     ['POST', '/refunds', { paymentId: 'pay_123', amount: { amountMinor: 100, currency: 'PHP' } }],
     ['GET', '/refunds/ref_123', undefined],
     ['POST', '/subscriptions', { customerId: 'cus_123', referenceId: 'sub-123', planId: 'plan_123' }],
@@ -145,6 +150,14 @@ describe('PaymentsController', () => {
     await expect(controller.proxy(request('/plans', 'POST', {
       name: 'Invalid', amount: 150050, interval: 'monthly', intervalCount: 11,
     }), res)).rejects.toMatchObject({ status: 400 });
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
+  it('rejects QR Ph expiry outside 60 to 9000 before forwarding to the runtime', async () => {
+    const controller = new PaymentsController(new PaymentIdempotencyService());
+    await expect(controller.proxy(request('/intents/qrph', 'POST', {
+      referenceId: 'qr-invalid', amount: { amountMinor: 100, currency: 'PHP' }, expirySeconds: 9001,
+    }), response().res)).rejects.toMatchObject({ response: { code: 'INVALID_PAYMENT_REQUEST' } });
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 

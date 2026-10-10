@@ -7,6 +7,7 @@ import { CustomersCatalogService } from './features/customers-catalog/customers-
 import { RefundsService } from './features/refunds/refunds.service';
 import { WebhooksService } from './features/webhooks/webhooks.service';
 import { InvoicesService } from './features/invoices/invoices.service';
+import { PaymentLinksService, QrPhService } from './features/payment-links/payment-links.service';
 import { PayMongoError } from './shared/payment-errors';
 import { providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
@@ -31,6 +32,8 @@ const catalogService = new CustomersCatalogService();
 const refundsService = new RefundsService();
 const webhooksService = new WebhooksService();
 const invoicesService = new InvoicesService();
+const paymentLinksService = new PaymentLinksService();
+const qrPhService = new QrPhService();
 const owners = PaymentOwnerStore.getInstance();
 
 function recordFilters(query: Request['query']): PaymentRecordFilters {
@@ -141,6 +144,15 @@ app.post('/payment-intents', async (req: Request, res: Response) => {
       idempotencyKey: idempotencyKey(req),
       tribeId: tribeId(req),
     });
+    const snapshot = { ...data, referenceId: req.body?.referenceId };
+    await remember('intent', data.paymentIntentId, req, snapshot);
+    return ok(res, snapshot, 201);
+  } catch (err) { return handleCustomError(res, err); }
+});
+
+app.post('/payment-intents/qrph', async (req: Request, res: Response) => {
+  try {
+    const data = await qrPhService.create(req.body || {}, idempotencyKey(req));
     const snapshot = { ...data, referenceId: req.body?.referenceId };
     await remember('intent', data.paymentIntentId, req, snapshot);
     return ok(res, snapshot, 201);
@@ -286,6 +298,42 @@ app.get('/plans/:planId', async (req: Request, res: Response) => {
     const owner = await owned('plan', planId, req);
     const data = await catalogService.getPlan(planId);
     return ok(res, { ...owner.snapshot, ...data });
+  } catch (err) { return handleCustomError(res, err); }
+});
+
+// Payment Links
+app.post('/payment-links', async (req: Request, res: Response) => {
+  try {
+    const data = await paymentLinksService.create(req.body || {}, idempotencyKey(req));
+    const snapshot = { ...data, referenceId: req.body?.referenceId };
+    await remember('payment_link', data.paymentLinkId, req, snapshot);
+    return ok(res, snapshot, 201);
+  } catch (err) { return handleCustomError(res, err); }
+});
+
+app.get('/payment-links', async (req: Request, res: Response) => {
+  try { return ok(res, await owners.listOwned(paymentContext(req), 'payment_link')); }
+  catch (err) { return handleCustomError(res, err); }
+});
+
+app.get('/payment-links/:paymentLinkId', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.paymentLinkId);
+    const owner = await owned('payment_link', id, req);
+    const data = await paymentLinksService.get(id);
+    return ok(res, { ...owner.snapshot, ...data, ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) });
+  } catch (err) { return handleCustomError(res, err); }
+});
+
+app.patch('/payment-links/:paymentLinkId', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.paymentLinkId);
+    const owner = await owned('payment_link', id, req);
+    const data = await paymentLinksService.setArchived(id, req.body?.archive, idempotencyKey(req));
+    const snapshot = { ...owner.snapshot, ...data, referenceId: owner.referenceId,
+      ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) };
+    await remember('payment_link', id, req, snapshot);
+    return ok(res, snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
