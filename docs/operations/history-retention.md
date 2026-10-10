@@ -60,4 +60,5 @@ The purge filters on each table's dated column. `audit_events` already has a btr
 ## Not covered here
 
 Partitioning and capacity are separate decisions. Partition a table when its measured volume justifies it, not by default.
+The repeatable local load test, measurements, and current partitioning decision are recorded in [history-load-test.md](history-load-test.md).
 
