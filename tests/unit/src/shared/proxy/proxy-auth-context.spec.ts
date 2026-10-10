@@ -14,6 +14,7 @@ function input(overrides: Record<string, unknown> = {}) {
       evaluate: jest.fn().mockReturnValue({ allowed: true }),
     },
     targetServiceId: "orders",
+    environment: "test",
     sourceServiceId: "checkout-api",
     tribeId: "orders-tribe",
     req: {
@@ -51,7 +52,7 @@ describe("enforceProxyAuthContext", () => {
       sourceServiceId: "checkout-api",
       serviceId: "orders",
     });
-    expect(context.registry.canAccess).toHaveBeenCalledWith("checkout-api", "orders");
+    expect(context.registry.canAccess).toHaveBeenCalledWith("checkout-api", "orders", "test");
   });
 
   it("throws when the calling service cannot access the target service", () => {

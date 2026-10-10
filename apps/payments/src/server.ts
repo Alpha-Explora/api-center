@@ -266,20 +266,26 @@ app.get('/customers/:customerId', async (req: Request, res: Response) => {
   } catch (err) { return handleCustomError(res, err); }
 });
 
-app.post('/products', async (req: Request, res: Response) => {
+app.post('/plans', async (req: Request, res: Response) => {
   try {
-    const data = await catalogService.createProduct(req.body || {}, { idempotencyKey: idempotencyKey(req) });
-    await remember('product', data.productId, req, data);
+    const data = await catalogService.createPlan(req.body || {}, { idempotencyKey: idempotencyKey(req) });
+    await remember('plan', data.planId, req, data);
     return ok(res, data, 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
-app.post('/prices', async (req: Request, res: Response) => {
+app.get('/plans', async (req: Request, res: Response) => {
   try {
-    await owned('product', req.body?.productId, req);
-    const data = await catalogService.createPrice(req.body || {}, { idempotencyKey: idempotencyKey(req) });
-    await remember('price', data.priceId, req, data);
-    return ok(res, data, 201);
+    return ok(res, await owners.listOwned(paymentContext(req), 'plan'));
+  } catch (err) { return handleCustomError(res, err); }
+});
+
+app.get('/plans/:planId', async (req: Request, res: Response) => {
+  try {
+    const planId = Array.isArray(req.params.planId) ? req.params.planId[0] : req.params.planId;
+    const owner = await owned('plan', planId, req);
+    const data = await catalogService.getPlan(planId);
+    return ok(res, { ...owner.snapshot, ...data });
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -287,7 +293,7 @@ app.post('/prices', async (req: Request, res: Response) => {
 app.post('/subscriptions', async (req: Request, res: Response) => {
   try {
     await owned('customer', req.body?.customerId, req);
-    await owned('price', req.body?.priceId, req);
+    await owned('plan', req.body?.planId, req);
     const data = await subscriptionsService.createSubscription(req.body || {}, { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req) });
     await remember('subscription', data.subscriptionId, req, data);
     return ok(res, data, 201);

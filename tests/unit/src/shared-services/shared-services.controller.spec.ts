@@ -113,7 +113,7 @@ describe("SharedServicesController", () => {
       correlationId: "corr-shared-3",
     } as any);
 
-    expect(handler.listServices).toHaveBeenCalledWith("caller-service", true);
+    expect(handler.listServices).toHaveBeenCalledWith("caller-service", true, "test");
   });
 
   it("should release handler resources during module destroy", () => {

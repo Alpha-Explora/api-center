@@ -3,7 +3,6 @@ import { AuthModule } from "@auth/auth.module";
 import { DatabaseModule } from "@database/database.module";
 import { RegistryModule } from "@registry/registry.module";
 import { PaymentsController, PaymentApiKeyService } from "./features/payment-facade";
-import { PaymentCatalogManagementController, PaymentCatalogManagementService } from "./features/catalog-management";
 import { PaymentConsumerManagementController, PaymentConsumerManagementService } from "./features/consumer-management";
 import {
   PaymentPubSubProvisioningController,
@@ -16,13 +15,13 @@ import { PaymentRecordsManagementController } from "./features/records-managemen
 import { PaymentRecordsManagementService } from "./features/records-management/payment-records-management.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/payment-limits";
+import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
 
 @Module({
   imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule],
   controllers: [
     PaymentsController,
     PaymentConsumerManagementController,
-    PaymentCatalogManagementController,
     PaymentPubSubProvisioningController,
     PaymentRecordsManagementController,
     PaymentLimitsAdminController,
@@ -30,8 +29,8 @@ import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/p
   providers: [
     PaymentApiKeyService,
     PaymentAuthGuard,
-    PaymentCatalogManagementService,
     PaymentConsumerManagementService,
+    { provide: PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, useExisting: PaymentConsumerManagementService },
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
@@ -40,6 +39,8 @@ import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/p
   ],
   exports: [
     PaymentApiKeyService,
+    PaymentConsumerManagementService,
+    PAYMENT_CONSUMER_REGISTRATION_DIRECTORY,
   ],
 })
 export class PaymentsModule {}

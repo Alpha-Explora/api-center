@@ -43,6 +43,7 @@ const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "service_spec_versions"],
   ["apic_governance", "registry_change_requests"],
   ["apic_governance", "approval_requests"],
+  ["apic_governance", "api_subscriptions"],
   ["apic_governance", "quota_policies"],
   ["apic_governance", "entitlement_assignments"],
   ["apic_governance", "payment_consumer_services"],
@@ -101,6 +102,10 @@ const requiredIndexes = [
   "registry_change_requests_service_idx",
   "registry_change_requests_owner_idx",
   "approval_requests_status_created_idx",
+  "api_subscriptions_consumer_idx",
+  "api_subscriptions_api_idx",
+  "api_subscriptions_one_pending_request_idx",
+  "api_subscriptions_one_approved_grant_idx",
   "approval_requests_action_env_idx",
   "approval_requests_target_idx",
   "quota_policies_owner_status_idx",
@@ -136,6 +141,9 @@ const requiredCheckConstraints = [
   "organization_members_role_check",
   "registry_change_requests_status_check",
   "approval_requests_status_check",
+  "api_subscriptions_environment_check",
+  "api_subscriptions_status_check",
+  "api_subscriptions_decision_metadata_check",
   "approval_requests_target_environment_check",
   "quota_policies_mode_check",
   "quota_policies_status_check",
@@ -217,6 +225,8 @@ const retentionManagedTables: QualifiedObject[] = [
   ["apic_runtime", "quota_evaluations"],
   ["apic_runtime", "usage_rollups"],
   ["apic_runtime", "pipeline_feedback_actions"],
+  ["shared_email", "email_delivery_events"],
+  ["shared_sms", "sms_delivery_events"],
 ].map(([schema, name]) => ({ schema, name }));
 
 const registryChildDeleteTables = new Set([
@@ -235,15 +245,37 @@ const requiredSharedTables = [
   "shared_sms.sms_messages",
   "shared_otp.otp_challenges",
   "shared_email.email_messages",
+  "shared_email.project_senders",
+  "shared_email.email_delivery_events",
+  "shared_sms.sms_delivery_events",
 ];
 const retiredSharedTables = [
   "shared_sms.sms_records",
-  "shared_sms.sms_delivery_events",
   "shared_otp.otp_records",
   "shared_otp.otp_attempts",
   "shared_otp.otp_delivery_events",
   "shared_email.email_templates",
-  "shared_email.email_delivery_events",
+];
+const requiredSharedIndexes = [
+  "project_senders_pkey",
+  "email_delivery_events_pkey",
+  "email_delivery_events_message_id_idx",
+  "email_delivery_events_received_at_idx",
+  "sms_delivery_events_pkey",
+  "sms_delivery_events_message_id_idx",
+  "sms_delivery_events_received_at_idx",
+];
+const requiredSharedEmailSenderConstraints = [
+  "project_senders_pkey",
+  "project_senders_environment_check",
+  "project_senders_from_address_check",
+  "project_senders_daily_limit_check",
+];
+const requiredSharedDeliveryConstraints = [
+  "email_delivery_events_pkey",
+  "email_delivery_events_status_check",
+  "sms_delivery_events_pkey",
+  "sms_delivery_events_status_check",
 ];
 
 type RuntimeRole = { role: string; schema: string; privileges: string[] };
@@ -531,6 +563,37 @@ async function main(): Promise<void> {
       retiredSharedTables.filter((name) => sharedNames.has(name)),
     );
 
+    const sharedEmailIndexRows = await queryRows(
+      client,
+      "select indexname as name from pg_indexes where schemaname in ('shared_email', 'shared_sms')",
+    );
+    const sharedEmailIndexNames = new Set(sharedEmailIndexRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared delivery indexes",
+      requiredSharedIndexes.filter((name) => !sharedEmailIndexNames.has(name)),
+    );
+    const sharedEmailConstraintRows = await queryRows(
+      client,
+      "select c.conname as name from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace where n.nspname = 'shared_email' and t.relname = 'project_senders'",
+    );
+    const sharedEmailConstraintNames = new Set(sharedEmailConstraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared_email.project_senders constraints",
+      requiredSharedEmailSenderConstraints.filter((name) => !sharedEmailConstraintNames.has(name)),
+    );
+    const sharedDeliveryConstraintRows = await queryRows(
+      client,
+      "select c.conname as name from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace where n.nspname in ('shared_email', 'shared_sms') and t.relname in ('email_delivery_events', 'sms_delivery_events')",
+    );
+    const sharedDeliveryConstraintNames = new Set(sharedDeliveryConstraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared delivery event constraints",
+      requiredSharedDeliveryConstraints.filter((name) => !sharedDeliveryConstraintNames.has(name)),
+    );
+
     const sharedGauthRows = await queryRows(
       client,
       "select table_name as name from information_schema.tables where table_schema = 'shared_gauth'",
@@ -556,6 +619,25 @@ async function main(): Promise<void> {
       failures,
       "Missing shared_gauth.oauth_apps constraints",
       requiredOAuthAppConstraints.filter((name) => !oauthAppConstraints.has(name)),
+    );
+
+    const apiSubscriptionColumns = await queryRows(
+      client,
+      "select column_name from information_schema.columns where table_schema = 'apic_governance' and table_name = 'api_subscriptions'",
+    );
+    const apiSubscriptionColumnNames = new Set(
+      apiSubscriptionColumns.map((row) => String(row.column_name)),
+    );
+    addFailure(
+      failures,
+      "Missing required api_subscriptions columns",
+      [
+        "consumer_project_id",
+        "api_project_id",
+        "api_service_id",
+        "environment",
+        "status",
+      ].filter((name) => !apiSubscriptionColumnNames.has(name)),
     );
 
     if (hasFlag("--require-compat-views")) {
@@ -733,7 +815,7 @@ async function main(): Promise<void> {
       const retentionRows = await queryRows(
         client,
         "select n.nspname as schema, c.relname as name, obj_description(c.oid) as comment, (pt.partrelid is not null) as partitioned from pg_class c join pg_namespace n on n.oid = c.relnamespace left join pg_partitioned_table pt on pt.partrelid = c.oid where n.nspname = any($1::text[]) and c.relkind in ('r', 'p')",
-        [controlledSchemas],
+        [[...controlledSchemas, "shared_email", "shared_sms"]],
       );
       const retentionByName = new Map(
         retentionRows.map((row) => [

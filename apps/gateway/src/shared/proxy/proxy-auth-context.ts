@@ -9,6 +9,7 @@ export type EnforceProxyAuthContextInput = {
   auth: AuthService;
   emergencyControls: EmergencyControlService;
   targetServiceId: string;
+  environment: "test" | "live";
   /** The calling service; access is decided per service, never per tribe. */
   sourceServiceId: string;
   tribeId: string;
@@ -20,6 +21,7 @@ export function enforceProxyAuthContext({
   auth,
   emergencyControls,
   targetServiceId,
+  environment,
   sourceServiceId,
   tribeId,
   req,
@@ -35,7 +37,7 @@ export function enforceProxyAuthContext({
     throw new ForbiddenError(`Emergency control active: ${emergency.reason}`);
   }
 
-  if (!registry.canAccess(sourceServiceId, targetServiceId)) {
+  if (!registry.canAccess(sourceServiceId, targetServiceId, environment)) {
     throw new ForbiddenError(
       `Service '${sourceServiceId}' is not authorised to access '${targetServiceId}'`,
     );

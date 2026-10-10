@@ -11,6 +11,7 @@ jobs:
     env:
       APICENTER_SMOKE_BASE_URL: ${{ secrets.APICENTER_SMOKE_BASE_URL }}
       APICENTER_SMOKE_TRIBE_TOKEN: ${{ secrets.APICENTER_SMOKE_TRIBE_TOKEN }}
+      APICENTER_SMOKE_APPROVER_TOKEN: ${{ secrets.APICENTER_SMOKE_APPROVER_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,8 +42,12 @@ jobs:
         run: npm run build
 
       - name: Deployed quota smoke
-        if: ${{ env.APICENTER_SMOKE_BASE_URL != '' && env.APICENTER_SMOKE_TRIBE_TOKEN != '' }}
+        if: ${{ env.APICENTER_SMOKE_BASE_URL != '' && env.APICENTER_SMOKE_TRIBE_TOKEN != '' && env.APICENTER_SMOKE_APPROVER_TOKEN != '' }}
         env:
           API_CENTER_PLATFORM_ADMIN_SECRET: ${{ secrets.API_CENTER_PLATFORM_ADMIN_SECRET }}
           APICENTER_SMOKE_TRIBE_ID: smoke-tribe
         run: npm run smoke:quota
+
+      - name: Skip deployed quota smoke (missing approver token)
+        if: ${{ env.APICENTER_SMOKE_BASE_URL != '' && env.APICENTER_SMOKE_TRIBE_TOKEN != '' && env.APICENTER_SMOKE_APPROVER_TOKEN == '' }}
+        run: echo "::warning::Skipping deployed quota smoke because repository secret APICENTER_SMOKE_APPROVER_TOKEN is missing."

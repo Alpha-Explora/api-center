@@ -88,7 +88,8 @@ export class SharedServicesController implements OnModuleDestroy {
     const tribeId = req.tribeId;
     const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
     const includeNonConsumable = callerScopes.includes("platform:admin");
-    const services = this.handler.listServices(req.sourceServiceId, includeNonConsumable);
+    const environment = req.user?.environment === "live" ? "live" : "test";
+    const services = this.handler.listServices(req.sourceServiceId, includeNonConsumable, environment);
 
     return {
       success: true,

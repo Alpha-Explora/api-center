@@ -23,6 +23,8 @@ Send transactional emails with HTML or plain-text content and message status tra
 
 ### Request Body (`EmailSendRequest`)
 
+The optional `from` address must match the sender approved for the project and environment. If omitted, APICenter uses the approved project sender or its default sender.
+
 ```json
 {
   "to": "customer@example.com",

@@ -57,5 +57,14 @@ describe('PaymentOwnerStore', () => {
     const store = new PaymentOwnerStore('');
     await expect(store.listRecords(owner, { cursor: 'bad' })).rejects.toMatchObject({ statusCode: 400 });
   });
+
+  it('lists plan snapshots for only the calling project and environment', async () => {
+    const store = new PaymentOwnerStore('');
+    await store.save({ ...owner, resourceType: 'plan', resourceId: 'plan_a', snapshot: { planId: 'plan_a' } });
+    await store.save({ ...owner, projectId: 'project-b', resourceType: 'plan', resourceId: 'plan_b', snapshot: { planId: 'plan_b' } });
+    await store.save({ ...owner, environment: 'live', resourceType: 'plan', resourceId: 'plan_live', snapshot: { planId: 'plan_live' } });
+
+    await expect(store.listOwned(owner, 'plan')).resolves.toEqual([{ planId: 'plan_a' }]);
+  });
 });
 

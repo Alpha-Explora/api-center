@@ -71,7 +71,7 @@ describe("TribesController", () => {
         correlationId: "corr-tribe-1",
       }),
     );
-    expect(handler.listServices).toHaveBeenCalledWith("caller-service", false);
+    expect(handler.listServices).toHaveBeenCalledWith("caller-service", false, "test");
   });
 
   it("should include non-consumable tribe services for platform admins", () => {
@@ -87,7 +87,7 @@ describe("TribesController", () => {
       correlationId: "corr-tribe-3",
     } as any);
 
-    expect(handler.listServices).toHaveBeenCalledWith("caller-service", true);
+    expect(handler.listServices).toHaveBeenCalledWith("caller-service", true, "test");
   });
 
   it("should delegate proxy requests to the shared proxy handler", async () => {

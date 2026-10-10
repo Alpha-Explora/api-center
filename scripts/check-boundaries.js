@@ -154,6 +154,7 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard.ts',
   'apps/gateway/src/domains/auth-security/auth/guards/platform-admin.guard.ts',
   'apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard.ts',
+  'apps/gateway/src/domains/auth-security/auth/guards/platform-admin-or-service.guard.ts',
   'apps/gateway/src/domains/auth-security/auth/token-store.service.ts',
   'apps/gateway/src/domains/auth-security/auth/vault.service.ts',
   // Stateless pricing calculator that governance uses for chargeback estimates.

@@ -13,6 +13,9 @@ import {
 import { SendEmailService } from './features/send-email/send-email.service';
 import { EmailRecipients, EmailSubject } from './features/send-email/send-email.model';
 import { GetEmailStatusService } from './features/get-email-status/get-email-status.service';
+import { createEmailStore } from './shared/email-store';
+import { DailyLimitReachedError, SenderNotApprovedError } from './shared/email-policy-errors';
+import { createProjectSenderAdminHandler } from './shared/project-sender-admin';
 
 const port = Number(process.env.PORT || 4012);
 const nodeEnv = process.env.NODE_ENV || 'development';
@@ -37,8 +40,13 @@ const { app, ok, fail } = createSharedServiceApp({
   },
 });
 
-const sendEmailService = new SendEmailService();
-const getEmailStatusService = new GetEmailStatusService();
+const emailStore = createEmailStore();
+const sendEmailService = new SendEmailService(emailStore);
+const getEmailStatusService = new GetEmailStatusService(emailStore);
+const projectSenderAdminHandler = createProjectSenderAdminHandler({
+  store: emailStore,
+  expectedToken: process.env.EMAIL_ADMIN_TOKEN,
+});
 
 const stateUrl = process.env.EMAIL_REDIS_URL || process.env.REDIS_URL;
 const idempotencyStore = createSharedIdempotencyStore({ url: stateUrl, namespace: 'email' });
@@ -149,6 +157,16 @@ app.post('/send', async (req: Request, res: Response) => {
   try {
     data = await sendEmailService.execute(body, caller);
   } catch (error: any) {
+    if (error instanceof SenderNotApprovedError || error instanceof DailyLimitReachedError) {
+      try {
+        await idempotencyStore.release(storageKey, body);
+      } catch {
+        return fail(res, 503, 'IDEMPOTENCY_UNAVAILABLE', 'The request was rejected but its idempotency claim could not be released');
+      }
+      return error instanceof SenderNotApprovedError
+        ? fail(res, 403, error.code, error.message)
+        : fail(res, 429, error.code, error.message);
+    }
     try {
       await idempotencyStore.markUnknown(storageKey, body);
     } catch {
@@ -167,6 +185,25 @@ app.post('/send', async (req: Request, res: Response) => {
     return fail(res, 503, 'IDEMPOTENCY_OUTCOME_UNKNOWN', 'Email was sent but its response could not be recorded; reconcile before retrying');
   }
   return res.status(response.status).json(response.body);
+});
+
+app.put('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
+
+app.post('/webhooks/resend', async (req: Request, res: Response) => {
+  const event = req.body || {};
+  const validStatuses = new Set(['sent', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'failed', 'suppressed', 'opened', 'clicked']);
+  if (typeof event.providerEventId !== 'string' || !event.providerEventId ||
+      typeof event.messageId !== 'string' || !event.messageId ||
+      typeof event.status !== 'string' || !validStatuses.has(event.status) ||
+      !event.payload || typeof event.payload !== 'object') {
+    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Resend delivery event is invalid');
+  }
+  try {
+    const result = await emailStore.applyDeliveryEvent(event);
+    return res.status(200).json({ received: true, ...result });
+  } catch {
+    return fail(res, 503, 'EMAIL_MESSAGE_PENDING', 'Email delivery event could not be applied yet');
+  }
 });
 
 app.get('/status/:messageId', async (req: Request, res: Response) => {

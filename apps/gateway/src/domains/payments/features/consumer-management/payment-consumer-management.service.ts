@@ -4,6 +4,7 @@ import { z } from "zod";
 import { PrismaService } from "@database/prisma.service";
 import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
+import type { PaymentConsumerRegistrationDirectory } from "./payment-consumer.types";
 
 /**
  * A payment consumer is a registered tribe service. Its owner tribe comes from the registry
@@ -36,7 +37,7 @@ type KeyRow = {
 };
 
 @Injectable()
-export class PaymentConsumerManagementService {
+export class PaymentConsumerManagementService implements PaymentConsumerRegistrationDirectory {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,

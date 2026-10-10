@@ -129,6 +129,7 @@ export interface SubscriptionSnapshot {
 // ---------------------------------------------------------------------------
 
 export interface EmailSendRequest {
+  from?: string;
   to: string | string[];
   subject: string;
   html?: string;

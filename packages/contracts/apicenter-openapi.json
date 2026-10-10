@@ -573,6 +573,40 @@
         }
       }
     },
+    "/api/v1/payments/plans": {
+      "get": {
+        "operationId": "listPlans",
+        "tags": ["Payments"],
+        "responses": {
+          "200": {
+            "description": "Plans owned by the calling project",
+            "content": { "application/json": { "schema": { "type": "object", "required": ["success", "data"],
+              "properties": { "success": { "const": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/Plan" } } } } } }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPlan",
+        "tags": ["Payments"],
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanCreateRequest" } } } },
+        "responses": {
+          "201": { "description": "Plan created", "content": { "application/json": { "schema": { "type": "object", "required": ["success", "data"],
+            "properties": { "success": { "const": true }, "data": { "$ref": "#/components/schemas/Plan" } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/payments/plans/{planId}": {
+      "get": {
+        "operationId": "getPlan",
+        "tags": ["Payments"],
+        "parameters": [{ "name": "planId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Plan", "content": { "application/json": { "schema": { "type": "object", "required": ["success", "data"],
+          "properties": { "success": { "const": true }, "data": { "$ref": "#/components/schemas/Plan" } } } } } }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
     "/api/v1/payments/subscriptions": {
       "post": {
         "operationId": "createSubscription",
@@ -1174,7 +1208,7 @@
         "required": [
           "customerId",
           "referenceId",
-          "priceId"
+          "planId"
         ],
         "properties": {
           "customerId": {
@@ -1183,10 +1217,39 @@
           "referenceId": {
             "type": "string"
           },
-          "priceId": {
+          "planId": {
             "type": "string",
-            "description": "APICenter-managed recurring price reference."
+            "description": "APICenter-managed PayMongo plan reference."
           }
+        }
+      },
+      "PlanCreateRequest": {
+        "type": "object",
+        "required": ["name", "amount", "interval"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 1000 },
+          "amount": { "type": "integer", "minimum": 2000, "description": "Amount in PHP centavos." },
+          "currency": { "type": "string", "enum": ["PHP"], "default": "PHP" },
+          "interval": { "type": "string", "enum": ["weekly", "monthly", "yearly"] },
+          "intervalCount": { "type": "integer", "minimum": 1, "maximum": 10, "default": 1 },
+          "cycleCount": { "type": "integer", "minimum": 2, "description": "Omit to bill indefinitely." },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "required": ["planId", "name", "amount", "currency", "interval", "intervalCount"],
+        "properties": {
+          "planId": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "amount": { "type": "integer", "description": "Amount in PHP centavos." },
+          "currency": { "type": "string", "enum": ["PHP"] },
+          "interval": { "type": "string", "enum": ["weekly", "monthly", "yearly"] },
+          "intervalCount": { "type": "integer" },
+          "cycleCount": { "type": "integer" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
         }
       },
       "Checkout": {
@@ -1326,6 +1389,10 @@
           },
           "customerId": {
             "type": "string"
+          },
+          "planId": {
+            "type": "string",
+            "description": "PayMongo plan used by this subscription."
           },
           "status": {
             "type": "string",

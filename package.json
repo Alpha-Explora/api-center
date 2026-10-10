@@ -58,6 +58,7 @@
     "db:test:retention": "node --test tests/db/retention-purge.test.cjs",
     "db:test:runtime-roles": "node --test tests/db/runtime-database-roles.test.cjs",
     "db:verify:replay": "node scripts/replay-supabase-migrations.cjs && ts-node scripts/verify-control-plane-schema.ts --forbid-legacy-schemas --app-role api_center_app --require-retention-policy",
+    "db:load:history": "node scripts/load-history-workflows.cjs",
     "db:test:payment-outbox": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",
     "db:test:payment-webhook": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-webhook-outbox.test.cjs",
     "db:test:payment-schema": "node --test tests/db/payment-schema.test.cjs",

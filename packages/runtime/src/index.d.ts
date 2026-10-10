@@ -61,7 +61,7 @@ export function createSharedIdempotencyStore(options: { url?: string; namespace:
 /** Create a shared Redis-backed rate limiter; production requires a Redis URL. */
 export function createSharedRateLimitStore(options: { url?: string; namespace: string }): RateLimitStore;
 /** Send an SMS through Twilio and return its APICenter delivery status. */
-export function sendTwilioSms(input: { to: string; message: string; senderId?: string }): Promise<{ messageId: string; status: 'queued' | 'sent' | 'delivered' | 'failed' }>;
+export function sendTwilioSms(input: { to: string; message: string; senderId?: string; statusCallback?: string }): Promise<{ messageId: string; status: 'queued' | 'sent' | 'delivered' | 'failed' }>;
 /** Send a plain-text email through Resend and return its APICenter delivery status. */
 export function sendResendEmail(input: { to: string; subject: string; text: string }): Promise<{ messageId: string; status: 'queued' }>;
 export function createMemoryCacheStore(): CacheStore;
