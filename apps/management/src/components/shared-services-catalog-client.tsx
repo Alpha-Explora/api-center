@@ -180,9 +180,9 @@ export function SharedServicesCatalogClient() {
                       nativeButton={false}
                       size="sm"
                       variant="outline"
-                      render={<Link href="/shared-services/tenant-oauth" />}
+                      render={<Link href="/shared-services/google-sign-in" />}
                     >
-                      Tenant OAuth
+                      Google sign-in
                     </Button>
                   ) : null}
                 </div>

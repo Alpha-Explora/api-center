@@ -5,16 +5,12 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
-// Temporary compatibility exceptions: the data pipeline stores its production
-// lane as "prod", and issue #93 removes the legacy tenant OAuth setup paths.
+// Temporary compatibility exception: the data pipeline stores its production
+// lane as "prod".
 const allowlist = [
   /(^|[/\\])data-pipeline([/\\]|$)/,
   /apps[/\\]gateway[/\\]src[/\\]shared[/\\]environment-names\.ts$/,
   /apps[/\\]management[/\\]src[/\\]lib[/\\]environment-names\.ts$/,
-  /apps[/\\]management[/\\]src[/\\]app[/\\]\(management\)[/\\]shared-services[/\\]tenant-oauth([/\\]|$)/,
-  /apps[/\\]management[/\\]src[/\\]app[/\\]api[/\\]local[/\\]tenant-oauth([/\\]|$)/,
-  /apps[/\\]management[/\\]src[/\\]lib[/\\]tenant-oauth-lifecycle\.ts$/,
-  /apps[/\\]management[/\\]src[/\\]lib[/\\]server[/\\]tenant-oauth-state-local-store\.ts$/,
   /pipeline/i,
   /athena/i,
   /confluent/i,

@@ -27,7 +27,7 @@ The page should use the same premium dark editorial rhythm the user pointed to i
 ## Sections
 
 - `01 Control layer`: shared, dedicated, and future product operating model.
-- `02 Workflows`: shared services, tenant OAuth, gateway routing, audit fabric.
+- `02 Workflows`: shared services, project Google sign-in settings, gateway routing, audit fabric.
 - `03 Runtime day`: register, operate, reconcile.
 - `04 Trust`: audit evidence and isolation state.
 - Final CTA: Login to APICenter.
