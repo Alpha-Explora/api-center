@@ -48,6 +48,13 @@ function signed(payload) {
   return { rawBody, signatureHeader: 't=' + timestamp + ',te=' + signature, environment: 'test' };
 }
 
+// PayMongo's documented payment.paid event for a payment made through a payment link.
+function linkPaymentPaid(eventId, reference) {
+  return { data: { id: eventId, type: 'event', attributes: { type: 'payment.paid', livemode: false, created_at: 1760000000,
+    data: { id: 'pay_link_1', type: 'payment', attributes: { amount: 25000, currency: 'PHP', status: 'paid', origin: 'links',
+      payment_intent_id: 'pi_paymongo_link', external_reference_number: reference, metadata: { pm_reference_number: reference } } } } } };
+}
+
 const count = async (table) => Number((await pool.query('SELECT count(*) FROM shared_payment.' + table)).rows[0].count);
 
 test('a paid checkout updates the owner, records the receipt and queues one event together', { skip }, async () => {
@@ -140,4 +147,25 @@ test('a checkout without a merchant reference is flagged for reconciliation and 
   assert.equal(await count('payment_event_outbox'), 0);
   const receipt = (await pool.query('SELECT status FROM shared_payment.payment_webhook_events')).rows[0];
   assert.equal(receipt.status, 'needs_reconciliation');
+});
+
+test('a paid link payment updates only the link whose PayMongo reference was saved', { skip }, async () => {
+  await owners.save({ ...owner, resourceType: 'payment_link', resourceId: 'pl_a', referenceId: 'ORDER-A',
+    providerReference: 'PMREF-A', snapshot: { paymentLinkId: 'pl_a', status: 'active' } });
+  // Another project chose PMREF-X as its own referenceId. That must never match a PayMongo reference.
+  await owners.save({ ...owner, projectId: 'project-b', resourceType: 'payment_link', resourceId: 'pl_b', referenceId: 'PMREF-X',
+    providerReference: 'PMREF-B', snapshot: { paymentLinkId: 'pl_b', status: 'active' } });
+
+  const unknown = linkPaymentPaid('evt_link_unknown', 'PMREF-X');
+  assert.equal((await webhooks.processWebhook(unknown, signed(unknown))).event, 'ignored');
+  const paid = linkPaymentPaid('evt_link_paid', 'PMREF-A');
+  assert.deepEqual(await webhooks.processWebhook(paid, signed(paid)),
+    { event: 'processed', data: { eventType: 'payment.paid', updated: 1 } });
+  assert.equal((await webhooks.processWebhook(paid, signed(paid))).event, 'duplicate');
+
+  const links = (await pool.query("SELECT resource_id, status, provider_reference, aggregate_version, snapshot FROM shared_payment.resource_owners WHERE resource_type = 'payment_link' ORDER BY resource_id")).rows;
+  assert.deepEqual(links.map((row) => [row.resource_id, row.status, row.provider_reference, row.aggregate_version]),
+    [['pl_a', 'paid', 'PMREF-A', 2], ['pl_b', 'active', 'PMREF-B', 1]]);
+  assert.equal(links[0].snapshot.paymentId, 'pay_link_1');
+  assert.equal(await count('payment_webhook_events'), 1);
 });

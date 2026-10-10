@@ -67,6 +67,7 @@ export function getFumadocsPageTree(): PageTree.Root {
     { type: "page", name: "Payment Limits & Live Access", url: "/guides/payments/limits" },
     { type: "page", name: "Checkouts", url: "/guides/payments/checkouts" },
     { type: "page", name: "Payment Intents", url: "/guides/payments/intents" },
+    { type: "page", name: "Payment Links", url: "/guides/payments/payment-links" },
     { type: "page", name: "Customers", url: "/guides/payments/customers" },
     { type: "page", name: "Subscriptions", url: "/guides/payments/subscriptions" },
     { type: "page", name: "Refunds", url: "/guides/payments/refunds" },

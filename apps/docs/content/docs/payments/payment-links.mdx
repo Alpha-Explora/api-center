@@ -1,0 +1,50 @@
+---
+title: "Payment Links and QR Ph"
+description: "Create project-owned PayMongo payment links and QR Ph payment intents."
+---
+
+# Payment Links and QR Ph
+
+## Payment links
+
+Create a hosted PayMongo payment link with a PHP amount, a description, and your own reference:
+
+```http
+POST /api/v1/payments/payment-links
+Idempotency-Key: order-link-1001
+```
+
+```json
+{
+  "referenceId": "ORDER-1001",
+  "amount": { "amountMinor": 25000, "currency": "PHP" },
+  "description": "Order 1001"
+}
+```
+
+`description` is required and must be 1 to 255 characters. `remarks` and `metadata` are optional, and metadata values must be strings. APICenter stores `referenceId` with the link and also sends it to PayMongo as `metadata.apicenter_reference_id`, replacing any value you send under that key.
+
+The response includes `paymentLinkId`, the hosted `url`, and `referenceNumber`, the reference number PayMongo assigned to the link. Use `GET /api/v1/payments/payment-links` to list links created by the calling project, or `GET /api/v1/payments/payment-links/{paymentLinkId}` to retrieve one. A link can be archived or restored with `PATCH` and `{ "archive": true }` or `{ "archive": false }`; each mutation requires its own `Idempotency-Key`.
+
+Payment links are scoped to the project that created them. PayMongo reports `status` as `active` or `archived`, and the `active` and `archived` fields follow it. When PayMongo reports a paid payment for a link, APICenter finds the link by the reference number PayMongo assigned to it, or by its PayMongo link ID, and sets `status` to `paid`. Your `referenceId` is never used for that match, so projects can reuse reference values safely. Archiving a link changes whether it accepts payments; it does not mean a payment completed.
+
+## QR Ph
+
+Create a payment intent, QR Ph payment method, and attachment in one APICenter call:
+
+```http
+POST /api/v1/payments/intents/qrph
+Idempotency-Key: order-qr-1002
+```
+
+```json
+{
+  "referenceId": "ORDER-1002",
+  "amount": { "amountMinor": 25000, "currency": "PHP" },
+  "expirySeconds": 1800
+}
+```
+
+The response contains `paymentIntentId`, `qrCodeImageUrl`, `expirySeconds`, and status. `expirySeconds` is optional; PayMongo defaults to 1800 seconds. When supplied, it must be an integer from 60 through 9000 seconds. Render the returned image URL as the QR code.
+
+`awaiting_next_action` means the QR code is ready for the customer. It does not mean the payment is complete. Confirm payment using the `payment.paid` webhook or retrieve the intent with `GET /api/v1/payments/intents/{paymentIntentId}`.

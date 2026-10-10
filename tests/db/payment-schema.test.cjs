@@ -60,4 +60,23 @@ test('retained payment ownership and listing facts remain project scoped', { ski
   assert.equal(columns.get('amount_minor')?.data_type, 'bigint');
   assert.ok(columns.has('currency'));
   assert.ok(columns.has('status'));
+  assert.equal(columns.get('provider_reference')?.is_nullable, 'YES');
+});
+
+test('a PayMongo reference identifies at most one resource of a type in an environment', { skip }, async () => {
+  const insert = (id, environment, reference) => client.query(
+    'insert into shared_payment.resource_owners (resource_type, resource_id, environment, tribe_id, project_id, ' +
+    "consumer_service_id, provider_reference) values ('payment_link', $1, $2, 'tribe-a', 'project-a', 'service-a', $3)",
+    [id, environment, reference],
+  );
+  await client.query('begin');
+  try {
+    await insert('pl_schema_1', 'test', null);
+    await insert('pl_schema_2', 'test', null);
+    await insert('pl_schema_3', 'test', 'PMREF-SCHEMA');
+    await insert('pl_schema_4', 'live', 'PMREF-SCHEMA');
+    await assert.rejects(insert('pl_schema_5', 'test', 'PMREF-SCHEMA'), { code: '23505' });
+  } finally {
+    await client.query('rollback');
+  }
 });

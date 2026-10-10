@@ -61,8 +61,8 @@ export class PaymentsController {
     this.enforceScope(principal.scopes, operation.scope);
     if (operation.resource === 'capabilities') {
       res.status(200).json({ success: true, data: { currency: 'PHP',
-        paymentMethods: ['card', 'gcash', 'paymaya'],
-        resources: ['checkouts', 'intents', 'customers', 'plans', 'refunds', 'subscriptions', 'invoices', 'records'] } });
+        paymentMethods: ['card', 'gcash', 'paymaya', 'qrph'],
+        resources: ['checkouts', 'intents', 'customers', 'plans', 'payment-links', 'refunds', 'subscriptions', 'invoices', 'records'] } });
       return;
     }
     if (!token) throw new ServiceUnavailableException('Payment runtime token is not configured');
