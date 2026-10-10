@@ -336,7 +336,7 @@ grant_secret_accessor() {
   elif ! confirm "Give $account read access to $secret?"; then
     later "give $account $SECRET_ACCESSOR on $secret"
   elif gcloud secrets add-iam-policy-binding "$secret" --project="$PROJECT_ID" \
-      --member="$member" --role="$SECRET_ACCESSOR" >/dev/null; then
+      --member="$member" --role="$SECRET_ACCESSOR" --quiet >/dev/null; then
     ok "$account can now read $secret"
   else
     later "give $account $SECRET_ACCESSOR on $secret (gcloud failed; see the error above)"
@@ -467,11 +467,8 @@ def call(method, url, payload=None):
         with urllib.request.urlopen(request, timeout=30) as response:
             return json.load(response)
     except urllib.error.HTTPError as error:
-        try:
-            detail = json.load(error)["errors"][0]["detail"]
-        except Exception:
-            detail = error.reason
-        sys.exit("PayMongo returned HTTP %s: %s" % (error.code, detail))
+        # Do not echo provider response bodies: webhook responses contain secret_key.
+        sys.exit("PayMongo returned HTTP %s while checking the webhook." % error.code)
     except urllib.error.URLError as error:
         sys.exit("Could not reach PayMongo: %s" % error.reason)
 
@@ -494,8 +491,6 @@ if action == "list":
             match = hook
     if not hooks:
         print("  (no webhooks)")
-    if body.get("has_more"):
-        print("  PayMongo has more webhooks than it returned.")
     if match:
         attributes = match.get("attributes") or {}
         missing = [event for event in required if event not in (attributes.get("events") or [])]
@@ -755,12 +750,19 @@ stage_email_admin_token() {
 }
 
 stage_resend_webhook() {
-  local secret="apicenter-shared-resend-webhook-secret-prod" mode="keep"
+  local secret="apicenter-shared-resend-webhook-secret-prod" mode="keep" configure=true
   stage "Resend delivery webhook"
   say "The gateway receives Resend's email events at $GATEWAY_URL/api/v1/webhooks/resend (#143)."
   if secret_exists "$secret" && ! confirm "$secret exists. Open Resend to check the endpoint and its events anyway?"; then
     ok "kept the Resend endpoint and $secret as they are"
-  else
+    configure=false
+  fi
+  if $configure; then
+    if ! confirm "Open Resend and create or update the delivery webhook?"; then
+      later "register the Resend webhook at $GATEWAY_URL/api/v1/webhooks/resend and store its signing secret"
+      pause
+      return 0
+    fi
     open_url "https://resend.com/webhooks"
     step "Select Add Webhook, or open the webhook that already uses this URL."
     step "Endpoint URL: $GATEWAY_URL/api/v1/webhooks/resend"
@@ -843,21 +845,25 @@ stage_github_secrets() {
 stage_google_sign_in() {
   stage "Google sign-in: consent screen and redirect URIs"
   say "gauth signs users in with the shared Google OAuth client in $PROJECT_ID (infra/gcp/GAUTH_OPERATIONS.md)."
-  open_url "https://console.cloud.google.com/apis/credentials/consent?project=$PROJECT_ID"
-  step "This opens Google Auth Platform. Go to Audience and check the user type:"
-  say "  Internal lets only users in your Google Workspace organization sign in, and needs a project that"
-  say "  belongs to an organization. External lets any Google account sign in."
-  step "Check the publishing status. While it is Testing, only listed test users can sign in (at most 100),"
-  say "  and each test user's authorization expires seven days after they consent. Before general sign-in,"
-  say "  select Publish app to move it to In production. An External app that requests sensitive or"
-  say "  restricted scopes may need Google's verification first."
-  pause "Press Enter when the audience settings are right"
+  open_url "https://console.cloud.google.com/auth/audience?project=$PROJECT_ID"
+  step "Go to Audience and check the user type and publishing status. Internal is available only to projects"
+  say "  in a Google Cloud organization. In Testing, at most 100 test users can sign in, and their access"
+  say "  expires after seven days. Publish app moves the app from Testing to In production."
+  if confirm "Change the OAuth consent screen audience or publishing status if needed?"; then
+    step "Make only the needed changes. An External app with sensitive or restricted scopes may need Google's verification."
+    pause "Press Enter when the audience settings are right"
+  else
+    later "review or update the Google OAuth consent screen audience and publishing status"
+  fi
   open_url "https://console.cloud.google.com/apis/credentials?project=$PROJECT_ID"
-  step "Open the OAuth client whose ID is stored in apicenter-shared-google-client-id-prod."
-  step "Under Authorized redirect URIs, add every redirect URL a team saved on the management console's"
-  say "  Google sign-in page. Scheme, host, path, and trailing slash must match exactly."
-  note "A project that saved its own Google client ID on that page adds its URLs to its own client instead."
-  pause "Press Enter when the redirect URIs are added"
+  step "Open the shared OAuth client whose ID is stored in apicenter-shared-google-client-id-prod."
+  if confirm "Add any missing team redirect URLs to this client's Authorized redirect URIs?"; then
+    step "Add every redirect URL a team saved on the management console's Google sign-in page. Scheme, host,"
+    say "  path, and trailing slash must match exactly. A project that uses its own Google client adds its URLs there."
+    pause "Press Enter when the redirect URIs are added"
+  else
+    later "compare each team's Google sign-in redirect URL with this client's Authorized redirect URIs"
+  fi
 }
 
 stage_history_purge() {
@@ -913,6 +919,7 @@ stage_database() {
   say "#113 replaced the migration history with one baseline, supabase/migrations/20261011080000_baseline.sql."
   say "A database migrated with the old files still records versions that no longer exist here, and the"
   say "baseline cannot be pushed on top of them."
+  say "Seeding is disabled in supabase/config.toml."
   if ! command -v npx >/dev/null 2>&1; then
     later "link the Supabase project and apply the baseline (npx is not installed)"
     pause
@@ -973,15 +980,13 @@ print(remote_only, local_only)
     elif ! "${supabase[@]}" db reset --linked; then
       later "reset the linked database with npx supabase db reset --linked (it failed)"
     fi
-  elif (( local_only > 0 )); then
-    say "The remote has no versions missing here. npx supabase db push applies $local_only migration(s)."
+  else
+    say "No remote-only versions remain. npx supabase db push applies the $local_only local migration(s), if any."
     if ! confirm "Run npx supabase db push?"; then
       later "apply the baseline with npx supabase db push"
     elif ! "${supabase[@]}" db push; then
       later "apply the baseline with npx supabase db push (it failed)"
     fi
-  else
-    ok "the linked database has every migration in supabase/migrations"
   fi
   pause
 }
