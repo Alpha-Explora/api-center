@@ -9,7 +9,7 @@ const schemas = {
   intent: z.object({ referenceId: reference, amount: money }),
   qrph: z.object({ referenceId: reference, amount: money, description: z.string().max(255).optional(),
     expirySeconds: z.number().int().min(60).max(9000).optional() }),
-  paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().max(255).optional(),
+  paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().trim().min(1).max(255),
     remarks: z.string().max(255).optional(), metadata: z.record(z.string(), z.string()).optional() }),
   archive: z.object({ archive: z.boolean() }),
   customer: z.object({ customerReference: reference, email: z.email(), name: z.string().max(255).optional() }),

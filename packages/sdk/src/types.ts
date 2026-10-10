@@ -56,7 +56,14 @@ export interface Checkout {
 export interface CreatePaymentIntentInput { referenceId: string; amount: Money; }
 export interface CreateQrPhPaymentIntentInput { referenceId: string; amount: Money; description?: string; expirySeconds?: number; }
 export interface QrPhPaymentIntent extends PaymentIntent { qrCodeImageUrl: string; expirySeconds: number; }
-export interface CreatePaymentLinkInput { referenceId: string; amount: Money; description?: string; remarks?: string; metadata?: Record<string, string>; }
+export interface CreatePaymentLinkInput {
+  referenceId: string; amount: Money;
+  /** Required, 1 to 255 characters. */
+  description: string;
+  remarks?: string;
+  /** String values only. APICenter sets apicenter_reference_id to referenceId. */
+  metadata?: Record<string, string>;
+}
 export interface PaymentLink { paymentLinkId: string; referenceId: string; amount: Money; description?: string; url?: string;
   status: string; active?: boolean; archived?: boolean; referenceNumber?: string; metadata?: Record<string, string>; createdAt?: string; updatedAt?: string; }
 export type ConfirmPaymentIntentInput = Record<string, never>;

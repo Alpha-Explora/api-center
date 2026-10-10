@@ -100,11 +100,12 @@ app.use((req: Request, res: Response, next) => {
   } catch (error) { return handleCustomError(res, error); }
 });
 
-async function remember(type: string, id: string, req: Request, snapshot: Record<string, unknown>) {
+async function remember(type: string, id: string, req: Request, snapshot: Record<string, unknown>,
+  providerReference?: string) {
   const context = paymentContext(req);
   await owners.save({ ...context, resourceType: type, resourceId: id,
     referenceId: typeof req.body?.referenceId === 'string' ? req.body.referenceId : undefined,
-    snapshot });
+    providerReference, snapshot });
 }
 
 async function owned(type: string, id: string, req: Request) {
@@ -306,7 +307,7 @@ app.post('/payment-links', async (req: Request, res: Response) => {
   try {
     const data = await paymentLinksService.create(req.body || {}, idempotencyKey(req));
     const snapshot = { ...data, referenceId: req.body?.referenceId };
-    await remember('payment_link', data.paymentLinkId, req, snapshot);
+    await remember('payment_link', data.paymentLinkId, req, snapshot, data.referenceNumber);
     return ok(res, snapshot, 201);
   } catch (err) { return handleCustomError(res, err); }
 });

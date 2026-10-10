@@ -13,6 +13,8 @@ export type OwnerRecord = PaymentContext & {
   resourceType: string;
   resourceId: string;
   referenceId?: string;
+  /** Reference number PayMongo assigned to the resource. Paid payment-link events are matched only on it. */
+  providerReference?: string | null;
   snapshot: Record<string, unknown>;
   amountMinor?: string | null;
   currency?: string | null;
@@ -52,13 +54,14 @@ export type AppliedWebhook = { duplicate: boolean; queued: boolean };
 
 const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
     (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
-     amount_minor, currency, status)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11)
+     amount_minor, currency, status, provider_reference)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = EXCLUDED.snapshot,
      amount_minor = COALESCE(EXCLUDED.amount_minor, shared_payment.resource_owners.amount_minor),
      currency = COALESCE(EXCLUDED.currency, shared_payment.resource_owners.currency),
      status = COALESCE(EXCLUDED.status, shared_payment.resource_owners.status),
+     provider_reference = COALESCE(shared_payment.resource_owners.provider_reference, EXCLUDED.provider_reference),
      aggregate_version = shared_payment.resource_owners.aggregate_version + 1,
      updated_at = now()
    WHERE shared_payment.resource_owners.tribe_id = EXCLUDED.tribe_id
@@ -89,7 +92,7 @@ function ownerParams(record: OwnerRecord): unknown[] {
   const facts = ownerFacts(record);
   return [record.resourceType, record.resourceId, record.environment, record.tribeId,
     record.projectId, record.consumerServiceId, record.referenceId || null, JSON.stringify(record.snapshot),
-    facts.amountMinor, facts.currency, facts.status];
+    facts.amountMinor, facts.currency, facts.status, record.providerReference || null];
 }
 
 export type PaymentRecordFilters = {
@@ -250,6 +253,7 @@ export class PaymentOwnerStore {
     const aggregateVersion = (existing?.aggregateVersion ?? 0) + 1;
     const facts = ownerFacts(record);
     this.memory.set(key, { ...record, referenceId: record.referenceId || existing?.referenceId,
+      providerReference: existing?.providerReference ?? record.providerReference ?? null,
       amountMinor: facts.amountMinor ?? existing?.amountMinor ?? null,
       currency: facts.currency ?? existing?.currency ?? null,
       status: facts.status ?? existing?.status ?? null,
@@ -285,17 +289,24 @@ export class PaymentOwnerStore {
     return this.find(type, id, environment);
   }
 
-  async findWebhookSourceByReference(type: string, referenceId: string, environment: 'test' | 'live'): Promise<OwnerRecord | undefined> {
+  /**
+   * Resolves a webhook source by the reference number PayMongo assigned to it. Callers choose reference_id,
+   * so it is never used here. Only the signature-verified webhook path may call this.
+   */
+  async findWebhookSourceByProviderReference(type: string, providerReference: string, environment: 'test' | 'live'):
+    Promise<OwnerRecord | undefined> {
     if (this.pool) {
       const result = await this.pool.query(
-        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, aggregate_version
-         FROM shared_payment.resource_owners WHERE environment = $1 AND resource_type = $2 AND reference_id = $3 LIMIT 1`,
-        [environment, type, referenceId],
+        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
+                provider_reference, snapshot, aggregate_version
+         FROM shared_payment.resource_owners
+         WHERE environment = $1 AND resource_type = $2 AND provider_reference = $3`,
+        [environment, type, providerReference],
       );
       return result.rows[0] ? this.fromRow(result.rows[0]) : undefined;
     }
     return [...this.memory.values()].find((record) => record.environment === environment
-      && record.resourceType === type && record.referenceId === referenceId);
+      && record.resourceType === type && record.providerReference === providerReference);
   }
 
   async findByReference(type: string, referenceId: string, context: PaymentContext): Promise<OwnerRecord> {
@@ -397,7 +408,8 @@ export class PaymentOwnerStore {
   private async find(type: string, id: string, environment: string): Promise<OwnerRecord | undefined> {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(
-      `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, aggregate_version
+      `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
+              provider_reference, snapshot, aggregate_version
        FROM shared_payment.resource_owners
        WHERE environment = $1 AND resource_type = $2 AND resource_id = $3`,
       [environment, type, id],
@@ -410,6 +422,7 @@ export class PaymentOwnerStore {
       environment: row.environment, tribeId: row.tribe_id,
       projectId: row.project_id,
       consumerServiceId: row.consumer_service_id, referenceId: row.reference_id,
+      providerReference: row.provider_reference ?? null,
       snapshot: row.snapshot, amountMinor: row.amount_minor == null ? null : String(row.amount_minor),
       currency: row.currency, status: row.status, aggregateVersion: Number(row.aggregate_version ?? 1) };
   }

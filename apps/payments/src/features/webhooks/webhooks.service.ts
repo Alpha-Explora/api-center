@@ -6,6 +6,26 @@ import { toPublicId } from '../../shared/payment-ids';
 const isPaidPayment = (payment: any): boolean => payment?.type === 'payment'
   && typeof payment.id === 'string' && payment.id.startsWith('pay_') && payment.attributes?.status === 'paid';
 
+/** PayMongo's reference number for the link a payment was made through. */
+function linkReference(payment: any): string | undefined {
+  const attributes = payment?.attributes || {};
+  for (const value of [attributes.external_reference_number, attributes.metadata?.pm_reference_number]) {
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return undefined;
+}
+
+/** The last paid payment listed on a PayMongo link object. Entries may be payments or { data: payment }. */
+function linkObjectPaymentId(link: any): string | undefined {
+  const fields = link?.attributes || link || {};
+  const ids = (Array.isArray(fields.payments) ? fields.payments : [])
+    .map((entry: any) => entry?.data ?? entry)
+    .filter((payment: any) => typeof payment?.id === 'string' && payment.id.startsWith('pay_')
+      && (payment.attributes?.status ?? payment.status ?? 'paid') === 'paid')
+    .map((payment: any) => payment.id as string);
+  return ids[ids.length - 1];
+}
+
 export class WebhooksService {
   constructor(private readonly owners = PaymentOwnerStore.getInstance()) {}
   async processWebhook(payload: any, options: { signatureHeader?: string; rawBody?: Buffer; environment?: string } = {}) {
@@ -36,37 +56,43 @@ export class WebhooksService {
     if (payload?.data?.attributes?.livemode !== (environment === 'live')) {
       throw new PayMongoError('Webhook environment does not match payment', 403, 'ENVIRONMENT_MISMATCH');
     }
-    let source;
+    let source: OwnerRecord | undefined;
     let payments: any[] = [];
-    const paymentLinkPaid = eventType === 'link.payment.paid';
+    let linkEvent = false;
+    let linkPaymentId: string | undefined;
+    const isLinkObject = typeof resourceData.id === 'string' && resourceData.id.startsWith('link_');
     if (eventType === 'checkout_session.payment.paid' && resourceData.id?.startsWith('cs_')) {
       source = await this.owners.findWebhookSource('checkout', toPublicId('chk', resourceData.id), environment);
       payments = Array.isArray(resourceData.attributes?.payments) ? resourceData.attributes.payments : [];
+    } else if ((eventType === 'payment.paid' && resourceData.attributes?.origin === 'links')
+      || (eventType === 'link.payment.paid' && !isLinkObject)) {
+      // A link payment's payment_intent_id belongs to PayMongo, so it is matched on the link's PayMongo
+      // reference number. Only the number saved when the link was created can match.
+      linkEvent = true;
+      const reference = linkReference(resourceData);
+      if (isPaidPayment(resourceData) && reference) {
+        source = await this.owners.findWebhookSourceByProviderReference('payment_link', reference, environment);
+        linkPaymentId = resourceData.id;
+      }
+    } else if (eventType === 'link.payment.paid') {
+      linkEvent = true;
+      source = await this.owners.findWebhookSource('payment_link', toPublicId('pl', resourceData.id), environment);
+      linkPaymentId = linkObjectPaymentId(resourceData);
     } else if (eventType === 'payment.paid' && resourceData.id?.startsWith('pay_')) {
       const intentId = resourceData.attributes?.payment_intent_id;
       if (typeof intentId === 'string' && intentId.startsWith('pi_')) {
         source = await this.owners.findWebhookSource('intent', intentId, environment);
         payments = [resourceData];
       }
-    } else if (paymentLinkPaid) {
-      const rawId = resourceData.id;
-      if (typeof rawId === 'string' && (rawId.startsWith('link_') || rawId.startsWith('pl_'))) {
-        source = await this.owners.findWebhookSource('payment_link', toPublicId('pl', rawId), environment);
-      }
-      const reference = resourceData.attributes?.reference_number || resourceData.attributes?.reference_id;
-      if (!source && typeof reference === 'string') {
-        source = await this.owners.findWebhookSourceByReference('payment_link', reference, environment);
-      }
     }
     if (!source) return { event: 'ignored', data: { eventType, updated: false } };
 
-    if (paymentLinkPaid) {
-      const attributes = resourceData.attributes || {};
+    if (linkEvent) {
       const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
         payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
         receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
           snapshot: { ...source.snapshot, status: 'paid', paidAt: new Date().toISOString(),
-            ...(attributes.payments?.[0]?.id ? { paymentId: attributes.payments[0].id } : {}) } }] });
+            ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } }] });
       return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
     }
 

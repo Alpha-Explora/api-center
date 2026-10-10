@@ -172,6 +172,7 @@ const requiredPaymentIndexes = [
   "payment_resource_owners_project_environment_type_created_idx",
   "payment_resource_owners_project_environment_created_idx",
   "payment_resource_owners_project_environment_status_created_idx",
+  "payment_resource_owners_provider_reference_key",
 ];
 const requiredPaymentListingColumns = ["amount_minor", "currency", "status"];
 

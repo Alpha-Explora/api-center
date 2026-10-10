@@ -52,6 +52,17 @@ test('payments_runtime can read and write payment tables but cannot delete outbo
   await assert.rejects(asRole('payments_runtime', 'select 1 from shared_sms.sms_messages'), /permission denied/);
 });
 
+test('payments_runtime runs the owner-store upsert that writes and returns the PayMongo reference', { skip }, async () => {
+  const upsert = 'insert into shared_payment.resource_owners ' +
+    '(resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, provider_reference) ' +
+    "values ('payment_link', 'pl_role_check', 'test', 'tribe-a', 'project-a', 'service-a', 'ORDER-1', '{}'::jsonb, 'PMREF-ROLE') " +
+    'on conflict (environment, resource_type, resource_id) do update set snapshot = excluded.snapshot, ' +
+    'provider_reference = coalesce(shared_payment.resource_owners.provider_reference, excluded.provider_reference) ' +
+    'returning provider_reference';
+  const { rows } = await asRole('payments_runtime', upsert);
+  assert.equal(rows[0].provider_reference, 'PMREF-ROLE');
+});
+
 test('otp_runtime cannot read payment or email tables', { skip }, async () => {
   await assert.rejects(asRole('otp_runtime', 'select 1 from shared_payment.resource_owners'), /permission denied/);
   await assert.rejects(asRole('otp_runtime', 'select 1 from shared_email.email_messages'), /permission denied/);

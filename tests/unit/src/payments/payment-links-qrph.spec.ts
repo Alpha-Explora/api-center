@@ -3,16 +3,74 @@ import { PaymentOwnerStore } from '../../../../apps/payments/src/shared/payment-
 import { PayMongoError } from '../../../../apps/payments/src/shared/payment-errors';
 
 describe('payment links and QR Ph', () => {
-  it('archives and unarchives a PayMongo payment link with PATCH', async () => {
+  // PayMongo returns a flat payment link object inside data.
+  const createdLink = (overrides: Record<string, unknown> = {}) => ({ data: { id: 'link_abc', amount: 25000, currency: 'PHP',
+    description: 'Order 1', status: 'active', url: 'https://pm.link/abc', reference_number: 'WTV7Ka2',
+    created_at: 1760000000, ...overrides } });
+  const linkInput = { referenceId: 'ORDER-1', amount: 25000, description: 'Order 1' };
+
+  it('sends the PayMongo create fields with APICenter reference metadata the caller cannot replace', async () => {
+    const request = jest.fn().mockResolvedValue(createdLink());
+    const service = new PaymentLinksService(request as any, () => false);
+
+    await expect(service.create({ ...linkInput, description: '  Order 1  ', remarks: 'Thanks',
+      metadata: { team: 'billing', apicenter_reference_id: 'spoofed' } }, 'idem-link'))
+      .resolves.toMatchObject({ paymentLinkId: 'pl_abc', referenceNumber: 'WTV7Ka2', status: 'active',
+        active: true, archived: false, createdAt: '2025-10-09T08:53:20.000Z' });
+    expect(request).toHaveBeenCalledWith('/payment_links', { method: 'POST', idempotencyKey: 'idem-link',
+      body: { amount: 25000, currency: 'PHP', description: 'Order 1', remarks: 'Thanks',
+        metadata: { team: 'billing', apicenter_reference_id: 'ORDER-1' } } });
+    expect(request.mock.calls[0][1].body).not.toHaveProperty('reference_number');
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['blank', '   '],
+    ['longer than 255 characters', 'x'.repeat(256)],
+  ])('rejects a %s description before calling PayMongo', async (_case, description) => {
+    const request = jest.fn();
+    const service = new PaymentLinksService(request as any, () => false);
+    await expect(service.create({ ...linkInput, description }))
+      .rejects.toMatchObject({ statusCode: 400, code: 'INVALID_DESCRIPTION' });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a number', { count: 1 }],
+    ['an object', { nested: { a: 'b' } }],
+  ])('rejects metadata with %s value before calling PayMongo', async (_case, metadata) => {
+    const request = jest.fn();
+    const service = new PaymentLinksService(request as any, () => false);
+    await expect(service.create({ ...linkInput, metadata }))
+      .rejects.toMatchObject({ statusCode: 400, code: 'INVALID_METADATA' });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('fails the create when PayMongo returns no reference number, because a paid event could never match it', async () => {
+    const service = new PaymentLinksService(jest.fn().mockResolvedValue(createdLink({ reference_number: undefined })) as any,
+      () => false);
+    await expect(service.create(linkInput))
+      .rejects.toMatchObject({ statusCode: 502, code: 'INVALID_PROVIDER_RESPONSE' });
+  });
+
+  it('generates a reference number in mock mode', async () => {
+    const service = new PaymentLinksService(jest.fn() as any, () => true);
+    const first = await service.create(linkInput);
+    const second = await service.create(linkInput);
+    expect(first.referenceNumber).toMatch(/^mock[0-9a-f]{12}$/);
+    expect(second.referenceNumber).not.toBe(first.referenceNumber);
+  });
+
+  it('archives and unarchives a PayMongo payment link with PATCH and derives the flags from status', async () => {
     const request = jest.fn()
-      .mockResolvedValueOnce({ data: { id: 'link_123', attributes: { status: 'archived', active: false } } })
-      .mockResolvedValueOnce({ data: { id: 'link_123', attributes: { status: 'active', active: true } } });
+      .mockResolvedValueOnce({ data: { id: 'link_123', status: 'archived' } })
+      .mockResolvedValueOnce({ data: { id: 'link_123', status: 'active' } });
     const service = new PaymentLinksService(request as any, () => false);
 
     await expect(service.setArchived('pl_123', true, 'idem-archive'))
-      .resolves.toMatchObject({ paymentLinkId: 'pl_123', status: 'archived' });
+      .resolves.toMatchObject({ paymentLinkId: 'pl_123', status: 'archived', active: false, archived: true });
     await expect(service.setArchived('pl_123', false, 'idem-unarchive'))
-      .resolves.toMatchObject({ paymentLinkId: 'pl_123', status: 'active' });
+      .resolves.toMatchObject({ paymentLinkId: 'pl_123', status: 'active', active: true, archived: false });
     expect(request).toHaveBeenNthCalledWith(1, '/payment_links/link_123',
       expect.objectContaining({ method: 'PATCH', body: { archive: true }, idempotencyKey: 'idem-archive' }));
     expect(request).toHaveBeenNthCalledWith(2, '/payment_links/link_123',

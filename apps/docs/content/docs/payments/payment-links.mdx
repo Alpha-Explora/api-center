@@ -7,7 +7,7 @@ description: "Create project-owned PayMongo payment links and QR Ph payment inte
 
 ## Payment links
 
-Create a hosted PayMongo payment link with a PHP amount and a stable merchant reference:
+Create a hosted PayMongo payment link with a PHP amount, a description, and your own reference:
 
 ```http
 POST /api/v1/payments/payment-links
@@ -22,9 +22,11 @@ Idempotency-Key: order-link-1001
 }
 ```
 
-The response includes `paymentLinkId` and the hosted `url`. Use `GET /api/v1/payments/payment-links` to list links created by the calling project, or `GET /api/v1/payments/payment-links/{paymentLinkId}` to retrieve one. A link can be archived or restored with `PATCH` and `{ "archive": true }` or `{ "archive": false }`; each mutation requires its own `Idempotency-Key`.
+`description` is required and must be 1 to 255 characters. `remarks` and `metadata` are optional, and metadata values must be strings. APICenter stores `referenceId` with the link and also sends it to PayMongo as `metadata.apicenter_reference_id`, replacing any value you send under that key.
 
-Payment links are scoped to the project that created them. A `link.payment.paid` PayMongo webhook updates the recorded link status to `paid`. The link's `active` or archived state describes availability, not whether a payment has completed.
+The response includes `paymentLinkId`, the hosted `url`, and `referenceNumber`, the reference number PayMongo assigned to the link. Use `GET /api/v1/payments/payment-links` to list links created by the calling project, or `GET /api/v1/payments/payment-links/{paymentLinkId}` to retrieve one. A link can be archived or restored with `PATCH` and `{ "archive": true }` or `{ "archive": false }`; each mutation requires its own `Idempotency-Key`.
+
+Payment links are scoped to the project that created them. PayMongo reports `status` as `active` or `archived`, and the `active` and `archived` fields follow it. When PayMongo reports a paid payment for a link, APICenter finds the link by the reference number PayMongo assigned to it, or by its PayMongo link ID, and sets `status` to `paid`. Your `referenceId` is never used for that match, so projects can reuse reference values safely. Archiving a link changes whether it accepts payments; it does not mean a payment completed.
 
 ## QR Ph
 

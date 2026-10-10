@@ -1190,12 +1190,16 @@
       "QrPhPaymentIntent": { "type": "object", "required": ["paymentIntentId", "referenceId", "status", "amount", "qrCodeImageUrl", "expirySeconds"], "properties": {
         "paymentIntentId": { "type": "string" }, "referenceId": { "type": "string" }, "status": { "type": "string", "description": "awaiting_next_action means the QR code is ready, not that payment is complete." },
         "amount": { "$ref": "#/components/schemas/Money" }, "qrCodeImageUrl": { "type": "string", "format": "uri" }, "expirySeconds": { "type": "integer" } } },
-      "PaymentLinkCreateRequest": { "type": "object", "required": ["referenceId", "amount"], "properties": {
+      "PaymentLinkCreateRequest": { "type": "object", "required": ["referenceId", "amount", "description"], "properties": {
         "referenceId": { "type": "string", "minLength": 1, "maxLength": 255 }, "amount": { "$ref": "#/components/schemas/Money" },
-        "description": { "type": "string", "maxLength": 255 }, "remarks": { "type": "string", "maxLength": 255 }, "metadata": { "type": "object", "additionalProperties": { "type": "string" } } } },
+        "description": { "type": "string", "minLength": 1, "maxLength": 255 }, "remarks": { "type": "string", "maxLength": 255 },
+        "metadata": { "type": "object", "additionalProperties": { "type": "string" }, "description": "String values only. APICenter sets apicenter_reference_id to referenceId." } } },
       "PaymentLink": { "type": "object", "required": ["paymentLinkId", "referenceId", "amount", "status"], "properties": {
         "paymentLinkId": { "type": "string" }, "referenceId": { "type": "string" }, "amount": { "$ref": "#/components/schemas/Money" }, "description": { "type": "string" }, "url": { "type": "string", "format": "uri" },
-        "status": { "type": "string" }, "active": { "type": "boolean" }, "archived": { "type": "boolean" }, "referenceNumber": { "type": "string" }, "metadata": { "type": "object", "additionalProperties": { "type": "string" } }, "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" } } },
+        "status": { "type": "string", "description": "active or archived from PayMongo, or paid once PayMongo reports a payment for the link." },
+        "active": { "type": "boolean" }, "archived": { "type": "boolean" },
+        "referenceNumber": { "type": "string", "description": "Reference number PayMongo assigned to the link." },
+        "metadata": { "type": "object", "additionalProperties": { "type": "string" } }, "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" } } },
       "CustomerCreateRequest": {
         "type": "object",
         "required": [
