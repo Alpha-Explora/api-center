@@ -1,0 +1,14 @@
+# Payment Limits & Live Access
+
+Payment limits follow the project's active plan and apply per project and environment. The defaults are:
+
+| Plan | Maximum amount per payment | Write requests per minute |
+| --- | ---: | ---: |
+| Starter | PHP 10,000 | 30 |
+| Standard | PHP 100,000 | 120 |
+| Pro | PHP 1,000,000 | 600 |
+| Enterprise | Unlimited | Unlimited |
+
+Operators can override both limits for a project and environment; each override requires a reason. A payment above the amount limit returns `422 AMOUNT_LIMIT_EXCEEDED`. Exceeding the write-request limit returns `429 PAYMENT_RATE_LIMIT_EXCEEDED`.
+
+Registering a live payment key for the first time requires an approved `payments.live_access` request targeted to that project. The approval is consumed on registration. Rotating an existing live key does not require another approval.

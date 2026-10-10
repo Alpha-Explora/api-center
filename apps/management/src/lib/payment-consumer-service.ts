@@ -5,6 +5,7 @@ const PaymentScope = z.enum(["payments:read", "payments:write"]);
 const RegisterInput = z.object({
   consumerServiceId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
+  approvalRequestId: z.string().uuid().optional(),
   eventEndpointUrl: z.string().url().refine((value) => value.startsWith("https://")).optional(),
   scopes: z.array(PaymentScope).min(1).default(["payments:read", "payments:write"]),
   pushEndpoint: z.string().url().refine((value) => value.startsWith("https://")).optional(),
@@ -90,6 +91,7 @@ export class PaymentConsumerService {
       consumerServiceId: parsed.consumerServiceId,
       environment: parsed.environment,
       scopes: parsed.scopes,
+      ...(parsed.approvalRequestId ? { approvalRequestId: parsed.approvalRequestId } : {}),
       ...(parsed.eventEndpointUrl ? { eventEndpointUrl: parsed.eventEndpointUrl } : {}),
     });
 
@@ -187,9 +189,22 @@ export class PaymentConsumerService {
       );
     }
 
-    const envelope = payload as { success?: boolean; data?: unknown; error?: unknown };
+    const envelope = payload as {
+      success?: boolean;
+      data?: unknown;
+      error?: unknown;
+      message?: unknown;
+    };
     if (!response.ok || envelope.success !== true || !envelope.data || typeof envelope.data !== "object") {
-      throw new PaymentConsumerManagementError("APICenter consumer provisioning failed", response.status, envelope.error);
+      const error = envelope.error;
+      const errorMessage = error && typeof error === "object" && "message" in error && typeof error.message === "string"
+        ? error.message
+        : typeof envelope.message === "string"
+          ? envelope.message
+          : Array.isArray(envelope.message)
+            ? envelope.message.join("; ")
+            : "APICenter consumer provisioning failed";
+      throw new PaymentConsumerManagementError(errorMessage, response.status, error);
     }
     return envelope.data as Record<string, unknown>;
   }

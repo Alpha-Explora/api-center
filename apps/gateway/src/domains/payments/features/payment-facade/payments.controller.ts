@@ -15,6 +15,7 @@ import { PaymentAuthGuard } from '../../shared/payment-auth.guard';
 import { PaymentIdempotencyService } from '../../shared/payment-idempotency.service';
 import { AuthenticatedRequest } from '../../../../types';
 import { paymentRequestBody, paymentResponseBody, resolvePaymentOperation } from './payment-public-operation';
+import { PaymentLimitsService } from '../payment-limits/payment-limits.service';
 
 const internalBaseUrl = (environment: 'test' | 'live') => {
   const configured = process.env.APICENTER_PAYMENTS_URL
@@ -31,7 +32,10 @@ const internalToken = (environment: 'test' | 'live') =>
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
 
-  constructor(private readonly idempotency: PaymentIdempotencyService) {}
+  constructor(
+    private readonly idempotency: PaymentIdempotencyService,
+    private readonly paymentLimits: PaymentLimitsService,
+  ) {}
 
   @All('*')
   async proxy(@Req() req: Request, @Res() res: Response): Promise<void> {
@@ -67,6 +71,17 @@ export class PaymentsController {
       ? `/payments/${encodeURIComponent((runtimeBody as { paymentId: string }).paymentId)}/refunds`
       : operation.runtimePath;
     const upstreamUrl = `${internalBaseUrl(env)}${runtimePath}`;
+
+    const amountValue = runtimeBody && typeof runtimeBody === 'object'
+      ? (runtimeBody as Record<string, unknown>).amount
+      : undefined;
+    await this.paymentLimits.enforce({
+      ownerTribeId: principal.ownerTribeId,
+      projectId: principal.projectId,
+      environment: env,
+      method: req.method,
+      ...(typeof amountValue === 'number' ? { amountMinor: amountValue } : {}),
+    });
 
     const idempotencyKey = req.get('Idempotency-Key')?.trim() || undefined;
     const lookup = await this.idempotency.lookupOrValidate({

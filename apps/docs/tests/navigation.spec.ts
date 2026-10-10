@@ -23,6 +23,11 @@ test("static docs publish the contract-backed navigation and references", () => 
   assert.match(events, /payment\.checkout\.paid/);
   assert.match(events, /payment\.checkout\.created/);
 
+  const paymentLimits = page("guides/payments/limits");
+  assert.match(paymentLimits, /AMOUNT_LIMIT_EXCEEDED/);
+  assert.match(paymentLimits, /PAYMENT_RATE_LIMIT_EXCEEDED/);
+  assert.match(paymentLimits, /payments\.live_access/);
+
   // Each operation has its own static page
   assert.ok(
     existsSync(join(output, "reference", "api", "createCheckout", "index.html")),

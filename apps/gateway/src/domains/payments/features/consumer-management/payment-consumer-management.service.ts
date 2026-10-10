@@ -1,9 +1,10 @@
 import { randomBytes, createHash } from "node:crypto";
-import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { z } from "zod";
 import { PrismaService } from "@database/prisma.service";
 import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
-import { PaymentConsumerRegistrationDirectory } from "./payment-consumer.types";
+import { ApprovalRequestService } from "@approvals/approval-request.service";
+import type { PaymentConsumerRegistrationDirectory } from "./payment-consumer.types";
 
 /**
  * A payment consumer is a registered tribe service. Its owner tribe comes from the registry
@@ -12,6 +13,7 @@ import { PaymentConsumerRegistrationDirectory } from "./payment-consumer.types";
 const ConsumerInput = z.object({
   consumerServiceId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
+  approvalRequestId: z.string().uuid().optional(),
   eventEndpointUrl: z
     .string()
     .url()
@@ -24,7 +26,7 @@ const ConsumerInput = z.object({
     .default(["payments:read", "payments:write", "payments:subscriptions:cancel-immediately"]),
 }).strict();
 
-type ConsumerInput = z.infer<typeof ConsumerInput> & { ownerTribeId: string };
+type ConsumerInput = z.infer<typeof ConsumerInput> & { ownerTribeId: string; projectId: string };
 
 type KeyRow = {
   key_prefix: string;
@@ -39,6 +41,7 @@ export class PaymentConsumerManagementService implements PaymentConsumerRegistra
   constructor(
     private readonly prisma: PrismaService,
     @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
+    @Optional() private readonly approvals?: ApprovalRequestService,
   ) {}
 
   async list(organizationIds?: string[]): Promise<Array<Record<string, unknown>>> {
@@ -104,8 +107,48 @@ export class PaymentConsumerManagementService implements PaymentConsumerRegistra
     revokedAt: string | null;
     status: "active";
   }> {
+    return this.registerInternal(input, false);
+  }
+
+  async rotate(input: unknown): Promise<Awaited<ReturnType<PaymentConsumerManagementService["register"]>>> {
+    return this.registerInternal(input, true);
+  }
+
+  private async registerInternal(input: unknown, rotation: boolean): Promise<{
+    consumerServiceId: string;
+    ownerTribeId: string;
+    environment: "test" | "live";
+    apiKey: string;
+    keyPrefix: string;
+    scopes: string[];
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    status: "active";
+  }> {
     const parsed = this.parseInput(input);
     this.requireDatabase();
+    const registered = (rotation || parsed.environment === "live")
+      ? await this.hasRegistration(parsed)
+      : false;
+    if (rotation && !registered) {
+      throw new NotFoundException({
+        code: "PAYMENT_CONSUMER_NOT_REGISTERED",
+        message: "Register this payment consumer before rotating its key",
+      });
+    }
+    if (parsed.environment === "live" && !registered) {
+      if (!this.approvals) {
+        throw new ServiceUnavailableException("Live payment registration approval is unavailable");
+      }
+      await this.approvals.assertApprovedForAction({
+        approvalRequestId: parsed.approvalRequestId,
+        actionType: "payments.live_access",
+        targetEnvironment: "live",
+        targetId: parsed.projectId,
+        requireTarget: true,
+      });
+    }
     const apiKey = this.generateKey(parsed.environment);
     const keyHash = this.hash(apiKey);
 
@@ -159,10 +202,6 @@ export class PaymentConsumerManagementService implements PaymentConsumerRegistra
     });
   }
 
-  async rotate(input: unknown): Promise<Awaited<ReturnType<PaymentConsumerManagementService["register"]>>> {
-    return this.register(input);
-  }
-
   async revoke(input: unknown): Promise<{ revoked: boolean }> {
     const parsed = this.parseInput(input);
     this.requireDatabase();
@@ -198,7 +237,18 @@ export class PaymentConsumerManagementService implements PaymentConsumerRegistra
         message: `'${parsed.consumerServiceId}' must be a registered tribe service before it can receive payment keys`,
       });
     }
-    return { ...parsed, ownerTribeId: placement.tribeId };
+    return { ...parsed, ownerTribeId: placement.tribeId, projectId: placement.projectId };
+  }
+
+  private async hasRegistration(input: ConsumerInput): Promise<boolean> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      "SELECT id FROM apic_governance.payment_consumer_services " +
+        "WHERE owner_tribe_id = $1 AND consumer_service_id = $2 AND environment = $3 LIMIT 1",
+      input.ownerTribeId,
+      input.consumerServiceId,
+      input.environment,
+    );
+    return rows.length > 0;
   }
 
   private requireDatabase(): void {

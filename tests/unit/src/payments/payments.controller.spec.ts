@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { PaymentsController } from '../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
 import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+const paymentLimits = { enforce: jest.fn().mockResolvedValue(undefined) } as any;
+const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits);
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -104,7 +106,7 @@ describe('PaymentsController', () => {
     ['GET', '/invoices/inv_123', undefined],
   ])('maps %s %s to the private payments runtime', async (method, path, body) => {
     const idempotency = new PaymentIdempotencyService();
-    const controller = new PaymentsController(idempotency);
+    const controller = new PaymentsController(idempotency, paymentLimits);
     const { res, state } = response();
 
     await controller.proxy(request(path, method, body), res);
@@ -118,7 +120,7 @@ describe('PaymentsController', () => {
   });
 
   it('uses the authenticated principal for tenant/environment and normalizes provider resources', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const { res, state } = response();
     const body = {
       referenceId: 'order-123',
@@ -145,7 +147,7 @@ describe('PaymentsController', () => {
   });
 
   it('rejects invalid plan schedules before forwarding to the runtime', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const { res } = response();
     await expect(controller.proxy(request('/plans', 'POST', {
       name: 'Invalid', amount: 150050, interval: 'monthly', intervalCount: 11,
@@ -154,7 +156,7 @@ describe('PaymentsController', () => {
   });
 
   it('rejects QR Ph expiry outside 60 to 9000 before forwarding to the runtime', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     await expect(controller.proxy(request('/intents/qrph', 'POST', {
       referenceId: 'qr-invalid', amount: { amountMinor: 100, currency: 'PHP' }, expirySeconds: 9001,
     }), response().res)).rejects.toMatchObject({ response: { code: 'INVALID_PAYMENT_REQUEST' } });
@@ -167,15 +169,27 @@ describe('PaymentsController', () => {
     ['a description over 255 characters', { description: 'x'.repeat(256) }],
     ['a non-string metadata value', { description: 'Order 1', metadata: { count: 1 } }],
   ])('rejects a payment link with %s before forwarding to the runtime', async (_case, fields) => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     await expect(controller.proxy(request('/payment-links', 'POST', {
       referenceId: 'link-invalid', amount: { amountMinor: 100, currency: 'PHP' }, ...fields,
     }), response().res)).rejects.toMatchObject({ response: { code: 'INVALID_PAYMENT_REQUEST' } });
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['a payment link', '/payment-links', { referenceId: 'link-1', description: 'Order 1', amount: { amountMinor: 2_000_000, currency: 'PHP' } }],
+    ['a QR Ph code', '/intents/qrph', { referenceId: 'qr-1', amount: { amountMinor: 2_000_000, currency: 'PHP' } }],
+    ['a plan', '/plans', { name: 'Gold', amount: 2_000_000, interval: 'monthly' }],
+  ])('applies the amount limit to %s', async (_case, path, body) => {
+    paymentLimits.enforce.mockRejectedValueOnce({ status: 422, response: { code: 'AMOUNT_LIMIT_EXCEEDED' } });
+    await expect(createController().proxy(request(path, 'POST', body), response().res))
+      .rejects.toMatchObject({ response: { code: 'AMOUNT_LIMIT_EXCEEDED' } });
+    expect(paymentLimits.enforce).toHaveBeenCalledWith(expect.objectContaining({ amountMinor: 2_000_000, method: 'POST' }));
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
   it('serves provider capabilities from the public facade', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const { res, state } = response();
 
     await controller.proxy(request('/capabilities', 'GET'), res);
@@ -188,8 +202,27 @@ describe('PaymentsController', () => {
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
+  it("checks the project's amount and rate limits before forwarding", async () => {
+    paymentLimits.enforce.mockRejectedValueOnce({ status: 422, response: { code: "AMOUNT_LIMIT_EXCEEDED" } });
+    const controller = createController();
+
+    await expect(controller.proxy(request('/checkouts', 'POST', {
+      referenceId: 'order-123',
+      amount: { amountMinor: 1_000_001, currency: 'PHP' },
+      successUrl: 'https://app.test/success',
+      cancelUrl: 'https://app.test/cancel',
+    }), response().res)).rejects.toMatchObject({ response: { code: 'AMOUNT_LIMIT_EXCEEDED' } });
+
+    expect(paymentLimits.enforce).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-alpha',
+      environment: 'test',
+      amountMinor: 1_000_001,
+    }));
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid public body before calling the private runtime', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const invalid = request('/checkouts', 'POST', { referenceId: '', amount: { amountMinor: 0, currency: 'USD' } });
 
     await expect(controller.proxy(invalid, response().res)).rejects.toMatchObject({
@@ -199,7 +232,7 @@ describe('PaymentsController', () => {
   });
 
   it('rejects unlisted routes and a read-only key on a mutation', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     await expect(controller.proxy(request('/admin', 'GET'), response().res))
       .rejects.toMatchObject({ response: { code: 'PAYMENT_OPERATION_NOT_FOUND' } });
     const readOnly = request('/checkouts', 'POST', {
@@ -216,7 +249,7 @@ describe('PaymentsController', () => {
     const clock = jest.spyOn(Date, 'now');
     const start = Date.now();
     clock.mockReturnValue(start);
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const body = { referenceId: 'order-lease', amount: { amountMinor: 100, currency: 'PHP' },
       successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel' };
     mockedAxios.request.mockRejectedValueOnce(new Error('timeout'));

@@ -48,6 +48,8 @@ const requiredTables: QualifiedObject[] = [
   ["apic_governance", "entitlement_assignments"],
   ["apic_governance", "payment_consumer_services"],
   ["apic_governance", "payment_api_keys"],
+  ["apic_governance", "payment_limit_overrides"],
+  ["apic_governance", "payment_request_rate_windows"],
   ["apic_runtime", "event_topic_onboarding_states"],
   ["apic_runtime", "confluent_topics"],
   ["apic_runtime", "s3_sink_topics"],
@@ -131,6 +133,7 @@ const requiredIndexes = [
   "audit_events_source_env_created_idx",
   "audit_events_tribe_env_created_idx",
   "service_spec_versions_service_published_idx",
+  "payment_limit_overrides_project_environment_key",
 ];
 
 const requiredCheckConstraints = [
@@ -157,6 +160,12 @@ const requiredCheckConstraints = [
   "audit_events_outcome_check",
   "audit_events_environment_check",
   "service_spec_versions_format_check",
+  "payment_limit_overrides_environment_check",
+  "payment_limit_overrides_amount_check",
+  "payment_limit_overrides_requests_check",
+  "payment_limit_overrides_reason_check",
+  "payment_request_rate_windows_environment_check",
+  "payment_request_rate_windows_count_check",
 ];
 
 // Payment ownership is scoped by project. These tables need a required project_id, and the reference lookup index must exist.

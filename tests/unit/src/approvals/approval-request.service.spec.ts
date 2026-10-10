@@ -96,6 +96,24 @@ describe("ApprovalRequestService", () => {
     ).resolves.toBeTruthy();
   });
 
+  it("requires a matching target when the caller opts in", async () => {
+    approvals.findUnique.mockResolvedValue(request({
+      id: "approval-1",
+      actionType: "payments.live_access",
+      targetId: null,
+      status: "approved",
+    }));
+
+    await expect(service.assertApprovedForAction({
+      approvalRequestId: "approval-1",
+      actionType: "payments.live_access",
+      targetEnvironment: "live",
+      targetId: "project-one",
+      requireTarget: true,
+    })).rejects.toThrow(ForbiddenError);
+    expect(approvals.updateMany).not.toHaveBeenCalled();
+  });
+
   it("rejects pending or mismatched approvals", async () => {
     approvals.findUnique.mockResolvedValue(
       request({

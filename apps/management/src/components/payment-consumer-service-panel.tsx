@@ -31,6 +31,7 @@ export function PaymentConsumerServicePanel() {
   const [result, setResult] = useState<Result | null>(null);
   const [serviceId, setServiceId] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
+  const [approvalRequestId, setApprovalRequestId] = useState("");
   const [scopes, setScopes] = useState<PaymentScope[]>(["payments:read", "payments:write"]);
   const [pushEndpoint, setPushEndpoint] = useState("");
   const [deliveryServiceAccountEmail, setDeliveryServiceAccountEmail] = useState("");
@@ -52,6 +53,7 @@ export function PaymentConsumerServicePanel() {
           consumerServiceId: serviceId,
           environment,
           scopes,
+          approvalRequestId: environment === "live" ? approvalRequestId || undefined : undefined,
           pushEndpoint: pushEndpoint || undefined,
           eventEndpointUrl: pushEndpoint || undefined,
           deliveryServiceAccountEmail: deliveryServiceAccountEmail || undefined,
@@ -103,6 +105,7 @@ export function PaymentConsumerServicePanel() {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium" htmlFor="serviceId">Consumer service ID<input className="h-10 rounded-md border bg-background px-3 font-normal" id="serviceId" value={serviceId} onChange={(event) => setServiceId(event.target.value)} required /></label>
           <label className="grid gap-2 text-sm font-medium" htmlFor="environment">Environment<select className="h-10 rounded-md border bg-background px-3 font-normal" id="environment" value={environment} onChange={(event) => setEnvironment(event.target.value as "test" | "live")}><option value="test">Test</option><option value="live">Live</option></select></label>
+          {environment === "live" ? <label className="grid gap-2 text-sm font-medium" htmlFor="approvalRequestId">Approval request ID<input className="h-10 rounded-md border bg-background px-3 font-normal" id="approvalRequestId" placeholder="UUID of the approved payments.live_access request" value={approvalRequestId} onChange={(event) => setApprovalRequestId(event.target.value)} /><span className="text-xs font-normal text-muted-foreground">Required for the first live registration. Key rotation does not need a new approval.</span></label> : null}
           <fieldset className="grid gap-2 text-sm font-medium"><legend>Scopes</legend><div className="flex flex-wrap gap-3 font-normal"><label className="flex items-center gap-2"><input type="checkbox" checked={scopes.includes("payments:read")} onChange={() => toggleScope("payments:read")} /> payments:read</label><label className="flex items-center gap-2"><input type="checkbox" checked={scopes.includes("payments:write")} onChange={() => toggleScope("payments:write")} /> payments:write</label></div></fieldset>
           <label className="grid gap-2 text-sm font-medium" htmlFor="deliveryServiceAccountEmail">Delivery service account<input className="h-10 rounded-md border bg-background px-3 font-normal" id="deliveryServiceAccountEmail" type="email" required={Boolean(pushEndpoint)} value={deliveryServiceAccountEmail} onChange={(event) => setDeliveryServiceAccountEmail(event.target.value)} /></label>
           <label className="grid gap-2 text-sm font-medium" htmlFor="consumerProjectId">Consumer GCP project<input className="h-10 rounded-md border bg-background px-3 font-normal" id="consumerProjectId" required={Boolean(pushEndpoint)} value={consumerProjectId} onChange={(event) => setConsumerProjectId(event.target.value)} /></label>

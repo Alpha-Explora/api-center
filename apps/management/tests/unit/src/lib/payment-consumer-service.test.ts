@@ -92,7 +92,7 @@ describe("PaymentConsumerService", () => {
 
   it("surfaces operator API failures without returning credentials", async () => {
     const fetchImpl = vi.fn(async () => new Response(
-      JSON.stringify({ success: false, error: { code: "INVALID_PAYMENT_CONSUMER" } }),
+      JSON.stringify({ success: false, error: { code: "INVALID_PAYMENT_CONSUMER", message: "payments.live_access approval is required" } }),
       { status: 400 },
     ));
     const service = new PaymentConsumerService({
@@ -101,11 +101,37 @@ describe("PaymentConsumerService", () => {
       fetchImpl: fetchImpl as typeof fetch,
     });
 
-    await expect(
-      service.rotatePaymentApiKey("alphaci-backend", {
-        ownerTribeId: "alphaci",
-        environment: "test",
-      }),
-    ).rejects.toBeInstanceOf(PaymentConsumerManagementError);
+    const failure = service.rotatePaymentApiKey("alphaci-backend", {
+      ownerTribeId: "alphaci",
+      environment: "test",
+    });
+    await expect(failure).rejects.toBeInstanceOf(PaymentConsumerManagementError);
+    await expect(failure).rejects.toMatchObject({ message: "payments.live_access approval is required" });
+  });
+
+  it("forwards the live approval request ID to the gateway", async () => {
+    const approvalRequestId = "00000000-0000-4000-8000-000000000001";
+    const fetchImpl = vi.fn(async (_input: string | URL, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toMatchObject({ approvalRequestId });
+      return new Response(JSON.stringify({ success: true, data: {
+        ownerTribeId: "alphaci", consumerServiceId: "alphaci-backend", environment: "live",
+        apiKey: "apic_live_secret", keyPrefix: "apic_live_secret", scopes: ["payments:write"],
+        createdAt: "2026-07-28T00:00:00.000Z", expiresAt: null, revokedAt: null, status: "active",
+      } }), { status: 201 });
+    });
+    const service = new PaymentConsumerService({
+      gatewayBaseUrl: "https://api-center.example.test",
+      operatorToken: "operator-token",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await service.registerPaymentConsumer({
+      consumerServiceId: "alphaci-backend",
+      environment: "live",
+      approvalRequestId,
+      scopes: ["payments:write"],
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { PaymentsController, PaymentApiKeyService } from '../../apps/gateway/src/domains/payments';
 import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
 import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/features/payment-limits/payment-limits.service';
 import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security';
 
 jest.mock('axios');
@@ -26,6 +27,7 @@ describe('Payments facade (e2e)', () => {
       providers: [
         PaymentAuthGuard,
         PaymentIdempotencyService,
+        { provide: PaymentLimitsService, useValue: { enforce: jest.fn().mockResolvedValue(undefined) } },
         {
           provide: PaymentApiKeyService,
           useValue: {
