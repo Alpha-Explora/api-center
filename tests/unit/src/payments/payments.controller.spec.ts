@@ -87,9 +87,12 @@ describe('PaymentsController', () => {
     ['POST', '/intents/pi_123/cancel', {}],
     ['POST', '/customers', { customerReference: 'customer-123', email: 'customer@example.test' }],
     ['GET', '/customers/cus_123', undefined],
+    ['POST', '/plans', { name: 'Starter', amount: 2000, interval: 'monthly' }],
+    ['GET', '/plans', undefined],
+    ['GET', '/plans/plan_123', undefined],
     ['POST', '/refunds', { paymentId: 'pay_123', amount: { amountMinor: 100, currency: 'PHP' } }],
     ['GET', '/refunds/ref_123', undefined],
-    ['POST', '/subscriptions', { customerId: 'cus_123', referenceId: 'sub-123', priceId: 'price_123' }],
+    ['POST', '/subscriptions', { customerId: 'cus_123', referenceId: 'sub-123', planId: 'plan_123' }],
     ['GET', '/subscriptions/sub_123', undefined],
     ['POST', '/subscriptions/sub_123/cancel', {}],
     ['GET', '/subscriptions/sub_123/invoices', undefined],
@@ -134,6 +137,15 @@ describe('PaymentsController', () => {
     const payload = JSON.parse(Buffer.from(state.body as Buffer).toString('utf8'));
     expect(payload.data.amount).toEqual({ amountMinor: 39900, currency: 'PHP' });
     expect(payload.data.checkoutUrl).toBe('https://checkout.example.test/chk_123');
+  });
+
+  it('rejects invalid plan schedules before forwarding to the runtime', async () => {
+    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const { res } = response();
+    await expect(controller.proxy(request('/plans', 'POST', {
+      name: 'Invalid', amount: 150050, interval: 'monthly', intervalCount: 11,
+    }), res)).rejects.toMatchObject({ status: 400 });
+    expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
   it('serves provider capabilities from the public facade', async () => {

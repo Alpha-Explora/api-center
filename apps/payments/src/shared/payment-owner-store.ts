@@ -363,6 +363,24 @@ export class PaymentOwnerStore {
       : {}) };
   }
 
+  /** Lists snapshots owned by one project, used for provider resources that are created outside APICenter. */
+  async listOwned(context: PaymentContext, resourceType: string): Promise<Array<Record<string, unknown>>> {
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT snapshot FROM shared_payment.resource_owners
+         WHERE environment = $1 AND tribe_id = $2 AND project_id = $3 AND resource_type = $4
+         ORDER BY created_at DESC, resource_id DESC`,
+        [context.environment, context.tribeId, context.projectId, resourceType],
+      );
+      return result.rows.map((row) => row.snapshot);
+    }
+    return [...this.memory.values()]
+      .filter((record) => record.environment === context.environment && record.tribeId === context.tribeId
+        && record.projectId === context.projectId && record.resourceType === resourceType)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || b.resourceId.localeCompare(a.resourceId))
+      .map((record) => record.snapshot);
+  }
+
   private async find(type: string, id: string, environment: string): Promise<OwnerRecord | undefined> {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(

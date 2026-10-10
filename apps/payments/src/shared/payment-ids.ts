@@ -4,8 +4,6 @@ const PREFIX_MAP: Record<string, string> = {
   pm: 'pm_',
   sub: 'sub_',
   cus: 'cus_',
-  prd: 'prod_',
-  pri: 'plan_',
   inv: 'in_',
   ref: 'ref_',
 };

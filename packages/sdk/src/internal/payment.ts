@@ -1,8 +1,8 @@
 import type {
   ApiErrorDetails, Checkout, ConfirmPaymentIntentInput,
   CreateCheckoutInput, CreateCustomerInput, CreatePaymentIntentInput,
-  CreateRefundInput, CreateSubscriptionInput, Customer, IdempotentRequestOptions, Invoice,
-  PaymentCapabilities, PaymentIntent, PaymentResource, Refund, RequestOptions, Subscription,
+  CreatePlanInput, CreateRefundInput, CreateSubscriptionInput, Customer, IdempotentRequestOptions, Invoice,
+  PaymentCapabilities, PaymentIntent, PaymentResource, Plan, Refund, RequestOptions, Subscription,
   PaymentsClientOptions,
   ListPaymentRecordsOptions, PaymentRecordPage,
 } from '../types';
@@ -36,6 +36,9 @@ export class PaymentsClient {
   cancelPaymentIntent(id: string, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentIntent>> { return this.mutate(`/intents/${encodeURIComponent(id)}/cancel`, undefined, options); }
   createCustomer(input: CreateCustomerInput, options: IdempotentRequestOptions): Promise<PaymentResource<Customer>> { return this.mutate('/customers', input, options); }
   getCustomer(id: string, options?: RequestOptions): Promise<Customer> { return this.read(`/customers/${encodeURIComponent(id)}`, options); }
+  createPlan(input: CreatePlanInput, options: IdempotentRequestOptions): Promise<PaymentResource<Plan>> { return this.mutate('/plans', input, options); }
+  getPlan(id: string, options?: RequestOptions): Promise<Plan> { return this.read(`/plans/${encodeURIComponent(id)}`, options); }
+  listPlans(options?: RequestOptions): Promise<Plan[]> { return this.read('/plans', options); }
   createRefund(input: CreateRefundInput, options: IdempotentRequestOptions): Promise<PaymentResource<Refund>> { return this.mutate('/refunds', input, options); }
   getRefund(id: string, options?: RequestOptions): Promise<Refund> { return this.read(`/refunds/${encodeURIComponent(id)}`, options); }
   createSubscription(input: CreateSubscriptionInput, options: IdempotentRequestOptions): Promise<PaymentResource<Subscription>> { return this.mutate('/subscriptions', input, options); }
