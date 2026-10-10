@@ -53,6 +53,7 @@ describe("SendEmailService provider payload", () => {
       save: jest.fn(async (record) => record),
       findById: jest.fn(async () => null),
       setProjectSender: jest.fn(),
+      applyDeliveryEvent: jest.fn(),
       sendWithinDailyLimit: jest.fn(async (
         _owner: SharedServiceCaller,
         message: { defaultFrom: string; provider: string; recipients: string[] },

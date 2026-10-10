@@ -16,6 +16,7 @@ export interface EmailRepositoryInterface {
     message: EmailSendReservation,
     send: (fromAddress: string) => Promise<string | undefined>,
   ): Promise<EmailRecord>;
+  applyDeliveryEvent(event: EmailDeliveryEvent): Promise<{ duplicate: boolean }>;
 }
 
 /** The message to reserve and the defaults used when the project has no sender configuration. */
@@ -32,4 +33,11 @@ export interface ProjectEmailSender {
   environment: 'test' | 'live';
   fromAddress: string;
   dailyLimit: number | null;
+}
+
+export interface EmailDeliveryEvent {
+  providerEventId: string;
+  messageId: string;
+  status: 'sent' | 'delivered' | 'delivery_delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed' | 'opened' | 'clicked';
+  payload: unknown;
 }

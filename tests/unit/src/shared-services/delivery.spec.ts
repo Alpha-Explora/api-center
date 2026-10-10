@@ -6,6 +6,7 @@ describe('Twilio SMS delivery', () => {
     sid: process.env.TWILIO_ACCOUNT_SID,
     token: process.env.TWILIO_AUTH_TOKEN,
     sender: process.env.TWILIO_MESSAGING_SERVICE_SID,
+    callback: process.env.TWILIO_STATUS_CALLBACK_URL,
   };
 
   afterEach(() => {
@@ -13,12 +14,14 @@ describe('Twilio SMS delivery', () => {
     if (original.sid === undefined) delete process.env.TWILIO_ACCOUNT_SID; else process.env.TWILIO_ACCOUNT_SID = original.sid;
     if (original.token === undefined) delete process.env.TWILIO_AUTH_TOKEN; else process.env.TWILIO_AUTH_TOKEN = original.token;
     if (original.sender === undefined) delete process.env.TWILIO_MESSAGING_SERVICE_SID; else process.env.TWILIO_MESSAGING_SERVICE_SID = original.sender;
+    if (original.callback === undefined) delete process.env.TWILIO_STATUS_CALLBACK_URL; else process.env.TWILIO_STATUS_CALLBACK_URL = original.callback;
   });
 
   it('submits the form and reports Twilio acceptance as queued', async () => {
     process.env.TWILIO_ACCOUNT_SID = 'AC123';
     process.env.TWILIO_AUTH_TOKEN = 'secret';
     process.env.TWILIO_MESSAGING_SERVICE_SID = 'MG123';
+    process.env.TWILIO_STATUS_CALLBACK_URL = 'https://api-center.example.test/api/v1/webhooks/twilio';
     global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 201,
       json: async () => ({ sid: 'SM123', status: 'accepted' }) });
 
@@ -28,6 +31,7 @@ describe('Twilio SMS delivery', () => {
     expect(url).toBe('https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json');
     expect(init.body.toString()).toContain('MessagingServiceSid=MG123');
     expect(init.body.toString()).toContain('To=%2B639000000000');
+    expect(init.body.toString()).toContain('StatusCallback=https%3A%2F%2Fapi-center.example.test%2Fapi%2Fv1%2Fwebhooks%2Ftwilio');
   });
 
   it('fails before the network when credentials are missing', async () => {

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { EmailRecord } from './email-store';
-import type { EmailRepositoryInterface, EmailSendReservation, ProjectEmailSender } from './email-repository.interface';
+import type { EmailDeliveryEvent, EmailRepositoryInterface, EmailSendReservation, ProjectEmailSender } from './email-repository.interface';
 import { DailyLimitReachedError, SenderNotApprovedError } from './email-policy-errors';
 
 const EMAIL_RECORD_COLUMNS = 'message_id, provider, status, recipients, recipient_count, sent_at, created_at';
@@ -114,6 +114,36 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
       );
       await client.query('commit');
       return { messageId, fromAddress };
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async applyDeliveryEvent(event: EmailDeliveryEvent): Promise<{ duplicate: boolean }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const inserted = await client.query(
+        `INSERT INTO shared_email.email_delivery_events (provider_event_id, message_id, status, payload)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (provider_event_id) DO NOTHING
+         RETURNING provider_event_id`,
+        [event.providerEventId, event.messageId, event.status, event.payload],
+      );
+      if (inserted.rowCount === 0) {
+        await client.query('commit');
+        return { duplicate: true };
+      }
+      const updated = await client.query(
+        `UPDATE shared_email.email_messages SET status = $2, updated_at = now() WHERE message_id = $1 RETURNING message_id`,
+        [event.messageId, event.status],
+      );
+      if (updated.rowCount === 0) throw new Error('Email message is not yet recorded');
+      await client.query('commit');
+      return { duplicate: false };
     } catch (error) {
       await client.query('rollback');
       throw error;

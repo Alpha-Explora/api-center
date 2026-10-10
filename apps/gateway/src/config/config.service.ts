@@ -94,6 +94,12 @@ export class ConfigService implements OnApplicationBootstrap {
       "",
   };
 
+  readonly deliveryWebhooks = {
+    resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || '',
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
+    twilioStatusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || '',
+  };
+
   get platformAdminSecret(): string {
     return process.env.PLATFORM_ADMIN_SECRET || "";
   }

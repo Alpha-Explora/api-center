@@ -216,6 +216,8 @@ const retentionManagedTables: QualifiedObject[] = [
   ["apic_runtime", "quota_evaluations"],
   ["apic_runtime", "usage_rollups"],
   ["apic_runtime", "pipeline_feedback_actions"],
+  ["shared_email", "email_delivery_events"],
+  ["shared_sms", "sms_delivery_events"],
 ].map(([schema, name]) => ({ schema, name }));
 
 const registryChildDeleteTables = new Set([
@@ -235,22 +237,36 @@ const requiredSharedTables = [
   "shared_otp.otp_challenges",
   "shared_email.email_messages",
   "shared_email.project_senders",
+  "shared_email.email_delivery_events",
+  "shared_sms.sms_delivery_events",
 ];
 const retiredSharedTables = [
   "shared_sms.sms_records",
-  "shared_sms.sms_delivery_events",
   "shared_otp.otp_records",
   "shared_otp.otp_attempts",
   "shared_otp.otp_delivery_events",
   "shared_email.email_templates",
-  "shared_email.email_delivery_events",
 ];
-const requiredSharedEmailSenderIndexes = ["project_senders_pkey"];
+const requiredSharedIndexes = [
+  "project_senders_pkey",
+  "email_delivery_events_pkey",
+  "email_delivery_events_message_id_idx",
+  "email_delivery_events_received_at_idx",
+  "sms_delivery_events_pkey",
+  "sms_delivery_events_message_id_idx",
+  "sms_delivery_events_received_at_idx",
+];
 const requiredSharedEmailSenderConstraints = [
   "project_senders_pkey",
   "project_senders_environment_check",
   "project_senders_from_address_check",
   "project_senders_daily_limit_check",
+];
+const requiredSharedDeliveryConstraints = [
+  "email_delivery_events_pkey",
+  "email_delivery_events_status_check",
+  "sms_delivery_events_pkey",
+  "sms_delivery_events_status_check",
 ];
 
 type RuntimeRole = { role: string; schema: string; privileges: string[] };
@@ -540,13 +556,13 @@ async function main(): Promise<void> {
 
     const sharedEmailIndexRows = await queryRows(
       client,
-      "select indexname as name from pg_indexes where schemaname = 'shared_email'",
+      "select indexname as name from pg_indexes where schemaname in ('shared_email', 'shared_sms')",
     );
     const sharedEmailIndexNames = new Set(sharedEmailIndexRows.map((row) => String(row.name)));
     addFailure(
       failures,
-      "Missing required shared_email indexes",
-      requiredSharedEmailSenderIndexes.filter((name) => !sharedEmailIndexNames.has(name)),
+      "Missing required shared delivery indexes",
+      requiredSharedIndexes.filter((name) => !sharedEmailIndexNames.has(name)),
     );
     const sharedEmailConstraintRows = await queryRows(
       client,
@@ -557,6 +573,16 @@ async function main(): Promise<void> {
       failures,
       "Missing required shared_email.project_senders constraints",
       requiredSharedEmailSenderConstraints.filter((name) => !sharedEmailConstraintNames.has(name)),
+    );
+    const sharedDeliveryConstraintRows = await queryRows(
+      client,
+      "select c.conname as name from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace where n.nspname in ('shared_email', 'shared_sms') and t.relname in ('email_delivery_events', 'sms_delivery_events')",
+    );
+    const sharedDeliveryConstraintNames = new Set(sharedDeliveryConstraintRows.map((row) => String(row.name)));
+    addFailure(
+      failures,
+      "Missing required shared delivery event constraints",
+      requiredSharedDeliveryConstraints.filter((name) => !sharedDeliveryConstraintNames.has(name)),
     );
 
     const sharedGauthRows = await queryRows(
@@ -780,7 +806,7 @@ async function main(): Promise<void> {
       const retentionRows = await queryRows(
         client,
         "select n.nspname as schema, c.relname as name, obj_description(c.oid) as comment, (pt.partrelid is not null) as partitioned from pg_class c join pg_namespace n on n.oid = c.relnamespace left join pg_partitioned_table pt on pt.partrelid = c.oid where n.nspname = any($1::text[]) and c.relkind in ('r', 'p')",
-        [controlledSchemas],
+        [[...controlledSchemas, "shared_email", "shared_sms"]],
       );
       const retentionByName = new Map(
         retentionRows.map((row) => [

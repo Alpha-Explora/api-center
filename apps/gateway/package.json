@@ -8,5 +8,9 @@
     "typecheck": "tsc --noEmit --incremental false -p tsconfig.json",
     "test": "npm --prefix ../.. run test",
     "lint": "npm --prefix ../.. run lint:gateway"
+  },
+  "dependencies": {
+    "standardwebhooks": "^1.1.1",
+    "twilio": "^6.1.2"
   }
 }
