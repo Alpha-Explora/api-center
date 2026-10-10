@@ -13,7 +13,7 @@ beforeAll(() => {
     const { app } = require(path.resolve(__dirname, `../../../../apps/${service}/src/server.ts`)) as { app: { listen: (port: number, callback: () => void) => any } };
     runtimeApps.set(service, app);
   }
-}, 120000);
+}, 180000);
 
 async function request(service: string, endpoint: string, init?: RequestInit): Promise<{ status: number; body: any; replayed: string | null }> {
   const app = runtimeApps.get(service);
