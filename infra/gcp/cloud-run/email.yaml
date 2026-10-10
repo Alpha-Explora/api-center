@@ -31,6 +31,8 @@ spec:
               value: production
             - name: EMAIL_SEND_LIMIT_PER_RECIPIENT
               value: "20"
+            - name: EMAIL_DAILY_LIMIT_DEFAULT
+              value: "500"
             - name: EMAIL_SEND_LIMIT_WINDOW_MS
               value: "60000"
             - name: EMAIL_IDEMPOTENCY_TTL_MS
@@ -46,6 +48,11 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: apicenter-shared-email-from-address-prod
+                  key: latest
+            - name: EMAIL_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-email-admin-token
                   key: latest
           resources:
             limits:
