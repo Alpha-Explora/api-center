@@ -4,6 +4,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
 import { PolicyEngineModule } from './policy/policy-engine.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { DeveloperPortalModule } from './developer-portal/developer-portal.module';
+import { ApiSubscriptionsModule } from './api-subscriptions/api-subscriptions.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { DeveloperPortalModule } from './developer-portal/developer-portal.modul
     PolicyEngineModule,
     EntitlementsModule,
     DeveloperPortalModule,
+    ApiSubscriptionsModule,
   ],
   exports: [
     QuotasModule,
@@ -19,6 +21,7 @@ import { DeveloperPortalModule } from './developer-portal/developer-portal.modul
     PolicyEngineModule,
     EntitlementsModule,
     DeveloperPortalModule,
+    ApiSubscriptionsModule,
   ],
 })
 export class GovernanceModule {}

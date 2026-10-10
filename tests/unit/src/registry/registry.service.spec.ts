@@ -13,6 +13,7 @@ import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.ser
 import { ServiceSecretResolverService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/service-secret-resolver.service";
 import { TenancyService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.service";
 import { PostgresRegistryStoreService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/postgres-registry-store.service";
+import { ApiSubscriptionsService } from "../../../../apps/gateway/src/domains/governance/api-subscriptions/api-subscriptions.service";
 import { ServiceManifest } from "../../../../apps/gateway/src/types";
 import {
   NotFoundError,
@@ -624,8 +625,183 @@ describe("RegistryService", () => {
       expect(service.canAccess("billing-api", "web-api")).toBe(false);
     });
 
-    it("allows calls the caller lists in consumes, across tribes and to shared services", () => {
-      expect(service.canAccess("billing-api", "shipments")).toBe(true);
+    it("grants project API access only after approval and denies it after revocation", () => {
+      service.replaceSubscriptions([]);
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      service.setSubscriptionStatus(
+        "commerce-web",
+        "commerce-billing",
+        "billing-api",
+        "test",
+        "approved",
+      );
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(true);
+      expect(service.canAccess("web-api", "billing-api", "live")).toBe(false);
+      service.setSubscriptionStatus(
+        "commerce-web",
+        "commerce-billing",
+        "billing-api",
+        "test",
+        "revoked",
+      );
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      service.setSubscriptionStatus(
+        "commerce-billing",
+        "fulfillment-ops",
+        "shipments",
+        "test",
+        "approved",
+      );
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(true);
+      service.setSubscriptionStatus(
+        "commerce-billing",
+        "fulfillment-ops",
+        "shipments",
+        "test",
+        "revoked",
+      );
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
+    });
+
+    it("requires an approved subscription for static cross-project consumes grants", () => {
+      service.replaceSubscriptions([]);
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
+      service.setSubscriptionStatus(
+        "commerce-billing",
+        "fulfillment-ops",
+        "shipments",
+        "test",
+        "approved",
+      );
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(true);
+      expect(service.canAccess("billing-api", "shipments", "live")).toBe(false);
+      service.setSubscriptionStatus(
+        "commerce-billing",
+        "fulfillment-ops",
+        "shipments",
+        "test",
+        "revoked",
+      );
+      expect(service.canAccess("billing-api", "shipments", "test")).toBe(false);
+    });
+
+    it("requires a fresh DB snapshot, fails closed after refresh failure, and recovers", async () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-10-10T00:00:00Z"));
+      process.env.DATABASE_ENABLED = "true";
+      process.env.API_SUBSCRIPTION_REFRESH_MS = "45001";
+      process.env.API_SUBSCRIPTION_MAX_STALENESS_MS = "45000";
+      const grant = {
+        consumerProjectId: "commerce-web",
+        apiProjectId: "commerce-billing",
+        apiServiceId: "billing-api",
+        environment: "test",
+        status: "approved",
+      };
+      const prisma = {
+        apiSubscription: { findMany: jest.fn().mockResolvedValueOnce([grant]) },
+      };
+      const subscriptionService = new ApiSubscriptionsService(
+        prisma as never,
+        service,
+        {} as never,
+        mockLogger as LoggerService,
+      );
+      try {
+        await subscriptionService.onApplicationBootstrap();
+        expect(service.canAccess("web-api", "billing-api", "test")).toBe(true);
+        prisma.apiSubscription.findMany.mockRejectedValue(
+          new Error("database unavailable"),
+        );
+        await jest.advanceTimersByTimeAsync(45_001);
+        expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+        prisma.apiSubscription.findMany.mockResolvedValue([grant]);
+        await (subscriptionService as any).refreshSubscriptionStatuses();
+        expect(service.canAccess("web-api", "billing-api", "test")).toBe(true);
+      } finally {
+        subscriptionService.onModuleDestroy();
+        jest.useRealTimers();
+        delete process.env.DATABASE_ENABLED;
+        delete process.env.API_SUBSCRIPTION_REFRESH_MS;
+        delete process.env.API_SUBSCRIPTION_MAX_STALENESS_MS;
+      }
+    });
+
+    it("does not create a fresh snapshot when database bootstrap is disabled", async () => {
+      process.env.DATABASE_ENABLED = "false";
+      const prisma = { apiSubscription: { findMany: jest.fn() } };
+      const subscriptionService = new ApiSubscriptionsService(
+        prisma as never,
+        service,
+        {} as never,
+        mockLogger as LoggerService,
+      );
+      await subscriptionService.onApplicationBootstrap();
+      expect(prisma.apiSubscription.findMany).not.toHaveBeenCalled();
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      delete process.env.DATABASE_ENABLED;
+    });
+
+    it("does not let local status updates create or extend a fresh snapshot", () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-10-10T00:00:00Z"));
+      service.setSubscriptionStatus(
+        "commerce-web",
+        "commerce-billing",
+        "billing-api",
+        "test",
+        "approved",
+      );
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      service.replaceSubscriptions([], 45_000);
+      jest.advanceTimersByTime(45_001);
+      service.setSubscriptionStatus(
+        "commerce-web",
+        "commerce-billing",
+        "billing-api",
+        "test",
+        "approved",
+      );
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(false);
+      jest.useRealTimers();
+    });
+
+    it("does not transfer an approved grant when a retired service slug is registered by another project", async () => {
+      service.replaceSubscriptions([
+        {
+          consumerProjectId: "commerce-web",
+          apiProjectId: "commerce-billing",
+          apiServiceId: "billing-api",
+          environment: "test",
+          status: "approved",
+        },
+      ]);
+      await service.deregister("billing-api");
+      await expect(
+        service.register(
+          baseManifest({ serviceId: "billing-api", projectId: "logistics-orders" }),
+        ),
+      ).rejects.toThrow(
+        "Service 'billing-api' belongs to project 'commerce-billing' and cannot move to 'logistics-orders'",
+      );
+      await service.register(
+        baseManifest({ serviceId: "logistics-worker", projectId: "logistics-orders" }),
+      );
+      expect(service.canAccess("web-api", "billing-api", "test")).toBe(true);
+      expect(service.canAccess("logistics-worker", "billing-api", "test")).toBe(false);
+    });
+
+    it("denies static consumes to a project API when the caller has no project identity", async () => {
+      await service.register(
+        baseManifest({
+          serviceId: "unplaced-worker",
+          serviceType: "shared",
+          projectId: undefined,
+          consumes: ["shipments"],
+        }),
+      );
+      expect(service.canAccess("unplaced-worker", "shipments", "test")).toBe(false);
+    });
+
+    it("allows manifest consumes for shared services", () => {
       expect(service.canAccess("billing-api", "payment")).toBe(true);
     });
 

@@ -4,6 +4,7 @@ export { ApprovalsModule } from './approvals/approvals.module';
 export { EntitlementsModule } from './entitlements/entitlements.module';
 export { PolicyEngineModule } from './policy/policy-engine.module';
 export { DeveloperPortalModule } from './developer-portal/developer-portal.module';
+export { ApiSubscriptionsModule } from './api-subscriptions/api-subscriptions.module';
 export { ApprovalRequestService } from './approvals/approval-request.service';
 export { TribePlanService } from './entitlements/tribe-plan.service';
 export { TribeQuotaPolicyService } from './quotas/tribe-quota-policy.service';

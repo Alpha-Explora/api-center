@@ -566,6 +566,7 @@ describe("ProxyHandler", () => {
       expect(deps.registry.canAccess).toHaveBeenCalledWith(
         "logistics",
         "logistics-orders",
+        "test",
       );
       expect(mockProxyMiddleware).toHaveBeenCalled();
     });

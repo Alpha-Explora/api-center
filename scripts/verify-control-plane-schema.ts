@@ -43,6 +43,7 @@ const requiredTables: QualifiedObject[] = [
   ["apic_catalog", "service_spec_versions"],
   ["apic_governance", "registry_change_requests"],
   ["apic_governance", "approval_requests"],
+  ["apic_governance", "api_subscriptions"],
   ["apic_governance", "quota_policies"],
   ["apic_governance", "entitlement_assignments"],
   ["apic_governance", "payment_consumer_services"],
@@ -99,6 +100,10 @@ const requiredIndexes = [
   "registry_change_requests_service_idx",
   "registry_change_requests_owner_idx",
   "approval_requests_status_created_idx",
+  "api_subscriptions_consumer_idx",
+  "api_subscriptions_api_idx",
+  "api_subscriptions_one_pending_request_idx",
+  "api_subscriptions_one_approved_grant_idx",
   "approval_requests_action_env_idx",
   "approval_requests_target_idx",
   "quota_policies_owner_status_idx",
@@ -133,6 +138,9 @@ const requiredCheckConstraints = [
   "organization_members_role_check",
   "registry_change_requests_status_check",
   "approval_requests_status_check",
+  "api_subscriptions_environment_check",
+  "api_subscriptions_status_check",
+  "api_subscriptions_decision_metadata_check",
   "approval_requests_target_environment_check",
   "quota_policies_mode_check",
   "quota_policies_status_check",
@@ -547,6 +555,25 @@ async function main(): Promise<void> {
       failures,
       "Missing shared_gauth.oauth_apps constraints",
       requiredOAuthAppConstraints.filter((name) => !oauthAppConstraints.has(name)),
+    );
+
+    const apiSubscriptionColumns = await queryRows(
+      client,
+      "select column_name from information_schema.columns where table_schema = 'apic_governance' and table_name = 'api_subscriptions'",
+    );
+    const apiSubscriptionColumnNames = new Set(
+      apiSubscriptionColumns.map((row) => String(row.column_name)),
+    );
+    addFailure(
+      failures,
+      "Missing required api_subscriptions columns",
+      [
+        "consumer_project_id",
+        "api_project_id",
+        "api_service_id",
+        "environment",
+        "status",
+      ].filter((name) => !apiSubscriptionColumnNames.has(name)),
     );
 
     if (hasFlag("--require-compat-views")) {
