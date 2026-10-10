@@ -14,15 +14,18 @@ import { PaymentAuthGuard } from "./shared/payment-auth.guard";
 import { PaymentIdempotencyService } from "./shared/payment-idempotency.service";
 import { PaymentRecordsManagementController } from "./features/records-management/payment-records-management.controller";
 import { PaymentRecordsManagementService } from "./features/records-management/payment-records-management.service";
+import { ApprovalsModule } from "@approvals/approvals.module";
+import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/payment-limits";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, RegistryModule],
+  imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule],
   controllers: [
     PaymentsController,
     PaymentConsumerManagementController,
     PaymentCatalogManagementController,
     PaymentPubSubProvisioningController,
     PaymentRecordsManagementController,
+    PaymentLimitsAdminController,
   ],
   providers: [
     PaymentApiKeyService,
@@ -33,6 +36,7 @@ import { PaymentRecordsManagementService } from "./features/records-management/p
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
     PaymentRecordsManagementService,
+    PaymentLimitsService,
   ],
   exports: [
     PaymentApiKeyService,

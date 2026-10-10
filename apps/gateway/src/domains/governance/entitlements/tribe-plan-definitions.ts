@@ -12,6 +12,8 @@ export const PLAN_DEFINITIONS: TribePlanDefinition[] = [
     retentionTier: "standard",
     sharedServiceAccess: "test-only-provider-impacting-smoke",
     supportTier: "standard",
+    paymentAmountMinor: 1_000_000,
+    paymentRequestsPerMinute: 30,
   },
   {
     planKey: "standard",
@@ -21,6 +23,8 @@ export const PLAN_DEFINITIONS: TribePlanDefinition[] = [
     retentionTier: "standard",
     sharedServiceAccess: "live-after-approval",
     supportTier: "standard",
+    paymentAmountMinor: 10_000_000,
+    paymentRequestsPerMinute: 120,
   },
   {
     planKey: "pro",
@@ -30,6 +34,8 @@ export const PLAN_DEFINITIONS: TribePlanDefinition[] = [
     retentionTier: "extended",
     sharedServiceAccess: "live",
     supportTier: "priority",
+    paymentAmountMinor: 100_000_000,
+    paymentRequestsPerMinute: 600,
   },
   {
     planKey: "enterprise",
@@ -39,5 +45,7 @@ export const PLAN_DEFINITIONS: TribePlanDefinition[] = [
     retentionTier: "custom",
     sharedServiceAccess: "custom",
     supportTier: "dedicated",
+    paymentAmountMinor: null,
+    paymentRequestsPerMinute: null,
   },
 ];

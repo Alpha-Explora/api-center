@@ -6,7 +6,8 @@ export type ApprovalActionType =
   | "s3_sink.include_topic"
   | "service.register_live"
   | "service.retire"
-  | "plan.assign_live";
+  | "plan.assign_live"
+  | "payments.live_access";
 
 export type ApprovalRiskLevel = "low" | "medium" | "high" | "critical";
 export type ApprovalRequestStatus =

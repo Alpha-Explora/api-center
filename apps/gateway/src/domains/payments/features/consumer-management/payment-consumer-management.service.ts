@@ -1,8 +1,9 @@
 import { randomBytes, createHash } from "node:crypto";
-import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { z } from "zod";
 import { PrismaService } from "@database/prisma.service";
 import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
+import { ApprovalRequestService } from "@approvals/approval-request.service";
 
 /**
  * A payment consumer is a registered tribe service. Its owner tribe comes from the registry
@@ -11,6 +12,7 @@ import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.type
 const ConsumerInput = z.object({
   consumerServiceId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
+  approvalRequestId: z.string().uuid().optional(),
   eventEndpointUrl: z
     .string()
     .url()
@@ -23,7 +25,7 @@ const ConsumerInput = z.object({
     .default(["payments:read", "payments:write", "payments:subscriptions:cancel-immediately"]),
 }).strict();
 
-type ConsumerInput = z.infer<typeof ConsumerInput> & { ownerTribeId: string };
+type ConsumerInput = z.infer<typeof ConsumerInput> & { ownerTribeId: string; projectId: string };
 
 type KeyRow = {
   key_prefix: string;
@@ -38,6 +40,7 @@ export class PaymentConsumerManagementService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
+    @Optional() private readonly approvals?: ApprovalRequestService,
   ) {}
 
   async list(organizationIds?: string[]): Promise<Array<Record<string, unknown>>> {
@@ -105,6 +108,17 @@ export class PaymentConsumerManagementService {
   }> {
     const parsed = this.parseInput(input);
     this.requireDatabase();
+    if (parsed.environment === "live") {
+      if (!this.approvals) {
+        throw new ServiceUnavailableException("Live payment registration approval is unavailable");
+      }
+      await this.approvals.assertApprovedForAction({
+        approvalRequestId: parsed.approvalRequestId,
+        actionType: "payments.live_access",
+        targetEnvironment: "live",
+        targetId: parsed.projectId,
+      });
+    }
     const apiKey = this.generateKey(parsed.environment);
     const keyHash = this.hash(apiKey);
 
@@ -197,7 +211,7 @@ export class PaymentConsumerManagementService {
         message: `'${parsed.consumerServiceId}' must be a registered tribe service before it can receive payment keys`,
       });
     }
-    return { ...parsed, ownerTribeId: placement.tribeId };
+    return { ...parsed, ownerTribeId: placement.tribeId, projectId: placement.projectId };
   }
 
   private requireDatabase(): void {

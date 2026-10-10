@@ -1,6 +1,7 @@
 import type { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 import { PaymentConsumerManagementService } from "../../../../apps/gateway/src/domains/payments/features/consumer-management/payment-consumer-management.service";
 import type { TenancyDirectory } from "../../../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types";
+import { ApprovalRequestService } from "../../../../apps/gateway/src/domains/governance/approvals/approval-request.service";
 
 describe("PaymentConsumerManagementService ownership", () => {
   const tenancy: TenancyDirectory = {
@@ -56,6 +57,65 @@ describe("PaymentConsumerManagementService ownership", () => {
     await expect(
       service.register({ consumerServiceId: "unknown-api", environment: "test" }),
     ).rejects.toMatchObject({ response: expect.objectContaining({ code: "UNKNOWN_PAYMENT_CONSUMER_SERVICE" }) });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("requires an approved live-access request before registering a live consumer", async () => {
+    const approvals = new ApprovalRequestService({ approvalRequest: {} } as any);
+    const liveService = new PaymentConsumerManagementService(prisma, tenancy, approvals);
+
+    await expect(liveService.register({ consumerServiceId: "billing-api", environment: "live" }))
+      .rejects.toMatchObject({ status: 403 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("consumes an approved live-access request for the project on registration", async () => {
+    const request = {
+      id: "approval-id",
+      actionType: "payments.live_access",
+      targetId: "alphaci-billing",
+      targetEnvironment: "live",
+      status: "approved",
+    };
+    const findUnique = jest.fn()
+      .mockResolvedValueOnce(request)
+      .mockResolvedValueOnce({ ...request, status: "applied" });
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const approvals = new ApprovalRequestService({ approvalRequest: { findUnique, updateMany } } as any);
+    const liveService = new PaymentConsumerManagementService(prisma, tenancy, approvals);
+
+    const result = await liveService.register({
+      consumerServiceId: "billing-api",
+      environment: "live",
+      approvalRequestId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result.environment).toBe("live");
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "00000000-0000-4000-8000-000000000001", status: "approved" },
+      data: expect.objectContaining({ status: "applied" }),
+    }));
+  });
+
+  it("rejects a live-access request that has already been used", async () => {
+    const request = {
+      id: "approval-id",
+      actionType: "payments.live_access",
+      targetId: "alphaci-billing",
+      targetEnvironment: "live",
+      status: "applied",
+    };
+    const findUnique = jest.fn().mockResolvedValue(request);
+    const updateMany = jest.fn();
+    const approvals = new ApprovalRequestService({ approvalRequest: { findUnique, updateMany } } as any);
+    const liveService = new PaymentConsumerManagementService(prisma, tenancy, approvals);
+
+    await expect(liveService.register({
+      consumerServiceId: "billing-api",
+      environment: "live",
+      approvalRequestId: "00000000-0000-4000-8000-000000000001",
+    })).rejects.toMatchObject({ status: 409 });
+    expect(updateMany).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

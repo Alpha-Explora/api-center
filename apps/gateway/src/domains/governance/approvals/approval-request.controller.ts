@@ -30,6 +30,7 @@ const ACTION_TYPES: ApprovalActionType[] = [
   "service.register_live",
   "service.retire",
   "plan.assign_live",
+  "payments.live_access",
 ];
 const RISK_LEVELS: ApprovalRiskLevel[] = ["low", "medium", "high", "critical"];
 const STATUSES: ApprovalRequestStatus[] = [

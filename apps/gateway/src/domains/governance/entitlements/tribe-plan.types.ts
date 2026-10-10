@@ -26,6 +26,10 @@ export interface TribePlanDefinition {
   retentionTier: string;
   sharedServiceAccess: string;
   supportTier: string;
+  /** Maximum payment amount in PHP minor units; null means unlimited. */
+  paymentAmountMinor: number | null;
+  /** Maximum number of payment API requests per project per minute; null means unlimited. */
+  paymentRequestsPerMinute: number | null;
 }
 
 /** A plan is assigned to one project in one environment. ownerTribeId is derived from the project. */

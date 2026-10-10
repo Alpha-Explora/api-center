@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { PaymentsController } from '../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
 import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+const paymentLimits = { enforce: jest.fn().mockResolvedValue(undefined) } as any;
+const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits);
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -96,7 +98,7 @@ describe('PaymentsController', () => {
     ['GET', '/invoices/inv_123', undefined],
   ])('maps %s %s to the private payments runtime', async (method, path, body) => {
     const idempotency = new PaymentIdempotencyService();
-    const controller = new PaymentsController(idempotency);
+    const controller = new PaymentsController(idempotency, paymentLimits);
     const { res, state } = response();
 
     await controller.proxy(request(path, method, body), res);
@@ -110,7 +112,7 @@ describe('PaymentsController', () => {
   });
 
   it('uses the authenticated principal for tenant/environment and normalizes provider resources', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const { res, state } = response();
     const body = {
       referenceId: 'order-123',
@@ -137,7 +139,7 @@ describe('PaymentsController', () => {
   });
 
   it('serves provider capabilities from the public facade', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const { res, state } = response();
 
     await controller.proxy(request('/capabilities', 'GET'), res);
@@ -150,8 +152,27 @@ describe('PaymentsController', () => {
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
+  it("checks the project's amount and rate limits before forwarding", async () => {
+    paymentLimits.enforce.mockRejectedValueOnce({ status: 422, response: { code: "AMOUNT_LIMIT_EXCEEDED" } });
+    const controller = createController();
+
+    await expect(controller.proxy(request('/checkouts', 'POST', {
+      referenceId: 'order-123',
+      amount: { amountMinor: 1_000_001, currency: 'PHP' },
+      successUrl: 'https://app.test/success',
+      cancelUrl: 'https://app.test/cancel',
+    }), response().res)).rejects.toMatchObject({ response: { code: 'AMOUNT_LIMIT_EXCEEDED' } });
+
+    expect(paymentLimits.enforce).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-alpha',
+      environment: 'test',
+      amountMinor: 1_000_001,
+    }));
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid public body before calling the private runtime', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const invalid = request('/checkouts', 'POST', { referenceId: '', amount: { amountMinor: 0, currency: 'USD' } });
 
     await expect(controller.proxy(invalid, response().res)).rejects.toMatchObject({
@@ -161,7 +182,7 @@ describe('PaymentsController', () => {
   });
 
   it('rejects unlisted routes and a read-only key on a mutation', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     await expect(controller.proxy(request('/admin', 'GET'), response().res))
       .rejects.toMatchObject({ response: { code: 'PAYMENT_OPERATION_NOT_FOUND' } });
     const readOnly = request('/checkouts', 'POST', {
@@ -178,7 +199,7 @@ describe('PaymentsController', () => {
     const clock = jest.spyOn(Date, 'now');
     const start = Date.now();
     clock.mockReturnValue(start);
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     const body = { referenceId: 'order-lease', amount: { amountMinor: 100, currency: 'PHP' },
       successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel' };
     mockedAxios.request.mockRejectedValueOnce(new Error('timeout'));
