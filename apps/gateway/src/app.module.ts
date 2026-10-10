@@ -67,6 +67,7 @@ import { ForecastingModule } from "./domains/runtime-ops/forecasting/forecasting
 import { OperationsModule } from "./domains/runtime-ops/operations/operations.module";
 import { CapabilitiesModule } from "./domains/runtime-ops/capabilities/capabilities.module";
 import { PaymentsModule } from "./domains/payments/payments.module";
+import { ProjectOverviewModule } from "./domains/catalog-registry/project-overview/project-overview.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
@@ -108,6 +109,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     ComplianceModule, // Audit-ready export packets
     CapabilitiesModule, // Runtime capability snapshot for management and operators
     PaymentsModule, // Provider-neutral payments facade backed by private apps/payments
+    ProjectOverviewModule,
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     AuthModule, // JWT providers + Vault + TokenStore — guards every proxy

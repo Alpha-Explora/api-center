@@ -24,6 +24,7 @@ export interface QuotaEvaluationEntry {
 export interface QuotaEvaluationRecord {
   id: string;
   ownerTribeId: string;
+  projectId?: string | null;
   policyId?: string | null;
   scope: string;
   targetServiceId?: string | null;
@@ -41,7 +42,7 @@ export interface QuotaEvaluationRecord {
 export interface QuotaEvaluationLedger {
   record(entry: QuotaEvaluationEntry): Promise<void>;
   /** Newest first. */
-  listSince(query: { ownerTribeId?: string; since: Date; limit: number }): Promise<QuotaEvaluationRecord[]>;
+  listSince(query: { ownerTribeId?: string; projectId?: string; since: Date; limit: number }): Promise<QuotaEvaluationRecord[]>;
 }
 
 export const QUOTA_EVALUATION_LEDGER = Symbol("QUOTA_EVALUATION_LEDGER");

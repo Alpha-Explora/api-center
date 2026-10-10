@@ -27,12 +27,14 @@ export class QuotaEvaluationLedgerService implements QuotaEvaluationLedger {
 
   listSince(query: {
     ownerTribeId?: string;
+    projectId?: string;
     since: Date;
     limit: number;
   }): Promise<QuotaEvaluationRecord[]> {
     return this.evaluations.findMany({
       where: {
         ...(query.ownerTribeId ? { ownerTribeId: query.ownerTribeId } : {}),
+        ...(query.projectId ? { projectId: query.projectId } : {}),
         createdAt: { gte: query.since },
       },
       orderBy: { createdAt: "desc" },

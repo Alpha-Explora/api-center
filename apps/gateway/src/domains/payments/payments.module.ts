@@ -13,6 +13,7 @@ import { PaymentAuthGuard } from "./shared/payment-auth.guard";
 import { PaymentIdempotencyService } from "./shared/payment-idempotency.service";
 import { PaymentRecordsManagementController } from "./features/records-management/payment-records-management.controller";
 import { PaymentRecordsManagementService } from "./features/records-management/payment-records-management.service";
+import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
 
 @Module({
   imports: [AuthModule, DatabaseModule, RegistryModule],
@@ -26,6 +27,7 @@ import { PaymentRecordsManagementService } from "./features/records-management/p
     PaymentApiKeyService,
     PaymentAuthGuard,
     PaymentConsumerManagementService,
+    { provide: PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, useExisting: PaymentConsumerManagementService },
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
@@ -33,6 +35,8 @@ import { PaymentRecordsManagementService } from "./features/records-management/p
   ],
   exports: [
     PaymentApiKeyService,
+    PaymentConsumerManagementService,
+    PAYMENT_CONSUMER_REGISTRATION_DIRECTORY,
   ],
 })
 export class PaymentsModule {}
