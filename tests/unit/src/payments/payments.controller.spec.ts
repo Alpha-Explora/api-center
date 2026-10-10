@@ -156,7 +156,7 @@ describe('PaymentsController', () => {
   });
 
   it('rejects QR Ph expiry outside 60 to 9000 before forwarding to the runtime', async () => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     await expect(controller.proxy(request('/intents/qrph', 'POST', {
       referenceId: 'qr-invalid', amount: { amountMinor: 100, currency: 'PHP' }, expirySeconds: 9001,
     }), response().res)).rejects.toMatchObject({ response: { code: 'INVALID_PAYMENT_REQUEST' } });
@@ -169,10 +169,22 @@ describe('PaymentsController', () => {
     ['a description over 255 characters', { description: 'x'.repeat(256) }],
     ['a non-string metadata value', { description: 'Order 1', metadata: { count: 1 } }],
   ])('rejects a payment link with %s before forwarding to the runtime', async (_case, fields) => {
-    const controller = new PaymentsController(new PaymentIdempotencyService());
+    const controller = createController();
     await expect(controller.proxy(request('/payment-links', 'POST', {
       referenceId: 'link-invalid', amount: { amountMinor: 100, currency: 'PHP' }, ...fields,
     }), response().res)).rejects.toMatchObject({ response: { code: 'INVALID_PAYMENT_REQUEST' } });
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a payment link', '/payment-links', { referenceId: 'link-1', description: 'Order 1', amount: { amountMinor: 2_000_000, currency: 'PHP' } }],
+    ['a QR Ph code', '/intents/qrph', { referenceId: 'qr-1', amount: { amountMinor: 2_000_000, currency: 'PHP' } }],
+    ['a plan', '/plans', { name: 'Gold', amount: 2_000_000, interval: 'monthly' }],
+  ])('applies the amount limit to %s', async (_case, path, body) => {
+    paymentLimits.enforce.mockRejectedValueOnce({ status: 422, response: { code: 'AMOUNT_LIMIT_EXCEEDED' } });
+    await expect(createController().proxy(request(path, 'POST', body), response().res))
+      .rejects.toMatchObject({ response: { code: 'AMOUNT_LIMIT_EXCEEDED' } });
+    expect(paymentLimits.enforce).toHaveBeenCalledWith(expect.objectContaining({ amountMinor: 2_000_000, method: 'POST' }));
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
