@@ -54,6 +54,15 @@ export class ApiSubscriptionsController {
   ) {
     if (consumerProjectId) this.requireConsumerAccess(consumerProjectId, req);
     if (apiServiceId) this.requireApiOwner(apiServiceId, req);
+    if (!consumerProjectId && !apiServiceId && !this.isPlatformAdmin(req)) {
+      // An unfiltered list would expose every project's subscriptions.
+      if (!req.projectId) {
+        throw new ForbiddenError(
+          "Only a project caller or a platform admin may list subscriptions",
+        );
+      }
+      consumerProjectId = req.projectId;
+    }
     return {
       success: true,
       data: await this.subscriptions.list({

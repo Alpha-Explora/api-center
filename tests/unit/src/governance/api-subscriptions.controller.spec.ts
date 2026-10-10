@@ -69,6 +69,7 @@ describe("ApiSubscriptionsController", () => {
     await controller.list(
       "consumer-project",
       undefined,
+      undefined,
       jwtRequest("consumer-project"),
     );
     expect(subscriptions.request).toHaveBeenCalledWith(
@@ -93,10 +94,36 @@ describe("ApiSubscriptionsController", () => {
       ),
     ).rejects.toThrow();
     await expect(
-      controller.list(undefined, "owner-api", jwtRequest("consumer-project")),
+      controller.list(undefined, "owner-api", undefined, jwtRequest("consumer-project")),
     ).rejects.toThrow();
     expect(subscriptions.request).not.toHaveBeenCalled();
     expect(subscriptions.list).not.toHaveBeenCalled();
+  });
+
+  it("limits an unfiltered JWT list to the caller's own project", async () => {
+    await controller.list(undefined, undefined, undefined, jwtRequest("consumer-project"));
+    expect(subscriptions.list).toHaveBeenCalledWith({
+      consumerProjectId: "consumer-project",
+      apiServiceId: undefined,
+    });
+  });
+
+  it("rejects an unfiltered list from a caller without a project", async () => {
+    await expect(
+      controller.list(undefined, undefined, undefined, jwtRequest(undefined)),
+    ).rejects.toThrow();
+    expect(subscriptions.list).not.toHaveBeenCalled();
+  });
+
+  it("lets a platform admin list every subscription", async () => {
+    await controller.list(undefined, undefined, undefined, {
+      platformAdmin: true,
+      headers: {},
+    } as never);
+    expect(subscriptions.list).toHaveBeenCalledWith({
+      consumerProjectId: undefined,
+      apiServiceId: undefined,
+    });
   });
 
   it("allows the API owner to approve and revoke, but not the consumer", async () => {
