@@ -6,6 +6,7 @@ import { PaymentsController } from '../../apps/gateway/src/domains/payments/feat
 import { PaymentApiKeyService } from '../../apps/gateway/src/domains/payments/features/payment-facade/payment-api-key.service';
 import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
 import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/features/payment-limits/payment-limits.service';
 import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard';
 
 describe('payment gateway to runtime integration', () => {
@@ -19,6 +20,7 @@ describe('payment gateway to runtime integration', () => {
     'DATABASE_URL',
     'PAYMENT_DATABASE_URL',
     'SHARED_SERVICES_DATABASE_URL',
+    'DATABASE_ENABLED',
     'NODE_ENV',
   ];
   const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
@@ -45,6 +47,8 @@ describe('payment gateway to runtime integration', () => {
       providers: [
         PaymentAuthGuard,
         PaymentIdempotencyService,
+        // Without DATABASE_ENABLED the real limits service applies plan defaults in memory.
+        { provide: PaymentLimitsService, useFactory: () => new PaymentLimitsService({} as never) },
         {
           provide: PaymentApiKeyService,
           useValue: {
