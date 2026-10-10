@@ -118,7 +118,9 @@ function TribeNode({ tribe }: { tribe: TenancyTreeTribe }) {
           <li key={project.projectId} className="rounded-md bg-muted/20 p-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-sm font-medium">{project.name}</div>
+                <Link className="text-sm font-medium underline-offset-4 hover:underline" href={`/projects/${encodeURIComponent(project.projectId)}`}>
+                  {project.name}
+                </Link>
                 <div className="font-mono text-xs text-muted-foreground">
                   {project.projectId}
                   {project.costCenter ? ` - cost center ${project.costCenter}` : ""}

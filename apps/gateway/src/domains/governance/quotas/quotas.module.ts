@@ -29,6 +29,6 @@ import { TribeQuotaUsageController } from "./tribe-quota-usage.controller";
     TribeQuotaPolicyService,
     TribeQuotaEnforcerService,
   ],
-  exports: [TribeQuotaPolicyService, TribeQuotaEnforcerService],
+  exports: [TribeQuotaPolicyService, TribeQuotaEnforcerService, QuotaLedgerModule],
 })
 export class QuotasModule {}
