@@ -32,9 +32,9 @@ async function asRole(role, sql) {
   }
 }
 
-test('the retired shared_services_app role is inert', { skip }, async () => {
-  const { rows } = await client.query("select rolcanlogin from pg_roles where rolname = 'shared_services_app'");
-  assert.deepEqual(rows, [{ rolcanlogin: false }]);
+test('the retired shared_services_app role no longer exists', { skip }, async () => {
+  const { rows } = await client.query("select 1 from pg_roles where rolname = 'shared_services_app'");
+  assert.equal(rows.length, 0);
 });
 
 test('sms_runtime runs the upsert the SMS store uses on its own schema', { skip }, async () => {

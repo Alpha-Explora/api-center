@@ -7,9 +7,6 @@
 
 DO $baseline_roles$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'shared_services_app') THEN
-    CREATE ROLE shared_services_app NOLOGIN;
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'api_center_retention') THEN
     CREATE ROLE api_center_retention NOLOGIN;
   END IF;
