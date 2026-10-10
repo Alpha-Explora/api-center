@@ -226,6 +226,8 @@ RESEND_EVENTS="email.sent, email.delivered, email.delivery_delayed, email.bounce
 PROJECT_NUMBER=""
 PAYMONGO_KEY=""
 WIZARD_SECRET_INPUT=""
+HISTORY_PURGE_DRY_RUN_COMPLETE=false
+DATABASE_BASELINE_READY=false
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -236,6 +238,34 @@ later() { SKIPPED+=("$1"); warn "left for later: $1"; }
 
 account_exists() { gcloud iam service-accounts describe "$1" --project="$PROJECT_ID" >/dev/null 2>&1; }
 secret_exists()  { gcloud secrets describe "$1" --project="$PROJECT_ID" >/dev/null 2>&1; }
+
+# secret_latest_enabled returns 0 when latest is enabled, 1 when it is absent or disabled,
+# and 2 when Secret Manager did not return version metadata we could trust.
+secret_latest_enabled() {
+  local secret="$1" versions_json
+  if ! versions_json=$(gcloud secrets versions list "$secret" --project="$PROJECT_ID" --format=json 2>/dev/null); then
+    return 2
+  fi
+  printf '%s' "$versions_json" | python3 -c '
+import json, re, sys
+try:
+    versions = json.loads(sys.stdin.read())
+except (TypeError, ValueError):
+    sys.exit(2)
+if not isinstance(versions, list):
+    sys.exit(2)
+numbered = []
+for version in versions:
+    if not isinstance(version, dict):
+        sys.exit(2)
+    match = re.search(r"/versions/(\d+)$", version.get("name", ""))
+    if match:
+        numbered.append((int(match.group(1)), version.get("state")))
+if not numbered:
+    sys.exit(1 if not versions else 2)
+sys.exit(0 if max(numbered)[1] == "ENABLED" else 1)
+'
+}
 
 # policy_has_binding ROLE MEMBER [EXPRESSION] reads an IAM policy as JSON on stdin. It succeeds when MEMBER
 # holds ROLE with exactly that condition expression, or with no condition when EXPRESSION is omitted.
@@ -272,13 +302,34 @@ ensure_service_account() {
   fi
 }
 
-# ensure_random_secret NAME creates NAME from 48 random bytes when it is missing. Nobody sees the value.
+# ensure_random_secret NAME ensures NAME has an enabled latest version. Nobody sees its value.
 # tr drops the newline openssl prints, which Cloud Run would otherwise pass into the environment variable.
 ensure_random_secret() {
-  local secret="$1"
+  local secret="$1" status
   if secret_exists "$secret"; then
-    ok "$secret exists"
-  elif ! confirm "Create $secret with a random value?"; then
+    if secret_latest_enabled "$secret"; then
+      ok "$secret exists and its latest version is enabled"
+      return 0
+    else
+      status=$?
+      if (( status == 2 )); then
+        later "verify that $secret has an enabled latest version (Secret Manager versions could not be listed)"
+        return 0
+      fi
+      if ! confirm "$secret has no enabled latest version. Add a fresh random version?"; then
+        later "add an enabled latest version to $secret"
+        return 0
+      fi
+      if openssl rand -base64 48 | tr -d '\n' | gcloud secrets versions add "$secret" --project="$PROJECT_ID" \
+          --data-file=- --quiet; then
+        ok "added a random version to $secret"
+      else
+        later "add a random version to $secret (gcloud failed; see the error above)"
+      fi
+      return 0
+    fi
+  fi
+  if ! confirm "Create $secret with a random value?"; then
     later "create the secret $secret"
   elif openssl rand -base64 48 | tr -d '\n' | gcloud secrets create "$secret" --project="$PROJECT_ID" \
       --data-file=- --replication-policy=automatic --quiet; then
@@ -291,16 +342,34 @@ ensure_random_secret() {
 # ensure_pasted_secret NAME "Prompt" [replace] stores a value entered with hidden input. It creates NAME when it
 # is missing. An existing NAME is kept, unless the third argument is "replace" and the operator wants a new version.
 ensure_pasted_secret() {
-  local secret="$1" prompt="$2" mode="${3:-keep}" exists=false question
+  local secret="$1" prompt="$2" mode="${3:-keep}" exists=false usable=true status question
   if secret_exists "$secret"; then exists=true; fi
-  if $exists && [[ "$mode" != "replace" ]]; then
-    ok "$secret exists"
+  if $exists; then
+    if secret_latest_enabled "$secret"; then
+      ok "$secret exists and its latest version is enabled"
+    else
+      status=$?
+      if (( status == 2 )); then
+        later "verify that $secret has an enabled latest version (Secret Manager versions could not be listed)"
+        return 0
+      fi
+      usable=false
+      warn "$secret exists but has no enabled latest version."
+    fi
+  fi
+  if $exists && $usable && [[ "$mode" != "replace" ]]; then
     return 0
   fi
   question="Create $secret from a value you paste?"
-  if $exists; then question="Add a new version of $secret from a value you paste?"; fi
+  if $exists; then question="Add an enabled latest version of $secret from a value you paste?"; fi
   if ! confirm "$question"; then
-    if $exists; then ok "kept the current $secret"; else later "create the secret $secret"; fi
+    if $exists && $usable; then
+      ok "kept the current $secret"
+    elif $exists; then
+      later "add an enabled latest version to $secret"
+    else
+      later "create the secret $secret"
+    fi
     return 0
   fi
   WIZARD_SECRET_INPUT=""
@@ -595,6 +664,22 @@ paymongo_environment() {
 
 # ── Stages ────────────────────────────────────────────────────────────────
 
+# finish_setup uses the shared finish summary when every step is done, and labels outstanding work clearly.
+finish_setup() {
+  local s
+  if (( ${#SKIPPED[@]} )); then
+    _clear
+    printf '\n%s%s  ⚠ Setup incomplete%s\n' "$BOLD" "$YELLOW" "$RESET"
+    (( ${#WRITTEN_ENV[@]} ))    && note "wrote ${#WRITTEN_ENV[@]} value(s) to $ENV_FILE: ${WRITTEN_ENV[*]}"
+    (( ${#WRITTEN_SECRET[@]} )) && note "set ${#WRITTEN_SECRET[@]} GitHub secret(s): ${WRITTEN_SECRET[*]}"
+    printf '\n'; warn "still to do by hand:"
+    for s in "${SKIPPED[@]}"; do note "  - $s"; done
+    printf '\n'
+  else
+    finish
+  fi
+}
+
 stage_tools() {
   local account current missing=() tool
   stage "Tools and Google Cloud access"
@@ -750,12 +835,24 @@ stage_email_admin_token() {
 }
 
 stage_resend_webhook() {
-  local secret="apicenter-shared-resend-webhook-secret-prod" mode="keep" configure=true
+  local secret="apicenter-shared-resend-webhook-secret-prod" mode="keep" configure=true status
   stage "Resend delivery webhook"
   say "The gateway receives Resend's email events at $GATEWAY_URL/api/v1/webhooks/resend (#143)."
-  if secret_exists "$secret" && ! confirm "$secret exists. Open Resend to check the endpoint and its events anyway?"; then
-    ok "kept the Resend endpoint and $secret as they are"
-    configure=false
+  if secret_exists "$secret"; then
+    if secret_latest_enabled "$secret"; then
+      if ! confirm "$secret has an enabled latest version. Open Resend to check the endpoint and its events anyway?"; then
+        ok "kept the Resend endpoint and $secret as they are"
+        configure=false
+      fi
+    else
+      status=$?
+      if (( status == 2 )); then
+        later "verify that $secret has an enabled latest version (Secret Manager versions could not be listed)"
+        pause
+        return 0
+      fi
+      warn "$secret exists but has no enabled latest version."
+    fi
   fi
   if $configure; then
     if ! confirm "Open Resend and create or update the delivery webhook?"; then
@@ -869,7 +966,7 @@ stage_google_sign_in() {
 stage_history_purge() {
   local image="$IMAGE_REPOSITORY/apicenter-history-purge:latest"
   local registry="${REGION}-docker.pkg.dev"
-  stage "History purge job (optional)"
+  stage "History purge job"
   say "The purge job deletes history rows older than their retention windows (#63)."
   note "Runbook: docs/operations/history-retention.md"
   if ! confirm "Set up the history purge job now?"; then
@@ -906,6 +1003,11 @@ stage_history_purge() {
     ok "the first dry run finished"
     say "Read its apicenter_history_purge log line. Remove --dry-run only when the counts look right"
     say "(step 4 of the runbook)."
+    if confirm "Have you reviewed the dry-run counts and confirmed they match the runbook expectations?"; then
+      HISTORY_PURGE_DRY_RUN_COMPLETE=true
+    else
+      later "review the history-purge dry-run counts before deploying"
+    fi
   else
     later "finish building, deploying, or dry-running the history purge job (a command failed; see the error above)"
   fi
@@ -914,7 +1016,7 @@ stage_history_purge() {
 
 stage_database() {
   local -a supabase=(npx --yes supabase)
-  local listing counts remote_only local_only typed=""
+  local listing counts remote_only local_only
   stage "Database schema"
   say "#113 replaced the migration history with one baseline, supabase/migrations/20261011080000_baseline.sql."
   say "A database migrated with the old files still records versions that no longer exist here, and the"
@@ -971,20 +1073,16 @@ print(remote_only, local_only)
   read -r remote_only local_only <<<"$counts"
   if (( remote_only > 0 )); then
     warn "The remote database records $remote_only migration version(s) that are not in supabase/migrations."
-    say "That is the old history, and it has to go. npx supabase db reset --linked drops everything in the"
-    say "linked database and applies the baseline. It deletes all data in that database (there is none yet)."
-    printf '  %sType RESET to reset the linked database, or press Enter to skip:%s ' "$BOLD" "$RESET"
-    read -r typed || true
-    if [[ "$typed" != "RESET" ]]; then
-      later "reset the linked database with npx supabase db reset --linked so the baseline applies"
-    elif ! "${supabase[@]}" db reset --linked; then
-      later "reset the linked database with npx supabase db reset --linked (it failed)"
-    fi
+    say "The local baseline cannot be applied until the remote schema and migration history are reconciled."
+    say "This wizard will not reset the linked database or discard its data."
+    later "reconcile the linked database's migration history with the local baseline using a reviewed, data-preserving plan"
   else
     say "No remote-only versions remain. npx supabase db push applies the $local_only local migration(s), if any."
     if ! confirm "Run npx supabase db push?"; then
       later "apply the baseline with npx supabase db push"
-    elif ! "${supabase[@]}" db push; then
+    elif "${supabase[@]}" db push; then
+      DATABASE_BASELINE_READY=true
+    else
       later "apply the baseline with npx supabase db push (it failed)"
     fi
   fi
@@ -996,6 +1094,10 @@ stage_deploy_order() {
   local replace="gcloud run services replace infra/gcp/cloud-run"
   local flags="--project=$PROJECT_ID --region=$REGION"
   stage "Deploy order"
+  if ! $HISTORY_PURGE_DRY_RUN_COMPLETE || ! $DATABASE_BASELINE_READY; then
+    warn "Deployment commands are withheld until the history-purge dry run is reviewed and the database baseline is applied."
+    return 0
+  fi
   say "This stage runs nothing. Build the images first, through the repo's Cloud Build configs. Run them"
   say "from the repository root; each config also deploys what it builds."
   printf '\n'
@@ -1032,4 +1134,4 @@ stage_google_sign_in
 stage_history_purge
 stage_database
 stage_deploy_order
-finish
+finish_setup
