@@ -51,6 +51,9 @@ for (const file of files) {
   if (allowlist.some((pattern) => pattern.test(file))) continue;
   const lines = text.split(/\r?\n/);
   lines.forEach((line, index) => {
+    // The same data pipeline exception, applied per line, for files such as the
+    // migration baseline that hold pipeline tables next to everything else.
+    if (/pipeline/i.test(line)) return;
     if (/APICENTER_ENVIRONMENT\s*=\s*["']?prod\b/i.test(line)) {
       violations.push(`${file}:${index + 1} uses APICENTER_ENVIRONMENT=prod`);
     }
