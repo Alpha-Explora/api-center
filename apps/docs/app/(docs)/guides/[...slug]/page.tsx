@@ -11,6 +11,7 @@ const titles: Record<string, { eyebrow: string; title: string; description: stri
   "payments/overview": { eyebrow: "Financial", title: "Payments Overview", description: "Provider-neutral PayMongo facade and payments engine overview." },
   "payments/checkouts": { eyebrow: "Financial", title: "Checkouts & Payment Links", description: "Create hosted payment checkout sessions and links." },
   "payments/intents": { eyebrow: "Financial", title: "Payment Intents API", description: "Create, retrieve, confirm, and cancel payment intents." },
+  "payments/payment-links": { eyebrow: "Financial", title: "Payment Links and QR Ph", description: "Create project-scoped payment links and QR Ph payment intents." },
   "payments/customers": { eyebrow: "Financial", title: "Customers", description: "Create and look up customer records scoped to a consumer service." },
   "payments/subscriptions": { eyebrow: "Financial", title: "Subscriptions & Invoices", description: "Recurring billing resources and invoice lookup." },
   "payments/refunds": { eyebrow: "Financial", title: "Refunds API", description: "Issue idempotent full or partial refunds for settled payments." },

@@ -2,6 +2,7 @@ import type {
   ApiErrorDetails, Checkout, ConfirmPaymentIntentInput,
   CreateCheckoutInput, CreateCustomerInput, CreatePaymentIntentInput,
   CreatePlanInput, CreateRefundInput, CreateSubscriptionInput, Customer, IdempotentRequestOptions, Invoice,
+  CreatePaymentLinkInput, CreateQrPhPaymentIntentInput, PaymentLink, QrPhPaymentIntent,
   PaymentCapabilities, PaymentIntent, PaymentResource, Plan, Refund, RequestOptions, Subscription,
   PaymentsClientOptions,
   ListPaymentRecordsOptions, PaymentRecordPage,
@@ -31,6 +32,7 @@ export class PaymentsClient {
   getCheckoutByReference(id: string, options?: RequestOptions): Promise<Checkout> { return this.read(`/checkouts/by-reference/${encodeURIComponent(id)}`, options); }
   cancelCheckout(id: string, options: IdempotentRequestOptions): Promise<PaymentResource<Checkout>> { return this.mutate(`/checkouts/${encodeURIComponent(id)}/cancel`, undefined, options); }
   createPaymentIntent(input: CreatePaymentIntentInput, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentIntent>> { return this.mutate('/intents', input, options); }
+  createQrPhPaymentIntent(input: CreateQrPhPaymentIntentInput, options: IdempotentRequestOptions): Promise<PaymentResource<QrPhPaymentIntent>> { return this.mutate('/intents/qrph', input, options); }
   getPaymentIntent(id: string, options?: RequestOptions): Promise<PaymentIntent> { return this.read(`/intents/${encodeURIComponent(id)}`, options); }
   confirmPaymentIntent(id: string, input: ConfirmPaymentIntentInput, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentIntent>> { return this.mutate(`/intents/${encodeURIComponent(id)}/confirm`, input, options); }
   cancelPaymentIntent(id: string, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentIntent>> { return this.mutate(`/intents/${encodeURIComponent(id)}/cancel`, undefined, options); }
@@ -39,6 +41,11 @@ export class PaymentsClient {
   createPlan(input: CreatePlanInput, options: IdempotentRequestOptions): Promise<PaymentResource<Plan>> { return this.mutate('/plans', input, options); }
   getPlan(id: string, options?: RequestOptions): Promise<Plan> { return this.read(`/plans/${encodeURIComponent(id)}`, options); }
   listPlans(options?: RequestOptions): Promise<Plan[]> { return this.read('/plans', options); }
+  createPaymentLink(input: CreatePaymentLinkInput, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentLink>> { return this.mutate('/payment-links', input, options); }
+  listPaymentLinks(options?: RequestOptions): Promise<PaymentLink[]> { return this.read('/payment-links', options); }
+  getPaymentLink(id: string, options?: RequestOptions): Promise<PaymentLink> { return this.read(`/payment-links/${encodeURIComponent(id)}`, options); }
+  archivePaymentLink(id: string, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentLink>> { return this.mutate(`/payment-links/${encodeURIComponent(id)}`, { archive: true }, options, 'PATCH'); }
+  unarchivePaymentLink(id: string, options: IdempotentRequestOptions): Promise<PaymentResource<PaymentLink>> { return this.mutate(`/payment-links/${encodeURIComponent(id)}`, { archive: false }, options, 'PATCH'); }
   createRefund(input: CreateRefundInput, options: IdempotentRequestOptions): Promise<PaymentResource<Refund>> { return this.mutate('/refunds', input, options); }
   getRefund(id: string, options?: RequestOptions): Promise<Refund> { return this.read(`/refunds/${encodeURIComponent(id)}`, options); }
   createSubscription(input: CreateSubscriptionInput, options: IdempotentRequestOptions): Promise<PaymentResource<Subscription>> { return this.mutate('/subscriptions', input, options); }
@@ -59,11 +66,11 @@ export class PaymentsClient {
   }
 
   private read<T>(path: string, options?: RequestOptions): Promise<T> { return this.request<T>(path, { method: 'GET', options }); }
-  private mutate<T>(path: string, body: unknown, options: IdempotentRequestOptions): Promise<PaymentResource<T>> {
+  private mutate<T>(path: string, body: unknown, options: IdempotentRequestOptions, method: 'POST' | 'PATCH' = 'POST'): Promise<PaymentResource<T>> {
     if (!options.headers['Idempotency-Key']?.trim()) throw new TypeError('mutating payment operations require a non-empty Idempotency-Key');
-    return this.request<T>(path, { method: 'POST', body, options });
+    return this.request<T>(path, { method, body, options });
   }
-  private async request<T>(path: string, request: { method: 'GET' | 'POST'; body?: unknown; options?: RequestOptions }): Promise<T> {
+  private async request<T>(path: string, request: { method: 'GET' | 'POST' | 'PATCH'; body?: unknown; options?: RequestOptions }): Promise<T> {
     const headers: Record<string, string> = {
       Accept: 'application/json', Authorization: `Bearer ${this.apiKey}`,
       ...(request.options?.headers ?? {}),

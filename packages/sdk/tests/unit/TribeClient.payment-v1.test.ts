@@ -87,6 +87,24 @@ describe('TribeClient payment v1', () => {
     );
   });
 
+  it('creates QR Ph intents and archives and unarchives payment links with PATCH', async () => {
+    const client = new TribeClient({ baseUrl: 'https://api-center.example.test', apiKey: 'ac_test_key',
+      serviceToken: 'jwt_service_token', fetchImpl });
+    const idempotency = { headers: { 'Idempotency-Key': 'idem-qr-link' } };
+    await client.payments.createQrPhPaymentIntent({ referenceId: 'ORDER-QR',
+      amount: { amountMinor: 1000, currency: 'PHP' }, expirySeconds: 300 }, idempotency);
+    await client.payments.archivePaymentLink('pl_1', idempotency);
+    await client.payments.unarchivePaymentLink('pl_1', idempotency);
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, 'https://api-center.example.test/api/v1/payments/intents/qrph',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ referenceId: 'ORDER-QR',
+        amount: { amountMinor: 1000, currency: 'PHP' }, expirySeconds: 300 }) }));
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, 'https://api-center.example.test/api/v1/payments/payment-links/pl_1',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ archive: true }) }));
+    expect(fetchImpl).toHaveBeenNthCalledWith(3, 'https://api-center.example.test/api/v1/payments/payment-links/pl_1',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ archive: false }) }));
+  });
+
   it('exposes payment intent and capability operations on the same public client', async () => {
     const client = new TribeClient({
       baseUrl: 'https://api-center.example.test',
