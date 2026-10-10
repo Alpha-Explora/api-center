@@ -309,3 +309,21 @@ test('email: messages from an earlier UTC day do not count toward the daily limi
   assert.equal(record.messageId, 're_today');
 });
 
+test('email: a Resend event that arrives during the send is retried, then applies to the Resend id', { skip }, async () => {
+  const event = {
+    providerEventId: 'svix_email_evt_in_flight', messageId: 're_in_flight', status: 'delivered',
+    payload: { type: 'email.delivered', data: { email_id: 're_in_flight' } },
+  };
+  let earlyAttempt;
+  const record = await emailStore.sendWithinDailyLimit(alice, emailMessage(), async () => {
+    // Resend can call the webhook before the send call returns, while the row still has its local id.
+    earlyAttempt = await emailStore.applyDeliveryEvent(event).then(() => 'applied', (error) => error.message);
+    return 're_in_flight';
+  });
+
+  assert.equal(earlyAttempt, 'Email message is not yet recorded');
+  assert.equal(record.messageId, 're_in_flight');
+  assert.deepEqual(await emailStore.applyDeliveryEvent(event), { duplicate: false }, 'the early attempt was not recorded');
+  assert.equal((await emailStore.findById('re_in_flight', alice)).status, 'delivered');
+});
+
