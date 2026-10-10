@@ -46,16 +46,18 @@ spec:
             - name: GAUTH_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: apic-gauth-database-url-live
+                  name: apicenter-gauth-database-url-live
                   key: latest
             - name: GOOGLE_OAUTH_STATE_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: apic-gauth-google-oauth-state-secret
+                  name: apicenter-gauth-google-oauth-state-secret
                   key: latest
             - name: NODE_ENV
               value: production
             - name: GOOGLE_CLOUD_PROJECT
+              value: apicenter-alpha-20260623
+            - name: GAUTH_SECRETS_PROJECT_ID
               value: apicenter-alpha-20260623
             - name: GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT
               value: "20"

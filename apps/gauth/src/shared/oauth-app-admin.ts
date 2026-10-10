@@ -323,9 +323,10 @@ function secretName(
   environment: GauthEnvironment,
 ): string {
   const cloudProjectId =
-    deps.cloudProjectId ??
+    process.env.GAUTH_SECRETS_PROJECT_ID ??
     process.env.GOOGLE_CLOUD_PROJECT ??
-    process.env.GCLOUD_PROJECT;
+    process.env.GCLOUD_PROJECT ??
+    deps.cloudProjectId;
   if (!cloudProjectId)
     throw new Error("Google Cloud project ID is not configured.");
   return `projects/${cloudProjectId}/secrets/apic-gauth-${projectId}-${environment}`;
