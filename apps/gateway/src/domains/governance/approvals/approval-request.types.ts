@@ -56,4 +56,6 @@ export interface ApprovalCheckInput {
   actionType: ApprovalActionType;
   targetEnvironment: string;
   targetId?: string;
+  /** Reject approvals without this exact resource target when set. */
+  requireTarget?: boolean;
 }

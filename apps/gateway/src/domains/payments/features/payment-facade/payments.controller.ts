@@ -79,6 +79,7 @@ export class PaymentsController {
       ownerTribeId: principal.ownerTribeId,
       projectId: principal.projectId,
       environment: env,
+      method: req.method,
       ...(typeof amountValue === 'number' ? { amountMinor: amountValue } : {}),
     });
 

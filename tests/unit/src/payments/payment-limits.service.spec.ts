@@ -22,6 +22,7 @@ describe("PaymentLimitsService", () => {
       ownerTribeId: "tribe-a",
       projectId: "project-a",
       environment: "test",
+      method: "POST",
       amountMinor: 1_000_001,
     })).rejects.toMatchObject({
       status: 422,
@@ -30,12 +31,21 @@ describe("PaymentLimitsService", () => {
   });
 
   it("rejects payment requests above the plan requests-per-minute limit with 429", async () => {
-    const input = { ownerTribeId: "tribe-rate", projectId: "project-rate", environment: "test" as const };
+    const input = { ownerTribeId: "tribe-rate", projectId: "project-rate", environment: "test" as const, method: "POST" };
     for (let request = 0; request < 30; request += 1) await service.enforce(input);
 
     await expect(service.enforce(input)).rejects.toMatchObject({
       status: 429,
       response: expect.objectContaining({ code: "PAYMENT_RATE_LIMIT_EXCEEDED" }),
+    });
+  });
+
+  it("does not count GET polling against the write-request limit", async () => {
+    const input = { ownerTribeId: "tribe-poll", projectId: "project-poll", environment: "test" as const, method: "GET" };
+    for (let request = 0; request < 40; request += 1) await service.enforce(input);
+
+    await expect(service.enforce({ ...input, method: "POST" })).resolves.toMatchObject({
+      paymentRequestsPerMinute: 30,
     });
   });
 

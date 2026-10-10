@@ -135,7 +135,11 @@ export class ApprovalRequestService {
     if (request.targetEnvironment !== input.targetEnvironment) {
       throw new ForbiddenError("Approval request environment does not match");
     }
+    if (input.requireTarget && (!input.targetId || request.targetId !== input.targetId)) {
+      throw new ForbiddenError("Approval request target does not match");
+    }
     if (
+      !input.requireTarget &&
       input.targetId &&
       request.targetId &&
       request.targetId !== input.targetId

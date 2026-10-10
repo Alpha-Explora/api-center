@@ -28,7 +28,7 @@ export interface TribePlanDefinition {
   supportTier: string;
   /** Maximum payment amount in PHP minor units; null means unlimited. */
   paymentAmountMinor: number | null;
-  /** Maximum number of payment API requests per project per minute; null means unlimited. */
+  /** Maximum number of payment API write requests per project per minute; null means unlimited. */
   paymentRequestsPerMinute: number | null;
 }
 

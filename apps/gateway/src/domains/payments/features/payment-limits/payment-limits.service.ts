@@ -85,6 +85,7 @@ export class PaymentLimitsService {
     ownerTribeId: string;
     projectId: string;
     environment: PaymentEnvironment;
+    method: string;
     amountMinor?: number;
   }): Promise<EffectivePaymentLimits> {
     const limits = await this.resolve(input.ownerTribeId, input.projectId, input.environment);
@@ -99,7 +100,8 @@ export class PaymentLimitsService {
       });
     }
 
-    if (limits.paymentRequestsPerMinute !== null) {
+    const isWrite = ["POST", "PATCH", "PUT", "DELETE"].includes(input.method.toUpperCase());
+    if (isWrite && limits.paymentRequestsPerMinute !== null) {
       const count = process.env.DATABASE_ENABLED === "true"
         ? await this.incrementDatabaseWindow(input.projectId, input.environment)
         : this.incrementLocalWindow(input.projectId, input.environment);

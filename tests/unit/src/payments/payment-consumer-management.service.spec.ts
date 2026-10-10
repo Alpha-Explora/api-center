@@ -20,6 +20,7 @@ describe("PaymentConsumerManagementService ownership", () => {
   };
   const prisma = {
     $transaction: jest.fn((work: (client: typeof tx) => unknown) => work(tx)),
+    $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     $executeRawUnsafe: jest.fn().mockResolvedValue(1),
   } as unknown as PrismaService;
   let service: PaymentConsumerManagementService;
@@ -61,6 +62,7 @@ describe("PaymentConsumerManagementService ownership", () => {
   });
 
   it("requires an approved live-access request before registering a live consumer", async () => {
+    (prisma.$queryRawUnsafe as jest.Mock).mockResolvedValueOnce([]);
     const approvals = new ApprovalRequestService({ approvalRequest: {} } as any);
     const liveService = new PaymentConsumerManagementService(prisma, tenancy, approvals);
 
@@ -70,6 +72,7 @@ describe("PaymentConsumerManagementService ownership", () => {
   });
 
   it("consumes an approved live-access request for the project on registration", async () => {
+    (prisma.$queryRawUnsafe as jest.Mock).mockResolvedValueOnce([]);
     const request = {
       id: "approval-id",
       actionType: "payments.live_access",
@@ -98,6 +101,7 @@ describe("PaymentConsumerManagementService ownership", () => {
   });
 
   it("rejects a live-access request that has already been used", async () => {
+    (prisma.$queryRawUnsafe as jest.Mock).mockResolvedValueOnce([]);
     const request = {
       id: "approval-id",
       actionType: "payments.live_access",
@@ -116,6 +120,29 @@ describe("PaymentConsumerManagementService ownership", () => {
       approvalRequestId: "00000000-0000-4000-8000-000000000001",
     })).rejects.toMatchObject({ status: 409 });
     expect(updateMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rotates an existing live registration without consuming a new approval", async () => {
+    (prisma.$queryRawUnsafe as jest.Mock).mockResolvedValueOnce([{ id: "consumer-row" }]);
+    const approvals = { assertApprovedForAction: jest.fn() } as unknown as ApprovalRequestService;
+    const liveService = new PaymentConsumerManagementService(prisma, tenancy, approvals);
+
+    const result = await liveService.rotate({ consumerServiceId: "billing-api", environment: "live" });
+
+    expect(result.environment).toBe("live");
+    expect(approvals.assertApprovedForAction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 404 when asked to rotate a consumer without an existing registration", async () => {
+    (prisma.$queryRawUnsafe as jest.Mock).mockResolvedValueOnce([]);
+
+    await expect(service.rotate({ consumerServiceId: "billing-api", environment: "live" }))
+      .rejects.toMatchObject({
+        status: 404,
+        response: expect.objectContaining({ code: "PAYMENT_CONSUMER_NOT_REGISTERED" }),
+      });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

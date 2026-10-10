@@ -9,6 +9,7 @@ const titles: Record<string, { eyebrow: string; title: string; description: stri
   idempotency: { eyebrow: "Reliability", title: "Idempotency & Rate Limits", description: "Idempotency keys, reference IDs, quotas, and retry strategies." },
   "sdk-usage": { eyebrow: "SDK", title: "APICenter SDK", description: "Integrate using official TypeScript and Node.js SDK helper libraries." },
   "payments/overview": { eyebrow: "Financial", title: "Payments Overview", description: "Provider-neutral PayMongo facade and payments engine overview." },
+  "payments/limits": { eyebrow: "Financial", title: "Payment Limits & Live Access", description: "Plan-based payment amount and write-rate limits, overrides, and live approval requirements." },
   "payments/checkouts": { eyebrow: "Financial", title: "Checkouts & Payment Links", description: "Create hosted payment checkout sessions and links." },
   "payments/intents": { eyebrow: "Financial", title: "Payment Intents API", description: "Create, retrieve, confirm, and cancel payment intents." },
   "payments/customers": { eyebrow: "Financial", title: "Customers", description: "Create and look up customer records scoped to a consumer service." },

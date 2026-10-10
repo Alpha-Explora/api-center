@@ -13,6 +13,7 @@ export const guideSlugs = [
   ["idempotency"],
   ["sdk-usage"],
   ["payments", "overview"],
+  ["payments", "limits"],
   ["payments", "checkouts"],
   ["payments", "intents"],
   ["payments", "customers"],
