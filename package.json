@@ -73,7 +73,9 @@
     "sdk:build": "npm run build --workspace @alpha-explora/apicenter-sdk",
     "check:sdk-contracts": "node scripts/check-sdk-contracts.js",
     "docs:build": "npm run build --workspace @apicenter/docs",
-    "docs:test": "npm test --workspace @apicenter/docs"
+    "docs:test": "npm test --workspace @apicenter/docs",
+    "check:documentation": "node scripts/check-documentation.mjs",
+    "test:documentation": "node --test tests/integration/scripts/check-documentation.test.mjs"
   },
   "dependencies": {
     "@google-cloud/pubsub": "^5.3.1",

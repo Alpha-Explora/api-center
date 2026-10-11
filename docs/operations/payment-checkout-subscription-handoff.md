@@ -1,3 +1,13 @@
+---
+title: "Payment Checkout And Subscription Handoff"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
+---
 # Payment Checkout And Subscription Handoff
 
 ## Tribe Contract

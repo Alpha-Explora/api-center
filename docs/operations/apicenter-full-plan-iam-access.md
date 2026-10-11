@@ -1,3 +1,13 @@
+---
+title: "APICenter Full-Plan IAM Access"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["infra/gcp"]
+---
 # APICenter Full-Plan IAM Access
 
 **Principal:** `admin@alphaexplora.com`

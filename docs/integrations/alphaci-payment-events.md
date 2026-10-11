@@ -1,3 +1,13 @@
+---
+title: "AlphaCI Payment Event Delivery"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
+---
 # AlphaCI Payment Event Delivery
 
 APICenter remains the payment provider boundary. AlphaCI receives only the

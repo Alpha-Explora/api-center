@@ -9,7 +9,7 @@
 
   --fd-layout-width: 100vw !important;
   --fd-page-width: 100% !important;
-  --fd-toc-width: 440px !important;
+
 
   /* Method Colors */
   --c-get:    #10b981;
@@ -32,28 +32,7 @@ body {
   max-width: 100vw !important;
 }
 
-#nd-page {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 2rem !important;
-  max-width: 100% !important;
-  width: 100% !important;
-  padding-left: 2rem !important;
-  padding-right: 2rem !important;
-}
-
-#nd-page > article {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
-  max-width: 800px !important;
-}
-
-#nd-toc {
-  width: 440px !important;
-  min-width: 380px !important;
-  flex-shrink: 0 !important;
-  margin-left: auto !important;
-}
+/* Fumadocs owns article spacing and responsive TOC visibility. */
 
 /* Sidebar item icon alignment */
 #nd-sidebar [data-icon] {
@@ -86,6 +65,8 @@ body {
 }
 
 .fd-ep-url {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   color: var(--color-fd-muted-foreground);

@@ -1,0 +1,97 @@
+[
+  {
+    "slug": "getting-started",
+    "section": "Getting started"
+  },
+  {
+    "slug": "authentication",
+    "section": "Getting started"
+  },
+  {
+    "slug": "idempotency",
+    "section": "Getting started"
+  },
+  {
+    "slug": "sdk-usage",
+    "section": "Getting started"
+  },
+  {
+    "slug": "payments/overview",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/architecture",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/limits",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/checkouts",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/intents",
+    "section": "Payments",
+    "aliases": [
+      "payments/payment-intents"
+    ]
+  },
+  {
+    "slug": "payments/payment-links",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/customers",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/refunds",
+    "section": "Payments"
+  },
+  {
+    "slug": "payments/subscriptions",
+    "section": "Payments"
+  },
+  {
+    "slug": "messaging-verification/email",
+    "section": "Messaging and verification"
+  },
+  {
+    "slug": "messaging-verification/otp",
+    "section": "Messaging and verification"
+  },
+  {
+    "slug": "messaging-verification/sms",
+    "section": "Messaging and verification"
+  },
+  {
+    "slug": "identity-gateway/auth-tokens",
+    "section": "Identity and platform"
+  },
+  {
+    "slug": "identity-gateway/gauth",
+    "section": "Identity and platform"
+  },
+  {
+    "slug": "identity-gateway/registry-health",
+    "section": "Identity and platform"
+  },
+  {
+    "slug": "platform-utilities/geo",
+    "section": "Identity and platform"
+  },
+  {
+    "slug": "consumer-runbook",
+    "section": "Events and operations"
+  },
+  {
+    "slug": "events/pubsub-delivery",
+    "section": "Events and operations"
+  },
+  {
+    "slug": "migration/from-direct-paymongo",
+    "section": "Events and operations"
+  }
+]

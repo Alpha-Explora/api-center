@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { DetailedOperation } from "@/lib/contracts";
 
-type Tab = "TypeScript" | "Next.js" | "cURL";
+import { buildSnippet, type SnippetTab as Tab } from "@/lib/snippets";
 
 const LANG_LABELS: Record<Tab, string> = {
   TypeScript: "TS",
@@ -11,57 +11,12 @@ const LANG_LABELS: Record<Tab, string> = {
   cURL: "CURL",
 };
 
-function buildSnippet(op: DetailedOperation, tab: Tab): string {
-  const fullUrl = `https://api-center.itsandbox.site${op.path}`;
-  const reqBody = op.sampleRequest ? JSON.stringify(op.sampleRequest, null, 2) : null;
-  const idempKey = op.requiresIdempotency
-    ? `,\n    "Idempotency-Key": "unique-key-${op.operationId}"`
-    : "";
-
-  if (tab === "TypeScript") {
-    return `import { ApiCenterClient } from "@apicenter/sdk";
-
-const client = new ApiCenterClient({
-  baseUrl: "https://api-center.itsandbox.site",
-  clientId: "YOUR_TRIBE_ID",
-  clientSecret: "YOUR_TRIBE_SECRET",
-});
-
-const response = await client.${op.operationId}(${reqBody ?? ""});
-console.log(response);`;
-  }
-
-  if (tab === "Next.js") {
-    return `const response = await fetch("${fullUrl}", {
-  method: "${op.method}",
-  headers: {
-    "Authorization": "Bearer YOUR_ACCESS_TOKEN",
-    "Content-Type": "application/json"${idempKey}
-  }${reqBody ? `,\n  body: JSON.stringify(${reqBody})` : ""}
-});
-
-const data = await response.json();
-console.log(data);`;
-  }
-
-  let curl = `curl -X ${op.method} "${fullUrl}" \\
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
-  -H "Content-Type: application/json"`;
-  if (op.requiresIdempotency) {
-    curl += ` \\\n  -H "Idempotency-Key: unique-key-${op.operationId}"`;
-  }
-  if (reqBody) {
-    curl += ` \\\n  -d '${JSON.stringify(op.sampleRequest)}'`;
-  }
-  return curl;
-}
-
 export function CodePanel({ operation }: { operation: DetailedOperation }) {
   const [tab, setTab] = useState<Tab>("TypeScript");
   const [copied, setCopied] = useState<string | null>(null);
 
   const code = buildSnippet(operation, tab);
-  const responseJson = JSON.stringify(operation.sampleResponse, null, 2);
+  const responseJson = operation.sampleResponse ? JSON.stringify(operation.sampleResponse, null, 2) : "No response example is supplied by this contract. See the documented response schema.";
 
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -104,7 +59,7 @@ export function CodePanel({ operation }: { operation: DetailedOperation }) {
         {/* URL bar */}
         <div className="fd-panel-url-bar">
           <span className="fd-panel-lang">{LANG_LABELS[tab]}</span>
-          <span className="fd-panel-url">https://api-center.itsandbox.site{operation.path}</span>
+          <span className="fd-panel-url">{operation.serverUrl}{operation.path}</span>
         </div>
 
         {/* Code */}

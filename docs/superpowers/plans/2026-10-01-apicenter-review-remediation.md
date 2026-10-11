@@ -1,4 +1,16 @@
+---
+title: "APICenter Review Remediation Implementation Plan"
+status: active
+authority: informative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "unverified"
+verification: unverified
+sources: ["AGENTS.md","docs/architecture/current-architecture.md"]
+---
 # APICenter Review Remediation Implementation Plan
+
+This working document preserves prior scope and checklists. It does not establish current deployment state or override the maintained docs bundle. See [the working-document register](../plans/README.md) for verification gaps and disposition.
 
 > **For agentic workers:** Execute these tasks in order. Check each task's behavior before continuing.
 

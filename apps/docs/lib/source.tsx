@@ -1,5 +1,6 @@
 import type * as PageTree from "fumadocs-core/page-tree";
 import { getDetailedOperations } from "./contracts";
+import { getPublishedGuides } from "./guides";
 
 const METHOD_COLORS: Record<string, { color: string; bg: string; border: string }> = {
   GET:    { color: "#10b981", bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.3)" },
@@ -57,33 +58,15 @@ export function getFumadocsPageTree(): PageTree.Root {
     })),
   }));
 
-  const guideChildren: PageTree.Node[] = [
-    { type: "page", name: "Getting Started", url: "/guides/getting-started" },
-    { type: "page", name: "Authentication", url: "/guides/authentication" },
-    { type: "page", name: "Idempotency & Retries", url: "/guides/idempotency" },
-    { type: "page", name: "APICenter SDK", url: "/guides/sdk-usage" },
-    { type: "separator", name: "Payments" },
-    { type: "page", name: "Payments Overview", url: "/guides/payments/overview" },
-    { type: "page", name: "Payment Limits & Live Access", url: "/guides/payments/limits" },
-    { type: "page", name: "Checkouts", url: "/guides/payments/checkouts" },
-    { type: "page", name: "Payment Intents", url: "/guides/payments/intents" },
-    { type: "page", name: "Payment Links", url: "/guides/payments/payment-links" },
-    { type: "page", name: "Customers", url: "/guides/payments/customers" },
-    { type: "page", name: "Subscriptions", url: "/guides/payments/subscriptions" },
-    { type: "page", name: "Refunds", url: "/guides/payments/refunds" },
-    { type: "separator", name: "Messaging & Verification" },
-    { type: "page", name: "SMS Service", url: "/guides/messaging-verification/sms" },
-    { type: "page", name: "Email Service", url: "/guides/messaging-verification/email" },
-    { type: "page", name: "OTP Verification", url: "/guides/messaging-verification/otp" },
-    { type: "separator", name: "Identity & Platform" },
-    { type: "page", name: "Auth & Token Issuance", url: "/guides/identity-gateway/auth-tokens" },
-    { type: "page", name: "Registry & Health", url: "/guides/identity-gateway/registry-health" },
-    { type: "page", name: "Geo & IP Location", url: "/guides/platform-utilities/geo" },
-    { type: "separator", name: "Events & Migration" },
-    { type: "page", name: "Pub/Sub Delivery", url: "/guides/events/pubsub-delivery" },
-    { type: "page", name: "From Direct PayMongo", url: "/guides/migration/from-direct-paymongo" },
-    { type: "page", name: "Consumer Runbook", url: "/guides/consumer-runbook" },
-  ];
+  const guideChildren: PageTree.Node[] = [];
+  let section = "";
+  for (const guide of getPublishedGuides()) {
+    if (guide.section !== section) {
+      section = guide.section;
+      guideChildren.push({ type: "separator", name: section });
+    }
+    guideChildren.push({ type: "page", name: guide.title, url: guide.url });
+  }
 
   return {
     name: "APICenter Docs",

@@ -1,4 +1,7 @@
-# Consumer Runbook
+---
+title: "Consumer Runbook"
+description: "Operational checklist for consumer platform integrations."
+---
 
 APICenter consumers call the provider-neutral payment API with the published
 TypeScript SDK. A consumer owns its business records and receives normalized
@@ -46,6 +49,6 @@ the consumer is corrected. If APICenter announces a payment cutover rollback,
 continue serving existing local state and pause new payment commands; do not
 call PayMongo directly.
 
-See the operator [payment platform runbook](/operations/payment-platform-runbook)
-and [cutover checklist](/operations/payment-platform-cutover-checklist) for
-release and incident procedures.
+Contact the APICenter operator for release and incident procedures. Operator
+runbooks remain internal. Include the environment, resource reference, event ID,
+and correlation ID in the handoff; never include provider credentials.

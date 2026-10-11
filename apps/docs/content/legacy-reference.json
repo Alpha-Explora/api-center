@@ -1,0 +1,6 @@
+{
+  "sendSms": "messaging-verification/sms",
+  "sendEmail": "messaging-verification/email",
+  "generateOtp": "messaging-verification/otp",
+  "lookupGeo": "platform-utilities/geo"
+}

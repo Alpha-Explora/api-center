@@ -1,4 +1,16 @@
+---
+title: "Secret Manager Migration Cleanup Implementation Plan"
+status: reference
+authority: reference
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["infra/gcp"]
+---
 # Secret Manager Migration Cleanup Implementation Plan
+
+This working document preserves prior scope and checklists. It does not establish current deployment state or override the maintained docs bundle. See [the working-document register](../plans/README.md) for verification gaps and disposition.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

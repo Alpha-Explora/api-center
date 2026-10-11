@@ -1,3 +1,13 @@
+---
+title: "Shared-service database roles"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["supabase/migrations"]
+---
 # Shared-service database roles
 
 Each shared-service runtime connects to Postgres as its own login user. The login user inherits one

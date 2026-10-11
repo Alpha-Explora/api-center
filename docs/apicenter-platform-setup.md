@@ -1,3 +1,13 @@
+---
+title: "APICenter Platform Setup"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["infra/gcp"]
+---
 # APICenter Platform Setup
 
 This is the current operator guide for APICenter. The active production runtime is

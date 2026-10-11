@@ -1,3 +1,13 @@
+---
+title: "Payment reconciliation"
+status: canonical
+authority: operational
+owner: platform-operators
+audience: [operators, engineers]
+last_verified: "unverified"
+verification: unverified
+sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
+---
 # Payment reconciliation
 
 APICenter processes team payments through one APICenter-owned PayMongo merchant account. PayMongo settles that account; it does not split settlement by APICenter project. Teams therefore use APICenter's project records and the operator export to attribute activity and calculate their internal payout or chargeback.

@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/navigation.spec.ts"
+    "test": "node --test tests/*.spec.ts tests/*.spec.mjs",
+    "pretypecheck": "fumadocs-mdx"
   },
   "dependencies": {
     "@scalar/api-reference-react": "^0.3.0",

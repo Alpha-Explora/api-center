@@ -1,10 +1,15 @@
 import { DocsPage, DocsTitle, DocsDescription, DocsBody } from "fumadocs-ui/page";
-import { getDetailedOperations, type DetailedOperation, type PropertyField } from "@/lib/contracts";
+import { getDetailedOperations, type PropertyField } from "@/lib/contracts";
+import { PageTOC } from "fumadocs-ui/layouts/docs/page";
 import { CodePanel } from "@/components/code-panel";
+import { notFound } from "next/navigation";
+import legacyReferences from "@/content/legacy-reference.json";
 
 export function generateStaticParams() {
-  return getDetailedOperations().map((op) => ({ operationId: op.operationId }));
+  return [...getDetailedOperations().map((op) => ({ operationId: op.operationId })), ...Object.keys(legacyReferences).map((operationId) => ({ operationId }))];
 }
+
+export const dynamicParams = false;
 
 export async function generateMetadata({ params }: { params: Promise<{ operationId: string }> }) {
   const { operationId } = await params;
@@ -61,14 +66,22 @@ function PropRow({ prop }: { prop: PropertyField }) {
 export default async function EndpointPage({ params }: { params: Promise<{ operationId: string }> }) {
   const { operationId } = await params;
   const op = getDetailedOperations().find((o) => o.operationId === operationId);
-  if (!op) return <div>Operation not found</div>;
+  if (!op) {
+    const guide = (legacyReferences as Record<string, string>)[operationId];
+    if (!guide) notFound();
+    return <DocsPage><DocsTitle>Shared-service integration guide</DocsTitle><DocsBody>
+      <p>This bookmark now points to maintained integration guidance. The downloadable OpenAPI describes payment operations; shared services have separate guides.</p>
+      <p><a href={"/guides/" + guide}>Read the integration guide</a></p>
+    </DocsBody></DocsPage>;
+  }
 
   return (
     <DocsPage
       full={true}
       toc={[]}
-      tableOfContent={{ component: <CodePanel operation={op} />, enabled: true }}
-      tableOfContentPopover={{ enabled: true }}
+      container={{ className: "xl:[--fd-toc-width:440px]" }}
+      tableOfContent={{ component: <PageTOC><CodePanel operation={op} /></PageTOC>, enabled: true }}
+      tableOfContentPopover={{ enabled: false }}
       breadcrumb={{
         enabled: true,
         full: false,
@@ -99,20 +112,21 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
         <DocsTitle>{op.summary}</DocsTitle>
         <div className="fd-ep-url-row">
           <MethodBadge method={op.method} />
-          <code className="fd-ep-url">https://api-center.itsandbox.site{op.path}</code>
+          <code className="fd-ep-url">{op.serverUrl}{op.path}</code>
         </div>
         <DocsDescription>{op.description}</DocsDescription>
       </div>
 
+      <div className="xl:hidden"><CodePanel operation={op} /></div>
       <DocsBody>
         {/* Authentication */}
         <section className="fd-section">
           <h2 className="fd-section-title">Authentication</h2>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
             <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-fd-foreground)" }}>Authorization</span>
-            <Tag variant="type">bearerToken</Tag>
+            <Tag variant="type">APICenterApiKey</Tag>
           </div>
-          <p className="fd-param-desc">Default authentication mechanism using APICenter machine-to-machine Bearer JWT.</p>
+          <p className="fd-param-desc">{op.authentication}</p>
         </section>
 
         {/* Path params */}
@@ -150,18 +164,10 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
           </section>
         )}
 
-        {/* Idempotency header */}
-        {op.requiresIdempotency && (
+        {op.headerParameters.length > 0 && (
           <section className="fd-section">
             <h2 className="fd-section-title">Headers</h2>
-            <div className="fd-prop-row">
-              <div className="fd-prop-meta">
-                <code className="fd-prop-name">Idempotency-Key</code>
-                <Tag variant="type">string</Tag>
-                <Tag variant="required">Required</Tag>
-              </div>
-              <p className="fd-param-desc">Unique key for this payment mutation. Reuse it with the same request body when retrying.</p>
-            </div>
+            {op.headerParameters.map((header) => <PropRow key={header.name} prop={header} />)}
           </section>
         )}
 
@@ -173,36 +179,16 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
           </section>
         )}
 
-        {/* Response */}
-        <section className="fd-section">
-          <h2 className="fd-section-title">Response</h2>
-          <div className="fd-status-row">
-            <span className="fd-status-badge fd-status-200">200</span>
-            <span className="fd-status-label">Success</span>
-          </div>
-          {op.responseProperties.length > 0 ? (
-            op.responseProperties.map((p) => <PropRow key={p.name} prop={p} />)
-          ) : (
-            <>
-              <div className="fd-prop-row">
-                <div className="fd-prop-meta">
-                  <code className="fd-prop-name">success</code>
-                  <Tag variant="type">boolean</Tag>
-                  <Tag variant="required">Required</Tag>
-                </div>
-                <p className="fd-param-desc">Indicates if the request completed successfully.</p>
-              </div>
-              <div className="fd-prop-row">
-                <div className="fd-prop-meta">
-                  <code className="fd-prop-name">data</code>
-                  <Tag variant="type">object</Tag>
-                  <Tag variant="optional">Optional</Tag>
-                </div>
-                <p className="fd-param-desc">Canonical resource returned by APICenter shared service.</p>
-              </div>
-            </>
-          )}
-        </section>
+        {op.successResponses.map((response) => (
+          <section key={response.code} className="fd-section">
+            <h2 className="fd-section-title">Response</h2>
+            <div className="fd-status-row">
+              <span className="fd-status-badge fd-status-200">{response.code}</span>
+              <span className="fd-status-label">{response.description}</span>
+            </div>
+            {response.properties.map((property) => <PropRow key={property.name} prop={property} />)}
+          </section>
+        ))}
 
         {/* Errors */}
         <section className="fd-section">

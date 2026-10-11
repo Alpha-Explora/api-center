@@ -66,3 +66,6 @@ docs/superpowers/plans/2026-06-22-aws-data-pipeline-shutdown-migration.md
 **/.next/
 
 apps/docs/out/
+
+# Generated Fumadocs source manifests
+apps/docs/.source/

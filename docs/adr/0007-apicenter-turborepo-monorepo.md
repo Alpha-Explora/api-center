@@ -1,3 +1,13 @@
+---
+title: "ADR-0007: APICenter Turborepo Monorepo"
+status: canonical
+authority: normative
+owner: platform-maintainers
+audience: [engineers, maintainers, agents]
+last_verified: "unverified"
+verification: unverified
+sources: ["AGENTS.md","docs/architecture/current-architecture.md"]
+---
 # ADR-0007: APICenter Turborepo Monorepo
 
 ## Status

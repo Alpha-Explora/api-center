@@ -3,8 +3,6 @@ title: "SMS Shared Service API"
 description: "Send single transactional SMS notifications and track message delivery via @apicenter/contracts."
 ---
 
-# SMS Shared Service API
-
 The SMS Shared Service allows product backends to dispatch transactional SMS messages without directly integrating with telecommunication providers. Teams provide the message content in each request; APICenter does not store SMS templates.
 
 ---
@@ -12,7 +10,7 @@ The SMS Shared Service allows product backends to dispatch transactional SMS mes
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/sms`
-- **Required Header**: `Authorization: Bearer <API_KEY>`
+- **Required Header**: `Authorization: Bearer <SERVICE_ACCESS_TOKEN>`
 - **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---

@@ -20,6 +20,7 @@ export type PropertyField = {
 };
 
 export type DetailedOperation = {
+  serverUrl: string;
   path: string;
   method: string;
   operationId: string;
@@ -33,7 +34,9 @@ export type DetailedOperation = {
   requestProperties: PropertyField[];
   responseProperties: PropertyField[];
   sampleRequest: Record<string, unknown> | null;
-  sampleResponse: Record<string, unknown>;
+  sampleResponse: Record<string, unknown> | null;
+  authentication: string;
+  successResponses: { code: number; description: string; properties: PropertyField[] }[];
   errorResponses: { code: number; description: string }[];
 };
 
@@ -80,7 +83,7 @@ function resolveRef(doc: ContractMap, ref: string): ContractMap {
   const parts = ref.replace(/^#\//, "").split("/");
   let current: unknown = doc;
   for (const part of parts) {
-    current = asRecord(current)[part];
+    current = asRecord(current)[part.replace(/~1/g, "/").replace(/~0/g, "~")];
   }
   return asRecord(current);
 }
@@ -110,7 +113,7 @@ function extractProperties(doc: ContractMap, rawSchema: ContractMap): PropertyFi
     }
 
     const isRequired = requiredList.includes(propName);
-    const rawType = String(propDef.type ?? (propDef.properties ? "object" : propDef.items ? "array" : "string"));
+    const rawType = String(propDef.type ?? (typeof propDef.const === "boolean" ? "boolean" : propDef.properties ? "object" : propDef.items ? "array" : "unknown"));
     const description = String(propDef.description ?? "");
 
     let children: PropertyField[] | undefined;
@@ -206,7 +209,14 @@ export function getDetailedOperations(): DetailedOperation[] {
       const category = getOperationCategory(operationId, route);
       const summaryTitle = formatOperationTitle(operationId, route, method);
 
-      const rawParams = Array.isArray(op.parameters) ? op.parameters : [];
+      const inherited = Array.isArray(routeObj.parameters) ? routeObj.parameters : [];
+      const declared = Array.isArray(op.parameters) ? op.parameters : [];
+      const parameterMap = new Map<string, ContractMap>();
+      for (const parameter of [...inherited, ...declared]) {
+        const resolved = resolveParameter(document, parameter);
+        parameterMap.set(String(resolved.in) + ":" + String(resolved.name), resolved);
+      }
+      const rawParams = [...parameterMap.values()];
       const requiresIdempotency = rawParams.some((parameter) => resolveParameter(document, parameter).name === "Idempotency-Key");
 
       const pathParameters: ParameterItem[] = [];
@@ -224,25 +234,18 @@ export function getDetailedOperations(): DetailedOperation[] {
         const deprecated = Boolean(p.deprecated);
         const description = String(p.description ?? "");
 
-        if (name) {
-          const item: ParameterItem = { name, in: inType as any, type, required, deprecated, description };
+        if (name && (inType === "path" || inType === "header" || inType === "query")) {
+          const item: ParameterItem = { name, in: inType, type, required, deprecated, description };
           if (inType === "path") pathParameters.push(item);
           else if (inType === "header") headerParameters.push(item);
           else queryParameters.push(item);
         }
       }
 
-      if (method.toLowerCase() === "get" && queryParameters.length === 0) {
-        queryParameters.push(
-          { name: "environment", in: "query", type: "string", required: false, description: "Target environment scope (test or live)." },
-          { name: "limit", in: "query", type: "number", required: false, description: "Number of records to return (1 to 100)." }
-        );
-      }
-
       // Extract Request Body Properties
       let requestProperties: PropertyField[] = [];
       let sampleRequest: Record<string, unknown> | null = null;
-      const reqBody = asRecord(op.requestBody);
+      const reqBody = resolveParameter(document, op.requestBody);
       const reqContent = asRecord(reqBody.content);
       const reqJson = asRecord(reqContent["application/json"]);
       if (reqJson.schema) {
@@ -252,30 +255,37 @@ export function getDetailedOperations(): DetailedOperation[] {
         sampleRequest = reqJson.example as Record<string, unknown>;
       }
 
-      // Extract Response Properties & Sample
-      let responseProperties: PropertyField[] = [];
-      let sampleResponse: Record<string, unknown> = { success: true };
       const responses = asRecord(op.responses);
-      const successRes = asRecord(responses["200"] || responses["201"]);
-      const resContent = asRecord(successRes.content);
-      const resJson = asRecord(resContent["application/json"]);
+      const successResponses = Object.entries(responses)
+        .filter(([code]) => /^2\d\d$/.test(code))
+        .map(([code, rawResponse]) => {
+          const response = resolveParameter(document, rawResponse);
+          const json = asRecord(asRecord(response.content)["application/json"]);
+          return { code: Number(code), description: String(response.description ?? ""), properties: extractProperties(document, asRecord(json.schema)) };
+        });
+      const primaryCode = successResponses[0]?.code;
+      const primaryResponse = resolveParameter(document, responses[String(primaryCode)]);
+      const responseJson = asRecord(asRecord(primaryResponse.content)["application/json"]);
+      const sampleResponse = responseJson.example ? asRecord(responseJson.example) : null;
+      const responseProperties = successResponses[0]?.properties ?? [];
+      const errorResponses = Object.entries(responses)
+        .filter(([code]) => /^\d{3}$/.test(code) && Number(code) >= 400)
+        .map(([code, response]) => ({ code: Number(code), description: String(resolveParameter(document, response).description ?? "") }));
+      const security = Array.isArray(op.security) ? op.security : Array.isArray(document.security) ? document.security : [];
+      const schemes = asRecord(asRecord(document.components).securitySchemes);
+      const authentication = security.length === 0 ? "No authentication required by this contract." : security.map((requirement) =>
+        Object.keys(asRecord(requirement)).map((name) => {
+          const scheme = asRecord(schemes[name]);
+          return scheme.bearerFormat === "APICenterApiKey" ? "Authorization: Bearer <PAYMENT_API_KEY>. Use the consumer's payment API key." : String(scheme.description ?? name);
+        }).join(" and "),
+      ).join(" or ");
 
-      if (resJson.schema) {
-        responseProperties = extractProperties(document, asRecord(resJson.schema));
-      }
-      if (resJson.example) {
-        sampleResponse = resJson.example as Record<string, unknown>;
-      }
-
-      const errorResponses = [
-        { code: 400, description: "One of the provided values in the request query or body is invalid." },
-        { code: 401, description: "The request is not authorized. Missing or invalid Bearer JWT token." },
-        { code: 403, description: "You do not have required scopes to access this resource." },
-        { code: 404, description: "The requested APICenter resource was not found." },
-        { code: 429, description: "Quota limit exceeded. Rate limit is 20 writes / 100 reads per minute." },
-      ];
+      const servers = op.servers ?? routeObj.servers ?? document.servers;
+      const serverUrl = Array.isArray(servers) ? String(asRecord(servers[0]).url ?? "") : "";
+      if (!serverUrl) throw new Error(`No contract server URL for ${operationId}`);
 
       operations.push({
+        serverUrl: serverUrl.replace(/\/$/, ""),
         path: route,
         method: method.toUpperCase(),
         operationId,
@@ -290,139 +300,11 @@ export function getDetailedOperations(): DetailedOperation[] {
         responseProperties,
         sampleRequest,
         sampleResponse,
+        authentication,
+        successResponses,
         errorResponses,
       });
     }
-  }
-
-  // Ensure non-OpenAPI shared services are present and categorized cleanly
-  const existingPaths = operations.map((o) => o.path);
-
-  if (!existingPaths.includes("/api/v1/shared/sms/send")) {
-    operations.push({
-      path: "/api/v1/shared/sms/send",
-      method: "POST",
-      operationId: "sendSms",
-      tag: "SMS Messaging",
-      summary: "Send SMS Notification",
-      description: "Dispatch single transactional SMS message across Philippine networks.",
-      requiresIdempotency: true,
-      pathParameters: [],
-      queryParameters: [],
-      headerParameters: [],
-      requestProperties: [
-        { name: "to", type: "string", required: true, description: "Recipient phone number in E.164 format (+639...)." },
-        { name: "message", type: "string", required: true, description: "SMS text payload (up to 160 characters)." },
-        { name: "senderId", type: "string", required: false, description: "Approved brand sender ID." },
-      ],
-      responseProperties: [
-        { name: "success", type: "boolean", required: true, description: "Gateway status boolean." },
-        { name: "messageId", type: "string", required: true, description: "Unique SMS delivery tracking ID." },
-        { name: "status", type: "string", required: true, description: "Delivery state (queued, sent, failed)." },
-      ],
-      sampleRequest: { to: "+639171234567", message: "Your verification code is 849201" },
-      sampleResponse: { success: true, messageId: "sms_msg_9918a", status: "queued" },
-      errorResponses: [
-        { code: 400, description: "Invalid recipient phone number or empty message payload." },
-        { code: 401, description: "Missing or invalid Bearer JWT token." },
-        { code: 403, description: "Missing required scope: sms:send." },
-        { code: 429, description: "SMS quota limit exceeded (60 messages per minute)." },
-      ],
-    });
-  }
-
-  if (!existingPaths.includes("/api/v1/shared/email/send")) {
-    operations.push({
-      path: "/api/v1/shared/email/send",
-      method: "POST",
-      operationId: "sendEmail",
-      tag: "Email Service",
-      summary: "Send Email Notification",
-      description: "Send HTML/text transactional email notifications with attachment support.",
-      requiresIdempotency: true,
-      pathParameters: [],
-      queryParameters: [],
-      headerParameters: [],
-      requestProperties: [
-        { name: "to", type: "string", required: true, description: "Recipient email address." },
-        { name: "subject", type: "string", required: true, description: "Email subject line." },
-        { name: "html", type: "string", required: true, description: "HTML body content." },
-      ],
-      responseProperties: [
-        { name: "success", type: "boolean", required: true, description: "Gateway status boolean." },
-        { name: "emailId", type: "string", required: true, description: "Unique email transaction ID." },
-      ],
-      sampleRequest: { to: "user@example.com", subject: "Payment Receipt", html: "<h1>Payment Successful</h1>" },
-      sampleResponse: { success: true, emailId: "eml_88192a" },
-      errorResponses: [
-        { code: 400, description: "Invalid email format or missing subject." },
-        { code: 401, description: "Unauthorized request." },
-        { code: 403, description: "Missing required scope: email:send." },
-      ],
-    });
-  }
-
-  if (!existingPaths.includes("/api/v1/shared/otp/generate")) {
-    operations.push({
-      path: "/api/v1/shared/otp/generate",
-      method: "POST",
-      operationId: "generateOtp",
-      tag: "OTP Verification",
-      summary: "Generate OTP Code",
-      description: "Generate 6-digit One-Time Password and dispatch via SMS or Email.",
-      requiresIdempotency: false,
-      pathParameters: [],
-      queryParameters: [],
-      headerParameters: [],
-      requestProperties: [
-        { name: "channel", type: "string", required: true, description: "Delivery channel (sms or email)." },
-        { name: "target", type: "string", required: true, description: "Recipient phone number or email address." },
-        { name: "purpose", type: "string", required: true, description: "Verification intent (e.g. login_verification)." },
-        { name: "ttlSeconds", type: "number", required: false, description: "Passcode expiration in seconds (default 300)." },
-      ],
-      responseProperties: [
-        { name: "success", type: "boolean", required: true, description: "Gateway status boolean." },
-        { name: "referenceId", type: "string", required: true, description: "OTP session correlation ID." },
-        { name: "expiresAt", type: "string", required: true, description: "ISO timestamp when code expires." },
-      ],
-      sampleRequest: { channel: "sms", target: "+639171234567", purpose: "login_verification" },
-      sampleResponse: { success: true, referenceId: "otp_ref_9918a", expiresAt: "2026-07-29T02:00:00Z" },
-      errorResponses: [
-        { code: 400, description: "Invalid channel or target address." },
-        { code: 429, description: "Too many OTP generation requests for this target." },
-      ],
-    });
-  }
-
-  if (!existingPaths.includes("/api/v1/shared/geo/lookup")) {
-    operations.push({
-      path: "/api/v1/shared/geo/lookup",
-      method: "GET",
-      operationId: "lookupGeo",
-      tag: "Platform Utilities",
-      summary: "Lookup IP Geolocation",
-      description: "Resolve client IP address to region, city, postal code, and ISP.",
-      requiresIdempotency: false,
-      pathParameters: [],
-      queryParameters: [
-        { name: "ip", in: "query", type: "string", required: true, description: "IPv4 or IPv6 address to locate." },
-      ],
-      headerParameters: [],
-      requestProperties: [],
-      responseProperties: [
-        { name: "ip", type: "string", required: true, description: "Query IP address." },
-        { name: "country", type: "string", required: true, description: "ISO 2-letter country code." },
-        { name: "region", type: "string", required: true, description: "Philippine region or province code." },
-        { name: "city", type: "string", required: true, description: "City or municipality name." },
-        { name: "postalCode", type: "string", required: true, description: "Postal zip code." },
-      ],
-      sampleRequest: null,
-      sampleResponse: { ip: "203.177.10.1", country: "PH", region: "NCR", city: "Manila", postalCode: "1000" },
-      errorResponses: [
-        { code: 400, description: "Invalid IP address format." },
-        { code: 401, description: "Missing Bearer JWT authentication." },
-      ],
-    });
   }
 
   return operations;
