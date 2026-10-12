@@ -7,7 +7,7 @@ COPY packages/ ./packages/
 COPY examples/sandbox/demand-service/ ./examples/sandbox/demand-service/
 
 RUN npm ci
-RUN npm run build --workspace @apicenter/contracts \
+RUN npm run build --workspace @alpha-explora/apicenter-contracts \
   && npm run build --workspace @alpha-explora/apicenter-sdk
 
 WORKDIR /workspace/examples/sandbox/demand-service

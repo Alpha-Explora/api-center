@@ -1,4 +1,4 @@
-import type { EmailDeliveryStatus, EmailSendRequest, EmailSendResponse } from '@apicenter/contracts';
+import type { EmailDeliveryStatus, EmailSendRequest, EmailSendResponse } from '@alpha-explora/apicenter-contracts';
 import type { IdempotencyOptions, RequestOptions } from '../types';
 import { ApiCenterTransport } from '../internal/transport';
 

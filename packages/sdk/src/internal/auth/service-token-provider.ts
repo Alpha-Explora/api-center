@@ -1,4 +1,4 @@
-import type { PaymentEnvironment } from '@apicenter/contracts';
+import type { PaymentEnvironment } from '@alpha-explora/apicenter-contracts';
 import { ApiCenterError } from '../errors';
 
 export interface ServiceCredentials {

@@ -18,7 +18,7 @@ Implementation completed on 2026-10-12. The SDK was built and verified locally. 
 
 **Architecture:** Reconcile the client against active routes and contracts first. Add one credential provider, HTTP transport, and error type. Expose service namespaces from one facade, migrate every in-repo caller, and remove the old clients. Keep APICenter as the authority for service placement, scopes, and authorization.
 
-**Tech Stack:** TypeScript, Node.js 24, npm workspaces, Jest, `@apicenter/contracts`, NestJS gateway and service manifests, OpenAPI.
+**Tech Stack:** TypeScript, Node.js 24, npm workspaces, Jest, `@alpha-explora/apicenter-contracts`, NestJS gateway and service manifests, OpenAPI.
 
 **Spec:** [APICenter SDK redesign specification](../specs/2026-10-12-apicenter-sdk-overhaul-design.md)
 
@@ -49,7 +49,7 @@ Implementation completed on 2026-10-12. The SDK was built and verified locally. 
 
 - [x] Trace each currently implemented shared-service operation to the gateway route, service runtime route, request/response DTO, required scope, and idempotency requirement. Record the canonical service namespace and method name for email, SMS, OTP, geo, Google Auth, and supported payment operations.
 - [x] Reconcile payment operations against the active OpenAPI operations and gateway handlers. Mark unsupported, stale, or unverified hand-authored methods for removal instead of preserving them by assumption.
-- [x] Add or complete contract-owned request and response types for verified shared-service operations in `@apicenter/contracts`; keep route/wrapper inventory aligned with runtime manifests. Do not invent schemas where the runtime has none—record the gap and keep that operation out of the typed SDK until resolved.
+- [x] Add or complete contract-owned request and response types for verified shared-service operations in `@alpha-explora/apicenter-contracts`; keep route/wrapper inventory aligned with runtime manifests. Do not invent schemas where the runtime has none—record the gap and keep that operation out of the typed SDK until resolved.
 - [x] Add contract checks that fail when an exported SDK operation has no active route/contract, or when a required supported route loses its SDK mapping. Retain payment event schema validation.
 - [x] Add focused contract tests for route coverage, auth metadata, and contract-derived request/response types. Run `npm run contracts:validate`, the focused contract Jest test, and `npm run check:sdk-contracts`; confirm the new checks fail when a route or operation mapping is deliberately missing, then restore the source.
 
@@ -78,7 +78,7 @@ Implementation completed on 2026-10-12. The SDK was built and verified locally. 
 **Files:** `packages/sdk/src/services/payments/**`, `packages/sdk/src/ApiCenter.ts`, `packages/sdk/src/types.ts`, `packages/sdk/tests/unit/payments/**`.
 
 - [x] Add `apicenter.payments` resource groups for only verified payment operations: checkouts, intents, customers, plans, payment links, refunds, subscriptions, invoices, records, and capabilities.
-- [x] Derive public input/output types from `@apicenter/contracts`; remove duplicate or unsupported hand-authored payment shapes identified in Task 1.
+- [x] Derive public input/output types from `@alpha-explora/apicenter-contracts`; remove duplicate or unsupported hand-authored payment shapes identified in Task 1.
 - [x] Route payment calls through the common transport. Use `paymentApiKey` when explicitly configured, otherwise use the configured service bearer. Keep payment-key configuration and service scopes explicit in docs and types.
 - [x] Enforce idempotency keys only on operations whose gateway contract requires them. Preserve `202` pending resources and response envelopes as documented return types. Keep retries disabled.
 - [x] Add tests for the verified operations, auth selection, required idempotency keys, pagination/query encoding, `202` results, and error propagation. Run SDK typecheck and the payment test files.

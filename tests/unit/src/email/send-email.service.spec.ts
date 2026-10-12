@@ -1,5 +1,5 @@
 import type { SharedServiceCaller } from "@apicenter/runtime";
-import type { EmailSendRequest } from "@apicenter/contracts";
+import type { EmailSendRequest } from "@alpha-explora/apicenter-contracts";
 
 const mockResendSend = jest.fn();
 

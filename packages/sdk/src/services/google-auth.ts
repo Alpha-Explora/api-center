@@ -1,4 +1,4 @@
-import type { GoogleAuthorizationUrlRequest, GoogleAuthorizationUrlResponse, GoogleLogoutRequest, GoogleLogoutResponse, GoogleOAuthTokenResponse, GoogleTokenExchangeRequest, GoogleTokenRefreshRequest } from '@apicenter/contracts';
+import type { GoogleAuthorizationUrlRequest, GoogleAuthorizationUrlResponse, GoogleLogoutRequest, GoogleLogoutResponse, GoogleOAuthTokenResponse, GoogleTokenExchangeRequest, GoogleTokenRefreshRequest } from '@alpha-explora/apicenter-contracts';
 import type { RequestOptions } from '../types';
 import { ApiCenterTransport } from '../internal/transport';
 

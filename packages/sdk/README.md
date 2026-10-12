@@ -86,7 +86,7 @@ Payment writes require a unique idempotency key between 16 and 255 characters. T
 
 ## Other namespaces
 
-The client exposes `email`, `sms`, `otp`, `geo`, `googleAuth`, and `payments`. Request and response types are re-exported from `@apicenter/contracts`. Shared-service send and OTP mutation methods also require an idempotency key.
+The client exposes `email`, `sms`, `otp`, `geo`, `googleAuth`, and `payments`. Request and response types are re-exported from `@alpha-explora/apicenter-contracts`. Shared-service send and OTP mutation methods also require an idempotency key.
 
 ```ts
 const challenge = await api.otp.generate(

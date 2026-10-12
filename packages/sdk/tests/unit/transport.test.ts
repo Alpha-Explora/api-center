@@ -126,6 +126,42 @@ describe('ApiCenterTransport', () => {
       });
   });
 
+  it('redacts secrets from client errors and hides server error details', async () => {
+    const fetchImpl = jest.fn()
+      .mockResolvedValueOnce(response({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Invalid apiKey=client-secret-value',
+          details: {
+            field: 'apiKey=client-secret-value',
+            accessToken: 'private-access-token',
+            nested: { note: 'Bearer private-token', secret: 'private-secret' },
+          },
+        },
+      }, 400))
+      .mockResolvedValueOnce(response({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'database password=private-password', details: { query: 'private-query' } },
+      }, 500));
+    const transport = new ApiCenterTransport({
+      baseUrl: 'https://gateway.example.test', auth: { getAccessToken: async () => 'token' },
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(transport.request({ path: '/invalid', method: 'GET', credential: 'service' }))
+      .rejects.toMatchObject({
+        message: 'Invalid apiKey=[REDACTED]',
+        details: { field: 'apiKey=[REDACTED]', nested: { note: 'Bearer [REDACTED]' } },
+      });
+    await expect(transport.request({ path: '/server-error', method: 'GET', credential: 'service' }))
+      .rejects.toMatchObject({
+        message: 'APICenter returned an error (500)',
+        code: 'INTERNAL_ERROR',
+        details: undefined,
+      });
+  });
+
   it('reports malformed and empty response bodies consistently', async () => {
     const fetchImpl = jest.fn()
       .mockResolvedValueOnce(response('not-json'))
@@ -158,6 +194,63 @@ describe('ApiCenterTransport', () => {
     await expect(transport.request({
       path: '/cancelled', method: 'GET', credential: 'service', options: { signal: controller.signal },
     })).rejects.toThrow('caller cancelled');
+  });
+
+  it('times out credential lookup and passes the abort signal to access-token providers', async () => {
+    let providerSignal: AbortSignal | undefined;
+    const auth = {
+      getAccessToken: jest.fn((options?: { signal?: AbortSignal }) => {
+        providerSignal = options?.signal;
+        return new Promise<string>(() => {});
+      }),
+    };
+    const fetchImpl = jest.fn();
+    const transport = new ApiCenterTransport({
+      baseUrl: 'https://gateway.example.test', auth,
+      fetchImpl: fetchImpl as unknown as typeof fetch, timeoutMs: 5,
+    });
+
+    await expect(transport.request({ path: '/stalled-auth', method: 'GET', credential: 'service' }))
+      .rejects.toMatchObject({ name: 'ApiCenterError', code: 'REQUEST_TIMEOUT', status: 0 });
+    expect(providerSignal?.aborted).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('cancels while resolving credentials and keeps provider method receivers', async () => {
+    const controller = new AbortController();
+    const auth = {
+      token: 'receiver-bound-token',
+      getAccessToken: jest.fn(async function (this: { token: string }) { return this.token; }),
+    };
+    const fetchImpl = jest.fn().mockResolvedValue(response({ success: true, data: {} }));
+    const transport = new ApiCenterTransport({
+      baseUrl: 'https://gateway.example.test', auth,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await transport.request({ path: '/bound-provider', method: 'GET', credential: 'service' });
+    expect(requestHeaders(fetchImpl).get('authorization')).toBe('Bearer receiver-bound-token');
+
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+    const pendingAuth = {
+      getAccessToken: jest.fn(() => {
+        providerStarted();
+        return new Promise<string>(() => {});
+      }),
+    };
+    const pendingTransport = new ApiCenterTransport({
+      baseUrl: 'https://gateway.example.test', auth: pendingAuth,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const pendingRequest = pendingTransport.request({
+      path: '/cancelled-auth', method: 'GET', credential: 'service', options: { signal: controller.signal },
+    });
+    await started;
+    controller.abort(new Error('credential lookup cancelled'));
+
+    await expect(pendingRequest).rejects.toThrow('credential lookup cancelled');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('exports the common typed error class', () => {

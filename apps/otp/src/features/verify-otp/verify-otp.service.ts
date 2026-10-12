@@ -1,4 +1,4 @@
-import type { OtpVerifyRequest, OtpVerifyResponse } from '@apicenter/contracts';
+import type { OtpVerifyRequest, OtpVerifyResponse } from '@alpha-explora/apicenter-contracts';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';

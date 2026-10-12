@@ -23,7 +23,7 @@
     "lint": "npm run typecheck"
   },
   "dependencies": {
-    "@apicenter/contracts": "*",
+    "@alpha-explora/apicenter-contracts": "0.1.0",
     "zod": "^4.4.3"
   },
   "publishConfig": {

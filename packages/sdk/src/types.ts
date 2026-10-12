@@ -1,4 +1,4 @@
-import type { PaymentEnvironment } from '@apicenter/contracts';
+import type { PaymentEnvironment } from '@alpha-explora/apicenter-contracts';
 
 export type { PaymentEnvironment };
 export type {
@@ -49,7 +49,7 @@ export type {
   SmsSendRequest,
   SmsSendResponse,
   Subscription,
-} from '@apicenter/contracts';
+} from '@alpha-explora/apicenter-contracts';
 
 export interface ServiceCredentials {
   serviceId: string;
@@ -58,7 +58,7 @@ export interface ServiceCredentials {
 }
 
 export interface AccessTokenProvider {
-  getAccessToken: () => Promise<string>;
+  getAccessToken: (options?: { signal?: AbortSignal }) => Promise<string>;
 }
 
 export type ApiCenterAuth = ServiceCredentials | AccessTokenProvider;

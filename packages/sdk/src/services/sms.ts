@@ -1,4 +1,4 @@
-import type { SmsDeliveryStatus, SmsSendRequest, SmsSendResponse } from '@apicenter/contracts';
+import type { SmsDeliveryStatus, SmsSendRequest, SmsSendResponse } from '@alpha-explora/apicenter-contracts';
 import type { IdempotencyOptions, RequestOptions } from '../types';
 import { ApiCenterTransport } from '../internal/transport';
 

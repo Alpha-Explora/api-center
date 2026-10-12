@@ -55,7 +55,7 @@ The gateway is available at `http://localhost:3000`.
 
 ## Shared Microservices & Contracts
 
-All shared microservices expose contract-backed DTOs from `@apicenter/contracts`:
+All shared microservices expose contract-backed DTOs from `@alpha-explora/apicenter-contracts`:
 
 - **`apps/payments`**: PayMongo checkout sessions, payment intents, subscriptions, refunds, and webhooks.
 - **`apps/email`**: Transactional email dispatch, status tracking, and template rendering.

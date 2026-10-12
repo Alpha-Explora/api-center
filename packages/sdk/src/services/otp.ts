@@ -1,4 +1,4 @@
-import type { OtpGenerateRequest, OtpGenerateResponse, OtpStatusResponse, OtpVerifyRequest, OtpVerifyResponse } from '@apicenter/contracts';
+import type { OtpGenerateRequest, OtpGenerateResponse, OtpStatusResponse, OtpVerifyRequest, OtpVerifyResponse } from '@alpha-explora/apicenter-contracts';
 import type { IdempotencyOptions, RequestOptions } from '../types';
 import { ApiCenterTransport } from '../internal/transport';
 

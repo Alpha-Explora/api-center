@@ -1,4 +1,4 @@
-import type { GeoAddressResult, GeoFenceCheckRequest, GeoFenceCheckResponse, GeoGeocodeRequest, GeoReverseGeocodeRequest } from '@apicenter/contracts';
+import type { GeoAddressResult, GeoFenceCheckRequest, GeoFenceCheckResponse, GeoGeocodeRequest, GeoReverseGeocodeRequest } from '@alpha-explora/apicenter-contracts';
 import type { RequestOptions } from '../types';
 import { ApiCenterTransport } from '../internal/transport';
 

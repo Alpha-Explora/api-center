@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import type { EmailSendRequest, EmailSendResponse } from "@apicenter/contracts";
+import type { EmailSendRequest, EmailSendResponse } from "@alpha-explora/apicenter-contracts";
 import type { SharedServiceCaller } from "@apicenter/runtime";
 import { EmailRecipients, EmailSubject } from "./send-email.model";
 import { createEmailStore } from "../../shared/email-store";

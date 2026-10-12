@@ -1,6 +1,6 @@
 import { ApiCenterError } from './errors';
 import { ServiceTokenProvider, type IssuedServiceToken, type ServiceCredentials, type TokenEndpointRequest } from './auth/service-token-provider';
-import type { ApiCenterAuth, RequestOptions } from '../types';
+import type { AccessTokenProvider, ApiCenterAuth, RequestOptions } from '../types';
 
 export type ApiCredential = 'service' | 'payment' | 'none';
 export type HttpMethod = 'GET' | 'POST' | 'PATCH';
@@ -44,12 +44,76 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException('The operation was aborted', 'AbortError');
+}
+
+function waitForSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(abortReason(signal));
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+
+    operation.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+}
+
+function redactSensitiveText(value: string): string {
+  return value
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*\b/g, '[REDACTED]')
+    .replace(
+      /\b(access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|password|secret|authorization)\b\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;}\]]+)/gi,
+      '$1$2[REDACTED]',
+    );
+}
+
+function sanitizeErrorDetails(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') return redactSensitiveText(value);
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
+  if (depth >= 6) return '[truncated]';
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 100).map((item) => sanitizeErrorDetails(item, depth + 1));
+  }
+
+  const record = objectValue(value);
+  if (!record) return undefined;
+
+  const sensitiveKey = /authorization|access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|password|secret|credential|cookie/i;
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([key]) => !sensitiveKey.test(key))
+      .slice(0, 100)
+      .map(([key, item]) => [key, sanitizeErrorDetails(item, depth + 1)]),
+  );
+}
+
 export class ApiCenterTransport {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private readonly paymentApiKey?: string;
-  private readonly accessTokenProvider?: () => Promise<string>;
+  private readonly accessTokenProvider?: AccessTokenProvider;
   private readonly serviceTokenProvider?: ServiceTokenProvider;
 
   constructor(options: ApiCenterTransportOptions) {
@@ -66,7 +130,7 @@ export class ApiCenterTransport {
     this.paymentApiKey = options.paymentApiKey?.trim() || undefined;
 
     if (options.auth && 'getAccessToken' in options.auth) {
-      this.accessTokenProvider = options.auth.getAccessToken;
+      this.accessTokenProvider = options.auth;
     } else if (options.auth) {
       const credentials = options.auth as ServiceCredentials;
       const tokenRequest: TokenEndpointRequest = (path, body) =>
@@ -95,10 +159,6 @@ export class ApiCenterTransport {
       headers.set('Idempotency-Key', key);
     }
 
-    const token = await this.resolveCredential(request.credential);
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    if (request.body !== undefined) headers.set('Content-Type', 'application/json');
-
     const timeoutController = new AbortController();
     const timeout = setTimeout(
       () => timeoutController.abort(new Error('APICenter request timed out')),
@@ -107,8 +167,17 @@ export class ApiCenterTransport {
     const signal = request.options?.signal
       ? AbortSignal.any([request.options.signal, timeoutController.signal])
       : timeoutController.signal;
+    let requestStarted = false;
 
     try {
+      const token = await waitForSignal(
+        this.resolveCredential(request.credential, signal),
+        signal,
+      );
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+      if (request.body !== undefined) headers.set('Content-Type', 'application/json');
+
+      requestStarted = true;
       const response = await this.fetchImpl(`${this.baseUrl}${request.path}`, {
         method: request.method,
         headers,
@@ -118,7 +187,7 @@ export class ApiCenterTransport {
       const text = await response.text();
       return this.decodeResponse<T>(response, text);
     } catch (error) {
-      if (request.options?.signal?.aborted) throw error;
+      if (request.options?.signal?.aborted) throw abortReason(request.options.signal);
       if (timeoutController.signal.aborted) {
         throw new ApiCenterError(`APICenter request timed out after ${this.timeoutMs}ms`, {
           status: 0,
@@ -127,6 +196,7 @@ export class ApiCenterTransport {
         });
       }
       if (error instanceof ApiCenterError) throw error;
+      if (!requestStarted) throw error;
       throw new ApiCenterError('Could not reach APICenter', {
         status: 0,
         code: 'NETWORK_ERROR',
@@ -137,11 +207,14 @@ export class ApiCenterTransport {
     }
   }
 
-  private async resolveCredential(credential: ApiCredential): Promise<string | undefined> {
+  private async resolveCredential(
+    credential: ApiCredential,
+    signal: AbortSignal,
+  ): Promise<string | undefined> {
     if (credential === 'none') return undefined;
     if (credential === 'payment' && this.paymentApiKey) return this.paymentApiKey;
     if (this.accessTokenProvider) {
-      const token = await this.accessTokenProvider();
+      const token = await this.accessTokenProvider.getAccessToken({ signal });
       if (typeof token !== 'string' || !token.trim()) {
         throw new TypeError('getAccessToken must return a non-empty access token');
       }
@@ -189,14 +262,17 @@ export class ApiCenterTransport {
       return envelope.data as T;
     }
 
-    const message =
-      stringValue(apiError?.message) ??
-      stringValue(envelope?.message) ??
-      `APICenter request failed (${response.status})`;
+    const message = response.status >= 500
+      ? `APICenter returned an error (${response.status})`
+      : redactSensitiveText(
+        stringValue(apiError?.message) ??
+        stringValue(envelope?.message) ??
+        `APICenter request failed (${response.status})`,
+      );
     throw new ApiCenterError(message, {
       status: response.status,
       code: stringValue(apiError?.code) ?? stringValue(envelope?.code),
-      details: apiError?.details,
+      details: response.status >= 500 ? undefined : sanitizeErrorDetails(apiError?.details),
       correlationId,
     });
   }

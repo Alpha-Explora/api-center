@@ -20,7 +20,7 @@ import type {
   QrPhPaymentIntent,
   Refund,
   Subscription,
-} from '@apicenter/contracts';
+} from '@alpha-explora/apicenter-contracts';
 import { ApiCenterTransport } from '../internal/transport';
 import type { IdempotencyOptions, RequestOptions } from '../types';
 

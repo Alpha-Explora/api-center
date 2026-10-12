@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { SmsSendRequest, SmsSendResponse } from '@apicenter/contracts';
+import type { SmsSendRequest, SmsSendResponse } from '@alpha-explora/apicenter-contracts';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import { SmsRecipient, SmsMessagePayload } from './send-sms.model';
 import { createSmsRepository } from '../../shared/sms-store';
