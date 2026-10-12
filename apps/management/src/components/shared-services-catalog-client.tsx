@@ -40,7 +40,7 @@ const sharedServices = [
   },
   {
     id: "payment",
-    route: "/api/v1/shared/payment",
+    route: "/api/v1/payments",
     icon: WalletCardsIcon,
     description: "PayMongo-backed checkout, subscription, refund, and webhook handling.",
     secret: "PAYMONGO_LIVE_SECRET_KEY",

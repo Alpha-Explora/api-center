@@ -14,7 +14,11 @@ const openApi = readYaml('contracts/public/apicenter.openapi.yaml');
 const asyncApi = readYaml('contracts/public/apicenter.asyncapi.yaml');
 assert(openApi.openapi === '3.2.0', 'OpenAPI must use version 3.2.0');
 assert(asyncApi.asyncapi === '3.1.0', 'AsyncAPI must use version 3.1.0');
-assert(openApi.security?.[0]?.ApiKeyAuth, 'OpenAPI must require ApiKeyAuth globally');
+assert(openApi.security?.some((scheme: RecordValue) => scheme.ApiKeyAuth), 'OpenAPI must accept payment API-key auth');
+assert(openApi.security?.some((scheme: RecordValue) => scheme.ServiceBearerAuth), 'OpenAPI must accept service bearer auth');
+assert(openApi.components?.securitySchemes?.ServiceBearerAuth?.scheme === 'bearer'
+  && openApi.components.securitySchemes.ServiceBearerAuth.bearerFormat === 'JWT',
+'OpenAPI must define JWT service bearer auth');
 const idempotencyParameter = openApi.components?.parameters?.IdempotencyKey;
 assert(idempotencyParameter?.name === 'Idempotency-Key' && idempotencyParameter?.in === 'header'
   && idempotencyParameter?.required === true, 'Idempotency-Key header parameter is missing or invalid');
@@ -25,11 +29,19 @@ const requiredOperations: Record<string, string> = {
   'GET /api/v1/payments/checkouts/by-reference/{referenceId}': 'getCheckoutByReference',
   'POST /api/v1/payments/checkouts/{checkoutId}/cancel': 'cancelCheckout',
   'POST /api/v1/payments/intents': 'createPaymentIntent',
+  'POST /api/v1/payments/intents/qrph': 'createQrPhPaymentIntent',
   'GET /api/v1/payments/intents/{paymentIntentId}': 'getPaymentIntent',
   'POST /api/v1/payments/intents/{paymentIntentId}/confirm': 'confirmPaymentIntent',
   'POST /api/v1/payments/intents/{paymentIntentId}/cancel': 'cancelPaymentIntent',
   'POST /api/v1/payments/customers': 'createCustomer',
   'GET /api/v1/payments/customers/{customerId}': 'getCustomer',
+  'GET /api/v1/payments/plans': 'listPlans',
+  'POST /api/v1/payments/plans': 'createPlan',
+  'GET /api/v1/payments/plans/{planId}': 'getPlan',
+  'GET /api/v1/payments/payment-links': 'listPaymentLinks',
+  'POST /api/v1/payments/payment-links': 'createPaymentLink',
+  'GET /api/v1/payments/payment-links/{paymentLinkId}': 'getPaymentLink',
+  'PATCH /api/v1/payments/payment-links/{paymentLinkId}': 'setPaymentLinkArchived',
   'POST /api/v1/payments/refunds': 'createRefund',
   'GET /api/v1/payments/refunds/{refundId}': 'getRefund',
   'POST /api/v1/payments/subscriptions': 'createSubscription',

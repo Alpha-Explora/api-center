@@ -40,7 +40,7 @@ describe("TribeOnboardingPacketPanel", () => {
     expect(screen.getByText("NestJS module")).toBeTruthy();
     expect(screen.getByText("Developer portal packet")).toBeTruthy();
     expect(
-      screen.getByText("Install SDK: npm install @implementsprint/sdk"),
+      screen.getByText("Install SDK: npm install @alpha-explora/apicenter-sdk"),
     ).toBeTruthy();
     expect(
       screen.getByText(
@@ -51,8 +51,8 @@ describe("TribeOnboardingPacketPanel", () => {
     expect(
       screen.getByText("Required scopes: shared:gauth:invoke"),
     ).toBeTruthy();
-    expect(screen.getByText("Publish tribe event")).toBeTruthy();
-    expect(screen.getByText("Publish custom event")).toBeTruthy();
+    expect(screen.getByText("Event publishing integration")).toBeTruthy();
+    expect(screen.getByText("Custom event integration")).toBeTruthy();
     expect(screen.getByText(/APICENTER_SERVICE_ID=pakiapps/)).toBeTruthy();
     expect(
       screen.getAllByText(/tribe\.pakiapps\.events/).length,
@@ -67,7 +67,7 @@ describe("TribeOnboardingPacketPanel", () => {
       screen.getByRole("button", { name: "Copy S3 export topic" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Copy Publish custom event" }),
+      screen.getByRole("button", { name: "Copy Custom event integration" }),
     ).toBeTruthy();
   });
 });

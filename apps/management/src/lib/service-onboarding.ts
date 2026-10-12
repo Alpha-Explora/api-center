@@ -166,7 +166,7 @@ export type SdkServiceExample = {
   scope: string;
   request: string;
   response: string;
-  eventOutput: string;
+  sdkMethod: string;
   call: string;
 };
 
@@ -176,84 +176,76 @@ const sdkServiceExamples: SdkServiceExample[] = [
     label: "Google auth",
     summary: "Start Google OAuth through API Center.",
     method: "POST",
-    path: "/oauth/authorize",
-    scope: "shared:gauth:invoke",
+    path: "/api/v1/shared/gauth/oauth/authorize",
+    scope: "auth:google:login",
     request: JSON.stringify(
       {
-        redirectUri:
-          "https://api-center.itsandbox.site/api/v1/shared/gauth/oauth/callback",
         scopes: ["openid", "email", "profile"],
       },
       null,
       2,
     ),
     response: JSON.stringify({ authorizationUrl: "https://accounts.google.com/..." }, null, 2),
-    eventOutput: "gauth.oauth.start",
-    call: createSharedServiceCallExample("gauth", "POST", "/oauth/authorize", {
-      redirectUri:
-        "https://api-center.itsandbox.site/api/v1/shared/gauth/oauth/callback",
-      scopes: ["openid", "email", "profile"],
-    }),
+    sdkMethod: "googleAuth.getAuthorizationUrl",
+    call: `await apiCenter.googleAuth.getAuthorizationUrl({ scopes: ["openid", "email", "profile"] });`,
   },
   {
     serviceId: "geo",
     label: "Geo",
     summary: "Run geofence checks without giving tribes Google Maps keys.",
     method: "POST",
-    path: "/geofence/check",
-    scope: "shared:geo:invoke",
+    path: "/api/v1/shared/geo/geofence/check",
+    scope: "geo:read, geo:write",
     request: JSON.stringify(
       {
         latitude: 14.5995,
         longitude: 120.9842,
-        fenceId: "metro-manila",
+        fences: [{ fenceId: "metro-manila", latitude: 14.5995, longitude: 120.9842, radiusMeters: 5000 }],
       },
       null,
       2,
     ),
-    response: JSON.stringify({ inside: true, fenceId: "metro-manila" }, null, 2),
-    eventOutput: "geo.geofence.check",
-    call: createSharedServiceCallExample("geo", "POST", "/geofence/check", {
-      latitude: 14.5995,
-      longitude: 120.9842,
-      fenceId: "metro-manila",
-    }),
+    response: JSON.stringify({ inside: true, distanceDetails: [] }, null, 2),
+    sdkMethod: "geo.checkFence",
+    call: `await apiCenter.geo.checkFence({
+  latitude: 14.5995,
+  longitude: 120.9842,
+  fences: [{ fenceId: "metro-manila", latitude: 14.5995, longitude: 120.9842, radiusMeters: 5000 }],
+});`,
   },
   {
     serviceId: "payment",
     label: "Payment",
-    summary: "Create PayMongo-backed checkout sessions through the wrapper.",
+    summary: "Create a checkout through APICenter's payment API.",
     method: "POST",
-    path: "/checkout/sessions",
-    scope: "shared:payment:invoke",
+    path: "/api/v1/payments/checkouts",
+    scope: "payments:write",
     request: JSON.stringify(
       {
-        amount: 50000,
-        currency: "PHP",
-        description: "Order #1001",
+        referenceId: "ORDER-1001",
+        amount: { amountMinor: 50000, currency: "PHP" },
         successUrl: "https://app.example.com/payments/success",
         cancelUrl: "https://app.example.com/payments/cancel",
       },
       null,
       2,
     ),
-    response: JSON.stringify({ checkoutUrl: "https://checkout.paymongo.com/..." }, null, 2),
-    eventOutput: "paymongo.checkout.created",
-    call: createSharedServiceCallExample("payment", "POST", "/checkout/sessions", {
-      amount: 50000,
-      currency: "PHP",
-      description: "Order #1001",
-      successUrl: "https://app.example.com/payments/success",
-      cancelUrl: "https://app.example.com/payments/cancel",
-    }),
+    response: JSON.stringify({ checkoutId: "chk_123", referenceId: "ORDER-1001", status: "pending" }, null, 2),
+    sdkMethod: "payments.checkouts.create",
+    call: `await apiCenter.payments.checkouts.create({
+  referenceId: "ORDER-1001",
+  amount: { amountMinor: 50000, currency: "PHP" },
+  successUrl: "https://app.example.com/payments/success",
+  cancelUrl: "https://app.example.com/payments/cancel",
+}, { idempotencyKey: randomUUID() });`,
   },
   {
     serviceId: "email",
     label: "Email",
     summary: "Send transactional email without exposing provider credentials.",
     method: "POST",
-    path: "/send",
-    scope: "shared:email:invoke",
+    path: "/api/v1/shared/email/send",
+    scope: "email:send",
     request: JSON.stringify(
       {
         to: "customer@example.com",
@@ -264,20 +256,20 @@ const sdkServiceExamples: SdkServiceExample[] = [
       2,
     ),
     response: JSON.stringify({ messageId: "email_123" }, null, 2),
-    eventOutput: "email.send",
-    call: createSharedServiceCallExample("email", "POST", "/send", {
-      to: "customer@example.com",
-      subject: "Welcome",
-      html: "<p>Hello from API Center</p>",
-    }),
+    sdkMethod: "email.send",
+    call: `await apiCenter.email.send({
+  to: "customer@example.com",
+  subject: "Welcome",
+  html: "<p>Hello from API Center</p>",
+}, { idempotencyKey: randomUUID() });`,
   },
   {
     serviceId: "sms",
     label: "SMS",
     summary: "Send SMS through the platform-selected SMS provider.",
     method: "POST",
-    path: "/send",
-    scope: "shared:sms:invoke",
+    path: "/api/v1/shared/sms/send",
+    scope: "sms:send",
     request: JSON.stringify(
       {
         to: "+639171234567",
@@ -287,35 +279,35 @@ const sdkServiceExamples: SdkServiceExample[] = [
       2,
     ),
     response: JSON.stringify({ messageId: "sms_123", status: "queued" }, null, 2),
-    eventOutput: "sms.send",
-    call: createSharedServiceCallExample("sms", "POST", "/send", {
-      to: "+639171234567",
-      message: "Your verification code is 123456.",
-    }),
+    sdkMethod: "sms.send",
+    call: `await apiCenter.sms.send({
+  to: "+639171234567",
+  message: "Your verification code is 123456.",
+}, { idempotencyKey: randomUUID() });`,
   },
   {
     serviceId: "otp",
     label: "OTP",
     summary: "Generate and verify OTP challenges through API Center.",
     method: "POST",
-    path: "/generate",
-    scope: "shared:otp:invoke",
+    path: "/api/v1/shared/otp/generate",
+    scope: "otp:generate",
     request: JSON.stringify(
       {
-        target: "customer@example.com",
+        recipient: "customer@example.com",
         channel: "email",
         purpose: "login",
       },
       null,
       2,
     ),
-    response: JSON.stringify({ otpId: "otp_123", expiresIn: 300 }, null, 2),
-    eventOutput: "otp.issue",
-    call: createSharedServiceCallExample("otp", "POST", "/generate", {
-      target: "customer@example.com",
-      channel: "email",
-      purpose: "login",
-    }),
+    response: JSON.stringify({ otpId: "otp_123", expiresAt: "2026-10-12T10:00:00.000Z" }, null, 2),
+    sdkMethod: "otp.generate",
+    call: `await apiCenter.otp.generate({
+  recipient: "customer@example.com",
+  channel: "email",
+  purpose: "login",
+}, { idempotencyKey: randomUUID() });`,
   },
 ];
 
@@ -694,13 +686,13 @@ export function getTribeOnboardingPacket(service: ServiceRegistryEntry) {
           serviceId,
           call:
             curated?.call ??
-            createSharedServiceCallExample(serviceId, "GET", "/health"),
+            createUnmappedSdkOperationNote(serviceId),
         };
       })
     : [
         {
           serviceId: firstSharedService,
-          call: createSharedServiceCallExample(firstSharedService, "GET", "/health"),
+          call: createUnmappedSdkOperationNote(firstSharedService),
         },
       ];
 
@@ -714,10 +706,10 @@ export function getTribeOnboardingPacket(service: ServiceRegistryEntry) {
       "Run safe smoke checks and verify usage/audit signals.",
     ],
     tribeActions: [
-      "Install @implementsprint/sdk in the tribe backend.",
+      "Install @alpha-explora/apicenter-sdk in the server-side application.",
       "Set APICENTER_URL, APICENTER_ENVIRONMENT, APICENTER_SERVICE_ID, and APICENTER_SERVICE_SECRET as server-only env vars. API Center derives the project and tribe from the service.",
       "Call shared services through API Center instead of provider APIs.",
-      "Publish business events through the SDK when data should flow to S3.",
+      "Publish business events through the platform-managed event integration; event publishing is not part of this SDK.",
       "Do not store API Center credentials in frontend code.",
     ],
     env: [
@@ -826,47 +818,32 @@ function stateRank(state: TribeS3OnboardingState) {
 function createNestJsModuleExample(serviceId: string) {
   return [
     'import { Module, Global } from "@nestjs/common";',
-    'import { TribeClient } from "@implementsprint/sdk";',
+    'import { ApiCenter } from "@alpha-explora/apicenter-sdk";',
     "",
     "@Global()",
     "@Module({",
     "  providers: [",
     "    {",
-    '      provide: "API_CENTER",',
+      "      provide: ApiCenter,",
     "      useFactory: () =>",
-    "        new TribeClient({",
-    "          gatewayUrl: process.env.APICENTER_URL!,",
-    `          serviceId: process.env.APICENTER_SERVICE_ID ?? "${serviceId}",`,
-    '          environment: process.env.APICENTER_ENVIRONMENT as "test" | "live",',
-    "          secret: process.env.APICENTER_SERVICE_SECRET!,",
+      "        new ApiCenter({",
+      "          baseUrl: process.env.APICENTER_URL!,",
+      "          auth: {",
+      `            serviceId: process.env.APICENTER_SERVICE_ID ?? "${serviceId}",`,
+      '            environment: process.env.APICENTER_ENVIRONMENT as "test" | "live",',
+      "            secret: process.env.APICENTER_SERVICE_SECRET!,",
+      "          },",
     "        }),",
     "    },",
     "  ],",
-    '  exports: ["API_CENTER"],',
+    "  exports: [ApiCenter],",
     "})",
     "export class ApiCenterModule {}",
   ].join("\n");
 }
 
-function createSharedServiceCallExample(
-  serviceId: string,
-  method: "GET" | "POST" = "GET",
-  path = "/health",
-  body?: Record<string, unknown>,
-) {
-  const lines = [
-    "await apiCenter.callService({",
-    `  targetServiceId: "${serviceId}",`,
-    `  method: "${method}",`,
-    `  path: "${path}",`,
-  ];
-
-  if (body) {
-    lines.push(`  body: ${JSON.stringify(body, null, 2).replace(/\n/g, "\n  ")},`);
-  }
-
-  lines.push("});");
-  return lines.join("\n");
+function createUnmappedSdkOperationNote(serviceId: string) {
+  return `// No typed APICenter SDK operation is currently mapped for ${JSON.stringify(serviceId)}.`;
 }
 
 function createEventPublishingExample(
@@ -874,16 +851,8 @@ function createEventPublishingExample(
   sourceServiceId: string,
 ) {
   return [
-    "await apiCenter.publishTribeEvent({",
-    `  sourceServiceId: "${sourceServiceId}",`,
-    '  eventType: "tribe.event.created",',
-    "  payload: {",
-    '    eventId: "evt_123",',
-    '    source: "' + sourceServiceId + '",',
-    ...(tribeId ? ['    tribeId: "' + tribeId + '",'] : []),
-    "    occurredAt: new Date().toISOString(),",
-    "  },",
-    "});",
+    "// Event publishing is handled by the platform-managed event integration.",
+    `// This SDK does not publish events for service ${JSON.stringify(sourceServiceId)}${tribeId ? ` in tribe ${JSON.stringify(tribeId)}` : ""}.`,
   ].join("\n");
 }
 
@@ -892,17 +861,7 @@ function createCustomEventPublishingExample(
   sourceServiceId: string,
 ) {
   return [
-    "await apiCenter.publishTribeEvent({",
-    `  sourceServiceId: "${sourceServiceId}",`,
-    '  eventType: "order.created",',
-    "  payload: {",
-    '    orderId: "ord_123",',
-    '    customerId: "cus_123",',
-    ...(tribeId ? ['    tribeId: "' + tribeId + '",'] : []),
-    "    amount: 50000,",
-    '    currency: "PHP",',
-    "    occurredAt: new Date().toISOString(),",
-    "  },",
-    "});",
+    "// Publish custom events using the topic and producer configured for this service.",
+    `// APICenter SDK event publishing is not currently available for ${JSON.stringify(sourceServiceId)}${tribeId ? ` in tribe ${JSON.stringify(tribeId)}` : ""}.`,
   ].join("\n");
 }

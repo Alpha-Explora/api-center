@@ -30,13 +30,13 @@ describe("SdkConfigPanel", () => {
 
     expect(screen.getByText("SDK package")).toBeTruthy();
     expect(screen.getByText("NestJS provider module")).toBeTruthy();
-    expect(screen.getByText("Publish custom tribe event")).toBeTruthy();
+    expect(screen.getByText("Custom event integration")).toBeTruthy();
     expect(screen.getByText("Shared-service SDK examples")).toBeTruthy();
     expect(screen.getByText("Google auth")).toBeTruthy();
     expect(screen.getByText("Payment")).toBeTruthy();
     expect(screen.getByText("OTP")).toBeTruthy();
-    expect(screen.getByText("/api/v1/shared/payment/checkout/sessions")).toBeTruthy();
-    expect(screen.getByText("paymongo.checkout.created")).toBeTruthy();
+    expect(screen.getByText("/api/v1/payments/checkouts")).toBeTruthy();
+    expect(screen.getByText("payments.checkouts.create")).toBeTruthy();
     expect(screen.getAllByText("Declared")).toHaveLength(2);
     expect(screen.getByText("/api/v1/tribes/trinithrive-api/orders")).toBeTruthy();
     expect(screen.getByText(/APICENTER_ENVIRONMENT=test/)).toBeTruthy();

@@ -38,14 +38,14 @@ describe("getTribeOnboardingPacket", () => {
     expect(packet.env).not.toContain("APICENTER_TRIBE");
     expect(packet.env).toContain("project=trinithrive-default; tribe=trinithrive");
     expect(packet.nestjsModule).toContain("ApiCenterModule");
-    expect(packet.nestjsModule).toContain("@implementsprint/sdk");
+    expect(packet.nestjsModule).toContain("@alpha-explora/apicenter-sdk");
     expect(packet.sharedServiceExamples).toHaveLength(2);
     expect(packet.sharedServiceExamples[0].call).toContain(
-      'targetServiceId: "gauth"',
+      'apiCenter.googleAuth.getAuthorizationUrl',
     );
-    expect(packet.eventPublishing).toContain("publishTribeEvent");
-    expect(packet.eventPublishing).toContain('sourceServiceId: "trinithrive"');
-    expect(packet.customEventPublishing).toContain('eventType: "order.created"');
+    expect(packet.eventPublishing).toContain("platform-managed event integration");
+    expect(packet.eventPublishing).toContain('"trinithrive"');
+    expect(packet.customEventPublishing).toContain("custom events using the topic");
     expect(packet.sdkServiceExamples.map((example) => example.serviceId)).toEqual([
       "gauth",
       "geo",
@@ -72,9 +72,7 @@ describe("getTribeOnboardingPacket", () => {
     );
     expect(packet.nestjsModule).toContain("process.env.APICENTER_SERVICE_SECRET");
     expect(packet.nestjsModule).not.toContain("tribeId");
-    expect(packet.eventPublishing).toContain(
-      'sourceServiceId: "logistics-orders"',
-    );
+    expect(packet.eventPublishing).toContain('"logistics-orders"');
     expect(packet.topics.primary).toBe("tribe.logistics.events");
   });
 
@@ -84,12 +82,12 @@ describe("getTribeOnboardingPacket", () => {
     expect(examples).toHaveLength(6);
     expect(examples.find((example) => example.serviceId === "payment")).toMatchObject({
       method: "POST",
-      path: "/checkout/sessions",
-      scope: "shared:payment:invoke",
-      eventOutput: "paymongo.checkout.created",
+      path: "/api/v1/payments/checkouts",
+      scope: "payments:write",
+      sdkMethod: "payments.checkouts.create",
     });
     expect(examples.find((example) => example.serviceId === "otp")?.call).toContain(
-      'targetServiceId: "otp"',
+      "apiCenter.otp.generate",
     );
   });
 });

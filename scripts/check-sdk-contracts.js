@@ -11,44 +11,94 @@ const fail = (message) => failures.push(message);
 
 const openApi = readJson('packages/contracts/apicenter-openapi.json');
 const asyncApi = readJson('packages/contracts/apicenter-asyncapi.json');
-const paymentSource = readText('packages/sdk/src/internal/payment.ts');
+const sharedContract = readJson('packages/contracts/shared-service-contract.json');
+const contractsSource = readText('packages/contracts/src/index.ts');
+const paymentSource = readText('packages/sdk/src/services/payments.ts');
 const publicTypeSource = readText('packages/sdk/src/types.ts');
 const eventSource = readText('packages/sdk/src/payment/events.ts');
 
-const requiredOperations = {
-  'POST /api/v1/payments/checkouts': 'createCheckout',
-  'GET /api/v1/payments/checkouts/{checkoutId}': 'getCheckout',
-  'GET /api/v1/payments/checkouts/by-reference/{referenceId}': 'getCheckoutByReference',
-  'POST /api/v1/payments/checkouts/{checkoutId}/cancel': 'cancelCheckout',
-  'POST /api/v1/payments/intents': 'createPaymentIntent',
-  'GET /api/v1/payments/intents/{paymentIntentId}': 'getPaymentIntent',
-  'POST /api/v1/payments/intents/{paymentIntentId}/confirm': 'confirmPaymentIntent',
-  'POST /api/v1/payments/intents/{paymentIntentId}/cancel': 'cancelPaymentIntent',
-  'POST /api/v1/payments/customers': 'createCustomer',
-  'GET /api/v1/payments/customers/{customerId}': 'getCustomer',
-  'POST /api/v1/payments/plans': 'createPlan',
-  'GET /api/v1/payments/plans/{planId}': 'getPlan',
-  'GET /api/v1/payments/plans': 'listPlans',
-  'POST /api/v1/payments/refunds': 'createRefund',
-  'GET /api/v1/payments/refunds/{refundId}': 'getRefund',
-  'POST /api/v1/payments/subscriptions': 'createSubscription',
-  'GET /api/v1/payments/subscriptions/{subscriptionId}': 'getSubscription',
-  'POST /api/v1/payments/subscriptions/{subscriptionId}/cancel': 'cancelSubscription',
-  'GET /api/v1/payments/subscriptions/{subscriptionId}/invoices': 'listSubscriptionInvoices',
-  'GET /api/v1/payments/invoices/{invoiceId}': 'getInvoice',
-  'GET /api/v1/payments/capabilities': 'getPaymentCapabilities',
-  'GET /api/v1/payments/records': 'listPaymentRecords',
+const requiredSharedOperations = [
+  'email.send', 'email.getStatus',
+  'sms.send', 'sms.getStatus',
+  'otp.generate', 'otp.verify', 'otp.getStatus',
+  'geo.geocodeAddress', 'geo.reverseGeocode', 'geo.checkFence',
+  'googleAuth.getAuthorizationUrl', 'googleAuth.exchangeCode',
+  'googleAuth.refreshToken', 'googleAuth.logout',
+];
+const sharedOperationFiles = {
+  email: 'packages/sdk/src/services/email.ts',
+  sms: 'packages/sdk/src/services/sms.ts',
+  otp: 'packages/sdk/src/services/otp.ts',
+  geo: 'packages/sdk/src/services/geo.ts',
+  gauth: 'packages/sdk/src/services/google-auth.ts',
 };
+const sharedOperations = new Map(
+  (sharedContract.sdkOperations ?? []).map((operation) => [operation.operationId, operation]),
+);
 
-for (const [operation, operationId] of Object.entries(requiredOperations)) {
-  const [method, route] = operation.split(' ');
-  const definition = openApi.paths?.[route]?.[method.toLowerCase()];
-  if (!definition) fail(`Missing OpenAPI operation ${operation}`);
-  else if (definition.operationId !== operationId) fail(`${operation} must use operationId ${operationId}`);
-  if (!new RegExp(`\\b${operationId}\\s*\\(`).test(paymentSource)) fail(`SDK is missing method ${operationId}`);
+for (const operationId of requiredSharedOperations) {
+  const operation = sharedOperations.get(operationId);
+  if (!operation) {
+    fail(`Shared-service contract is missing SDK operation ${operationId}`);
+    continue;
+  }
+
+  const sourcePath = sharedOperationFiles[operation.serviceId];
+  if (!sourcePath) {
+    fail(`${operationId} refers to unsupported shared service ${operation.serviceId}`);
+    continue;
+  }
+  const source = readText(sourcePath);
+  const anchor = `@sdk-operation ${operationId} ${operation.method} ${operation.path}`;
+  if (!source.includes(anchor)) fail(`${operationId} must map to ${operation.method} ${operation.path}`);
+  if (!Array.isArray(operation.requiredScopes) || operation.requiredScopes.length === 0) {
+    fail(`${operationId} must declare its gateway-owned required scopes`);
+  }
+
+  for (const typeName of [operation.requestType, operation.responseType].filter(Boolean)) {
+    if (!new RegExp(`\\b(?:interface|type) ${typeName}\\b`).test(contractsSource)) {
+      fail(`${operationId} refers to non-contract type ${typeName}`);
+    }
+  }
+
+  if (operation.idempotencyKey?.required) {
+    const accepted = operation.idempotencyKey;
+    if (accepted.minLength !== 16 || accepted.maxLength !== 255) {
+      fail(`${operationId} idempotency limits must match the gateway (16-255)`);
+    }
+    if (!source.includes('idempotencyKey: options.idempotencyKey')) {
+      fail(`${operationId} must pass its typed idempotency key through the transport`);
+    }
+  }
 }
 
-if (publicTypeSource.match(/\bprovider\b/i)) fail('Public SDK types must not expose provider-specific fields');
+const requiredPaymentOperationIds = [
+  'createCheckout', 'getCheckout', 'getCheckoutByReference', 'cancelCheckout',
+  'createPaymentIntent', 'createQrPhPaymentIntent', 'getPaymentIntent', 'confirmPaymentIntent', 'cancelPaymentIntent',
+  'createCustomer', 'getCustomer', 'createPlan', 'getPlan', 'listPlans',
+  'createPaymentLink', 'listPaymentLinks', 'getPaymentLink', 'setPaymentLinkArchived',
+  'createRefund', 'getRefund', 'createSubscription', 'getSubscription', 'cancelSubscription',
+  'listSubscriptionInvoices', 'getInvoice', 'getPaymentCapabilities', 'listPaymentRecords',
+];
+const paymentOperations = new Map();
+for (const [route, methods] of Object.entries(openApi.paths ?? {})) {
+  for (const [method, definition] of Object.entries(methods)) {
+    if (!['get', 'post', 'patch', 'put', 'delete'].includes(method)) continue;
+    if (definition.operationId) paymentOperations.set(definition.operationId, { route, method: method.toUpperCase() });
+  }
+}
+
+for (const operationId of requiredPaymentOperationIds) {
+  const operation = paymentOperations.get(operationId);
+  if (!operation) {
+    fail(`OpenAPI is missing the supported payment operation ${operationId}`);
+    continue;
+  }
+  const anchor = `@sdk-operation ${operationId} ${operation.method} ${operation.route}`;
+  if (!paymentSource.includes(anchor)) fail(`SDK is missing payment mapping ${anchor}`);
+}
+
+if (publicTypeSource.match(/\bprovider\b/i)) fail('Public SDK types must not declare provider-specific fields directly');
 
 const eventSchema = asyncApi.components?.schemas?.PaymentEvent;
 const requiredEventFields = [
@@ -63,10 +113,23 @@ if (!eventSource.includes('data.aggregateVersion') || !eventSource.includes('agg
   fail('SDK event parser must validate aggregate version parity');
 }
 
+const entryPoint = readText('packages/sdk/src/index.ts');
+for (const exportName of ['ApiCenter', 'ApiCenterError', 'parsePaymentEvent', 'PaymentEventSchema']) {
+  if (!entryPoint.includes(exportName)) fail(`SDK entry point must export ${exportName}`);
+}
+
+for (const obsoleteFile of [
+  'packages/sdk/src/TribeClient.ts',
+  'packages/sdk/src/internal/payment.ts',
+  'packages/sdk/src/internal/shared-services.ts',
+]) {
+  if (fs.existsSync(path.join(root, obsoleteFile))) fail(`Obsolete SDK implementation remains: ${obsoleteFile}`);
+}
+
 if (failures.length > 0) {
   console.error('SDK contract check failed:');
   for (const failure of failures) console.error(` - ${failure}`);
   process.exit(1);
 }
 
-console.log('SDK and pinned public contracts are compatible.');
+console.log('SDK operations, types, and payment events match the pinned public contracts.');

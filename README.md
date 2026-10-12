@@ -68,29 +68,25 @@ All shared microservices expose contract-backed DTOs from `@apicenter/contracts`
 
 ## SDK Usage
 
-Tribe services call APICenter using `@alpha-explora/apicenter-sdk`:
+Server-side services use the unified `@alpha-explora/apicenter-sdk` client for shared services and payments. See the [SDK integration guide](apps/docs/content/docs/sdk-usage.mdx) for GitHub Packages setup, credentials, idempotency, and typed examples.
 
 ```typescript
-import { TribeClient } from '@alpha-explora/apicenter-sdk';
+import { randomUUID } from 'node:crypto';
+import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-const client = new TribeClient({
+const api = new ApiCenter({
   baseUrl: process.env.APICENTER_URL!,
-  apiKey: process.env.APICENTER_API_KEY!,
-  tribeId: process.env.APICENTER_TRIBE_ID!,
-  environment: "test",
+  auth: {
+    serviceId: process.env.APICENTER_SERVICE_ID!,
+    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
+    secret: process.env.APICENTER_SERVICE_SECRET!,
+  },
 });
 
-// Call shared SMS service
-const sms = await client.smsSend({
-  to: "+639171234567",
-  message: "Your verification code is 849201",
-});
-
-// Call shared OTP service
-const otp = await client.otpGenerate({
-  recipient: "+639171234567",
-  channel: "sms",
-});
+const sms = await api.sms.send(
+  { to: '+639171234567', message: 'Your verification code is 849201' },
+  { idempotencyKey: randomUUID() },
+);
 ```
 
 ---

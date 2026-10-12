@@ -1,6 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { TribeClient } from '@apicenter/sdk';
+import { ApiCenter } from '@alpha-explora/apicenter-sdk';
+
+interface ApiEnvelope<T> {
+  success?: boolean;
+  data?: T;
+  error?: { message?: string };
+}
 
 @Injectable()
 export class DemandService {
@@ -10,65 +16,84 @@ export class DemandService {
     return incomingCorrelationId || randomUUID();
   }
 
-  private async createClient(correlationId: string): Promise<TribeClient> {
-    const client = new TribeClient({
-      gatewayUrl: process.env.APICENTER_URL || 'http://nginx',
-      tribeId: process.env.DEMAND_TRIBE_ID || 'demand-service',
-      secret: process.env.DEMAND_TRIBE_SECRET || 'demand-secret',
-      correlationIdFactory: () => correlationId,
-    });
-
-    await client.authenticate();
-    return client;
+  private get gatewayUrl(): string {
+    return (process.env.APICENTER_URL || 'http://nginx').replace(/\/+$/, '');
   }
 
-  private extractClusterId(payload: unknown): string | null {
-    if (!payload || typeof payload !== 'object') {
-      return null;
+  private get serviceCredentials() {
+    return {
+      serviceId: process.env.APICENTER_SERVICE_ID || 'demand-service',
+      environment: process.env.APICENTER_ENVIRONMENT === 'live' ? 'live' as const : 'test' as const,
+      secret: process.env.APICENTER_SERVICE_SECRET || 'demand-secret',
+    };
+  }
+
+  private createClient(correlationId: string): ApiCenter {
+    return new ApiCenter({
+      baseUrl: this.gatewayUrl,
+      auth: { getAccessToken: () => this.issueServiceToken(correlationId) },
+    });
+  }
+
+  private async issueServiceToken(correlationId: string): Promise<string> {
+    const response = await fetch(`${this.gatewayUrl}/api/v1/auth/token`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Correlation-ID': correlationId,
+      },
+      body: JSON.stringify(this.serviceCredentials),
+    });
+    const payload = await this.readJson<ApiEnvelope<{ accessToken?: string }>>(response);
+    if (!response.ok || payload.success !== true || !payload.data?.accessToken) {
+      throw new Error(`APICenter service authentication failed (${response.status})`);
     }
+    return payload.data.accessToken;
+  }
 
-    const direct = (payload as { cluster_id?: unknown }).cluster_id;
-    if (typeof direct === 'string' && direct.length > 0) {
-      return direct;
+  private async callTribeService<T>(
+    serviceId: string,
+    path: string,
+    correlationId: string,
+  ): Promise<T> {
+    const token = await this.issueServiceToken(correlationId);
+    const response = await fetch(
+      `${this.gatewayUrl}/api/v1/tribes/${encodeURIComponent(serviceId)}${path}`,
+      {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Correlation-ID': correlationId,
+        },
+      },
+    );
+    const payload = await this.readJson<ApiEnvelope<T> | T>(response);
+    if (!response.ok) throw new Error(`APICenter service request failed (${response.status})`);
+    if (payload && typeof payload === 'object' && 'success' in payload && payload.success === true && 'data' in payload) {
+      return payload.data as T;
     }
+    return payload as T;
+  }
 
-    const data = (payload as { data?: unknown }).data;
-    if (!Array.isArray(data) || data.length === 0) {
-      return null;
+  private async readJson<T>(response: Response): Promise<T> {
+    try {
+      return await response.json() as T;
+    } catch {
+      throw new Error(`APICenter returned invalid JSON (${response.status})`);
     }
-
-    const candidate = data.find(
-      (entry) =>
-        !!entry &&
-        typeof entry === 'object' &&
-        typeof (entry as { cluster_id?: unknown }).cluster_id === 'string',
-    ) as { cluster_id?: string } | undefined;
-
-    return candidate?.cluster_id ?? null;
   }
 
   async fetchShipment(shipmentId: string, incomingCorrelationId?: string) {
     const correlationId = this.resolveCorrelationId(incomingCorrelationId);
-    const client = await this.createClient(correlationId);
-
-    const shipment = await client.callService<Record<string, unknown>>(
+    const shipment = await this.callTribeService<Record<string, unknown>>(
       'logistics-service',
       `/shipments/${encodeURIComponent(shipmentId)}`,
-    );
-
-    this.logger.log(
-      JSON.stringify({
-        event: 'demand_request',
-        shipmentId,
-        correlationId,
-      }),
-    );
-
-    return {
-      demandService: 'ok',
-      shipment,
       correlationId,
-    };
+    );
+
+    this.logger.log(JSON.stringify({ event: 'demand_request', shipmentId, correlationId }));
+    return { demandService: 'ok', shipment, correlationId };
   }
 
   async fetchShipmentWithGeoContext(
@@ -77,121 +102,37 @@ export class DemandService {
     incomingCorrelationId?: string,
   ) {
     const correlationId = this.resolveCorrelationId(incomingCorrelationId);
-    const client = await this.createClient(correlationId);
-
-    const shipment = await client.callService<Record<string, unknown>>(
+    const shipment = await this.callTribeService<Record<string, unknown>>(
       'logistics-service',
       `/shipments/${encodeURIComponent(shipmentId)}`,
+      correlationId,
     );
-
+    const api = this.createClient(correlationId);
+    const requestOptions = { headers: { 'X-Correlation-ID': correlationId } };
     const resolvedIp = (ip || '').trim() || undefined;
     const latitude = 13.7563;
     const longitude = 100.5018;
 
-    const fence = await client.geoFenceCheck({
+    const fence = await api.geo.checkFence({
       latitude,
       longitude,
-    });
+      fences: [{ fenceId: 'bangkok-demo', latitude, longitude, radiusMeters: 5000 }],
+    }, requestOptions);
+    const reverseGeocode = await api.geo.reverseGeocode({ latitude, longitude }, requestOptions);
 
-    const reverseGeocode = await client.geoReverseGeocode({
-      latitude,
-      longitude,
-    });
-
-    this.logger.log(
-      JSON.stringify({
-        event: 'demand_geo_context',
-        shipmentId,
-        ip: resolvedIp,
-        latitude,
-        longitude,
-        correlationId,
-      }),
-    );
-
-    return {
-      demandService: 'ok',
-      shipment,
-      geoContext: {
-        fence,
-        reverseGeocode,
-      },
-      correlationId,
-    };
+    this.logger.log(JSON.stringify({
+      event: 'demand_geo_context', shipmentId, ip: resolvedIp, latitude, longitude, correlationId,
+    }));
+    return { demandService: 'ok', shipment, geoContext: { fence, reverseGeocode }, correlationId };
   }
 
   async publishDemandEvent(
-    shipmentId: string,
-    options?: {
-      clusterId?: string;
-      topicSuffix?: string;
-      eventType?: string;
-      metadata?: Record<string, unknown>;
-    },
-    incomingCorrelationId?: string,
-  ) {
-    const correlationId = this.resolveCorrelationId(incomingCorrelationId);
-    const client = await this.createClient(correlationId);
-
-    const clusterList = await client.kafkaListClusters<unknown>();
-    const clusterId =
-      options?.clusterId ||
-      this.extractClusterId(clusterList) ||
-      process.env.KAFKA_CLUSTER_ID ||
-      '';
-
-    if (!clusterId) {
-      throw new Error(
-        'No Kafka cluster id available. Provide clusterId in request body or set KAFKA_CLUSTER_ID.',
-      );
-    }
-
-    const tribeId = process.env.DEMAND_TRIBE_ID || 'demand-service';
-    const topic = TribeClient.buildTenantTopic(tribeId, options?.topicSuffix || 'events');
-
-    const eventType = options?.eventType || 'demand.shipment.requested';
-    const value = {
-      eventType,
-      shipmentId,
-      tribeId,
-      source: 'demand-service',
-      correlationId,
-      timestamp: new Date().toISOString(),
-      metadata: options?.metadata || {},
-    };
-
-    const produceResult = await client.kafkaProduceRecords<Record<string, unknown>>(
-      clusterId,
-      topic,
-      [
-        {
-          key: shipmentId,
-          value,
-          headers: {
-            'x-correlation-id': correlationId,
-            'x-tribe-id': tribeId,
-          },
-        },
-      ],
+    _shipmentId: string,
+    _options?: { clusterId?: string; topicSuffix?: string; eventType?: string; metadata?: Record<string, unknown> },
+    _incomingCorrelationId?: string,
+  ): Promise<never> {
+    throw new NotImplementedException(
+      'The current APICenter SDK does not expose Kafka event publishing. Use the platform-managed event integration.',
     );
-
-    this.logger.log(
-      JSON.stringify({
-        event: 'demand_kafka_publish',
-        shipmentId,
-        topic,
-        clusterId,
-        correlationId,
-      }),
-    );
-
-    return {
-      demandService: 'ok',
-      published: true,
-      clusterId,
-      topic,
-      produceResult,
-      correlationId,
-    };
   }
 }

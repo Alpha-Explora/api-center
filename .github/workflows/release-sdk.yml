@@ -26,6 +26,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Build contracts workspace
+        run: npm run build --workspace @apicenter/contracts
+
       - name: Validate public contracts
         run: npm run contracts:validate
 
@@ -37,6 +40,12 @@ jobs:
 
       - name: Build SDK
         run: npm run sdk:build
+
+      - name: Test SDK
+        run: npm run sdk:test
+
+      - name: Verify SDK consumer fixture
+        run: npm run test:consumer --workspace @alpha-explora/apicenter-sdk
 
       - name: Create pack directory
         run: mkdir -p artifacts

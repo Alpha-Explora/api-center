@@ -1,136 +1,312 @@
 {
-    "version":  "2026-05-11",
-    "sharedServices":  [
-                           {
-                               "serviceId":  "payment",
-                               "manifest":  "apps/payments/service-manifest.json",
-                               "wrappers":  [
-                                                "paymentCreateCheckoutSession",
-                                                "paymentGetCheckoutSession",
-                                                "paymentGetCheckoutStatus",
-                                                "paymentGetCheckoutStatusByReference",
-                                                "paymentMarkCheckoutCancelled",
-                                                "paymentCreateRefund",
-                                                "paymentCreateCustomer",
-                                                "paymentGetCustomer",
-                                                "paymentCreatePlan",
-                                                "paymentGetPlan",
-                                                "paymentListPlans",
-                                                "paymentCreateSubscription",
-                                                "paymentGetSubscription",
-                                                "paymentGetSubscriptionByReference",
-                                                "paymentCancelSubscription",
-                                                "paymentPauseSubscription",
-                                                "paymentResumeSubscription",
-                                                "paymentChangeSubscriptionPlan",
-                                                "paymentListSubscriptionInvoices",
-                                                "paymentGetInvoice"
-                                            ],
-                               "endpoints":  [
-                                                 "/customers",
-                                                 "/customers/:id",
-                                                 "/plans",
-                                                 "/plans/:id",
-                                                 "/payment-intents/qrph",
-                                                 "/payment-links",
-                                                 "/payment-links/:id",
-                                                 "/checkout/sessions",
-                                                 "/checkout/sessions/:id",
-                                                 "/checkout/sessions/:id/status",
-                                                 "/checkout/sessions/by-reference/:referenceId/status",
-                                                 "/checkout/sessions/:id/cancelled",
-                                                 "/subscriptions",
-                                                 "/subscriptions/:id",
-                                                 "/subscriptions/by-reference/:referenceId",
-                                                 "/subscriptions/:id/cancel",
-                                                 "/subscriptions/:id/pause",
-                                                 "/subscriptions/:id/resume",
-                                                 "/subscriptions/:id/change-plan",
-                                                 "/subscriptions/:id/invoices",
-                                                 "/invoices/:id",
-                                                 "/payments/:id/refunds",
-                                                 "/webhooks"
-                                             ]
-                           },
-                           {
-                               "serviceId":  "email",
-                               "manifest":  "apps/email/service-manifest.json",
-                               "wrappers":  [
-                                                "emailSend",
-                                                "emailGetStatus"
-                                            ],
-                               "endpoints":  [
-                                                 "/send",
-                                                 "/status"
-                                             ]
-                           },
-                           {
-                               "serviceId":  "sms",
-                               "manifest":  "apps/sms/service-manifest.json",
-                               "wrappers":  [
-                                                "smsSend",
-                                                "smsGetStatus"
-                                            ],
-                               "endpoints":  [
-                                                 "/send",
-                                                 "/status"
-                                             ]
-                           },
-                           {
-                               "serviceId":  "gauth",
-                               "manifest":  "apps/gauth/service-manifest.json",
-                               "wrappers":  [
-                                                "gauthGetAuthorizationUrl",
-                                                "gauthExchangeCode",
-                                                "gauthRefreshToken",
-                                                "gauthLogout"
-                                            ],
-                               "endpoints":  [
-                                                 "/oauth/authorize",
-                                                 "/oauth/token",
-                                                 "/oauth/token/refresh",
-                                                 "/oauth/logout",
-                                                 "/health"
-                                             ]
-                           },
-                           {
-                               "serviceId":  "otp",
-                               "manifest":  "apps/otp/service-manifest.json",
-                               "wrappers":  [
-                                                "otpGenerate",
-                                                "otpVerify",
-                                                "otpStatus"
-                                            ],
-                               "endpoints":  [
-                                                 "/generate",
-                                                 "/verify",
-                                                 "/status"
-                                             ]
-                           },
-                           {
-                               "serviceId":  "geo",
-                               "manifest":  "apps/geo/service-manifest.json",
-                               "wrappers":  [
-                                                "geoGeocodeAddress",
-                                                "geoReverseGeocode",
-                                                "geoFenceCheck"
-                                            ],
-                               "endpoints":  [
-                                                 "/geocode",
-                                                 "/reverse-geocode",
-                                                 "/geofence/check"
-                                             ]
-                           }
-                       ],
-    "kafkaGovernance":  {
-                            "requiredScopes":  [
-                                                   "external:kafka:read",
-                                                   "external:kafka:write"
-                                               ],
-                            "wrappers":  [
-                                             "kafkaGetGovernanceCatalog",
-                                             "kafkaPublish",
-                                             "publishTribeEvent"
-                                         ]
-                        }
+  "version": "2026-05-11",
+  "sharedServices": [
+    {
+      "serviceId": "payment",
+      "manifest": "apps/payments/service-manifest.json",
+      "wrappers": [
+        "paymentCreateCheckoutSession",
+        "paymentGetCheckoutSession",
+        "paymentGetCheckoutStatus",
+        "paymentGetCheckoutStatusByReference",
+        "paymentMarkCheckoutCancelled",
+        "paymentCreateRefund",
+        "paymentCreateCustomer",
+        "paymentGetCustomer",
+        "paymentCreatePlan",
+        "paymentGetPlan",
+        "paymentListPlans",
+        "paymentCreateSubscription",
+        "paymentGetSubscription",
+        "paymentGetSubscriptionByReference",
+        "paymentCancelSubscription",
+        "paymentPauseSubscription",
+        "paymentResumeSubscription",
+        "paymentChangeSubscriptionPlan",
+        "paymentListSubscriptionInvoices",
+        "paymentGetInvoice"
+      ],
+      "endpoints": [
+        "/customers",
+        "/customers/:id",
+        "/plans",
+        "/plans/:id",
+        "/payment-intents/qrph",
+        "/payment-links",
+        "/payment-links/:id",
+        "/checkout/sessions",
+        "/checkout/sessions/:id",
+        "/checkout/sessions/:id/status",
+        "/checkout/sessions/by-reference/:referenceId/status",
+        "/checkout/sessions/:id/cancelled",
+        "/subscriptions",
+        "/subscriptions/:id",
+        "/subscriptions/by-reference/:referenceId",
+        "/subscriptions/:id/cancel",
+        "/subscriptions/:id/pause",
+        "/subscriptions/:id/resume",
+        "/subscriptions/:id/change-plan",
+        "/subscriptions/:id/invoices",
+        "/invoices/:id",
+        "/payments/:id/refunds",
+        "/webhooks"
+      ]
+    },
+    {
+      "serviceId": "email",
+      "manifest": "apps/email/service-manifest.json",
+      "wrappers": [
+        "emailSend",
+        "emailGetStatus"
+      ],
+      "endpoints": [
+        "/send",
+        "/status"
+      ]
+    },
+    {
+      "serviceId": "sms",
+      "manifest": "apps/sms/service-manifest.json",
+      "wrappers": [
+        "smsSend",
+        "smsGetStatus"
+      ],
+      "endpoints": [
+        "/send",
+        "/status"
+      ]
+    },
+    {
+      "serviceId": "gauth",
+      "manifest": "apps/gauth/service-manifest.json",
+      "wrappers": [
+        "gauthGetAuthorizationUrl",
+        "gauthExchangeCode",
+        "gauthRefreshToken",
+        "gauthLogout"
+      ],
+      "endpoints": [
+        "/oauth/authorize",
+        "/oauth/token",
+        "/oauth/token/refresh",
+        "/oauth/logout",
+        "/health"
+      ]
+    },
+    {
+      "serviceId": "otp",
+      "manifest": "apps/otp/service-manifest.json",
+      "wrappers": [
+        "otpGenerate",
+        "otpVerify",
+        "otpStatus"
+      ],
+      "endpoints": [
+        "/generate",
+        "/verify",
+        "/status"
+      ]
+    },
+    {
+      "serviceId": "geo",
+      "manifest": "apps/geo/service-manifest.json",
+      "wrappers": [
+        "geoGeocodeAddress",
+        "geoReverseGeocode",
+        "geoFenceCheck"
+      ],
+      "endpoints": [
+        "/geocode",
+        "/reverse-geocode",
+        "/geofence/check"
+      ]
+    }
+  ],
+  "kafkaGovernance": {
+    "requiredScopes": [
+      "external:kafka:read",
+      "external:kafka:write"
+    ],
+    "wrappers": [
+      "kafkaGetGovernanceCatalog",
+      "kafkaPublish",
+      "publishTribeEvent"
+    ]
+  },
+  "sdkOperations": [
+    {
+      "operationId": "email.send",
+      "serviceId": "email",
+      "method": "POST",
+      "path": "/api/v1/shared/email/send",
+      "requestType": "EmailSendRequest",
+      "responseType": "EmailSendResponse",
+      "requiredScopes": [
+        "email:send"
+      ],
+      "idempotencyKey": {
+        "required": true,
+        "minLength": 16,
+        "maxLength": 255
+      }
+    },
+    {
+      "operationId": "email.getStatus",
+      "serviceId": "email",
+      "method": "GET",
+      "path": "/api/v1/shared/email/status/{messageId}",
+      "responseType": "EmailDeliveryStatus",
+      "requiredScopes": [
+        "email:send"
+      ]
+    },
+    {
+      "operationId": "sms.send",
+      "serviceId": "sms",
+      "method": "POST",
+      "path": "/api/v1/shared/sms/send",
+      "requestType": "SmsSendRequest",
+      "responseType": "SmsSendResponse",
+      "requiredScopes": [
+        "sms:send"
+      ],
+      "idempotencyKey": {
+        "required": true,
+        "minLength": 16,
+        "maxLength": 255
+      }
+    },
+    {
+      "operationId": "sms.getStatus",
+      "serviceId": "sms",
+      "method": "GET",
+      "path": "/api/v1/shared/sms/status/{messageId}",
+      "responseType": "SmsDeliveryStatus",
+      "requiredScopes": [
+        "sms:status"
+      ]
+    },
+    {
+      "operationId": "otp.generate",
+      "serviceId": "otp",
+      "method": "POST",
+      "path": "/api/v1/shared/otp/generate",
+      "requestType": "OtpGenerateRequest",
+      "responseType": "OtpGenerateResponse",
+      "requiredScopes": [
+        "otp:generate"
+      ],
+      "idempotencyKey": {
+        "required": true,
+        "minLength": 16,
+        "maxLength": 255
+      }
+    },
+    {
+      "operationId": "otp.verify",
+      "serviceId": "otp",
+      "method": "POST",
+      "path": "/api/v1/shared/otp/verify",
+      "requestType": "OtpVerifyRequest",
+      "responseType": "OtpVerifyResponse",
+      "requiredScopes": [
+        "otp:verify"
+      ],
+      "idempotencyKey": {
+        "required": true,
+        "minLength": 16,
+        "maxLength": 255
+      }
+    },
+    {
+      "operationId": "otp.getStatus",
+      "serviceId": "otp",
+      "method": "GET",
+      "path": "/api/v1/shared/otp/status/{otpId}",
+      "responseType": "OtpStatusResponse",
+      "requiredScopes": [
+        "otp:generate"
+      ]
+    },
+    {
+      "operationId": "geo.geocodeAddress",
+      "serviceId": "geo",
+      "method": "POST",
+      "path": "/api/v1/shared/geo/geocode",
+      "requestType": "GeoGeocodeRequest",
+      "responseType": "GeoAddressResult",
+      "requiredScopes": [
+        "geo:read",
+        "geo:write"
+      ]
+    },
+    {
+      "operationId": "geo.reverseGeocode",
+      "serviceId": "geo",
+      "method": "POST",
+      "path": "/api/v1/shared/geo/reverse-geocode",
+      "requestType": "GeoReverseGeocodeRequest",
+      "responseType": "GeoAddressResult",
+      "requiredScopes": [
+        "geo:read",
+        "geo:write"
+      ]
+    },
+    {
+      "operationId": "geo.checkFence",
+      "serviceId": "geo",
+      "method": "POST",
+      "path": "/api/v1/shared/geo/geofence/check",
+      "requestType": "GeoFenceCheckRequest",
+      "responseType": "GeoFenceCheckResponse",
+      "requiredScopes": [
+        "geo:read",
+        "geo:write"
+      ]
+    },
+    {
+      "operationId": "googleAuth.getAuthorizationUrl",
+      "serviceId": "gauth",
+      "method": "POST",
+      "path": "/api/v1/shared/gauth/oauth/authorize",
+      "requestType": "GoogleAuthorizationUrlRequest",
+      "responseType": "GoogleAuthorizationUrlResponse",
+      "requiredScopes": [
+        "auth:google:login"
+      ]
+    },
+    {
+      "operationId": "googleAuth.exchangeCode",
+      "serviceId": "gauth",
+      "method": "POST",
+      "path": "/api/v1/shared/gauth/oauth/token",
+      "requestType": "GoogleTokenExchangeRequest",
+      "responseType": "GoogleOAuthTokenResponse",
+      "requiredScopes": [
+        "auth:google:login"
+      ]
+    },
+    {
+      "operationId": "googleAuth.refreshToken",
+      "serviceId": "gauth",
+      "method": "POST",
+      "path": "/api/v1/shared/gauth/oauth/token/refresh",
+      "requestType": "GoogleTokenRefreshRequest",
+      "responseType": "GoogleOAuthTokenResponse",
+      "requiredScopes": [
+        "auth:google:login"
+      ]
+    },
+    {
+      "operationId": "googleAuth.logout",
+      "serviceId": "gauth",
+      "method": "POST",
+      "path": "/api/v1/shared/gauth/oauth/logout",
+      "requestType": "GoogleLogoutRequest",
+      "responseType": "GoogleLogoutResponse",
+      "requiredScopes": [
+        "auth:google:login"
+      ]
+    }
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "@alpha-explora/apicenter-sdk",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "TypeScript SDK for the APICenter public API.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,9 +15,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "test": "jest --config jest.config.cjs --runInBand",
+    "test:consumer": "tsc --noEmit --project tests/consumer/tsconfig.json && node tests/consumer/runtime-smoke.cjs",
     "lint": "npm run typecheck"
   },
   "dependencies": {
