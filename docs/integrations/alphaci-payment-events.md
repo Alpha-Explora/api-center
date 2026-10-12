@@ -1,19 +1,24 @@
 ---
-title: "AlphaCI Payment Event Delivery"
-status: canonical
-authority: operational
+title: "AlphaCI Payment Event Delivery (unverified reference)"
+status: reference
+authority: reference
 owner: platform-operators
 audience: [operators, engineers]
 last_verified: "unverified"
 verification: unverified
 sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
 ---
-# AlphaCI Payment Event Delivery
+# AlphaCI Payment Event Delivery (unverified reference)
 
-APICenter remains the payment provider boundary. AlphaCI receives only the
-normalized lifecycle event and keeps a local inbox/projection for product
-access, receipts, and grace-period behavior. AlphaCI does not receive or store
-the PayMongo secret key.
+This unverified integration record is retained for reference. It describes an
+AlphaCI event-delivery path, not a currently onboarded SDK consumer. No consumer
+repository outside APICenter is currently onboarded to the published SDK. Do not
+treat the endpoint, identity, or cutover steps below as active configuration
+without checking the target repository and environment.
+
+APICenter remains the payment provider boundary. A consumer receives only
+normalized lifecycle events and maintains its own local inbox and projection.
+Consumer services do not receive or store the PayMongo secret key.
 
 ## Delivery
 

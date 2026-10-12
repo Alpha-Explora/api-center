@@ -5,6 +5,8 @@ description: "Guidelines for safe retries across payment, messaging, and OTP API
 
 Payment mutations use idempotency keys to prevent duplicate provider operations when a request is retried after a network failure or timeout.
 
+With `@alpha-explora/apicenter-sdk`, pass the key as `{ idempotencyKey }`; the client sends the `Idempotency-Key` header and validates that the value is 16–255 characters. The SDK does not retry mutations automatically. Persist the key with the operation and reuse it with the same request body after a timeout or transient failure. See [SDK integration](/guides/sdk-usage).
+
 ## Idempotency-Key header
 
 Every payment `POST` mutation requires an `Idempotency-Key` header containing 16–255 characters. Reuse the same key with the same request body when retrying the same operation.

@@ -1,32 +1,30 @@
 ---
-title: "Auth & Token Issuance API"
-description: "Obtain service-scoped JWTs and inspect public JWKS keys."
+title: "Service token and JWKS API"
+description: "Manual service token issuance and public key discovery for integrations that do not use the APICenter SDK."
 ---
 
-The Auth API manages token issuance, refresh, and key set discovery for APICenter machine-to-machine communications.
+The recommended TypeScript integration uses `@alpha-explora/apicenter-sdk`, which obtains and refreshes service tokens for you. Use the endpoints below only when your runtime cannot use that SDK. See [Authentication and scopes](/guides/authentication).
 
----
+## Request a service token
 
-## Token Endpoint
+- **Endpoint:** `POST /api/v1/auth/token`
 
-- **Endpoint**: `POST /api/v1/auth/token`
+Send the registered service ID, environment, and matching service secret:
 
 ```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/auth/token \
+curl -X POST "$APICENTER_URL/api/v1/auth/token" \
   -H "Content-Type: application/json" \
   -d '{
-    "serviceId": "demand-service",
-    "environment": "live",
-    "secret": "service-environment-secret"
+    "serviceId": "orders-api",
+    "environment": "test",
+    "secret": "<service-environment-secret>"
   }'
 ```
 
-The response includes `data.accessToken`, `data.serviceId`, `data.projectId`, and `data.tribeId`. Placement is resolved from the registry and cannot be supplied in the request.
+The response contains `data.accessToken`, the service ID, environment, and the placement resolved from the registry. Use `data.accessToken` as a bearer token for authorized APICenter routes. Keep the service secret and issued token on the server.
 
----
+## Discover public signing keys
 
-## Public JWKS Endpoint
+- **Endpoint:** `GET /api/v1/auth/.well-known/jwks.json`
 
-- **Endpoint**: `GET /api/v1/auth/.well-known/jwks.json`
-
-Returns public RS256 keys for token verification by downstream services.
+The JWKS endpoint returns public keys for verifying APICenter-signed tokens. Follow the token's `kid` when selecting a key and refresh the key set when an unknown key ID appears. Never use a private signing key in a consumer service.

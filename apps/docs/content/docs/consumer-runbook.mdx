@@ -1,54 +1,45 @@
 ---
-title: "Consumer Runbook"
-description: "Operational checklist for consumer platform integrations."
+title: "Consumer integration runbook"
+description: "Prepare an APICenter service integration and handle requests, events, retries, and incidents."
 ---
 
-APICenter consumers call the provider-neutral payment API with the published
-TypeScript SDK. A consumer owns its business records and receives normalized
-payment lifecycle events; APICenter owns provider credentials, idempotency,
-event publication, and the payment resource state.
+Use this checklist when a backend service starts using APICenter. The [Management guides](/guides/management/access-and-tenancy) explain access and registry setup; the [SDK guide](/guides/sdk-usage) covers installation and API methods.
 
-## Before Production
+## Before integration
 
-- Register the consumer service and environment in APICenter Management.
-- Request only `payments:read` or `payments:read,payments:write`.
-- Store `APICENTER_API_KEY` in the backend secret manager.
-- Provision the Pub/Sub push subscription and Cloud Run OIDC identity.
-- Make event handling idempotent by `eventId` and monotonic by
-  `aggregateVersion`.
+- Confirm the service is registered under the correct organization, tribe, and project.
+- Ask an operator to issue separate test and live service credentials and grant only the scopes the service needs.
+- Store `APICENTER_SERVICE_SECRET` and any payment credential in the backend secret manager. Never send them to a browser or commit them.
+- Add the package's GitHub Packages configuration and a CI token with package read access.
+- If payment lifecycle events are part of the integration, ask the APICenter operator to configure the consumer's Pub/Sub push subscription and Cloud Run OIDC identity.
+- Make event processing idempotent by `eventId` and monotonic by `aggregateVersion`.
 
-## Payment Request
+## Create a payment checkout
+
+Create a stable idempotency key for the business operation and persist it with the order before calling APICenter. Reuse it after timeouts or transient failures.
 
 ```ts
-const checkout = await client.payments.createCheckout(
+const checkout = await api.payments.checkouts.create(
   {
     referenceId: order.id,
-    amount: { amountMinor: order.totalMinor, currency: "PHP" },
-    successUrl: "https://orders.example/payment/success",
-    cancelUrl: "https://orders.example/payment/cancel",
+    amount: { amountMinor: order.totalMinor, currency: 'PHP' },
+    successUrl: 'https://orders.example/payments/success',
+    cancelUrl: 'https://orders.example/payments/cancel',
   },
-  { headers: { "Idempotency-Key": `checkout:${order.id}` } },
+  { idempotencyKey: order.checkoutRequestKey },
 );
 ```
 
-Treat the checkout as pending until `payment.checkout.paid` is projected. Do not
-trust a redirect alone to grant access.
+Treat the checkout as pending until your service processes the `payment.checkout.paid` event. A browser redirect alone does not prove payment. Payment resource IDs are opaque APICenter IDs; do not depend on provider-specific fields.
 
-## Event Handling
+## Process payment events
 
-Verify the Cloud Run OIDC token, validate the canonical event envelope, discard
-an already-seen `eventId`, and ignore an event whose aggregate version is not
-newer than the stored version. Never expect PayMongo fields in `data`; provider
-details are intentionally not part of the public contract.
+Verify the Cloud Run OIDC token on the push endpoint. Validate the event envelope, ignore an `eventId` already recorded, and apply only an event whose `aggregateVersion` is newer than the version stored for that resource. Acknowledge a valid duplicate after confirming it was already applied. See [payment event delivery](/guides/events/pubsub-delivery) for the envelope and delivery behavior.
 
-## Failure And Rollback
+## Handle failures and rollbacks
 
-Retry transient API failures with the same idempotency key. For a delivery
-failure, inspect the dead-letter subscription and replay the same event after
-the consumer is corrected. If APICenter announces a payment cutover rollback,
-continue serving existing local state and pause new payment commands; do not
-call PayMongo directly.
+Retry a transient API failure with the same idempotency key and body. Do not issue a new key just because the first response timed out; the original operation may have completed.
 
-Contact the APICenter operator for release and incident procedures. Operator
-runbooks remain internal. Include the environment, resource reference, event ID,
-and correlation ID in the handoff; never include provider credentials.
+For an event delivery failure, ask the APICenter operator to inspect the subscription and dead-letter flow. After correcting the consumer, replay the event and retain its original `eventId` and aggregate version. If a payment cutover rollback is announced, continue serving the consumer's existing local state and pause new payment commands until the operator confirms the path forward. Do not call PayMongo directly.
+
+When escalating, include the environment, APICenter resource reference, event ID, and correlation ID. Never include service secrets, payment keys, or provider credentials. Operator procedures remain in the internal `docs/` collection.

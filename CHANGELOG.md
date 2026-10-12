@@ -10,6 +10,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Refresh consumer and Management guidance for SDK 2.0.0, organization-scoped access, service registration, and project Google sign-in. Keep operator procedures in the internal `docs/` collection.
 - Added APICenter's canonical internal docs bundle with ownership, authority, evidence, and plan-retirement rules.
 - Published all registered consumer guides, including Payment Links, Google Auth, and payment architecture; retained the payment-intents alias.
 - Rendered guide links and tables with native MDX and removed leaked frontmatter and generic framework guidance.

@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "APICenter Developer Documentation", template: "%s | APICenter Docs" },
-  description: "Provider-neutral gateway, shared services documentation, and interactive API reference.",
+  description: "APICenter service registration guides, server-side SDK, shared APIs, and REST reference.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

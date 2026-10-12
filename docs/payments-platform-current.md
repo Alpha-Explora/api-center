@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, maintainers, agents]
-last_verified: "2026-10-10"
+last_verified: "2026-10-12"
 verification: repository
 sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
 ---
@@ -16,8 +16,8 @@ This document is the current source of truth for the reusable payments platform.
 
 - `api-center/apps/payments` is the private provider adapter. It owns PayMongo credentials, provider calls, webhook verification, public resource IDs, idempotency, and the payment outbox. PayMongo owns the canonical customer, product, price, subscription, checkout, payment, refund, invoice, and receipt records.
 - `shared_payment` stores APICenter's project-scoped resource ownership and reconciliation facts, verified webhook receipts, and event outbox. It does not mirror PayMongo's provider resource tables.
-- `api-center/apps/gateway` is the public boundary. Consumer services authenticate with an APICenter payment key and receive the provider-neutral `/api/v1/payments/*` contract.
-- AlphaCI keeps its own billing and subscription projection in `alphaci-be`. It calls APICenter through `@alpha-explora/apicenter-sdk`; it does not need PayMongo credentials for the APICenter command path.
+- `api-center/apps/gateway` is the public boundary. Consumer services use service credentials and, when provisioned, a payment API key to call the provider-neutral `/api/v1/payments/*` contract.
+- No consumer repository outside APICenter is currently onboarded to the published SDK. A consuming service owns its own billing and subscription projection; it does not receive PayMongo credentials.
 
 ## Commands and events
 
@@ -32,7 +32,7 @@ Subscriptions are filtered by `consumerServiceId`, use OIDC push authentication,
 
 ## Data and recovery
 
-PayMongo is the source of truth for payment resources and merchant settlement. APICenter is the source of truth for the project/environment ownership mapping, payment listing and reconciliation metadata it records, webhook verification receipts, and event delivery state. AlphaCI stores only the local ledger and access projection it needs. AlphaCI's inbox uses a processing lease and can reclaim stale deliveries after five minutes. APICenter's outbox reclaims publishing rows after five minutes, retries with backoff, and quarantines after 20 failed attempts.
+PayMongo is the source of truth for payment resources and merchant settlement. APICenter is the source of truth for the project/environment ownership mapping, payment listing and reconciliation metadata it records, webhook verification receipts, and event delivery state. A consumer stores only the local ledger and access projection its product needs. APICenter's outbox reclaims publishing rows after five minutes, retries with backoff, and quarantines after 20 failed attempts.
 
 Public responses and events never expose raw PayMongo IDs. Provider IDs are encoded as opaque versioned IDs such as `pi_v1_*` and `chk_v1_*`.
 

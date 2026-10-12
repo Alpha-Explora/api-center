@@ -1,0 +1,45 @@
+---
+title: "Management access and tenancy"
+description: "Understand organization access and how tribes, projects, and services fit together in APICenter."
+---
+
+APICenter Management uses organization membership to decide which resources a person can access. Sign in with the Google account associated with your organization membership. If Management says you do not have APICenter access, ask an organization administrator to add your email.
+
+## Resource hierarchy
+
+The tenancy model is:
+
+```text
+Organization → Tribe → Project → Service
+```
+
+- **Organization** is the outer access boundary. Organization membership and role determine what a person can do in Management.
+- **Tribe** groups related projects and services.
+- **Project** is the placement for a product or workload. Plans and quota budgets attach here.
+- **Service** is a registered backend or shared runtime. A service belongs to one project, and its credentials are issued per environment.
+
+The Registry page displays the lower three levels: tribes, projects, and services. The organization is the access scope for that view, so it does not appear as a node in the registry tree.
+
+## Management roles
+
+Organization roles control actions within the organization:
+
+| Role | Access |
+| :--- | :--- |
+| `admin` | Full organization management, including tenancy changes |
+| `operator` | Read and change access for assigned resources |
+| `observer` | Read access |
+
+Live writes have additional confirmation requirements. Some platform-wide operations are limited to APICenter platform administrators.
+
+## Organization setup
+
+The console does not create organizations or manage organization memberships. An APICenter administrator provisions the organization. Ask your organization administrator to arrange membership if a teammate cannot sign in. After access is set up, use the [service registration guide](/guides/management/register-service) to add a tribe, project, and service.
+
+If you belong to more than one organization and need a new tribe placed under a particular one, ask an APICenter administrator to confirm the target organization before creation. The current tribe form does not provide an organization picker.
+
+## Where to manage common tasks
+
+- Use **Registry** to create tribes and projects, register services, and inspect service placement.
+- Use **Developer portal** to preview an onboarding packet by tribe. The packet includes integration guidance but does not expose runtime credentials.
+- Use **Shared services → Google sign-in** to configure Google OAuth for a project and environment. See [Configure Google sign-in](/guides/management/google-sign-in).

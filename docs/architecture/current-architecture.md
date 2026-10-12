@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, maintainers, agents]
-last_verified: "2026-10-10"
+last_verified: "2026-10-12"
 verification: repository
 sources: [apps/gateway/src/app.module.ts, packages/contracts/src/index.ts, packages/runtime, apps/docs, infra/gcp]
 ---
@@ -18,8 +18,8 @@ APICenter is a Turborepo monorepo with independently deployed runtimes. This map
 | `apps/payments` | Provider calls, trusted principal enforcement, project/environment ownership, idempotency, webhooks, reconciliation, and payment outbox | Private provider adapter; public responses use APICenter IDs and contracts |
 | `apps/email`, `apps/sms`, `apps/otp` | Delivery, verification, status, and durable service state | Authenticated shared-service gateway routes; provider credentials stay in runtime secrets |
 | `apps/geo`, `apps/gauth` | Location and Google authentication integration | Independent shared-service runtimes |
-| `apps/management` | Operator console | Uses gateway APIs rather than owning runtime business state |
-| `apps/docs` | Curated static consumer docs | Registered MDX guides and public OpenAPI/AsyncAPI contracts; no root `docs/` ingestion |
+| `apps/management` | Organization-scoped management console for registry and project settings | Uses organization membership and gateway APIs rather than owning runtime business state |
+| `apps/docs` | Curated consumer and Management guides | Registered MDX guides and public OpenAPI/AsyncAPI contracts; no root `docs/` ingestion |
 | `packages/contracts` | Shared TypeScript contracts and pinned public contract artifacts | Gateway, runtimes, and SDK share these contracts |
 | `packages/runtime` | Common runtime bootstrap and infrastructure helpers | Reused by independent service apps |
 | `packages/sdk` | Published `@alpha-explora/apicenter-sdk` | Consumer transport and public integration operations |
@@ -28,7 +28,7 @@ Gateway domain roots live under `apps/gateway/src/domains/`: `auth-security`, `c
 
 ## Data and provider ownership
 
-PayMongo owns canonical provider-backed payment resources and merchant settlement. APICenter owns the project/environment resource mapping, recorded listing and reconciliation metadata, verified webhook receipts, and event delivery. AlphaCI owns its local billing/access projection. The detailed authority is [payments-platform-current.md](../payments-platform-current.md), supplemented by [database ownership](../operations/payment-database-ownership.md).
+PayMongo owns canonical provider-backed payment resources and merchant settlement. APICenter owns the project/environment resource mapping, recorded listing and reconciliation metadata, verified webhook receipts, and event delivery. A consuming service owns its local business and access projection. No consumer repository outside APICenter is currently onboarded to the published SDK. The detailed authority is [payments-platform-current.md](../payments-platform-current.md), supplemented by [database ownership](../operations/payment-database-ownership.md).
 
 Payment commands go through the public gateway and SDK. Payment lifecycle events use Google Pub/Sub. Consumer services must not bypass the provider adapter with private credentials.
 
@@ -36,7 +36,7 @@ Payment commands go through the public gateway and SDK. Payment lifecycle events
 
 ```text
 Internal: AGENTS.md -> docs/index.md -> architecture / ADR / operations / evidence
-Consumer: guides.json + MDX -> Fumadocs -> static guide pages
+Consumer and Management: guides.json + MDX -> Fumadocs -> static guide pages
 Reference: public OpenAPI / AsyncAPI -> endpoint / event pages and downloads
 ```
 

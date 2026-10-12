@@ -1,16 +1,28 @@
 ---
-title: "Current architecture"
-description: "Integration guidance for current architecture."
+title: "Payments architecture"
+description: "Understand the APICenter payment request and event flow."
 ---
 
-APICenter owns the reusable payment runtime, PayMongo credentials, payment database, idempotency records, webhook verification, and the durable outbox. Consumer services call the public gateway with `@alpha-explora/apicenter-sdk` and never call PayMongo directly.
+APICenter provides a payment API that keeps provider credentials and provider-specific payloads behind the platform boundary. A consumer backend calls the gateway with the server-side SDK. APICenter applies the registered service's authorization and environment, then routes the request to the payment runtime.
 
-## AlphaCI
+## Request flow
 
-AlphaCI keeps its own billing ledger and subscription/access projection. Its command path uses the APICenter SDK; PayMongo remains the source of truth for provider-backed payment resources. APICenter owns project/environment ownership, webhook receipts, reconciliation metadata, and event delivery. AlphaCI consumes filtered Pub/Sub events to project paid, failed, refunded, past-due, active, and cancelled lifecycle changes.
+```text
+Consumer backend
+  → @alpha-explora/apicenter-sdk
+  → APICenter gateway: auth, scopes, quotas, idempotency
+  → payments runtime
+  → payment provider
+```
 
-## Event delivery
+The consumer owns its business records and maps APICenter resources to those records with a stable `referenceId`. APICenter stores normalized payment resources, environment ownership, idempotency records, webhook receipts, and event publication state. The payment provider remains authoritative for provider-backed payment resources.
 
-Payment events are delivered through Google Pub/Sub topics `apicenter.payment-events.test` and `apicenter.payment-events.live`. Push subscriptions use OIDC authentication, consumer filtering, a dead-letter topic, and a 20-attempt delivery policy. A consumer records a duplicate or malformed event before acknowledging it.
+## Event flow
 
-Resource IDs in HTTP responses and events are opaque versioned IDs such as `pi_v1_*` and `chk_v1_*`; raw PayMongo IDs never cross the public boundary.
+Payment lifecycle events can be delivered to a consumer's configured endpoint through Google Pub/Sub. The APICenter operator configures the subscription and OIDC identity for the consumer. Consumers should verify the push identity, deduplicate by `eventId`, and apply events in `aggregateVersion` order. See [Event delivery](/guides/events/pubsub-delivery) for the event envelope and handling guidance.
+
+Do not grant access based only on a browser redirect. Update the consumer's local payment state after receiving the corresponding verified payment event or after performing an authorized resource read.
+
+## Resource identifiers
+
+Payment resource IDs are opaque APICenter identifiers such as `pi_v1_*` and `chk_v1_*`. Do not parse them or expect raw provider IDs and provider-specific fields in API responses or events.
