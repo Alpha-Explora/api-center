@@ -1,76 +1,49 @@
 ---
-title: "Authentication & Scopes"
-description: "How consumer services authenticate with APICenter using JWTs and Scopes."
+title: "Authentication and scopes"
+description: "Configure server-side service credentials and understand APICenter authorization."
 ---
 
-APICenter issues service-scoped **JSON Web Tokens (JWTs)** signed with RS256. Each token is bound to one registered service, its project, tribe, and environment.
+APICenter authenticates backend services with service-specific credentials. The service is registered in one project, and its allowed scopes and dependencies are managed in the Registry.
 
----
+## Use the SDK for service authentication
 
-## Auth Modes
+The recommended TypeScript client obtains and refreshes the APICenter bearer token. Configure the service ID, environment, and secret as server-only values:
 
-APICenter supports three runtime authentication providers, configured via `AUTH_PROVIDER`:
+```ts
+import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-1. **`dev-jwt` (Local Dev & CI)**: Self-contained RS256 issuer using ephemeral or local PEM key pairs. No external IdP dependency.
-2. **`internal-jwt`**: Production machine-to-machine JWT issuer backed by per-service GCP Secret Manager credentials.
-3. **`composite` (Production Default)**: APICenter issues internal service tokens while validating Descope tokens for human/admin console sessions.
-
----
-
-## Obtaining Machine-to-Machine Tokens
-
-Send a `POST` request to `/api/v1/auth/token` with the registered service ID, its environment, and that environment's secret. APICenter resolves the service's project and tribe from registry placement.
-
-```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{
-    "serviceId": "logistics-orders",
-    "environment": "live",
-    "secret": "service-environment-secret"
-  }'
+const api = new ApiCenter({
+  baseUrl: process.env.APICENTER_URL!,
+  auth: {
+    serviceId: process.env.APICENTER_SERVICE_ID!,
+    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
+    secret: process.env.APICENTER_SERVICE_SECRET!,
+  },
+});
 ```
 
-### Response Payload
+Do not send the service secret to a browser or include it in mobile client code. Store distinct test and live credentials in the backend's secret manager. See [SDK integration](/guides/sdk-usage) for installation and request examples.
 
-```json
-{
-  "success": true,
-  "data": {
-    "accessToken": "eyJhbGciOiJSUzI1NiIs...",
-    "serviceId": "logistics-orders",
-    "projectId": "logistics-fulfilment",
-    "tribeId": "logistics",
-    "environment": "live",
-    "expiresIn": 3600,
-    "scopes": ["orders:read", "email:send"]
-  }
-}
-```
+For an integration that cannot use the TypeScript SDK, the service can request a bearer token directly with `POST /api/v1/auth/token`. See the [token API reference](/guides/identity-gateway/auth-tokens). The SDK performs this exchange and token rotation for you.
 
-Use `data.accessToken` as the Bearer token for service and shared-service routes. Payment routes use a separately issued payment API key.
+## Authorization
 
----
+APICenter resolves the service's project and tribe from its registry placement. Callers cannot select a different project by changing token claims or request fields. The gateway checks the registered service, environment, required scopes, and shared-service dependencies before proxying a request.
 
-## Required Scopes Per Service
-
-Each shared service route enforces fine-grained scope authorization:
-
-| Shared Service | Route Pattern | Required Scopes |
+| API area | Example scope | Credential |
 | :--- | :--- | :--- |
-| **Payments Write** | `/api/v1/payments/*` (POST, PUT, DELETE) | Payment API key with `payments:write` |
-| **Payments Read** | `/api/v1/payments/*` (GET) | Payment API key with `payments:read` |
-| **SMS Service** | `/api/v1/shared/sms/*` | Service token with `sms:send` |
-| **Email Service** | `/api/v1/shared/email/*` | Service token with `email:send` |
-| **OTP Service** | `/api/v1/shared/otp/*` | Service token with `otp:generate`, `otp:verify` |
-| **Geo Location** | `/api/v1/shared/geo/*` | Service token with `geo:read` |
+| Email | `email:send` | Service token |
+| SMS | `sms:send` | Service token |
+| OTP | `otp:generate`, `otp:verify` | Service token |
+| Geo | `geo:read` | Service token |
+| Payments | Operation-specific, such as `payments:checkout:write` or `payments:intents:read` | Payment API key when provisioned, or an authorized service token; see the endpoint guide |
 
----
+Request only the scopes the service needs. If a request returns an authorization error, ask an operator to review the service registration and its project-level policy.
 
-## Public JWKS Verification Endpoint
+## Payment credentials
 
-Consumer services can verify JWT signature authenticity using APICenter's public JWKS endpoint:
+The SDK uses the payment credential issued for the service and environment. A payment API key can be supplied when the platform provisions one; otherwise the service token must have the scope required by the operation. The exact payment scope depends on the resource and method. Do not reuse a credential across environments or services.
 
-```text
-GET /api/v1/auth/.well-known/jwks.json
-```
+## Human access to Management
+
+Management sign-in is separate from service authentication. A user signs in with an authorized Google account and needs membership in the organization. Ask an organization administrator to add your email if sign-in reports that you do not have APICenter access. See [Access and tenancy](/guides/management/access-and-tenancy).

@@ -5,6 +5,8 @@ description: "Provider-neutral PayMongo facade and payments engine overview."
 
 APICenter exposes provider-neutral payment resources. Your service sends domain references and amounts; provider-specific identifiers, secret keys, and raw provider payloads remain inside the platform boundary.
 
+For TypeScript backends, use the server-side [APICenter SDK](/guides/sdk-usage). It handles service-token exchange and exposes typed methods for checkouts, intents, customers, refunds, subscriptions, and payment links. The REST examples in this section remain available for other runtimes.
+
 ## Checkout
 
 Create a checkout with a stable `referenceId`, a PHP amount in minor units, and registered return URLs.

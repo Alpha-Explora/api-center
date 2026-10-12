@@ -5,6 +5,8 @@ description: "Create, retrieve, confirm, and cancel payment intents through the 
 
 Payment intents expose a provider-neutral way to create and track a payment. The public API currently accepts an amount and a reference when creating an intent. Payment-method tokenization and manual capture are not part of this contract.
 
+For a Node.js backend, use `api.payments.intents.create(...)` or `api.payments.intents.createQrPh(...)` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
+
 ## Create a payment intent
 
 - **Endpoint**: `POST /api/v1/payments/intents`

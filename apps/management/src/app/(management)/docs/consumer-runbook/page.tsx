@@ -4,36 +4,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const runbookSections = [
   {
-    title: "Canonical API documentation",
-    description: "Use the APICenter developer documentation for public payment endpoints, authentication, idempotency, SDK usage, and event payloads.",
+    title: "Developer and Management guides",
+    description: "Use the docs app for service registration, SDK setup, authentication, shared-service APIs, payments, and event handling.",
     href: "https://api-center.itsandbox.site/docs",
     action: "Open APICenter docs",
   },
   {
-    title: "Operator provisioning",
-    description: "Register the consumer from Payment consumers, choose the minimum scopes, provide its Cloud Run delivery identity, and verify the Pub/Sub subscription status.",
+    title: "Confirm service registration",
+    description: "Check the organization, tribe, project, service ID, environment, allowed shared services, and required scopes in Registry before integrating.",
   },
   {
-    title: "One-time secret handling",
-    description: "Copy the generated APICenter key once into the consumer service's Secret Manager. Management never stores plaintext keys and consumers never receive PayMongo credentials.",
+    title: "Store server credentials",
+    description: "Provision the secret hash in APICenter, then copy the plaintext service secret into the backend secret manager. Keep credentials separate per service and environment; never expose them to a browser.",
   },
   {
-    title: "Delivery troubleshooting",
-    description: "Review the delivery status, last delivery timestamp, dead-letter count, and Cloud Run invoker/OIDC configuration before retrying a failed subscription.",
+    title: "Configure payment events",
+    description: "If the service consumes payment events, ask an APICenter operator to configure its Pub/Sub push subscription and OIDC identity. Use the Event delivery guide in the developer docs to deduplicate and order updates.",
+    href: "https://api-center.itsandbox.site/docs",
+    action: "Open developer docs",
   },
 ];
 
 export default function ConsumerRunbookPage() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeading title="Consumer runbook" description="Operator setup and security guidance for APICenter consumers." />
+      <PageHeading title="Consumer runbook" description="Prepare a registered backend to call APICenter shared APIs and process payment events." />
       <ConsumerRunbookActions />
       <div className="grid gap-4 md:grid-cols-2">
         {runbookSections.map((section) => (
           <Card key={section.title}>
             <CardHeader><CardTitle>{section.title}</CardTitle><CardDescription>{section.description}</CardDescription></CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              {section.href ? <a className="font-semibold text-primary underline" href={section.href} target="_blank" rel="noreferrer">{section.action}</a> : "Keep this step complete before live readiness review."}
+              {section.href ? <a className="font-semibold text-primary underline" href={section.href} target="_blank" rel="noreferrer">{section.action}</a> : "Use the Registry and service detail page to confirm this step."}
             </CardContent>
           </Card>
         ))}

@@ -1,34 +1,17 @@
 ---
-title: "Service Registry & Health API"
-description: "Register tribe microservices and monitor gateway liveness/readiness probes."
+title: "Service registry and health"
+description: "Register services through Management and use the APICenter gateway health probes."
 ---
 
-Microservices register themselves with APICenter at application startup to participate in route proxying and scope governance.
+Service registrations are created and maintained in **Management → Registry**. A service does not self-register at startup. The registry entry associates a service with a project, environment URL, exposed routes, required scopes, and allowed shared-service dependencies.
 
----
+Follow [Register a service](/guides/management/register-service) to create a tribe, project, and service. The service's registered environment URL must be reachable by APICenter. The health path on the service manifest is the path APICenter can use to check that backend.
 
-## Register Microservice
+## APICenter gateway health
 
-- **Endpoint**: `POST /api/v1/registry/register`
+Use these endpoints to check the gateway process and readiness:
 
-```bash
-curl -X POST http://localhost:3000/api/v1/registry/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "serviceId": "logistics-service",
-    "name": "Logistics & Fulfillment",
-    "baseUrl": "http://logistics-service:4005",
-    "requiredScopes": ["logistics:write"],
-    "exposes": ["logistics:read", "logistics:write"],
-    "consumes": ["payment-service", "sms-service"],
-    "healthCheck": "/health",
-    "version": "1.2.0"
-  }'
-```
+- **Liveness:** `GET /api/v1/health/live`
+- **Readiness:** `GET /api/v1/health/ready`
 
----
-
-## Gateway Health Probes
-
-- **Liveness**: `GET /api/v1/health/liveness`
-- **Readiness**: `GET /api/v1/health/readiness`
+Liveness reports whether the process is running. Readiness checks whether the gateway is ready to serve traffic. These gateway probes are separate from the health path registered for an individual service.

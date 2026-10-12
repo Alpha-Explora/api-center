@@ -16,6 +16,18 @@
     "section": "Getting started"
   },
   {
+    "slug": "management/access-and-tenancy",
+    "section": "Management"
+  },
+  {
+    "slug": "management/register-service",
+    "section": "Management"
+  },
+  {
+    "slug": "management/google-sign-in",
+    "section": "Management"
+  },
+  {
     "slug": "payments/overview",
     "section": "Payments"
   },
@@ -84,14 +96,14 @@
   },
   {
     "slug": "consumer-runbook",
-    "section": "Events and operations"
+    "section": "Integration and events"
   },
   {
     "slug": "events/pubsub-delivery",
-    "section": "Events and operations"
+    "section": "Integration and events"
   },
   {
     "slug": "migration/from-direct-paymongo",
-    "section": "Events and operations"
+    "section": "Integration and events"
   }
 ]

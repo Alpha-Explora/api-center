@@ -1,6 +1,6 @@
 # APICenter documentation
 
-This is the canonical internal reading map. Consumer documentation is maintained separately in [apps/docs](../apps/docs). Read current architecture and contracts before treating a plan or historical deployment record as current behavior.
+This is the canonical internal reading map. Consumer and Management guides are published from [apps/docs](../apps/docs). Keep operator procedures, architecture decisions, and internal evidence in this `docs/` collection. Read current architecture and contracts before treating a plan or historical deployment record as current behavior.
 
 ## Reading order
 
@@ -36,7 +36,7 @@ This is the canonical internal reading map. Consumer documentation is maintained
 
 ## Integrations
 
-- [AlphaCI Payment Event Delivery](integrations/alphaci-payment-events.md)
+- [AlphaCI Payment Event Delivery (unverified reference)](integrations/alphaci-payment-events.md)
 - [Payment event outbox operations](integrations/payment-event-outbox-operations.md)
 - [Payment reconciliation](integrations/payment-reconciliation.md)
 

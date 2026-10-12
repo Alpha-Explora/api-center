@@ -1,0 +1,51 @@
+---
+title: "Register a service"
+description: "Create the Organization → Tribe → Project → Service path and issue server credentials."
+---
+
+Register a service in Management before calling APICenter. A service registration tells the gateway where to route requests and which scopes and shared-service dependencies are allowed.
+
+## Before you start
+
+- Sign in with a Google account that has access to the target organization.
+- Ask an APICenter administrator to provision your organization or membership if it is missing.
+- Use an organization `admin` role to create tribes and projects. Service registration requires `operator` access or higher.
+- Have the service's backend URL and health path ready. The URL must be reachable by the APICenter gateway.
+
+## Create the registry path
+
+1. Open **Registry**.
+2. Select **New tribe**, enter a lowercase ID and display name, then create it. Tribe IDs use lowercase letters, numbers, and hyphens.
+3. Under the active tribe, select **New project in** followed by the tribe ID. Enter a lowercase project ID and name. Add a cost center if your organization uses one.
+4. Confirm that the new project is active before registering a service.
+
+The Registry view shows **Tribe → Project → Service**. Organization membership scopes the view even though the organization is not displayed in the tree. If you have memberships in multiple organizations, ask an administrator to create the tribe under the intended organization because the current form has no organization picker.
+
+## Register the service
+
+1. From **Registry**, choose **Register service**.
+2. Enter a lowercase service ID, a display name, version, and tier. The service ID is fixed after creation.
+3. Set **Type** to `tribe` for a service owned by a project. The `shared` type is for platform-owned shared runtimes and has no project selection.
+4. Add an environment row with its environment, backend URL, and health path. Start with `test`. The SDK currently accepts `test` and `live` credentials; ask the platform team before using another environment label.
+5. For a `tribe` service, select an active project. The tribe is derived from the selected project. A service cannot move between projects after registration; create a new service entry if placement must change.
+6. Add the exposed route patterns and at least one required scope. Select the shared services this service is allowed to call.
+7. Register the service and open its detail page to review the manifest and status.
+
+The gateway routes requests to the registered backend URL. Do not enter a URL that only the developer's laptop can reach unless APICenter is also running locally or the backend is exposed through an approved development tunnel.
+
+## Issue a service secret
+
+From the service detail page, open **Actions** and the **Service secret** section. Select `test` and generate a secret. Use **Provision secret** to store its hash in APICenter's Google Secret Manager, then copy the plaintext value into the backend's secret manager. The plaintext is held in browser memory; the console does not retain it after you leave or reload the page. If you lose it, generate and provision a replacement.
+
+Configure these server-only values in the service:
+
+```ini
+APICENTER_URL=https://api-center.itsandbox.site
+APICENTER_SERVICE_ID=<registered-service-id>
+APICENTER_ENVIRONMENT=test
+APICENTER_SERVICE_SECRET=<issued-service-secret>
+```
+
+The SDK exchanges the service credentials for a bearer token and refreshes it when needed. Follow [SDK integration](/guides/sdk-usage) to make the first request.
+
+For live writes, Management requires an `admin` role, the exact confirmation phrase `APPLY LIVE CHANGE`, and a reason. Review the action before confirming it. For onboarding assistance, use the **Developer portal** to preview and copy the packet for the tribe; it does not contain service credentials.

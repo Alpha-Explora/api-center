@@ -1,0 +1,42 @@
+---
+title: "Configure Google sign-in"
+description: "Set project and environment Google OAuth settings in APICenter Management and use the GAuth SDK methods."
+---
+
+Configure Google sign-in from Management. Do not create or edit GAuth database rows directly.
+
+## Configure a project
+
+1. Open **Shared services → Google sign-in**.
+2. Select the project and environment (`test` or `live`). Settings are separate for each environment.
+3. Enter every application redirect URL that APICenter should accept, one URL per line.
+4. Choose the APICenter Google client, or select **Use your own Google client** and enter its client ID and client secret.
+5. If using your own client, configure its Google OAuth client in Google Cloud with the callback URL supplied by the APICenter platform administrator. The application redirect URLs entered here are the destinations APICenter allows for this project and environment.
+6. Select **Save settings**. The client secret is write-only; leave the field blank to keep the current secret.
+
+Removing a registration disables Google sign-in for that project and environment. Confirm the project and environment before removing it. Live setting changes are subject to Management's live-change confirmation rules.
+
+## Use GAuth from a backend
+
+Install the SDK and configure service credentials as described in [SDK integration](/guides/sdk-usage). Then request an authorization URL:
+
+```ts
+const authorization = await api.googleAuth.getAuthorizationUrl({
+  scopes: ['openid', 'email', 'profile'],
+  accessType: 'offline',
+});
+
+// Redirect the user's browser to authorization.authorizationUrl.
+// Keep authorization.state in the user's server-side session for the callback.
+```
+
+When Google redirects back to an allowed application URL, exchange the returned code and saved state:
+
+```ts
+const tokens = await api.googleAuth.exchangeCode({
+  code: callback.code,
+  state: session.oauthState,
+});
+```
+
+The SDK also exposes `api.googleAuth.refreshToken(...)` and `api.googleAuth.logout(...)`. Store Google tokens only in a protected server-side store. Validate the returned OAuth state against the state saved for that user's sign-in attempt.

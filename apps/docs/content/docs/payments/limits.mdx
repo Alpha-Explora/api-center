@@ -1,17 +1,17 @@
 ---
-title: "Payment Limits & Live Access"
-description: "Plan-based payment amount and write-rate limits, overrides, and live approval requirements."
+title: "Payment limits"
+description: "Understand project payment amount and request-rate limits."
 ---
 
-Payment limits follow the project's active plan and apply per project and environment. The defaults are:
+Payment limits apply to a project and environment. The plan sets default maximum amounts and write request rates; an approved project override can change the effective values.
 
 | Plan | Maximum amount per payment | Write requests per minute |
-| --- | ---: | ---: |
+| :--- | ---: | ---: |
 | Starter | PHP 10,000 | 30 |
 | Standard | PHP 100,000 | 120 |
 | Pro | PHP 1,000,000 | 600 |
-| Enterprise | Unlimited | Unlimited |
+| Enterprise | No plan maximum | No plan limit |
 
-Operators can override both limits for a project and environment; each override requires a reason. A payment above the amount limit returns `422 AMOUNT_LIMIT_EXCEEDED`. Exceeding the write-request limit returns `429 PAYMENT_RATE_LIMIT_EXCEEDED`.
+The gateway may enforce a lower project-specific override. Use `api.payments.capabilities.get()` from the [APICenter SDK](/guides/sdk-usage) to inspect the operations and payment methods enabled for the current environment. The capabilities response does not replace server-side authorization or project limit checks.
 
-Registering a live payment key for the first time requires an approved `payments.live_access` request targeted to that project. The approval is consumed on registration. Rotating an existing live key does not require another approval.
+An amount above the effective limit returns `422 AMOUNT_LIMIT_EXCEEDED`. Exceeding the project's payment write rate returns `429 PAYMENT_RATE_LIMIT_EXCEEDED`. For either error, preserve the original idempotency key when retrying the same payment request. Live payment-key provisioning may require an approved `payments.live_access` request. Ask an APICenter administrator about live access or a limit change; operator approval and override procedures are maintained separately in the internal `docs/` collection.

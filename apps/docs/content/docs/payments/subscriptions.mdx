@@ -5,6 +5,8 @@ description: "Create subscriptions and inspect their invoices."
 
 Subscriptions represent recurring billing against a PayMongo plan and customer record. Reusable payment-method setup is not currently exposed by the public API.
 
+For a Node.js backend, use the `api.payments.subscriptions` and `api.payments.plans` methods from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
+
 ## Plans
 
 Create an actual PayMongo subscription plan with `POST /api/v1/payments/plans`. Amounts use PHP centavos, so `150050` means PHP 1,500.50. Intervals are `weekly`, `monthly`, or `yearly`; `intervalCount` accepts 1 to 10. Omit `cycleCount` to bill indefinitely, or provide an integer of at least 2.

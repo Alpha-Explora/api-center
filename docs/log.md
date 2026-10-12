@@ -1,5 +1,11 @@
 # Documentation bundle changes
 
+## 2026-10-12
+
+- Refreshed the docs app's consumer and Management guides for SDK 2.0.0, the Organization → Tribe → Project → Service hierarchy, service credentials, and Google sign-in settings.
+- Removed the active AlphaCI consumer claim from current architecture notes and marked AlphaCI-specific operator guidance as unverified reference material.
+- Reviewed the updated content against the repository source; no docs build or test suite was run for this refresh.
+
 ## 2026-10-10
 
 - Added a canonical index, maintenance rules, current architecture map, and capability/evidence register.

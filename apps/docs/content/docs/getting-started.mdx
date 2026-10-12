@@ -1,63 +1,86 @@
 ---
-title: "Platform Overview & Quickstart"
-description: "Introduction to APICenter centralized API gateway and consumer shared services."
+title: "Getting started"
+description: "Get APICenter access, register a service, and call a shared API with the server-side SDK."
 ---
 
-APICenter is the **centralized API gateway** and provider-neutral integration platform for all product backends ("consumer services") and internal tribes. 
+APICenter gives teams in an organization a governed way to use shared APIs such as email, SMS, OTP, geocoding, Google sign-in, and payments. A service calls APICenter from its backend with the `@alpha-explora/apicenter-sdk` package.
 
-No consumer service or tribe calls external third-party providers (like PayMongo, Twilio, or SendGrid) directly. All requests are routed, authenticated, rate-limited, and audited by APICenter.
+## 1. Get access and register your service
+
+Ask an organization administrator to confirm your Management access and help place the service in the registry. The registry hierarchy is:
 
 ```text
-Consumer Backend (Registered Service)
-       │
-       ▼ (Bearer JWT / API Key)
-┌─────────────────────────────────────────────────────────────┐
-│                    APICenter Gateway                        │
-│ ┌───────────────┐ ┌───────────────┐ ┌─────────────────────┐ │
-│ │ Auth & Scopes │ │  Rate Limits  │ │ Idempotency Control │ │
-│ └───────────────┘ └───────────────┘ └─────────────────────┘ │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-      ┌────────────────────────┼────────────────────────┐
-      ▼                        ▼                        ▼
-┌───────────┐            ┌───────────┐            ┌───────────┐
-│ Payments  │            │ SMS/Email │            │    Geo    │
-│ Service   │            │ Service   │            │ Service   │
-└───────────┘            └───────────┘            └───────────┘
+Organization → Tribe → Project → Service
 ```
 
----
+Organizations define Management access. The Registry page displays tribes, projects, and services. If you need an organization or membership, ask an APICenter administrator; the console does not create organizations or manage memberships.
 
-## Route Namespaces
+Follow [Access and tenancy](/guides/management/access-and-tenancy) and [Register a service](/guides/management/register-service). Registration defines the service ID, project placement, runtime URL, environment, exposed routes, required scopes, and shared-service dependencies.
 
-| Namespace | Endpoint Pattern | Description |
-| :--- | :--- | :--- |
-| **Payments** | `/api/v1/payments/*` | Provider-neutral PayMongo facade (Checkouts, Intents, Subscriptions, Refunds) |
-| **Shared Services** | `/api/v1/shared/:serviceId/*` | Messaging, Email, OTP, Geo location, and utility services |
-| **Tribe Proxy** | `/api/v1/tribes/:serviceId/*` | Governed inter-tribe service RPC calls |
-| **Authentication** | `/api/v1/auth/*` | Machine-to-machine JWT token issuance, refresh, and JWKS |
-| **Registry** | `/api/v1/registry/*` | Service self-registration and discovery |
-| **Health** | `/api/v1/health/*` | Liveness and readiness probes |
+## 2. Install the SDK
 
----
+The package is hosted in restricted GitHub Packages. Your GitHub account or automation identity needs permission to read the APICenter packages.
 
-## Quickstart: Making Your First Call
+Add this to the consumer repository's `.npmrc`:
 
-To call an APICenter shared service, obtain a Bearer token using the calling service's environment secret:
+```ini
+@alpha-explora:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+Set `NODE_AUTH_TOKEN` from a secret store to a GitHub token with package read access. Do not commit the token. Install the released SDK:
 
 ```bash
-# 1. Fetch Machine-to-Machine JWT
-TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{
-    "serviceId": "orders-api",
-    "environment": "test",
-    "secret": "your-service-environment-secret"
-  }' | jq -r '.data.accessToken')
-
-# 2. Call Geo Shared Service
-curl -s -X POST http://localhost:3000/api/v1/shared/geo/reverse-geocode \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"latitude":13.7563,"longitude":100.5018}'
+npm install @alpha-explora/apicenter-sdk@2.0.0
 ```
+
+See [SDK integration](/guides/sdk-usage) for payments, other namespaces, and error handling.
+
+## 3. Configure server-only credentials
+
+Ask an operator to issue a service secret for each environment you use. Keep these values in your backend's environment or secret manager. Never put them in browser code, a mobile app, a checked-in `.env` file, or a `NEXT_PUBLIC_` variable.
+
+```ini
+APICENTER_URL=https://api-center.itsandbox.site
+APICENTER_SERVICE_ID=orders-api
+APICENTER_ENVIRONMENT=test
+APICENTER_SERVICE_SECRET=<secret-issued-for-this-service-and-environment>
+```
+
+Use separate credentials for `test` and `live`. The SDK exchanges the service ID, environment, and secret for a short-lived APICenter token and refreshes it when needed.
+
+## 4. Make a shared-service request
+
+This example sends email from a Node.js backend. Create and persist an idempotency key for the business operation, then reuse that same key if you retry it.
+
+```ts
+import { ApiCenter } from '@alpha-explora/apicenter-sdk';
+
+const api = new ApiCenter({
+  baseUrl: process.env.APICENTER_URL!,
+  auth: {
+    serviceId: process.env.APICENTER_SERVICE_ID!,
+    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
+    secret: process.env.APICENTER_SERVICE_SECRET!,
+  },
+});
+
+await api.email.send(
+  {
+    to: 'person@example.com',
+    subject: 'Your order is ready',
+    text: 'Your order is ready for pickup.',
+  },
+  { idempotencyKey: order.emailRequestKey },
+);
+```
+
+APICenter checks the service's registered placement and scopes. If a call is denied, check that the service has the required scope and that the requested shared service is listed as a dependency in its registry entry.
+
+## Next steps
+
+- [Authentication and scopes](/guides/authentication)
+- [SDK integration](/guides/sdk-usage)
+- [Management access and tenancy](/guides/management/access-and-tenancy)
+- [Register a service](/guides/management/register-service)
+- [Consumer runbook](/guides/consumer-runbook)

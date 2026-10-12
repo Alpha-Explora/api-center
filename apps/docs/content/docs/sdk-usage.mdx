@@ -1,27 +1,28 @@
 ---
-title: "APICenter SDK Integration"
-description: "Use the server-side @alpha-explora/apicenter-sdk for APICenter shared services and payments."
+title: "SDK integration"
+description: "Install and configure the server-side @alpha-explora/apicenter-sdk for APICenter shared services and payments."
 ---
 
-The `@alpha-explora/apicenter-sdk` package provides one typed, server-side client for APICenter shared services and payments.
+`@alpha-explora/apicenter-sdk` is the typed Node.js client for APICenter shared services and payments. It is published to restricted GitHub Packages and requires package read access.
 
 ## Install
 
-Configure npm to use GitHub Packages for the `@alpha-explora` scope:
+Add this configuration to the consumer repository's `.npmrc`:
 
 ```ini
 @alpha-explora:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
 ```
 
-Authenticate with a GitHub token that can read packages, then install:
+Set `NODE_AUTH_TOKEN` in your local environment or CI secret store to a GitHub token with package read access. Do not commit a token or paste it into source code. Install the current release:
 
 ```bash
-npm install @alpha-explora/apicenter-sdk
+npm install @alpha-explora/apicenter-sdk@2.0.0
 ```
 
 ## Configure a service
 
-Keep these values in server-only environment variables. Do not use `NEXT_PUBLIC_` variables or expose the service secret to a browser.
+Ask an APICenter operator to register your service and issue its credentials. Keep these values in a server-only environment or secret manager. Do not use `NEXT_PUBLIC_` variables or expose the service secret to a browser.
 
 ```ini
 APICENTER_URL=https://api-center.itsandbox.site
@@ -30,8 +31,9 @@ APICENTER_ENVIRONMENT=test
 APICENTER_SERVICE_SECRET=<secret-issued-for-this-service-and-environment>
 ```
 
+Create the client in backend code:
+
 ```ts
-import { randomUUID } from 'node:crypto';
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
 const api = new ApiCenter({
@@ -42,22 +44,44 @@ const api = new ApiCenter({
     secret: process.env.APICENTER_SERVICE_SECRET!,
   },
 });
+```
 
+The SDK obtains and refreshes the APICenter service token. APICenter resolves the service's project and tribe from its registry entry and enforces its scopes and shared-service dependencies.
+
+## Call a shared service
+
+Supply an idempotency key for sends and OTP mutations. Generate or persist the key for the business operation, then reuse it when retrying that same operation.
+
+```ts
 const result = await api.email.send(
   {
     to: 'person@example.com',
     subject: 'Welcome',
     text: 'Your account is ready.',
   },
-  { idempotencyKey: randomUUID() },
+  { idempotencyKey: order.emailRequestKey },
 );
 ```
 
-The SDK obtains and rotates the APICenter service token. APICenter derives project and tribe placement and enforces scopes from the registered service. Give the service only the scopes it needs.
+Available namespaces include `email`, `sms`, `otp`, `geo`, `googleAuth`, and `payments`. Request and response types are re-exported from `@alpha-explora/apicenter-contracts`.
+
+```ts
+import { randomUUID } from 'node:crypto';
+
+const challenge = await api.otp.generate(
+  { recipient: 'person@example.com', channel: 'email', purpose: 'login' },
+  { idempotencyKey: randomUUID() },
+);
+
+const location = await api.geo.reverseGeocode({
+  latitude: 14.5995,
+  longitude: 120.9842,
+});
+```
 
 ## Payments
 
-Use a payment API key when one has been provisioned. Otherwise, the service token is used and must have the required payment scope.
+Use a payment API key when the platform has provisioned one. Otherwise, the service token must have the required payment scope.
 
 ```ini
 APICENTER_PAYMENT_API_KEY=<optional-payment-key>
@@ -81,37 +105,23 @@ const checkout = await api.payments.checkouts.create(
     successUrl: 'https://app.example.com/payments/success',
     cancelUrl: 'https://app.example.com/payments/cancel',
   },
-  { idempotencyKey: randomUUID() },
+  { idempotencyKey: 'checkout-create-order-123' },
 );
 ```
 
-Payment writes require a unique idempotency key between 16 and 255 characters. The SDK does not retry mutations. It accepts the gateway's `202` pending-resource response as well as completed resources.
-
-## Other namespaces
-
-The client exposes `email`, `sms`, `otp`, `geo`, `googleAuth`, and `payments`. Request and response types are re-exported from `@alpha-explora/apicenter-contracts`. Shared-service sends and OTP mutations also require an idempotency key.
-
-```ts
-const challenge = await api.otp.generate(
-  { recipient: 'person@example.com', channel: 'email', purpose: 'login' },
-  { idempotencyKey: randomUUID() },
-);
-
-const address = await api.geo.reverseGeocode({ latitude: 14.5995, longitude: 120.9842 });
-```
-
-Choose `test` or `live` using the service credentials issued for that environment. Never share credentials between environments.
+Payment writes require a unique idempotency key between 16 and 255 characters. Persist the key with the business operation so a retry uses the same value. The SDK does not retry mutations automatically. It accepts the gateway's `202` pending-resource response as well as completed resources.
 
 ## Errors
 
-The SDK throws `ApiCenterError` for APICenter failures. It includes the HTTP `status`, APICenter `code` and `details` when present, and `correlationId` when returned by the gateway.
+The SDK throws `ApiCenterError` for APICenter failures. It includes the HTTP `status`, APICenter `code` and `details` when present, and `correlationId` when the gateway returns one.
 
 ```ts
+import { randomUUID } from 'node:crypto';
 import { ApiCenterError } from '@alpha-explora/apicenter-sdk';
 
 try {
   await api.sms.send(
-    { to: '+639171234567', message: 'Your code is 123456' },
+    { to: '+639171234567', message: 'Your code is ready.' },
     { idempotencyKey: randomUUID() },
   );
 } catch (error) {
@@ -121,3 +131,5 @@ try {
   throw error;
 }
 ```
+
+Choose `test` or `live` using the credentials issued for that environment. Never share credentials between services or environments.

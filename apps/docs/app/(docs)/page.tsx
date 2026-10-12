@@ -2,7 +2,7 @@ import { DocsPage, DocsTitle, DocsDescription, DocsBody } from "fumadocs-ui/page
 
 export const metadata = {
   title: "APICenter Developer Documentation",
-  description: "Build on top of APICenter — payment processing, messaging, identity, geo, and service registry.",
+  description: "Register services and use APICenter shared APIs from your backend.",
 };
 
 export default function HomePage() {
@@ -19,16 +19,14 @@ export default function HomePage() {
     >
       <DocsTitle>APICenter Developer Documentation</DocsTitle>
       <DocsDescription>
-        Provider-neutral gateway for payments, messaging, OTP, identity, geolocation, and service registry.
-        Build once, switch providers without touching your application code.
+        Register a service in your organization, then use APICenter shared APIs from your backend with the server-side SDK.
       </DocsDescription>
 
       <DocsBody>
         <section id="what-is-apicenter" className="fd-section">
           <h2 className="fd-section-title">What is APICenter?</h2>
           <p className="fd-param-desc">
-            APICenter is a provider-neutral shared services gateway that abstracts payment providers (PayMongo), messaging providers (Semaphore, MailerSend), OTP verification, IP geolocation, and authentication into a single unified API surface.
-            Your application integrates once and can swap underlying providers without code changes.
+            APICenter gives organization teams a governed way to share APIs for payments, email, SMS, OTP, Google sign-in, and geolocation. Management access follows the Organization → Tribe → Project → Service hierarchy. Registered backend services use the SDK or REST API; APICenter applies service authentication, scopes, and routing.
           </p>
         </section>
 
@@ -70,19 +68,27 @@ export default function HomePage() {
           <div className="fd-card-grid">
             <a href="/guides/getting-started" className="fd-card">
               <span className="fd-card-title">Getting Started</span>
-              <span className="fd-card-desc">Set up your tribe credentials and make your first API call</span>
+              <span className="fd-card-desc">Get organization access, register a service, and make a first request</span>
             </a>
-            <a href="/guides/authentication" className="fd-card">
-              <span className="fd-card-title">Authentication</span>
-              <span className="fd-card-desc">Bearer token issuance and rotation</span>
+            <a href="/guides/sdk-usage" className="fd-card">
+              <span className="fd-card-title">SDK integration</span>
+              <span className="fd-card-desc">Install the TypeScript client and configure server credentials</span>
             </a>
-            <a href="/guides/payments/checkouts" className="fd-card">
-              <span className="fd-card-title">Checkouts</span>
-              <span className="fd-card-desc">Create and manage payment checkout sessions</span>
+            <a href="/guides/management/access-and-tenancy" className="fd-card">
+              <span className="fd-card-title">Management access and tenancy</span>
+              <span className="fd-card-desc">Understand organization membership and the registry hierarchy</span>
             </a>
-            <a href="/guides/migration/from-direct-paymongo" className="fd-card">
-              <span className="fd-card-title">Migration Guide</span>
-              <span className="fd-card-desc">Move from direct PayMongo integration to APICenter</span>
+            <a href="/guides/management/register-service" className="fd-card">
+              <span className="fd-card-title">Register a service</span>
+              <span className="fd-card-desc">Create its tribe, project, registry entry, and environment credentials</span>
+            </a>
+            <a href="/guides/management/google-sign-in" className="fd-card">
+              <span className="fd-card-title">Configure Google sign-in</span>
+              <span className="fd-card-desc">Set project OAuth redirects and use the GAuth SDK methods</span>
+            </a>
+            <a href="/guides/payments/overview" className="fd-card">
+              <span className="fd-card-title">Shared APIs</span>
+              <span className="fd-card-desc">Browse payments, messaging, verification, identity, and geo guides</span>
             </a>
           </div>
         </section>

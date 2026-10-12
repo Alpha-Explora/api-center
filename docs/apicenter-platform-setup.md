@@ -10,11 +10,12 @@ sources: ["infra/gcp"]
 ---
 # APICenter Platform Setup
 
-This is the current operator guide for APICenter. The active production runtime is
+This is the operator guide for APICenter. The active production runtime is
 Cloud Run. APICenter mediates payment provider calls and stores project ownership,
 reconciliation, webhook receipt, and event-delivery records. PayMongo remains the
-source of truth for provider-backed payment resources; AlphaCI uses the SDK and
-projects lifecycle events into its local database.
+source of truth for provider-backed payment resources. No consumer repository
+outside APICenter is currently onboarded to the published SDK; verify a consumer's
+registration and delivery setup before provisioning it.
 
 ## Repository Ownership
 
@@ -25,7 +26,6 @@ projects lifecycle events into its local database.
 | PayMongo credentials and provider calls; APICenter ownership/reconciliation records and outbox | `apps/payments` |
 | Management console and provisioning | `apps/management` |
 | Public contracts and TypeScript SDK | `packages/contracts`, `packages/sdk` |
-| AlphaCI-specific entitlement and local ledger projection | `alphaci-be` |
 
 `api-shared` and the former standalone management repository are migration history,
 not active feature targets.
@@ -43,7 +43,7 @@ Payment events:
 
 ```text
 APICenter payment outbox -> Google Pub/Sub test/live topic
-  -> OIDC-authenticated Cloud Run push subscription -> AlphaCI inbox/projector
+  -> OIDC-authenticated Cloud Run push subscription -> configured consumer endpoint
 ```
 
 Payment lifecycle eventing does not use Confluent Cloud. The general Kafka modules
@@ -66,20 +66,20 @@ Required gateway settings include:
 - Redis settings for distributed rate limits and idempotency.
 
 The payment runtime requires PayMongo credentials only in its own Secret Manager
-binding. Never expose provider credentials to a consumer service or AlphaCI.
+binding. Never expose provider credentials to a consumer service.
 
 ## Provisioning
 
 1. Apply the APICenter gateway and shared-runtime Cloud Run manifests for the target environment.
 2. Apply the matching Pub/Sub topic/subscription/dead-letter manifests.
 3. Grant the payment runtime publisher role on the topic.
-4. Grant the AlphaCI receiver service account permission to receive push deliveries.
+4. Grant the configured consumer receiver service account permission to receive push deliveries.
 5. Configure the gateway's environment-specific internal route and token secrets.
 6. Run the local contract, typecheck, SDK, and shared-runtime smoke tests before live smoke.
 
-The management console provisions consumer registrations and scoped API keys. Keep
-payment scopes least-privilege; immediate subscription cancellation is a separate
-scope from cancel-at-period-end.
+Management registers services and provisions service credentials. Keep payment
+scopes least-privilege; immediate subscription cancellation is a separate scope
+from cancel-at-period-end.
 
 ## Local Verification
 

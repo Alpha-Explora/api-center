@@ -5,6 +5,8 @@ description: "Generate, verify, and check 6-digit One-Time Passwords over SMS an
 
 The OTP Shared Service manages the generation, anti-brute-force rate-limiting, and verification of one-time passcodes over SMS and Email.
 
+For a Node.js backend, use `api.otp.generate(...)` and `api.otp.verify(...)` from the [APICenter SDK](/guides/sdk-usage). The client requires an idempotency key for both mutations.
+
 ---
 
 ## Service Specifications

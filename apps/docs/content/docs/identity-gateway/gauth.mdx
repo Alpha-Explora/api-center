@@ -1,172 +1,68 @@
 ---
-title: "Google Auth (GAuth) Shared Service API"
-description: "Per-project Google OAuth 2.0 authorization, code exchange, token refresh, and OIDC token verification via @alpha-explora/apicenter-contracts."
+title: "Google sign-in (GAuth)"
+description: "Configure project Google OAuth settings and call GAuth through APICenter."
 ---
 
-The GAuth Shared Service handles per-project Google OAuth 2.0 flow authorization, state HMAC signing, code-to-token exchange, token revocation, and OIDC ID Token verification.
+GAuth provides Google OAuth authorization, code exchange, token refresh, logout, and OIDC token verification for registered services.
 
----
+## Configure a project first
 
-## Service Specifications
+An APICenter operator configures GAuth for each project and environment in **Management → Shared services → Google sign-in**. Add the allowed application redirect URLs there and select the APICenter Google client or configure your own. Do not write directly to GAuth database tables.
 
-- **Base Route**: `/api/v1/shared/gauth`
-- **Required Header**: `Authorization: Bearer <SERVICE_ACCESS_TOKEN>`
+The gateway uses the calling service's registered project and environment to select the configuration. A project without settings for that environment cannot start the OAuth flow. See [Configure Google sign-in](/guides/management/google-sign-in) for the Management steps.
 
----
+## Get an authorization URL
 
-## Project Registration
+The server-side SDK calls `POST /api/v1/shared/gauth/oauth/authorize` and returns a typed response. Redirect the user's browser to the returned URL and keep the returned state in that user's server-side session.
 
-gauth picks the Google client from the calling project and the environment (`test` or `live`). The gateway sets both from the caller's authenticated project, so request bodies do not name a project. Each project needs an active row in `shared_gauth.oauth_apps` for every environment it uses.
+```ts
+const authorization = await api.googleAuth.getAuthorizationUrl({
+  scopes: ['openid', 'email', 'profile'],
+  accessType: 'offline',
+});
 
-- **Shared client**: a row with no `client_id` or `client_secret_ref` signs in with APICenter's Google client.
-- **Own client**: a row with `client_id` and `client_secret_ref` (a Secret Manager version name) signs in with the team's Google client. gauth reads the secret from Secret Manager and caches it for up to five minutes.
-- **Redirect URIs**: `redirect_uris` lists every URI gauth accepts. When a request omits `redirectUri`, gauth uses the first entry. A URI that is not listed fails with `REDIRECT_URI_NOT_REGISTERED`.
-
-A project with no active row for the environment gets `403 OAUTH_APP_NOT_REGISTERED`.
-
----
-
-## 1. Get Authorization URL
-
-- **Endpoint**: `POST /api/v1/shared/gauth/oauth/authorize`
-
-### Request Body (`GauthAuthorizeRequest`)
-
-```json
-{
-  "redirectUri": "https://alphaci.com/callback",
-  "scopes": ["openid", "email", "profile"],
-  "accessType": "offline"
-}
+// Redirect the user to authorization.authorizationUrl.
+// Compare the callback state with authorization.state before exchanging the code.
 ```
 
-### Response (`GauthAuthorizeResponse`) — `200 OK`
+## Exchange the authorization code
 
-```json
-{
-  "success": true,
-  "data": {
-    "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
-    "state": "eyK10a...",
-    "credentialSource": "project",
-    "expiresAt": "2026-07-31T23:30:00.000Z"
-  }
-}
+After Google redirects to an allowed URL, exchange the code with the saved state. The optional `codeVerifier` supports PKCE when the flow uses a code challenge.
+
+```ts
+const tokens = await api.googleAuth.exchangeCode({
+  code: callback.code,
+  state: authorization.state,
+  // codeVerifier: session.codeVerifier,
+});
 ```
 
----
+The response contains the Google access token and may include a refresh token, ID token, expiry, and granted scopes. Store tokens in a protected server-side store.
 
-## 2. Exchange Code for Tokens
+## Refresh or revoke tokens
 
-`state` is required. Send the value returned by the authorize call, and send the same `redirectUri` that the authorize call used. gauth rejects a state issued for another project or environment with `INVALID_OAUTH_STATE`.
-
-
-- **Endpoint**: `POST /api/v1/shared/gauth/oauth/token`
-
-### Request Body (`GauthTokenExchangeRequest`)
-
-```json
-{
-  "code": "4/0AeaY...",
-  "state": "eyK10a...",
-  "redirectUri": "https://alphaci.com/callback"
+```ts
+if (!storedTokens.refreshToken) {
+  throw new Error('No refresh token is available for this account.');
 }
+
+const refreshed = await api.googleAuth.refreshToken({
+  refreshToken: storedTokens.refreshToken,
+});
+
+await api.googleAuth.logout({ token: refreshed.accessToken });
 ```
 
-### Response — `200 OK`
+## Verify an OIDC ID token
 
-```json
-{
-  "success": true,
-  "data": {
-    "accessToken": "ya29.a0...",
-    "refreshToken": "1//04...",
-    "idToken": "eyJhbGci...",
-    "expiresIn": 3599,
-    "tokenType": "Bearer",
-    "scope": "openid email profile"
-  }
-}
+The SDK currently does not wrap token verification. Call the REST endpoint with a service bearer token:
+
+```http
+POST /api/v1/shared/gauth/verify-token
+Authorization: Bearer <service-token>
+Content-Type: application/json
+
+{"idToken":"<google-id-token>"}
 ```
 
----
-
-## 3. Refresh Access Token
-
-- **Endpoint**: `POST /api/v1/shared/gauth/oauth/token/refresh`
-
-### Request Body
-
-```json
-{
-  "refreshToken": "1//04..."
-}
-```
-
-### Response — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "accessToken": "ya29.a0NEW_ACCESS_TOKEN...",
-    "refreshToken": "1//04...",
-    "expiresIn": 3599,
-    "tokenType": "Bearer"
-  }
-}
-```
-
----
-
-## 4. Revoke / Logout Token
-
-- **Endpoint**: `POST /api/v1/shared/gauth/oauth/logout`
-
-### Request Body
-
-```json
-{
-  "token": "ya29.a0..."
-}
-```
-
-### Response — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "success": true
-  }
-}
-```
-
----
-
-## 5. Verify OIDC ID Token
-
-- **Endpoint**: `POST /api/v1/shared/gauth/verify-token`
-
-### Request Body (`GauthVerifyTokenRequest`)
-
-```json
-{
-  "idToken": "eyJhbGci..."
-}
-```
-
-### Response (`GauthVerifyTokenResponse`) — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "valid": true,
-    "userId": "google_user_mock_123",
-    "email": "dev@alphaexplora.com",
-    "emailVerified": true,
-    "name": "Developer Account"
-  }
-}
-```
+The response reports whether the ID token is valid and includes verified identity claims. Do not treat an unverified token payload as identity evidence.
