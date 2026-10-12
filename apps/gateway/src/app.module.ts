@@ -25,13 +25,13 @@
 //        ExternalModule   — legacy external proxy namespace; no providers configured by default
 //
 //  §5 / §6  SDK
-//        The shared SDK lives in the dedicated api-shared-services repository.
-//        Tribes consume @implementsprint/sdk from the private registry, and it wraps
-//        every namespace this module exposes.
+//        @alpha-explora/apicenter-sdk lives in packages/sdk and provides typed
+//        wrappers for the documented shared-service and payment operations.
+//        It does not expose generic tribe-proxy or event-publishing methods.
 //
 //  §7  TRIBE CONSUMPTION
-//        All tribe requests arrive via the SDK → NGINX → TribesModule.
-//        No tribe calls another tribe's baseUrl directly.
+//        Tribe-to-tribe traffic is authorized and routed by TribesModule.
+//        Shared-service SDK calls use the corresponding typed service namespace.
 //
 //  §8  PRODUCTION RESILIENCE
 //        Rate limiting uses Redis so counters are consistent across all 3
@@ -124,14 +124,15 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     //
     // TRIBE-TO-TRIBE  →  /api/v1/tribes/:serviceId/*
     //   All inter-tribe calls pass through here.
-    //   Tribes MUST use the SDK (TribeClient.callService) — no direct calls.
+    //   The gateway owns registry lookup, identity, and scope checks. Generic
+    //   tribe-service clients are not currently part of packages/sdk.
     //   JwtAuthGuard + scope checks enforced on every request.
     TribesModule,
 
     // SHARED PLATFORM SERVICES  →  /api/v1/shared/:serviceId/*
     //   Platform-owned shared services (email, SMS, payments, notifications).
     //   Registered with serviceType:'shared'.
-    //   SDK: TribeClient.callSharedService(...)
+    //   SDK: typed email, SMS, OTP, geo, and Google Auth operations.
     SharedServicesModule,
 
     // LEGACY EXTERNAL PROXY  →  /api/v1/external/:apiName/*

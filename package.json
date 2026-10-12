@@ -12,7 +12,7 @@
     "dev": "npm run dev --workspace @apicenter/gateway",
     "lint": "turbo run lint",
     "lint:gateway": "eslint \"apps/gateway/src/**/*.ts\"",
-    "pretest": "npm run build --workspace @apicenter/contracts",
+    "pretest": "npm run build --workspace @alpha-explora/apicenter-contracts",
     "test": "jest",
     "test:all": "npm test -- --runInBand && npm run test:workspaces",
     "test:workspaces": "npm run test --workspace @alpha-explora/apicenter-sdk && npm run test --workspace @apicenter/management && npm run test --workspace @apicenter/docs",
@@ -52,15 +52,15 @@
     "docker:scale-check": "docker compose -f deploy/local/docker-compose.yml ps",
     "format": "prettier --write \"apps/gateway/src/**/*.ts\"",
     "db:verify:control-plane": "ts-node scripts/verify-control-plane-schema.ts",
-    "db:test:shared-stores": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/sms && npm run build --workspace @apicenter/otp && npm run build --workspace @apicenter/email && node --test tests/db/shared-service-stores.test.cjs",
-    "db:test:gauth-oauth-apps": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/gauth && node --test tests/db/gauth-oauth-apps.test.cjs",
+    "db:test:shared-stores": "npm run build --workspace @alpha-explora/apicenter-contracts && npm run build --workspace @apicenter/sms && npm run build --workspace @apicenter/otp && npm run build --workspace @apicenter/email && node --test tests/db/shared-service-stores.test.cjs",
+    "db:test:gauth-oauth-apps": "npm run build --workspace @alpha-explora/apicenter-contracts && npm run build --workspace @apicenter/gauth && node --test tests/db/gauth-oauth-apps.test.cjs",
     "db:purge:history": "node scripts/purge-expired-history.cjs",
     "db:test:retention": "node --test tests/db/retention-purge.test.cjs",
     "db:test:runtime-roles": "node --test tests/db/runtime-database-roles.test.cjs",
     "db:verify:replay": "node scripts/replay-supabase-migrations.cjs && ts-node scripts/verify-control-plane-schema.ts --forbid-legacy-schemas --app-role api_center_app --require-retention-policy",
     "db:load:history": "node scripts/load-history-workflows.cjs",
-    "db:test:payment-outbox": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",
-    "db:test:payment-webhook": "npm run build --workspace @apicenter/contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-webhook-outbox.test.cjs",
+    "db:test:payment-outbox": "npm run build --workspace @alpha-explora/apicenter-contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",
+    "db:test:payment-webhook": "npm run build --workspace @alpha-explora/apicenter-contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-webhook-outbox.test.cjs",
     "db:test:payment-schema": "node --test tests/db/payment-schema.test.cjs",
     "check:boundaries:test": "node tests/integration/scripts/check-boundaries.test.js",
     "check:environment-naming": "node scripts/check-environment-naming.js",
@@ -207,6 +207,7 @@
   "packageManager": "npm@11.6.2",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "examples/sandbox/demand-service"
   ]
 }

@@ -134,14 +134,19 @@ export interface EmailSendRequest {
   subject: string;
   html?: string;
   text?: string;
-  tags?: Record<string, string>;
 }
 
 export interface EmailSendResponse {
   messageId: string;
-  status: 'queued' | 'sent' | 'failed';
+  provider: string;
+  status: string;
+  recipient: string[];
   recipientCount: number;
   sentAt: string;
+}
+
+export interface EmailDeliveryStatus extends EmailSendResponse {
+  createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,16 +161,19 @@ export interface SmsSendRequest {
 
 export interface SmsSendResponse {
   messageId: string;
-  status: 'queued' | 'sent' | 'delivered' | 'failed';
+  status: string;
   to: string;
+  recipient?: string;
   sentAt: string;
 }
 
 export interface SmsDeliveryStatus {
   messageId: string;
-  status: 'delivered' | 'failed' | 'pending';
-  deliveredAt?: string;
-  errorCode?: string;
+  to: string;
+  message: string;
+  status: string;
+  senderId?: string;
+  createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +183,8 @@ export interface SmsDeliveryStatus {
 export interface OtpGenerateRequest {
   channel: 'email' | 'sms';
   recipient: string;
-  purpose: 'login' | 'transaction' | 'verification';
+  purpose?: 'login' | 'transaction' | 'verification';
+  target?: string;
   ttlSeconds?: number;
   digits?: number;
 }
@@ -185,18 +194,31 @@ export interface OtpGenerateResponse {
   expiresAt: string;
   channel: 'email' | 'sms';
   recipient: string;
+  target: string;
+  /** Returned only when the OTP runtime is configured for mock delivery. */
+  code?: string;
 }
 
 export interface OtpVerifyRequest {
   otpId: string;
   code: string;
-  recipient: string;
+  recipient?: string;
 }
 
 export interface OtpVerifyResponse {
   verified: boolean;
   otpId: string;
+  target?: string;
+  channel?: 'sms' | 'email';
   reason?: string;
+}
+
+export interface OtpStatusResponse {
+  otpId: string;
+  status: string;
+  target: string;
+  channel: 'sms' | 'email';
+  expiresAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +246,53 @@ export interface GauthUserInfo {
   picture?: string;
   given_name?: string;
   family_name?: string;
+}
+
+export interface GoogleAuthorizationUrlRequest {
+  scopes?: string[];
+  state?: string;
+  loginHint?: string;
+  accessType?: 'online' | 'offline';
+  includeGrantedScopes?: boolean;
+  prompt?: string;
+  codeChallenge?: string;
+  codeChallengeMethod?: 'plain' | 'S256';
+}
+
+export interface GoogleAuthorizationUrlResponse {
+  authorizationUrl: string;
+  state: string;
+  credentialSource?: string;
+  expiresAt?: string;
+}
+
+export interface GoogleTokenExchangeRequest {
+  code: string;
+  codeVerifier?: string;
+  state: string;
+}
+
+export interface GoogleTokenRefreshRequest {
+  refreshToken: string;
+}
+
+export interface GoogleOAuthTokenResponse {
+  accessToken: string;
+  refreshToken: string | null;
+  idToken?: string;
+  expiresIn?: number;
+  tokenType?: string;
+  scope?: string;
+}
+
+export interface GoogleLogoutRequest {
+  token?: string;
+  refreshToken?: string;
+  idTokenHint?: string;
+}
+
+export interface GoogleLogoutResponse {
+  success: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,4 +323,215 @@ export interface GeocodeResponse {
   latitude: number;
   longitude: number;
   placeId?: string;
+}
+
+export interface GeoGeocodeRequest extends GeocodeRequest {
+  language?: string;
+  region?: string;
+}
+
+export interface GeoReverseGeocodeRequest {
+  latitude: number;
+  longitude: number;
+  language?: string;
+  resultType?: string;
+  locationType?: string;
+}
+
+export interface GeoAddressResult extends GeocodeResponse {
+  types: string[];
+  provider: 'mock' | 'google-maps';
+  raw: unknown | null;
+}
+
+export interface GeoFenceInput {
+  fenceId: string;
+  name?: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+}
+
+export interface GeoFenceCheckRequest {
+  latitude: number;
+  longitude: number;
+  fenceId?: string;
+  fences?: GeoFenceInput[];
+}
+
+export interface GeoFenceCheckResponse {
+  inside: boolean;
+  distanceDetails: Array<{
+    fenceId: string;
+    name?: string;
+    inside: boolean;
+    distanceMeters: number;
+    radiusMeters: number;
+  }>;
+  provider: 'local';
+}
+
+// ---------------------------------------------------------------------------
+// 8. Public Payment Facade Contracts
+// ---------------------------------------------------------------------------
+
+export interface Money {
+  amountMinor: number;
+  currency: 'PHP';
+}
+
+export interface CreateCheckoutInput {
+  referenceId: string;
+  amount: Money;
+  successUrl: string;
+  cancelUrl: string;
+  metadata?: Record<string, string>;
+}
+
+export interface Checkout {
+  checkoutId: string;
+  referenceId: string;
+  status: CheckoutStatus | string;
+  amount: Money;
+  checkoutUrl?: string;
+  aggregateVersion?: number;
+}
+
+export interface CreatePaymentIntentInput {
+  referenceId: string;
+  amount: Money;
+}
+
+export interface CreateQrPhPaymentIntentInput extends CreatePaymentIntentInput {
+  description?: string;
+  expirySeconds?: number;
+}
+
+export interface PaymentIntent {
+  paymentIntentId: string;
+  referenceId: string;
+  status: PaymentIntentStatus | string;
+  amount: Money;
+  aggregateVersion?: number;
+}
+
+export interface QrPhPaymentIntent extends PaymentIntent {
+  qrCodeImageUrl: string;
+  expirySeconds: number;
+}
+
+export type ConfirmPaymentIntentInput = Record<string, never>;
+
+export interface CreateCustomerInput {
+  customerReference: string;
+  email: string;
+  name?: string;
+}
+
+export interface Customer {
+  customerId: string;
+  customerReference: string;
+  email?: string;
+  name?: string;
+}
+
+export interface CreatePlanInput {
+  name: string;
+  description?: string;
+  amount: number;
+  currency?: 'PHP';
+  interval: 'weekly' | 'monthly' | 'yearly';
+  intervalCount?: number;
+  cycleCount?: number;
+  metadata?: Record<string, string>;
+}
+
+export interface Plan {
+  planId: string;
+  name: string;
+  description?: string;
+  amount: number;
+  currency: 'PHP';
+  interval: 'weekly' | 'monthly' | 'yearly';
+  intervalCount: number;
+  cycleCount?: number;
+  metadata?: Record<string, string>;
+}
+
+export interface CreatePaymentLinkInput {
+  referenceId: string;
+  amount: Money;
+  description: string;
+  remarks?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface PaymentLink {
+  paymentLinkId: string;
+  referenceId: string;
+  amount: Money;
+  description?: string;
+  url?: string;
+  status: string;
+  active?: boolean;
+  archived?: boolean;
+  referenceNumber?: string;
+  metadata?: Record<string, string>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateRefundInput {
+  paymentId: string;
+  amount: Money;
+  reason?: string;
+}
+
+export interface Refund {
+  refundId: string;
+  paymentId: string;
+  status: RefundStatus | string;
+  amount: Money;
+}
+
+export interface CreateSubscriptionInput {
+  customerId: string;
+  referenceId: string;
+  planId: string;
+}
+
+export interface Subscription {
+  subscriptionId: string;
+  customerId: string;
+  planId?: string;
+  status: SubscriptionStatus | string;
+  currentPeriodEnd?: string;
+}
+
+export interface Invoice {
+  invoiceId: string;
+  status: string;
+  amount: Money;
+}
+
+export interface PendingResource {
+  status: 'pending';
+  resourceId: string;
+}
+
+export type PaymentResource<T> = T | PendingResource;
+
+export interface PaymentCapabilities {
+  currency: 'PHP';
+  paymentMethods: string[];
+  resources: string[];
+}
+
+export interface ListPaymentRecordsOptions {
+  type?: string;
+  status?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  limit?: number;
+  cursor?: string;
 }

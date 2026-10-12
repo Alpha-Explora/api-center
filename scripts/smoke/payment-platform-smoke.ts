@@ -1,7 +1,11 @@
 
+import { ApiCenter } from '@alpha-explora/apicenter-sdk';
+
 interface PaymentClient {
-  createCheckout(input: { referenceId: string; amount: { amountMinor: number; currency: 'PHP' }; successUrl: string; cancelUrl: string; metadata?: Record<string, string> }, options: { headers: { 'Idempotency-Key': string } }): Promise<{ checkoutId: string; referenceId: string; aggregateVersion?: number }>;
-  getCheckout(id: string): Promise<{ checkoutId: string; referenceId: string; aggregateVersion?: number }>;
+  checkouts: {
+    create(input: { referenceId: string; amount: { amountMinor: number; currency: 'PHP' }; successUrl: string; cancelUrl: string; metadata?: Record<string, string> }, options: { idempotencyKey: string }): Promise<{ checkoutId: string; referenceId: string; aggregateVersion?: number } | { status: 'pending'; resourceId: string }>;
+    get(id: string): Promise<{ checkoutId: string; referenceId: string; aggregateVersion?: number }>;
+  };
 }
 export interface PaymentSmokeEvent {
   eventId: string;
@@ -58,13 +62,16 @@ export async function runPaymentPlatformSmoke(options: PaymentSmokeOptions): Pro
     cancelUrl: options.cancelUrl,
     metadata: { smoke: 'true' },
   };
-  const requestOptions = { headers: { 'Idempotency-Key': options.idempotencyKey } };
-  const first = await options.payments.createCheckout(checkoutInput, requestOptions);
-  const replay = await options.payments.createCheckout(checkoutInput, requestOptions);
+  const requestOptions = { idempotencyKey: options.idempotencyKey };
+  const first = await options.payments.checkouts.create(checkoutInput, requestOptions);
+  const replay = await options.payments.checkouts.create(checkoutInput, requestOptions);
+  if ('resourceId' in first || 'resourceId' in replay) {
+    throw new Error('Payment checkout is still pending; the downstream smoke checks require a completed checkout resource');
+  }
   if (first.checkoutId !== replay.checkoutId || replay.referenceId !== options.referenceId) {
     throw new Error('Checkout idempotency replay returned a different resource');
   }
-  const retrieved = await options.payments.getCheckout(first.checkoutId);
+  const retrieved = await options.payments.checkouts.get(first.checkoutId);
   if (retrieved.checkoutId !== first.checkoutId) throw new Error('Checkout retrieval returned the wrong resource');
 
   const event: PaymentSmokeEvent = {
@@ -108,21 +115,32 @@ export async function runPaymentPlatformSmoke(options: PaymentSmokeOptions): Pro
 }
 
 async function main(): Promise<void> {
-  const baseUrl = process.env.APICENTER_BASE_URL;
-  const apiKey = process.env.APICENTER_API_KEY;
-  const tribeId = process.env.APICENTER_TRIBE_ID;
+  const baseUrl = process.env.APICENTER_URL;
+  const paymentApiKey = process.env.APICENTER_PAYMENT_API_KEY;
+  const serviceId = process.env.APICENTER_SERVICE_ID;
+  const serviceSecret = process.env.APICENTER_SERVICE_SECRET;
+  const tribeId = process.env.APICENTER_OWNER_TRIBE_ID;
   const eventInjectorUrl = process.env.PAYMENT_SMOKE_EVENT_INJECTOR_URL;
   const observerUrl = process.env.PAYMENT_SMOKE_PUBSUB_OBSERVER_URL;
   const projectionUrl = process.env.PAYMENT_SMOKE_PROJECTION_URL;
   const entitlementUrl = process.env.PAYMENT_SMOKE_ENTITLEMENT_URL;
-  if (!baseUrl || !apiKey || !tribeId || !eventInjectorUrl || !observerUrl || !projectionUrl || !entitlementUrl) {
-    throw new Error('APICENTER_BASE_URL, APICENTER_API_KEY, APICENTER_TRIBE_ID, PAYMENT_SMOKE_EVENT_INJECTOR_URL, PAYMENT_SMOKE_PUBSUB_OBSERVER_URL, PAYMENT_SMOKE_PROJECTION_URL, and PAYMENT_SMOKE_ENTITLEMENT_URL are required');
+  if (!baseUrl || !tribeId || !eventInjectorUrl || !observerUrl || !projectionUrl || !entitlementUrl) {
+    throw new Error('APICENTER_URL, APICENTER_OWNER_TRIBE_ID, PAYMENT_SMOKE_EVENT_INJECTOR_URL, PAYMENT_SMOKE_PUBSUB_OBSERVER_URL, PAYMENT_SMOKE_PROJECTION_URL, and PAYMENT_SMOKE_ENTITLEMENT_URL are required');
   }
-  const TribeClient = (() => {
-    try { return require('@alpha-explora/apicenter-sdk').TribeClient; }
-    catch { return require('../../packages/sdk/src/TribeClient').TribeClient; }
-  })();
-  const client = new TribeClient({ baseUrl, apiKey, tribeId, environment: 'test' });
+  if (!paymentApiKey && (!serviceId || !serviceSecret)) {
+    throw new Error('Configure APICENTER_PAYMENT_API_KEY or both APICENTER_SERVICE_ID and APICENTER_SERVICE_SECRET');
+  }
+  const client = new ApiCenter({
+    baseUrl,
+    ...(serviceId && serviceSecret ? {
+      auth: {
+        serviceId,
+        environment: process.env.APICENTER_ENVIRONMENT === 'live' ? 'live' as const : 'test' as const,
+        secret: serviceSecret,
+      },
+    } : {}),
+    ...(paymentApiKey ? { paymentApiKey } : {}),
+  });
   const token = process.env.PAYMENT_SMOKE_EVENT_INJECTOR_TOKEN;
   const response = await runPaymentPlatformSmoke({
     payments: client.payments,

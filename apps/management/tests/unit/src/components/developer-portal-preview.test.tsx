@@ -166,7 +166,7 @@ describe("DeveloperPortalPreview", () => {
 
     expect(await screen.findByText("campus-one")).toBeTruthy();
     expect(screen.getByText("https://api-center.itsandbox.site")).toBeTruthy();
-    expect(screen.getByText("@implementsprint/sdk")).toBeTruthy();
+    expect(screen.getByText("@alpha-explora/apicenter-sdk")).toBeTruthy();
     expect(screen.getByText("payment-service")).toBeTruthy();
     expect(screen.getByText("payments:write")).toBeTruthy();
     expect(screen.getByText("25,000 / 86400s")).toBeTruthy();

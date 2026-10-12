@@ -10,7 +10,7 @@ sources: ["AGENTS.md","docs/architecture/current-architecture.md"]
 ---
 # APICenter Developer Guide
 
-This guide covers the active APICenter Turborepo monorepo. Cloud Run is the deployment target; Google Pub/Sub is the payment lifecycle event transport; `@apicenter/contracts` and `@alpha-explora/apicenter-sdk` form the public integration surface.
+This guide covers the active APICenter Turborepo monorepo. Cloud Run is the deployment target; Google Pub/Sub is the payment lifecycle event transport; `@alpha-explora/apicenter-contracts` and `@alpha-explora/apicenter-sdk` form the public integration surface.
 
 ## Local Development
 

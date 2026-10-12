@@ -4,6 +4,10 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ## Unreleased
 
+### Added
+
+- Add the contract-backed APICenter 2.0.0 server-side SDK for shared services and payments.
+
 ### Changed
 
 - Added APICenter's canonical internal docs bundle with ownership, authority, evidence, and plan-retirement rules.

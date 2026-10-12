@@ -42,17 +42,18 @@ export function VercelApiDoc({ operations }: VercelApiDocProps) {
     const reqBody = activeOp.sampleRequest ? JSON.stringify(activeOp.sampleRequest, null, 2) : null;
 
     if (lang === "TypeScript") {
-      return `import { ApiCenterClient } from "@apicenter/sdk";
-
-const client = new ApiCenterClient({
-  baseUrl: "https://api-center.itsandbox.site",
-  clientId: "YOUR_TRIBE_ID",
-  clientSecret: "YOUR_TRIBE_SECRET",
-  environment: "live"
+      return `// Run on a trusted server. Keep this token in a server-only environment variable.
+const response = await fetch("${fullUrl}", {
+  method: "${activeOp.method}",
+  headers: {
+    Authorization: "Bearer " + process.env.APICENTER_ACCESS_TOKEN,
+    "Content-Type": "application/json"${activeOp.requiresIdempotency ? ',\n    "Idempotency-Key": "unique-operation-' + activeOp.operationId + '-0001"' : ""}
+  }${reqBody ? `,\n  body: JSON.stringify(${reqBody})` : ""}
 });
 
-const response = await client.${activeOp.operationId}(${reqBody ? reqBody : ""});
-console.log(response);`;
+const envelope = await response.json();
+if (!response.ok || envelope.success !== true) throw new Error("APICenter request failed");
+console.log(envelope.data);`;
     }
 
     if (lang === "Next.js") {

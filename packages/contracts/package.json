@@ -1,14 +1,21 @@
 {
-  "name": "@apicenter/contracts",
+  "name": "@alpha-explora/apicenter-contracts",
   "version": "0.1.0",
-  "private": true,
   "description": "APICenter public HTTP and event contract workspace",
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('tsconfig.tsbuildinfo', { force: true })\"",
+    "build": "npm run clean && tsc",
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
   },
   "devDependencies": {
     "typescript": "^6.0.3"

@@ -102,9 +102,13 @@ export class DeveloperPortalController {
           },
         ],
         sdk: {
-          packageName: "@implementsprint/sdk",
-          baseUrlEnv: "APICENTER_BASE_URL",
-          tokenEnv: "APICENTER_TOKEN",
+          packageName: "@alpha-explora/apicenter-sdk",
+          baseUrlEnv: "APICENTER_URL",
+          serviceIdEnv: "APICENTER_SERVICE_ID",
+          environmentEnv: "APICENTER_ENVIRONMENT",
+          serviceSecretEnv: "APICENTER_SERVICE_SECRET",
+          paymentApiKeyEnv: "APICENTER_PAYMENT_API_KEY",
+          serverSideOnly: true,
         },
         credentialVersion: {
           status: "managed",

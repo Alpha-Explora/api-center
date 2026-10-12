@@ -1,22 +1,16 @@
 FROM node:24-alpine3.22
 
-WORKDIR /app
+WORKDIR /workspace
+COPY package.json package-lock.json turbo.json ./
+COPY apps/ ./apps/
+COPY packages/ ./packages/
+COPY examples/sandbox/demand-service/ ./examples/sandbox/demand-service/
 
-# Install and build SDK first
-COPY sdk/package*.json ./sdk/
-COPY sdk/tsconfig.json ./sdk/
-COPY sdk/src ./sdk/src
-WORKDIR /app/sdk
-RUN npm install && npm run build
+RUN npm ci
+RUN npm run build --workspace @alpha-explora/apicenter-contracts \
+  && npm run build --workspace @alpha-explora/apicenter-sdk
 
-# Install demand-service with SDK dependency
-WORKDIR /app
-COPY demand-service/package*.json ./
-# Install dependencies including the local SDK
-RUN npm install && npm install --save file:./sdk
-
-COPY demand-service/tsconfig.json ./
-COPY demand-service/src ./src
+WORKDIR /workspace/examples/sandbox/demand-service
 
 EXPOSE 4100
 CMD ["npm", "run", "start"]

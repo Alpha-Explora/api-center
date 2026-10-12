@@ -127,17 +127,17 @@ export function TribeOnboardingPacketPanel({
             />
           ))}
           <Snippet
-            title="Publish tribe event"
+            title="Event publishing integration"
             value={packet.eventPublishing}
             onCopy={() =>
-              copySection("Publish tribe event", packet.eventPublishing)
+              copySection("Event publishing integration", packet.eventPublishing)
             }
           />
           <Snippet
-            title="Publish custom event"
+            title="Custom event integration"
             value={packet.customEventPublishing}
             onCopy={() =>
-              copySection("Publish custom event", packet.customEventPublishing)
+              copySection("Custom event integration", packet.customEventPublishing)
             }
           />
         </div>
@@ -235,7 +235,7 @@ function formatTaskList(items: string[]) {
 function getPortalPacketAdditions(service: ServiceRegistryEntry) {
   const tribeId = service.ownerTribeId ?? service.serviceId;
   return [
-    "Install SDK: npm install @implementsprint/sdk",
+    "Install SDK: npm install @alpha-explora/apicenter-sdk",
     `API Center base URL: ${getApiCenterBaseUrl()}`,
     `Allowed services: ${formatList(service.consumes)}`,
     `Required scopes: ${formatList(service.requiredScopes)}`,
@@ -263,8 +263,8 @@ function formatPacket(
       `Call ${example.serviceId}`,
       example.call,
     ]),
-    ["Publish tribe event", packet.eventPublishing],
-    ["Publish custom event", packet.customEventPublishing],
+    ["Event publishing integration", packet.eventPublishing],
+    ["Custom event integration", packet.customEventPublishing],
     ["S3 export topic", packet.topics.primary],
   ];
 

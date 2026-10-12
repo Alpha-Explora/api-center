@@ -18,7 +18,7 @@ steps:
         npm ci
         npm run contracts:validate
         npm run typecheck
-        npm run build --workspace @apicenter/contracts
+        npm run build --workspace @alpha-explora/apicenter-contracts
         npm run build --workspace @apicenter/payments
         node --check apps/payments/dist/server.js
         node --check scripts/gcp/provision-payment-events.js

@@ -238,7 +238,7 @@ function PortalPreviewContent({
         <InfoCard title="Profile">
           <dl className="grid gap-2 text-sm">
             <Detail label="Tribe" value={data.tribeId} mono />
-            <Detail label="SDK" value="@implementsprint/sdk" />
+            <Detail label="SDK" value="@alpha-explora/apicenter-sdk" />
             <Detail label="API Center" value={getApiCenterBaseUrl()} />
             <Detail label="Support" value={data.supportContact} />
           </dl>

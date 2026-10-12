@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { OtpGenerateRequest, OtpGenerateResponse } from '@apicenter/contracts';
+import type { OtpGenerateRequest, OtpGenerateResponse } from '@alpha-explora/apicenter-contracts';
 import { OtpTarget } from './generate-otp.model';
 import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';

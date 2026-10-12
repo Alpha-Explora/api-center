@@ -38,6 +38,12 @@ export class DemandController {
       return typed.response.status;
     }
 
+    const getStatus = (error as { getStatus?: unknown } | undefined)?.getStatus;
+    if (typeof getStatus === 'function') {
+      const status = getStatus.call(error) as unknown;
+      if (typeof status === 'number') return status;
+    }
+
     const message =
       (error as { message?: string } | undefined)?.message ||
       'Gateway request failed';

@@ -7,6 +7,7 @@ servers:
   - url: https://api-center.itsandbox.site
 security:
   - ApiKeyAuth: []
+  - ServiceBearerAuth: []
 tags:
   - name: Payments
 paths:
@@ -522,8 +523,237 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentCapabilities"
+  /api/v1/payments/intents/qrph:
+    post:
+      operationId: createQrPhPaymentIntent
+      tags:
+        - Payments
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrPhPaymentIntentCreateRequest"
+      responses:
+        "201":
+          description: QR Ph payment intent created; awaiting_next_action is not confirmation of payment.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/QrPhPaymentIntent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+  /api/v1/payments/payment-links:
+    get:
+      operationId: listPaymentLinks
+      tags:
+        - Payments
+      responses:
+        "200":
+          description: Payment links owned by the calling project
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PaymentLink"
+    post:
+      operationId: createPaymentLink
+      tags:
+        - Payments
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentLinkCreateRequest"
+      responses:
+        "201":
+          description: Payment link created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/PaymentLink"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+  /api/v1/payments/payment-links/{paymentLinkId}:
+    get:
+      operationId: getPaymentLink
+      tags:
+        - Payments
+      responses:
+        "200":
+          description: Project-owned payment link
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/PaymentLink"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: setPaymentLinkArchived
+      tags:
+        - Payments
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - archive
+              properties:
+                archive:
+                  type: boolean
+      responses:
+        "200":
+          description: Payment link archive state updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/PaymentLink"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+  /api/v1/payments/plans:
+    get:
+      operationId: listPlans
+      tags:
+        - Payments
+      responses:
+        "200":
+          description: Plans owned by the calling project
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Plan"
+    post:
+      operationId: createPlan
+      tags:
+        - Payments
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanCreateRequest"
+      responses:
+        "201":
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/Plan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+  /api/v1/payments/plans/{planId}:
+    get:
+      operationId: getPlan
+      tags:
+        - Payments
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plan
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/Plan"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
+    ServiceBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Registered APICenter service JWT with gateway-enforced scopes.
     ApiKeyAuth:
       type: http
       scheme: bearer
@@ -960,3 +1190,190 @@ components:
               format: date-time
             correlationId:
               type: string
+    PlanCreateRequest:
+      type: object
+      required:
+        - name
+        - amount
+        - interval
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        amount:
+          type: integer
+          minimum: 2000
+          description: Amount in PHP centavos.
+        currency:
+          type: string
+          enum:
+            - PHP
+          default: PHP
+        interval:
+          type: string
+          enum:
+            - weekly
+            - monthly
+            - yearly
+        intervalCount:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 1
+        cycleCount:
+          type: integer
+          minimum: 2
+          description: Omit to bill indefinitely.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    Plan:
+      type: object
+      required:
+        - planId
+        - name
+        - amount
+        - currency
+        - interval
+        - intervalCount
+      properties:
+        planId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        amount:
+          type: integer
+          description: Amount in PHP centavos.
+        currency:
+          type: string
+          enum:
+            - PHP
+        interval:
+          type: string
+          enum:
+            - weekly
+            - monthly
+            - yearly
+        intervalCount:
+          type: integer
+        cycleCount:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    PaymentLinkCreateRequest:
+      type: object
+      required:
+        - referenceId
+        - amount
+        - description
+      properties:
+        referenceId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        amount:
+          $ref: "#/components/schemas/Money"
+        description:
+          type: string
+          minLength: 1
+          maxLength: 255
+        remarks:
+          type: string
+          maxLength: 255
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: String values only. APICenter sets apicenter_reference_id to referenceId.
+    PaymentLink:
+      type: object
+      required:
+        - paymentLinkId
+        - referenceId
+        - amount
+        - status
+      properties:
+        paymentLinkId:
+          type: string
+        referenceId:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+        status:
+          type: string
+          description: active or archived from PayMongo, or paid once PayMongo reports a payment for the link.
+        active:
+          type: boolean
+        archived:
+          type: boolean
+        referenceNumber:
+          type: string
+          description: Reference number PayMongo assigned to the link.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    QrPhPaymentIntent:
+      type: object
+      required:
+        - paymentIntentId
+        - referenceId
+        - status
+        - amount
+        - qrCodeImageUrl
+        - expirySeconds
+      properties:
+        paymentIntentId:
+          type: string
+        referenceId:
+          type: string
+        status:
+          type: string
+          description: awaiting_next_action means the QR code is ready, not that payment is complete.
+        amount:
+          $ref: "#/components/schemas/Money"
+        qrCodeImageUrl:
+          type: string
+          format: uri
+        expirySeconds:
+          type: integer
+    QrPhPaymentIntentCreateRequest:
+      type: object
+      required:
+        - referenceId
+        - amount
+      properties:
+        referenceId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        amount:
+          $ref: "#/components/schemas/Money"
+        description:
+          type: string
+          maxLength: 255
+        expirySeconds:
+          type: integer
+          minimum: 60
+          maximum: 9000
+          default: 1800

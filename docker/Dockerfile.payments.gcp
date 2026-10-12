@@ -6,7 +6,7 @@ COPY apps/ ./apps/
 COPY packages/ ./packages/
 
 RUN npm ci --include=dev --no-audit --no-fund \
-    && npm run build --workspace @apicenter/contracts \
+    && npm run build --workspace @alpha-explora/apicenter-contracts \
     && npm run build --workspace @apicenter/payments \
     && npm prune --omit=dev --no-audit --no-fund
 

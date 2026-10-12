@@ -29,9 +29,9 @@ export function SdkConfigPanel({ service }: { service: ServiceRegistryEntry }) {
       <CardContent className="flex flex-col gap-4">
         <div className="rounded-lg border bg-muted/25 p-3 text-sm">
           <div className="font-medium">SDK package</div>
-          <Snippet value="npm install @implementsprint/sdk" />
+          <Snippet value="npm install @alpha-explora/apicenter-sdk" />
           <div className="mt-2 text-xs text-muted-foreground">
-            Keep this package name until the published SDK name changes.
+            Use this package in trusted server-side applications only.
           </div>
         </div>
 
@@ -42,11 +42,11 @@ export function SdkConfigPanel({ service }: { service: ServiceRegistryEntry }) {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <SnippetBlock
-            title="Publish platform event"
+            title="Event publishing integration"
             value={packet.eventPublishing}
           />
           <SnippetBlock
-            title="Publish custom tribe event"
+            title="Custom event integration"
             value={packet.customEventPublishing}
           />
         </div>
@@ -75,11 +75,11 @@ export function SdkConfigPanel({ service }: { service: ServiceRegistryEntry }) {
                 <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
                   <ContractItem
                     label="Route"
-                    value={`/api/v1/shared/${example.serviceId}${example.path}`}
+                    value={example.path}
                   />
                   <ContractItem label="Method" value={example.method} />
                   <ContractItem label="Scope" value={example.scope} />
-                  <ContractItem label="Audit/event" value={example.eventOutput} />
+                  <ContractItem label="SDK method" value={example.sdkMethod} />
                 </div>
                 <Snippet value={example.call} />
               </div>

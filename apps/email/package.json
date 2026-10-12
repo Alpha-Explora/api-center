@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@apicenter/contracts": "*",
+    "@alpha-explora/apicenter-contracts": "*",
     "@apicenter/runtime": "1.0.0",
     "ioredis": "^5.10.0",
     "pg": "^8.20.0",

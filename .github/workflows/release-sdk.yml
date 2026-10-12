@@ -1,4 +1,4 @@
-name: Publish APICenter SDK to GitHub Packages
+name: Publish APICenter SDK and contracts to GitHub Packages
 
 # Manual only. Publish with: gh workflow run release-sdk.yml --ref sdk-vX.Y.Z
 on:
@@ -26,6 +26,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Build contracts workspace
+        run: npm run build --workspace @alpha-explora/apicenter-contracts
+
       - name: Validate public contracts
         run: npm run contracts:validate
 
@@ -38,11 +41,34 @@ jobs:
       - name: Build SDK
         run: npm run sdk:build
 
+      - name: Test SDK
+        run: npm run sdk:test
+
+      - name: Verify SDK consumer fixture
+        run: npm run test:consumer --workspace @alpha-explora/apicenter-sdk
+
       - name: Create pack directory
         run: mkdir -p artifacts
 
-      - name: Pack SDK
-        run: npm pack --workspace @alpha-explora/apicenter-sdk --pack-destination artifacts
+      - name: Pack contracts and SDK
+        run: |
+          npm pack --workspace @alpha-explora/apicenter-contracts --pack-destination artifacts
+          npm pack --workspace @alpha-explora/apicenter-sdk --pack-destination artifacts
+
+      - name: Verify packed consumer install
+        run: |
+          mkdir -p artifacts/consumer
+          cp packages/sdk/tests/consumer/quickstart.ts packages/sdk/tests/consumer/tsconfig.json packages/sdk/tests/consumer/runtime-smoke.cjs artifacts/consumer/
+          cd artifacts/consumer
+          npm init -y
+          npm install --no-save ../alpha-explora-apicenter-contracts-*.tgz ../alpha-explora-apicenter-sdk-*.tgz
+          ../../node_modules/.bin/tsc --noEmit --project tsconfig.json
+          node runtime-smoke.cjs
+
+      - name: Publish contracts to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish --workspace @alpha-explora/apicenter-contracts --registry=https://npm.pkg.github.com
 
       - name: Publish SDK to GitHub Packages
         env:

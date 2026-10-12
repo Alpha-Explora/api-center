@@ -1,4 +1,4 @@
-import type { GeocodeRequest } from '@apicenter/contracts';
+import type { GeocodeRequest } from '@alpha-explora/apicenter-contracts';
 import { createGeoCache } from '../../shared/geo-cache';
 import { shouldUseMock, mockGeocode, callGoogleGeocoding } from '../../shared/google-maps-provider';
 

@@ -1,4 +1,4 @@
-import type { GauthVerifyTokenRequest, GauthVerifyTokenResponse } from '@apicenter/contracts';
+import type { GauthVerifyTokenRequest, GauthVerifyTokenResponse } from '@alpha-explora/apicenter-contracts';
 
 export class VerifyTokenService {
   execute(input: GauthVerifyTokenRequest): GauthVerifyTokenResponse {

@@ -5,8 +5,8 @@
   "projectId": "demand-planning",
   "requiredScopes": [
     "demand:read",
-    "external:kafka:read",
-    "external:kafka:write"
+    "geo:read",
+    "geo:write"
   ],
   "exposes": ["GET /demand/:id"],
   "consumes": ["logistics-service", "geo"],
