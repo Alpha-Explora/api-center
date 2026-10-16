@@ -149,6 +149,58 @@ test('a checkout without a merchant reference is flagged for reconciliation and 
   assert.equal(receipt.status, 'needs_reconciliation');
 });
 
+test('polling persists paid checkout facts once without fabricating a webhook receipt or event', { skip }, async () => {
+  const fresh = { checkoutId: 'chk_123', status: 'paid', provider: 'paymongo' };
+  const first = await owners.reconcileCheckout('chk_123', owner, fresh);
+  const second = await owners.reconcileCheckout('chk_123', owner, fresh);
+  assert.equal(first.aggregateVersion, 2);
+  assert.equal(second.aggregateVersion, 2);
+  assert.equal(second.referenceId, 'ORDER-1');
+  assert.equal(second.consumerServiceId, 'service-a');
+  assert.equal(second.snapshot.status, 'paid');
+  assert.equal(await count('payment_webhook_events'), 0);
+  assert.equal(await count('payment_event_outbox'), 0);
+  const records = await owners.listRecords(owner, { type: 'checkout', status: 'paid' });
+  assert.equal(records.records[0].id, 'chk_123');
+  assert.equal(records.records[0].status, 'paid');
+});
+
+test('reconciliation permits another service in the project but denies foreign owners and environments', { skip }, async () => {
+  for (const context of [{ ...owner, projectId: 'project-b' }, { ...owner, tribeId: 'tribe-b' },
+    { ...owner, environment: 'live' }]) {
+    await assert.rejects(owners.reconcileCheckout('chk_123', context, { status: 'paid' }), { statusCode: 404 });
+  }
+  const updated = await owners.reconcileCheckout('chk_123', { ...owner, consumerServiceId: 'service-b' }, { status: 'pending' });
+  assert.equal(updated.snapshot.status, 'pending');
+  assert.equal(updated.consumerServiceId, 'service-a');
+  assert.equal(updated.referenceId, 'ORDER-1');
+  const unchanged = await owners.reconcileCheckout('chk_123', owner, { status: 'pending' });
+  assert.equal(unchanged.aggregateVersion, updated.aggregateVersion);
+});
+
+test('a stale poll cannot regress a paid webhook and repeated recovery still allows one later event', { skip }, async () => {
+  const payload = checkoutPaid('evt_reconciled');
+  await owners.reconcileCheckout('chk_123', owner, { status: 'paid' });
+  await webhooks.processWebhook(payload, signed(payload));
+  await webhooks.processWebhook(payload, signed(payload));
+  const stale = await owners.reconcileCheckout('chk_123', owner, { status: 'pending' });
+  assert.equal(stale.snapshot.status, 'paid');
+  assert.equal(stale.aggregateVersion, 3);
+  assert.equal(await count('payment_webhook_events'), 1);
+  assert.equal(await count('payment_event_outbox'), 1);
+});
+
+test('a concurrent provider poll and webhook always leave the checkout paid', { skip }, async () => {
+  const payload = checkoutPaid('evt_racing');
+  await Promise.all([
+    owners.reconcileCheckout('chk_123', owner, { status: 'pending' }),
+    webhooks.processWebhook(payload, signed(payload)),
+  ]);
+  const current = await owners.assertOwned('checkout', 'chk_123', owner);
+  assert.equal(current.snapshot.status, 'paid');
+  assert.equal(await count('payment_event_outbox'), 1);
+});
+
 test('a paid link payment updates only the link whose PayMongo reference was saved', { skip }, async () => {
   await owners.save({ ...owner, resourceType: 'payment_link', resourceId: 'pl_a', referenceId: 'ORDER-A',
     providerReference: 'PMREF-A', snapshot: { paymentLinkId: 'pl_a', status: 'active' } });

@@ -9,9 +9,9 @@ import { WebhooksService } from './features/webhooks/webhooks.service';
 import { InvoicesService } from './features/invoices/invoices.service';
 import { PaymentLinksService, QrPhService } from './features/payment-links/payment-links.service';
 import { PayMongoError } from './shared/payment-errors';
-import { providerMode } from './shared/paymongo-client';
+import { isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
-import { PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
+import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
 
 const port = Number(process.env.PORT || 4010);
 const { app, ok, fail } = createSharedServiceApp({
@@ -112,6 +112,13 @@ async function owned(type: string, id: string, req: Request) {
   return owners.assertOwned(type, id, paymentContext(req));
 }
 
+async function checkoutSnapshot(owner: OwnerRecord) {
+  const record = owner.snapshot.status === 'paid' || isMockMode() ? owner
+    : await owners.reconcileCheckout(owner.resourceId, owner,
+      await checkoutService.getCheckoutSession(owner.resourceId));
+  return { ...record.snapshot, aggregateVersion: record.aggregateVersion };
+}
+
 function idempotencyKey(req: Request): string | undefined {
   return req.get('Idempotency-Key') || req.body?.idempotencyKey;
 }
@@ -208,17 +215,15 @@ app.get('/checkout/sessions/:checkoutId', async (req: Request, res: Response) =>
   try {
     const checkoutId = Array.isArray(req.params.checkoutId) ? req.params.checkoutId[0] : req.params.checkoutId;
     const owner = await owned('checkout', checkoutId, req);
-    const data = await checkoutService.getCheckoutSession(checkoutId);
-    return ok(res, { ...owner.snapshot, ...data });
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
 app.get('/checkout/sessions/:checkoutId/status', async (req: Request, res: Response) => {
   try {
     const checkoutId = Array.isArray(req.params.checkoutId) ? req.params.checkoutId[0] : req.params.checkoutId;
-    await owned('checkout', checkoutId, req);
-    const data = await checkoutService.getCheckoutStatus(checkoutId, { tribeId: tribeId(req) });
-    return ok(res, data);
+    const owner = await owned('checkout', checkoutId, req);
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -226,7 +231,7 @@ app.get('/checkout/sessions/by-reference/:referenceId/status', async (req: Reque
   try {
     const referenceId = Array.isArray(req.params.referenceId) ? req.params.referenceId[0] : req.params.referenceId;
     const owner = await owners.findByReference('checkout', referenceId, paymentContext(req));
-    return ok(res, owner.snapshot);
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -234,7 +239,7 @@ app.get('/checkout/sessions/by-reference/:referenceId', async (req: Request, res
   try {
     const referenceId = String(req.params.referenceId);
     const owner = await owners.findByReference('checkout', referenceId, paymentContext(req));
-    return ok(res, owner.snapshot);
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
