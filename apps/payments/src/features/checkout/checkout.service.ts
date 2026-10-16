@@ -3,7 +3,8 @@ import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { MemoryPaymentStore, assertTribeCanRead } from '../../shared/payment-store';
 import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
-import { checkoutPaymentStatus, normalizeAmount } from './checkout.model';
+import { checkoutPaymentStatus, normalizeAmount, paidCheckoutPayment } from './checkout.model';
+import type { PaidCheckoutPayment } from './checkout.model';
 
 export class CheckoutService {
   constructor(private readonly store = MemoryPaymentStore.getInstance()) {}
@@ -75,7 +76,10 @@ export class CheckoutService {
     return session;
   }
 
-  async getCheckoutSession(checkoutId: string) {
+  async getCheckoutSession(checkoutId: string, options: { includePayment?: boolean } = {}): Promise<{
+    checkoutId: string; provider: 'paymongo'; status: 'paid' | 'pending' | 'expired'; redirectUrl?: string;
+    createdAt?: string; paymentId?: string; paidPayment?: PaidCheckoutPayment;
+  }> {
     if (isMockMode()) {
       return {
         checkoutId,
@@ -93,10 +97,12 @@ export class CheckoutService {
     if (providerData.id !== toProviderId('chk', checkoutId)) {
       throw new PayMongoError('PayMongo returned a different checkout session', 502, 'PROVIDER_RESOURCE_MISMATCH');
     }
+    const payment = paidCheckoutPayment(attributes);
     return {
       checkoutId: toPublicId('chk', providerData.id || checkoutId),
       provider: 'paymongo',
       status: checkoutPaymentStatus(attributes),
+      ...(options.includePayment && payment ? { paymentId: payment.paymentId, paidPayment: payment } : {}),
       ...(attributes.checkout_url ? { redirectUrl: attributes.checkout_url } : {}),
     };
   }

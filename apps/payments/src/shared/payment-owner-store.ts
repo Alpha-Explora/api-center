@@ -154,12 +154,17 @@ export class PaymentOwnerStore {
     if (this.pool) {
       const result = await this.pool.query(
         `UPDATE shared_payment.resource_owners
-         SET snapshot = snapshot || $5::jsonb, status = $6,
+         SET snapshot = CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid'
+               THEN (snapshot || $5::jsonb) || '{"status":"paid"}'::jsonb
+               ELSE snapshot || $5::jsonb END,
+             status = CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid' THEN 'paid' ELSE $6 END,
              aggregate_version = aggregate_version + 1, updated_at = now()
          WHERE environment = $1 AND resource_type = 'checkout' AND resource_id = $2
            AND tribe_id = $3 AND project_id = $4
-           AND status IS DISTINCT FROM 'paid' AND snapshot->>'status' IS DISTINCT FROM 'paid'
-           AND snapshot IS DISTINCT FROM snapshot || $5::jsonb
+           AND (status IS DISTINCT FROM CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid' THEN 'paid' ELSE $6 END
+             OR snapshot IS DISTINCT FROM CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid'
+               THEN (snapshot || $5::jsonb) || '{"status":"paid"}'::jsonb
+               ELSE snapshot || $5::jsonb END)
          RETURNING *`,
         [context.environment, id, context.tribeId, context.projectId, JSON.stringify(fresh), fresh.status],
       );
@@ -170,11 +175,30 @@ export class PaymentOwnerStore {
     if (!record || record.tribeId !== context.tribeId || record.projectId !== context.projectId) {
       throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
     }
-    const snapshot = { ...record.snapshot, ...fresh };
-    if (record.status === 'paid' || record.snapshot.status === 'paid'
-      || Object.entries(fresh).every(([key, value]) => record.snapshot[key] === value)) return record;
-    this.saveInMemory({ ...record, snapshot, status: String(fresh.status) });
+    const paid = record.status === 'paid' || record.snapshot.status === 'paid';
+    const snapshot = { ...record.snapshot, ...fresh, ...(paid ? { status: 'paid' } : {}) };
+    const status = paid ? 'paid' : String(fresh.status);
+    if (record.status === status && Object.entries(snapshot).every(([key, value]) => record.snapshot[key] === value)) return record;
+    this.saveInMemory({ ...record, snapshot, status });
     return this.memory.get(this.key(context.environment, 'checkout', id))!;
+  }
+
+  /** Stores a paid payment discovered inside an owned provider checkout read; this does not create an event. */
+  async registerCheckoutPayment(checkout: OwnerRecord, payment: {
+    paymentId: string; status: 'paid'; amount: number; currency: string; paymentIntentId?: string;
+  }): Promise<void> {
+    if (checkout.resourceType !== 'checkout' || checkout.snapshot.status !== 'paid'
+      || !payment.paymentId.startsWith('pay_') || payment.status !== 'paid'
+      || !Number.isSafeInteger(payment.amount) || payment.amount <= 0
+      || !/^[A-Z]{3}$/.test(payment.currency)
+      || (payment.paymentIntentId !== undefined && !payment.paymentIntentId.startsWith('pi_'))) {
+      throw new PayMongoError('PayMongo checkout did not return valid paid payment facts', 502, 'INVALID_PROVIDER_RESPONSE');
+    }
+    await this.save({ ...checkout, resourceType: 'payment', resourceId: payment.paymentId,
+      snapshot: { paymentId: payment.paymentId, status: 'paid', amount: payment.amount,
+        currency: payment.currency, sourceId: checkout.resourceId, checkoutId: checkout.resourceId,
+        ...(payment.paymentIntentId ? { paymentIntentId: payment.paymentIntentId } : {}) },
+      amountMinor: String(payment.amount), currency: payment.currency, status: 'paid' });
   }
 
   /**
