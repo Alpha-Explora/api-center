@@ -4,6 +4,7 @@
 
 - Documented checkout status reconciliation, the distinction between polling and webhook events, and recovery of disabled PayMongo webhooks with matching secrets on gateway and payments runtime.
 - Deployment and provider acceptance remain separate rollout checks; this entry records repository behavior and operator instructions.
+- Updated the public payment-intent guide with confirmation fields, client-key handling, and redirect completion guidance.
 
 ## 2026-10-12
 

@@ -18,6 +18,7 @@ const schemas = {
     interval: z.enum(['weekly', 'monthly', 'yearly']), intervalCount: z.number().int().min(1).max(10).optional(),
     cycleCount: z.number().int().min(2).max(Number.MAX_SAFE_INTEGER).optional(), metadata: z.record(z.string(), z.string()).optional() }),
   refund: z.object({ paymentId: z.string().min(1), amount: money, reason: z.string().optional() }),
+  intentConfirmation: z.object({ paymentMethodId: z.string().min(1), clientKey: z.string().min(1), returnUrl: z.url() }),
   subscription: z.object({ customerId: z.string().min(1), referenceId: reference,
     planId: z.string().min(1) }),
   cancellation: z.object({ reason: z.string().optional() }),
@@ -38,7 +39,7 @@ const operations: Operation[] = [
   { method: 'POST', pattern: /^\/intents$/, scope: 'payments:intents:write', target: () => '/payment-intents', resource: 'intent', shape: 'intent' },
   { method: 'POST', pattern: /^\/intents\/qrph$/, scope: 'payments:intents:write', target: () => '/payment-intents/qrph', resource: 'qrph', shape: 'qrph' },
   { method: 'GET', pattern: /^\/intents\/([^/]+)$/, scope: 'payments:intents:read', target: (m) => `/payment-intents/${m[1]}`, resource: 'intent' },
-  { method: 'POST', pattern: /^\/intents\/([^/]+)\/confirm$/, scope: 'payments:intents:write', target: (m) => `/payment-intents/${m[1]}/confirm`, resource: 'intent', shape: 'empty' },
+  { method: 'POST', pattern: /^\/intents\/([^/]+)\/confirm$/, scope: 'payments:intents:write', target: (m) => `/payment-intents/${m[1]}/confirm`, resource: 'intent', shape: 'intentConfirmation' },
   { method: 'POST', pattern: /^\/intents\/([^/]+)\/cancel$/, scope: 'payments:intents:write', target: (m) => `/payment-intents/${m[1]}/cancel`, resource: 'intent', shape: 'empty' },
   { method: 'POST', pattern: /^\/customers$/, scope: 'payments:customers:write', target: () => '/customers', resource: 'customer', shape: 'customer' },
   { method: 'GET', pattern: /^\/customers\/([^/]+)$/, scope: 'payments:customers:read', target: (m) => `/customers/${m[1]}`, resource: 'customer' },
@@ -86,6 +87,9 @@ export function paymentRequestBody(shape: Shape | undefined, input: unknown, ser
       : {};
     data.metadata = { ...metadata, __apicenterConsumerServiceId: serviceId };
   }
+  if (shape === 'intentConfirmation') {
+    return { payment_method: data.paymentMethodId, client_key: data.clientKey, return_url: data.returnUrl };
+  }
   return data;
 }
 
@@ -115,8 +119,9 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
         status: raw.status === 'active' ? 'pending' : raw.status, amount: amount(raw.amount, responseCurrency(raw)), checkoutUrl: raw.checkoutUrl || raw.redirectUrl,
         aggregateVersion: raw.aggregateVersion };
       case 'intent': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId,
-        status: raw.status === 'awaiting_payment_method' ? 'requires_action' : raw.status,
-        amount: amount(raw.amount, responseCurrency(raw)), aggregateVersion: raw.aggregateVersion };
+        status: raw.status === 'awaiting_payment_method' || raw.status === 'awaiting_next_action' ? 'requires_action' : raw.status,
+        amount: amount(raw.amount, responseCurrency(raw)), aggregateVersion: raw.aggregateVersion,
+        clientKey: raw.clientKey, nextAction: raw.nextAction };
       case 'qrph': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId, status: raw.status,
         amount: amount(raw.amount, responseCurrency(raw)), qrCodeImageUrl: raw.qrCodeImageUrl, expirySeconds: raw.expirySeconds };
       case 'payment_link': return { paymentLinkId: raw.paymentLinkId, referenceId: raw.referenceId,

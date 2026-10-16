@@ -11,6 +11,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 ### Added
 
 - Add the contract-backed APICenter 2.0.0 server-side SDK for shared services and payments.
+- Allow payment-intent confirmation with a payment method, return URL, and client key, and return the provider's next action for customer redirects.
 
 ### Changed
 
