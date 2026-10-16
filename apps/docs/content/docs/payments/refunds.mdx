@@ -30,4 +30,4 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/refunds \
   }'
 ```
 
-Look up the result with `GET /api/v1/payments/refunds/{refundId}` and the `payments:refunds:read` scope.
+Look up the result with `GET /api/v1/payments/refunds/{refundId}` and the `payments:refunds:read` scope. Each read refreshes the refund from PayMongo and persists its current status. Refunds can be `pending`, `processing`, `succeeded`, or `failed`.
