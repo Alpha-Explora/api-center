@@ -57,7 +57,9 @@ const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
      amount_minor, currency, status, provider_reference)
    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
-     snapshot = EXCLUDED.snapshot,
+     snapshot = CASE WHEN EXCLUDED.resource_type = 'payment_link'
+       THEN shared_payment.resource_owners.snapshot || EXCLUDED.snapshot
+       ELSE EXCLUDED.snapshot END,
      amount_minor = COALESCE(EXCLUDED.amount_minor, shared_payment.resource_owners.amount_minor),
      currency = COALESCE(EXCLUDED.currency, shared_payment.resource_owners.currency),
      status = COALESCE(EXCLUDED.status, shared_payment.resource_owners.status),
@@ -177,6 +179,37 @@ export class PaymentOwnerStore {
     return this.memory.get(this.key(context.environment, 'checkout', id))!;
   }
 
+  /** Applies PayMongo payment-link fields to the current owner without replacing a confirmed paid state. */
+  async reconcilePaymentLink(id: string, context: PaymentContext, fresh: Record<string, unknown>): Promise<OwnerRecord> {
+    const freshStatus = typeof fresh.status === 'string' ? fresh.status : null;
+    if (this.pool) {
+      const result = await this.pool.query(
+        `UPDATE shared_payment.resource_owners
+         SET snapshot = CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid'
+           THEN (snapshot || $5::jsonb) || '{"status":"paid"}'::jsonb
+           ELSE snapshot || $5::jsonb END,
+             status = CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid'
+               THEN 'paid' ELSE COALESCE($6, status) END,
+             aggregate_version = aggregate_version + 1, updated_at = now()
+         WHERE environment = $1 AND resource_type = 'payment_link' AND resource_id = $2
+           AND tribe_id = $3 AND project_id = $4
+         RETURNING *`,
+        [context.environment, id, context.tribeId, context.projectId, JSON.stringify(fresh), freshStatus],
+      );
+      if (result.rows[0]) return this.fromRow(result.rows[0]);
+      return this.assertOwned('payment_link', id, context);
+    }
+    const key = this.key(context.environment, 'payment_link', id);
+    const record = this.memory.get(key);
+    if (!record || record.tribeId !== context.tribeId || record.projectId !== context.projectId) {
+      throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
+    }
+    const paid = record.status === 'paid' || record.snapshot.status === 'paid';
+    const snapshot = { ...record.snapshot, ...fresh, ...(paid ? { status: 'paid' } : {}) };
+    this.saveInMemory({ ...record, snapshot, status: paid ? 'paid' : freshStatus ?? record.status });
+    return this.memory.get(key)!;
+  }
+
   /**
    * Commits a signature-verified webhook as one unit: the receipt, the owner state changes and the outbox
    * event. A provider event ID that was already received changes nothing, so a redelivery cannot update
@@ -280,7 +313,10 @@ export class PaymentOwnerStore {
     const existing = this.memory.get(key);
     const aggregateVersion = (existing?.aggregateVersion ?? 0) + 1;
     const facts = ownerFacts(record);
-    this.memory.set(key, { ...record, referenceId: record.referenceId || existing?.referenceId,
+    this.memory.set(key, { ...record,
+      snapshot: record.resourceType === 'payment_link' && existing
+        ? { ...existing.snapshot, ...record.snapshot } : record.snapshot,
+      referenceId: record.referenceId || existing?.referenceId,
       providerReference: existing?.providerReference ?? record.providerReference ?? null,
       amountMinor: facts.amountMinor ?? existing?.amountMinor ?? null,
       currency: facts.currency ?? existing?.currency ?? null,

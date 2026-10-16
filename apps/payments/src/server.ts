@@ -334,12 +334,10 @@ app.get('/payment-links/:paymentLinkId', async (req: Request, res: Response) => 
 app.patch('/payment-links/:paymentLinkId', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.paymentLinkId);
-    const owner = await owned('payment_link', id, req);
+    await owned('payment_link', id, req);
     const data = await paymentLinksService.setArchived(id, req.body?.archive, idempotencyKey(req));
-    const snapshot = { ...owner.snapshot, ...data, referenceId: owner.referenceId,
-      ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) };
-    await remember('payment_link', id, req, snapshot);
-    return ok(res, snapshot);
+    const owner = await owners.reconcilePaymentLink(id, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
