@@ -143,6 +143,19 @@ and reconciliation; they are not command credentials.
 
 ## 8. Incident Triage
 
+### Checkout remains pending after payment
+
+Retrieve the session from PayMongo using the matching environment's secret key. Inspect `payments[].attributes.status` and `payment_intent.attributes.status`; the session can remain `active` after payment. APICenter must return `paid` for a confirmed payment. Both ID and reference reads reconcile the checkout record. A session with no paid payment or succeeded intent must remain unpaid, even if the customer opened the success URL.
+
+Polling repairs checkout status without creating a webhook receipt or event. Payment-resource records and Pub/Sub events still require the signed webhook path. To restore delivery:
+
+1. Verify the intended PayMongo webhook is enabled, points at the deployed gateway's `/api/v1/shared/payment/webhooks/test` or `/live` endpoint, and subscribes to `checkout_session.payment.paid`. Check the actual deployed hostname; an old gateway URL can remain registered at PayMongo.
+2. Store that webhook's signing secret in `apicenter-payments-test-webhook-secret` or `apicenter-payments-live-webhook-secret`. Configure the corresponding `PAYMONGO_TEST_WEBHOOK_SECRET` or `PAYMONGO_LIVE_WEBHOOK_SECRET` on both the gateway and the matching payments runtime. The gateway runtime identity needs Secret Manager access to these secrets. The gateway verifies the signature before forwarding, and the payments runtime verifies it again.
+3. After adding or rotating a secret version, redeploy both services. A Secret Manager `latest` reference does not refresh an already running instance. The checked-in gateway manifests include both references because the gateway routes both payment environments; adapt their service name to the deployment being updated.
+4. Verify a controlled test payment produces a successful webhook response, a processed receipt, one outbox event, and consumer delivery. Repeated polling and webhook redelivery must not duplicate the event. Verify the consumer's OIDC delivery service account and audience separately.
+
+After deploying a status fix, re-read each affected checkout and confirm its provider evidence individually. Do not mark every pending checkout paid or replay checkout creation as a repair. Repository tests do not prove that webhook configuration or deployment has changed.
+
 - **401/403 delivery:** check OIDC audience, service-account subject, and Cloud
   Run invoker binding before replaying anything.
 - **Dead letter:** inspect the canonical envelope and AlphaCI inbox error,

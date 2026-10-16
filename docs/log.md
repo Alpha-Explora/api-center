@@ -1,5 +1,10 @@
 # Documentation bundle changes
 
+## 2026-10-17
+
+- Documented checkout status reconciliation, the distinction between polling and webhook events, and recovery of disabled PayMongo webhooks with matching secrets on gateway and payments runtime.
+- Deployment and provider acceptance remain separate rollout checks; this entry records repository behavior and operator instructions.
+
 ## 2026-10-12
 
 - Refreshed the docs app's consumer and Management guides for SDK 2.0.0, the Organization → Tribe → Project → Service hierarchy, service credentials, and Google sign-in settings.

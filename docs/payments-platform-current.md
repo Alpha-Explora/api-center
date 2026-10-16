@@ -32,6 +32,10 @@ Subscriptions are filtered by `consumerServiceId`, use OIDC push authentication,
 
 ## Data and recovery
 
+Checkout reads by ID and merchant reference check project/environment ownership before retrieving PayMongo state. Payment status comes from a paid payment or a succeeded payment intent, not the checkout session's `active` lifecycle status. A confirmed payment takes precedence over session expiration. Unpaid active sessions remain pending.
+
+Reads reconcile the checkout ownership snapshot and listing status atomically. An unchanged read keeps its aggregate version, and a stale poll cannot overwrite a webhook-confirmed paid checkout. Polling does not fabricate webhook receipts or queue lifecycle events. Signed provider webhooks remain responsible for recording payment resources and queueing events; a later webhook still queues its event once after polling has recovered the checkout status.
+
 PayMongo is the source of truth for payment resources and merchant settlement. APICenter is the source of truth for the project/environment ownership mapping, payment listing and reconciliation metadata it records, webhook verification receipts, and event delivery state. A consumer stores only the local ledger and access projection its product needs. APICenter's outbox reclaims publishing rows after five minutes, retries with backoff, and quarantines after 20 failed attempts.
 
 Public responses and events never expose raw PayMongo IDs. Provider IDs are encoded as opaque versioned IDs such as `pi_v1_*` and `chk_v1_*`.

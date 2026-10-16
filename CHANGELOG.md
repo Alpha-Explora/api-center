@@ -4,6 +4,10 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ## Unreleased
 
+### Fixed
+
+- Recognize completed PayMongo payments in active checkout sessions, refresh checkout reads by ID and reference, and reconcile saved status without regressing confirmed payments. Include webhook signing-secret references on gateway deployments.
+
 ### Added
 
 - Add the contract-backed APICenter 2.0.0 server-side SDK for shared services and payments.

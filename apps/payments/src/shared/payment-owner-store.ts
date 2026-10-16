@@ -149,6 +149,34 @@ export class PaymentOwnerStore {
     this.saveInMemory(record);
   }
 
+  /** Refresh checkout facts atomically without regressing a payment confirmed by a concurrent webhook. */
+  async reconcileCheckout(id: string, context: PaymentContext, fresh: Record<string, unknown> & { status: string }): Promise<OwnerRecord> {
+    if (this.pool) {
+      const result = await this.pool.query(
+        `UPDATE shared_payment.resource_owners
+         SET snapshot = snapshot || $5::jsonb, status = $6,
+             aggregate_version = aggregate_version + 1, updated_at = now()
+         WHERE environment = $1 AND resource_type = 'checkout' AND resource_id = $2
+           AND tribe_id = $3 AND project_id = $4
+           AND status IS DISTINCT FROM 'paid' AND snapshot->>'status' IS DISTINCT FROM 'paid'
+           AND snapshot IS DISTINCT FROM snapshot || $5::jsonb
+         RETURNING *`,
+        [context.environment, id, context.tribeId, context.projectId, JSON.stringify(fresh), fresh.status],
+      );
+      if (result.rows[0]) return this.fromRow(result.rows[0]);
+      return this.assertOwned('checkout', id, context);
+    }
+    const record = this.memory.get(this.key(context.environment, 'checkout', id));
+    if (!record || record.tribeId !== context.tribeId || record.projectId !== context.projectId) {
+      throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
+    }
+    const snapshot = { ...record.snapshot, ...fresh };
+    if (record.status === 'paid' || record.snapshot.status === 'paid'
+      || Object.entries(fresh).every(([key, value]) => record.snapshot[key] === value)) return record;
+    this.saveInMemory({ ...record, snapshot, status: String(fresh.status) });
+    return this.memory.get(this.key(context.environment, 'checkout', id))!;
+  }
+
   /**
    * Commits a signature-verified webhook as one unit: the receipt, the owner state changes and the outbox
    * event. A provider event ID that was already received changes nothing, so a redelivery cannot update

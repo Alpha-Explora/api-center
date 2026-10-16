@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { MemoryPaymentStore, assertTribeCanRead } from '../../shared/payment-store';
-import { isMockMode, paymongoRequest, providerMode } from '../../shared/paymongo-client';
-import { normalizeAmount } from './checkout.model';
+import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
+import { checkoutPaymentStatus, normalizeAmount } from './checkout.model';
 
 export class CheckoutService {
   constructor(private readonly store = MemoryPaymentStore.getInstance()) {}
@@ -61,7 +61,7 @@ export class CheckoutService {
     const session = {
       checkoutId,
       provider: 'paymongo',
-      status: attributes.status || 'pending',
+      status: checkoutPaymentStatus(attributes),
       referenceId: chargeData.referenceId,
       redirectUrl: attributes.checkout_url || chargeData.successUrl,
       expiresAt: attributes.expires_at ? new Date(attributes.expires_at * 1000).toISOString() : undefined,
@@ -90,12 +90,14 @@ export class CheckoutService {
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
+    if (providerData.id !== toProviderId('chk', checkoutId)) {
+      throw new PayMongoError('PayMongo returned a different checkout session', 502, 'PROVIDER_RESOURCE_MISMATCH');
+    }
     return {
       checkoutId: toPublicId('chk', providerData.id || checkoutId),
       provider: 'paymongo',
-      status: attributes.status || 'pending',
-      redirectUrl: attributes.checkout_url,
-      createdAt: new Date().toISOString(),
+      status: checkoutPaymentStatus(attributes),
+      ...(attributes.checkout_url ? { redirectUrl: attributes.checkout_url } : {}),
     };
   }
 
@@ -103,9 +105,13 @@ export class CheckoutService {
     const stored = await this.store.getCheckoutSessionStatus(checkoutId);
     if (stored) {
       assertTribeCanRead(stored, options.tribeId);
-      return stored;
+      if (stored.status === 'paid' || isMockMode()) return stored;
     }
-    return this.getCheckoutSession(checkoutId);
+    const fresh = await this.getCheckoutSession(checkoutId);
+    if (!stored) return fresh;
+    const current = await this.store.getCheckoutSessionStatus(checkoutId);
+    if (current?.status === 'paid') return current;
+    return this.store.updateCheckoutStatus(checkoutId, fresh);
   }
 
   async getCheckoutStatusByReference(referenceId: string, options: { tribeId?: string } = {}) {
@@ -113,7 +119,7 @@ export class CheckoutService {
       throw new PayMongoError('A tribe context is required to look up checkout status by reference.', 400);
     }
     const stored = await this.store.getCheckoutSessionByReference(referenceId, options.tribeId);
-    if (stored) return stored;
+    if (stored) return this.getCheckoutStatus(stored.checkoutId, options);
     throw new PayMongoError(`Checkout session for reference '${referenceId}' was not found.`, 404);
   }
 
