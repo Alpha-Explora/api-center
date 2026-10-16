@@ -68,6 +68,36 @@ const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
      AND shared_payment.resource_owners.project_id = EXCLUDED.project_id
    RETURNING aggregate_version`;
 
+const TERMINAL_READ_STATUSES: Record<string, string[]> = {
+  intent: ['succeeded', 'cancelled'],
+  subscription: ['cancelled', 'incomplete_cancelled'],
+  invoice: ['paid', 'void', 'uncollectible'],
+};
+
+const UPSERT_FRESH_READ = `INSERT INTO shared_payment.resource_owners AS current_owner
+    (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
+     amount_minor, currency, status, provider_reference)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
+   ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
+     snapshot = CASE
+       WHEN lower(COALESCE(current_owner.status, '')) = ANY($13::text[])
+         THEN (current_owner.snapshot || EXCLUDED.snapshot) || jsonb_build_object('status', current_owner.status)
+       WHEN lower(COALESCE(current_owner.snapshot->>'status', '')) = ANY($13::text[])
+         THEN (current_owner.snapshot || EXCLUDED.snapshot) || jsonb_build_object('status', current_owner.snapshot->>'status')
+       ELSE current_owner.snapshot || EXCLUDED.snapshot END,
+     amount_minor = COALESCE(EXCLUDED.amount_minor, current_owner.amount_minor),
+     currency = COALESCE(EXCLUDED.currency, current_owner.currency),
+     status = CASE
+       WHEN lower(COALESCE(current_owner.status, '')) = ANY($13::text[]) THEN current_owner.status
+       WHEN lower(COALESCE(current_owner.snapshot->>'status', '')) = ANY($13::text[]) THEN current_owner.snapshot->>'status'
+       ELSE COALESCE(EXCLUDED.status, current_owner.status) END,
+     provider_reference = COALESCE(current_owner.provider_reference, EXCLUDED.provider_reference),
+     aggregate_version = current_owner.aggregate_version + 1,
+     updated_at = now()
+   WHERE current_owner.tribe_id = EXCLUDED.tribe_id
+     AND current_owner.project_id = EXCLUDED.project_id
+   RETURNING *`;
+
 function ownerFacts(record: OwnerRecord): { amountMinor: string | null; currency: string | null; status: string | null } {
   const amount = record.amountMinor ?? record.snapshot.amountMinor ?? (typeof record.snapshot.amount === 'number'
     || typeof record.snapshot.amount === 'string' ? record.snapshot.amount : undefined)
@@ -175,6 +205,44 @@ export class PaymentOwnerStore {
       || Object.entries(fresh).every(([key, value]) => record.snapshot[key] === value)) return record;
     this.saveInMemory({ ...record, snapshot, status: String(fresh.status) });
     return this.memory.get(this.key(context.environment, 'checkout', id))!;
+  }
+
+  /** Persists a provider read while retaining owner metadata and any already-confirmed terminal status. */
+  async reconcileFreshRead(type: 'intent' | 'subscription' | 'invoice', id: string, context: PaymentContext,
+    fresh: Record<string, unknown>): Promise<OwnerRecord> {
+    const snapshot = Object.fromEntries(Object.entries(fresh).filter(([, value]) => value !== undefined));
+    const record: OwnerRecord = { ...context, resourceType: type, resourceId: id, snapshot };
+    const terminalStatuses = TERMINAL_READ_STATUSES[type];
+    if (this.pool) {
+      const result = await this.pool.query(UPSERT_FRESH_READ, [...ownerParams(record), terminalStatuses]);
+      if (result.rows[0]) return this.fromRow(result.rows[0]);
+      throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+    }
+
+    const key = this.key(context.environment, type, id);
+    const existing = this.memory.get(key);
+    if (existing && (existing.tribeId !== context.tribeId || existing.projectId !== context.projectId)) {
+      throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+    }
+    if (!existing) {
+      this.saveInMemory(record);
+      return this.memory.get(key)!;
+    }
+
+    const snapshotStatus = String(existing.snapshot.status ?? '').toLowerCase();
+    const columnStatus = existing.status?.toLowerCase() ?? '';
+    const terminalStatus = TERMINAL_READ_STATUSES[type].includes(columnStatus)
+      ? columnStatus : TERMINAL_READ_STATUSES[type].includes(snapshotStatus) ? snapshotStatus : undefined;
+    const status = terminalStatus ?? ownerFacts(record).status ?? existing.status ?? null;
+    const mergedSnapshot = { ...existing.snapshot, ...snapshot,
+      ...(terminalStatus ? { status: terminalStatus } : {}) };
+    const facts = ownerFacts(record);
+    const updated = { ...existing, snapshot: mergedSnapshot,
+      amountMinor: facts.amountMinor ?? existing.amountMinor ?? null,
+      currency: facts.currency ?? existing.currency ?? null,
+      status, aggregateVersion: (existing.aggregateVersion ?? 0) + 1 };
+    this.memory.set(key, updated);
+    return updated;
   }
 
   /**

@@ -7,6 +7,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 ### Fixed
 
 - Recognize completed PayMongo payments in active checkout sessions, refresh checkout reads by ID and reference, and reconcile saved status without regressing confirmed payments. Include webhook signing-secret references on gateway deployments.
+- Persist fresh payment-intent, subscription, and invoice reads while preserving owner metadata and confirmed terminal states.
 
 ### Added
 
