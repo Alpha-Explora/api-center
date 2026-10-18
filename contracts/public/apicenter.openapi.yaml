@@ -198,6 +198,12 @@ paths:
       parameters:
         - $ref: "#/components/parameters/PaymentIntentId"
         - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmPaymentIntentRequest"
       responses:
         "200":
           description: Payment intent confirmed
@@ -923,6 +929,24 @@ components:
           type: string
         amount:
           $ref: "#/components/schemas/Money"
+    ConfirmPaymentIntentRequest:
+      type: object
+      required:
+        - paymentMethodId
+        - clientKey
+        - returnUrl
+      properties:
+        paymentMethodId:
+          type: string
+          minLength: 1
+          description: Payment method ID created through the provider's client-side payment flow.
+        clientKey:
+          type: string
+          minLength: 1
+          description: Client key returned for this payment intent.
+        returnUrl:
+          type: string
+          format: uri
     CustomerCreateRequest:
       type: object
       required:
@@ -1020,6 +1044,21 @@ components:
         aggregateVersion:
           type: integer
           minimum: 1
+        clientKey:
+          type: string
+          description: Short-lived client key for client-side operations on this payment intent; not a secret API key.
+        nextAction:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [redirect]
+            redirectUrl:
+              type: string
+              format: uri
+            returnUrl:
+              type: string
+              format: uri
     Customer:
       type: object
       required:
@@ -1051,6 +1090,7 @@ components:
           type: string
           enum:
             - pending
+            - processing
             - succeeded
             - failed
         amount:

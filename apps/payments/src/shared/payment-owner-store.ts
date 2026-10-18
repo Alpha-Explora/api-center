@@ -58,7 +58,9 @@ const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
      amount_minor, currency, status, provider_reference)
    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
-     snapshot = EXCLUDED.snapshot,
+     snapshot = CASE WHEN EXCLUDED.resource_type = 'payment_link'
+       THEN shared_payment.resource_owners.snapshot || EXCLUDED.snapshot
+       ELSE EXCLUDED.snapshot END,
      amount_minor = COALESCE(EXCLUDED.amount_minor, shared_payment.resource_owners.amount_minor),
      currency = COALESCE(EXCLUDED.currency, shared_payment.resource_owners.currency),
      status = COALESCE(EXCLUDED.status, shared_payment.resource_owners.status),
@@ -67,6 +69,9 @@ const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
      updated_at = now()
    WHERE shared_payment.resource_owners.tribe_id = EXCLUDED.tribe_id
      AND shared_payment.resource_owners.project_id = EXCLUDED.project_id
+     AND NOT (EXCLUDED.resource_type = 'refund'
+       AND (COALESCE(shared_payment.resource_owners.snapshot->>'status' IN ('succeeded', 'failed'), false)
+         OR COALESCE(shared_payment.resource_owners.status IN ('succeeded', 'failed'), false)))
    RETURNING aggregate_version`;
 
 const TERMINAL_READ_STATUSES: Record<string, string[]> = {
@@ -186,10 +191,64 @@ export class PaymentOwnerStore {
   async save(record: OwnerRecord): Promise<void> {
     if (this.pool) {
       const result = await this.pool.query(UPSERT_OWNER, ownerParams(record));
-      if (!result.rowCount) throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+      if (!result.rowCount) {
+        await this.assertOwned(record.resourceType, record.resourceId, record);
+      }
       return;
     }
     this.saveInMemory(record);
+  }
+
+  /** Refresh a refund without allowing a stale read to replace a webhook-confirmed terminal status. */
+  async reconcileRefund(id: string, context: PaymentContext, fresh: Record<string, unknown> & { status: string }): Promise<OwnerRecord> {
+    const merged = { ...((await this.assertOwned('refund', id, context)).snapshot), ...fresh };
+    const record = { ...context, resourceType: 'refund', resourceId: id, snapshot: merged };
+    const facts = ownerFacts(record);
+    if (this.pool) {
+      const result = await this.pool.query(
+        `UPDATE shared_payment.resource_owners
+         SET snapshot = snapshot || $5::jsonb,
+             amount_minor = COALESCE($6::bigint, amount_minor),
+             currency = COALESCE($7, currency), status = $8,
+             aggregate_version = aggregate_version + 1, updated_at = now()
+         WHERE environment = $1 AND resource_type = 'refund' AND resource_id = $2
+           AND tribe_id = $3 AND project_id = $4
+           AND snapshot->>'status' IS DISTINCT FROM 'succeeded'
+           AND snapshot->>'status' IS DISTINCT FROM 'failed'
+           AND status IS DISTINCT FROM 'succeeded'
+           AND status IS DISTINCT FROM 'failed'
+           AND snapshot IS DISTINCT FROM snapshot || $5::jsonb
+         RETURNING *`,
+        [context.environment, id, context.tribeId, context.projectId, JSON.stringify(fresh),
+          facts.amountMinor, facts.currency, fresh.status],
+      );
+      if (result.rows[0]) return this.fromRow(result.rows[0]);
+      return this.assertOwned('refund', id, context);
+    }
+    const current = this.memory.get(this.key(context.environment, 'refund', id));
+    if (!current || current.tribeId !== context.tribeId || current.projectId !== context.projectId) {
+      throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
+    }
+    if (['succeeded', 'failed'].includes(String(current.snapshot.status ?? current.status))
+      || Object.entries(fresh).every(([key, value]) => current.snapshot[key] === value)) return current;
+    this.saveInMemory({ ...current, snapshot: { ...current.snapshot, ...fresh }, status: fresh.status });
+    return this.memory.get(this.key(context.environment, 'refund', id))!;
+  }
+
+  /** Finds refund owners only for a provider payment referenced by a verified webhook. */
+  async findWebhookRefundsByPaymentId(paymentId: string, environment: 'test' | 'live'): Promise<OwnerRecord[]> {
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
+                provider_reference, snapshot, amount_minor, currency, status, created_at, aggregate_version
+         FROM shared_payment.resource_owners
+         WHERE environment = $1 AND resource_type = 'refund' AND snapshot->>'paymentId' = $2`,
+        [environment, paymentId],
+      );
+      return result.rows.map((row) => this.fromRow(row));
+    }
+    return [...this.memory.values()].filter((record) => record.environment === environment
+      && record.resourceType === 'refund' && record.snapshot.paymentId === paymentId);
   }
 
   /** Refresh checkout facts atomically without regressing a payment confirmed by a concurrent webhook. */
@@ -218,6 +277,37 @@ export class PaymentOwnerStore {
       || Object.entries(fresh).every(([key, value]) => record.snapshot[key] === value)) return record;
     this.saveInMemory({ ...record, snapshot, status: String(fresh.status) });
     return this.memory.get(this.key(context.environment, 'checkout', id))!;
+  }
+
+  /** Applies PayMongo payment-link fields to the current owner without replacing a confirmed paid state. */
+  async reconcilePaymentLink(id: string, context: PaymentContext, fresh: Record<string, unknown>): Promise<OwnerRecord> {
+    const freshStatus = typeof fresh.status === 'string' ? fresh.status : null;
+    if (this.pool) {
+      const result = await this.pool.query(
+        `UPDATE shared_payment.resource_owners
+         SET snapshot = CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid'
+           THEN (snapshot || $5::jsonb) || '{"status":"paid"}'::jsonb
+           ELSE snapshot || $5::jsonb END,
+             status = CASE WHEN status = 'paid' OR snapshot->>'status' = 'paid'
+               THEN 'paid' ELSE COALESCE($6, status) END,
+             aggregate_version = aggregate_version + 1, updated_at = now()
+         WHERE environment = $1 AND resource_type = 'payment_link' AND resource_id = $2
+           AND tribe_id = $3 AND project_id = $4
+         RETURNING *`,
+        [context.environment, id, context.tribeId, context.projectId, JSON.stringify(fresh), freshStatus],
+      );
+      if (result.rows[0]) return this.fromRow(result.rows[0]);
+      return this.assertOwned('payment_link', id, context);
+    }
+    const key = this.key(context.environment, 'payment_link', id);
+    const record = this.memory.get(key);
+    if (!record || record.tribeId !== context.tribeId || record.projectId !== context.projectId) {
+      throw new PayMongoError('Payment resource was not found', 404, 'NOT_FOUND');
+    }
+    const paid = record.status === 'paid' || record.snapshot.status === 'paid';
+    const snapshot = { ...record.snapshot, ...fresh, ...(paid ? { status: 'paid' } : {}) };
+    this.saveInMemory({ ...record, snapshot, status: paid ? 'paid' : freshStatus ?? record.status });
+    return this.memory.get(key)!;
   }
 
   /** Persists a provider read while retaining owner metadata and any already-confirmed terminal status. */
@@ -303,7 +393,17 @@ export class PaymentOwnerStore {
       let aggregateVersion: number | undefined;
       for (const record of webhook.updates) {
         const saved = await client.query(UPSERT_OWNER, ownerParams(record));
-        if (!saved.rowCount) throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+        if (!saved.rowCount) {
+          const current = await client.query(
+            `SELECT tribe_id, project_id FROM shared_payment.resource_owners
+             WHERE environment = $1 AND resource_type = $2 AND resource_id = $3`,
+            [record.environment, record.resourceType, record.resourceId],
+          );
+          if (!current.rows[0] || current.rows[0].tribe_id !== record.tribeId
+            || current.rows[0].project_id !== record.projectId) {
+            throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+          }
+        }
         if (this.isAggregate(webhook.outbox, record)) aggregateVersion = Number(saved.rows[0].aggregate_version);
       }
 
@@ -370,9 +470,16 @@ export class PaymentOwnerStore {
     }
     const key = this.key(record.environment, record.resourceType, record.resourceId);
     const existing = this.memory.get(key);
+    if (record.resourceType === 'refund'
+      && ['succeeded', 'failed'].includes(String(existing?.snapshot.status ?? existing?.status))) {
+      return existing!.aggregateVersion ?? 1;
+    }
     const aggregateVersion = (existing?.aggregateVersion ?? 0) + 1;
     const facts = ownerFacts(record);
-    this.memory.set(key, { ...record, referenceId: record.referenceId || existing?.referenceId,
+    this.memory.set(key, { ...record,
+      snapshot: record.resourceType === 'payment_link' && existing
+        ? { ...existing.snapshot, ...record.snapshot } : record.snapshot,
+      referenceId: record.referenceId || existing?.referenceId,
       providerReference: existing?.providerReference ?? record.providerReference ?? null,
       amountMinor: facts.amountMinor ?? existing?.amountMinor ?? null,
       currency: facts.currency ?? existing?.currency ?? null,

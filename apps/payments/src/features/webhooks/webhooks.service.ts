@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { PayMongoError } from '../../shared/payment-errors';
 import { OwnerRecord, PaymentOwnerStore, VerifiedWebhook } from '../../shared/payment-owner-store';
 import { toPublicId } from '../../shared/payment-ids';
+import { isRefundStatus, RefundsService } from '../refunds/refunds.service';
+import { isMockMode } from '../../shared/paymongo-client';
 
 const isPaidPayment = (payment: any): boolean => payment?.type === 'payment'
   && typeof payment.id === 'string' && payment.id.startsWith('pay_') && payment.attributes?.status === 'paid';
@@ -27,7 +29,7 @@ function linkObjectPaymentId(link: any): string | undefined {
 }
 
 export class WebhooksService {
-  constructor(private readonly owners = PaymentOwnerStore.getInstance()) {}
+  constructor(private readonly owners = PaymentOwnerStore.getInstance(), private readonly refunds = new RefundsService()) {}
   async processWebhook(payload: any, options: { signatureHeader?: string; rawBody?: Buffer; environment?: string } = {}) {
     const environment = options.environment;
     const secret = environment === 'live' ? process.env.PAYMONGO_LIVE_WEBHOOK_SECRET : process.env.PAYMONGO_TEST_WEBHOOK_SECRET;
@@ -55,6 +57,9 @@ export class WebhooksService {
     const resourceData = payload?.data?.attributes?.data || {};
     if (payload?.data?.attributes?.livemode !== (environment === 'live')) {
       throw new PayMongoError('Webhook environment does not match payment', 403, 'ENVIRONMENT_MISMATCH');
+    }
+    if (eventType === 'payment.refund.updated' || eventType === 'payment.refunded') {
+      return this.processRefundWebhook({ providerEventId, eventType, resourceData, environment, rawBody: options.rawBody });
     }
     let source: OwnerRecord | undefined;
     let payments: any[] = [];
@@ -91,7 +96,7 @@ export class WebhooksService {
       const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
         payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
         receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
-          snapshot: { ...source.snapshot, status: 'paid', paidAt: new Date().toISOString(),
+          snapshot: { status: 'paid', paidAt: new Date().toISOString(),
             ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } }] });
       return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
     }
@@ -123,6 +128,76 @@ export class WebhooksService {
     }
     return { event: applied.duplicate ? 'duplicate' : 'processed',
       data: { eventType, updated: applied.duplicate ? 0 : paid.length, queued: applied.queued } };
+  }
+
+  private async processRefundWebhook(input: { providerEventId: string; eventType: string; resourceData: any;
+    environment: 'test' | 'live'; rawBody: Buffer }) {
+    const { providerEventId, eventType, resourceData, environment, rawBody } = input;
+    const attributes = resourceData?.attributes || {};
+    const sources = new Map<string, OwnerRecord>();
+    const addSource = async (providerRefundId: string) => {
+      if (!providerRefundId.startsWith('ref_')) return;
+      const refundId = toPublicId('ref', providerRefundId);
+      const owner = await this.owners.findWebhookSource('refund', refundId, environment);
+      if (owner) sources.set(owner.resourceId, owner);
+    };
+
+    const isRefundResource = resourceData?.type === 'refund'
+      && typeof resourceData.id === 'string' && resourceData.id.startsWith('ref_');
+    const isPaymentResource = resourceData?.type === 'payment'
+      && typeof resourceData.id === 'string' && resourceData.id.startsWith('pay_');
+    if (isRefundResource) {
+      await addSource(resourceData.id);
+    }
+    if (isPaymentResource && typeof attributes.refund_id === 'string') await addSource(attributes.refund_id);
+
+    const providerPaymentId = isPaymentResource ? resourceData.id : undefined;
+    if (isPaymentResource && typeof attributes.payment_id === 'string'
+      && toPublicId('pay', attributes.payment_id) !== toPublicId('pay', resourceData.id)) {
+      return { event: 'ignored', data: { eventType, updated: false } };
+    }
+    if (sources.size === 0 && providerPaymentId) {
+      const related = await this.owners.findWebhookRefundsByPaymentId(toPublicId('pay', providerPaymentId), environment);
+      for (const owner of related) sources.set(owner.resourceId, owner);
+    }
+    if (sources.size === 0) return { event: 'ignored', data: { eventType, updated: false } };
+
+    const directRefund = isRefundResource;
+    const updates: OwnerRecord[] = [];
+    for (const owner of sources.values()) {
+      let fresh: Record<string, unknown>;
+      if (directRefund && owner.resourceId === toPublicId('ref', resourceData.id)) {
+        const status = typeof attributes.status === 'string' ? attributes.status
+          : eventType === 'payment.refunded' ? 'succeeded' : undefined;
+        if (!isRefundStatus(status)) continue;
+        fresh = {
+          refundId: owner.resourceId,
+          ...(attributes.payment_id ? { paymentId: toPublicId('pay', attributes.payment_id) } : {}),
+          status,
+          ...(attributes.amount !== undefined ? { amount: attributes.amount } : {}),
+          ...(attributes.currency ? { currency: attributes.currency } : {}),
+          ...(attributes.reason ? { reason: attributes.reason } : {}),
+          ...(attributes.updated_at ? { updatedAt: new Date(attributes.updated_at * 1000).toISOString() } : {}),
+        };
+      } else {
+        if (isMockMode()) continue;
+        fresh = await this.refunds.getRefund(owner.resourceId);
+        if (!isRefundStatus(fresh.status)) continue;
+      }
+      updates.push({ ...owner, status: String(fresh.status), snapshot: { ...owner.snapshot, ...fresh } });
+    }
+    if (!updates.length) return { event: 'ignored', data: { eventType, updated: false } };
+
+    const applied = await this.owners.applyVerifiedWebhook({
+      providerEventId,
+      environment,
+      eventType,
+      payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
+      receiptStatus: 'processed',
+      updates,
+    });
+    return { event: applied.duplicate ? 'duplicate' : 'processed',
+      data: { eventType, updated: applied.duplicate ? 0 : updates.length } };
   }
 
   /**
