@@ -68,7 +68,7 @@ export type SubscriptionStatus =
   | 'incomplete'
   | 'expired';
 
-export type RefundStatus = 'pending' | 'succeeded' | 'failed';
+export type RefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed';
 
 export interface PaymentEventEnvelope<T = Record<string, unknown>> {
   eventId: string;

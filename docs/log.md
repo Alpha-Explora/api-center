@@ -3,6 +3,7 @@
 ## 2026-10-17
 
 - Documented checkout status reconciliation, the distinction between polling and webhook events, and recovery of disabled PayMongo webhooks with matching secrets on gateway and payments runtime.
+- Updated the consumer refunds guide and public status contract to document refreshed provider-backed refund states.
 - Deployment and provider acceptance remain separate rollout checks; this entry records repository behavior and operator instructions.
 - Updated the public payment-intent guide with confirmation fields, client-key handling, and redirect completion guidance.
 
