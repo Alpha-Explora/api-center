@@ -1051,6 +1051,7 @@ components:
           type: string
           enum:
             - pending
+            - processing
             - succeeded
             - failed
         amount:
