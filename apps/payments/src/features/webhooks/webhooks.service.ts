@@ -96,7 +96,7 @@ export class WebhooksService {
       const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
         payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
         receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
-          snapshot: { ...source.snapshot, status: 'paid', paidAt: new Date().toISOString(),
+          snapshot: { status: 'paid', paidAt: new Date().toISOString(),
             ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } }] });
       return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
     }
