@@ -406,7 +406,9 @@ app.get('/refunds/:refundId', async (req: Request, res: Response) => {
   try {
     const refundId = String(req.params.refundId);
     const owner = await owned('refund', refundId, req);
-    return ok(res, owner.snapshot);
+    const record = isMockMode() ? owner
+      : await owners.reconcileRefund(refundId, paymentContext(req), await refundsService.getRefund(refundId));
+    return ok(res, { ...record.snapshot, aggregateVersion: record.aggregateVersion });
   } catch (err) { return handleCustomError(res, err); }
 });
 

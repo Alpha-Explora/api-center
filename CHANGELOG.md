@@ -7,11 +7,13 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 ### Fixed
 
 - Recognize completed PayMongo payments in active checkout sessions, refresh checkout reads by ID and reference, and reconcile saved status without regressing confirmed payments. Include webhook signing-secret references on gateway deployments.
+- Refresh refunds from PayMongo on reads and apply signed refund status events without regressing terminal refund states.
 - Reconcile payment-link archive responses against the current owner so concurrent paid webhooks and provider archive fields are both preserved.
 
 ### Added
 
 - Add the contract-backed APICenter 2.0.0 server-side SDK for shared services and payments.
+- Allow payment-intent confirmation with a payment method, return URL, and client key, and return the provider's next action for customer redirects.
 
 ### Changed
 

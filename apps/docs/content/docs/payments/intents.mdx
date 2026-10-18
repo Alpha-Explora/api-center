@@ -3,7 +3,7 @@ title: "Payment Intents API"
 description: "Create, retrieve, confirm, and cancel payment intents through the public payment API."
 ---
 
-Payment intents expose a provider-neutral way to create and track a payment. The public API currently accepts an amount and a reference when creating an intent. Payment-method tokenization and manual capture are not part of this contract.
+Payment intents expose a provider-neutral way to create, attach a client-created payment method, and track a payment. Payment-method tokenization stays client-side; do not send card numbers or other sensitive payment data to your backend. The short-lived `clientKey` returned for an intent is scoped to that intent and is not a secret API key.
 
 For a Node.js backend, use `api.payments.intents.create(...)` or `api.payments.intents.createQrPh(...)` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
 
@@ -27,7 +27,7 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/intents \
   }'
 ```
 
-A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`.
+A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`. It also includes `clientKey` when PayMongo returns one; pass that key back when attaching a payment method.
 
 ## Retrieve, confirm, or cancel
 
@@ -35,4 +35,14 @@ A successful response includes a `paymentIntentId`, normalized `status`, `amount
 - **Confirm**: `POST /api/v1/payments/intents/{paymentIntentId}/confirm` with `payments:intents:write`.
 - **Cancel**: `POST /api/v1/payments/intents/{paymentIntentId}/cancel` with `payments:intents:write`.
 
-Confirm and cancel require their own `Idempotency-Key` values. The current public contract does not accept a payment-method token or return a client secret for these operations.
+Confirm and cancel require their own `Idempotency-Key` values. Confirmation accepts a client-created `paymentMethodId`, the intent's `clientKey`, and a `returnUrl`:
+
+```json
+{
+  "paymentMethodId": "pm_example",
+  "clientKey": "pi_example_client_key",
+  "returnUrl": "https://merchant.example/payments/complete"
+}
+```
+
+For the SDK, pass the same fields as the second argument to `api.payments.intents.confirm(paymentIntentId, input, options)`. When customer authentication is needed, the response includes `nextAction.redirectUrl`; send the customer there. The intent's `GET` response also returns the current `nextAction` if the original confirmation response was lost. A return to `returnUrl` is not proof of payment; retrieve the intent or verify the payment webhook before fulfilling an order.
