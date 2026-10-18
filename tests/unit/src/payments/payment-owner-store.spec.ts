@@ -58,6 +58,33 @@ describe('PaymentOwnerStore', () => {
     await expect(store.listRecords(owner, { cursor: 'bad' })).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it('clears a completed intent redirect and keeps repeated reads at the same version', async () => {
+    const store = new PaymentOwnerStore('');
+    await store.save({ ...owner, resourceType: 'intent', resourceId: 'pi_1',
+      referenceId: 'order-1', snapshot: { status: 'awaiting_next_action', clientKey: 'client-key',
+        nextAction: { type: 'redirect', redirectUrl: 'https://provider.example/authorize' } } });
+    const completed = await store.reconcileFreshRead('intent', 'pi_1', owner, { status: 'succeeded', nextAction: undefined });
+    expect(completed.snapshot).not.toHaveProperty('nextAction');
+    expect(completed).toMatchObject({ referenceId: 'order-1', aggregateVersion: 2,
+      snapshot: { status: 'succeeded', clientKey: 'client-key' } });
+    const repeated = await store.reconcileFreshRead('intent', 'pi_1', owner, { status: 'succeeded' });
+    expect(repeated.aggregateVersion).toBe(2);
+    const stale = await store.reconcileFreshRead('intent', 'pi_1', owner, {
+      status: 'awaiting_next_action', nextAction: { type: 'redirect', redirectUrl: 'https://provider.example/stale' } });
+    expect(stale.snapshot).not.toHaveProperty('nextAction');
+    expect(stale.status).toBe('succeeded');
+    expect(stale.aggregateVersion).toBe(2);
+  });
+
+  it.each(['subscription', 'invoice'] as const)('preserves the version of an unchanged %s read', async (type) => {
+    const store = new PaymentOwnerStore('');
+    await store.save({ ...owner, resourceType: type, resourceId: 'resource-1',
+      snapshot: { status: 'pending', amount: 100, currency: 'PHP' } });
+    const record = await store.reconcileFreshRead(type, 'resource-1', owner,
+      { currency: 'PHP', amount: 100, status: 'pending' });
+    expect(record.aggregateVersion).toBe(1);
+  });
+
   it('lists plan snapshots for only the calling project and environment', async () => {
     const store = new PaymentOwnerStore('');
     await store.save({ ...owner, resourceType: 'plan', resourceId: 'plan_a', snapshot: { planId: 'plan_a' } });
