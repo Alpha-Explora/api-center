@@ -10,6 +10,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 - Refresh refunds from PayMongo on reads and apply signed refund status events without regressing terminal refund states.
 - Reconcile payment-link archive responses against the current owner so concurrent paid webhooks and provider archive fields are both preserved.
 - Persist fresh payment-intent, subscription, and invoice reads while preserving owner metadata and confirmed terminal states. Clear completed intent redirects and preserve aggregate versions when provider facts are unchanged.
+- Register the provider payment found during checkout polling so the existing refund path can resolve it.
 
 ### Added
 

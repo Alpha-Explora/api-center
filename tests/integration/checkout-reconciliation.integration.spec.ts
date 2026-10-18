@@ -144,6 +144,10 @@ describe('checkout reconciliation through the payment runtime', () => {
     });
     expect(await (await request(`/checkout/sessions/${checkoutId}`)).json())
       .toMatchObject({ data: { status: 'paid', aggregateVersion: 2 } });
+    const records = await request('/payments/records?type=checkout&status=paid');
+    expect(await records.json()).toMatchObject({ data: { records: expect.arrayContaining([
+      expect.objectContaining({ id: checkoutId, status: 'paid' }),
+    ]) } });
   });
 
   it('still queues exactly one signed webhook event after polling recovered the payment', async () => {

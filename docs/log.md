@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-10-19
+
+- Updated payment recovery ownership to describe payment records registered by checkout polling, while retaining signed webhook receipts and event publication as separate operations.
+
 ## 2026-10-17
 
 - Documented checkout status reconciliation, the distinction between polling and webhook events, and recovery of disabled PayMongo webhooks with matching secrets on gateway and payments runtime.

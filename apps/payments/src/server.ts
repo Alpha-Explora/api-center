@@ -113,10 +113,25 @@ async function owned(type: string, id: string, req: Request) {
 }
 
 async function checkoutSnapshot(owner: OwnerRecord) {
-  const record = owner.snapshot.status === 'paid' || isMockMode() ? owner
-    : await owners.reconcileCheckout(owner.resourceId, owner,
-      await checkoutService.getCheckoutSession(owner.resourceId));
-  return { ...record.snapshot, aggregateVersion: record.aggregateVersion };
+  if (isMockMode()) return { ...owner.snapshot, aggregateVersion: owner.aggregateVersion };
+  const paid = owner.status === 'paid' || owner.snapshot.status === 'paid';
+  const paymentId = owner.snapshot.paymentId;
+  if (paid && typeof paymentId === 'string') {
+    try {
+      const payment = await owners.assertOwned('payment', paymentId, owner);
+      if (payment.status === 'paid' || payment.snapshot.status === 'paid') {
+        return { ...owner.snapshot, status: 'paid', aggregateVersion: owner.aggregateVersion };
+      }
+    } catch (error) {
+      if (!(error instanceof PayMongoError) || error.code !== 'NOT_FOUND') throw error;
+    }
+  }
+  const { paidPayment, ...fresh } = await checkoutService.getCheckoutSession(owner.resourceId, { includePayment: true });
+  const record = await owners.reconcileCheckout(owner.resourceId, owner, fresh);
+  if (paidPayment) await owners.registerCheckoutPayment(record, paidPayment);
+  const snapshot = record.snapshot.status === 'paid' || record.status === 'paid'
+    ? { ...record.snapshot, status: 'paid' } : record.snapshot;
+  return { ...snapshot, aggregateVersion: record.aggregateVersion };
 }
 
 function idempotencyKey(req: Request): string | undefined {
