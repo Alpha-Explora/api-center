@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { isDeepStrictEqual } from 'node:util';
 import { PayMongoError } from './payment-errors';
 
 /** Trusted tenant identity used to scope payment resources. */
@@ -72,6 +73,48 @@ const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
        AND (COALESCE(shared_payment.resource_owners.snapshot->>'status' IN ('succeeded', 'failed'), false)
          OR COALESCE(shared_payment.resource_owners.status IN ('succeeded', 'failed'), false)))
    RETURNING aggregate_version`;
+
+const TERMINAL_READ_STATUSES: Record<string, string[]> = {
+  intent: ['succeeded', 'cancelled'],
+  subscription: ['cancelled', 'incomplete_cancelled'],
+  invoice: ['paid', 'void', 'uncollectible'],
+};
+
+const FRESH_READ_STATUS = `CASE
+  WHEN lower(COALESCE(current_owner.status, '')) = ANY($13::text[]) THEN current_owner.status
+  WHEN lower(COALESCE(current_owner.snapshot->>'status', '')) = ANY($13::text[]) THEN current_owner.snapshot->>'status'
+  ELSE COALESCE(EXCLUDED.status, current_owner.status) END`;
+
+const FRESH_READ_SNAPSHOT = `(CASE
+  WHEN lower(COALESCE(current_owner.status, '')) = ANY($13::text[])
+    THEN (current_owner.snapshot || EXCLUDED.snapshot) || jsonb_build_object('status', current_owner.status)
+  WHEN lower(COALESCE(current_owner.snapshot->>'status', '')) = ANY($13::text[])
+    THEN (current_owner.snapshot || EXCLUDED.snapshot) || jsonb_build_object('status', current_owner.snapshot->>'status')
+  ELSE current_owner.snapshot || EXCLUDED.snapshot END)
+  - CASE WHEN EXCLUDED.resource_type = 'intent' AND ($14::boolean
+      OR lower(COALESCE((${FRESH_READ_STATUS}), '')) = ANY($13::text[]))
+    THEN ARRAY['nextAction'] ELSE ARRAY[]::text[] END`;
+
+const UPSERT_FRESH_READ = `INSERT INTO shared_payment.resource_owners AS current_owner
+    (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
+     amount_minor, currency, status, provider_reference)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
+   ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
+     snapshot = ${FRESH_READ_SNAPSHOT},
+     amount_minor = COALESCE(EXCLUDED.amount_minor, current_owner.amount_minor),
+     currency = COALESCE(EXCLUDED.currency, current_owner.currency),
+     status = ${FRESH_READ_STATUS},
+     provider_reference = COALESCE(current_owner.provider_reference, EXCLUDED.provider_reference),
+     aggregate_version = current_owner.aggregate_version + 1,
+     updated_at = now()
+   WHERE current_owner.tribe_id = EXCLUDED.tribe_id
+     AND current_owner.project_id = EXCLUDED.project_id
+     AND ROW(current_owner.snapshot, current_owner.amount_minor, current_owner.currency,
+         current_owner.status, current_owner.provider_reference)
+       IS DISTINCT FROM ROW(${FRESH_READ_SNAPSHOT}, COALESCE(EXCLUDED.amount_minor, current_owner.amount_minor),
+         COALESCE(EXCLUDED.currency, current_owner.currency), (${FRESH_READ_STATUS}),
+         COALESCE(current_owner.provider_reference, EXCLUDED.provider_reference))
+   RETURNING *`;
 
 function ownerFacts(record: OwnerRecord): { amountMinor: string | null; currency: string | null; status: string | null } {
   const amount = record.amountMinor ?? record.snapshot.amountMinor ?? (typeof record.snapshot.amount === 'number'
@@ -267,6 +310,55 @@ export class PaymentOwnerStore {
     return this.memory.get(key)!;
   }
 
+  /** Persists a provider read while retaining owner metadata and any already-confirmed terminal status. */
+  async reconcileFreshRead(type: 'intent' | 'subscription' | 'invoice', id: string, context: PaymentContext,
+    fresh: Record<string, unknown>): Promise<OwnerRecord> {
+    const snapshot = Object.fromEntries(Object.entries(fresh).filter(([, value]) => value !== undefined));
+    const record: OwnerRecord = { ...context, resourceType: type, resourceId: id, snapshot };
+    const terminalStatuses = TERMINAL_READ_STATUSES[type];
+    const clearNextAction = type === 'intent' && Object.hasOwn(fresh, 'nextAction') && fresh.nextAction === undefined;
+    if (type === 'intent' && terminalStatuses.includes(String(snapshot.status).toLowerCase())) delete snapshot.nextAction;
+    if (this.pool) {
+      const result = await this.pool.query(UPSERT_FRESH_READ, [...ownerParams(record), terminalStatuses, clearNextAction]);
+      if (result.rows[0]) return this.fromRow(result.rows[0]);
+      try { return await this.assertOwned(type, id, context); }
+      catch (error) {
+        if (!(error instanceof PayMongoError) || error.code !== 'NOT_FOUND') throw error;
+        throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+      }
+    }
+
+    const key = this.key(context.environment, type, id);
+    const existing = this.memory.get(key);
+    if (existing && (existing.tribeId !== context.tribeId || existing.projectId !== context.projectId)) {
+      throw new PayMongoError('Payment resource belongs to another tribe', 403, 'FORBIDDEN');
+    }
+    if (!existing) {
+      this.saveInMemory(record);
+      return this.memory.get(key)!;
+    }
+
+    const snapshotStatus = String(existing.snapshot.status ?? '').toLowerCase();
+    const columnStatus = existing.status?.toLowerCase() ?? '';
+    const terminalStatus = TERMINAL_READ_STATUSES[type].includes(columnStatus)
+      ? columnStatus : TERMINAL_READ_STATUSES[type].includes(snapshotStatus) ? snapshotStatus : undefined;
+    const status = terminalStatus ?? ownerFacts(record).status ?? existing.status ?? null;
+    const mergedSnapshot: Record<string, unknown> = { ...existing.snapshot, ...snapshot,
+      ...(terminalStatus ? { status: terminalStatus } : {}) };
+    if (type === 'intent' && (clearNextAction || terminalStatuses.includes(String(status).toLowerCase()))) {
+      delete mergedSnapshot.nextAction;
+    }
+    const facts = ownerFacts(record);
+    const updated = { ...existing, snapshot: mergedSnapshot,
+      amountMinor: facts.amountMinor ?? existing.amountMinor ?? null,
+      currency: facts.currency ?? existing.currency ?? null,
+      status, aggregateVersion: (existing.aggregateVersion ?? 0) + 1 };
+    if (isDeepStrictEqual(existing.snapshot, updated.snapshot) && existing.amountMinor === updated.amountMinor
+      && existing.currency === updated.currency && existing.status === updated.status) return existing;
+    this.memory.set(key, updated);
+    return updated;
+  }
+
   /**
    * Commits a signature-verified webhook as one unit: the receipt, the owner state changes and the outbox
    * event. A provider event ID that was already received changes nothing, so a redelivery cannot update
@@ -448,7 +540,8 @@ export class PaymentOwnerStore {
     let record: OwnerRecord | undefined;
     if (this.pool) {
       const result = await this.pool.query(
-        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot, aggregate_version
+        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
+                provider_reference, snapshot, amount_minor, currency, status, aggregate_version
          FROM shared_payment.resource_owners
          WHERE environment = $1 AND resource_type = $2 AND tribe_id = $3 AND project_id = $4
            AND reference_id = $5
@@ -544,7 +637,7 @@ export class PaymentOwnerStore {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(
       `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-              provider_reference, snapshot, aggregate_version
+              provider_reference, snapshot, amount_minor, currency, status, aggregate_version
        FROM shared_payment.resource_owners
        WHERE environment = $1 AND resource_type = $2 AND resource_id = $3`,
       [environment, type, id],

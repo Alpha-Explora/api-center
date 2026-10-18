@@ -57,6 +57,42 @@ function linkPaymentPaid(eventId, reference) {
 
 const count = async (table) => Number((await pool.query('SELECT count(*) FROM shared_payment.' + table)).rows[0].count);
 
+test('fresh intent reads clear redirects, preserve terminal status and do not version unchanged facts', { skip }, async () => {
+  await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_fresh', referenceId: 'ORDER-FRESH',
+    snapshot: { status: 'awaiting_next_action', clientKey: 'client-key',
+      nextAction: { type: 'redirect', redirectUrl: 'https://provider.example/authorize' } } });
+  const completed = await owners.reconcileFreshRead('intent', 'pi_fresh', owner, { status: 'succeeded', nextAction: undefined });
+  assert.equal(completed.aggregateVersion, 2);
+  assert.equal(Object.hasOwn(completed.snapshot, 'nextAction'), false);
+  assert.equal(completed.referenceId, 'ORDER-FRESH');
+  assert.equal(completed.snapshot.clientKey, 'client-key');
+  const before = (await pool.query("SELECT updated_at FROM shared_payment.resource_owners WHERE resource_id = 'pi_fresh'")).rows[0];
+  const results = await Promise.all([
+    owners.reconcileFreshRead('intent', 'pi_fresh', owner, { status: 'succeeded' }),
+    owners.reconcileFreshRead('intent', 'pi_fresh', owner, { status: 'awaiting_next_action',
+      nextAction: { type: 'redirect', redirectUrl: 'https://provider.example/stale' } }),
+  ]);
+  for (const result of results) {
+    assert.equal(result.aggregateVersion, 2);
+    assert.equal(result.status, 'succeeded');
+    assert.equal(Object.hasOwn(result.snapshot, 'nextAction'), false);
+  }
+  const after = (await pool.query("SELECT updated_at FROM shared_payment.resource_owners WHERE resource_id = 'pi_fresh'")).rows[0];
+  assert.equal(after.updated_at.toISOString(), before.updated_at.toISOString());
+  await assert.rejects(owners.reconcileFreshRead('intent', 'pi_fresh', { ...owner, projectId: 'foreign-project' },
+    { status: 'succeeded' }), { statusCode: 403 });
+});
+
+test('unchanged invoice and subscription reads preserve versions regardless of object key order', { skip }, async () => {
+  for (const type of ['invoice', 'subscription']) {
+    await owners.save({ ...owner, resourceType: type, resourceId: type + '_fresh',
+      snapshot: { status: 'pending', amount: 100, currency: 'PHP' } });
+    const result = await owners.reconcileFreshRead(type, type + '_fresh', owner,
+      { currency: 'PHP', amount: 100, status: 'pending' });
+    assert.equal(result.aggregateVersion, 1);
+  }
+});
+
 test('a paid checkout updates the owner, records the receipt and queues one event together', { skip }, async () => {
   const payload = checkoutPaid('evt_1');
   const result = await webhooks.processWebhook(payload, signed(payload));
