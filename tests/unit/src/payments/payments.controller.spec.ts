@@ -86,7 +86,7 @@ describe('PaymentsController', () => {
     ['POST', '/intents', { referenceId: 'order-123', amount: { amountMinor: 39900, currency: 'PHP' } }],
     ['POST', '/intents/qrph', { referenceId: 'qr-123', amount: { amountMinor: 39900, currency: 'PHP' }, expirySeconds: 300 }],
     ['GET', '/intents/pi_123', undefined],
-    ['POST', '/intents/pi_123/confirm', {}],
+    ['POST', '/intents/pi_123/confirm', { paymentMethodId: 'pm_123', clientKey: 'pi_123_client', returnUrl: 'https://app.test/return' }],
     ['POST', '/intents/pi_123/cancel', {}],
     ['POST', '/customers', { customerReference: 'customer-123', email: 'customer@example.test' }],
     ['GET', '/customers/cus_123', undefined],
@@ -117,6 +117,11 @@ describe('PaymentsController', () => {
       method,
       url: expect.stringContaining('/'),
     }));
+    if (path.endsWith('/confirm')) {
+      expect(mockedAxios.request.mock.calls[0][0].data).toEqual({
+        payment_method: 'pm_123', client_key: 'pi_123_client', return_url: 'https://app.test/return',
+      });
+    }
   });
 
   it('uses the authenticated principal for tenant/environment and normalizes provider resources', async () => {

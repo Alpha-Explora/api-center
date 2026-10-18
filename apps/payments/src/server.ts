@@ -185,9 +185,10 @@ app.post('/payment-intents/qrph', async (req: Request, res: Response) => {
 app.get('/payment-intents/:paymentIntentId', async (req: Request, res: Response) => {
   try {
     const paymentIntentId = Array.isArray(req.params.paymentIntentId) ? req.params.paymentIntentId[0] : req.params.paymentIntentId;
-    const owner = await owned('intent', paymentIntentId, req);
+    await owned('intent', paymentIntentId, req);
     const data = await paymentIntentsService.getPaymentIntent(paymentIntentId);
-    return ok(res, { ...owner.snapshot, ...data });
+    const owner = await owners.reconcileFreshRead('intent', paymentIntentId, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -349,12 +350,10 @@ app.get('/payment-links/:paymentLinkId', async (req: Request, res: Response) => 
 app.patch('/payment-links/:paymentLinkId', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.paymentLinkId);
-    const owner = await owned('payment_link', id, req);
+    await owned('payment_link', id, req);
     const data = await paymentLinksService.setArchived(id, req.body?.archive, idempotencyKey(req));
-    const snapshot = { ...owner.snapshot, ...data, referenceId: owner.referenceId,
-      ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) };
-    await remember('payment_link', id, req, snapshot);
-    return ok(res, snapshot);
+    const owner = await owners.reconcilePaymentLink(id, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -372,9 +371,10 @@ app.post('/subscriptions', async (req: Request, res: Response) => {
 app.get('/subscriptions/:subscriptionId', async (req: Request, res: Response) => {
   try {
     const subscriptionId = Array.isArray(req.params.subscriptionId) ? req.params.subscriptionId[0] : req.params.subscriptionId;
-    const owner = await owned('subscription', subscriptionId, req);
+    await owned('subscription', subscriptionId, req);
     const data = await subscriptionsService.getSubscription(subscriptionId);
-    return ok(res, { ...owner.snapshot, ...data });
+    const owner = await owners.reconcileFreshRead('subscription', subscriptionId, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -394,17 +394,22 @@ app.get('/subscriptions/:subscriptionId/invoices', async (req: Request, res: Res
     const subscriptionId = String(req.params.subscriptionId);
     await owned('subscription', subscriptionId, req);
     const invoices = await invoicesService.listForSubscription(subscriptionId);
-    for (const invoice of invoices) await remember('invoice', invoice.invoiceId, req, invoice);
-    return ok(res, invoices);
+    const context = paymentContext(req);
+    const reconciled: OwnerRecord[] = [];
+    for (const invoice of invoices) {
+      reconciled.push(await owners.reconcileFreshRead('invoice', invoice.invoiceId, context, invoice));
+    }
+    return ok(res, reconciled.map((owner) => owner.snapshot));
   } catch (err) { return handleCustomError(res, err); }
 });
 
 app.get('/invoices/:invoiceId', async (req: Request, res: Response) => {
   try {
     const invoiceId = String(req.params.invoiceId);
-    const owner = await owned('invoice', invoiceId, req);
+    await owned('invoice', invoiceId, req);
     const invoice = await invoicesService.get(invoiceId);
-    return ok(res, { ...owner.snapshot, ...invoice });
+    const owner = await owners.reconcileFreshRead('invoice', invoiceId, paymentContext(req), invoice);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -423,7 +428,9 @@ app.get('/refunds/:refundId', async (req: Request, res: Response) => {
   try {
     const refundId = String(req.params.refundId);
     const owner = await owned('refund', refundId, req);
-    return ok(res, owner.snapshot);
+    const record = isMockMode() ? owner
+      : await owners.reconcileRefund(refundId, paymentContext(req), await refundsService.getRefund(refundId));
+    return ok(res, { ...record.snapshot, aggregateVersion: record.aggregateVersion });
   } catch (err) { return handleCustomError(res, err); }
 });
 
