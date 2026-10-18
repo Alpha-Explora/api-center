@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, maintainers, agents]
-last_verified: "2026-10-12"
+last_verified: "2026-10-19"
 verification: repository
 sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
 ---
@@ -34,7 +34,7 @@ Subscriptions are filtered by `consumerServiceId`, use OIDC push authentication,
 
 Checkout reads by ID and merchant reference check project/environment ownership before retrieving PayMongo state. Payment status comes from a paid payment or a succeeded payment intent, not the checkout session's `active` lifecycle status. A confirmed payment takes precedence over session expiration. Unpaid active sessions remain pending.
 
-Reads reconcile the checkout ownership snapshot and listing status atomically. An unchanged read keeps its aggregate version, and a stale poll cannot overwrite a webhook-confirmed paid checkout. Polling does not fabricate webhook receipts or queue lifecycle events. Signed provider webhooks remain responsible for recording payment resources and queueing events; a later webhook still queues its event once after polling has recovered the checkout status.
+Reads reconcile the checkout ownership snapshot and listing status atomically. An unchanged read keeps its aggregate version, and a stale poll cannot overwrite a webhook-confirmed paid checkout. When a provider checkout response includes a paid payment with a valid ID, amount, and currency, polling also registers its project/environment-scoped payment owner so refunds can resolve it. Paid checkouts without a payment owner retry provider reconciliation. Polling does not fabricate webhook receipts or queue lifecycle events. Signed provider webhooks record verified receipts, reconcile payment resources, and queue events; a later webhook still queues its event once after polling has recovered the checkout status.
 
 PayMongo is the source of truth for payment resources and merchant settlement. APICenter is the source of truth for the project/environment ownership mapping, payment listing and reconciliation metadata it records, webhook verification receipts, and event delivery state. A consumer stores only the local ledger and access projection its product needs. APICenter's outbox reclaims publishing rows after five minutes, retries with backoff, and quarantines after 20 failed attempts.
 

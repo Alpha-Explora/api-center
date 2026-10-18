@@ -100,10 +100,11 @@ export class WebhooksService {
     if (paid.length === 0) return { event: 'processed', data: { eventType, updated: 0 } };
     const updates: OwnerRecord[] = paid.map((payment) => ({
       ...source, resourceType: 'payment', resourceId: payment.id,
+      status: 'paid',
       snapshot: { paymentId: payment.id, status: 'paid', amount: payment.attributes.amount,
         currency: payment.attributes.currency, sourceId: source.resourceId },
     }));
-    updates.push({ ...source, snapshot: { ...source.snapshot,
+    updates.push({ ...source, status: eventType === 'payment.paid' ? 'succeeded' : 'paid', snapshot: { ...source.snapshot,
       status: eventType === 'payment.paid' ? 'succeeded' : 'paid', paymentId: paid[0].id } });
 
     const queued = eventType === 'checkout_session.payment.paid'
