@@ -4,12 +4,13 @@ metadata:
   name: api-center-staging
   annotations:
     run.googleapis.com/ingress: all
+    run.googleapis.com/maxScale: "1"
 spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/minScale: "1"
-        autoscaling.knative.dev/maxScale: "5"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "1"
         run.googleapis.com/service-account: api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com
         run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
         run.googleapis.com/vpc-access-egress: private-ranges-only

@@ -1,0 +1,91 @@
+{
+  "metadata": {
+    "name": "apicenter-geolocation-live",
+    "annotations": {
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/maxScale": "1"
+    }
+  },
+  "kind": "Service",
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/minScale": "0",
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "autoscaling.knative.dev/maxScale": "1"
+        }
+      },
+      "spec": {
+        "timeoutSeconds": 300,
+        "serviceAccountName": "apicenter-geo-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "env": [
+              {
+                "name": "GEO_CACHE_TTL_MS",
+                "value": "300000"
+              },
+              {
+                "name": "GEO_PROVIDER_CIRCUIT_RESET_MS",
+                "value": "30000"
+              },
+              {
+                "name": "GOOGLE_MAPS_API_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "apicenter-shared-google-maps-api-key-prod"
+                  }
+                }
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "production"
+              },
+              {
+                "name": "GEO_PROVIDER_FAILURE_THRESHOLD",
+                "value": "5"
+              },
+              {
+                "name": "GEO_PROVIDER_TIMEOUT_MS",
+                "value": "1500"
+              },
+              {
+                "value": "apicenter-alpha-20260623",
+                "name": "GCP_PROJECT_ID"
+              },
+              {
+                "value": "false",
+                "name": "REGISTER_WITH_GATEWAY"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "memory": "512Mi",
+                "cpu": "1"
+              }
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/health",
+                "port": 8080
+              },
+              "timeoutSeconds": 5,
+              "periodSeconds": 5,
+              "failureThreshold": 24
+            },
+            "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-5b01c127-35f5-42ec-8180-318b5fed3e9a"
+          }
+        ],
+        "containerConcurrency": 80
+      }
+    }
+  },
+  "apiVersion": "serving.knative.dev/v1"
+}

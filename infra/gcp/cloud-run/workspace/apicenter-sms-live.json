@@ -1,0 +1,106 @@
+{
+  "metadata": {
+    "name": "apicenter-sms-live",
+    "annotations": {
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/maxScale": "1"
+    }
+  },
+  "kind": "Service",
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "run.googleapis.com/vpc-access-egress": "private-ranges-only",
+          "autoscaling.knative.dev/minScale": "0",
+          "run.googleapis.com/network-interfaces": "[{\"network\":\"default\",\"subnetwork\":\"default\"}]",
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "autoscaling.knative.dev/maxScale": "1"
+        }
+      },
+      "spec": {
+        "timeoutSeconds": 300,
+        "serviceAccountName": "apicenter-sms-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "env": [
+              {
+                "name": "SMS_DATABASE_URL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "apicenter-sms-database-url"
+                  }
+                }
+              },
+              {
+                "name": "SMS_SEND_LIMIT_WINDOW_MS",
+                "value": "60000"
+              },
+              {
+                "name": "SMS_SEND_LIMIT_PER_RECIPIENT",
+                "value": "10"
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "production"
+              },
+              {
+                "name": "SMS_STORE_MODE",
+                "value": "postgres"
+              },
+              {
+                "name": "SMS_IDEMPOTENCY_TTL_MS",
+                "value": "86400000"
+              },
+              {
+                "value": "apicenter-alpha-20260623",
+                "name": "GCP_PROJECT_ID"
+              },
+              {
+                "value": "false",
+                "name": "REGISTER_WITH_GATEWAY"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-sms-database-url",
+                    "key": "latest"
+                  }
+                },
+                "name": "DATABASE_URL"
+              },
+              {
+                "value": "redis://10.124.52.91:6379",
+                "name": "SMS_REDIS_URL"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "memory": "512Mi",
+                "cpu": "1"
+              }
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/health",
+                "port": 8080
+              },
+              "timeoutSeconds": 5,
+              "periodSeconds": 5,
+              "failureThreshold": 24
+            },
+            "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-5b01c127-35f5-42ec-8180-318b5fed3e9a"
+          }
+        ],
+        "containerConcurrency": 80
+      }
+    }
+  },
+  "apiVersion": "serving.knative.dev/v1"
+}

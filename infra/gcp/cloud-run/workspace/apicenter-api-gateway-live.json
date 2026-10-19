@@ -1,0 +1,221 @@
+{
+  "metadata": {
+    "name": "apicenter-api-gateway-live",
+    "annotations": {
+      "run.googleapis.com/ingress": "internal-and-cloud-load-balancing",
+      "run.googleapis.com/invoker-iam-disabled": "true",
+      "run.googleapis.com/maxScale": "2"
+    }
+  },
+  "kind": "Service",
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "run.googleapis.com/vpc-access-egress": "private-ranges-only",
+          "autoscaling.knative.dev/minScale": "0",
+          "run.googleapis.com/network-interfaces": "[{\"network\":\"default\",\"subnetwork\":\"default\"}]",
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "autoscaling.knative.dev/maxScale": "2"
+        }
+      },
+      "spec": {
+        "timeoutSeconds": 300,
+        "serviceAccountName": "api-center-cloud-run@apicenter-alpha-20260623.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "env": [
+              {
+                "name": "APICENTER_SHARED_SERVICE_EVENTS_TOPIC_TEST",
+                "value": "apicenter.shared-service-events.test"
+              },
+              {
+                "name": "ALLOWED_ORIGINS",
+                "value": "https://api-center-management-test.itsandbox.site,https://apicenter.itsandbox.site,https://docs.apicenter.itsandbox.site"
+              },
+              {
+                "name": "AUTH_PROVIDER",
+                "value": "composite"
+              },
+              {
+                "name": "KAFKA_ENABLED",
+                "value": "false"
+              },
+              {
+                "name": "DATA_PIPELINE_ENABLED",
+                "value": "false"
+              },
+              {
+                "name": "CLOUD_RUN_AUTH_ENABLED",
+                "value": "true"
+              },
+              {
+                "name": "APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "apicenter-payments-test-internal-token"
+                  }
+                }
+              },
+              {
+                "name": "APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE",
+                "value": "apicenter.shared-service-events.live"
+              },
+              {
+                "name": "GCP_SECRET_NAME",
+                "value": "api-center-prod"
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "production"
+              },
+              {
+                "name": "APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "apicenter-payments-live-internal-token"
+                  }
+                }
+              },
+              {
+                "name": "GCP_PROJECT_ID",
+                "value": "apicenter-alpha-20260623"
+              },
+              {
+                "name": "TRIBE_SECRET_GCP_PREFIX",
+                "value": "api-center-service-secret-"
+              },
+              {
+                "name": "DATABASE_POOL_MAX",
+                "value": "2"
+              },
+              {
+                "name": "SHARED_SERVICE_PUBSUB_ENABLED",
+                "value": "true"
+              },
+              {
+                "value": "redis://10.124.52.91:6379",
+                "name": "REDIS_CACHE_URL"
+              },
+              {
+                "value": "redis://10.124.52.91:6379",
+                "name": "REDIS_RATE_LIMIT_URL"
+              },
+              {
+                "value": "true",
+                "name": "DATABASE_ENABLED"
+              },
+              {
+                "value": "postgres",
+                "name": "REGISTRY_SOURCE"
+              },
+              {
+                "value": "abtorres.it@alphaexplora.com",
+                "name": "PLATFORM_ADMIN_EMAILS"
+              },
+              {
+                "value": "cloud-run-workspace",
+                "name": "APICENTER_RUNTIME_TARGET"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-gauth-admin-token",
+                    "key": "latest"
+                  }
+                },
+                "name": "GAUTH_ADMIN_TOKEN"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-email-admin-token",
+                    "key": "latest"
+                  }
+                },
+                "name": "EMAIL_ADMIN_TOKEN"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_OTP_TEST",
+                "value": "https://apicenter-one-time-password-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_OTP_LIVE",
+                "value": "https://apicenter-one-time-password-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_GAUTH_TEST",
+                "value": "https://apicenter-google-authentication-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_GAUTH_LIVE",
+                "value": "https://apicenter-google-authentication-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_SMS_TEST",
+                "value": "https://apicenter-sms-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_SMS_LIVE",
+                "value": "https://apicenter-sms-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_GEO_TEST",
+                "value": "https://apicenter-geolocation-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_GEO_LIVE",
+                "value": "https://apicenter-geolocation-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_EMAIL_TEST",
+                "value": "https://apicenter-email-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_EMAIL_LIVE",
+                "value": "https://apicenter-email-live-565306324295.asia-southeast1.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_PAYMENT_TEST",
+                "value": "https://apicenter-payments-test-mvrs6gmtgq-as.a.run.app"
+              },
+              {
+                "name": "SHARED_SERVICE_ROUTE_PAYMENT_LIVE",
+                "value": "https://apicenter-payments-live-mvrs6gmtgq-as.a.run.app"
+              },
+              {
+                "value": "20261012-reset1",
+                "name": "APICENTER_DEPLOYMENT_EPOCH"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "memory": "1Gi",
+                "cpu": "1"
+              }
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/api/v1/health/live",
+                "port": 8080
+              },
+              "timeoutSeconds": 5,
+              "periodSeconds": 5,
+              "failureThreshold": 24
+            },
+            "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-2a30ee41-a860-45c5-bacf-f39d0c4c7da1"
+          }
+        ],
+        "containerConcurrency": 80
+      }
+    }
+  },
+  "apiVersion": "serving.knative.dev/v1"
+}

@@ -105,11 +105,16 @@ steps:
       - -c
       - |
         set -e
-        gcloud run services replace infra/gcp/cloud-run/email.yaml --project=${_PROJECT_ID} --region=${_REGION}
-        gcloud run services replace infra/gcp/cloud-run/sms.yaml --project=${_PROJECT_ID} --region=${_REGION}
-        gcloud run services replace infra/gcp/cloud-run/otp.yaml --project=${_PROJECT_ID} --region=${_REGION}
-        gcloud run services replace infra/gcp/cloud-run/gauth.yaml --project=${_PROJECT_ID} --region=${_REGION}
-        gcloud run services replace infra/gcp/cloud-run/geo.yaml --project=${_PROJECT_ID} --region=${_REGION}
+        sed -i 's#"image": ".*"#"image": "${_EMAIL_IMAGE}"#' infra/gcp/cloud-run/workspace/apicenter-email-live.json
+        sed -i 's#"image": ".*"#"image": "${_SMS_IMAGE}"#' infra/gcp/cloud-run/workspace/apicenter-sms-live.json
+        sed -i 's#"image": ".*"#"image": "${_OTP_IMAGE}"#' infra/gcp/cloud-run/workspace/apicenter-one-time-password-live.json
+        sed -i 's#"image": ".*"#"image": "${_GAUTH_IMAGE}"#' infra/gcp/cloud-run/workspace/apicenter-google-authentication-live.json
+        sed -i 's#"image": ".*"#"image": "${_GEO_IMAGE}"#' infra/gcp/cloud-run/workspace/apicenter-geolocation-live.json
+        gcloud run services replace infra/gcp/cloud-run/workspace/apicenter-email-live.json --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/workspace/apicenter-sms-live.json --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/workspace/apicenter-one-time-password-live.json --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/workspace/apicenter-google-authentication-live.json --project=${_PROJECT_ID} --region=${_REGION}
+        gcloud run services replace infra/gcp/cloud-run/workspace/apicenter-geolocation-live.json --project=${_PROJECT_ID} --region=${_REGION}
     waitFor: [push-images]
 
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -119,7 +124,7 @@ steps:
       - -c
       - |
         set -e
-        for service in email sms otp gauth geo; do
+        for service in apicenter-email-live apicenter-sms-live apicenter-one-time-password-live apicenter-google-authentication-live apicenter-geolocation-live; do
           gcloud run services add-iam-policy-binding "$$service" --project=${_PROJECT_ID} --region=${_REGION} --member=serviceAccount:${_API_CENTER_INVOKER_SA} --role=roles/run.invoker
         done
     waitFor: [deploy-cloud-run-services]

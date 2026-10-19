@@ -1,0 +1,113 @@
+{
+  "metadata": {
+    "name": "apicenter-google-authentication-live",
+    "annotations": {
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/maxScale": "1"
+    }
+  },
+  "kind": "Service",
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/minScale": "0",
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "autoscaling.knative.dev/maxScale": "1"
+        }
+      },
+      "spec": {
+        "timeoutSeconds": 300,
+        "serviceAccountName": "apicenter-gauth-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "env": [
+              {
+                "name": "GAUTH_PROVIDER_FAILURE_THRESHOLD",
+                "value": "5"
+              },
+              {
+                "name": "GAUTH_AUTHORIZE_LIMIT_WINDOW_MS",
+                "value": "60000"
+              },
+              {
+                "name": "GAUTH_PROVIDER_TIMEOUT_MS",
+                "value": "2000"
+              },
+              {
+                "name": "GAUTH_PROVIDER_CIRCUIT_RESET_MS",
+                "value": "30000"
+              },
+              {
+                "name": "GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT",
+                "value": "20"
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "production"
+              },
+              {
+                "value": "apicenter-alpha-20260623",
+                "name": "GCP_PROJECT_ID"
+              },
+              {
+                "value": "false",
+                "name": "REGISTER_WITH_GATEWAY"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-gauth-database-url",
+                    "key": "latest"
+                  }
+                },
+                "name": "DATABASE_URL"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-gauth-oauth-state-secret",
+                    "key": "latest"
+                  }
+                },
+                "name": "GOOGLE_OAUTH_STATE_SECRET"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-gauth-admin-token",
+                    "key": "latest"
+                  }
+                },
+                "name": "GAUTH_ADMIN_TOKEN"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "memory": "512Mi",
+                "cpu": "1"
+              }
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/health",
+                "port": 8080
+              },
+              "timeoutSeconds": 5,
+              "periodSeconds": 5,
+              "failureThreshold": 24
+            },
+            "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-5b01c127-35f5-42ec-8180-318b5fed3e9a"
+          }
+        ],
+        "containerConcurrency": 80
+      }
+    }
+  },
+  "apiVersion": "serving.knative.dev/v1"
+}

@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "name": "apicenter-developer-docs-live",
+    "annotations": {
+      "run.googleapis.com/invoker-iam-disabled": "true",
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/maxScale": "1"
+    }
+  },
+  "kind": "Service",
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/minScale": "0",
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "autoscaling.knative.dev/maxScale": "1"
+        }
+      },
+      "spec": {
+        "timeoutSeconds": 300,
+        "serviceAccountName": "apicenter-docs-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "env": [],
+            "resources": {
+              "limits": {
+                "memory": "256Mi",
+                "cpu": "1"
+              }
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/",
+                "port": 8080
+              },
+              "timeoutSeconds": 5,
+              "periodSeconds": 5,
+              "failureThreshold": 24
+            },
+            "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-a1882fe5-be45-4714-98c8-b3a8ab320599"
+          }
+        ],
+        "containerConcurrency": 80
+      }
+    }
+  },
+  "apiVersion": "serving.knative.dev/v1"
+}

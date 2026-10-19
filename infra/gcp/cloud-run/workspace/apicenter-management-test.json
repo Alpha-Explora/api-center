@@ -1,0 +1,100 @@
+{
+  "metadata": {
+    "name": "apicenter-management-test",
+    "annotations": {
+      "run.googleapis.com/invoker-iam-disabled": "true",
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/maxScale": "1"
+    }
+  },
+  "kind": "Service",
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/minScale": "0",
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "autoscaling.knative.dev/maxScale": "1"
+        }
+      },
+      "spec": {
+        "timeoutSeconds": 300,
+        "serviceAccountName": "apicenter-management-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "env": [
+              {
+                "value": "production",
+                "name": "NODE_ENV"
+              },
+              {
+                "value": "google",
+                "name": "MANAGEMENT_AUTH_MODE"
+              },
+              {
+                "value": "test",
+                "name": "MANAGEMENT_ENVIRONMENT"
+              },
+              {
+                "value": "true",
+                "name": "API_CENTER_CLOUD_RUN_AUTH_ENABLED"
+              },
+              {
+                "value": "565306324295-jaj3lkfq9t8577mmoicvdpe39iriu6u0.apps.googleusercontent.com",
+                "name": "GOOGLE_CLIENT_ID"
+              },
+              {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-management-platform-admin-secret",
+                    "key": "latest"
+                  }
+                },
+                "name": "API_CENTER_PLATFORM_ADMIN_SECRET"
+              },
+              {
+                "name": "API_CENTER_BASE_URL",
+                "value": "https://api.apicenter.itsandbox.site"
+              },
+              {
+                "name": "MANAGEMENT_PUBLIC_BASE_URL",
+                "value": "https://apicenter.itsandbox.site"
+              },
+              {
+                "name": "GCP_PROJECT_ID",
+                "value": "apicenter-alpha-20260623"
+              },
+              {
+                "name": "NEXT_PUBLIC_API_CENTER_BASE_URL",
+                "value": "https://api.apicenter.itsandbox.site"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "memory": "1Gi",
+                "cpu": "1"
+              }
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/signup",
+                "port": 8080
+              },
+              "timeoutSeconds": 5,
+              "periodSeconds": 5,
+              "failureThreshold": 24
+            },
+            "image": "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:build-a1882fe5-be45-4714-98c8-b3a8ab320599"
+          }
+        ],
+        "containerConcurrency": 80
+      }
+    }
+  },
+  "apiVersion": "serving.knative.dev/v1"
+}

@@ -4,12 +4,14 @@ metadata:
   name: apicenter-payments-test
   annotations:
     run.googleapis.com/ingress: internal
+    run.googleapis.com/maxScale: "1"
 spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/minScale: "1"
-        autoscaling.knative.dev/maxScale: "5"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/cpu-throttling: "true"
         run.googleapis.com/service-account: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
         run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
         run.googleapis.com/vpc-access-egress: private-ranges-only
