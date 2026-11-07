@@ -20,6 +20,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Bound gateway database pools to two connections per instance by default and allow canonical audit writes on legacy schemas without deleting historical audit values.
 - Explain and test explicit legacy-environment conversion before editing registrations, preserving test/live-only writes and live approval checks.
 
 - Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.

@@ -3,6 +3,7 @@
 # =============================================================================
 # This workflow runs only when started by hand, to save Actions minutes:
 #   gh workflow run ci.yml --ref <branch>
+# Manual runs publish a CI / full workflow commit status for PR monitors.
 # The Docker job takes about 35 minutes, so it is the costly one.
 #
 # WHAT IT DOES:
@@ -28,6 +29,25 @@ env:
   NODE_VERSION: '24'
 
 jobs:
+  ci-status-start:
+    name: Publish pending full CI status
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      statuses: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'CI / full workflow',
+              target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: 'Full CI is running; all validation jobs must pass',
+            });
+
   # ---------------------------------------------------------------------------
   # Job 1: Lint & Type Check
   # ---------------------------------------------------------------------------
@@ -313,3 +333,29 @@ jobs:
           for service in email sms otp geo gauth; do
             smoke_runtime "api-center-${service}:${{ github.sha }}"
           done
+
+  ci-status-report:
+    name: Publish final full CI status
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: ${{ always() }}
+    needs: [ci-status-start, lint, build, test, migrations, docker]
+    permissions:
+      statuses: write
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          CI_NEEDS_JSON: ${{ toJSON(needs) }}
+        with:
+          script: |
+            const results = JSON.parse(process.env.CI_NEEDS_JSON);
+            const required = ['ci-status-start', 'lint', 'build', 'test', 'migrations', 'docker'];
+            const passed = required.every(name => results[name]?.result === 'success');
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha: context.sha,
+              state: passed ? 'success' : 'failure',
+              context: 'CI / full workflow',
+              target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: passed ? 'All five validation jobs passed' : 'Full CI failed, was canceled, or skipped a required job',
+            });
