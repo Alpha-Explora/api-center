@@ -8,7 +8,8 @@ COPY packages/ ./packages/
 RUN npm ci --include=dev --no-audit --no-fund \
     && npm run build --workspace @alpha-explora/apicenter-contracts \
     && npm run build --workspace @apicenter/payments \
-    && npm prune --omit=dev --no-audit --no-fund
+    && npm prune --omit=dev --no-audit --no-fund \
+    && mkdir -p /app/apps/payments/node_modules
 
 FROM node:24-bookworm-slim AS runner
 
@@ -17,6 +18,7 @@ ENV PORT=8080
 WORKDIR /app
 
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/apps/payments/node_modules ./apps/payments/node_modules
 COPY --from=builder --chown=node:node /app/packages/runtime ./packages/runtime
 COPY --from=builder --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=builder --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist

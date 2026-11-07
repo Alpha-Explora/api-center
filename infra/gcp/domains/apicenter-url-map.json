@@ -1,0 +1,15 @@
+{
+  "name": "apicenter-hosted-apps",
+  "description": "APICenter console, API gateway, and developer documentation host routing.",
+  "defaultService": "https://www.googleapis.com/compute/v1/projects/apicenter-alpha-20260623/global/backendServices/apicenter-docs-backend",
+  "hostRules": [
+    { "hosts": ["apicenter.itsandbox.site"], "pathMatcher": "management" },
+    { "hosts": ["api.apicenter.itsandbox.site", "api-center.itsandbox.site"], "pathMatcher": "gateway" },
+    { "hosts": ["docs.apicenter.itsandbox.site"], "pathMatcher": "docs" }
+  ],
+  "pathMatchers": [
+    { "name": "management", "defaultService": "https://www.googleapis.com/compute/v1/projects/apicenter-alpha-20260623/global/backendServices/apicenter-management-backend" },
+    { "name": "gateway", "defaultService": "https://www.googleapis.com/compute/v1/projects/apicenter-alpha-20260623/global/backendServices/apicenter-gateway-backend" },
+    { "name": "docs", "defaultService": "https://www.googleapis.com/compute/v1/projects/apicenter-alpha-20260623/global/backendServices/apicenter-docs-backend" }
+  ]
+}

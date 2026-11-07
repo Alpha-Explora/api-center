@@ -12,7 +12,7 @@ describe("ConsumerRunbookPage", () => {
 
     expect(screen.getByRole("heading", { name: "Consumer runbook" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open APICenter docs" }).getAttribute("href"))
-      .toBe("https://api-center.itsandbox.site/docs");
+      .toBe("https://docs.apicenter.itsandbox.site");
   });
 
   it("prioritizes consumer setup actions with one selected detail", () => {

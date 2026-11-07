@@ -32,7 +32,7 @@ export const smokeTests: SmokeTestPreset[] = [
     method: "POST",
     path: "/oauth/authorize",
     body: {
-      redirectUri: "https://api-center.itsandbox.site/api/v1/shared/gauth/oauth/callback",
+      redirectUri: "https://api.apicenter.itsandbox.site/api/v1/shared/gauth/oauth/callback",
       scopes: ["openid", "email", "profile"],
       state: "smoke-test",
     },
@@ -102,8 +102,8 @@ export const smokeTests: SmokeTestPreset[] = [
       return {
         referenceId: id,
         idempotencyKey: id,
-        successUrl: "https://api-center.itsandbox.site/smoke/success",
-        cancelUrl: "https://api-center.itsandbox.site/smoke/cancel",
+        successUrl: "https://api.apicenter.itsandbox.site/smoke/success",
+        cancelUrl: "https://api.apicenter.itsandbox.site/smoke/cancel",
         lineItems: [
           {
             name: "Smoke Test Item",

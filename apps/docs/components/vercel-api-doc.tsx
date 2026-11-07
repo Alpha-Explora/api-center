@@ -38,7 +38,7 @@ export function VercelApiDoc({ operations }: VercelApiDocProps) {
 
   // Generate dynamic code snippets
   const getCodeSnippet = (lang: "TypeScript" | "Next.js" | "cURL") => {
-    const fullUrl = `https://api-center.itsandbox.site${activeOp.path}`;
+    const fullUrl = `https://api.apicenter.itsandbox.site${activeOp.path}`;
     const reqBody = activeOp.sampleRequest ? JSON.stringify(activeOp.sampleRequest, null, 2) : null;
 
     if (lang === "TypeScript") {
@@ -138,7 +138,7 @@ console.log(data);`;
           <span className={`method-badge-lg method-${activeOp.method.toLowerCase()}`}>
             {activeOp.method}
           </span>
-          <code className="endpoint-url">https://api-center.itsandbox.site{activeOp.path}</code>
+          <code className="endpoint-url">https://api.apicenter.itsandbox.site{activeOp.path}</code>
         </div>
 
         <p className="endpoint-description">{activeOp.description}</p>
@@ -251,7 +251,7 @@ console.log(data);`;
 
           <div className="code-url-bar">
             <span className="code-lang-icon">TS</span>
-            <span className="code-url-text">https://api-center.itsandbox.site{activeOp.path}</span>
+            <span className="code-url-text">https://api.apicenter.itsandbox.site{activeOp.path}</span>
             <button
               className="copy-btn"
               onClick={() => handleCopy(codeText, "code")}

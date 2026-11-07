@@ -12,7 +12,7 @@ For a Node.js backend, use the `api.payments.subscriptions` and `api.payments.pl
 Create an actual PayMongo subscription plan with `POST /api/v1/payments/plans`. Amounts use PHP centavos, so `150050` means PHP 1,500.50. Intervals are `weekly`, `monthly`, or `yearly`; `intervalCount` accepts 1 to 10. Omit `cycleCount` to bill indefinitely, or provide an integer of at least 2.
 
 ```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/payments/plans \
+curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/plans \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Idempotency-Key: plan-starter-monthly" \
   -H "Content-Type: application/json" \
@@ -30,7 +30,7 @@ Use `GET /api/v1/payments/plans/{planId}` to retrieve a plan and `GET /api/v1/pa
 - **Required Header**: `Idempotency-Key`
 
 ```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/payments/subscriptions \
+curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/subscriptions \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Idempotency-Key: sub-idem-8812" \
   -H "Content-Type: application/json" \

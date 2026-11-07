@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: Provider-neutral payment API for registered consumer services.
 servers:
-  - url: https://api-center.itsandbox.site
+  - url: https://api.apicenter.itsandbox.site
 security:
   - ApiKeyAuth: []
   - ServiceBearerAuth: []

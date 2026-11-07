@@ -280,7 +280,7 @@ describe("ServiceDetailClient route sections", () => {
     apiClient.getDataPipelineQuality.mockResolvedValue([]);
     apiClient.getDataPipelineSharedServiceUsage.mockResolvedValue([]);
     apiClient.getApiCenterBaseUrl.mockReturnValue(
-      "https://api-center.itsandbox.site",
+      "https://api.apicenter.itsandbox.site",
     );
     apiClient.getPlatformLifecycleEvidence.mockResolvedValue(sourceLifecycle);
     apiClient.getQuotaUsage.mockResolvedValue(quotaUsage);

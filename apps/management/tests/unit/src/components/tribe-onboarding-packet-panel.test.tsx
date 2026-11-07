@@ -44,7 +44,7 @@ describe("TribeOnboardingPacketPanel", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "API Center base URL: https://api-center.itsandbox.site",
+        "API Center base URL: https://api.apicenter.itsandbox.site",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Allowed services: gauth")).toBeTruthy();

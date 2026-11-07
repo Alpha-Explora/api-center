@@ -171,7 +171,7 @@ function apiCenterTopicStateRequest(path: string, init?: RequestInit) {
     );
   }
   const baseUrl = (
-    process.env.API_CENTER_BASE_URL ?? "https://api-center.itsandbox.site"
+    process.env.API_CENTER_BASE_URL ?? "https://api.apicenter.itsandbox.site"
   ).replace(/\/$/, "");
   return fetch(`${baseUrl}${path}`, {
     ...init,

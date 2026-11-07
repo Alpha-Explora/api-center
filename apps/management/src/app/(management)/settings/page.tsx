@@ -21,10 +21,10 @@ import {
 export default function SettingsPage() {
   const managementEnvironment = getManagementEnvironment();
   const apiCenterBaseUrl =
-    process.env.API_CENTER_BASE_URL ?? "https://api-center.itsandbox.site";
+    process.env.API_CENTER_BASE_URL ?? "https://api.apicenter.itsandbox.site";
   const publicApiCenterBaseUrl =
     process.env.NEXT_PUBLIC_API_CENTER_BASE_URL ??
-    "https://api-center.itsandbox.site";
+    "https://api.apicenter.itsandbox.site";
   const kafkaTopicPrefix = getKafkaTopicPrefix();
   const googleCloudProject =
     process.env.GOOGLE_CLOUD_PROJECT ??

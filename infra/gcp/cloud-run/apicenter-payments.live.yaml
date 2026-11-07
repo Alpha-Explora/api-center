@@ -1,81 +1,97 @@
+# Replace the image with the reviewed release digest through the deployment pipeline before applying.
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: apicenter-payments-live
   annotations:
-    run.googleapis.com/ingress: internal
+    run.googleapis.com/ingress: all
     run.googleapis.com/maxScale: "2"
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+    environment: live
+    managed_by: terraform
+    product: apicenter
+    service: payments
+    stack: microservices
+  name: apicenter-payments-live
 spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "2"
+        autoscaling.knative.dev/minScale: "0"
         run.googleapis.com/cpu-throttling: "true"
-        run.googleapis.com/service-account: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
-        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
-        run.googleapis.com/vpc-access-egress: private-ranges-only
+        run.googleapis.com/sessionAffinity: "false"
         run.googleapis.com/startup-cpu-boost: "true"
     spec:
       containerConcurrency: 80
-      timeoutSeconds: 300
-      serviceAccountName: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
       containers:
-        - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-live
-          ports:
-            - containerPort: 8080
-          env:
-            - name: NODE_ENV
-              value: production
-            - name: GCP_PROJECT_ID
-              value: apicenter-alpha-20260623
-            - name: PAYMENT_PROVIDER_MODE
-              value: live
-            - name: PAYMENT_PROVIDER_NAME
-              value: paymongo
+        - env:
             - name: PAYMENT_SUBSCRIPTIONS_ENABLED
               value: "true"
-            - name: SHARED_SERVICES_DATABASE_ENABLED
-              value: "true"
-            - name: SHARED_SERVICES_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: apicenter-payments-database-url-live
-                  key: latest
-            - name: PAYMONGO_LIVE_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: apicenter-payments-live-secret-key
-                  key: latest
-            - name: PAYMONGO_LIVE_WEBHOOK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: apicenter-payments-live-webhook-secret
-                  key: latest
             - name: APICENTER_PAYMENTS_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: apicenter-payments-live-internal-token
                   key: latest
-            - name: PUBSUB_DISPATCHER_ENABLED
+                  name: apicenter-payments-live-internal-token
+            - name: OUTBOX_WORKER_ENABLED
               value: "true"
+            - name: PAYMONGO_LIVE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: apicenter-payments-live-webhook-secret
             - name: APICENTER_PAYMENT_EVENTS_TOPIC_TEST
               value: apicenter.payment-events.test
             - name: APICENTER_PAYMENT_EVENTS_TOPIC_LIVE
               value: apicenter.payment-events.live
+            - name: SHARED_SERVICES_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: "3"
+                  name: apicenter-payments-live-database-url
+            - name: PAYMENT_PROVIDER_NAME
+              value: paymongo
+            - name: SHARED_SERVICES_DATABASE_ENABLED
+              value: "true"
+            - name: NODE_ENV
+              value: production
+            - name: PAYMONGO_LIVE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: apicenter-payments-live-secret-key
+            - name: PAYMENT_ENVIRONMENT
+              value: live
+            - name: GCP_PROJECT_ID
+              value: apicenter-alpha-20260623
+            - name: PAYMENT_PROVIDER_MODE
+              value: live
+            - name: PUBSUB_DISPATCHER_ENABLED
+              value: "true"
+          image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-live
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 15
+            timeoutSeconds: 5
+          ports:
+            - containerPort: 8080
+              name: http1
           resources:
             limits:
               cpu: "1"
-              memory: 1Gi
+              memory: 512Mi
           startupProbe:
+            failureThreshold: 24
             httpGet:
               path: /health
+              port: 8080
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 24
-          livenessProbe:
-            httpGet:
-              path: /health
-            timeoutSeconds: 5
-            periodSeconds: 15
-
+      serviceAccountName: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+      timeoutSeconds: 300
+  traffic:
+    - latestRevision: true
+      percent: 100

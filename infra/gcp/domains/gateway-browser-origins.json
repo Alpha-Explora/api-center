@@ -1,0 +1,5 @@
+{
+  "--update-env-vars": {
+    "ALLOWED_ORIGINS": "https://api-center-management-test.itsandbox.site,https://apicenter.itsandbox.site,https://docs.apicenter.itsandbox.site"
+  }
+}
