@@ -171,3 +171,7 @@ After deploying a status fix, re-read each affected checkout and confirm its pro
 The payment gateway preserves the runtime bearer token in `Authorization` and sends the Cloud Run identity token in `X-Serverless-Authorization`. Failure to obtain that identity or a non-JSON upstream response returns a gateway error while preserving uncertain mutation outcomes for idempotency.
 
 Service JWT callers can use the declared payment scopes (including the legacy read/write aliases); registry placement and environment access remain authoritative. Health sweeps use the registered runtime authentication and bounded concurrency. Validate IAM and provider behavior separately from repository tests.
+
+### Payment credential lifecycle and setup status
+
+Payment API keys are checked against current service, project, tribe, environment and registry placement state on authentication. Setup status distinguishes current service-token access from a configured payment key, and reports unknown when possession or provider/event delivery cannot be established. It does not mutate registration or grant access.

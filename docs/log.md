@@ -2,6 +2,8 @@
 
 ## 2026-11-07
 
+- Expose project/service setup checks through the gateway, SDK and console, preserve React hook order, and revalidate payment API-key lifecycle state.
+
 - Replace the generic public landing page with APICenter-specific gateway, registry, governance and shared-service content and clear console/docs entry points.
 - Support HTTPS payment-event receivers outside Cloud Run and configurable OIDC audiences while retaining environment and endpoint validation.
 - Authenticate private payment runtime calls, preserve uncertain proxy outcomes, restore scoped service JWT payment access, verify Google tokens against registered clients, and bound authenticated health sweeps.

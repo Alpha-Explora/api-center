@@ -6,6 +6,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Build shared contracts before compiling gateway images that consume project setup status types.
 - Preserve gateway workspace-local dependencies through Docker build/runtime stages and keep the workspace directory layout for Node module resolution.
 - Recognize completed PayMongo payments in active checkout sessions, refresh checkout reads by ID and reference, and reconcile saved status without regressing confirmed payments. Include webhook signing-secret references on gateway deployments.
 - Refresh refunds from PayMongo on reads and apply signed refund status events without regressing terminal refund states.
@@ -19,6 +20,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 - Allow payment-intent confirmation with a payment method, return URL, and client key, and return the provider's next action for customer redirects.
 
 ### Changed
+
+- Expose project/service setup checks through the gateway, SDK and console, preserve React hook order, and revalidate payment API-key lifecycle state.
 
 - Replace the generic public landing page with APICenter-specific gateway, registry, governance and shared-service content and clear console/docs entry points.
 - Support HTTPS payment-event receivers outside Cloud Run and configurable OIDC audiences while retaining environment and endpoint validation.

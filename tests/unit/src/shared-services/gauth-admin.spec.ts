@@ -206,6 +206,10 @@ describe("GAuth OAuth app admin handler", () => {
       secretManager: secrets.client,
       now: () => new Date("2026-10-10T00:00:00.000Z"),
     });
+    const missing = responseRecorder();
+    await handler(request("GET"), missing.response as never);
+    expect(missing.result.body).toMatchObject({ registered: false, credentialSettingsConfigured: false });
+
     const put = responseRecorder();
     await handler(request("PUT", validInput), put.response as never);
     expect(put.result.statusCode).toBe(200);
@@ -214,6 +218,8 @@ describe("GAuth OAuth app admin handler", () => {
     const get = responseRecorder();
     await handler(request("GET"), get.response as never);
     expect(get.result.body).toMatchObject({
+      registered: true,
+      credentialSettingsConfigured: true,
       hasOwnClient: true,
       clientId: "sample-client",
       secretLastChangedAt: "2026-10-10T00:00:00.000Z",

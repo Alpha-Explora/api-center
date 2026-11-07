@@ -16,6 +16,7 @@ import { PaymentRecordsManagementService } from "./features/records-management/p
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/payment-limits";
 import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
+import { PAYMENT_ACCESS_DIRECTORY } from "./shared/payment-access.types";
 
 @Module({
   imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule],
@@ -31,6 +32,7 @@ import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-man
     PaymentAuthGuard,
     PaymentConsumerManagementService,
     { provide: PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, useExisting: PaymentConsumerManagementService },
+    { provide: PAYMENT_ACCESS_DIRECTORY, useExisting: PaymentApiKeyService },
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
@@ -41,6 +43,7 @@ import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-man
     PaymentApiKeyService,
     PaymentConsumerManagementService,
     PAYMENT_CONSUMER_REGISTRATION_DIRECTORY,
+    PAYMENT_ACCESS_DIRECTORY,
   ],
 })
 export class PaymentsModule {}

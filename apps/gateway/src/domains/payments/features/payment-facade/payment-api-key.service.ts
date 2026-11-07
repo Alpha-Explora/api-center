@@ -1,7 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
+import { RegistryService } from "@registry/registry.service";
 import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
+import type { PaymentAccessDirectory } from "../../shared/payment-access.types";
 
 export type PaymentPrincipal = {
   ownerTribeId: string;
@@ -25,9 +27,10 @@ type DatabaseKey = {
 };
 
 @Injectable()
-export class PaymentApiKeyService {
+export class PaymentApiKeyService implements PaymentAccessDirectory {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly registry: RegistryService,
     @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
   ) {}
 
@@ -43,8 +46,59 @@ export class PaymentApiKeyService {
     // The project is never read from the key. It comes from the consumer service's registry placement, and a
     // key whose service is unplaced or belongs to another tribe than the key's owner does not authenticate.
     const placement = this.tenancy.resolveServicePlacement(credential.consumerServiceId);
-    if (!placement || placement.tribeId !== credential.ownerTribeId) return null;
+    const service = this.registry.get(credential.consumerServiceId);
+    const projectPlacement = placement
+      ? this.tenancy.resolveProject(placement.projectId)
+      : null;
+    const environment = service?.environments.find(
+      (candidate) => candidate.environment === credential.environment,
+    );
+    if (
+      !placement ||
+      placement.tribeId !== credential.ownerTribeId ||
+      !service ||
+      service.status !== "active" ||
+      (service.serviceType ?? "tribe") !== "tribe" ||
+      service.projectId !== placement.projectId ||
+      service.ownerTribeId !== placement.tribeId ||
+      !environment ||
+      environment.status !== "active" ||
+      !projectPlacement ||
+      projectPlacement.project.projectId !== placement.projectId ||
+      projectPlacement.project.tribeId !== placement.tribeId ||
+      projectPlacement.project.status !== "active" ||
+      projectPlacement.tribe.tribeId !== placement.tribeId ||
+      projectPlacement.tribe.status !== "active"
+    ) return null;
     return { ...credential, projectId: placement.projectId };
+  }
+
+  async hasActiveReadWriteKey(serviceId: string, projectId: string, environment: "test" | "live"): Promise<boolean | null> {
+    const placement = this.tenancy.resolveServicePlacement(serviceId);
+    if (!placement || placement.projectId !== projectId) return false;
+    if (process.env.DATABASE_ENABLED !== "true") {
+      return this.configuredKeys().some((candidate) =>
+        candidate.consumerServiceId === serviceId &&
+        candidate.ownerTribeId === placement.tribeId &&
+        candidate.environment === environment &&
+        hasReadWriteAccess(candidate.scopes),
+      );
+    }
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ scopes: string[] }>>(
+        "SELECT k.scopes FROM apic_governance.payment_api_keys k " +
+          "JOIN apic_governance.payment_consumer_services s ON s.id = k.consumer_service_id " +
+          "WHERE s.consumer_service_id = $1 AND s.owner_tribe_id = $2 AND s.environment = $3 " +
+          "AND s.status = 'active' AND k.revoked_at IS NULL " +
+          "AND (k.expires_at IS NULL OR k.expires_at > now())",
+        serviceId,
+        placement.tribeId,
+        environment,
+      );
+      return rows.some((row) => hasReadWriteAccess(Array.isArray(row.scopes) ? row.scopes : []));
+    } catch {
+      return null;
+    }
   }
 
   private resolveConfigured(keyHash: string): KeyCredential | null {
@@ -142,4 +196,18 @@ export class PaymentApiKeyService {
     const rightBuffer = Buffer.from(right, "hex");
     return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
   }
+}
+
+function hasReadWriteAccess(scopes: string[]): boolean {
+  return canSatisfyScope(scopes, "payments:checkout:read") &&
+    canSatisfyScope(scopes, "payments:checkout:write");
+}
+
+function canSatisfyScope(scopes: string[], required: string): boolean {
+  const direction = required.endsWith(":read") ? "read" : "write";
+  return scopes.some((scope) => {
+    if (scope === "*" || scope === "payments:*" || scope === required) return true;
+    if (scope === `payments:${direction}`) return true;
+    return scope.endsWith(":*") && required.startsWith(`${scope.slice(0, -2)}:`);
+  });
 }
