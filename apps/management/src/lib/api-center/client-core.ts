@@ -38,7 +38,7 @@ export function withQuery(path: string, params: URLSearchParams) {
 export function getApiCenterBaseUrl() {
   return (
     process.env.NEXT_PUBLIC_API_CENTER_BASE_URL ??
-    "https://api-center.itsandbox.site"
+    "https://api.apicenter.itsandbox.site"
   ).replace(/\/$/, "");
 }
 

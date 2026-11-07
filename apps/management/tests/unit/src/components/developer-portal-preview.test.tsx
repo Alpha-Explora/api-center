@@ -100,7 +100,7 @@ describe("DeveloperPortalPreview", () => {
   beforeEach(() => {
     vi.useRealTimers();
     apiClient.getApiCenterBaseUrl.mockReturnValue(
-      "https://api-center.itsandbox.site",
+      "https://api.apicenter.itsandbox.site",
     );
     apiClient.listServices.mockResolvedValue([
       {
@@ -165,7 +165,7 @@ describe("DeveloperPortalPreview", () => {
     renderWithClient(<DeveloperPortalPreview initialTribeId="campus-one" />);
 
     expect(await screen.findByText("campus-one")).toBeTruthy();
-    expect(screen.getByText("https://api-center.itsandbox.site")).toBeTruthy();
+    expect(screen.getByText("https://api.apicenter.itsandbox.site")).toBeTruthy();
     expect(screen.getByText("@alpha-explora/apicenter-sdk")).toBeTruthy();
     expect(screen.getByText("payment-service")).toBeTruthy();
     expect(screen.getByText("payments:write")).toBeTruthy();

@@ -2,6 +2,12 @@
 
 ## 2026-11-07
 
+- Verify the existing enabled test-payment database secret reference and guard against reverting to a destroyed historical version.
+
+- Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
+
+- Reconcile hosted access and deployment sources on current main; retain incomplete acceptance checks and historical rollout dates without claiming fresh cloud verification.
+
 - Expose project/service setup checks through the gateway, SDK and console, preserve React hook order, and revalidate payment API-key lifecycle state.
 
 - Replace the generic public landing page with APICenter-specific gateway, registry, governance and shared-service content and clear console/docs entry points.

@@ -1,6 +1,6 @@
 ---
 title: "APICenter Payment Platform Runbook"
-status: canonical
+status: reference
 authority: operational
 owner: platform-operators
 audience: [operators, engineers]
@@ -11,9 +11,15 @@ sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
 # APICenter Payment Platform Runbook
 
 This runbook is for the APICenter payment facade, the private payments runtime,
-Google Pub/Sub lifecycle delivery, and AlphaCI's local projection. APICenter is
-the only public payment API and owns the provider credential boundary. Consumer
-services use the SDK and never receive PayMongo credentials.
+Google Pub/Sub lifecycle delivery, and prior AlphaCI integration notes.
+APICenter is the only public payment API and owns the provider credential
+boundary. The published SDK is the consumer client; consumer services must not
+receive PayMongo credentials.
+
+The AlphaCI endpoint, API-key, and cutover instructions below are unverified
+reference material from a prior integration. No consumer repository outside
+APICenter is currently onboarded to the published SDK. Revalidate a consumer's
+service registration and delivery configuration before using these steps.
 
 ## 1. Release Inputs
 
@@ -72,15 +78,16 @@ Install dependencies and run the deterministic integration smoke:
 
 ```bash
 npm ci
+npm run sdk:build
 npm run test:integration
 ```
 
 For a test or live endpoint, provide the SDK and harness configuration:
 
 ```bash
-$env:APICENTER_BASE_URL='https://api-center.example'
-$env:APICENTER_API_KEY='stored-consumer-key'
-$env:APICENTER_TRIBE_ID='tribe-alpha'
+$env:APICENTER_URL='https://api-center.itsandbox.site'
+$env:APICENTER_PAYMENT_API_KEY='stored-consumer-key'
+$env:APICENTER_OWNER_TRIBE_ID='tribe-alpha'
 $env:APICENTER_CONSUMER_SERVICE_ID='alphaci-backend'
 $env:PAYMENT_SMOKE_EVENT_INJECTOR_URL='https://alphaci-events.example/internal/smoke'
 $env:PAYMENT_SMOKE_PUBSUB_OBSERVER_URL='https://ops.example/pubsub/events'

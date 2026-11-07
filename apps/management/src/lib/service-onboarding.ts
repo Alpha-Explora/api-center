@@ -659,7 +659,7 @@ export function getOnboardingPacket(
         ? `/api/v1/shared/${service.serviceId}`
         : `/api/v1/tribes/${service.serviceId}`,
     sdkEnv: {
-      APICENTER_URL: "https://api-center.itsandbox.site",
+      APICENTER_URL: "https://api.apicenter.itsandbox.site",
       APICENTER_SERVICE_ID: service.serviceId,
       APICENTER_SERVICE_SECRET: "<issued-service-secret>",
     },
@@ -715,13 +715,13 @@ export function getTribeOnboardingPacket(service: ServiceRegistryEntry) {
     env: [
       `# ${describePlacement(service)}`,
       "# test",
-      "APICENTER_URL=https://api-center.itsandbox.site",
+      "APICENTER_URL=https://api.apicenter.itsandbox.site",
       "APICENTER_ENVIRONMENT=test",
       `APICENTER_SERVICE_ID=${service.serviceId}`,
       "APICENTER_SERVICE_SECRET=<test-secret-issued-by-platform>",
       "",
       "# live",
-      "APICENTER_URL=https://api-center.itsandbox.site",
+      "APICENTER_URL=https://api.apicenter.itsandbox.site",
       "APICENTER_ENVIRONMENT=live",
       `APICENTER_SERVICE_ID=${service.serviceId}`,
       "APICENTER_SERVICE_SECRET=<live-secret-issued-by-platform>",

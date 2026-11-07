@@ -6,7 +6,7 @@ const runbookSections = [
   {
     title: "Developer and Management guides",
     description: "Use the docs app for service registration, SDK setup, authentication, shared-service APIs, payments, and event handling.",
-    href: "https://api-center.itsandbox.site/docs",
+    href: "https://docs.apicenter.itsandbox.site",
     action: "Open APICenter docs",
   },
   {
@@ -20,7 +20,7 @@ const runbookSections = [
   {
     title: "Configure payment events",
     description: "If the service consumes payment events, ask an APICenter operator to configure its Pub/Sub push subscription and OIDC identity. Use the Event delivery guide in the developer docs to deduplicate and order updates.",
-    href: "https://api-center.itsandbox.site/docs",
+    href: "https://docs.apicenter.itsandbox.site",
     action: "Open developer docs",
   },
 ];

@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://api-center.itsandbox.site"
+      "url": "https://api.apicenter.itsandbox.site"
     }
   ],
   "security": [

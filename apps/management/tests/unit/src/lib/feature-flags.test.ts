@@ -37,8 +37,8 @@ describe("feature flags", () => {
   it("detects one-URL API Center topology from matching server and public URLs", () => {
     expect(
       isOneApiCenterTopologyEnabled({
-        apiCenterBaseUrl: "https://api-center.itsandbox.site/",
-        publicApiCenterBaseUrl: "https://api-center.itsandbox.site",
+        apiCenterBaseUrl: "https://api.apicenter.itsandbox.site/",
+        publicApiCenterBaseUrl: "https://api.apicenter.itsandbox.site",
       }),
     ).toBe(true);
   });
@@ -47,7 +47,7 @@ describe("feature flags", () => {
     expect(
       isOneApiCenterTopologyEnabled({
         apiCenterBaseUrl: "https://api-center-test.itsandbox.site",
-        publicApiCenterBaseUrl: "https://api-center.itsandbox.site",
+        publicApiCenterBaseUrl: "https://api.apicenter.itsandbox.site",
       }),
     ).toBe(false);
   });

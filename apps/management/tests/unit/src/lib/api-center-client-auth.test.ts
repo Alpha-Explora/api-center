@@ -14,8 +14,8 @@ describe("api-center-client management auth", () => {
           checkedAt: "2026-05-18T00:00:00.000Z",
           ok: true,
           managementEnvironment: "test",
-          apiCenterBaseUrl: "https://api-center.itsandbox.site",
-          publicApiCenterBaseUrl: "https://api-center.itsandbox.site",
+          apiCenterBaseUrl: "https://api.apicenter.itsandbox.site",
+          publicApiCenterBaseUrl: "https://api.apicenter.itsandbox.site",
           kafkaTopicPrefix: "test",
           googleCloudProject: "api-center-496422",
           secretManagerAuth: {

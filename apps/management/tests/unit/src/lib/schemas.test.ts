@@ -163,7 +163,7 @@ describe("registryListResponseSchema", () => {
         {
           serviceId: "codex-owner-20260520024731",
           name: "Codex Owner Tribe",
-          baseUrl: "https://api-center.itsandbox.site",
+          baseUrl: "https://api.apicenter.itsandbox.site",
           requiredScopes: ["codex-owner:read"],
           exposes: ["/events"],
           consumes: ["kafka"],

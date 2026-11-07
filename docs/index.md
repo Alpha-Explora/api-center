@@ -26,12 +26,16 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 ## Operations
 
+- [Documentation entry-point compatibility](README.md)
+- [Cloud review recorded on 2026-10-11](operations/cloud-live-status-2026-10-11.md)
+- [Cloud Run deployment verified on 2026-10-12](operations/cloud-live-status-2026-10-12.md)
+
 - [APICenter Full-Plan IAM Access](operations/apicenter-full-plan-iam-access.md)
 - [History write load test](operations/history-load-test.md)
 - [History retention](operations/history-retention.md)
-- [Payment Checkout And Subscription Handoff](operations/payment-checkout-subscription-handoff.md)
+- [Payment Checkout And Subscription Handoff (historical SDK 1.1.0 reference)](operations/payment-checkout-subscription-handoff.md)
 - [Payment Database Ownership](operations/payment-database-ownership.md)
-- [APICenter Payment Platform Runbook](operations/payment-platform-runbook.md)
+- [APICenter Payment Platform Runbook (unverified integration reference)](operations/payment-platform-runbook.md)
 - [Shared-service database roles](operations/shared-service-database-roles.md)
 
 ## Integrations
@@ -44,6 +48,10 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 - [Tribe API Quotas](developer/tribe-api-quotas.md)
 - [Tribe Governance Scorecard Rubric](developer/tribe-governance-scorecard-rubric.md)
+
+## Research
+
+- [Credential onboarding comparison](research/2026-10-12-credential-onboarding-comparison.md)
 
 ## Decisions, plans, and history
 

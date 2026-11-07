@@ -10,7 +10,18 @@ sources: ["infra/gcp"]
 ---
 # Cloud Run deployment and recorded evidence
 
-The revision, DNS, IAM, and health statements below are historical observations for their recorded dates. They have not been refreshed by this documentation update. Use checked-in `infra/gcp/` manifests and current operator checks before making a deployment or rollback decision.
+The [2026-10-12 deployment record](operations/cloud-live-status-2026-10-12.md) contains the workspace service URLs, database reset, and health checks. The subsequent [hosted domain rollout](operations/apicenter-domain-rollout-2026-10-12.md) tracks canonical HTTPS routing and its pending delivery checks; [hosted access](operations/apicenter-hosted-access.md) explains the maintained hostname and authentication boundaries. The revision, DNS, IAM, and health statements below are historical observations for their recorded dates. Use the checked-in `infra/gcp/` manifests and a current operator check before a deployment or rollback.
+
+## Ownership and IaC boundary
+
+- The `alphaexplora-cloud` repository owns organization folders and policies, company IAM, billing controls, project enrollment, and shared foundation state.
+- This APICenter repository is the intended owner for APICenter runtime infrastructure: Cloud Run services, service identities and grants, event delivery, product-specific scaling, and release configuration.
+- Checked on 2026-10-11: the APICenter `main` checkout and its reachable local Git history contain no Terraform files. The live `apicenter-product-runtime/default.tfstate` exists in the company state bucket (version 4, serial 24, 61 managed resources and two data records; object last updated 2026-08-11), but its source and apply owner have not been recovered. The company foundation state also contains APICenter-specific IAM and service-account declarations that must be reconciled before product ownership is transferred.
+- The project has zero Cloud Build triggers. Two inspected recent builds used source tarballs uploaded to its Cloud Build bucket and the `apicenter-cloudbuild-deployer` identity. Checked-in Cloud Build manifests use `gcloud run services replace`, while the recovered state contains Cloud Run service resources. Recover the source, state coordinates, and every active/manual writer before adding a Terraform root or moving resources. Do not initialize an empty state or create a second writer against live services. The target architecture keeps runtime IaC in this product repository and gives production and non-production separate projects, state, deployment identities, and secret boundaries.
+- The prior live status and readiness snapshot is recorded in [the 2026-10-11 cloud status](operations/cloud-live-status-2026-10-11.md). Current deployment facts are recorded in [the 2026-10-12 cloud status](operations/cloud-live-status-2026-10-12.md). The Cloud Run tables below remain historical rollout records, not a live status page.
+- The current named Cloud Run service definitions and payment service exports are recorded under `infra/gcp/cloud-run/workspace/` and in the APICenter payments manifests. They do not reconcile Terraform state.
+
+The live project, service, subscription, and IAM observations are maintained in the company cloud inventory and dated review evidence. The deployment and traffic tables below are dated rollout records, not a live status page; refresh GCP metadata before making a runtime or retirement decision.
 
 ## Recorded staging snapshot
 

@@ -1,3 +1,36 @@
+import { GoogleAuth, type IdTokenClient } from "google-auth-library";
+
+const cloudRunAuth = new GoogleAuth();
+const cloudRunClients = new Map<string, Promise<IdTokenClient>>();
+
+export async function fetchApiCenter(url: string, init?: RequestInit) {
+  const audience = new URL(getApiCenterBaseUrl()).origin;
+  if (
+    process.env.API_CENTER_CLOUD_RUN_AUTH_ENABLED !== "true" ||
+    !audience.startsWith("https://") ||
+    !new URL(audience).hostname.endsWith(".run.app") ||
+    new URL(url).origin !== audience
+  ) {
+    return fetch(url, init);
+  }
+
+  let clientPromise = cloudRunClients.get(audience);
+  if (!clientPromise) {
+    clientPromise = cloudRunAuth.getIdTokenClient(audience).catch((error) => {
+      cloudRunClients.delete(audience);
+      throw error;
+    });
+    cloudRunClients.set(audience, clientPromise);
+  }
+  const client = await clientPromise;
+  const cloudHeaders = await client.getRequestHeaders(audience);
+  const authorization = cloudHeaders.get("authorization");
+  if (!authorization) throw new Error("Cloud Run identity token is unavailable");
+  const headers = new Headers(init?.headers);
+  headers.set("X-Serverless-Authorization", authorization);
+  return fetch(url, { ...init, headers });
+}
+
 export function getApiCenterAdminConfig() {
   const platformSecret = getPlatformSecret();
 
@@ -10,7 +43,7 @@ export function getApiCenterAdminConfig() {
     ),
     publicApiCenterBaseUrl:
       process.env.NEXT_PUBLIC_API_CENTER_BASE_URL ??
-      "https://api-center.itsandbox.site",
+      "https://api.apicenter.itsandbox.site",
   };
 }
 
@@ -44,7 +77,7 @@ export async function apiCenterAdminRequest(
   let response: Response;
 
   try {
-    response = await fetch(`${apiCenterBaseUrl}${path}`, {
+    response = await fetchApiCenter(`${apiCenterBaseUrl}${path}`, {
       ...fetchInit,
       headers: {
         "content-type": "application/json",
@@ -139,7 +172,7 @@ export async function apiCenterAdminJson<T>(path: string, init?: RequestInit) {
     );
   }
 
-  const response = await fetch(`${apiCenterBaseUrl}${path}`, {
+  const response = await fetchApiCenter(`${apiCenterBaseUrl}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -165,7 +198,7 @@ export function getApiCenterAdminUrl(path: string) {
 
 function getApiCenterBaseUrl() {
   return (
-    process.env.API_CENTER_BASE_URL ?? "https://api-center.itsandbox.site"
+    process.env.API_CENTER_BASE_URL ?? "https://api.apicenter.itsandbox.site"
   ).replace(/\/$/, "");
 }
 
