@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listTribes } from "@/lib/api-center/tenancy-client";
 import { Button } from "@/components/ui/button";
@@ -20,52 +20,74 @@ type Settings = {
 };
 
 export function GoogleSignInSettingsClient() {
-  const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState("");
   const [environment, setEnvironment] = useState<Environment>("test");
-  const [redirectUris, setRedirectUris] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [useOwnClient, setUseOwnClient] = useState(false);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [feedback, setFeedback] = useState("");
-
   const tribesQuery = useQuery({ queryKey: ["tenancy", "tribes"], queryFn: listTribes });
   const projects = useMemo(
     () => (tribesQuery.data ?? []).flatMap((tribe) => tribe.projects.map((project) => ({ ...project, tribeName: tribe.name }))),
     [tribesQuery.data],
   );
-  useEffect(() => {
-    if (!projectId && projects[0]) setProjectId(projects[0].projectId);
-  }, [projectId, projects]);
+  const selectedProjectId = projects.some((project) => project.projectId === projectId)
+    ? projectId : projects[0]?.projectId ?? "";
+  const selectedProject = projects.find((project) => project.projectId === selectedProjectId);
 
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Project and environment</CardTitle>
+          <CardDescription>Choose where these Google OAuth settings apply.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-2 text-sm font-medium">Project
+            <select aria-label="Project" className="h-9 rounded-md border bg-background px-3" value={selectedProjectId} onChange={(event) => setProjectId(event.target.value)} disabled={tribesQuery.isLoading || projects.length === 0}>
+              {projects.map((project) => <option key={project.projectId} value={project.projectId}>{project.name} · {project.projectId} ({project.tribeName})</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium">Environment
+            <select aria-label="Environment" className="h-9 rounded-md border bg-background px-3" value={environment} onChange={(event) => setEnvironment(event.target.value as Environment)}>
+              <option value="test">Test</option><option value="live">Live</option>
+            </select>
+          </label>
+        </CardContent>
+      </Card>
+      {tribesQuery.isError ? <p role="alert">Projects could not be loaded.</p> : null}
+      {!tribesQuery.isLoading && projects.length === 0 ? <p>No projects are available to your organization.</p> : null}
+      {selectedProject ? <GoogleSignInSettingsLoader key={selectedProjectId + ":" + environment} projectId={selectedProjectId} projectName={selectedProject.name} environment={environment} /> : null}
+    </div>
+  );
+}
+
+type SettingsProps = { projectId: string; projectName: string; environment: Environment };
+
+function GoogleSignInSettingsLoader(props: SettingsProps) {
   const settingsQuery = useQuery({
-    queryKey: ["google-sign-in", projectId, environment],
-    enabled: Boolean(projectId),
+    queryKey: ["google-sign-in", props.projectId, props.environment],
     queryFn: async (): Promise<Settings> => {
-      const response = await fetch(settingsPath(projectId, environment), { cache: "no-store" });
+      const response = await fetch(settingsPath(props.projectId, props.environment), { cache: "no-store" });
       if (!response.ok) throw new Error("Could not load Google sign-in settings.");
       return response.json() as Promise<Settings>;
     },
   });
+  if (settingsQuery.isError && !settingsQuery.data) return <p role="alert">Google sign-in settings could not be loaded.</p>;
+  if (!settingsQuery.data) return <p role="status">Loading settings…</p>;
+  return <GoogleSignInSettingsForm {...props} settings={settingsQuery.data} />;
+}
 
-  useEffect(() => {
-    const settings = settingsQuery.data;
-    if (!settings) return;
-    setRedirectUris(settings.redirectUris.join("\n"));
-    setDisplayName(settings.displayName);
-    setUseOwnClient(settings.hasOwnClient);
-    setClientId(settings.clientId ?? "");
-    setClientSecret("");
-    setFeedback("");
-  }, [settingsQuery.data]);
+function GoogleSignInSettingsForm({ projectId, projectName, environment, settings }: SettingsProps & { settings: Settings }) {
+  const queryClient = useQueryClient();
+  const [redirectUris, setRedirectUris] = useState(() => settings.redirectUris.join("\n"));
+  const [useOwnClient, setUseOwnClient] = useState(settings.hasOwnClient);
+  const [clientId, setClientId] = useState(settings.clientId ?? "");
+  const [clientSecret, setClientSecret] = useState("");
+  const [feedback, setFeedback] = useState("");
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const uris = redirectUris.split(/\r?\n/).map((uri) => uri.trim()).filter(Boolean);
       const payload: Record<string, unknown> = {
         redirectUris: uris,
-        displayName: displayName.trim(),
+        displayName: settings.displayName.trim(),
         clientId: useOwnClient ? clientId.trim() : null,
       };
       if (useOwnClient && clientSecret) payload.clientSecret = clientSecret;
@@ -81,6 +103,9 @@ export function GoogleSignInSettingsClient() {
       return body as Settings;
     },
     onSuccess: async (settings) => {
+      setRedirectUris(settings.redirectUris.join("\n"));
+      setUseOwnClient(settings.hasOwnClient);
+      setClientId(settings.clientId ?? "");
       setClientSecret("");
       setFeedback("Google sign-in settings saved.");
       queryClient.setQueryData(["google-sign-in", projectId, environment], settings);
@@ -99,10 +124,9 @@ export function GoogleSignInSettingsClient() {
       return fetch(settingsPath(projectId, environment), { cache: "no-store" }).then((result) => result.json() as Promise<Settings>);
     },
     onSuccess: (settings) => {
-      setRedirectUris("");
-      setDisplayName("");
-      setUseOwnClient(false);
-      setClientId("");
+      setRedirectUris(settings.redirectUris.join("\n"));
+      setUseOwnClient(settings.hasOwnClient);
+      setClientId(settings.clientId ?? "");
       setClientSecret("");
       setFeedback("Registration removed.");
       queryClient.setQueryData(["google-sign-in", projectId, environment], settings);
@@ -110,10 +134,7 @@ export function GoogleSignInSettingsClient() {
     onError: (error) => setFeedback(error instanceof Error ? error.message : "Registration could not be removed."),
   });
 
-  const settings = settingsQuery.data;
-  const selectedProject = projects.find((project) => project.projectId === projectId);
   const confirmRemoveRegistration = () => {
-    const projectName = selectedProject?.name ?? projectId;
     const confirmed = window.confirm(
       `Remove Google sign-in registration for ${projectName} (${projectId}) in the ${environment} environment? Google sign-in will stop working there.`,
     );
@@ -121,32 +142,7 @@ export function GoogleSignInSettingsClient() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Project and environment</CardTitle>
-          <CardDescription>Choose where these Google OAuth settings apply.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-2 text-sm font-medium">Project
-            <select aria-label="Project" className="h-9 rounded-md border bg-background px-3" value={projectId} onChange={(event) => setProjectId(event.target.value)} disabled={tribesQuery.isLoading || projects.length === 0}>
-              {projects.map((project) => <option key={project.projectId} value={project.projectId}>{project.name} · {project.projectId} ({project.tribeName})</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium">Environment
-            <select aria-label="Environment" className="h-9 rounded-md border bg-background px-3" value={environment} onChange={(event) => setEnvironment(event.target.value as Environment)}>
-              <option value="test">Test</option><option value="live">Live</option>
-            </select>
-          </label>
-        </CardContent>
-      </Card>
-
-      {tribesQuery.isError ? <p role="alert">Projects could not be loaded.</p> : null}
-      {!tribesQuery.isLoading && projects.length === 0 ? <p>No projects are available to your organization.</p> : null}
-      {settingsQuery.isLoading ? <p role="status">Loading settings…</p> : null}
-      {settingsQuery.isError ? <p role="alert">Google sign-in settings could not be loaded.</p> : null}
-
-      {settings ? <Card>
+    <Card>
         <CardHeader>
           <CardTitle>OAuth settings</CardTitle>
           <CardDescription>This project currently uses {settings.hasOwnClient ? "its own Google client" : "the APICenter Google client"} for {environment} sign-in.</CardDescription>
@@ -169,13 +165,12 @@ export function GoogleSignInSettingsClient() {
           </div> : null}
           {settings.secretLastChangedAt ? <p className="text-sm text-muted-foreground">Client secret last changed {new Date(settings.secretLastChangedAt).toLocaleString()}.</p> : null}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || settingsQuery.isLoading || !projectId}>Save settings</Button>
-            <Button variant="outline" onClick={confirmRemoveRegistration} disabled={deleteMutation.isPending || !projectId}>Remove registration</Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || deleteMutation.isPending}>Save settings</Button>
+            <Button variant="outline" onClick={confirmRemoveRegistration} disabled={deleteMutation.isPending || saveMutation.isPending}>Remove registration</Button>
           </div>
           {feedback ? <p role="status">{feedback}</p> : null}
         </CardContent>
-      </Card> : null}
-    </div>
+    </Card>
   );
 }
 

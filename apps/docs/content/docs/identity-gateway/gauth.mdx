@@ -66,3 +66,7 @@ Content-Type: application/json
 ```
 
 The response reports whether the ID token is valid and includes verified identity claims. Do not treat an unverified token payload as identity evidence.
+
+## Registered Google token verification
+
+Token verification uses the Google project/environment registration and checks the ID token against its registered client ID. A missing, inactive, or incorrectly configured registration cannot be used to verify a token. Registration settings alone do not prove that an interactive Google sign-in succeeds.
