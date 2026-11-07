@@ -147,6 +147,9 @@ jobs:
           NODE_ENV: test
           ALLOW_MISSING_EXTERNAL_MANIFESTS: 'true'
 
+      - name: Build SDK for integration and HTTP smoke tests
+        run: npm run sdk:build
+
       - name: Run integration tests
         run: npm run test:integration
         env:
