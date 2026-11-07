@@ -57,3 +57,9 @@ for (const [environment, cap] of [['live', '2'], ['test', '1']]) {
     assert.doesNotMatch(data.spec.template.spec.containers[0].image, /:build-/);
   });
 }
+
+test('test payment database secret does not reference a destroyed historical version', () => {
+  const data = YAML.parse(fs.readFileSync(path.join(root, 'infra/gcp/cloud-run/apicenter-payments.test.yaml'), 'utf8'));
+  const reference = data.spec.template.spec.containers[0].env.find(item => item.name === 'SHARED_SERVICES_DATABASE_URL').valueFrom.secretKeyRef;
+  assert.deepEqual(reference, { key: '4', name: 'apicenter-payments-test-database-url' });
+});

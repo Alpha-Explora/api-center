@@ -19,6 +19,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Replace the destroyed historical test-payment database secret reference with enabled version 4, matching the current service configuration.
+
 - Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
 
 - Prepare canonical hosted API/docs hostnames, private-runtime invocation from Management, static docs containers and build-context exclusions; retain existing scaling caps and dated rollout evidence.

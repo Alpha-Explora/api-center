@@ -2,6 +2,8 @@
 
 ## 2026-11-07
 
+- Replace the destroyed historical test-payment database secret reference with enabled version 4, matching the current service configuration.
+
 - Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
 
 - Reconcile hosted access and deployment sources on current main; retain incomplete acceptance checks and historical rollout dates without claiming fresh cloud verification.
