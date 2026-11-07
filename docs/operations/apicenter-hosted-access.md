@@ -64,3 +64,9 @@ The repository manifests describe manual runtime changes. They do not reconcile 
 These checked-in deployment records describe the dated rollout, not a new deployment verification. Preserve the service and revision scaling limits already on main. The eight workspace service manifests already exist on main and are retained unchanged; historical local exports omitted the newer service-level cap. Review runtime ownership, current image digests, IAM, ingress, routes and secret-version references before applying any manifest. The payment YAML keeps the main image reference instead of the older snapshot build; replace it with the reviewed release digest through the deployment pipeline.
 
 This change depends on the console registration/OAuth PR. Apply the separate runtime-authentication and database-resilience changes before treating the full hosted onboarding flow as ready. No DNS, IAM, billing, database or service deployment is performed by this PR.
+
+## Payment ingress policy and observed drift
+
+The payment manifests retain main's `internal` ingress policy. Provider webhooks enter the public gateway at `/api/v1/shared/payment/webhooks/test` or `/live`; the gateway verifies signatures and forwards with runtime identity. Payment runtimes are not load-balancer backends in the checked-in hostname map.
+
+A read-only Cloud Run/IAM refresh on 2026-11-07 found payment service ingress set to `all`, while the payment and shared runtimes had no public invoker binding and did not disable invoker IAM. That is network-policy drift, not proof of anonymous access. This repository change does not modify those live services. Before applying manifests, verify the gateway-to-runtime VPC path under internal ingress and keep webhook delivery through the gateway. Live routing and certificate control-plane checks are separate from this Cloud Run evidence.

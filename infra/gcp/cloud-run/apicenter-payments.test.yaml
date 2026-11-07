@@ -1,9 +1,10 @@
-# Replace the image with the reviewed release digest through the deployment pipeline before applying.
+# Provider callbacks enter the public gateway; preserve internal payment-runtime ingress.
+# Validate gateway VPC routing and use a reviewed release digest before deployment.
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   annotations:
-    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress: internal
     run.googleapis.com/maxScale: "1"
   labels:
     cloud.googleapis.com/location: asia-southeast1

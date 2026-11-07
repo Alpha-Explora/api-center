@@ -19,6 +19,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
+
 - Prepare canonical hosted API/docs hostnames, private-runtime invocation from Management, static docs containers and build-context exclusions; retain existing scaling caps and dated rollout evidence.
 
 - Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.

@@ -45,6 +45,7 @@ for (const [environment, cap] of [['live', '2'], ['test', '1']]) {
   test(`payment ${environment} manifest preserves cost limits without exported revision metadata`, () => {
     const file = path.join(root, `infra/gcp/cloud-run/apicenter-payments.${environment}.yaml`);
     const data = YAML.parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(data.metadata.annotations['run.googleapis.com/ingress'], 'internal');
     assert.equal(data.metadata.annotations['run.googleapis.com/maxScale'], cap);
     assert.equal(data.spec.template.metadata.annotations['autoscaling.knative.dev/maxScale'], cap);
     assert.equal(data.spec.template.metadata.annotations['autoscaling.knative.dev/minScale'], '0');

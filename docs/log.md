@@ -2,6 +2,8 @@
 
 ## 2026-11-07
 
+- Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
+
 - Reconcile hosted access and deployment sources on current main; retain incomplete acceptance checks and historical rollout dates without claiming fresh cloud verification.
 
 - Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
