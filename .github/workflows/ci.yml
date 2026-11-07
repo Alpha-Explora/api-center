@@ -208,8 +208,8 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
 
-      - name: Check the plan catalogue in code against the replayed database
-        run: npm run db:test:plan-definitions
+      - name: Check shared-runtime role boundaries against the replayed database
+        run: npm run db:test:runtime-roles
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
 
