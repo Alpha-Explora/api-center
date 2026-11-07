@@ -2,6 +2,8 @@
 
 ## 2026-11-07
 
+- Explain and test explicit legacy-environment conversion before editing registrations, preserving test/live-only writes and live approval checks.
+
 - Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
 
 ## 2026-10-19

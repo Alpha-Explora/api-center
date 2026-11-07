@@ -73,6 +73,7 @@ const registeredService: ServiceRegistryEntry = {
 
 describe("TribeForm", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(listTribes).mockResolvedValue([smurfTribe]);
   });
 
@@ -90,6 +91,27 @@ describe("TribeForm", () => {
     expect((screen.getByLabelText("Project") as HTMLSelectElement).value).toBe(
       "smurf-village-default",
     );
+  });
+
+  it("requires explicit environment conversion when editing a legacy service", async () => {
+    vi.mocked(registerService).mockResolvedValue(registeredService);
+    renderWithClient(<TribeForm mode="edit" initialValue={{
+      ...registeredService,
+      environments: [{ environment: "staging", baseUrl: "https://legacy.example.test", status: "active" }],
+    }} />);
+    await screen.findByRole("option", { name: /smurf-village-default/ });
+    expect(screen.getByText("Convert legacy environments before saving")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Service name"), { target: { value: "Updated legacy service" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update service" }));
+    await screen.findByText("Use test for development or staging, or live for production");
+    expect(registerService).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Environment key for row 1"), { target: { value: "test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update service" }));
+    await waitFor(() => expect(registerService).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Updated legacy service",
+      environments: [expect.objectContaining({ environment: "test", baseUrl: "https://legacy.example.test" })],
+    })));
+    expect(screen.queryByText("Convert legacy environments before saving")).toBeNull();
   });
 
   it("gives shared-service checkboxes explicit labels", () => {

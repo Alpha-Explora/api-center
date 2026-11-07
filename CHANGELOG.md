@@ -19,6 +19,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Explain and test explicit legacy-environment conversion before editing registrations, preserving test/live-only writes and live approval checks.
+
 - Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
 
 - Refresh consumer and Management guidance for SDK 2.0.0, organization-scoped access, service registration, and project Google sign-in. Keep operator procedures in the internal `docs/` collection.

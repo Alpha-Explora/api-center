@@ -50,3 +50,7 @@ APICENTER_SERVICE_SECRET=<issued-service-secret>
 The SDK exchanges the service credentials for a bearer token and refreshes it when needed. Follow [SDK integration](/guides/sdk-usage) to make the first request.
 
 For live writes, Management requires an `admin` role, the exact confirmation phrase `APPLY LIVE CHANGE`, and a reason. Review the action before confirming it. For onboarding assistance, use the **Developer portal** to preview and copy the packet for the tribe; it does not contain service credentials.
+
+### Editing legacy environment labels
+
+Existing records with `staging`, `uat`, or `demo` remain readable. Before saving edits, explicitly change or remove those rows in **Environments**: use `test` for development/staging or `live` for production. Review the runtime URLs and credential bindings as part of that conversion. The form does not silently rename environments or bypass live approval.
