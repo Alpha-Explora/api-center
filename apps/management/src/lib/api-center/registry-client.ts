@@ -4,7 +4,7 @@ import {
   registrationRequestDetailResponseSchema,
   registrationRequestListResponseSchema,
   serviceHealthResultSchema,
-  serviceManifestSchema,
+  serviceRegistrationManifestSchema,
   type RegistrationRequestStatus,
   type ServiceHealthResult,
   type ServiceManifest,
@@ -29,11 +29,21 @@ export async function getService(
 
 export async function registerService(
   input: ServiceManifest,
+  options?: {
+    confirmation?: RegistrationApprovalConfirmation;
+    approvalRequestId?: string;
+  },
 ): Promise<ServiceRegistryEntry> {
-  const manifest = serviceManifestSchema.parse(input);
+  const manifest = serviceRegistrationManifestSchema.parse(input);
   const data = await request<unknown>("/api/local/registry/register", {
     method: "POST",
-    body: JSON.stringify(manifest),
+    body: JSON.stringify({
+      ...manifest,
+      ...(options?.confirmation ? { confirmation: options.confirmation } : {}),
+      ...(options?.approvalRequestId
+        ? { approvalRequestId: options.approvalRequestId }
+        : {}),
+    }),
   });
 
   return registryDetailResponseSchema.parse(data).data;
@@ -45,7 +55,7 @@ export async function createRegistrationRequest(input: {
 }): Promise<ServiceRegistrationRequest> {
   const payload = {
     ...input,
-    manifest: serviceManifestSchema.parse(input.manifest),
+    manifest: serviceRegistrationManifestSchema.parse(input.manifest),
   };
   const data = await request<unknown>(
     "/api/local/registry/registration-requests",

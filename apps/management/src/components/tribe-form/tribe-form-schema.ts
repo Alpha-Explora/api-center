@@ -4,10 +4,7 @@ import {
   splitCsv,
   uniqueValues,
 } from "@/components/tribe-form/manifest-transform";
-import {
-  serviceManifestSchema,
-  type ServiceManifest,
-} from "@/lib/schemas";
+import { serviceManifestSchema, type ServiceManifest } from "@/lib/schemas";
 
 export const formSchema = z
   .object({
@@ -31,6 +28,9 @@ export const formSchema = z
     sharedConsumes: z.array(z.string()).default([]),
     extraConsumesText: z.string().optional(),
     tagsText: z.string().optional(),
+    liveReason: z.string().optional(),
+    liveTypedPhrase: z.string().optional(),
+    approvalRequestId: z.string().max(128).optional(),
     environments: z
       .array(
         z.object({
@@ -51,6 +51,17 @@ export const formSchema = z
     }
     const seen = new Set<string>();
     values.environments.forEach((environment, index) => {
+      if (
+        environment.environment !== "test" &&
+        environment.environment !== "live"
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["environments", index, "environment"],
+          message:
+            "Use test for development or staging, or live for production",
+        });
+      }
       if (seen.has(environment.environment)) {
         context.addIssue({
           code: "custom",
@@ -60,6 +71,29 @@ export const formSchema = z
       }
       seen.add(environment.environment);
     });
+    if (values.environments.some((row) => row.environment === "live")) {
+      if (values.liveTypedPhrase !== "APPLY LIVE CHANGE") {
+        context.addIssue({
+          code: "custom",
+          path: ["liveTypedPhrase"],
+          message: "Type APPLY LIVE CHANGE exactly to continue",
+        });
+      }
+      if (!values.liveReason?.trim()) {
+        context.addIssue({
+          code: "custom",
+          path: ["liveReason"],
+          message: "Provide a reason for this live registration",
+        });
+      }
+      if (!values.approvalRequestId?.trim()) {
+        context.addIssue({
+          code: "custom",
+          path: ["approvalRequestId"],
+          message: "An approved request is required for live registration",
+        });
+      }
+    }
   })
   .transform((values): ServiceManifest => {
     const firstEnvironment = values.environments[0];
@@ -69,7 +103,9 @@ export const formSchema = z
       baseUrl: firstEnvironment?.baseUrl ?? values.baseUrl,
       serviceType: values.serviceType,
       projectId:
-        values.serviceType === "shared" ? undefined : emptyToUndefined(values.projectId),
+        values.serviceType === "shared"
+          ? undefined
+          : emptyToUndefined(values.projectId),
       ownerTeam: emptyToUndefined(values.ownerTeam),
       contact: emptyToUndefined(values.contact),
       version: values.version,

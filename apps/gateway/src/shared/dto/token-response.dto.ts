@@ -29,7 +29,7 @@ export class TokenIssueDataDto {
   @ApiProperty({ type: [String], example: ["service:logistics-orders:read"] })
   permissions!: string[];
 
-  @ApiProperty({ type: [String], example: ["payment:charge"] })
+  @ApiProperty({ type: [String], example: ["payments:read", "payments:write"] })
   scopes!: string[];
 }
 
