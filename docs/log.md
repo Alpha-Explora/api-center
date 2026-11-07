@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-07
+
+- Support HTTPS payment-event receivers outside Cloud Run and configurable OIDC audiences while retaining environment and endpoint validation.
+
 ## 2026-10-19
 
 - Updated payment recovery ownership to describe payment records registered by checkout polling, while retaining signed webhook receipts and event publication as separate operations.
