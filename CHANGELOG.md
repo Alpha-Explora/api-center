@@ -19,7 +19,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
-- Replace the destroyed historical test-payment database secret reference with enabled version 4, matching the current service configuration.
+- Verify the existing enabled test-payment database secret reference and guard against reverting to a destroyed historical version.
 
 - Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
 
