@@ -11,9 +11,16 @@
 
 # Dependencies (rebuilt inside the container)
 node_modules/
+**/node_modules/
 
 # Build output (rebuilt inside the container)
 dist/
+**/dist/
+**/*.tsbuildinfo
+**/out/
+apps/docs/.next/
+apps/management/.next/
+.turbo/
 
 # Git history (not needed in the image)
 .git/
@@ -22,7 +29,10 @@ dist/
 # Environment files (NEVER bake secrets into Docker images!)
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
 # IDE / Editor files
 .vscode/
@@ -34,6 +44,7 @@ dist/
 .agents/
 .augment/
 .claude/
+.codex/
 skills-lock.json
 
 # OS files
@@ -54,6 +65,9 @@ docs/
 
 # Local sandbox/examples are not needed for gateway image builds
 examples/
+!examples/sandbox/
+!examples/sandbox/demand-service/
+!examples/sandbox/demand-service/**
 
 # CI/CD config
 .github/

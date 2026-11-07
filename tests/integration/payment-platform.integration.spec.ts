@@ -1,4 +1,4 @@
-import { runPaymentPlatformSmoke, type PaymentSmokeHarness } from '../../scripts/smoke/payment-platform-smoke';
+import { runPaymentPlatformSmoke, type PaymentSmokeHarness, type PaymentSmokeOptions } from '../../scripts/smoke/payment-platform-smoke';
 
 describe('payment platform release smoke', () => {
   it('proves idempotency, one canonical event, projection, stale duplicate safety, and no provider leak', async () => {
@@ -24,9 +24,11 @@ describe('payment platform release smoke', () => {
       .mockResolvedValueOnce({ checkoutId: 'checkout-1', referenceId: 'order-smoke', status: 'created', amount: { amountMinor: 39900, currency: 'PHP' }, aggregateVersion: 1 })
       .mockResolvedValueOnce({ checkoutId: 'checkout-1', referenceId: 'order-smoke', status: 'created', amount: { amountMinor: 39900, currency: 'PHP' }, aggregateVersion: 1 });
     const payments = {
-      createCheckout,
-      getCheckout: jest.fn().mockResolvedValue({ checkoutId: 'checkout-1', referenceId: 'order-smoke', status: 'created', amount: { amountMinor: 39900, currency: 'PHP' }, aggregateVersion: 1 }),
-    } as never;
+      checkouts: {
+        create: createCheckout,
+        get: jest.fn().mockResolvedValue({ checkoutId: 'checkout-1', referenceId: 'order-smoke', status: 'created', amount: { amountMinor: 39900, currency: 'PHP' }, aggregateVersion: 1 }),
+      },
+    } satisfies PaymentSmokeOptions['payments'];
 
     const evidence = await runPaymentPlatformSmoke({
       payments,
@@ -41,7 +43,8 @@ describe('payment platform release smoke', () => {
     });
 
     expect(createCheckout).toHaveBeenCalledTimes(2);
-    expect(createCheckout.mock.calls[0][1]).toEqual({ headers: { 'Idempotency-Key': 'fixed-smoke-key' } });
+    expect(createCheckout.mock.calls[0][1]).toEqual({ idempotencyKey: 'fixed-smoke-key' });
+    expect(payments.checkouts.get).toHaveBeenCalledWith('checkout-1');
     expect(injected).toHaveLength(2);
     expect(evidence).toMatchObject({ checkoutId: 'checkout-1', duplicateProjectionStable: true, providerPayloadLeak: false, entitlementStatus: 'active' });
     expect(JSON.stringify(published)).not.toMatch(/providerData|paymongo|secretKey/i);
