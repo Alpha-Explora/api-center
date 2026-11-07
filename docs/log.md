@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-07
+
+- Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
+
 ## 2026-10-19
 
 - Updated payment recovery ownership to describe payment records registered by checkout polling, while retaining signed webhook receipts and event publication as separate operations.

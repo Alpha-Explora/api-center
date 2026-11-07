@@ -19,6 +19,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
+
 - Refresh consumer and Management guidance for SDK 2.0.0, organization-scoped access, service registration, and project Google sign-in. Keep operator procedures in the internal `docs/` collection.
 - Added APICenter's canonical internal docs bundle with ownership, authority, evidence, and plan-retirement rules.
 - Published all registered consumer guides, including Payment Links, Google Auth, and payment architecture; retained the payment-intents alias.

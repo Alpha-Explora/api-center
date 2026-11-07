@@ -14,10 +14,7 @@ import {
   smokeTribePreset,
 } from "@/lib/service-form-presets";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  type ServiceManifest,
-  type ServiceRegistryEntry,
-} from "@/lib/schemas";
+import { type ServiceManifest, type ServiceRegistryEntry } from "@/lib/schemas";
 import { ManifestDiffPanel } from "@/components/tribe-form/manifest-diff-panel";
 import {
   formSchema,
@@ -69,9 +66,14 @@ const defaultValues: FormInput = {
   sharedConsumes: [],
   extraConsumesText: "",
   tagsText: "",
+  liveReason: "",
+  liveTypedPhrase: "",
+  approvalRequestId: "",
 };
 
-function toFormDefaults(service?: ServiceRegistryEntry | ServiceManifest): FormInput {
+function toFormDefaults(
+  service?: ServiceRegistryEntry | ServiceManifest,
+): FormInput {
   if (!service) return defaultValues;
   const knownSharedIds = new Set<string>(knownSharedServiceIds);
   const sharedConsumes = service.consumes.filter((serviceId) =>
@@ -97,7 +99,8 @@ function toFormDefaults(service?: ServiceRegistryEntry | ServiceManifest): FormI
         ? service.environments.map((environment) => ({
             environment: environment.environment,
             baseUrl: environment.baseUrl,
-            healthCheck: environment.healthCheck ?? service.healthCheck ?? "/health",
+            healthCheck:
+              environment.healthCheck ?? service.healthCheck ?? "/health",
           }))
         : [
             {
@@ -141,10 +144,27 @@ export function TribeForm({
   const projectLocked = mode === "edit" && Boolean(initialValue?.projectId);
   const watchedEnvironments =
     useWatch({ control: form.control, name: "environments" }) ?? [];
+  const targetsLive = watchedEnvironments.some(
+    (row) => row.environment === "live",
+  );
+  const hasAllRuntimeEnvironments = ["test", "live"].every((environment) =>
+    watchedEnvironments.some((row) => row.environment === environment),
+  );
 
   async function onSubmit(values: FormOutput) {
     try {
-      const service = await registerService(values);
+      const fields = form.getValues();
+      const service = values.environments?.some(
+        (row) => row.environment === "live",
+      )
+        ? await registerService(values, {
+            confirmation: {
+              typedPhrase: fields.liveTypedPhrase ?? "",
+              reason: fields.liveReason?.trim() ?? "",
+            },
+            approvalRequestId: fields.approvalRequestId?.trim(),
+          })
+        : await registerService(values);
       toast.success(mode === "edit" ? "Service updated" : "Service registered");
       router.push(`/tribes/${service.serviceId}`);
     } catch (error) {
@@ -171,10 +191,10 @@ export function TribeForm({
     const existing = new Set(
       (form.getValues("environments") ?? []).map((row) => row.environment),
     );
-    const nextEnvironment =
-      (["staging", "uat", "demo", "live"] as const).find(
-        (environment) => !existing.has(environment),
-      ) ?? "staging";
+    const nextEnvironment = (["test", "live"] as const).find(
+      (environment) => !existing.has(environment),
+    );
+    if (!nextEnvironment) return;
 
     environmentFields.append({
       environment: nextEnvironment,
@@ -194,7 +214,9 @@ export function TribeForm({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle>
-              {mode === "edit" ? "Edit service manifest" : "Register tribe service"}
+              {mode === "edit"
+                ? "Edit service manifest"
+                : "Register tribe service"}
             </CardTitle>
             <CardDescription>
               Registers the backend API URL, exposed routes, scopes, and shared
@@ -293,6 +315,8 @@ export function TribeForm({
             <FieldTitle>Environments</FieldTitle>
             <FieldDescription>
               Register the runtime URLs this service exposes through API Center.
+              Use test for local development and staging, or live for
+              production.
             </FieldDescription>
             <FieldGroup>
               {environmentFields.fields.map((field, index) => {
@@ -305,7 +329,9 @@ export function TribeForm({
                     key={field.id}
                     className="grid gap-4 rounded-lg border p-4 md:grid-cols-[10rem_1fr_12rem_auto]"
                   >
-                    <Field data-invalid={Boolean(environmentError?.environment)}>
+                    <Field
+                      data-invalid={Boolean(environmentError?.environment)}
+                    >
                       <FieldLabel htmlFor={`environment-${index}`}>
                         Environment key for row {index + 1}
                       </FieldLabel>
@@ -316,10 +342,13 @@ export function TribeForm({
                         {...form.register(`environments.${index}.environment`)}
                       >
                         <option value="test">test</option>
-                        <option value="staging">staging</option>
-                        <option value="uat">uat</option>
-                        <option value="demo">demo</option>
                         <option value="live">live</option>
+                        {selectedEnvironment !== "test" &&
+                        selectedEnvironment !== "live" ? (
+                          <option value={selectedEnvironment} disabled>
+                            {selectedEnvironment} (choose test or live)
+                          </option>
+                        ) : null}
                       </select>
                       <FieldError errors={[environmentError?.environment]} />
                     </Field>
@@ -337,7 +366,9 @@ export function TribeForm({
                       <FieldError errors={[environmentError?.baseUrl]} />
                     </Field>
 
-                    <Field data-invalid={Boolean(environmentError?.healthCheck)}>
+                    <Field
+                      data-invalid={Boolean(environmentError?.healthCheck)}
+                    >
                       <FieldLabel htmlFor={`environment-health-${index}`}>
                         Health path
                       </FieldLabel>
@@ -364,7 +395,12 @@ export function TribeForm({
               })}
 
               <div>
-                <Button type="button" variant="outline" onClick={addEnvironment}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addEnvironment}
+                  disabled={hasAllRuntimeEnvironments}
+                >
                   <PlusIcon data-icon="inline-start" />
                   Add environment
                 </Button>
@@ -375,10 +411,10 @@ export function TribeForm({
                   <AlertTriangleIcon data-icon="inline-start" />
                   <AlertTitle>Local backend URL</AlertTitle>
                   <AlertDescription>
-                    This is fine for local registry and token testing. A
-                    production API Center proxy running in GKE cannot reach your
-                    laptop unless you expose a tunnel or deploy the tribe
-                    backend.
+                    Your local backend can call hosted shared services. The
+                    hosted APICenter gateway cannot reach your laptop for
+                    routing or health checks unless you expose a development
+                    tunnel or deploy the backend.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -400,24 +436,33 @@ export function TribeForm({
                   >
                     {projectLocked ? null : (
                       <option value="">
-                        {isShared ? "Shared services have no project" : "Choose a project"}
+                        {isShared
+                          ? "Shared services have no project"
+                          : "Choose a project"}
                       </option>
                     )}
                     {(tribesQuery.data ?? []).map((tribe) => (
-                      <optgroup key={tribe.tribeId} label={`${tribe.name} (${tribe.tribeId})`}>
+                      <optgroup
+                        key={tribe.tribeId}
+                        label={`${tribe.name} (${tribe.tribeId})`}
+                      >
                         {tribe.projects
                           .filter(
                             (project) =>
-                              !projectLocked || project.projectId === initialValue?.projectId,
+                              !projectLocked ||
+                              project.projectId === initialValue?.projectId,
                           )
                           .map((project) => (
-                          <option
-                            key={project.projectId}
-                            value={project.projectId}
-                            disabled={project.status !== "active" || tribe.status !== "active"}
-                          >
-                            {project.name} ({project.projectId})
-                          </option>
+                            <option
+                              key={project.projectId}
+                              value={project.projectId}
+                              disabled={
+                                project.status !== "active" ||
+                                tribe.status !== "active"
+                              }
+                            >
+                              {project.name} ({project.projectId})
+                            </option>
                           ))}
                       </optgroup>
                     ))}
@@ -487,7 +532,9 @@ export function TribeForm({
                   aria-invalid={Boolean(errors.exposesText)}
                   {...form.register("exposesText")}
                 />
-                <FieldDescription>Comma-separated route patterns.</FieldDescription>
+                <FieldDescription>
+                  Comma-separated route patterns.
+                </FieldDescription>
                 <FieldError errors={[errors.exposesText]} />
               </Field>
 
@@ -587,8 +634,64 @@ export function TribeForm({
             </FieldGroup>
           </FieldSet>
 
+          {targetsLive ? (
+            <FieldSet>
+              <FieldTitle>Live registration approval</FieldTitle>
+              <FieldDescription>
+                A live registration requires an approved request for this
+                service, a reason, and explicit confirmation. Use test while
+                setting up your integration.
+              </FieldDescription>
+              <FieldGroup>
+                <Field data-invalid={Boolean(errors.approvalRequestId)}>
+                  <FieldLabel htmlFor="approvalRequestId">
+                    Approved request ID
+                  </FieldLabel>
+                  <Input
+                    id="approvalRequestId"
+                    aria-invalid={Boolean(errors.approvalRequestId)}
+                    {...form.register("approvalRequestId")}
+                  />
+                  <FieldDescription>
+                    Use an approval for registering this service in live.
+                  </FieldDescription>
+                  <FieldError errors={[errors.approvalRequestId]} />
+                </Field>
+                <Field data-invalid={Boolean(errors.liveReason)}>
+                  <FieldLabel htmlFor="liveReason">
+                    Reason for live registration
+                  </FieldLabel>
+                  <Textarea
+                    id="liveReason"
+                    aria-invalid={Boolean(errors.liveReason)}
+                    {...form.register("liveReason")}
+                  />
+                  <FieldError errors={[errors.liveReason]} />
+                </Field>
+                <Field data-invalid={Boolean(errors.liveTypedPhrase)}>
+                  <FieldLabel htmlFor="liveTypedPhrase">
+                    Live confirmation
+                  </FieldLabel>
+                  <Input
+                    id="liveTypedPhrase"
+                    placeholder="APPLY LIVE CHANGE"
+                    aria-invalid={Boolean(errors.liveTypedPhrase)}
+                    {...form.register("liveTypedPhrase")}
+                  />
+                  <FieldDescription>
+                    Type APPLY LIVE CHANGE exactly.
+                  </FieldDescription>
+                  <FieldError errors={[errors.liveTypedPhrase]} />
+                </Field>
+              </FieldGroup>
+            </FieldSet>
+          ) : null}
+
           {mode === "edit" && manifestPreview.success ? (
-            <ManifestDiffPanel current={initialValue} next={manifestPreview.data} />
+            <ManifestDiffPanel
+              current={initialValue}
+              next={manifestPreview.data}
+            />
           ) : null}
 
           <details className="rounded-lg border bg-muted/25 p-4">
