@@ -14,9 +14,14 @@ export class PrismaService
     const connectionString =
       process.env.DATABASE_URL ||
       "postgresql://api_center_app:password@localhost:5432/api_center";
+    // Session-pooler connections are shared across Cloud Run instances and rollout revisions.
+    const poolMax = Number(process.env.DATABASE_POOL_MAX ?? "2");
+    if (!Number.isSafeInteger(poolMax) || poolMax < 1) {
+      throw new Error("DATABASE_POOL_MAX must be a positive integer");
+    }
 
     super({
-      adapter: new PrismaPg({ connectionString }),
+      adapter: new PrismaPg({ connectionString, max: poolMax }),
     });
   }
 

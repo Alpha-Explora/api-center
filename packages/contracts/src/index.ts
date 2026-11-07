@@ -29,6 +29,22 @@ export interface SharedServiceManifest {
 
 export type PaymentEnvironment = 'test' | 'live';
 
+export type ProjectSetupStatus = 'ready' | 'missing' | 'unknown';
+
+export interface ProjectSetupCheck {
+  id: string;
+  status: ProjectSetupStatus;
+  detail: string;
+  fix: string;
+}
+
+export interface ProjectSetupStatusResponse {
+  projectId: string;
+  serviceId: string;
+  environment: PaymentEnvironment;
+  checks: ProjectSetupCheck[];
+}
+
 export interface PaymentRecord {
   type: string;
   id: string;

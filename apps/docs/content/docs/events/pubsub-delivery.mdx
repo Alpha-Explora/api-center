@@ -11,10 +11,23 @@ APICenter delivers asynchronous state change events (such as `payment.checkout.p
 
 1. **Outbox Pattern**: `apps/payments` writes event payloads to `shared_payment_outbox` transactional tables.
 2. **Pub/Sub Dispatcher**: Published to GCP Pub/Sub topic `apicenter.payment-events.test` or `apicenter.payment-events.live`.
-3. **Consumer Subscriptions**: Google Pub/Sub pushes HTTPS requests directly to consumer service Cloud Run endpoints with **GCP OIDC Bearer tokens**.
+3. **Consumer Subscriptions**: Google Pub/Sub pushes HTTPS requests to consumer endpoints with **Google OIDC Bearer tokens**. Consumers may host the endpoint outside Cloud Run.
 
 ---
 
+## Verify the push token
+
+Pub/Sub sends the event in its push envelope and puts an OIDC ID token in the `Authorization: Bearer <token>` header. Verify the token signature and expiry with a Google-supported OIDC/JWT library; decoding the token without signature verification is not sufficient. Require all of the following claims:
+
+- `iss` is `https://accounts.google.com` (Google's `accounts.google.com` issuer).
+- `aud` exactly matches the audience configured on the subscription. The provisioning script defaults it to the consumer endpoint URL and accepts an explicit `--audience` when the service validates a different audience.
+- `email` is the configured payment-event delivery service account, and `email_verified` is `true`.
+
+Reject requests that fail any check before processing the message. Configure the expected audience and delivery service account in the consumer's environment; do not accept an arbitrary valid Google token.
+
+The provisioning script requires `--cloud-run-service-name` for a `run.app` endpoint and grants that service the Pub/Sub invoker role. For a Cloud Run service using a custom domain, pass the service name to include the same invoker grant. For other HTTPS hosts, omit the service name; the receiving platform must allow the authenticated push request.
+
+---
 ## Event Payload Envelope
 
 ```json

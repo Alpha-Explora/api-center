@@ -2,6 +2,9 @@ import type { PaymentEnvironment } from '@alpha-explora/apicenter-contracts';
 
 export type { PaymentEnvironment };
 export type {
+  ProjectSetupCheck,
+  ProjectSetupStatus,
+  ProjectSetupStatusResponse,
   Checkout,
   ConfirmPaymentIntentInput,
   CreateCheckoutInput,
