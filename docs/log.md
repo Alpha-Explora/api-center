@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-07
+
+- Replace the generic public landing page with APICenter-specific gateway, registry, governance and shared-service content and clear console/docs entry points.
+
 ## 2026-10-19
 
 - Updated payment recovery ownership to describe payment records registered by checkout polling, while retaining signed webhook receipts and event publication as separate operations.
