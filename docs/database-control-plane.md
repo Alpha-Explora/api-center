@@ -25,3 +25,9 @@ and projections, not PayMongo secrets or provider mutation logic.
 
 Use the checked-in Supabase migrations and the payment platform runbook as the
 source of truth. Do not add migrations under the retired `api-shared` repository.
+
+## Connection budget and legacy audit compatibility
+
+The gateway limits each instance to `DATABASE_POOL_MAX` Postgres connections (default `2`). Invalid, fractional, or non-positive values fail startup. Budget session-pooler capacity across all instances and overlapping rollout revisions; this limit does not change Cloud Run instance caps.
+
+Migration `20261012011500_legacy_audit_write_compatibility.sql` conditionally drops `NOT NULL` from retired audit columns (`type`, `severity`, `message`, `occurred_at`) when they exist. It preserves historical values and does nothing on fresh baseline schemas without those columns. The migration uses a ten-second lock timeout; operators must assess and apply it through the normal migration process. No live database verification is claimed.
