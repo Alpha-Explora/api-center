@@ -36,17 +36,19 @@ export const serviceEnvironmentManifestSchema = z.object({
   healthCheck: z.string().optional(),
 });
 
-export const serviceEnvironmentSchema = serviceEnvironmentManifestSchema.extend({
-  status: serviceStatusSchema.default("active"),
-  healthy: z.boolean().optional(),
-  lastHealthCheckAt: z.string().optional(),
-  secretStatus: z.string().optional(),
-  sharedServiceRouteStatus: z.string().optional(),
-  quotaPolicyStatus: z.string().optional(),
-  lastSmokeRunAt: z.string().optional(),
-  promotionEvidenceStatus: z.string().optional(),
-  breakGlassState: z.string().optional(),
-});
+export const serviceEnvironmentSchema = serviceEnvironmentManifestSchema.extend(
+  {
+    status: serviceStatusSchema.default("active"),
+    healthy: z.boolean().optional(),
+    lastHealthCheckAt: z.string().optional(),
+    secretStatus: z.string().optional(),
+    sharedServiceRouteStatus: z.string().optional(),
+    quotaPolicyStatus: z.string().optional(),
+    lastSmokeRunAt: z.string().optional(),
+    promotionEvidenceStatus: z.string().optional(),
+    breakGlassState: z.string().optional(),
+  },
+);
 
 const serviceManifestBaseSchema = z.object({
   serviceId: z
@@ -95,34 +97,52 @@ function validateServiceManifestPlacement(
   context: z.RefinementCtx,
 ) {
   const issue = projectPlacementIssue(manifest);
-  if (issue) context.addIssue({ code: "custom", path: ["projectId"], message: issue });
+  if (issue)
+    context.addIssue({ code: "custom", path: ["projectId"], message: issue });
 }
 
 export const serviceManifestSchema = serviceManifestBaseSchema.superRefine(
   validateServiceManifestPlacement,
 );
 
+export const serviceRegistrationManifestSchema =
+  serviceManifestSchema.superRefine((manifest, context) => {
+    manifest.environments?.forEach((row, index) => {
+      if (row.environment !== "test" && row.environment !== "live") {
+        context.addIssue({
+          code: "custom",
+          path: ["environments", index, "environment"],
+          message:
+            "Use test for development or staging, or live for production",
+        });
+      }
+    });
+  });
+
 // Reads stay tolerant: an unplaced service must still render so operators can fix it.
 export const serviceRegistryEntrySchema = serviceManifestBaseSchema.extend({
-    projectId: z.preprocess((value) => value ?? undefined, z.string().optional()),
-    /** Derived by the gateway from projectId; never sent on writes. */
-    ownerTribeId: z.preprocess((value) => value ?? undefined, z.string().optional()),
-    registeredAt: z.string(),
-    updatedAt: z.string(),
-    status: serviceStatusSchema,
-    previousVersion: z.string().optional(),
-    healthy: z.boolean().optional(),
-    lastHealthCheckAt: z.string().optional(),
-    serviceTier: z.preprocess(
-      (value) => value ?? undefined,
-      serviceTierSchema.default("standard"),
-    ),
-    costCenter: z.preprocess(
-      (value) => value ?? undefined,
-      z.string().optional(),
-    ),
-    environments: z.array(serviceEnvironmentSchema).optional(),
-  });
+  projectId: z.preprocess((value) => value ?? undefined, z.string().optional()),
+  /** Derived by the gateway from projectId; never sent on writes. */
+  ownerTribeId: z.preprocess(
+    (value) => value ?? undefined,
+    z.string().optional(),
+  ),
+  registeredAt: z.string(),
+  updatedAt: z.string(),
+  status: serviceStatusSchema,
+  previousVersion: z.string().optional(),
+  healthy: z.boolean().optional(),
+  lastHealthCheckAt: z.string().optional(),
+  serviceTier: z.preprocess(
+    (value) => value ?? undefined,
+    serviceTierSchema.default("standard"),
+  ),
+  costCenter: z.preprocess(
+    (value) => value ?? undefined,
+    z.string().optional(),
+  ),
+  environments: z.array(serviceEnvironmentSchema).optional(),
+});
 
 export const registrationPlanSeveritySchema = z.enum([
   "info",
@@ -360,7 +380,9 @@ export function projectPlacementIssue(manifest: {
   projectId?: string;
 }): string | null {
   const shared = (manifest.serviceType ?? "tribe") === "shared";
-  if (shared && manifest.projectId) return "Shared services cannot belong to a project";
-  if (!shared && !manifest.projectId) return "Choose the project this tribe service belongs to";
+  if (shared && manifest.projectId)
+    return "Shared services cannot belong to a project";
+  if (!shared && !manifest.projectId)
+    return "Choose the project this tribe service belongs to";
   return null;
 }

@@ -26,10 +26,11 @@ The Registry view shows **Tribe → Project → Service**. Organization membersh
 1. From **Registry**, choose **Register service**.
 2. Enter a lowercase service ID, a display name, version, and tier. The service ID is fixed after creation.
 3. Set **Type** to `tribe` for a service owned by a project. The `shared` type is for platform-owned shared runtimes and has no project selection.
-4. Add an environment row with its environment, backend URL, and health path. Start with `test`. The SDK currently accepts `test` and `live` credentials; ask the platform team before using another environment label.
+4. Add an environment row with its environment, backend URL, and health path. Use `test` for local development, staging, UAT, and demos. Use `live` for production. New registrations accept only `test` and `live`, matching SDK credentials.
 5. For a `tribe` service, select an active project. The tribe is derived from the selected project. A service cannot move between projects after registration; create a new service entry if placement must change.
 6. Add the exposed route patterns and at least one required scope. Select the shared services this service is allowed to call.
-7. Register the service and open its detail page to review the manifest and status.
+7. If any row uses `live`, complete **Live registration approval** with the approved request ID, your reason, and the exact phrase `APPLY LIVE CHANGE`. The approved request must authorize registering this service in live. A typed phrase does not replace approval. Use `test` while setting up your integration.
+8. Register the service and open its detail page to review the manifest and status.
 
 The gateway routes requests to the registered backend URL. Do not enter a URL that only the developer's laptop can reach unless APICenter is also running locally or the backend is exposed through an approved development tunnel.
 
@@ -49,3 +50,7 @@ APICENTER_SERVICE_SECRET=<issued-service-secret>
 The SDK exchanges the service credentials for a bearer token and refreshes it when needed. Follow [SDK integration](/guides/sdk-usage) to make the first request.
 
 For live writes, Management requires an `admin` role, the exact confirmation phrase `APPLY LIVE CHANGE`, and a reason. Review the action before confirming it. For onboarding assistance, use the **Developer portal** to preview and copy the packet for the tribe; it does not contain service credentials.
+
+### Editing legacy environment labels
+
+Existing records with `staging`, `uat`, or `demo` remain readable. Before saving edits, explicitly change or remove those rows in **Environments**: use `test` for development/staging or `live` for production. Review the runtime URLs and credential bindings as part of that conversion. The form does not silently rename environments or bypass live approval.
