@@ -20,6 +20,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Support HTTPS payment-event receivers outside Cloud Run and configurable OIDC audiences while retaining environment and endpoint validation.
 - Authenticate private payment runtime calls, preserve uncertain proxy outcomes, restore scoped service JWT payment access, verify Google tokens against registered clients, and bound authenticated health sweeps.
 - Bound gateway database pools to two connections per instance by default and allow canonical audit writes on legacy schemas without deleting historical audit values.
 - Explain and test explicit legacy-environment conversion before editing registrations, preserving test/live-only writes and live approval checks.
