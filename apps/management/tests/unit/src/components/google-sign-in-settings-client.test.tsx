@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GoogleSignInSettingsClient } from "@/components/google-sign-in-settings-client";
@@ -8,6 +8,32 @@ vi.mock("@/lib/api-center/tenancy-client", () => tenancyMocks);
 
 describe("GoogleSignInSettingsClient", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); });
+
+  it("preserves edits on background refresh and resets them when the environment changes", async () => {
+    tenancyMocks.listTribes.mockResolvedValue([{
+      tribeId: "acme", name: "Acme", projects: [{ projectId: "shop", name: "Shop", status: "active" }],
+    }]);
+    let settingsVersion = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => Response.json({
+      projectId: "shop", environment: String(input).endsWith("/live") ? "live" : "test",
+      redirectUris: [String(input).endsWith("/live") ? "https://shop.example.test/live" : "https://shop.example.test/test"],
+      displayName: "Shop", hasOwnClient: true, clientId: "shop-client",
+      secretLastChangedAt: `2026-10-0${++settingsVersion}T00:00:00.000Z`,
+    }));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><GoogleSignInSettingsClient /></QueryClientProvider>);
+    await screen.findByText("OAuth settings");
+    fireEvent.change(screen.getByRole("textbox", { name: "Redirect URLs" }), { target: { value: "https://shop.example.test/edited" } });
+    fireEvent.change(screen.getByLabelText("Client secret"), { target: { value: "unsaved-secret" } });
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: ["google-sign-in", "shop", "test"] }); });
+    await screen.findByText(`Client secret last changed ${new Date("2026-10-02T00:00:00.000Z").toLocaleString()}.`);
+    expect((screen.getByRole("textbox", { name: "Redirect URLs" }) as HTMLTextAreaElement).value).toBe("https://shop.example.test/edited");
+    expect((screen.getByLabelText("Client secret") as HTMLInputElement).value).toBe("unsaved-secret");
+    fireEvent.change(screen.getByRole("combobox", { name: "Environment" }), { target: { value: "live" } });
+    await waitFor(() => expect((screen.getByRole("textbox", { name: "Redirect URLs" }) as HTMLTextAreaElement).value).toBe("https://shop.example.test/live"));
+    expect((screen.getByLabelText("Client secret") as HTMLInputElement).value).toBe("");
+    queryClient.clear();
+  });
 
   it("loads a project, saves a write-only client secret, and shows its last changed time", async () => {
     tenancyMocks.listTribes.mockResolvedValue([{
