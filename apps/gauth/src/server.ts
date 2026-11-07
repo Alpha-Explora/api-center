@@ -12,6 +12,7 @@ import { TokenExchangeService } from './features/token-exchange/token-exchange.s
 import { TokenRefreshService } from './features/token-refresh/token-refresh.service';
 import { LogoutService } from './features/logout/logout.service';
 import { VerifyTokenService } from './features/verify-token/verify-token.service';
+import { createVerifyTokenRouteHandler } from './features/verify-token/verify-token.route-handler';
 import { GoogleOAuthCredential, resolveGoogleOAuthCredential } from './shared/credential-resolver';
 import { SecretManagerClientSecretReader } from './shared/client-secret-reader';
 import { createOAuthAppStore } from './shared/oauth-app-store';
@@ -49,7 +50,10 @@ const authorizeService = new AuthorizeService();
 const tokenExchangeService = new TokenExchangeService();
 const tokenRefreshService = new TokenRefreshService();
 const logoutService = new LogoutService();
-const verifyTokenService = new VerifyTokenService();
+const verifyTokenService = new VerifyTokenService({
+  store: credentialDependencies.store,
+  env: process.env,
+});
 
 app.all('/admin/oauth-apps/:projectId/:environment', oauthAppAdminHandler);
 
@@ -143,14 +147,7 @@ app.post('/oauth/logout', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/verify-token', async (req: Request, res: Response) => {
-  try {
-    const result = verifyTokenService.execute(req.body || {});
-    return ok(res, result);
-  } catch (err: any) {
-    return fail(res, err.status || 400, err.code || 'INVALID_REQUEST', err.message);
-  }
-});
+app.post('/verify-token', createVerifyTokenRouteHandler(verifyTokenService));
 
 export async function registerWithGateway() {
   return registerSharedServiceWithGateway({

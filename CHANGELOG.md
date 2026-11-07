@@ -19,6 +19,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- Authenticate private payment runtime calls, preserve uncertain proxy outcomes, restore scoped service JWT payment access, verify Google tokens against registered clients, and bound authenticated health sweeps.
+
 - Refresh consumer and Management guidance for SDK 2.0.0, organization-scoped access, service registration, and project Google sign-in. Keep operator procedures in the internal `docs/` collection.
 - Added APICenter's canonical internal docs bundle with ownership, authority, evidence, and plan-retirement rules.
 - Published all registered consumer guides, including Payment Links, Google Auth, and payment architecture; retained the payment-intents alias.

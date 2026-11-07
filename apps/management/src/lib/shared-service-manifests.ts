@@ -45,7 +45,7 @@ export const sharedServiceManifests: ServiceManifest[] = [
     serviceId: "payment",
     name: "Payment Shared Service",
     baseUrl: "http://payment-service:4010",
-    requiredScopes: ["payment:charge", "payment:refund", "payment:subscription"],
+    requiredScopes: ["payments:read", "payments:write"],
     exposes: [
       "/customers",
       "/products",

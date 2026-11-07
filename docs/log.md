@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-07
+
+- Authenticate private payment runtime calls, preserve uncertain proxy outcomes, restore scoped service JWT payment access, verify Google tokens against registered clients, and bound authenticated health sweeps.
+
 ## 2026-10-19
 
 - Updated payment recovery ownership to describe payment records registered by checkout polling, while retaining signed webhook receipts and event publication as separate operations.
