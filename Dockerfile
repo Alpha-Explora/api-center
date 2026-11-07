@@ -39,6 +39,7 @@ COPY config/ ./config/
 COPY prisma/ ./prisma/
 
 RUN npm run db:generate && \
+    npm run build --workspace @alpha-explora/apicenter-contracts && \
     npm run build --workspace @apicenter/gateway && \
     npm prune --omit=dev && \
     mkdir -p /app/apps/gateway/node_modules && \
