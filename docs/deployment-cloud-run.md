@@ -393,3 +393,7 @@ Recorded on `2026-07-04` after full shared-service Cloud Run verification:
   `https://api-center.itsandbox.site`: live HTTP 200 in `394ms`, ready HTTP 200
   in `107ms`, bounded spike 100 requests at concurrency 10 with zero failures,
   p95 `218ms`, p99 `238ms`.
+
+## Project setup read model
+
+`GET /api/v1/tenancy/projects/:projectId/setup-status?serviceId=...&environment=test` reads setup state for a service and environment. Management exposes it through the project overview and its local API route. The shared-service smoke tooling can inspect setup readiness after deployment; it is not proof of a successful provider action. Google configuration is queried using the gauth admin token and runtime identity.

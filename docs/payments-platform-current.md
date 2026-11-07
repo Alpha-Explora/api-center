@@ -43,3 +43,5 @@ Public responses and events never expose raw PayMongo IDs. Provider IDs are enco
 ## Legacy boundary
 
 The former `api-shared` payment runtime is not part of the active command path. The contract checker tolerates the absent legacy checkout while still validating APICenter-local contracts. Historical Kafka/Confluent payment documents are retained only as archived history; payment event provisioning and delivery use Pub/Sub.
+
+Setup readiness is a read model of current registry and credential state. Key authentication revalidates the active service, project, tribe and environment; configured credentials do not establish caller possession or provider acceptance.
