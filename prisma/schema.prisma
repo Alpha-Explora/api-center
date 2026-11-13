@@ -830,3 +830,26 @@ model CpApiAccessRequest {
   @@map("cp_api_access_requests")
   @@schema("apic_catalog")
 }
+
+/// Delivers one recipient application's events in one environment to a Pub/Sub push endpoint.
+model CpEventDestination {
+  id                          String   @id
+  organizationId              String   @map("organization_id") @db.Uuid
+  projectId                   String   @map("project_id")
+  environmentId               String   @map("environment_id")
+  recipientApplicationId      String   @map("recipient_application_id")
+  eventFamily                 String   @default("payments") @map("event_family")
+  transport                   String   @default("pubsub-push")
+  pushEndpoint                String   @map("push_endpoint")
+  oidcAudience                String?  @map("oidc_audience")
+  deliveryServiceAccountEmail String   @map("delivery_service_account_email")
+  subscriptionName            String?  @map("subscription_name")
+  status                      String   @default("provisioning")
+  lastError                   String?  @map("last_error")
+  createdBy                   String   @map("created_by")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("cp_event_destinations")
+  @@schema("apic_catalog")
+}

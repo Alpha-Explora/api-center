@@ -180,6 +180,9 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/domains/auth-security/secrets/tribe-secret-rotation.service.ts',
   // Code-owned plan catalogue; the control plane prices project environments with it.
   'apps/gateway/src/domains/governance/entitlements/tribe-plan-definitions.ts',
+  // Control plane event destinations reuse the payment event subscription provisioner.
+  'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service.ts',
+  'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service.ts',
   // Control plane v2 entry point for the shared-service request path.
   'apps/gateway/src/domains/control-plane/application-access.service.ts',
 ]);

@@ -35,6 +35,6 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     CapabilityConfigurationService,
     PublishedApiService,
   ],
-  exports: [ApplicationAccessService],
+  exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, AuthModule],
 })
 export class ControlPlaneModule {}
