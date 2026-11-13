@@ -3,7 +3,6 @@
 
 import type { Response } from "express";
 import { AppError, BadGatewayError } from "../errors";
-import { getCloudRunAuthorizationHeader } from "./cloud-run-auth";
 import type { AuthenticatedRequest } from "../../types";
 
 export const FORWARDED_REQUEST_HEADERS = ["idempotency-key", "accept"];
