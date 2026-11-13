@@ -18,11 +18,13 @@ import { DailyLimitReachedError, SenderNotApprovedError } from './shared/email-p
 import { createProjectSenderAdminHandler } from './shared/project-sender-admin';
 
 const port = Number(process.env.PORT || 4012);
+/** Audience the gateway signs control-plane application contexts for. */
+const RUNTIME_AUDIENCE = 'apicenter-runtime:email';
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 function readCaller(req: Request, res: Response): SharedServiceCaller | null {
   try {
-    return readSharedServiceCaller(req);
+    return readSharedServiceCaller(req, { runtimeAudience: RUNTIME_AUDIENCE });
   } catch (error) {
     fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Caller context is required');
     return null;
@@ -94,9 +96,12 @@ app.post('/send', async (req: Request, res: Response) => {
   if (!clientKey?.trim() || clientKey.trim().length < 16 || clientKey.trim().length > 255) {
     return fail(res, 400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key must be between 16 and 255 characters');
   }
-  const sourceServiceId = req.get('X-APICenter-Source-Service-Id');
-  const tribeId = req.get('X-Tribe-Id');
-  const environment = req.get('X-APICenter-Environment');
+  // Application callers are identified only by their verified context; legacy callers keep the
+  // header-derived key so existing idempotency records continue to match.
+  const signed = caller.model === 'application';
+  const sourceServiceId = signed ? caller.serviceId : req.get('X-APICenter-Source-Service-Id');
+  const tribeId = signed ? caller.tribeId : req.get('X-Tribe-Id');
+  const environment = signed ? caller.environment : req.get('X-APICenter-Environment');
   const storageKey = createScopedIdempotencyKey({
     namespace: 'email', route: 'POST /send', clientKey, sourceServiceId, tribeId, environment,
   });

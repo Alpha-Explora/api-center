@@ -49,6 +49,8 @@ const BOUNDED_CONTEXTS = [
       'apps/gateway/src/registry',
       'apps/gateway/src/catalog',
       'apps/gateway/src/domains/catalog-registry',
+      // Control plane v2 owns its apic_catalog.cp_* tables alongside the legacy catalog.
+      'apps/gateway/src/domains/control-plane',
     ],
     schemas: ['apic_catalog'],
   },
@@ -176,6 +178,8 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service.ts',
   'apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service.ts',
   'apps/gateway/src/domains/auth-security/secrets/tribe-secret-rotation.service.ts',
+  // Control plane v2 entry point for the shared-service request path.
+  'apps/gateway/src/domains/control-plane/application-access.service.ts',
 ]);
 
 function toPosixPath(filePath) {

@@ -78,19 +78,65 @@ export function registerWithGateway(options: {
 export function shouldRegisterWithGateway(): boolean;
 
 export interface SharedServiceCaller {
+  /** Legacy: the caller's tribe. Application callers: their organization ID. */
   tribeId: string;
   projectId: string;
+  /** Legacy: the calling service. Application callers: the application ID. */
   serviceId: string;
   environment: 'test' | 'live';
+  /** `application` when identity came from a verified signed runtime context. */
+  model?: 'legacy' | 'application';
+  organizationId?: string;
+  environmentId?: string;
+  applicationId?: string;
+  action?: string;
+  requestId?: string;
 }
 
 export class SharedServiceCallerError extends Error {}
 
-/** Reads the gateway-authenticated caller. Production rejects a request that lacks any caller header. */
+export const RUNTIME_CONTEXT_HEADER: 'X-APICenter-Context';
+
+/**
+ * Reads the gateway-authenticated caller. A signed `X-APICenter-Context` is verified against
+ * `runtimeAudience` and is then the only source of identity; an invalid one is rejected.
+ * Without it, legacy identity headers apply and production rejects any missing header.
+ */
 export function readSharedServiceCaller(
   req: { get(name: string): string | undefined },
-  options?: { production?: boolean },
+  options?: {
+    production?: boolean;
+    runtimeAudience?: string;
+    contextKeys?: Map<string, unknown>;
+    now?: number;
+  },
 ): SharedServiceCaller;
+
+export class RuntimeContextError extends Error {}
+
+export interface RuntimeContextClaims {
+  requestId: string;
+  organizationId: string;
+  projectId: string;
+  environmentId: string;
+  environmentKind: 'test' | 'live';
+  applicationId: string;
+  action: string;
+}
+
+/** Parses an Ed25519 public JWK array (APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS by default). */
+export function loadRuntimeContextKeys(raw?: string): Map<string, unknown>;
+
+export function verifyRuntimeContext(
+  token: string,
+  options: {
+    audience: string;
+    keys: Map<string, unknown>;
+    now?: number;
+    maxLifetimeSeconds?: number;
+    clockSkewSeconds?: number;
+  },
+): RuntimeContextClaims;
 
 /** True when both callers share a project and environment. Any service in that project can read the records. */
 export function sameProject(left: SharedServiceCaller, right: SharedServiceCaller): boolean;

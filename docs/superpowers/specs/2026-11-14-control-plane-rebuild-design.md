@@ -10,7 +10,7 @@ sources: [prisma/schema.prisma, apps/gateway/src/domains/catalog-registry/regist
 ---
 # APICenter control plane rebuild
 
-Design status: proposed for review. The user selected a control plane rebuild with gradual migration, retaining the existing capability runtimes. This document makes that direction concrete; it does not claim implementation, deployment, or approval of every detail below.
+Design status: approved by the user on 2026-11-14. The user selected a control plane rebuild with gradual migration, retaining the existing capability runtimes. Slice 1 is implemented locally and tracked in [the slice 1 plan](../plans/2026-11-14-control-plane-slice-1.md); later slices, deployment and migration are not implemented.
 
 ## Intent and success
 
@@ -153,4 +153,4 @@ First implementation slice after design approval: organization-owned projects an
 
 ## Decisions for review
 
-The user selected the rebuild and gradual migration. The same-deployment Nest module layout, administrator-managed initial onboarding, environment-bound application rows, API-key-first delivery and test-first first slice are engineering proposals in this document. Approval of this written design is the next gate before the detailed execution plan and product implementation.
+The user selected the rebuild and gradual migration and approved this written design, including the same-deployment Nest module layout, administrator-managed initial onboarding, environment-bound application rows, API-key-first delivery and the test-first first slice.

@@ -6,6 +6,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Add control plane v2, slice 1: organization-owned projects with test environments, applications, explicit capability grants, and `ak_test_` application credentials, managed through `/api/v1/admin/control-plane`. Application credentials call email on the existing `/api/v1/shared/email/*` routes without registering a service, a URL or routes. The gateway forwards a short-lived Ed25519-signed runtime context instead of identity headers. Requires the `20261114000100` migration and runtime context signing keys.
 - Add service go-live checks, protected verification runs tied to deployed revisions, payment key metadata and targeted revocation, and controlled service-secret rotation.
 - Add redacted request diagnostics and tenant-scoped payment event replay with immutable operation IDs and reconciliation gates.
 - Publish supported shared-service and identity HTTP operations in the consumer OpenAPI, with matching reference pages and credential-aware examples.

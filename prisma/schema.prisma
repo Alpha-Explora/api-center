@@ -500,3 +500,136 @@ model ApiSubscription {
   @@map("api_subscriptions")
   @@schema("apic_governance")
 }
+
+// ── Control plane v2 (rebuild slice 1) ──────────────────────────────────────
+// Organization-owned projects with environment-bound applications, explicit grants and
+// credentials. Ownership tuples are enforced by composite foreign keys in
+// supabase/migrations/20261114000100_control_plane_foundation.sql. No tribe.
+
+/// A product owned directly by an organization.
+model CpProject {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  slug           String
+  name           String
+  status         String   @default("active")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([organizationId, slug])
+  @@unique([id, organizationId])
+  @@map("cp_projects")
+  @@schema("apic_catalog")
+}
+
+/// An isolated test or live workspace of a project. Kind and ownership are immutable.
+model CpEnvironment {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  kind           String
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([projectId, kind])
+  @@unique([id, projectId, organizationId])
+  @@map("cp_environments")
+  @@schema("apic_catalog")
+}
+
+/// A backend, worker or integration identity that calls APIs from one environment.
+model CpApplication {
+  id                   String   @id
+  organizationId       String   @map("organization_id") @db.Uuid
+  projectId            String   @map("project_id")
+  environmentId        String   @map("environment_id")
+  slug                 String
+  name                 String
+  status               String   @default("active")
+  authorizationVersion Int      @default(1) @map("authorization_version")
+  createdBy            String   @map("created_by")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([environmentId, slug])
+  @@unique([id, environmentId, projectId, organizationId])
+  @@map("cp_applications")
+  @@schema("apic_catalog")
+}
+
+/// A platform capability enabled for one environment. Enabling it grants no application access.
+model CpCapabilityInstallation {
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  environmentId  String   @map("environment_id")
+  capability     String
+  status         String   @default("enabled")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([environmentId, capability])
+  @@map("cp_capability_installations")
+  @@schema("apic_catalog")
+}
+
+/// Explicit permission for one application to perform one catalogued action.
+model CpApplicationGrant {
+  id             String    @id
+  organizationId String    @map("organization_id") @db.Uuid
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  applicationId  String    @map("application_id")
+  targetKind     String    @map("target_kind")
+  targetId       String    @map("target_id")
+  action         String
+  status         String    @default("active")
+  provenance     String    @default("explicit")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedBy      String?   @map("revoked_by")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  // One active grant per application/target/action is a partial unique index in SQL.
+  @@map("cp_application_grants")
+  @@schema("apic_catalog")
+}
+
+/// Environment-bound application credential. Only a SHA-256 verifier is stored.
+model CpCredential {
+  id              String    @id
+  organizationId  String    @map("organization_id") @db.Uuid
+  projectId       String    @map("project_id")
+  environmentId   String    @map("environment_id")
+  applicationId   String    @map("application_id")
+  environmentKind String    @map("environment_kind")
+  lookupPrefix    String    @unique @map("lookup_prefix")
+  verifierSha256  String    @map("verifier_sha256") @db.Char(64)
+  status          String    @default("active")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdBy       String    @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedBy       String?   @map("revoked_by")
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason   String?   @map("revoked_reason")
+
+  @@index([applicationId, status], name: "cp_credentials_application_idx")
+  @@map("cp_credentials")
+  @@schema("apic_catalog")
+}
+
+/// Credential issuance receipt keyed by the caller's operation ID.
+model CpCredentialOperation {
+  operationId    String   @id @map("operation_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  applicationId  String   @map("application_id")
+  fingerprint    String   @db.Char(64)
+  credentialId   String   @map("credential_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_credential_operations")
+  @@schema("apic_catalog")
+}

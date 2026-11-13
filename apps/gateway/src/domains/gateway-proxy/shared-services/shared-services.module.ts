@@ -16,6 +16,9 @@ import { SharedServiceRoutingService } from "./shared-service-routing.service";
 import { GoogleSignInAdminController } from "./google-sign-in-admin.controller";
 import { EmailSenderAdminController } from "./email-sender-admin.controller";
 import { DeliveryWebhookController } from "./delivery-webhook.controller";
+import { ControlPlaneModule } from "@domains/control-plane/control-plane.module";
+import { ApplicationCapabilityProxy } from "./application-capability-proxy";
+import { SharedCallerGuard } from "./shared-caller.guard";
 
 @Module({
   imports: [
@@ -25,8 +28,9 @@ import { DeliveryWebhookController } from "./delivery-webhook.controller";
     QuotasModule,
     PolicyEngineModule,
     OperationsModule,
+    ControlPlaneModule,
   ],
   controllers: [PaymentWebhookController, SharedServicesController, GoogleSignInAdminController, EmailSenderAdminController, DeliveryWebhookController],
-  providers: [SharedServiceEventPublisher, SharedServiceRoutingService],
+  providers: [SharedServiceEventPublisher, SharedServiceRoutingService, ApplicationCapabilityProxy, SharedCallerGuard],
 })
 export class SharedServicesModule {}

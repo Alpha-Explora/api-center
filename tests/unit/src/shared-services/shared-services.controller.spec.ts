@@ -8,6 +8,7 @@ import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runt
 import { SharedServiceUsageService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/shared-service-usage.service";
 import { SharedServiceEventPublisher } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-event-publisher";
 import { SharedServiceRoutingService } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-routing.service";
+import { SharedCallerGuard } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-caller.guard";
 
 describe("SharedServicesController", () => {
   const mockRegistry = {
@@ -29,6 +30,7 @@ describe("SharedServicesController", () => {
   const mockQuotaEnforcer = { check: jest.fn().mockResolvedValue(undefined) };
   const mockPolicyEngine = { evaluate: jest.fn().mockReturnValue([]) };
   const mockEmergencyControls = { evaluate: jest.fn() };
+  const mockApplicationProxy = { forward: jest.fn().mockResolvedValue(undefined) };
 
   let controller: SharedServicesController;
   let handler: {
@@ -52,6 +54,7 @@ describe("SharedServicesController", () => {
       mockQuotaEnforcer as any,
       mockPolicyEngine as any,
       mockEmergencyControls as any,
+      mockApplicationProxy as any,
     );
 
     handler = {
@@ -100,6 +103,26 @@ describe("SharedServicesController", () => {
     );
   });
 
+  it("routes an application credential to the control-plane proxy, not the legacy handler", async () => {
+    const bearer = "ak_test_aaaaaaaaaaaaaaaa_" + "b".repeat(43);
+    const req = { headers: { authorization: `Bearer ${bearer}` } } as any;
+    const res = {} as any;
+
+    await controller.proxy("Email", req, res);
+
+    expect(mockApplicationProxy.forward).toHaveBeenCalledWith("email", bearer, req, res);
+    expect(handler.proxyRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy service JWTs on the legacy handler", async () => {
+    const req = { headers: { authorization: "Bearer eyJhbGciOiJSUzI1NiJ9.e30.sig" } } as any;
+
+    await controller.proxy("email", req, {} as any);
+
+    expect(handler.proxyRequest).toHaveBeenCalled();
+    expect(mockApplicationProxy.forward).not.toHaveBeenCalled();
+  });
+
   it("should include non-consumable services for platform admins", () => {
     (mockAuth.mergeCallerScopes as jest.Mock).mockReturnValue([
       "platform:admin",
@@ -120,5 +143,27 @@ describe("SharedServicesController", () => {
     controller.onModuleDestroy();
 
     expect(handler.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SharedCallerGuard", () => {
+  function contextFor(authorization?: string) {
+    const request = { headers: authorization ? { authorization } : {} };
+    return { switchToHttp: () => ({ getRequest: () => request }) } as any;
+  }
+
+  it("lets application credentials through to the fail-closed application proxy", async () => {
+    const jwt = { canActivate: jest.fn() };
+    const guard = new SharedCallerGuard(jwt as any);
+    await expect(guard.canActivate(contextFor("Bearer ak_test_x"))).toBe(true);
+    expect(jwt.canActivate).not.toHaveBeenCalled();
+  });
+
+  it("sends every other bearer, and a missing one, through the legacy JWT guard", async () => {
+    const jwt = { canActivate: jest.fn().mockRejectedValue(new Error("Invalid or expired token")) };
+    const guard = new SharedCallerGuard(jwt as any);
+    await expect(guard.canActivate(contextFor("Bearer apic_legacy"))).rejects.toThrow("Invalid or expired token");
+    await expect(guard.canActivate(contextFor())).rejects.toThrow("Invalid or expired token");
+    expect(jwt.canActivate).toHaveBeenCalledTimes(2);
   });
 });
