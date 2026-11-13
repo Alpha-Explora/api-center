@@ -10,6 +10,9 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import axios, { AxiosRequestConfig } from "axios";
+import { randomUUID } from "node:crypto";
+import { ApplicationAccessService } from "@domains/control-plane/application-access.service";
+import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
 import { z } from "zod";
 import { Request, Response } from "express";
 import { PaymentAuthGuard } from "../../shared/payment-auth.guard";
@@ -45,11 +48,44 @@ export class PaymentsController {
   constructor(
     private readonly idempotency: PaymentIdempotencyService,
     private readonly paymentLimits: PaymentLimitsService,
+    private readonly applications: ApplicationAccessService,
   ) {}
 
   @All("*")
   async proxy(@Req() req: Request, @Res() res: Response): Promise<void> {
     const authReq = req as AuthenticatedRequest;
+    const fullPath = new URL(req.originalUrl || req.path, "http://localhost")
+      .pathname;
+    const path =
+      fullPath.replace(/^\/api\/v1\/payments/, "").replace(/^\/payments/, "") ||
+      "/";
+    const operation = resolvePaymentOperation(req.method, path);
+
+    const authorization = req.headers.authorization;
+    const bearer = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : undefined;
+    if (!authReq.paymentPrincipal && bearer && isApplicationCredential(bearer)) {
+      // A control-plane application needs an explicit grant for this operation's action. Its
+      // records are scoped to the resolved owner: the project, or a migrated project's legacy owner.
+      const call = await this.applications.authorizeAction({
+        bearer,
+        capability: "payments",
+        action: operation.scope,
+        requestId: authReq.correlationId || randomUUID(),
+        ...(req.get("Idempotency-Key")?.trim() ? { idempotencyKey: req.get("Idempotency-Key")!.trim() } : {}),
+      });
+      authReq.paymentPrincipal = {
+        ownerTribeId: call.resourceOwner.groupId,
+        projectId: call.resourceOwner.projectId,
+        consumerServiceId: call.identity.applicationId,
+        environment: call.identity.environmentKind,
+        scopes: [operation.scope],
+        keyId: call.identity.credentialId,
+      };
+      res.on("finish", () => {
+        void this.applications.recordOutcome(call, res.statusCode);
+      });
+    }
+
     const principal = authReq.paymentPrincipal;
     if (!principal) {
       res.status(HttpStatus.UNAUTHORIZED).json({
@@ -62,12 +98,6 @@ export class PaymentsController {
       return;
     }
 
-    const fullPath = new URL(req.originalUrl || req.path, "http://localhost")
-      .pathname;
-    const path =
-      fullPath.replace(/^\/api\/v1\/payments/, "").replace(/^\/payments/, "") ||
-      "/";
-    const operation = resolvePaymentOperation(req.method, path);
     const env = principal.environment;
     const token = internalToken(env);
 

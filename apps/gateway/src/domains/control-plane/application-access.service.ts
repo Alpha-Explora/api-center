@@ -9,7 +9,8 @@ import { AppError, UnauthorizedError } from "@shared/errors";
 import { credentialOrganization, withTenant } from "./tenant-transaction";
 import { credentialMatches, parseApplicationCredential } from "./application-credential";
 import { decideCapabilityAccess } from "./capability-access.policy";
-import { resolveCapabilityAction } from "./capability-catalog";
+import { isCatalogedAction, resolveCapabilityAction } from "./capability-catalog";
+import { assertMerchantBinding } from "./merchant-binding";
 import { RuntimeContextSigner } from "./runtime-context.signer";
 import { QuotaService } from "./quota.service";
 import type { ApplicationIdentity, AuthorizedCapabilityCall, EnvironmentKind } from "./control-plane.types";
@@ -35,7 +36,24 @@ export class ApplicationAccessService {
     private readonly quota: QuotaService,
   ) {}
 
+  /** Authorizes a request on a capability route; the route maps to its catalogued action. */
   async authorize(request: CapabilityRequest, now = new Date()): Promise<AuthorizedCapabilityCall> {
+    return this.authorizeResolved(request, resolveCapabilityAction(request.capability, request.method, request.relativePath), now);
+  }
+
+  /**
+   * Authorizes a catalogued action directly, for facades that map their own routes to actions
+   * (payments). An action not catalogued for the capability is denied.
+   */
+  async authorizeAction(
+    request: Omit<CapabilityRequest, "method" | "relativePath"> & { action: string },
+    now = new Date(),
+  ): Promise<AuthorizedCapabilityCall> {
+    const action = isCatalogedAction(request.capability, request.action) ? request.action : undefined;
+    return this.authorizeResolved({ ...request, method: "", relativePath: "" }, action, now);
+  }
+
+  private async authorizeResolved(request: CapabilityRequest, action: string | undefined, now: Date): Promise<AuthorizedCapabilityCall> {
     const parsed = parseApplicationCredential(request.bearer);
     if (!parsed) throw new UnauthorizedError("Invalid application credential");
 
@@ -50,7 +68,7 @@ export class ApplicationAccessService {
         projectId: credential.projectId,
         environmentId: credential.environmentId,
       };
-      const [organization, project, environment, application, capability, grants] = await Promise.all([
+      const [organization, project, environment, application, capability, grants, ownerMapping] = await Promise.all([
         db.organization.findUnique({ where: { id: scope.organizationId }, select: { status: true } }),
         db.cpProject.findFirst({ where: { id: scope.projectId, organizationId: scope.organizationId } }),
         db.cpEnvironment.findFirst({ where: { id: scope.environmentId, ...pick(scope, "organizationId", "projectId") } }),
@@ -60,11 +78,14 @@ export class ApplicationAccessService {
           where: { applicationId: credential.applicationId, ...scope, status: "active" },
           select: { targetKind: true, targetId: true, action: true, status: true },
         }),
+        db.cpResourceOwnerMapping.findFirst({
+          where: { organizationId: scope.organizationId, projectId: scope.projectId, environmentKind: credential.environmentKind },
+        }),
       ]);
-      return { credential, scope, organization, project, environment, application, capability, grants };
+      return { credential, scope, organization, project, environment, application, capability, grants, ownerMapping };
     });
     if (!loaded) throw new UnauthorizedError("Invalid application credential");
-    const { credential, scope, organization, project, environment, application, capability, grants } = loaded;
+    const { credential, scope, organization, project, environment, application, capability, grants, ownerMapping } = loaded;
     // Composite foreign keys make these impossible; treat a gap as an invalid credential.
     if (!organization || !project || !environment || !application) {
       throw new UnauthorizedError("Invalid application credential");
@@ -83,7 +104,7 @@ export class ApplicationAccessService {
         environmentKind: credential.environmentKind as EnvironmentKind,
       },
       capability: capability ? { id: capability.capability, status: capability.status } : undefined,
-      action: resolveCapabilityAction(request.capability, request.method, request.relativePath),
+      action,
       grants,
     });
     if (!decision.allowed) {
@@ -91,6 +112,7 @@ export class ApplicationAccessService {
       throw new AppError(denialMessage(decision.denial.code), status, decision.denial.code);
     }
 
+    if (request.capability === "payments") assertMerchantBinding(scope.organizationId);
     await this.touchLastUsed(credential.organizationId, credential.id, credential.lastUsedAt, now);
 
     const identity: ApplicationIdentity = {
@@ -104,13 +126,19 @@ export class ApplicationAccessService {
       : `req:${request.requestId}`;
     await this.quota.reserve(identity, request.capability, decision.action, requestKey, now);
 
+    // Records stay scoped to the legacy owner of a migrated project until they are reconciled.
+    const resourceOwner = ownerMapping
+      ? { groupId: ownerMapping.ownerGroupId, projectId: ownerMapping.ownerProjectId }
+      : { groupId: scope.organizationId, projectId: scope.projectId };
     return {
       identity,
       requestKey,
+      resourceOwner,
       capability: request.capability,
       action: decision.action,
       signedContext: this.signer.sign({
         identity,
+        resourceOwner,
         capability: request.capability,
         action: decision.action,
         requestId: request.requestId,

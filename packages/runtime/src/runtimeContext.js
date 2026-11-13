@@ -101,6 +101,8 @@ function verifyRuntimeContext(token, { audience, keys, now = Date.now(), maxLife
     environmentKind,
     applicationId: requireString(claims, 'app'),
     action: requireString(claims, 'act'),
+    ownerGroupId: typeof claims.own_grp === 'string' && claims.own_grp ? claims.own_grp : requireString(claims, 'org'),
+    ownerProjectId: typeof claims.own_prj === 'string' && claims.own_prj ? claims.own_prj : requireString(claims, 'prj'),
   };
 }
 

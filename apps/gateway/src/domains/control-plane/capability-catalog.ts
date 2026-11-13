@@ -89,6 +89,29 @@ const CAPABILITIES: readonly CapabilityDefinition[] = [
       route("POST", "/oauth/logout", "gauth:logout"),
     ],
   },
+  {
+    // The payments facade (/api/v1/payments) maps its own routes to these actions, which are the
+    // same scope strings payment API keys use. Payments are never reachable through /shared.
+    id: "payments",
+    name: "Payments",
+    actions: [
+      { action: "payments:read", description: "List payment records and read capabilities" },
+      { action: "payments:checkout:read", description: "Read checkout sessions" },
+      { action: "payments:checkout:write", description: "Create and cancel checkout sessions" },
+      { action: "payments:intents:read", description: "Read payment intents" },
+      { action: "payments:intents:write", description: "Create, confirm and cancel payment intents" },
+      { action: "payments:customers:read", description: "Read customers" },
+      { action: "payments:customers:write", description: "Create customers" },
+      { action: "payments:subscriptions:read", description: "Read plans, subscriptions and their invoices" },
+      { action: "payments:subscriptions:write", description: "Create plans and subscriptions; cancel subscriptions" },
+      { action: "payments:payment-links:read", description: "Read payment links" },
+      { action: "payments:payment-links:write", description: "Create and update payment links" },
+      { action: "payments:refunds:read", description: "Read refunds" },
+      { action: "payments:refunds:write", description: "Create refunds" },
+      { action: "payments:invoices:read", description: "Read invoices" },
+    ],
+    routes: [],
+  },
 ];
 
 export function listCapabilities(): { id: string; name: string; actions: CapabilityAction[] }[] {

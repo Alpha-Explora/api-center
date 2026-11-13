@@ -137,6 +137,9 @@ export interface RuntimeContextClaims {
   environmentKind: 'test' | 'live';
   applicationId: string;
   action: string;
+  /** The owner group records are scoped to (organization ID unless the project was migrated). */
+  ownerGroupId: string;
+  ownerProjectId: string;
 }
 
 /** Parses an Ed25519 public JWK array (APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS by default). */

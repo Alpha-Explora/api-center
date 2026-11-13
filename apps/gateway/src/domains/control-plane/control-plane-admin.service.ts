@@ -12,6 +12,7 @@ import { isCatalogedAction, isKnownCapability, listCapabilities } from "./capabi
 import { generateApplicationCredential, newResourceId } from "./application-credential";
 import type { EnvironmentKind } from "./control-plane.types";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { assertMerchantBinding } from "./merchant-binding";
 
 const DEFAULT_CREDENTIAL_LIFETIME_DAYS = 90;
 
@@ -103,6 +104,7 @@ export class ControlPlaneAdminService {
   /** Enabling a capability creates its environment configuration. It grants no application access. */
   async setCapability(scope: EnvironmentScope, capability: string, enabled: boolean, actor: string) {
     if (!isKnownCapability(capability)) throw new NotFoundError(`Capability '${capability}' is not available`);
+    if (capability === "payments" && enabled) assertMerchantBinding(scope.organizationId);
     const status = enabled ? "enabled" : "disabled";
     const { environment, installation } = await this.tenant(scope.organizationId, async (db) => {
       const environment = await this.resolveEnvironment(db, scope);

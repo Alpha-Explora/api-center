@@ -760,3 +760,19 @@ model CpUsageRecord {
   @@map("cp_usage_records")
   @@schema("apic_catalog")
 }
+
+/// The owner a project environment's runtime records are scoped to, when it differs from
+/// (organization, project): a migrated project keeps its legacy (tribe, project) owner.
+model CpResourceOwnerMapping {
+  organizationId    String   @map("organization_id") @db.Uuid
+  projectId         String   @map("project_id")
+  environmentKind   String   @map("environment_kind")
+  ownerGroupId      String   @map("owner_group_id")
+  ownerProjectId    String   @map("owner_project_id")
+  migrationRevision String   @map("migration_revision")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([projectId, environmentKind])
+  @@map("cp_resource_owner_mappings")
+  @@schema("apic_catalog")
+}

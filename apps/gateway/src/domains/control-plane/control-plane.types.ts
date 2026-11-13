@@ -23,6 +23,14 @@ export interface AuthorizedCapabilityCall {
   signedContext: string;
   /** The usage record key this request was counted under. */
   requestKey: string;
+  /** The owner runtimes scope this request's records to. */
+  resourceOwner: ResourceOwner;
+}
+
+/** Runtimes scope records by owner group and project. Usually (organization, project). */
+export interface ResourceOwner {
+  groupId: string;
+  projectId: string;
 }
 
 export const RUNTIME_CONTEXT_HEADER = "X-APICenter-Context";

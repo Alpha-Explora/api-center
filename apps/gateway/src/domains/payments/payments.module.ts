@@ -18,8 +18,10 @@ import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/p
 import { PaymentEventRecoveryController } from "./features/event-recovery/payment-event-recovery.controller";
 import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
 
+import { ControlPlaneModule } from "@domains/control-plane/control-plane.module";
+
 @Module({
-  imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule],
+  imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule, ControlPlaneModule],
   controllers: [
     PaymentEventRecoveryController,
     PaymentsController,

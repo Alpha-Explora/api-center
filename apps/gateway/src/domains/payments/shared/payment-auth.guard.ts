@@ -8,6 +8,7 @@ import { Request } from "express";
 import { JwtAuthGuard } from "@auth/guards/jwt-auth.guard";
 import { AuthenticatedRequest } from "../../../types";
 import { PaymentApiKeyService } from "../features/payment-facade/payment-api-key.service";
+import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
 
 @Injectable()
 export class PaymentAuthGuard implements CanActivate {
@@ -20,6 +21,10 @@ export class PaymentAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.bearerToken(request);
     if (!token) throw new UnauthorizedException("Missing authorization token");
+
+    // Control-plane application credentials are authorized per operation in PaymentsController,
+    // once the operation's action is known. That path fails closed.
+    if (isApplicationCredential(token)) return true;
 
     if (token.startsWith("apic_")) {
       const principal = await this.apiKeys.resolve(token);

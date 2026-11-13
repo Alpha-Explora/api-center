@@ -49,6 +49,8 @@ describe("runtime context", () => {
       environmentKind: "test",
       applicationId: identity.applicationId,
       action: "email:send",
+      ownerGroupId: identity.organizationId,
+      ownerProjectId: identity.projectId,
     });
   });
 

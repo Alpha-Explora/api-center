@@ -69,11 +69,12 @@ function readSharedServiceCaller(req, options = {}) {
   const { production = process.env.NODE_ENV === 'production' } = options;
   const context = readRuntimeApplicationContext(req, options);
   if (context) {
-    // The organization fills the owner-group slot that legacy callers fill with their tribe.
-    // Project and application IDs are prefixed (prj_, app_) and cannot collide with legacy slugs.
+    // Records are scoped to the resolved resource owner: normally (organization, prj_ project);
+    // for a migrated project, its legacy (tribe, project) until historical records are reconciled.
+    // Control-plane IDs are prefixed (prj_, app_) and cannot collide with legacy slugs.
     return {
-      tribeId: context.organizationId,
-      projectId: context.projectId,
+      tribeId: context.ownerGroupId,
+      projectId: context.ownerProjectId,
       serviceId: context.applicationId,
       environment: context.environmentKind,
       model: 'application',

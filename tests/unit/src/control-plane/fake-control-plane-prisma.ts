@@ -166,6 +166,7 @@ export function createFakeControlPlanePrisma() {
     cpQuotaPolicy: new FakeDelegate((row) => String(row.id)),
     cpQuotaPolicyProject: new FakeDelegate((row) => `${row.policyId}/${row.projectId}`),
     cpUsageRecord: new FakeDelegate((row) => `${row.organizationId}/${row.requestKey}`),
+    cpResourceOwnerMapping: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}`),
     quotaCounters: new Map<string, number>(),
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
