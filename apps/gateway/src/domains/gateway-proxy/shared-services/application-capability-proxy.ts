@@ -46,13 +46,22 @@ export class ApplicationCapabilityProxy {
 
     const relativePath = relativeCapabilityPath(req.path, capability);
     const requestId = req.correlationId || randomUUID();
-    const call = await this.access.authorize({
-      bearer,
-      capability,
-      method: req.method,
-      relativePath,
-      requestId,
-    });
+    const idempotencyKey = typeof req.headers["idempotency-key"] === "string" ? req.headers["idempotency-key"] : undefined;
+    let call;
+    try {
+      call = await this.access.authorize({
+        bearer,
+        capability,
+        method: req.method,
+        relativePath,
+        requestId,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      });
+    } catch (error) {
+      const retryAfter = (error as { retryAfterSeconds?: unknown }).retryAfterSeconds;
+      if (typeof retryAfter === "number") res.setHeader("Retry-After", String(retryAfter));
+      throw error;
+    }
     const route = this.routing.resolve(capability, call.identity.environmentKind);
 
     const headers: Record<string, string> = {
@@ -92,6 +101,7 @@ export class ApplicationCapabilityProxy {
       }
       throw new BadGatewayError(`Capability '${capability}' is unreachable`);
     }
+    await this.access.recordOutcome(call, upstream.status);
 
     res.status(upstream.status);
     for (const name of RETURNED_RESPONSE_HEADERS) {

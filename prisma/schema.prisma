@@ -679,3 +679,80 @@ model CpProjectRoleAssignment {
   @@map("cp_project_role_assignments")
   @@schema("apic_catalog")
 }
+
+/// The plan assigned to one project environment. One active entitlement per environment.
+model CpEntitlement {
+  id             String    @id
+  organizationId String    @map("organization_id") @db.Uuid
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  planKey        String    @map("plan_key")
+  status         String    @default("active")
+  assignedBy     String    @map("assigned_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  @@map("cp_entitlements")
+  @@schema("apic_catalog")
+}
+
+/// A request budget for one project environment kind, or a shared ceiling over covered projects.
+model CpQuotaPolicy {
+  id              String   @id
+  organizationId  String   @map("organization_id") @db.Uuid
+  scope           String
+  projectId       String?  @map("project_id")
+  environmentKind String   @map("environment_kind")
+  capability      String?
+  windowSeconds   Int      @map("window_seconds")
+  maxRequests     Int      @map("max_requests")
+  mode            String   @default("enforce")
+  status          String   @default("active")
+  provenance      String   @default("explicit")
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([id, organizationId])
+  @@map("cp_quota_policies")
+  @@schema("apic_catalog")
+}
+
+model CpQuotaPolicyProject {
+  organizationId String @map("organization_id") @db.Uuid
+  policyId       String @map("policy_id")
+  projectId      String @map("project_id")
+
+  @@id([policyId, projectId])
+  @@map("cp_quota_policy_projects")
+  @@schema("apic_catalog")
+}
+
+model CpQuotaCounter {
+  organizationId String   @map("organization_id") @db.Uuid
+  budgetKey      String   @map("budget_key")
+  windowStart    DateTime @map("window_start") @db.Timestamptz(6)
+  requestCount   Int      @map("request_count")
+
+  @@id([budgetKey, windowStart])
+  @@map("cp_quota_counters")
+  @@schema("apic_catalog")
+}
+
+/// One admitted application request, counted once per request key.
+model CpUsageRecord {
+  organizationId String    @map("organization_id") @db.Uuid
+  requestKey     String    @map("request_key")
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  applicationId  String    @map("application_id")
+  capability     String
+  action         String
+  outcome        String    @default("admitted")
+  statusCode     Int?      @map("status_code")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@id([organizationId, requestKey])
+  @@map("cp_usage_records")
+  @@schema("apic_catalog")
+}

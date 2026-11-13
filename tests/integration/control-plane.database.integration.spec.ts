@@ -12,6 +12,7 @@ import type { AuditEventsService } from "../../apps/gateway/src/domains/complian
 import { ControlPlaneAdminService } from "../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
 import { ApplicationAccessService } from "../../apps/gateway/src/domains/control-plane/application-access.service";
 import { RuntimeContextSigner } from "../../apps/gateway/src/domains/control-plane/runtime-context.signer";
+import { QuotaService } from "../../apps/gateway/src/domains/control-plane/quota.service";
 
 const url = process.env.APICENTER_CONTROL_PLANE_TEST_URL;
 if (url && !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
@@ -28,6 +29,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
   let prisma: PrismaService;
   let admin: ControlPlaneAdminService;
   let access: ApplicationAccessService;
+  let quotas: QuotaService;
   const orgA = randomUUID();
   const orgB = randomUUID();
 
@@ -51,11 +53,13 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     await prisma.onModuleInit();
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
     admin = new ControlPlaneAdminService(prisma, audit);
+    quotas = new QuotaService(prisma, audit);
     access = new ApplicationAccessService(
       prisma,
       new RuntimeContextSigner({
         APICENTER_RUNTIME_CONTEXT_SIGNING_KEY: JSON.stringify({ ...privateKey.export({ format: "jwk" }), kid: "k1" }),
       }),
+      quotas,
     );
   });
 
@@ -106,6 +110,45 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const count = await pool.query("SELECT count(*)::int AS n FROM apic_catalog.cp_credentials WHERE application_id = $1", [app.id]);
     expect(count.rows[0].n).toBe(1);
+  });
+
+  describe("request budgets", () => {
+    async function onboardApp(slug: string) {
+      const project = await admin.createProject(orgA, { slug, name: slug }, actor);
+      const scope = { organizationId: orgA, projectId: project.id, environmentKind: "test" as const };
+      await admin.setCapability(scope, "email", true, actor);
+      const app = await admin.createApplication(scope, { slug: "api", name: "API" }, actor);
+      await admin.grant(scope, app.id, { capability: "email", action: "email:send" }, actor);
+      const { secret } = await admin.issueCredential(scope, app.id, { operationId: randomUUID() }, actor);
+      const send = () =>
+        access.authorize({ bearer: secret, capability: "email", method: "POST", relativePath: "/send", requestId: randomUUID() });
+      return { project, scope, app, send };
+    }
+
+    it("admits exactly the limit under concurrency", async () => {
+      const { project, send } = await onboardApp("budget-concurrency");
+      await quotas.createProjectPolicy(orgA, project.id, { environmentKind: "test", windowSeconds: 3600, maxRequests: 3, mode: "enforce" }, actor);
+      const results = await Promise.allSettled(Array.from({ length: 10 }, () => send()));
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(3);
+      const rejected = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+      expect(rejected.every((result) => (result.reason as { code?: string }).code === "QUOTA_EXCEEDED")).toBe(true);
+    });
+
+    it("charges no budget for a request another budget rejects", async () => {
+      const { project, send } = await onboardApp("budget-rollback");
+      await quotas.createSharedPolicy(orgA, [project.id], { environmentKind: "test", windowSeconds: 3600, maxRequests: 1, mode: "enforce" }, actor);
+      await send();
+      await expect(send()).rejects.toMatchObject({ code: "QUOTA_EXCEEDED" });
+      await expect(send()).rejects.toMatchObject({ code: "QUOTA_EXCEEDED" });
+      const counters = await pool.query(
+        "SELECT budget_key, request_count FROM apic_catalog.cp_quota_counters WHERE budget_key LIKE $1 ORDER BY budget_key",
+        ["test-default:%"],
+      );
+      const usage = await pool.query("SELECT count(*)::int AS n FROM apic_catalog.cp_usage_records WHERE project_id = $1", [project.id]);
+      expect(usage.rows[0].n).toBe(1);
+      const environmentId = (await admin.getProject(orgA, project.id)).environments[0].id;
+      expect(counters.rows.find((row) => row.budget_key === `test-default:${environmentId}`)?.request_count).toBe(1);
+    });
   });
 
   describe("row-level tenant isolation for the application role", () => {

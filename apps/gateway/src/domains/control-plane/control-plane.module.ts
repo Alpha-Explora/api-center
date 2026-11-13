@@ -8,6 +8,7 @@ import { RuntimeContextSigner } from "./runtime-context.signer";
 import { ConsoleAccessService } from "./console-access.service";
 import { OrganizationPeopleService } from "./organization-people.service";
 import { ConsoleActorGuard } from "./console-actor.guard";
+import { QuotaService } from "./quota.service";
 
 /**
  * Control plane v2: organization-owned projects, environment-bound applications, explicit
@@ -25,6 +26,7 @@ import { ConsoleActorGuard } from "./console-actor.guard";
     ConsoleAccessService,
     OrganizationPeopleService,
     ConsoleActorGuard,
+    QuotaService,
   ],
   exports: [ApplicationAccessService],
 })

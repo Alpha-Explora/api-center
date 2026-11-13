@@ -30,7 +30,7 @@ function setup(authorize = jest.fn()) {
     }),
   );
   const proxy = new ApplicationCapabilityProxy(
-    { authorize } as unknown as ApplicationAccessService,
+    { authorize, recordOutcome: jest.fn().mockResolvedValue(undefined) } as unknown as ApplicationAccessService,
     new SharedServiceRoutingService({ SHARED_SERVICE_ROUTE_EMAIL_TEST: "http://email.internal:4012/" }),
     { fetchImpl, cloudRunAuthorizer: async () => undefined, timeoutMs: 1000 },
   );
@@ -83,7 +83,14 @@ describe("ApplicationCapabilityProxy", () => {
     const res = response();
     await proxy.forward("email", bearer, request(), res as unknown as Response);
 
-    expect(authorize).toHaveBeenCalledWith({ bearer, capability: "email", method: "POST", relativePath: "/send", requestId: "corr-1" });
+    expect(authorize).toHaveBeenCalledWith({
+      bearer,
+      capability: "email",
+      method: "POST",
+      relativePath: "/send",
+      requestId: "corr-1",
+      idempotencyKey: "idem-key-0000000001",
+    });
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe("http://email.internal:4012/send");
     expect(init.headers).toEqual({

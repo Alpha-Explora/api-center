@@ -11,6 +11,7 @@ import { credentialMatches, parseApplicationCredential } from "./application-cre
 import { decideCapabilityAccess } from "./capability-access.policy";
 import { resolveCapabilityAction } from "./capability-catalog";
 import { RuntimeContextSigner } from "./runtime-context.signer";
+import { QuotaService } from "./quota.service";
 import type { ApplicationIdentity, AuthorizedCapabilityCall, EnvironmentKind } from "./control-plane.types";
 
 const LAST_USED_RESOLUTION_MS = 60_000;
@@ -22,6 +23,8 @@ export interface CapabilityRequest {
   /** Path relative to the capability root, e.g. `/send`. */
   relativePath: string;
   requestId: string;
+  /** The caller's Idempotency-Key, when sent. Retries of one operation are counted once. */
+  idempotencyKey?: string;
 }
 
 @Injectable()
@@ -29,6 +32,7 @@ export class ApplicationAccessService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly signer: RuntimeContextSigner,
+    private readonly quota: QuotaService,
   ) {}
 
   async authorize(request: CapabilityRequest, now = new Date()): Promise<AuthorizedCapabilityCall> {
@@ -95,8 +99,14 @@ export class ApplicationAccessService {
       applicationId: application.id,
       credentialId: credential.id,
     };
+    const requestKey = request.idempotencyKey
+      ? `idem:${application.id}:${decision.action}:${request.idempotencyKey}`
+      : `req:${request.requestId}`;
+    await this.quota.reserve(identity, request.capability, decision.action, requestKey, now);
+
     return {
       identity,
+      requestKey,
       capability: request.capability,
       action: decision.action,
       signedContext: this.signer.sign({
@@ -107,6 +117,11 @@ export class ApplicationAccessService {
         now,
       }),
     };
+  }
+
+  /** Records how an admitted request ended, for usage reporting. */
+  async recordOutcome(call: AuthorizedCapabilityCall, statusCode: number): Promise<void> {
+    await this.quota.complete(call.identity, call.requestKey, statusCode);
   }
 
   private async touchLastUsed(organizationId: string, credentialId: string, lastUsedAt: Date | null, now: Date) {

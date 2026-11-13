@@ -21,6 +21,8 @@ export interface AuthorizedCapabilityCall {
   action: string;
   /** Short-lived signed context for the runtime. Forward it as `X-APICenter-Context`. */
   signedContext: string;
+  /** The usage record key this request was counted under. */
+  requestKey: string;
 }
 
 export const RUNTIME_CONTEXT_HEADER = "X-APICenter-Context";

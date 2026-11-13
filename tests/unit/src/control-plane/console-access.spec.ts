@@ -7,6 +7,7 @@ import { ControlPlaneAdminController } from "../../../../apps/gateway/src/domain
 import { ControlPlaneAdminService } from "../../../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
 import { ConsoleAccessService } from "../../../../apps/gateway/src/domains/control-plane/console-access.service";
 import { OrganizationPeopleService } from "../../../../apps/gateway/src/domains/control-plane/organization-people.service";
+import { QuotaService } from "../../../../apps/gateway/src/domains/control-plane/quota.service";
 import { ConsoleActorGuard, type ConsoleRequest } from "../../../../apps/gateway/src/domains/control-plane/console-actor.guard";
 import { canPerform, type ConsoleActor, type MemberAccess } from "../../../../apps/gateway/src/domains/control-plane/console-access.policy";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
@@ -45,6 +46,7 @@ beforeEach(() => {
     new ControlPlaneAdminService(db, audit),
     new ConsoleAccessService(db),
     new OrganizationPeopleService(db, audit),
+    new QuotaService(db, audit),
   );
 });
 

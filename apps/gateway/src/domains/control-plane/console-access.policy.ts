@@ -21,6 +21,7 @@ export type ConsoleAction =
   | "organization.members.manage"
   | "organization.owners.manage"
   | "organization.teams.manage"
+  | "organization.quotas.manage"
   | "project.create"
   | "project.read"
   | "project.manage"
@@ -78,6 +79,7 @@ export function canPerform(
       return role === "owner";
     case "organization.members.manage":
     case "organization.teams.manage":
+    case "organization.quotas.manage":
       return role === "owner" || role === "admin";
     case "project.create":
       return role !== "viewer";

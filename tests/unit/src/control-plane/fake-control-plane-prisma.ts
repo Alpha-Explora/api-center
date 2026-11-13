@@ -94,6 +94,25 @@ class FakeDelegate {
     return { ...row };
   }
 
+  async createMany({ data, skipDuplicates }: { data: Row[]; skipDuplicates?: boolean }) {
+    let count = 0;
+    for (const entry of data) {
+      try {
+        await this.create({ data: entry });
+        count += 1;
+      } catch (error) {
+        if (!skipDuplicates) throw error;
+      }
+    }
+    return { count };
+  }
+
+  async updateMany({ where, data }: { where?: Row; data: Row }) {
+    const rows = this.rows.filter((row) => this.matches(row, where));
+    for (const row of rows) Object.assign(row, data);
+    return { count: rows.length };
+  }
+
   async upsert({ where, create, update }: { where: Row; create: Row; update: Row }) {
     const existing = this.rows.find((row) => this.matches(row, where));
     return existing ? this.update({ where, data: update }) : this.create({ data: create });
@@ -109,13 +128,14 @@ class FakeDelegate {
 function defaults(data: Row): Row {
   const base: Row = { status: "active" };
   if ("email" in data && "role" in data && !("projectId" in data)) base.subject = null;
-  if ("capability" in data) base.status = "enabled";
+  if ("capability" in data && !("windowSeconds" in data) && !("requestKey" in data)) base.status = "enabled";
   if ("slug" in data && "environmentId" in data) base.authorizationVersion = 1;
   if ("lookupPrefix" in data) base.lastUsedAt = null;
   if ("targetKind" in data) {
     base.provenance = "explicit";
     base.revokedAt = null;
   }
+  if ("requestKey" in data) base.outcome = "admitted";
   if ("lookupPrefix" in data) {
     base.revokedAt = null;
     base.revokedReason = null;
@@ -142,6 +162,11 @@ export function createFakeControlPlanePrisma() {
     cpTeam: new FakeDelegate((row) => String(row.id), [(row) => `${row.organizationId}/${row.slug}`]),
     cpTeamMember: new FakeDelegate((row) => `${row.teamId}/${row.email}`),
     cpProjectRoleAssignment: new FakeDelegate((row) => String(row.id)),
+    cpEntitlement: new FakeDelegate((row) => String(row.id)),
+    cpQuotaPolicy: new FakeDelegate((row) => String(row.id)),
+    cpQuotaPolicyProject: new FakeDelegate((row) => `${row.policyId}/${row.projectId}`),
+    cpUsageRecord: new FakeDelegate((row) => `${row.organizationId}/${row.requestKey}`),
+    quotaCounters: new Map<string, number>(),
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
       return work(prisma);
@@ -158,6 +183,18 @@ export function createFakeControlPlanePrisma() {
       if (sql.includes("cp_credential_organization")) {
         const row = prisma.cpCredential.rows.find((candidate) => candidate.lookupPrefix === values[0]);
         return [{ organization_id: row ? row.organizationId : null }];
+      }
+      if (sql.includes("cp_quota_counters")) {
+        const [, key, start, limit] = values as [string, string, Date, number];
+        const counterKey = `${key}@${start.toISOString()}`;
+        const current = prisma.quotaCounters.get(counterKey);
+        if (current === undefined) {
+          prisma.quotaCounters.set(counterKey, 1);
+          return [{ request_count: 1 }];
+        }
+        if (current >= limit) return [];
+        prisma.quotaCounters.set(counterKey, current + 1);
+        return [{ request_count: current + 1 }];
       }
       throw new Error(`Unexpected raw query: ${sql}`);
     },

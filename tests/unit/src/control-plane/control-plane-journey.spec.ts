@@ -5,6 +5,7 @@ import type { AuditEventsService } from "../../../../apps/gateway/src/domains/co
 import { ControlPlaneAdminService } from "../../../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
 import { ApplicationAccessService } from "../../../../apps/gateway/src/domains/control-plane/application-access.service";
 import { RuntimeContextSigner } from "../../../../apps/gateway/src/domains/control-plane/runtime-context.signer";
+import { QuotaService } from "../../../../apps/gateway/src/domains/control-plane/quota.service";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
 
 const ORG = "6f1c1d1e-0000-4000-8000-000000000001";
@@ -31,7 +32,11 @@ beforeEach(() => {
   prisma.organization.rows.push({ id: ORG, status: "active" }, { id: OTHER_ORG, status: "active" });
   audit = { record: jest.fn().mockResolvedValue(undefined) };
   admin = new ControlPlaneAdminService(prisma as unknown as PrismaService, audit as unknown as AuditEventsService);
-  access = new ApplicationAccessService(prisma as unknown as PrismaService, signer);
+  access = new ApplicationAccessService(
+    prisma as unknown as PrismaService,
+    signer,
+    new QuotaService(prisma as unknown as PrismaService, audit as unknown as AuditEventsService),
+  );
 });
 
 async function onboard(organizationId = ORG, slug = "serbizio") {

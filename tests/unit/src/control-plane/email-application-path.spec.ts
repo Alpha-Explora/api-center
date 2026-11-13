@@ -10,6 +10,7 @@ import type { AuthenticatedRequest } from "../../../../apps/gateway/src/types";
 import { ControlPlaneAdminService } from "../../../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
 import { ApplicationAccessService } from "../../../../apps/gateway/src/domains/control-plane/application-access.service";
 import { RuntimeContextSigner } from "../../../../apps/gateway/src/domains/control-plane/runtime-context.signer";
+import { QuotaService } from "../../../../apps/gateway/src/domains/control-plane/quota.service";
 import { ApplicationCapabilityProxy } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/application-capability-proxy";
 import { SharedServiceRoutingService } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-routing.service";
 import { createFakeControlPlanePrisma } from "./fake-control-plane-prisma";
@@ -44,15 +45,13 @@ function gateway() {
   process.env.DATABASE_ENABLED = "true";
   const prisma = createFakeControlPlanePrisma();
   prisma.organization.rows.push({ id: ORG, status: "active" });
-  const admin = new ControlPlaneAdminService(
-    prisma as unknown as PrismaService,
-    { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService,
-  );
+  const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+  const admin = new ControlPlaneAdminService(prisma as unknown as PrismaService, audit);
   const signer = new RuntimeContextSigner({
     APICENTER_RUNTIME_CONTEXT_SIGNING_KEY: JSON.stringify({ ...privateKey.export({ format: "jwk" }), kid: "k1" }),
   });
   const proxy = new ApplicationCapabilityProxy(
-    new ApplicationAccessService(prisma as unknown as PrismaService, signer),
+    new ApplicationAccessService(prisma as unknown as PrismaService, signer, new QuotaService(prisma as unknown as PrismaService, audit)),
     new SharedServiceRoutingService({ SHARED_SERVICE_ROUTE_EMAIL_TEST: baseUrl }),
     { cloudRunAuthorizer: async () => undefined },
   );

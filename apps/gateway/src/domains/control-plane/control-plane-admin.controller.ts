@@ -9,6 +9,7 @@ import { ValidationError } from "@shared/errors";
 import { ControlPlaneAdminService, type EnvironmentScope } from "./control-plane-admin.service";
 import { ConsoleAccessService } from "./console-access.service";
 import { OrganizationPeopleService } from "./organization-people.service";
+import { QuotaService } from "./quota.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
@@ -31,6 +32,29 @@ const schemas = {
     .strict(),
   revoke: z.object({ reason: z.string().trim().min(1).max(500), actor: onBehalfOf.optional() }).strict(),
   actorOnly: z.object({ actor: onBehalfOf.optional() }).strict(),
+  assignPlan: z.object({ planKey: z.string().min(1).max(32), actor: onBehalfOf.optional() }).strict(),
+  quotaPolicy: z
+    .object({
+      environmentKind: z.enum(["test", "live"]),
+      capability: z.string().min(1).max(32).optional(),
+      windowSeconds: z.number().int().min(1).max(2_678_400),
+      maxRequests: z.number().int().min(1).max(2_000_000_000),
+      mode: z.enum(["observe", "enforce"]).default("enforce"),
+      actor: onBehalfOf.optional(),
+    })
+    .strict(),
+  sharedQuotaPolicy: z
+    .object({
+      projectIds: z.array(z.string().regex(/^prj_[a-z0-9]{24}$/)).min(1).max(500),
+      environmentKind: z.enum(["test", "live"]),
+      capability: z.string().min(1).max(32).optional(),
+      windowSeconds: z.number().int().min(1).max(2_678_400),
+      maxRequests: z.number().int().min(1).max(2_000_000_000),
+      mode: z.enum(["observe", "enforce"]).default("enforce"),
+      actor: onBehalfOf.optional(),
+    })
+    .strict(),
+  policyStatus: z.object({ status: z.enum(["active", "disabled"]), actor: onBehalfOf.optional() }).strict(),
   setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
@@ -64,6 +88,7 @@ export class ControlPlaneAdminController {
     private readonly controlPlane: ControlPlaneAdminService,
     private readonly access: ConsoleAccessService,
     private readonly people: OrganizationPeopleService,
+    private readonly quotas: QuotaService,
   ) {}
 
   @Get("capabilities")
@@ -211,6 +236,81 @@ export class ControlPlaneAdminController {
     await this.access.require(actor, organizationId, "project.manage", { projectId });
     const assignmentId = parse(schemas.resourceId("pra"), params.assignmentId, "assignmentId");
     return { success: true, data: await this.people.removeProjectRole(organizationId, projectId, assignmentId, actorLabel(actor)) };
+  }
+
+  // ── Plans, quotas and usage ──────────────────────────────────────────────
+
+  @Get("plans")
+  plans() {
+    return { success: true, data: this.quotas.listPlans() };
+  }
+
+  @Get(`${ENV}/plan`)
+  async currentPlan(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope } = await this.authorizeEnvironment(params, req, "environment.read");
+    return { success: true, data: await this.quotas.currentPlan(scope) };
+  }
+
+  @Put(`${ENV}/plan`)
+  async assignPlan(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = parse(schemas.assignPlan, body, "body");
+    const scope = scopeFrom(params);
+    const actor = actorOf(req);
+    await this.access.require(actor, scope.organizationId, "project.manage", { projectId: scope.projectId });
+    return { success: true, data: await this.quotas.assignPlan(scope, input.planKey, actorLabel(actor, input.actor)) };
+  }
+
+  @Get(`${ENV}/usage`)
+  async usage(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope } = await this.authorizeEnvironment(params, req, "environment.read");
+    return { success: true, data: await this.quotas.usageSummary(scope, new Date(Date.now() - 24 * 60 * 60 * 1000)) };
+  }
+
+  @Get("organizations/:organizationId/projects/:projectId/quota-policies")
+  async listProjectQuotas(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    await this.access.require(actorOf(req), organizationId, "project.read", { projectId });
+    return { success: true, data: await this.quotas.listPolicies(organizationId, projectId) };
+  }
+
+  @Post("organizations/:organizationId/projects/:projectId/quota-policies")
+  async createProjectQuota(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const input = parse(schemas.quotaPolicy, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    return { success: true, data: await this.quotas.createProjectPolicy(organizationId, projectId, input, actorLabel(actor, input.actor)) };
+  }
+
+  @Get("organizations/:organizationId/quota-policies")
+  async listQuotas(@Param("organizationId") organizationId: string, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, organizationId, "organizationId");
+    await this.access.require(actorOf(req), org, "organization.quotas.manage");
+    return { success: true, data: await this.quotas.listPolicies(org) };
+  }
+
+  @Post("organizations/:organizationId/quota-policies")
+  async createSharedQuota(@Param("organizationId") organizationId: string, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, organizationId, "organizationId");
+    const { projectIds, ...input } = parse(schemas.sharedQuotaPolicy, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, org, "organization.quotas.manage");
+    return { success: true, data: await this.quotas.createSharedPolicy(org, projectIds, input, actorLabel(actor, input.actor)) };
+  }
+
+  @Put("organizations/:organizationId/quota-policies/:policyId/status")
+  async setQuotaStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const policyId = parse(schemas.resourceId("qp"), params.policyId, "policyId");
+    const input = parse(schemas.policyStatus, body, "body");
+    const actor = actorOf(req);
+    const policy = await this.quotas.policyProject(org, policyId);
+    if (policy.scope === "project" && policy.projectId) {
+      await this.access.require(actor, org, "project.manage", { projectId: policy.projectId });
+    } else {
+      await this.access.require(actor, org, "organization.quotas.manage");
+    }
+    return { success: true, data: await this.quotas.setPolicyStatus(org, policyId, input.status, actorLabel(actor, input.actor)) };
   }
 
   // ── Environment resources ────────────────────────────────────────────────
