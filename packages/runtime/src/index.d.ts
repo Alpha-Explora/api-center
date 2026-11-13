@@ -114,6 +114,21 @@ export function readSharedServiceCaller(
 
 export class RuntimeContextError extends Error {}
 
+/** The verified application context, or undefined when none was sent. An invalid one throws. */
+export function readRuntimeApplicationContext(
+  req: { get(name: string): string | undefined },
+  options?: { runtimeAudience?: string; contextKeys?: Map<string, unknown>; now?: number },
+): RuntimeContextClaims | undefined;
+
+/** Identity fields for createScopedIdempotencyKey, from the verified context or legacy headers. */
+export function callerIdempotencyScope(
+  caller: SharedServiceCaller,
+  req: { get(name: string): string | undefined },
+): { sourceServiceId?: string; tribeId?: string; environment?: string };
+
+/** Express middleware: a present signed context must verify for this runtime or the request gets 403. */
+export function createRuntimeContextGate(runtimeAudience: string): (req: any, res: any, next: () => void) => void;
+
 export interface RuntimeContextClaims {
   requestId: string;
   organizationId: string;

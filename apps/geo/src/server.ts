@@ -2,6 +2,7 @@ import path from 'node:path';
 import { Request, Response } from 'express';
 import {
   createSharedServiceApp,
+  createRuntimeContextGate,
   fail,
   ok,
   registerWithGateway as registerSharedServiceWithGateway,
@@ -42,6 +43,9 @@ function assertGoogleMapsConfigured(res: Response): boolean {
   );
   return false;
 }
+
+// Control-plane application calls carry a signed context; an invalid one is rejected.
+app.use(createRuntimeContextGate('apicenter-runtime:geo'));
 
 app.post('/geocode', async (req: Request, res: Response) => {
   const { address } = req.body || {};

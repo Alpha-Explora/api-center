@@ -6,6 +6,7 @@ import {
   createSharedRateLimitStore,
   createSharedServiceApp,
   readSharedServiceCaller,
+  callerIdempotencyScope,
   createSuccessResponse,
   type SharedServiceCaller,
   registerWithGateway as registerSharedServiceWithGateway,
@@ -38,9 +39,12 @@ const sendWindowMs = Number(process.env.SMS_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.SMS_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+/** Audience the gateway signs control-plane application contexts for. */
+const RUNTIME_AUDIENCE = 'apicenter-runtime:sms';
+
 function readCaller(req: Request, res: Response): SharedServiceCaller | null {
   try {
-    return readSharedServiceCaller(req);
+    return readSharedServiceCaller(req, { runtimeAudience: RUNTIME_AUDIENCE });
   } catch (error) {
     fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Caller context is required');
     return null;
@@ -80,9 +84,7 @@ app.post('/send', async (req: Request, res: Response) => {
     namespace: 'sms',
     route: 'POST /send',
     clientKey,
-    sourceServiceId: req.get('X-APICenter-Source-Service-Id'),
-    tribeId: req.get('X-Tribe-Id'),
-    environment: req.get('X-APICenter-Environment'),
+    ...callerIdempotencyScope(caller, req),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');

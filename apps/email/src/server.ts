@@ -6,6 +6,7 @@ import {
   createSharedRateLimitStore,
   createSharedServiceApp,
   readSharedServiceCaller,
+  callerIdempotencyScope,
   createSuccessResponse,
   type SharedServiceCaller,
   registerWithGateway as registerSharedServiceWithGateway,
@@ -96,14 +97,8 @@ app.post('/send', async (req: Request, res: Response) => {
   if (!clientKey?.trim() || clientKey.trim().length < 16 || clientKey.trim().length > 255) {
     return fail(res, 400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key must be between 16 and 255 characters');
   }
-  // Application callers are identified only by their verified context; legacy callers keep the
-  // header-derived key so existing idempotency records continue to match.
-  const signed = caller.model === 'application';
-  const sourceServiceId = signed ? caller.serviceId : req.get('X-APICenter-Source-Service-Id');
-  const tribeId = signed ? caller.tribeId : req.get('X-Tribe-Id');
-  const environment = signed ? caller.environment : req.get('X-APICenter-Environment');
   const storageKey = createScopedIdempotencyKey({
-    namespace: 'email', route: 'POST /send', clientKey, sourceServiceId, tribeId, environment,
+    namespace: 'email', route: 'POST /send', clientKey, ...callerIdempotencyScope(caller, req),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');

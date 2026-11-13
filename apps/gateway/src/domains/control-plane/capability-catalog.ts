@@ -20,6 +20,13 @@ interface CapabilityDefinition {
   routes: CatalogRoute[];
 }
 
+const STATUS_ID = "[^/]+";
+
+function route(method: string, path: string, action: string): CatalogRoute {
+  return { method, pattern: new RegExp(`^${path}/?$`), action };
+}
+
+// Routes mirror the supported shared-service operations published in the consumer OpenAPI.
 const CAPABILITIES: readonly CapabilityDefinition[] = [
   {
     id: "email",
@@ -28,9 +35,58 @@ const CAPABILITIES: readonly CapabilityDefinition[] = [
       { action: "email:send", description: "Send an email" },
       { action: "email:read", description: "Read the delivery status of an email this project sent" },
     ],
+    routes: [route("POST", "/send", "email:send"), route("GET", `/status/${STATUS_ID}`, "email:read")],
+  },
+  {
+    id: "sms",
+    name: "SMS",
+    actions: [
+      { action: "sms:send", description: "Send an SMS message" },
+      { action: "sms:read", description: "Read the delivery status of a message this project sent" },
+    ],
+    routes: [route("POST", "/send", "sms:send"), route("GET", `/status/${STATUS_ID}`, "sms:read")],
+  },
+  {
+    id: "otp",
+    name: "One-time passwords",
+    actions: [
+      { action: "otp:generate", description: "Generate and deliver a one-time password" },
+      { action: "otp:verify", description: "Verify a one-time password" },
+      { action: "otp:read", description: "Read the status of a one-time password this project issued" },
+    ],
     routes: [
-      { method: "POST", pattern: /^\/send\/?$/, action: "email:send" },
-      { method: "GET", pattern: /^\/status\/[^/]+\/?$/, action: "email:read" },
+      route("POST", "/generate", "otp:generate"),
+      route("POST", "/verify", "otp:verify"),
+      route("GET", `/status/${STATUS_ID}`, "otp:read"),
+    ],
+  },
+  {
+    id: "geo",
+    name: "Geolocation",
+    actions: [
+      { action: "geo:geocode", description: "Convert an address to coordinates" },
+      { action: "geo:reverse-geocode", description: "Convert coordinates to an address" },
+      { action: "geo:geofence", description: "Check whether a point is inside a geofence" },
+    ],
+    routes: [
+      route("POST", "/geocode", "geo:geocode"),
+      route("POST", "/reverse-geocode", "geo:reverse-geocode"),
+      route("POST", "/geofence/check", "geo:geofence"),
+    ],
+  },
+  {
+    id: "gauth",
+    name: "Google sign-in",
+    actions: [
+      { action: "gauth:authorize", description: "Start a Google sign-in" },
+      { action: "gauth:token", description: "Exchange or refresh Google sign-in tokens" },
+      { action: "gauth:logout", description: "Revoke a Google sign-in session" },
+    ],
+    routes: [
+      route("POST", "/oauth/authorize", "gauth:authorize"),
+      route("POST", "/oauth/token", "gauth:token"),
+      route("POST", "/oauth/token/refresh", "gauth:token"),
+      route("POST", "/oauth/logout", "gauth:logout"),
     ],
   },
 ];

@@ -7,6 +7,7 @@ import {
   createSharedRateLimitStore,
   createSharedServiceApp,
   readSharedServiceCaller,
+  callerIdempotencyScope,
   createSuccessResponse,
   type SharedServiceCaller,
   registerWithGateway as registerSharedServiceWithGateway,
@@ -41,9 +42,12 @@ const generateWindowMs = Number(process.env.OTP_GENERATE_LIMIT_WINDOW_MS || 60_0
 const verifyLimit = Number(process.env.OTP_VERIFY_LIMIT_PER_OTP || 5);
 const verifyWindowMs = Number(process.env.OTP_VERIFY_LIMIT_WINDOW_MS || 60_000);
 
+/** Audience the gateway signs control-plane application contexts for. */
+const RUNTIME_AUDIENCE = 'apicenter-runtime:otp';
+
 function readCaller(req: Request, res: Response): SharedServiceCaller | null {
   try {
-    return readSharedServiceCaller(req);
+    return readSharedServiceCaller(req, { runtimeAudience: RUNTIME_AUDIENCE });
   } catch (error) {
     fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Caller context is required');
     return null;
@@ -83,9 +87,7 @@ app.post('/generate', async (req: Request, res: Response) => {
     namespace: 'otp',
     route: 'POST /generate',
     clientKey,
-    sourceServiceId: req.get('X-APICenter-Source-Service-Id'),
-    tribeId: req.get('X-Tribe-Id'),
-    environment: req.get('X-APICenter-Environment'),
+    ...callerIdempotencyScope(caller, req),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
@@ -184,9 +186,7 @@ app.post('/verify', async (req: Request, res: Response) => {
     namespace: 'otp',
     route: 'POST /verify',
     clientKey,
-    sourceServiceId: req.get('X-APICenter-Source-Service-Id'),
-    tribeId: req.get('X-Tribe-Id'),
-    environment: req.get('X-APICenter-Environment'),
+    ...callerIdempotencyScope(caller, req),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');

@@ -92,7 +92,12 @@ describe("capability catalog", () => {
     expect(resolveCapabilityAction("email", "GET", "/send")).toBeUndefined();
     expect(resolveCapabilityAction("email", "POST", "/admin/projects/x/email-sender/test")).toBeUndefined();
     expect(resolveCapabilityAction("email", "GET", "/status/a/b")).toBeUndefined();
-    expect(resolveCapabilityAction("sms", "POST", "/send")).toBeUndefined();
+    expect(resolveCapabilityAction("sms", "POST", "/send")).toBe("sms:send");
+    expect(resolveCapabilityAction("otp", "POST", "/verify")).toBe("otp:verify");
+    expect(resolveCapabilityAction("geo", "POST", "/geofence/check")).toBe("geo:geofence");
+    expect(resolveCapabilityAction("gauth", "POST", "/oauth/token/refresh")).toBe("gauth:token");
+    expect(resolveCapabilityAction("gauth", "POST", "/admin/oauth-apps/prj_x/test")).toBeUndefined();
+    expect(resolveCapabilityAction("payments", "POST", "/checkouts")).toBeUndefined();
   });
 
   it("knows which actions belong to which capability", () => {

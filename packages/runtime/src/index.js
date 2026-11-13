@@ -7,7 +7,15 @@ const { createMemoryRateLimitStore } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
 const { sendTwilioSms, sendResendEmail } = require('./delivery');
 const { registerWithGateway, shouldRegisterWithGateway } = require('./registerWithGateway');
-const { SharedServiceCallerError, readSharedServiceCaller, sameProject, RUNTIME_CONTEXT_HEADER } = require('./sharedServiceCaller');
+const {
+  SharedServiceCallerError,
+  readSharedServiceCaller,
+  readRuntimeApplicationContext,
+  callerIdempotencyScope,
+  createRuntimeContextGate,
+  sameProject,
+  RUNTIME_CONTEXT_HEADER,
+} = require('./sharedServiceCaller');
 const { RuntimeContextError, loadRuntimeContextKeys, verifyRuntimeContext } = require('./runtimeContext');
 
 module.exports = {
@@ -15,6 +23,9 @@ module.exports = {
   SharedServiceCallerError,
   createCircuitBreaker,
   readSharedServiceCaller,
+  readRuntimeApplicationContext,
+  callerIdempotencyScope,
+  createRuntimeContextGate,
   sameProject,
   RUNTIME_CONTEXT_HEADER,
   RuntimeContextError,
