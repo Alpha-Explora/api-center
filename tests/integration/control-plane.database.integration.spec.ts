@@ -32,8 +32,18 @@ describeWithDatabase("control plane on PostgreSQL", () => {
   const orgB = randomUUID();
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = url;
     pool = new Pool({ connectionString: url, max: 2 });
+    // The gateway connects as a login role inside api_center_app without BYPASSRLS, as in
+    // production, so row-level security applies to everything the services below do.
+    await pool.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'apic_gateway_test') THEN
+        CREATE ROLE apic_gateway_test LOGIN PASSWORD 'gateway-test' NOSUPERUSER NOBYPASSRLS IN ROLE api_center_app;
+      END IF;
+    END $$`);
+    const appUrl = new URL(url as string);
+    appUrl.username = "apic_gateway_test";
+    appUrl.password = "gateway-test";
+    process.env.DATABASE_URL = appUrl.toString();
     for (const [id, slug] of [[orgA, `cp-a-${orgA.slice(0, 8)}`], [orgB, `cp-b-${orgB.slice(0, 8)}`]]) {
       await pool.query("INSERT INTO apic_catalog.organizations (id, slug, name) VALUES ($1, $2, $2)", [id, slug]);
     }
@@ -96,6 +106,55 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const count = await pool.query("SELECT count(*)::int AS n FROM apic_catalog.cp_credentials WHERE application_id = $1", [app.id]);
     expect(count.rows[0].n).toBe(1);
+  });
+
+  describe("row-level tenant isolation for the application role", () => {
+    let appPool: Pool;
+    beforeAll(() => {
+      appPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    });
+    afterAll(async () => {
+      await appPool.end();
+    });
+
+    async function asTenant<T>(organizationId: string | null, sql: string, params: unknown[] = []): Promise<T[]> {
+      const client = await appPool.connect();
+      try {
+        await client.query("BEGIN");
+        if (organizationId) await client.query("SELECT set_config('apicenter.organization_id', $1, true)", [organizationId]);
+        const result = await client.query(sql, params);
+        await client.query("COMMIT");
+        return result.rows as T[];
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    it("shows no control-plane rows without a tenant and only the tenant's rows with one", async () => {
+      await admin.createProject(orgB, { slug: "other-tenant", name: "Other" }, actor);
+      expect(await asTenant(null, "SELECT id FROM apic_catalog.cp_projects")).toEqual([]);
+      const visibleToA = await asTenant<{ organization_id: string }>(orgA, "SELECT organization_id FROM apic_catalog.cp_projects");
+      expect(visibleToA.length).toBeGreaterThan(0);
+      expect(new Set(visibleToA.map((row) => row.organization_id))).toEqual(new Set([orgA]));
+    });
+
+    it("rejects writing a row into another organization", async () => {
+      await expect(
+        asTenant(orgA, "INSERT INTO apic_catalog.cp_projects (id, organization_id, slug, name, created_by) VALUES ($1, $2, 'smuggled', 'x', 'x')", [
+          `prj_${randomUUID().replaceAll("-", "").slice(0, 24)}`,
+          orgB,
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+
+    it("discloses only the organization of an exact credential prefix before a tenant is set", async () => {
+      const rows = await asTenant<{ org: string | null }>(null, "SELECT apic_catalog.cp_credential_organization('ak_test_doesnotexist0000') AS org");
+      expect(rows).toEqual([{ org: null }]);
+      await expect(asTenant(null, "SELECT lookup_prefix FROM apic_catalog.cp_credentials")).resolves.toEqual([]);
+    });
   });
 
   describe("ownership constraints", () => {

@@ -158,11 +158,16 @@ describe("control plane: grants and credential issuance", () => {
     expect(prisma.advisoryLocks).toEqual([operationId, operationId, operationId]);
   });
 
-  it("refuses live credentials in this slice", async () => {
+  it("refuses live credentials while the project has no live environment", async () => {
     const { scope, application } = await onboard();
     await expect(
       admin.issueCredential({ ...scope, environmentKind: "live" }, application.id, { operationId: randomUUID() }, actor),
-    ).rejects.toMatchObject({ code: "LIVE_CREDENTIALS_UNAVAILABLE" });
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("binds every control-plane query to the caller's organization", async () => {
+    await onboard();
+    expect(new Set(prisma.tenantSettings)).toEqual(new Set([ORG]));
   });
 
   it("lists credentials without secret material", async () => {

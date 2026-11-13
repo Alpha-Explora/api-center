@@ -14,6 +14,7 @@ import {
   type ProjectRole,
 } from "./console-access.policy";
 import type { EnvironmentKind } from "./control-plane.types";
+import { withTenant, type TenantDb } from "./tenant-transaction";
 
 const NO_ACCESS: MemberAccess = { organizationRole: undefined, projectRoles: new Map() };
 
@@ -23,14 +24,18 @@ export class ConsoleAccessService {
 
   async accessFor(actor: ConsoleActor, organizationId: string): Promise<MemberAccess> {
     if (actor.kind !== "member") return NO_ACCESS;
-    const membership = await this.prisma.organizationMember.findUnique({
+    return withTenant(this.prisma, { organizationId }, (db) => this.load(db, actor, organizationId));
+  }
+
+  private async load(db: TenantDb, actor: Extract<ConsoleActor, { kind: "member" }>, organizationId: string): Promise<MemberAccess> {
+    const membership = await db.organizationMember.findUnique({
       where: { organization_members_pkey: { organizationId, email: actor.email } },
     });
     if (!membership || membership.status !== "active") return NO_ACCESS;
 
     // Link the verified identity on first sign-in; afterwards it must match.
     if (!membership.subject) {
-      await this.prisma.organizationMember.update({
+      await db.organizationMember.update({
         where: { organization_members_pkey: { organizationId, email: actor.email } },
         data: { subject: actor.subject },
       });
@@ -40,9 +45,9 @@ export class ConsoleAccessService {
 
     const organizationRole = normalizeOrganizationRole(membership.role);
     const teamIds = (
-      await this.prisma.cpTeamMember.findMany({ where: { organizationId, email: actor.email }, select: { teamId: true } })
+      await db.cpTeamMember.findMany({ where: { organizationId, email: actor.email }, select: { teamId: true } })
     ).map((row) => row.teamId);
-    const assignments = await this.prisma.cpProjectRoleAssignment.findMany({
+    const assignments = await db.cpProjectRoleAssignment.findMany({
       where: {
         organizationId,
         OR: [{ memberEmail: actor.email }, ...(teamIds.length ? [{ teamId: { in: teamIds } }] : [])],

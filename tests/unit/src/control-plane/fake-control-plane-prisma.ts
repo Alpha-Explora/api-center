@@ -146,9 +146,20 @@ export function createFakeControlPlanePrisma() {
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
       return work(prisma);
     },
-    async $executeRaw(_strings: TemplateStringsArray, ...values: unknown[]) {
-      prisma.advisoryLocks.push(String(values[0]));
+    tenantSettings: [] as string[],
+    async $executeRaw(strings: TemplateStringsArray, ...values: unknown[]) {
+      const sql = strings.join("?");
+      if (sql.includes("pg_advisory_xact_lock")) prisma.advisoryLocks.push(String(values[0]));
+      if (sql.includes("apicenter.organization_id")) prisma.tenantSettings.push(String(values[0]) || String(values[1]));
       return 1;
+    },
+    async $queryRaw(strings: TemplateStringsArray, ...values: unknown[]) {
+      const sql = strings.join("?");
+      if (sql.includes("cp_credential_organization")) {
+        const row = prisma.cpCredential.rows.find((candidate) => candidate.lookupPrefix === values[0]);
+        return [{ organization_id: row ? row.organizationId : null }];
+      }
+      throw new Error(`Unexpected raw query: ${sql}`);
     },
   };
   return prisma;

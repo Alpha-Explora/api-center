@@ -5,7 +5,8 @@
 
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
-import { AppError, ServiceUnavailableError, UnauthorizedError } from "@shared/errors";
+import { AppError, UnauthorizedError } from "@shared/errors";
+import { credentialOrganization, withTenant } from "./tenant-transaction";
 import { credentialMatches, parseApplicationCredential } from "./application-credential";
 import { decideCapabilityAccess } from "./capability-access.policy";
 import { resolveCapabilityAction } from "./capability-catalog";
@@ -31,33 +32,35 @@ export class ApplicationAccessService {
   ) {}
 
   async authorize(request: CapabilityRequest, now = new Date()): Promise<AuthorizedCapabilityCall> {
-    if (process.env.DATABASE_ENABLED !== "true" && !process.env.DATABASE_URL) {
-      throw new ServiceUnavailableError("Application credentials require the APICenter database");
-    }
     const parsed = parseApplicationCredential(request.bearer);
     if (!parsed) throw new UnauthorizedError("Invalid application credential");
 
-    const credential = await this.prisma.cpCredential.findUnique({ where: { lookupPrefix: parsed.lookupPrefix } });
-    if (!credential || !credentialMatches(request.bearer, credential.verifierSha256)) {
-      throw new UnauthorizedError("Invalid application credential");
-    }
+    const organizationId = await credentialOrganization(this.prisma, parsed.lookupPrefix);
+    if (!organizationId) throw new UnauthorizedError("Invalid application credential");
 
-    const scope = {
-      organizationId: credential.organizationId,
-      projectId: credential.projectId,
-      environmentId: credential.environmentId,
-    };
-    const [organization, project, environment, application, capability, grants] = await Promise.all([
-      this.prisma.organization.findUnique({ where: { id: scope.organizationId }, select: { status: true } }),
-      this.prisma.cpProject.findFirst({ where: { id: scope.projectId, organizationId: scope.organizationId } }),
-      this.prisma.cpEnvironment.findFirst({ where: { id: scope.environmentId, ...pick(scope, "organizationId", "projectId") } }),
-      this.prisma.cpApplication.findFirst({ where: { id: credential.applicationId, ...scope } }),
-      this.prisma.cpCapabilityInstallation.findFirst({ where: { capability: request.capability, ...scope } }),
-      this.prisma.cpApplicationGrant.findMany({
-        where: { applicationId: credential.applicationId, ...scope, status: "active" },
-        select: { targetKind: true, targetId: true, action: true, status: true },
-      }),
-    ]);
+    const loaded = await withTenant(this.prisma, { organizationId }, async (db) => {
+      const credential = await db.cpCredential.findUnique({ where: { lookupPrefix: parsed.lookupPrefix } });
+      if (!credential || !credentialMatches(request.bearer, credential.verifierSha256)) return undefined;
+      const scope = {
+        organizationId: credential.organizationId,
+        projectId: credential.projectId,
+        environmentId: credential.environmentId,
+      };
+      const [organization, project, environment, application, capability, grants] = await Promise.all([
+        db.organization.findUnique({ where: { id: scope.organizationId }, select: { status: true } }),
+        db.cpProject.findFirst({ where: { id: scope.projectId, organizationId: scope.organizationId } }),
+        db.cpEnvironment.findFirst({ where: { id: scope.environmentId, ...pick(scope, "organizationId", "projectId") } }),
+        db.cpApplication.findFirst({ where: { id: credential.applicationId, ...scope } }),
+        db.cpCapabilityInstallation.findFirst({ where: { capability: request.capability, ...scope } }),
+        db.cpApplicationGrant.findMany({
+          where: { applicationId: credential.applicationId, ...scope, status: "active" },
+          select: { targetKind: true, targetId: true, action: true, status: true },
+        }),
+      ]);
+      return { credential, scope, organization, project, environment, application, capability, grants };
+    });
+    if (!loaded) throw new UnauthorizedError("Invalid application credential");
+    const { credential, scope, organization, project, environment, application, capability, grants } = loaded;
     // Composite foreign keys make these impossible; treat a gap as an invalid credential.
     if (!organization || !project || !environment || !application) {
       throw new UnauthorizedError("Invalid application credential");
@@ -84,7 +87,7 @@ export class ApplicationAccessService {
       throw new AppError(denialMessage(decision.denial.code), status, decision.denial.code);
     }
 
-    await this.touchLastUsed(credential.id, credential.lastUsedAt, now);
+    await this.touchLastUsed(credential.organizationId, credential.id, credential.lastUsedAt, now);
 
     const identity: ApplicationIdentity = {
       ...scope,
@@ -106,10 +109,12 @@ export class ApplicationAccessService {
     };
   }
 
-  private async touchLastUsed(credentialId: string, lastUsedAt: Date | null, now: Date) {
+  private async touchLastUsed(organizationId: string, credentialId: string, lastUsedAt: Date | null, now: Date) {
     if (lastUsedAt && now.getTime() - lastUsedAt.getTime() < LAST_USED_RESOLUTION_MS) return;
     try {
-      await this.prisma.cpCredential.update({ where: { id: credentialId }, data: { lastUsedAt: now } });
+      await withTenant(this.prisma, { organizationId }, (db) =>
+        db.cpCredential.update({ where: { id: credentialId }, data: { lastUsedAt: now } }),
+      );
     } catch {
       // Usage timestamps are advisory; a failed write must not fail an authorized request.
     }
