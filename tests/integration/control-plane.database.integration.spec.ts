@@ -14,6 +14,7 @@ import { ApplicationAccessService } from "../../apps/gateway/src/domains/control
 import { RuntimeContextSigner } from "../../apps/gateway/src/domains/control-plane/runtime-context.signer";
 import { QuotaService } from "../../apps/gateway/src/domains/control-plane/quota.service";
 import { LiveEnvironmentService } from "../../apps/gateway/src/domains/control-plane/live-environment.service";
+import { PublishedApiService } from "../../apps/gateway/src/domains/control-plane/published-api.service";
 import { ApprovalRequestService } from "../../apps/gateway/src/domains/governance/approvals/approval-request.service";
 
 const url = process.env.APICENTER_CONTROL_PLANE_TEST_URL;
@@ -33,6 +34,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
   let access: ApplicationAccessService;
   let quotas: QuotaService;
   let live: LiveEnvironmentService;
+  let apis: PublishedApiService;
   const orgA = randomUUID();
   const orgB = randomUUID();
 
@@ -58,6 +60,8 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     admin = new ControlPlaneAdminService(prisma, audit);
     quotas = new QuotaService(prisma, audit);
     live = new LiveEnvironmentService(prisma, new ApprovalRequestService(prisma), audit);
+    apis = new PublishedApiService(prisma, audit);
+    process.env.CONTROL_PLANE_ALLOW_PRIVATE_UPSTREAMS = "true";
     access = new ApplicationAccessService(
       prisma,
       new RuntimeContextSigner({
@@ -114,6 +118,39 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const count = await pool.query("SELECT count(*)::int AS n FROM apic_catalog.cp_credentials WHERE application_id = $1", [app.id]);
     expect(count.rows[0].n).toBe(1);
+  });
+
+  describe("published APIs", () => {
+    it("grants across projects only after the publisher approves, and never across environment kinds", async () => {
+      const publisher = await admin.createProject(orgA, { slug: "orders-api", name: "Orders" }, actor);
+      const publisherScope = { organizationId: orgA, projectId: publisher.id, environmentKind: "test" as const };
+      const api = await apis.publish(
+        publisherScope,
+        { slug: "orders", name: "Orders", upstreamUrl: "http://orders.internal", operations: [{ method: "GET", path: "/orders/{id}", action: "orders:read" }] },
+        actor,
+      );
+      const consumer = await admin.createProject(orgA, { slug: "storefront", name: "Storefront" }, actor);
+      const consumerScope = { organizationId: orgA, projectId: consumer.id, environmentKind: "test" as const };
+      const app = await admin.createApplication(consumerScope, { slug: "web", name: "Web" }, actor);
+      const { secret } = await admin.issueCredential(consumerScope, app.id, { operationId: randomUUID() }, actor);
+
+      const outcome = await apis.requestAccess(consumerScope, app.id, api.id, "orders:read", "dev@example.test");
+      expect(outcome.kind).toBe("requested");
+      await apis.decide(orgA, outcome.kind === "requested" ? outcome.request.id : "", true, actor);
+      const call = await access.authorizeApi({ bearer: secret, apiId: api.id, method: "GET", relativePath: "/orders/1", requestId: randomUUID() });
+      expect(call.upstreamUrl).toBe("http://orders.internal");
+
+      await live.provision(orgA, consumer.id, actor);
+      const liveApp = await admin.createApplication({ ...consumerScope, environmentKind: "live" }, { slug: "web", name: "Web" }, actor);
+      const liveEnvironment = (await admin.getProject(orgA, consumer.id)).environments.find((environment) => environment.kind === "live")!;
+      await expect(
+        pool.query(
+          `INSERT INTO apic_catalog.cp_application_grants (id, organization_id, project_id, environment_id, application_id, target_kind, target_id, action, created_by)
+           VALUES ($1, $2, $3, $4, $5, 'api', $6, 'orders:read', 'test')`,
+          [`grt_${randomUUID().replaceAll("-", "").slice(0, 24)}`, orgA, consumer.id, liveEnvironment.id, liveApp.id, api.id],
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+    });
   });
 
   describe("live activation", () => {

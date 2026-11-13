@@ -69,6 +69,7 @@ import { CapabilitiesModule } from "./domains/runtime-ops/capabilities/capabilit
 import { PaymentsModule } from "./domains/payments/payments.module";
 import { ProjectOverviewModule } from "./domains/catalog-registry/project-overview/project-overview.module";
 import { ControlPlaneModule } from "./domains/control-plane/control-plane.module";
+import { PublishedApisModule } from "./domains/gateway-proxy/published-apis/published-apis.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { RequestDiagnosticsMiddleware } from "./shared/middleware/request-diagnostics.middleware";
@@ -113,6 +114,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     PaymentsModule, // Provider-neutral payments facade backed by private apps/payments
     ProjectOverviewModule,
     ControlPlaneModule, // Control plane v2: organization projects, applications, explicit grants, credentials
+    PublishedApisModule, // /api/v1/apis/:apiId/* for control-plane published APIs
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     AuthModule, // JWT providers + Vault + TokenStore — guards every proxy

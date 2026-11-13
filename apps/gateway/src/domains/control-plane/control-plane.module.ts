@@ -11,6 +11,7 @@ import { ConsoleActorGuard } from "./console-actor.guard";
 import { QuotaService } from "./quota.service";
 import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
+import { PublishedApiService } from "./published-api.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
 
 /**
@@ -32,6 +33,7 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     QuotaService,
     LiveEnvironmentService,
     CapabilityConfigurationService,
+    PublishedApiService,
   ],
   exports: [ApplicationAccessService],
 })

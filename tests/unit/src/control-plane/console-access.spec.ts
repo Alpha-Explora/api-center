@@ -49,6 +49,7 @@ beforeEach(() => {
     new QuotaService(db, audit),
     {} as never,
     {} as never,
+    {} as never,
   );
 });
 

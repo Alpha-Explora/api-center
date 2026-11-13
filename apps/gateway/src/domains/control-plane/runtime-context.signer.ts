@@ -11,8 +11,9 @@ export const RUNTIME_CONTEXT_LIFETIME_SECONDS = 60;
 const CONTEXT_TYPE = "apicenter-context+jwt";
 const ISSUER = "apicenter-gateway";
 
-export function runtimeAudience(capability: string): string {
-  return `apicenter-runtime:${capability}`;
+/** Capability runtimes verify `apicenter-runtime:<capability>`; API publishers `apicenter-api:<apiId>`. */
+export function runtimeAudience(target: string): string {
+  return target.startsWith("api:") ? `apicenter-api:${target.slice(4)}` : `apicenter-runtime:${target}`;
 }
 
 interface SigningKey {

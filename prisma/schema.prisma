@@ -776,3 +776,57 @@ model CpResourceOwnerMapping {
   @@map("cp_resource_owner_mappings")
   @@schema("apic_catalog")
 }
+
+/// An API a project publishes in one environment. Optional; calling APIs never requires it.
+model CpPublishedApi {
+  id              String   @id
+  organizationId  String   @map("organization_id") @db.Uuid
+  projectId       String   @map("project_id")
+  environmentId   String   @map("environment_id")
+  environmentKind String   @map("environment_kind")
+  slug            String
+  name            String
+  upstreamUrl     String   @map("upstream_url")
+  status          String   @default("active")
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([environmentId, slug])
+  @@unique([id, organizationId])
+  @@map("cp_published_apis")
+  @@schema("apic_catalog")
+}
+
+model CpPublishedApiOperation {
+  organizationId String  @map("organization_id") @db.Uuid
+  apiId          String  @map("api_id")
+  method         String
+  pathPattern    String  @map("path_pattern")
+  action         String
+  description    String?
+
+  @@id([apiId, method, pathPattern])
+  @@map("cp_published_api_operations")
+  @@schema("apic_catalog")
+}
+
+/// A request for an application in another project to be granted an API action.
+model CpApiAccessRequest {
+  id                    String    @id
+  organizationId        String    @map("organization_id") @db.Uuid
+  apiId                 String    @map("api_id")
+  action                String
+  consumerProjectId     String    @map("consumer_project_id")
+  consumerEnvironmentId String    @map("consumer_environment_id")
+  consumerApplicationId String    @map("consumer_application_id")
+  status                String    @default("pending")
+  requestedBy           String    @map("requested_by")
+  decidedBy             String?   @map("decided_by")
+  decidedAt             DateTime? @map("decided_at") @db.Timestamptz(6)
+  grantId               String?   @map("grant_id")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_api_access_requests")
+  @@schema("apic_catalog")
+}

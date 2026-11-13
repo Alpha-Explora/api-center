@@ -43,7 +43,7 @@ export function credentialMatches(plaintext: string, storedVerifier: string): bo
 }
 
 /** Opaque, prefixed resource identifier: `<prefix>_<24 lowercase alphanumerics>`. */
-export function newResourceId(prefix: "prj" | "env" | "app" | "grt" | "crd"): string {
+export function newResourceId(prefix: "prj" | "env" | "app" | "grt" | "crd" | "api"): string {
   return `${prefix}_${randomLowercase(24)}`;
 }
 

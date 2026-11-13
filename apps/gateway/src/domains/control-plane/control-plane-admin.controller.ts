@@ -12,6 +12,7 @@ import { OrganizationPeopleService } from "./organization-people.service";
 import { QuotaService } from "./quota.service";
 import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
+import { PublishedApiService } from "./published-api.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
@@ -59,6 +60,21 @@ const schemas = {
   policyStatus: z.object({ status: z.enum(["active", "disabled"]), actor: onBehalfOf.optional() }).strict(),
   activateLive: z.object({ approvalRequestId: z.string().min(1).max(100), actor: onBehalfOf.optional() }).strict(),
   environmentStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
+  apiOperations: z
+    .array(
+      z
+        .object({
+          method: z.string().min(3).max(6),
+          path: z.string().min(1).max(300),
+          action: z.string().min(3).max(64),
+          description: z.string().max(300).optional(),
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(200),
+  apiGrant: z.object({ apiId: z.string().regex(/^api_[a-z0-9]{24}$/), action: z.string().min(3).max(64), actor: onBehalfOf.optional() }).strict(),
+  apiDecision: z.object({ approve: z.boolean(), actor: onBehalfOf.optional() }).strict(),
   setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
@@ -95,6 +111,7 @@ export class ControlPlaneAdminController {
     private readonly quotas: QuotaService,
     private readonly live: LiveEnvironmentService,
     private readonly configuration: CapabilityConfigurationService,
+    private readonly apis: PublishedApiService,
   ) {}
 
   @Get("capabilities")
@@ -377,6 +394,81 @@ export class ControlPlaneAdminController {
   async deleteConfiguration(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
     const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
     return { success: true, data: await this.configuration.configure(scope, params.capability, "DELETE", undefined, actorLabel(actor)) };
+  }
+
+  // ── Published APIs ───────────────────────────────────────────────────────
+
+  @Post(`${ENV}/apis`)
+  async publishApi(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = parse(
+      z.object({ slug, name, upstreamUrl: z.string().min(8).max(2048), operations: schemas.apiOperations, actor: onBehalfOf.optional() }).strict(),
+      body,
+      "body",
+    );
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    return { success: true, data: await this.apis.publish(scope, input, actorLabel(actor, input.actor)) };
+  }
+
+  @Get(`${ENV}/apis`)
+  async listApis(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope } = await this.authorizeEnvironment(params, req, "environment.read");
+    return { success: true, data: await this.apis.listForEnvironment(scope) };
+  }
+
+  @Put(`${ENV}/apis/:apiId`)
+  async updateApi(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = parse(
+      z
+        .object({
+          status: z.enum(["active", "disabled"]).optional(),
+          upstreamUrl: z.string().min(8).max(2048).optional(),
+          operations: schemas.apiOperations.optional(),
+          actor: onBehalfOf.optional(),
+        })
+        .strict(),
+      body,
+      "body",
+    );
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    const apiId = parse(schemas.resourceId("api"), params.apiId, "apiId");
+    if ((await this.apis.apiProjectId(scope.organizationId, apiId)) !== scope.projectId) throw new ValidationError("API belongs to another project");
+    return { success: true, data: await this.apis.update(scope.organizationId, apiId, input, actorLabel(actor, input.actor)) };
+  }
+
+  @Get("organizations/:organizationId/apis")
+  async apiCatalogue(@Param("organizationId") organizationId: string, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, organizationId, "organizationId");
+    await this.access.require(actorOf(req), org, "organization.read");
+    const [test, live] = await Promise.all([this.apis.catalogue(org, "test"), this.apis.catalogue(org, "live")]);
+    return { success: true, data: [...test, ...live] };
+  }
+
+  @Post(`${APP}/api-grants`)
+  async grantApi(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = parse(schemas.apiGrant, body, "body");
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    return {
+      success: true,
+      data: await this.apis.requestAccess(scope, applicationIdFrom(params), input.apiId, input.action, actorLabel(actor, input.actor)),
+    };
+  }
+
+  @Get("organizations/:organizationId/projects/:projectId/api-access-requests")
+  async listApiAccessRequests(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    await this.access.require(actorOf(req), organizationId, "project.read", { projectId });
+    return { success: true, data: await this.apis.listAccessRequests(organizationId, projectId) };
+  }
+
+  @Post("organizations/:organizationId/api-access-requests/:requestId/decision")
+  async decideApiAccess(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const requestId = parse(schemas.resourceId("acr"), params.requestId, "requestId");
+    const input = parse(schemas.apiDecision, body, "body");
+    const actor = actorOf(req);
+    const apiProjectId = await this.apis.accessRequestApiProject(org, requestId);
+    await this.access.require(actor, org, "project.manage", { projectId: apiProjectId });
+    return { success: true, data: await this.apis.decide(org, requestId, input.approve, actorLabel(actor, input.actor)) };
   }
 
   // ── Environment resources ────────────────────────────────────────────────

@@ -136,6 +136,8 @@ function defaults(data: Row): Row {
     base.revokedAt = null;
   }
   if ("requestKey" in data) base.outcome = "admitted";
+  if ("consumerApplicationId" in data) base.status = "pending";
+  if ("pathPattern" in data) delete base.status;
   if ("lookupPrefix" in data) {
     base.revokedAt = null;
     base.revokedReason = null;
@@ -167,6 +169,9 @@ export function createFakeControlPlanePrisma() {
     cpQuotaPolicyProject: new FakeDelegate((row) => `${row.policyId}/${row.projectId}`),
     cpUsageRecord: new FakeDelegate((row) => `${row.organizationId}/${row.requestKey}`),
     cpResourceOwnerMapping: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}`),
+    cpPublishedApi: new FakeDelegate((row) => String(row.id), [(row) => `${row.environmentId}/${row.slug}`]),
+    cpPublishedApiOperation: new FakeDelegate((row) => `${row.apiId}/${row.method}/${row.pathPattern}`),
+    cpApiAccessRequest: new FakeDelegate((row) => String(row.id)),
     quotaCounters: new Map<string, number>(),
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {

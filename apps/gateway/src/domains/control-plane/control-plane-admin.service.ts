@@ -443,8 +443,9 @@ function toGrantView(grant: {
   createdAt: Date;
   revokedAt: Date | null;
 }) {
-  const { id, applicationId, targetId, action, status, provenance, createdAt, revokedAt } = grant;
-  return { id, applicationId, capability: targetId, action, status, provenance, createdAt, revokedAt };
+  const { id, applicationId, targetKind, targetId, action, status, provenance, createdAt, revokedAt } = grant;
+  const target = targetKind === "api" ? { apiId: targetId } : { capability: targetId };
+  return { id, applicationId, targetKind, ...target, action, status, provenance, createdAt, revokedAt };
 }
 
 function toCredentialView(credential: {
