@@ -10,7 +10,7 @@ sources: [AGENTS.md, scripts/check-documentation.mjs, apps/docs/content/guides.j
 ---
 # Documentation maintenance rules
 
-APICenter maintains internal repository knowledge and a separately curated consumer documentation site. The internal bundle starts at [the index](index.md). The public site publishes only registered guides and public payment/event contracts.
+APICenter maintains internal repository knowledge and a separately curated consumer documentation site. The internal bundle starts at [the index](index.md). The public site publishes only registered guides and public consumer HTTP/event contracts.
 
 ## Authority
 
@@ -45,7 +45,7 @@ Keep the [working-document register](superpowers/plans/README.md) accurate. Prom
 
 - `apps/docs/content/guides.json` defines guide membership, sections, and aliases. Native MDX frontmatter provides headings. Every guide file has exactly one canonical registration.
 - Endpoint parameters, authentication, response schemas, examples, and errors come from the public OpenAPI document. Presentation titles and grouping may format those facts without adding HTTP behavior.
-- Shared services currently have authored guides, not a complete downloadable public OpenAPI contract. Old shared-reference bookmarks link to those guides. Do not invent a schema or endpoint to fill a reference gap.
+- The public OpenAPI covers supported identity, shared-service, and payment HTTP operations. Shared-operation inventory and runtime manifests must agree with its authentication, scopes, status codes, and idempotency requirements. Old shared-reference bookmarks continue to link to integration guides.
 - Gateway Swagger describes a separately generated runtime/control-plane view. It is not the source for the curated consumer reference.
 - `npm run check:documentation` checks links, sources, internal metadata, guide membership, aliases, and public route targets. `npm run test:documentation` exercises the checker and contract rendering. `npm run docs:build && npm run docs:test` checks exported pages and links.
 - The lightweight PR workflow runs these checks for relevant changes. Expensive full CI and release artifact publication remain manually triggered. A build artifact is not proof of deployment or provider behavior.

@@ -12,6 +12,9 @@ const { Client } = require('pg');
 
 // The only tables this job may touch, and the column that dates a row. Identifiers are constants.
 const MANAGED_TABLES = [
+  { schema: 'apic_runtime', table: 'verification_runs', column: 'created_at' },
+  { schema: 'apic_runtime', table: 'request_diagnostics', column: 'created_at' },
+  { schema: 'apic_runtime', table: 'verification_reports', column: 'created_at' },
   { schema: 'apic_audit', table: 'audit_events', column: 'created_at' },
   { schema: 'apic_runtime', table: 'quota_evaluations', column: 'created_at' },
   { schema: 'apic_runtime', table: 'usage_rollups', column: 'window_end' },

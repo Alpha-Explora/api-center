@@ -8,26 +8,36 @@ import {
   Req,
   Res,
   UseGuards,
-} from '@nestjs/common';
-import axios, { AxiosRequestConfig } from 'axios';
-import { Request, Response } from 'express';
-import { PaymentAuthGuard } from '../../shared/payment-auth.guard';
-import { PaymentIdempotencyService } from '../../shared/payment-idempotency.service';
-import { AuthenticatedRequest } from '../../../../types';
-import { paymentRequestBody, paymentResponseBody, resolvePaymentOperation } from './payment-public-operation';
-import { PaymentLimitsService } from '../payment-limits/payment-limits.service';
+} from "@nestjs/common";
+import axios, { AxiosRequestConfig } from "axios";
+import { z } from "zod";
+import { Request, Response } from "express";
+import { PaymentAuthGuard } from "../../shared/payment-auth.guard";
+import { PaymentIdempotencyService } from "../../shared/payment-idempotency.service";
+import { AuthenticatedRequest } from "../../../../types";
+import {
+  paymentRequestBody,
+  paymentResponseBody,
+  resolvePaymentOperation,
+} from "./payment-public-operation";
+import { PaymentLimitsService } from "../payment-limits/payment-limits.service";
 
-const internalBaseUrl = (environment: 'test' | 'live') => {
-  const configured = process.env.APICENTER_PAYMENTS_URL
-    || (environment === 'live' ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST)
-    || 'http://localhost:4010';
-  return configured.replace(/\/$/, '');
+const internalBaseUrl = (environment: "test" | "live") => {
+  const configured =
+    process.env.APICENTER_PAYMENTS_URL ||
+    (environment === "live"
+      ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE
+      : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST) ||
+    "http://localhost:4010";
+  return configured.replace(/\/$/, "");
 };
 
-const internalToken = (environment: 'test' | 'live') =>
-  (environment === 'live' ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST)
-  || process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
-@Controller('payments')
+const internalToken = (environment: "test" | "live") =>
+  (environment === "live"
+    ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE
+    : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST) ||
+  process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+@Controller("payments")
 @UseGuards(PaymentAuthGuard)
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -37,7 +47,7 @@ export class PaymentsController {
     private readonly paymentLimits: PaymentLimitsService,
   ) {}
 
-  @All('*')
+  @All("*")
   async proxy(@Req() req: Request, @Res() res: Response): Promise<void> {
     const authReq = req as AuthenticatedRequest;
     const principal = authReq.paymentPrincipal;
@@ -45,45 +55,74 @@ export class PaymentsController {
       res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
         error: {
-          code: 'UNAUTHORIZED',
-          message: 'Valid payment API key or Bearer token is required',
+          code: "UNAUTHORIZED",
+          message: "Valid payment API key or Bearer token is required",
         },
       });
       return;
     }
 
-    const fullPath = new URL(req.originalUrl || req.path, 'http://localhost').pathname;
-    const path = fullPath.replace(/^\/api\/v1\/payments/, '').replace(/^\/payments/, '') || '/';
+    const fullPath = new URL(req.originalUrl || req.path, "http://localhost")
+      .pathname;
+    const path =
+      fullPath.replace(/^\/api\/v1\/payments/, "").replace(/^\/payments/, "") ||
+      "/";
     const operation = resolvePaymentOperation(req.method, path);
     const env = principal.environment;
     const token = internalToken(env);
 
     this.enforceScope(principal.scopes, operation.scope);
-    if (operation.resource === 'capabilities') {
-      res.status(200).json({ success: true, data: { currency: 'PHP',
-        paymentMethods: ['card', 'gcash', 'paymaya', 'qrph'],
-        resources: ['checkouts', 'intents', 'customers', 'plans', 'payment-links', 'refunds', 'subscriptions', 'invoices', 'records'] } });
+    if (operation.resource === "capabilities") {
+      res
+        .status(200)
+        .json({
+          success: true,
+          data: {
+            currency: "PHP",
+            paymentMethods: ["card", "gcash", "paymaya", "qrph"],
+            resources: [
+              "checkouts",
+              "intents",
+              "customers",
+              "plans",
+              "payment-links",
+              "refunds",
+              "subscriptions",
+              "invoices",
+              "records",
+            ],
+          },
+        });
       return;
     }
-    if (!token) throw new ServiceUnavailableException('Payment runtime token is not configured');
-    const runtimeBody = paymentRequestBody(operation.shape, req.body, principal.consumerServiceId);
-    const runtimePath = req.method.toUpperCase() === 'POST' && path === '/refunds'
-      ? `/payments/${encodeURIComponent((runtimeBody as { paymentId: string }).paymentId)}/refunds`
-      : operation.runtimePath;
+    if (!token)
+      throw new ServiceUnavailableException(
+        "Payment runtime token is not configured",
+      );
+    const runtimeBody = paymentRequestBody(
+      operation.shape,
+      req.body,
+      principal.consumerServiceId,
+    );
+    const runtimePath =
+      req.method.toUpperCase() === "POST" && path === "/refunds"
+        ? `/payments/${encodeURIComponent((runtimeBody as { paymentId: string }).paymentId)}/refunds`
+        : operation.runtimePath;
     const upstreamUrl = `${internalBaseUrl(env)}${runtimePath}`;
 
-    const amountValue = runtimeBody && typeof runtimeBody === 'object'
-      ? (runtimeBody as Record<string, unknown>).amount
-      : undefined;
+    const amountValue =
+      runtimeBody && typeof runtimeBody === "object"
+        ? (runtimeBody as Record<string, unknown>).amount
+        : undefined;
     await this.paymentLimits.enforce({
       ownerTribeId: principal.ownerTribeId,
       projectId: principal.projectId,
       environment: env,
       method: req.method,
-      ...(typeof amountValue === 'number' ? { amountMinor: amountValue } : {}),
+      ...(typeof amountValue === "number" ? { amountMinor: amountValue } : {}),
     });
 
-    const idempotencyKey = req.get('Idempotency-Key')?.trim() || undefined;
+    const idempotencyKey = req.get("Idempotency-Key")?.trim() || undefined;
     const lookup = await this.idempotency.lookupOrValidate({
       principal,
       method: req.method,
@@ -92,25 +131,27 @@ export class PaymentsController {
       body: req.body,
     });
 
-    if ('replay' in lookup) {
+    if ("replay" in lookup) {
       if (lookup.replay.contentType) {
-        res.setHeader('content-type', lookup.replay.contentType);
+        res.setHeader("content-type", lookup.replay.contentType);
       }
-      res.setHeader('x-idempotency-replayed', 'true');
+      res.setHeader("x-idempotency-replayed", "true");
+      if (lookup.replay.status < 400)
+        this.recordResource(res, JSON.parse(lookup.replay.body));
       res.status(lookup.replay.status).send(lookup.replay.body);
       return;
     }
 
     const headers: Record<string, string> = {
-      'content-type': 'application/json',
-      'x-apicenter-environment': env,
-      'x-apicenter-consumer-service-id': principal.consumerServiceId,
-      'x-apicenter-owner-tribe-id': principal.ownerTribeId,
-      'x-apicenter-project-id': principal.projectId,
-      'x-tribe-id': principal.ownerTribeId,
+      "content-type": "application/json",
+      "x-apicenter-environment": env,
+      "x-apicenter-consumer-service-id": principal.consumerServiceId,
+      "x-apicenter-owner-tribe-id": principal.ownerTribeId,
+      "x-apicenter-project-id": principal.projectId,
+      "x-tribe-id": principal.ownerTribeId,
     };
     headers.authorization = `Bearer ${token}`;
-    if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
+    if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
 
     const config: AxiosRequestConfig = {
       method: req.method,
@@ -125,14 +166,43 @@ export class PaymentsController {
 
     try {
       const response = await axios.request(config);
-      const parsed = typeof response.data === 'string' || Buffer.isBuffer(response.data)
-        ? JSON.parse(Buffer.isBuffer(response.data) ? response.data.toString('utf8') : response.data)
-        : response.data;
+      const parsed =
+        typeof response.data === "string" || Buffer.isBuffer(response.data)
+          ? JSON.parse(
+              Buffer.isBuffer(response.data)
+                ? response.data.toString("utf8")
+                : response.data,
+            )
+          : response.data;
       const mapped = paymentResponseBody(operation.resource, parsed);
+      if (response.status < 400) this.recordResource(res, mapped);
+      if (response.status >= 400) {
+        const diagnostic = z
+          .object({
+            error: z.object({
+              code: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/),
+            }),
+          })
+          .safeParse(mapped);
+        res.locals.requestDiagnostic = {
+          code: diagnostic.success
+            ? diagnostic.data.error.code
+            : "PAYMENT_RUNTIME_ERROR",
+          stage:
+            diagnostic.success &&
+            /PROVIDER|PAYMONGO/.test(diagnostic.data.error.code)
+              ? "provider"
+              : "runtime",
+        };
+      }
       const body = JSON.stringify(mapped);
-      const contentType = 'application/json';
+      const contentType = "application/json";
 
-      if (idempotencyKey && req.method.toUpperCase() !== 'GET' && response.status < 500) {
+      if (
+        idempotencyKey &&
+        req.method.toUpperCase() !== "GET" &&
+        response.status < 500
+      ) {
         await this.idempotency.store({
           principal,
           method: req.method,
@@ -146,26 +216,67 @@ export class PaymentsController {
           },
         });
       } else if (response.status >= 500) {
-        await this.preserveUnknownOutcome({ principal, method: req.method, path, key: idempotencyKey });
+        await this.preserveUnknownOutcome({
+          principal,
+          method: req.method,
+          path,
+          key: idempotencyKey,
+        });
       }
 
-      res.setHeader('content-type', contentType);
+      res.setHeader("content-type", contentType);
       res.status(response.status).send(body);
     } catch (error: unknown) {
-      await this.preserveUnknownOutcome({ principal, method: req.method, path, key: idempotencyKey });
-      const message = error instanceof Error ? error.message : 'Payment upstream unreachable';
+      await this.preserveUnknownOutcome({
+        principal,
+        method: req.method,
+        path,
+        key: idempotencyKey,
+      });
+      const message =
+        error instanceof Error ? error.message : "Payment upstream unreachable";
+      res.locals.requestDiagnostic = {
+        code: "PAYMENT_UPSTREAM_UNREACHABLE",
+        stage: "runtime",
+      };
       res.status(HttpStatus.BAD_GATEWAY).json({
         success: false,
         error: {
-          code: 'PAYMENT_UPSTREAM_UNREACHABLE',
+          code: "PAYMENT_UPSTREAM_UNREACHABLE",
           message,
         },
       });
     }
   }
 
+  private recordResource(response: Response, body: unknown): void {
+    const parsed = z
+      .object({
+        success: z.literal(true),
+        data: z.record(z.string(), z.unknown()),
+      })
+      .safeParse(body);
+    if (!parsed.success) return;
+    for (const field of [
+      "checkoutId",
+      "paymentIntentId",
+      "subscriptionId",
+      "invoiceId",
+      "refundId",
+      "paymentLinkId",
+      "customerId",
+      "planId",
+    ]) {
+      const value = parsed.data.data[field];
+      if (typeof value === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(value)) {
+        response.locals.paymentResourceId = value;
+        return;
+      }
+    }
+  }
+
   private async preserveUnknownOutcome(input: {
-    principal: NonNullable<AuthenticatedRequest['paymentPrincipal']>;
+    principal: NonNullable<AuthenticatedRequest["paymentPrincipal"]>;
     method: string;
     path: string;
     key?: string;
@@ -175,18 +286,20 @@ export class PaymentsController {
     } catch {
       // The durable reservation created before the upstream request remains in
       // place, so stale provider keys still fail closed if Redis is unavailable.
-      this.logger.error('Unable to update the payment idempotency outcome marker');
+      this.logger.error(
+        "Unable to update the payment idempotency outcome marker",
+      );
     }
   }
 
   private enforceScope(scopes: string[], required: string): void {
-    if (scopes.includes('*') || scopes.includes('payments:*')) return;
-    const direction = required.endsWith(':read') ? 'read' : 'write';
+    if (scopes.includes("*") || scopes.includes("payments:*")) return;
+    const direction = required.endsWith(":read") ? "read" : "write";
 
     const hasScope = scopes.some((scope) => {
       if (scope === required) return true;
       if (scope === `payments:${direction}`) return true;
-      if (scope.endsWith(':*')) {
+      if (scope.endsWith(":*")) {
         const prefix = scope.slice(0, -2);
         return required.startsWith(`${prefix}:`);
       }
@@ -195,10 +308,9 @@ export class PaymentsController {
 
     if (!hasScope) {
       throw new ForbiddenException({
-        code: 'INSUFFICIENT_SCOPE',
+        code: "INSUFFICIENT_SCOPE",
         message: `Scope '${required}' is required`,
       });
     }
   }
-
 }

@@ -21,7 +21,7 @@ npm install @alpha-explora/apicenter-sdk
 Keep these values in server-only environment variables. Do not use `NEXT_PUBLIC_` variables or expose the service secret to a browser.
 
 ```env
-APICENTER_URL=https://api-center.itsandbox.site
+APICENTER_URL=https://api.apicenter.itsandbox.site
 APICENTER_SERVICE_ID=orders-api
 APICENTER_ENVIRONMENT=test
 APICENTER_SERVICE_SECRET=<secret-issued-for-this-service-and-environment>

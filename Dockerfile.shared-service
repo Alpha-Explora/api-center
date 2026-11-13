@@ -1,6 +1,5 @@
 FROM node:24-bookworm-slim AS builder
 
-ARG SERVICE
 WORKDIR /app
 
 # npm workspaces need the manifests of every workspace during a locked install.
@@ -8,10 +7,14 @@ COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/ ./apps/
 COPY packages/ ./packages/
 
-RUN npm ci --include=dev --no-audit --no-fund \
-    && npm run build --workspace @alpha-explora/apicenter-contracts \
-    && npm run build --workspace @apicenter/${SERVICE} \
-    && npm prune --omit=dev --no-audit --no-fund
+RUN npm ci --include=dev --no-audit --no-fund
+
+RUN npm run build --workspace @alpha-explora/apicenter-contracts
+
+ARG SERVICE
+RUN npm run build --workspace @apicenter/${SERVICE} \
+    && npm prune --omit=dev --no-audit --no-fund \
+    && mkdir -p /app/apps/${SERVICE}/node_modules
 
 FROM node:24-bookworm-slim AS runner
 
@@ -21,6 +24,7 @@ ENV PORT=8080
 WORKDIR /app
 
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/apps/${SERVICE}/node_modules ./apps/${SERVICE}/node_modules
 COPY --from=builder --chown=node:node /app/packages/runtime ./packages/runtime
 COPY --from=builder --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=builder --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist

@@ -43,6 +43,9 @@ import type {
 import type { ServiceLifecycleEntry } from "@/lib/service-lifecycle";
 import type { RuntimeEnvironment } from "@/lib/environment-names";
 import { Button } from "@/components/ui/button";
+import { GoLivePanel } from "@/features/services/go-live/views/go-live-panel";
+import { RequestDiagnosticsPanel } from "@/features/operations/diagnostics/views/request-diagnostics-panel";
+import { EventRecoveryPanel } from "@/features/operations/event-recovery/views/event-recovery-panel";
 
 type BrokenDependency = {
   sourceServiceId: string;
@@ -287,6 +290,7 @@ export function ServiceDetailContent({
   if (activeSection === "governance") {
     return (
       <div className="flex flex-col gap-4">
+        {isTribe ? <GoLivePanel serviceId={service.serviceId} /> : null}
         <SectionHeader
           title="Governance posture"
           description="Promotion readiness, ownership, contract evidence, and operational trust."
@@ -301,6 +305,8 @@ export function ServiceDetailContent({
   if (activeSection === "evidence") {
     return (
       <div className="flex flex-col gap-4">
+        {isTribe ? <RequestDiagnosticsPanel serviceId={service.serviceId} /> : null}
+        {isTribe && service.consumes.some((id) => id === "payments" || id === "payment") ? <EventRecoveryPanel serviceId={service.serviceId} /> : null}
         <SectionHeader
           title="Evidence timeline"
           description="Recent registry, runtime, and data-pipeline evidence for this service."

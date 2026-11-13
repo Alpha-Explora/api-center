@@ -32,6 +32,7 @@ function request(path: string, method: string, body?: Record<string, unknown>) {
 function response() {
   const state: { status?: number; headers: Record<string, string>; body?: unknown } = { headers: {} };
   const res = {
+    locals: {},
     setHeader: jest.fn((name: string, value: string) => { state.headers[name] = value; }),
     status: jest.fn((status: number) => { state.status = status; return res; }),
     json: jest.fn((body: unknown) => { state.body = body; return res; }),

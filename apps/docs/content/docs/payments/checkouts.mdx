@@ -23,7 +23,7 @@ For a Node.js backend, create a checkout with `api.payments.checkouts.create(...
 ### Request (cURL)
 
 ```bash
-curl -X POST https://api-center.itsandbox.site/api/v1/payments/checkouts \
+curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/checkouts \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: chk-idem-20260729-001" \
@@ -69,6 +69,6 @@ curl -X POST https://api-center.itsandbox.site/api/v1/payments/checkouts \
 - **Required Scope**: `payments:checkout:read` or a broader payment read scope
 
 ```bash
-curl -s https://api-center.itsandbox.site/api/v1/payments/checkouts/chk_8f1a2b3c4d \
+curl -s https://api.apicenter.itsandbox.site/api/v1/payments/checkouts/chk_8f1a2b3c4d \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```

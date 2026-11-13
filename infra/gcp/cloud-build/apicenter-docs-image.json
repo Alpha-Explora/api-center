@@ -1,0 +1,12 @@
+{
+  "timeout": "1800s",
+  "serviceAccount": "projects/apicenter-alpha-20260623/serviceAccounts/apicenter-cloudbuild-deployer@apicenter-alpha-20260623.iam.gserviceaccount.com",
+  "options": { "logging": "CLOUD_LOGGING_ONLY", "diskSizeGb": 100 },
+  "steps": [
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": ["build", "-f", "docker/Dockerfile.docs", "-t", "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}", "."]
+    }
+  ],
+  "images": ["asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}"]
+}

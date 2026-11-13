@@ -6,7 +6,7 @@ import {
 
 export interface PromotionEvidenceSection {
   key: string;
-  status: "pass" | "fail";
+  status: "pass" | "fail" | "not_applicable";
   data: unknown;
 }
 
@@ -18,6 +18,9 @@ export interface PromotionEvidenceBundleInput {
   quotaPolicy?: unknown;
   planAssignment?: unknown;
   approval?: unknown;
+  approvalRequired?: boolean;
+  paymentRequired?: boolean;
+  paymentApproval?: unknown;
   smoke?: { status?: string } | null;
   manifest?: { status?: string } | null;
   pipeline?: {
@@ -25,6 +28,7 @@ export interface PromotionEvidenceBundleInput {
     s3SinkIncludesTopic?: boolean;
     [key: string]: unknown;
   } | null;
+  pipelineRequired?: boolean;
 }
 
 export type PromotionEvidenceBundle = {
@@ -60,7 +64,13 @@ export class PromotionEvidenceBundleService {
       {
         key: "approval",
         status:
-          readEvidenceStatus(input.approval) === "approved" ? "pass" : "fail",
+          input.approvalRequired === false
+            ? "not_applicable"
+            : ["approved", "applied"].includes(
+                  readEvidenceStatus(input.approval) ?? "",
+                )
+              ? "pass"
+              : "fail",
         data: input.approval,
       },
       {
@@ -76,18 +86,33 @@ export class PromotionEvidenceBundleService {
       {
         key: "pipeline",
         status:
-          input.pipeline?.topicExists && input.pipeline?.s3SinkIncludesTopic
-            ? "pass"
-            : "fail",
+          input.pipelineRequired === false
+            ? "not_applicable"
+            : input.pipeline?.topicExists && input.pipeline?.s3SinkIncludesTopic
+              ? "pass"
+              : "fail",
         data: input.pipeline,
       },
     ];
 
+    if (input.paymentRequired)
+      sections.push({
+        key: "payment_access",
+        status: ["approved", "applied"].includes(
+          readEvidenceStatus(input.paymentApproval) ?? "",
+        )
+          ? "pass"
+          : "fail",
+        data: input.paymentApproval,
+      });
     const bundle = {
       serviceId: input.serviceId,
       sourceEnvironment: input.sourceEnvironment,
       targetEnvironment: input.targetEnvironment,
-      ready: sections.every((section) => section.status === "pass"),
+      ready: sections.every(
+        (section) =>
+          section.status === "pass" || section.status === "not_applicable",
+      ),
       generatedAt: new Date().toISOString(),
       sections,
     };

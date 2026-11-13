@@ -1,0 +1,21 @@
+{
+  "project": "apicenter-alpha-20260623",
+  "region": "asia-southeast1",
+  "loadBalancingScheme": "EXTERNAL_MANAGED",
+  "address": "apicenter-https-ip",
+  "ipv4": "8.232.125.171",
+  "urlMap": "apicenter-hosted-apps",
+  "httpsProxy": "apicenter-https-proxy",
+  "httpsForwardingRule": "apicenter-https",
+  "sslPolicy": "apicenter-modern-tls",
+  "certificate": "apicenter-hosted-domains",
+  "routes": [
+    { "hostname": "apicenter.itsandbox.site", "service": "apicenter-management-test", "neg": "apicenter-management-neg", "backend": "apicenter-management-backend" },
+    { "hostname": "api.apicenter.itsandbox.site", "service": "apicenter-api-gateway-live", "neg": "apicenter-gateway-neg", "backend": "apicenter-gateway-backend" },
+    { "hostname": "docs.apicenter.itsandbox.site", "service": "apicenter-developer-docs-live", "neg": "apicenter-docs-neg", "backend": "apicenter-docs-backend" }
+  ],
+  "compatibilityAlias": "api-center.itsandbox.site",
+  "defaultBackend": "apicenter-docs-backend",
+  "dnsProxy": false,
+  "dnsTtl": 300
+}

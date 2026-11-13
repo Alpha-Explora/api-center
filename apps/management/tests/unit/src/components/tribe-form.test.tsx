@@ -126,11 +126,15 @@ describe("TribeForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add environment" }));
     fireEvent.change(screen.getByLabelText("Environment key for row 2"), {
-      target: { value: "staging" },
+      target: { value: "live" },
     });
-    fireEvent.change(screen.getByLabelText("Environment URL for staging"), {
+    fireEvent.change(screen.getByLabelText("Environment URL for live"), {
       target: { value: "https://trinithrive-staging.example.com" },
     });
+
+    fireEvent.change(screen.getByLabelText("Approved request ID"), { target: { value: "00000000-0000-4000-8000-000000000001" } });
+    fireEvent.change(screen.getByLabelText("Reason for live registration"), { target: { value: "Approved production registration" } });
+    fireEvent.change(screen.getByLabelText("Live confirmation"), { target: { value: "APPLY LIVE CHANGE" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Register service" }));
 
@@ -145,11 +149,12 @@ describe("TribeForm", () => {
               baseUrl: "https://trinithrive-test.example.com",
             }),
             expect.objectContaining({
-              environment: "staging",
+              environment: "live",
               baseUrl: "https://trinithrive-staging.example.com",
             }),
           ],
         }),
+        expect.objectContaining({ approvalRequestId: "00000000-0000-4000-8000-000000000001", confirmation: { typedPhrase: "APPLY LIVE CHANGE", reason: "Approved production registration" } }),
       ),
     );
     expect(vi.mocked(registerService).mock.calls[0]?.[0]).not.toHaveProperty(

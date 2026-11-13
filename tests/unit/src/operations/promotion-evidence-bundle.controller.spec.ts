@@ -22,6 +22,7 @@ describe("PromotionEvidenceBundleController", () => {
   };
   const approvals = {
     listRequests: jest.fn(),
+    findApprovedAction: jest.fn().mockResolvedValue(null),
   };
 
   let auditEvents: { record: jest.Mock };
@@ -51,7 +52,7 @@ describe("PromotionEvidenceBundleController", () => {
       { id: "quota-1", status: "active" },
     ]);
     planService.listPlanAssignments.mockResolvedValue([
-      { id: "plan-1", status: "active" },
+      { id: "plan-1", status: "active", effectiveAt: "2026-01-01T00:00:00Z" },
     ]);
     approvals.listRequests.mockResolvedValue([
       { id: "approval-1", status: "approved", targetId: "campus-one" },
@@ -93,7 +94,7 @@ describe("PromotionEvidenceBundleController", () => {
         expect.objectContaining({ key: "quota", status: "fail" }),
         expect.objectContaining({ key: "plan", status: "fail" }),
         expect.objectContaining({ key: "approval", status: "fail" }),
-        expect.objectContaining({ key: "pipeline", status: "fail" }),
+        expect.objectContaining({ key: "pipeline", status: "not_applicable" }),
       ]),
     );
   });
@@ -104,12 +105,13 @@ describe("PromotionEvidenceBundleController", () => {
       ownerTribeId: "campus-one",
       projectId: "campus-student",
       healthy: true,
+      consumes: [],
     });
     quotaPolicies.listPoliciesForPortal.mockResolvedValue([
       { id: "quota-1", status: "active" },
     ]);
     planService.listPlanAssignments.mockResolvedValue([
-      { id: "plan-1", status: "active" },
+      { id: "plan-1", status: "active", effectiveAt: "2026-01-01T00:00:00Z" },
     ]);
     approvals.listRequests.mockResolvedValue([
       { id: "approval-1", status: "approved", targetId: "student-api" },
@@ -120,6 +122,7 @@ describe("PromotionEvidenceBundleController", () => {
     expect(quotaPolicies.listPoliciesForPortal).toHaveBeenCalledWith("campus-one", "campus-student");
     expect(planService.listPlanAssignments).toHaveBeenCalledWith({
       projectId: "campus-student",
+      environment: "live",
       status: "active",
     });
     if (typeof response === "string") throw new Error("Expected JSON response");
@@ -132,13 +135,13 @@ describe("PromotionEvidenceBundleController", () => {
       payload: expect.objectContaining({
         ready: false,
         sectionStatuses: {
-          health: "pass",
+          health: "fail",
           quota: "pass",
           plan: "pass",
-          approval: "pass",
-          smoke: "pass",
-          manifest: "pass",
-          pipeline: "fail",
+          approval: "fail",
+          smoke: "fail",
+          manifest: "fail",
+          pipeline: "not_applicable",
         },
         sourceMetadata: expect.any(Array),
       }),

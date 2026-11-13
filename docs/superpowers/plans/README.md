@@ -4,17 +4,21 @@ Plans record execution scope and pending checks. Use [current architecture](../.
 
 | Document | Status and remaining evidence | Durable authority |
 | --- | --- | --- |
+| [APICenter hosted domain rollout](2026-10-12-apicenter-domain-rollout.md) | DNS, HTTPS certificate, gateway access, Management and docs deployment, docs redirect fix and OAuth origin confirmed. Interactive sign-in and consumer/provider acceptance remain pending | Hosted access runbook, dated domain rollout record, gateway authentication and deployment manifests |
 | [Shared-services migration](2026-07-28-apicenter-shared-services.md) | Partially delivered in the recorded checklist; authenticated consumer/provider smoke checks remain pending in that record | Current architecture, runtime apps, shared-service guides, deployment manifests |
 | [Codebase structure cleanup](2026-07-28-apicenter-codebase-cleanup.md) | Working scope; unchecked stages require code and test reconciliation before closure | Gateway domain roots and boundary checks |
-| [APICenter SDK overhaul](2026-10-12-apicenter-sdk-overhaul.md) | Implementation and local validation complete; publication is handled as a separately authorized release | Approved SDK redesign specification, gateway routes, service manifests, and contracts |
-| [Review remediation](2026-10-01-apicenter-review-remediation.md) | Repository fixes recorded; clean-install and local Docker checks remain unchecked in the old record | Public contracts, runtime code, runbooks, CI |
 | [Secret Manager cleanup](2026-05-22-secret-manager-migration-cleanup.md) | Historical GKE-era reference; do not execute its commands against the current platform without a fresh inventory | Current Cloud Run manifests, platform setup, current operator inventory |
+| [APICenter SDK overhaul](2026-10-12-apicenter-sdk-overhaul.md) | Implementation and local validation complete; publication is handled as a separately authorized release | Approved SDK redesign specification, gateway routes, service manifests, and contracts |
 
 ## Working specifications
 
+- [Control plane rebuild](../specs/2026-11-14-control-plane-rebuild-design.md), direction selected; written design proposed for review. Covers organization-owned projects, environment-bound applications, explicit grants, credential unification and gradual migration. No rebuild implementation or cutover is claimed.
+- [APICenter operability improvements](../specs/2026-11-13-apicenter-operability-design.md), approved; local implementation verified, external acceptance pending in [readiness and provisioning](2026-11-13-readiness-and-live-provisioning.md), [go-live and credentials](2026-11-13-go-live-and-credentials.md), [diagnostics and event recovery](2026-11-13-request-diagnostics-and-event-recovery.md), [shared-service contracts](2026-11-13-shared-service-http-contracts.md), and [release verification](2026-11-13-release-verification.md). Runtime acceptance remains pending.
+- [APICenter domain layout and consumer access](../specs/2026-10-12-apicenter-domain-layout-design.md), native execution approved; remaining acceptance checks are in the dated domain rollout record.
 - [APICenter SDK redesign](../specs/2026-10-12-apicenter-sdk-overhaul-design.md)
-
 - [Shared-services design](../specs/2026-07-28-apicenter-shared-services-design.md)
 - [Review remediation design](../specs/2026-10-01-apicenter-review-remediation-design.md)
 
 Completed work is promoted into maintained concepts, ADRs, and runbooks. Remove the completed execution artifact and its pointers after recording the remaining evidence. Git history preserves the original plan. No incomplete plan is marked complete by this docs update.
+
+The completed 2026-10-01 review-remediation plan was retired after its local image and liveness checks. Its evidence and remaining production checks are recorded in [the 2026-10-11 cloud review](../../operations/cloud-live-status-2026-10-11.md).

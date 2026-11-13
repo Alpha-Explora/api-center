@@ -1,4 +1,4 @@
-import { getApiCenterAdminUrl } from "@/lib/server/api-center-admin";
+import { fetchApiCenter, getApiCenterAdminUrl } from "@/lib/server/api-center-admin";
 import { createOperationPreview } from "@/lib/operation-preview";
 import { smokeTestRequestSchema } from "@/lib/schemas";
 import { requireManagementAction } from "@/lib/server/require-management-action";
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const startedAt = performance.now();
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchApiCenter(url, {
       method: input.method,
       headers: {
         "content-type": "application/json",

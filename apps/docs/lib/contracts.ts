@@ -36,6 +36,7 @@ export type DetailedOperation = {
   sampleRequest: Record<string, unknown> | null;
   sampleResponse: Record<string, unknown> | null;
   authentication: string;
+  credentialKind: "payment" | "service" | "none";
   successResponses: { code: number; description: string; properties: PropertyField[] }[];
   errorResponses: { code: number; description: string }[];
 };
@@ -190,6 +191,7 @@ function getOperationCategory(operationId: string, pathStr: string): string {
   if (pathStr.includes("/shared/email")) return "Email Service";
   if (pathStr.includes("/shared/otp")) return "OTP Verification";
   if (pathStr.includes("/shared/geo")) return "Platform Utilities";
+  if (pathStr.includes("/shared/gauth")) return "Google Auth";
   if (pathStr.includes("/auth")) return "Identity & Auth";
   if (pathStr.includes("/registry") || pathStr.includes("/health")) return "Registry & Health";
   return "General";
@@ -273,6 +275,8 @@ export function getDetailedOperations(): DetailedOperation[] {
         .map(([code, response]) => ({ code: Number(code), description: String(resolveParameter(document, response).description ?? "") }));
       const security = Array.isArray(op.security) ? op.security : Array.isArray(document.security) ? document.security : [];
       const schemes = asRecord(asRecord(document.components).securitySchemes);
+      const securityNames = security.flatMap((requirement) => Object.keys(asRecord(requirement)));
+      const credentialKind = securityNames.includes("ApiKeyAuth") ? "payment" : securityNames.includes("ServiceBearerAuth") ? "service" : "none";
       const authentication = security.length === 0 ? "No authentication required by this contract." : security.map((requirement) =>
         Object.keys(asRecord(requirement)).map((name) => {
           const scheme = asRecord(schemes[name]);
@@ -301,6 +305,7 @@ export function getDetailedOperations(): DetailedOperation[] {
         sampleRequest,
         sampleResponse,
         authentication,
+        credentialKind,
         successResponses,
         errorResponses,
       });

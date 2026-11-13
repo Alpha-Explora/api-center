@@ -33,6 +33,11 @@ const DEFAULT_ORGANIZATION = {
 export class PostgresRegistryStoreService implements RegistryStore {
   constructor(private readonly prisma: PrismaService) {}
 
+  async resolveStorageId(serviceId: string, projectId: string): Promise<string | null> {
+    const row = await this.prisma.service.findFirst({ where: { serviceId, projectId }, select: { id: true } });
+    return row?.id ?? null;
+  }
+
   async loadAll(): Promise<ServiceRegistryMap> {
     const rows = await this.prisma.service.findMany({
       include: {

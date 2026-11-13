@@ -6,6 +6,25 @@ import {
 } from "@/lib/payment-consumer-service";
 
 describe("PaymentConsumerService", () => {
+  it("returns the issued key even when optional event setup fails, without forwarding confirmation", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: {
+      ownerTribeId: "alphaci", consumerServiceId: "billing-api", environment: "live",
+      apiKey: "apic_live_once", keyPrefix: "apic_live_once", scopes: ["payments:read"],
+      createdAt: "2026-11-13T00:00:00.000Z", expiresAt: null, revokedAt: null, status: "active",
+    } }), { status: 201 })).mockRejectedValueOnce(new Error("Provider unavailable"));
+    const service = new PaymentConsumerService({ gatewayBaseUrl: "https://gateway.example.test", operatorToken: "operator", fetchImpl });
+    const result = await service.registerPaymentConsumer({
+      consumerServiceId: "billing-api", environment: "live", operationId: "00000000-0000-4000-8000-000000000002",
+      confirmation: { typedPhrase: "APPLY LIVE CHANGE", reason: "Approved change" },
+      pushEndpoint: "https://consumer.example.test/events", deliveryServiceAccountEmail: "delivery@example.test",
+    });
+    expect(result).toMatchObject({ apiKey: "apic_live_once", eventDelivery: { status: "delivery_failed", lastDeliveryAt: null } });
+    const issuance = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(issuance.operationId).toBe("00000000-0000-4000-8000-000000000002");
+    expect(issuance).not.toHaveProperty("confirmation");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it("registers a consumer, provisions delivery, and exposes the key once", async () => {
     const calls: Array<{ url: string; body: unknown; headers: Record<string, string> }> = [];
     const fetchImpl = vi.fn(async (input: string | URL, init?: RequestInit) => {

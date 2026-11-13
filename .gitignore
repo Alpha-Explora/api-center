@@ -69,3 +69,6 @@ apps/docs/out/
 
 # Generated Fumadocs source manifests
 apps/docs/.source/
+
+# Sanitized local release verification output
+/artifacts/release-verification.json

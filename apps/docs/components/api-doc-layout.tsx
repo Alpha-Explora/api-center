@@ -116,7 +116,7 @@ export function ApiDocLayout({ operations }: { operations: DetailedOperation[] }
   if (!activeOp) return null;
 
   // Code snippets
-  const fullUrl = `https://api-center.itsandbox.site${activeOp.path}`;
+  const fullUrl = `https://api.apicenter.itsandbox.site${activeOp.path}`;
   const reqBody = activeOp.sampleRequest ? JSON.stringify(activeOp.sampleRequest, null, 2) : null;
 
   const codeSnippets: Record<string, string> = {
@@ -250,7 +250,7 @@ console.log(data);`,
 
             <div className="code-url-bar">
               <span className="code-url-lang">{tab === "cURL" ? "CURL" : tab === "Next.js" ? "JS" : "TS"}</span>
-              <span className="code-url-path">https://api-center.itsandbox.site{activeOp.path}</span>
+              <span className="code-url-path">https://api.apicenter.itsandbox.site{activeOp.path}</span>
             </div>
 
             <pre className="code-pre"><code>{code}</code></pre>
@@ -363,7 +363,7 @@ console.log(data);`,
                   <h2 className="section-title">API basics</h2>
                   <p className="param-desc">
                     The API is exposed as HTTP/1.1 and HTTP/2 over SSL. All endpoints live under{" "}
-                    <code className="icode">https://api-center.itsandbox.site</code> and follow REST architecture with JSON request and response bodies.
+                    <code className="icode">https://api.apicenter.itsandbox.site</code> and follow REST architecture with JSON request and response bodies.
                   </p>
                 </section>
 
@@ -383,7 +383,7 @@ console.log(data);`,
                   <p className="param-desc" style={{ marginBottom: "12px" }}>
                     By default, resources belong to the authenticated tribe. To scope resources across environments, pass the environment as a query parameter:
                   </p>
-                  <pre className="codeblock"><code>https://api-center.itsandbox.site/api/v1/payments/checkouts?environment=live</code></pre>
+                  <pre className="codeblock"><code>https://api.apicenter.itsandbox.site/api/v1/payments/checkouts?environment=live</code></pre>
                 </section>
 
                 <section id="idempotency-retries" className="doc-section">
@@ -447,7 +447,7 @@ console.log(data);`,
 
                 <div className="ep-url-row">
                   <MethodBadge method={activeOp.method} lg />
-                  <code className="ep-url">https://api-center.itsandbox.site{activeOp.path}</code>
+                  <code className="ep-url">https://api.apicenter.itsandbox.site{activeOp.path}</code>
                 </div>
 
                 <p className="content-desc">{activeOp.description}</p>

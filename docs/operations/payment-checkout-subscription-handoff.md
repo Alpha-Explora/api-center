@@ -1,6 +1,6 @@
 ---
 title: "Payment Checkout And Subscription Handoff"
-status: canonical
+status: reference
 authority: operational
 owner: platform-operators
 audience: [operators, engineers]
@@ -10,16 +10,20 @@ sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
 ---
 # Payment Checkout And Subscription Handoff
 
+> The release evidence below is a historical snapshot for SDK 1.1.0. It does not validate the breaking `@alpha-explora/apicenter-sdk` 2.0.0 source version.
+
 ## Tribe Contract
 
-Tribes call `@implementsprint/sdk`.
+Server-side services use `@alpha-explora/apicenter-sdk` for supported APICenter payment operations.
 
 Tribes configure only:
 
 ```text
 APICENTER_URL
-APICENTER_TRIBE_ID
-APICENTER_TRIBE_SECRET
+APICENTER_SERVICE_ID
+APICENTER_ENVIRONMENT
+APICENTER_SERVICE_SECRET
+APICENTER_PAYMENT_API_KEY (optional)
 ```
 
 Tribes do not configure PayMongo keys, PayMongo webhooks, or provider mode.
@@ -33,7 +37,7 @@ signature validation. PayMongo owns payment and subscription records. APICenter 
 project ownership and reconciliation facts, verified webhook receipts, and event
 delivery state in its payment schema.
 
-## Test Evidence Checklist
+## Historical Test Evidence Checklist (SDK 1.1.0)
 
 - [x] SDK release gate passed for `@implementsprint/sdk@1.1.0`:
   `npm run ci` completed with 7 test files and 84 tests passing.

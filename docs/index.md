@@ -26,12 +26,18 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 ## Operations
 
+- [Go-live, credential recovery, and release verification](operations/operability-and-release-verification.md)
+
+- [Documentation entry-point compatibility](README.md)
+- [Cloud review recorded on 2026-10-11](operations/cloud-live-status-2026-10-11.md)
+- [Cloud Run deployment verified on 2026-10-12](operations/cloud-live-status-2026-10-12.md)
+
 - [APICenter Full-Plan IAM Access](operations/apicenter-full-plan-iam-access.md)
 - [History write load test](operations/history-load-test.md)
 - [History retention](operations/history-retention.md)
-- [Payment Checkout And Subscription Handoff](operations/payment-checkout-subscription-handoff.md)
+- [Payment Checkout And Subscription Handoff (historical SDK 1.1.0 reference)](operations/payment-checkout-subscription-handoff.md)
 - [Payment Database Ownership](operations/payment-database-ownership.md)
-- [APICenter Payment Platform Runbook](operations/payment-platform-runbook.md)
+- [APICenter Payment Platform Runbook (unverified integration reference)](operations/payment-platform-runbook.md)
 - [Shared-service database roles](operations/shared-service-database-roles.md)
 
 ## Integrations
@@ -45,6 +51,10 @@ This is the canonical internal reading map. Consumer and Management guides are p
 - [Tribe API Quotas](developer/tribe-api-quotas.md)
 - [Tribe Governance Scorecard Rubric](developer/tribe-governance-scorecard-rubric.md)
 
+## Research
+
+- [Credential onboarding comparison](research/2026-10-12-credential-onboarding-comparison.md)
+
 ## Decisions, plans, and history
 
 - [Architecture decisions](adr/index.md)
@@ -55,8 +65,8 @@ This is the canonical internal reading map. Consumer and Management guides are p
 ## Public documentation sources
 
 - [Guide membership and aliases](../apps/docs/content/guides.json)
-- [Public payment OpenAPI](../contracts/public/apicenter.openapi.yaml)
+- [Public consumer OpenAPI](../contracts/public/apicenter.openapi.yaml)
 - [Public payment event AsyncAPI](../contracts/public/apicenter.asyncapi.yaml)
 - [Published SDK](../packages/sdk/README.md)
 
-Root internal documents are not automatically published. Shared-service guides do not imply full public OpenAPI coverage. See the maintenance rules for ownership, retirement, and the automated checks.
+Root internal documents are not automatically published. The public OpenAPI covers payments, identity bootstrap, and supported shared-service HTTP operations. See the maintenance rules for ownership, retirement, and the automated checks.

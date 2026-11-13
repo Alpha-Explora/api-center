@@ -3,7 +3,7 @@ import { getDetailedOperations } from "@/lib/contracts";
 
 export const metadata = {
   title: "APICenter REST API Reference",
-  description: "Contract-derived reference for APICenter payment endpoints.",
+  description: "Contract-derived reference for APICenter consumer endpoints.",
 };
 
 export default function ApiOverviewPage() {
@@ -33,8 +33,7 @@ export default function ApiOverviewPage() {
     >
       <DocsTitle>APICenter REST API</DocsTitle>
       <DocsDescription>
-        This reference describes payment operations declared in the public OpenAPI contract.
-        Shared services have separate integration guides; their endpoints are not included in this contract.
+        This reference describes authentication, payment, and shared-service operations declared in the public OpenAPI contract.
       </DocsDescription>
 
       <DocsBody>
@@ -50,7 +49,7 @@ export default function ApiOverviewPage() {
         <section id="authentication" className="fd-section">
           <h2 className="fd-section-title">Authentication</h2>
           <p className="fd-param-desc" style={{ marginBottom: "10px" }}>
-            Use your consumer payment API key in the <code className="fd-inline-code">Authorization</code> header.
+            Payments accept a consumer payment API key or an authorized service token. Shared services require a service token; credential exchange endpoints declare their own requirements.
             See the <a href="/guides/authentication">authentication guide</a> for credential ownership and shared-service tokens.
           </p>
           <pre className="fd-codeblock">
@@ -61,7 +60,7 @@ export default function ApiOverviewPage() {
         <section id="idempotency" className="fd-section">
           <h2 className="fd-section-title">Idempotency &amp; Retries</h2>
           <p className="fd-param-desc" style={{ marginBottom: "10px" }}>
-            Payment mutations require an <code className="fd-inline-code">Idempotency-Key</code>. Completed responses replay for seven days; for an uncertain provider outcome, keep the same key and reconcile before starting a new payment.
+            Payment mutations, email and SMS sends, and OTP generate and verify operations require an <code className="fd-inline-code">Idempotency-Key</code>. Completed responses replay for seven days; reconcile an uncertain outcome before starting another operation. Each endpoint declares whether the header is required.
           </p>
           <pre className="fd-codeblock">
             <code>Idempotency-Key: &lt;UUID&gt;</code>

@@ -60,9 +60,9 @@ for (const [operation, operationId] of Object.entries(requiredOperations)) {
   assert(operationDefinition.operationId === operationId, `${operation} must use operationId ${operationId}`);
 }
 for (const [route, pathItem] of Object.entries<RecordValue>(openApi.paths ?? {})) {
-  assert(route.startsWith('/api/v1/payments/'), `${route} is outside the public payment namespace`);
+  assert(route.startsWith('/api/v1/payments/') || route.startsWith('/api/v1/shared/') || route.startsWith('/api/v1/auth/'), `${route} is outside the public consumer namespace`);
   for (const [method, operation] of Object.entries<RecordValue>(pathItem)) {
-    if (!['post', 'put', 'patch', 'delete'].includes(method)) continue;
+    if (!['post', 'put', 'patch', 'delete'].includes(method) || !route.startsWith('/api/v1/payments/')) continue;
     assert((operation.parameters ?? []).some((parameter: RecordValue) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `${method.toUpperCase()} ${route} must declare Idempotency-Key`);
     assert(operation.responses?.['409']?.$ref === '#/components/responses/IdempotencyConflict', `${method.toUpperCase()} ${route} must document idempotency conflicts`);
   }
@@ -93,4 +93,4 @@ for (const relativePath of examplePaths) {
 const paidExample = readJson(examplePaths[1]);
 assert(paidExample.eventType === 'payment.checkout.paid', 'paid example must use payment.checkout.paid');
 assert(paidExample.data?.status === 'paid', 'paid example must have paid status');
-console.log('Public APICenter payment contracts are valid.');
+console.log('Public APICenter consumer contracts are valid.');

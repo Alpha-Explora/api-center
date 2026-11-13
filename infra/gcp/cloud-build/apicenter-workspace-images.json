@@ -1,0 +1,217 @@
+{
+  "timeout": "3600s",
+  "serviceAccount": "projects/apicenter-alpha-20260623/serviceAccounts/apicenter-cloudbuild-deployer@apicenter-alpha-20260623.iam.gserviceaccount.com",
+  "options": {
+    "logging": "CLOUD_LOGGING_ONLY",
+    "diskSizeGb": 100
+  },
+  "substitutions": {
+    "_GOOGLE_CLIENT_ID": ""
+  },
+  "steps": [
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "workspace",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "workspace",
+        "-t",
+        "apicenter-workspace-build",
+        "."
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-gateway",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=gateway",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-payments",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=payments",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-email",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=email",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-sms",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=sms",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-otp",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=otp",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-gauth",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=gauth",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-geo",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=geo",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "workspace"
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-management",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "node-runtime",
+        "--build-arg",
+        "APP=management",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": [
+        "build-gateway",
+        "build-payments",
+        "build-email",
+        "build-sms",
+        "build-otp",
+        "build-gauth",
+        "build-geo"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "build-docs",
+      "args": [
+        "build",
+        "-f",
+        "docker/Dockerfile.workspace",
+        "--target",
+        "docs-runtime",
+        "--build-arg",
+        "APP=docs",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "-t",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}",
+        "."
+      ],
+      "waitFor": "build-management"
+    }
+  ],
+  "images": [
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:build-${BUILD_ID}",
+    "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}"
+  ]
+}

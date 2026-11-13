@@ -81,7 +81,7 @@ export class ApiCenterPipelineGovernanceProvider
     const baseUrl = (
       this.baseUrl ??
       process.env.API_CENTER_BASE_URL ??
-      "https://api-center.itsandbox.site"
+      "https://api.apicenter.itsandbox.site"
     ).replace(/\/$/, "");
     const params = new URLSearchParams({ environment });
     appendPartitionParams(params, partition);

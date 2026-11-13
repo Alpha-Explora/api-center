@@ -19,12 +19,17 @@ describe("PaymentConsumerServicePanel", () => {
     const approval = await screen.findByPlaceholderText("UUID of the approved payments.live_access request");
     fireEvent.change(screen.getByLabelText("Consumer service ID"), { target: { value: "billing-api" } });
     fireEvent.change(approval, { target: { value: "00000000-0000-4000-8000-000000000001" } });
+    expect(screen.getByRole("button", { name: "Register consumer" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Live confirmation"), { target: { value: "APPLY LIVE CHANGE" } });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Approved production onboarding" } });
     fireEvent.click(screen.getByRole("button", { name: "Register consumer" }));
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
     expect(JSON.parse(requestMock.mock.calls[0][1].body)).toMatchObject({
       environment: "live",
       approvalRequestId: "00000000-0000-4000-8000-000000000001",
+      operationId: expect.any(String),
+      confirmation: { typedPhrase: "APPLY LIVE CHANGE", reason: "Approved production onboarding" },
     });
     expect((await screen.findByRole("alert")).textContent).toContain("Registration complete");
   });
@@ -34,6 +39,8 @@ describe("PaymentConsumerServicePanel", () => {
     render(<PaymentConsumerServicePanel />);
     fireEvent.change(screen.getByLabelText("Environment"), { target: { value: "live" } });
     fireEvent.change(screen.getByLabelText("Consumer service ID"), { target: { value: "billing-api" } });
+    fireEvent.change(screen.getByLabelText("Live confirmation"), { target: { value: "APPLY LIVE CHANGE" } });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Approved onboarding" } });
     fireEvent.click(screen.getByRole("button", { name: "Register consumer" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain("payments.live_access in live requires an approved request");

@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, maintainers, agents]
-last_verified: "2026-10-12"
+last_verified: "2026-11-14"
 verification: repository
 sources: [apps/gateway/src/app.module.ts, packages/contracts/src/index.ts, packages/runtime, apps/docs, infra/gcp]
 ---
@@ -31,6 +31,10 @@ Gateway domain roots live under `apps/gateway/src/domains/`: `auth-security`, `c
 PayMongo owns canonical provider-backed payment resources and merchant settlement. APICenter owns the project/environment resource mapping, recorded listing and reconciliation metadata, verified webhook receipts, and event delivery. A consuming service owns its local business and access projection. No consumer repository outside APICenter is currently onboarded to the published SDK. The detailed authority is [payments-platform-current.md](../payments-platform-current.md), supplemented by [database ownership](../operations/payment-database-ownership.md).
 
 Payment commands go through the public gateway and SDK. Payment lifecycle events use Google Pub/Sub. Consumer services must not bypass the provider adapter with private credentials.
+
+## Operational evidence
+
+Gateway runtime operations own durable verification runs/reports and redacted request diagnostics. Registry owns service-secret lifecycle and usage metadata; payment consumer management owns issuance receipts and key metadata. The private payment runtime owns replay attempts and original event snapshots. Management authorizes organization-scoped actions and presents these owners rather than storing operational truth. The manual release runner observes deployment identities, claims a scoped run, and submits bounded evidence. Unknown external outcomes require reconciliation before another attempt. See the [operator procedure](../operations/operability-and-release-verification.md) for configuration and acceptance gaps.
 
 ## Documentation flow
 

@@ -1,5 +1,6 @@
 import { AuditLogClient } from "@/components/audit-log-client";
 import { PageHeading } from "@/components/page-heading";
+import { RequestDiagnosticsPanel } from "@/features/operations/diagnostics/views/request-diagnostics-panel";
 
 export default async function AuditPage({
   searchParams,
@@ -23,6 +24,7 @@ export default async function AuditPage({
         defaultServiceId={params?.serviceId}
         defaultType={params?.type}
       />
+      <RequestDiagnosticsPanel />
     </div>
   );
 }

@@ -171,14 +171,16 @@ services:
 
   demand-service:
     build:
-      context: ../../examples/sandbox
-      dockerfile: demand-service/Dockerfile
+      context: ../..
+      dockerfile: examples/sandbox/demand-service/Dockerfile
     container_name: demand-service
     environment:
       PORT: "4100"
       APICENTER_URL: http://nginx
+      APICENTER_SERVICE_ID: demand-service
+      APICENTER_ENVIRONMENT: test
+      APICENTER_SERVICE_SECRET: "${DEMAND_TRIBE_SECRET:-sandbox-change-me}"
       DEMAND_TRIBE_ID: demand-service
-      DEMAND_TRIBE_SECRET: "${DEMAND_TRIBE_SECRET:-sandbox-change-me}"
     ports:
       - "4100:4100"
     depends_on:

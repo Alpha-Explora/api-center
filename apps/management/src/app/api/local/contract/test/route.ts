@@ -1,5 +1,6 @@
 import {
   apiCenterAdminJson,
+  fetchApiCenter,
   getApiCenterAdminUrl,
 } from "@/lib/server/api-center-admin";
 import {
@@ -83,7 +84,7 @@ async function attemptFetch(
   const startedAt = performance.now();
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchApiCenter(url, {
       method,
       headers,
       cache: "no-store",

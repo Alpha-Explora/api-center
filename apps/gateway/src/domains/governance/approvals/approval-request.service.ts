@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
+import type { Prisma } from "@prisma/client";
 import {
   ConflictError,
   ForbiddenError,
@@ -35,7 +36,9 @@ interface ApprovalPrisma {
 export class ApprovalRequestService {
   private readonly approvalPrisma: ApprovalPrisma;
 
-  constructor(prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService) prisma: Pick<PrismaService, "approvalRequest">,
+  ) {
     this.approvalPrisma = prisma as unknown as ApprovalPrisma;
   }
 
@@ -60,6 +63,19 @@ export class ApprovalRequestService {
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+  }
+
+  async findApprovedAction(input: {
+    actionType: ApprovalRequest["actionType"];
+    targetId: string;
+    targetEnvironment: string;
+  }): Promise<ApprovalRequest | null> {
+    const rows = await this.approvalPrisma.approvalRequest.findMany({
+      where: { ...input, status: { in: ["approved", "applied"] } },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
+    return rows[0] ?? null;
   }
 
   async approveRequest(
@@ -114,7 +130,12 @@ export class ApprovalRequestService {
 
   async assertApprovedForAction(
     input: ApprovalCheckInput,
+    transaction?: Prisma.TransactionClient,
   ): Promise<ApprovalRequest | null> {
+    if (transaction) {
+      const scoped = new ApprovalRequestService(transaction);
+      return scoped.assertApprovedForAction(input);
+    }
     if (input.targetEnvironment !== "live") return null;
     if (!input.approvalRequestId) {
       throw new ForbiddenError(
@@ -135,7 +156,10 @@ export class ApprovalRequestService {
     if (request.targetEnvironment !== input.targetEnvironment) {
       throw new ForbiddenError("Approval request environment does not match");
     }
-    if (input.requireTarget && (!input.targetId || request.targetId !== input.targetId)) {
+    if (
+      input.requireTarget &&
+      (!input.targetId || request.targetId !== input.targetId)
+    ) {
       throw new ForbiddenError("Approval request target does not match");
     }
     if (

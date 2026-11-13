@@ -1,7 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
-import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
+import {
+  TENANCY_DIRECTORY,
+  type TenancyDirectory,
+} from "@registry/tenancy.types";
 
 export type PaymentPrincipal = {
   ownerTribeId: string;
@@ -26,6 +29,7 @@ type DatabaseKey = {
 
 @Injectable()
 export class PaymentApiKeyService {
+  private readonly usageRecordedAt = new Map<string, number>();
   constructor(
     private readonly prisma: PrismaService,
     @Inject(TENANCY_DIRECTORY) private readonly tenancy: TenancyDirectory,
@@ -35,16 +39,37 @@ export class PaymentApiKeyService {
     if (!/^apic_[A-Za-z0-9_-]+$/.test(rawKey)) return null;
 
     const presentedHash = createHash("sha256").update(rawKey).digest("hex");
-    const credential = process.env.DATABASE_ENABLED === "true"
-      ? await this.resolveFromDatabase(presentedHash)
-      : this.resolveConfigured(presentedHash);
+    const credential =
+      process.env.DATABASE_ENABLED === "true"
+        ? await this.resolveFromDatabase(presentedHash)
+        : this.resolveConfigured(presentedHash);
     if (!credential) return null;
 
     // The project is never read from the key. It comes from the consumer service's registry placement, and a
     // key whose service is unplaced or belongs to another tribe than the key's owner does not authenticate.
-    const placement = this.tenancy.resolveServicePlacement(credential.consumerServiceId);
-    if (!placement || placement.tribeId !== credential.ownerTribeId) return null;
+    const placement = this.tenancy.resolveServicePlacement(
+      credential.consumerServiceId,
+    );
+    if (!placement || placement.tribeId !== credential.ownerTribeId)
+      return null;
+    if (credential.keyId && process.env.DATABASE_ENABLED === "true")
+      await this.recordUsage(credential.keyId);
     return { ...credential, projectId: placement.projectId };
+  }
+
+  private async recordUsage(keyId: string): Promise<void> {
+    const now = Date.now();
+    if (now - (this.usageRecordedAt.get(keyId) ?? 0) < 60_000) return;
+    if (this.usageRecordedAt.size >= 10_000) this.usageRecordedAt.clear();
+    this.usageRecordedAt.set(keyId, now);
+    try {
+      await this.prisma.$executeRawUnsafe(
+        "UPDATE apic_governance.payment_api_keys SET last_used_at=now() WHERE id=$1::uuid AND (last_used_at IS NULL OR last_used_at < now()-interval '1 minute')",
+        keyId,
+      );
+    } catch {
+      // Authentication remains available when optional usage telemetry cannot be written.
+    }
   }
 
   private resolveConfigured(keyHash: string): KeyCredential | null {
@@ -61,7 +86,9 @@ export class PaymentApiKeyService {
     return null;
   }
 
-  private async resolveFromDatabase(keyHash: string): Promise<KeyCredential | null> {
+  private async resolveFromDatabase(
+    keyHash: string,
+  ): Promise<KeyCredential | null> {
     try {
       const rows = await this.prisma.$queryRawUnsafe<DatabaseKey[]>(
         "SELECT k.id, s.owner_tribe_id, s.consumer_service_id, s.environment, k.scopes " +
@@ -93,7 +120,9 @@ export class PaymentApiKeyService {
       try {
         const parsed = JSON.parse(raw) as unknown;
         if (Array.isArray(parsed)) {
-          return parsed.filter((value): value is ConfiguredKey => this.isConfiguredKey(value));
+          return parsed.filter((value): value is ConfiguredKey =>
+            this.isConfiguredKey(value),
+          );
         }
       } catch {
         return [];
@@ -104,7 +133,9 @@ export class PaymentApiKeyService {
     const fallbackHash = process.env.APICENTER_PAYMENT_API_KEY_HASH;
     const keyHash =
       fallbackHash ||
-      (fallbackKey ? createHash("sha256").update(fallbackKey).digest("hex") : undefined);
+      (fallbackKey
+        ? createHash("sha256").update(fallbackKey).digest("hex")
+        : undefined);
     if (!keyHash) return [];
 
     return [
@@ -114,8 +145,13 @@ export class PaymentApiKeyService {
         consumerServiceId:
           process.env.APICENTER_PAYMENT_API_KEY_SERVICE_ID || "local-service",
         environment:
-          process.env.APICENTER_PAYMENT_API_KEY_ENVIRONMENT === "live" ? "live" : "test",
-        scopes: (process.env.APICENTER_PAYMENT_API_KEY_SCOPES || "payments:read,payments:write")
+          process.env.APICENTER_PAYMENT_API_KEY_ENVIRONMENT === "live"
+            ? "live"
+            : "test",
+        scopes: (
+          process.env.APICENTER_PAYMENT_API_KEY_SCOPES ||
+          "payments:read,payments:write"
+        )
           .split(",")
           .map((scope) => scope.trim())
           .filter(Boolean),
@@ -140,6 +176,9 @@ export class PaymentApiKeyService {
     if (!/^[a-f0-9]{64}$/i.test(right)) return false;
     const leftBuffer = Buffer.from(left, "hex");
     const rightBuffer = Buffer.from(right, "hex");
-    return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+    return (
+      leftBuffer.length === rightBuffer.length &&
+      timingSafeEqual(leftBuffer, rightBuffer)
+    );
   }
 }

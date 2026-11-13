@@ -375,6 +375,14 @@ export class RegistryService implements OnModuleInit, OnApplicationBootstrap, On
     return this.services[serviceId] || null;
   }
 
+  async resolveStorageId(serviceId: string, projectId: string): Promise<string | null> {
+    return this.postgresStore?.resolveStorageId(serviceId, projectId) ?? null;
+  }
+
+  credentialMetadata(serviceId: string, environment: ApicenterRuntimeEnvironment) {
+    return this.serviceSecretResolver.credentialMetadata(serviceId, environment);
+  }
+
   getAll(): ServiceRegistryMap {
     return { ...this.services };
   }

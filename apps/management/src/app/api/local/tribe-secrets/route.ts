@@ -11,6 +11,7 @@ import {
   createSecretManagerClient,
   getProjectId,
   getSecretManagerAuthReadiness,
+  getTribeSecretStatus,
   provisionSecretWithLocalGcloudImpersonation,
   shouldUseLocalGcloudImpersonation,
 } from "@/lib/server/gcp-secret-manager";
@@ -84,6 +85,10 @@ export async function POST(request: Request) {
     const prefix = process.env.TRIBE_SECRET_GCP_PREFIX || DEFAULT_SECRET_PREFIX;
     const secretId = `${prefix}${input.serviceId}-${input.environment}`;
     const secretName = `projects/${projectId}/secrets/${secretId}`;
+    const existing = await getTribeSecretStatus({ serviceId: input.serviceId, secretId, secretName });
+    if (existing.latestEnabledVersion) {
+      return NextResponse.json({ success: false, error: "This service secret is already provisioned. Use Go live → Rotate service secret to preserve the current credential during deployment." }, { status: 409 });
+    }
     const rotatedAt = new Date().toISOString();
     const payload = JSON.stringify({
       serviceId: input.serviceId,

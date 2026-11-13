@@ -61,6 +61,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           exception instanceof AppError
             ? exception.code
             : (resp.code as string) || (resp.error as string) || "HTTP_ERROR";
+        response.locals.requestDiagnostic = { code };
 
         this.logger.warn(
           `HTTP ${status}: ${messages.join(", ")}`,
@@ -80,6 +81,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return;
       }
 
+      response.locals.requestDiagnostic = { code: "HTTP_ERROR" };
       response.status(status).json({
         success: false,
         error: {
@@ -99,6 +101,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       "ExceptionFilter",
     );
 
+    response.locals.requestDiagnostic = { code: "INTERNAL_ERROR" };
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: {

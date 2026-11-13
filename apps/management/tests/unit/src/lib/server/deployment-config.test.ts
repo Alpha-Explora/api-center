@@ -5,9 +5,9 @@ import {
 } from "../../../../../src/lib/server/deployment-config";
 
 const completeEnv = {
-  API_CENTER_BASE_URL: "https://api-center.itsandbox.site",
+  API_CENTER_BASE_URL: "https://api.apicenter.itsandbox.site",
   API_CENTER_PLATFORM_ADMIN_SECRET: "server-secret",
-  NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api-center.itsandbox.site",
+  NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api.apicenter.itsandbox.site",
   MANAGEMENT_AUTH_MODE: "google",
   MANAGEMENT_ENVIRONMENT: "test",
   NEXT_PUBLIC_MANAGEMENT_ENV: "test",
@@ -112,13 +112,13 @@ describe("deployment config check", () => {
       VERCEL: "1",
       MANAGEMENT_ENVIRONMENT: "test",
       NEXT_PUBLIC_MANAGEMENT_ENV: "test",
-      API_CENTER_BASE_URL: "https://api-center.itsandbox.site/",
-      NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api-center.itsandbox.site",
+      API_CENTER_BASE_URL: "https://api.apicenter.itsandbox.site/",
+      NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api.apicenter.itsandbox.site",
     });
 
-    expect(check.apiCenterBaseUrl).toBe("https://api-center.itsandbox.site/");
+    expect(check.apiCenterBaseUrl).toBe("https://api.apicenter.itsandbox.site/");
     expect(check.publicApiCenterBaseUrl).toBe(
-      "https://api-center.itsandbox.site",
+      "https://api.apicenter.itsandbox.site",
     );
     expect(check.oneApiCenterTopology).toEqual({
       usesSingleApiCenterBaseUrl: true,
@@ -130,7 +130,7 @@ describe("deployment config check", () => {
     const check = getDeploymentConfigCheck({
       ...completeEnv,
       API_CENTER_BASE_URL: "https://api-center-test.itsandbox.site",
-      NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api-center.itsandbox.site",
+      NEXT_PUBLIC_API_CENTER_BASE_URL: "https://api.apicenter.itsandbox.site",
     });
 
     expect(check.oneApiCenterTopology.usesSingleApiCenterBaseUrl).toBe(false);

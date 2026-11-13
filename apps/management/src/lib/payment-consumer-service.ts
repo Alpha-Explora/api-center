@@ -5,6 +5,7 @@ const PaymentScope = z.enum(["payments:read", "payments:write"]);
 const RegisterInput = z.object({
   consumerServiceId: z.string().trim().min(1).max(150),
   environment: z.enum(["test", "live"]),
+  operationId: z.string().uuid().optional(),
   approvalRequestId: z.string().uuid().optional(),
   eventEndpointUrl: z.string().url().refine((value) => value.startsWith("https://")).optional(),
   scopes: z.array(PaymentScope).min(1).default(["payments:read", "payments:write"]),
@@ -18,6 +19,7 @@ const RegisterInput = z.object({
 
 const RotateInput = z.object({
   environment: z.enum(["test", "live"]),
+  operationId: z.string().uuid().optional(),
   eventEndpointUrl: z.string().url().refine((value) => value.startsWith("https://")).optional(),
   scopes: z.array(PaymentScope).min(1).default(["payments:read", "payments:write"]),
 });
@@ -91,13 +93,15 @@ export class PaymentConsumerService {
       consumerServiceId: parsed.consumerServiceId,
       environment: parsed.environment,
       scopes: parsed.scopes,
+      ...(parsed.operationId ? { operationId: parsed.operationId } : {}),
       ...(parsed.approvalRequestId ? { approvalRequestId: parsed.approvalRequestId } : {}),
       ...(parsed.eventEndpointUrl ? { eventEndpointUrl: parsed.eventEndpointUrl } : {}),
     });
 
-    const delivery =
-      parsed.pushEndpoint && parsed.deliveryServiceAccountEmail
-        ? await this.provisionEventDelivery({
+    let delivery: PaymentConsumerRegistration["eventDelivery"];
+    if (parsed.pushEndpoint && parsed.deliveryServiceAccountEmail) {
+      try {
+        delivery = await this.provisionEventDelivery({
             ownerTribeId: this.stringField(registration, "ownerTribeId"),
             consumerServiceId: parsed.consumerServiceId,
             environment: parsed.environment,
@@ -107,8 +111,11 @@ export class PaymentConsumerService {
             ...(parsed.consumerProjectId ? { consumerProjectId: parsed.consumerProjectId } : {}),
             ...(parsed.cloudRunRegion ? { cloudRunRegion: parsed.cloudRunRegion } : {}),
             ...(parsed.cloudRunServiceName ? { cloudRunServiceName: parsed.cloudRunServiceName } : {}),
-          })
-        : undefined;
+          });
+      } catch {
+        delivery = { status: "delivery_failed", lastDeliveryAt: null, deadLetterCount: null };
+      }
+    }
 
     return {
       ...this.registrationFields(registration),
@@ -131,9 +138,8 @@ export class PaymentConsumerService {
   async provisionEventDelivery(input: unknown): Promise<NonNullable<PaymentConsumerRegistration["eventDelivery"]>> {
     const parsed = this.parse(DeliveryInput, input);
     const result = await this.post("/admin/payments/events/consumers", parsed);
-    const iam = result.iam as { status?: string } | undefined;
     return {
-      status: iam?.status === "applied" ? "active" : "pending_validation",
+      status: "pending_validation",
       ...(typeof result.subscriptionName === "string" ? { subscriptionName: result.subscriptionName } : {}),
       ...(typeof result.topicName === "string" ? { topicName: result.topicName } : {}),
       lastDeliveryAt: null,

@@ -15,11 +15,13 @@ import { PaymentRecordsManagementController } from "./features/records-managemen
 import { PaymentRecordsManagementService } from "./features/records-management/payment-records-management.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/payment-limits";
-import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
+import { PaymentEventRecoveryController } from "./features/event-recovery/payment-event-recovery.controller";
+import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
 
 @Module({
   imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule],
   controllers: [
+    PaymentEventRecoveryController,
     PaymentsController,
     PaymentConsumerManagementController,
     PaymentPubSubProvisioningController,
@@ -31,6 +33,7 @@ import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-man
     PaymentAuthGuard,
     PaymentConsumerManagementService,
     { provide: PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, useExisting: PaymentConsumerManagementService },
+    { provide: PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY, useExisting: PaymentConsumerManagementService },
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
@@ -41,6 +44,7 @@ import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-man
     PaymentApiKeyService,
     PaymentConsumerManagementService,
     PAYMENT_CONSUMER_REGISTRATION_DIRECTORY,
+    PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY,
   ],
 })
 export class PaymentsModule {}

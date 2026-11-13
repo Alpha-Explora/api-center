@@ -14,6 +14,7 @@ import { LoggerService } from "@shared/logger.service";
 import { TribeSecretRotationService } from "@secrets/tribe-secret-rotation.service";
 import type { ApicenterRuntimeEnvironment } from "../../../types";
 import { buildEnvironmentSecretId } from "./environment-secret-name";
+import { PrismaService } from "@database/prisma.service";
 
 export type SecretManagerClientLike = Pick<
   SecretManagerServiceClient,
@@ -47,6 +48,11 @@ export const SERVICE_SECRET_MANAGER_CLIENT = Symbol(
 
 @Injectable()
 export class ServiceSecretResolverService {
+  private readonly credentialMetadataCache = new Map<
+    string,
+    { versionName: string; rotationState: string; createdAt: string | null }
+  >();
+  private readonly usageRecordedAt = new Map<string, number>();
   private readonly cache = new Map<string, CachedSecret>();
   private secretManagerClient: SecretManagerClientLike | null;
 
@@ -57,6 +63,7 @@ export class ServiceSecretResolverService {
     secretManagerClient?: SecretManagerClientLike,
     @Optional()
     private readonly rotationService: TribeSecretRotationService = new TribeSecretRotationService(),
+    @Optional() private readonly prisma?: PrismaService,
   ) {
     this.secretManagerClient = secretManagerClient ?? null;
   }
@@ -70,7 +77,85 @@ export class ServiceSecretResolverService {
       serviceId,
       environment,
     );
-    return this.matchesSecretHashes(plaintextSecret, expectedHashes);
+    const valid = this.matchesSecretHashes(plaintextSecret, expectedHashes);
+    if (valid) {
+      const metadata = this.credentialMetadataCache.get(
+        `environment:${serviceId}:${environment}`,
+      );
+      const role =
+        expectedHashes[1] &&
+        this.matchesSecretHashes(plaintextSecret, [expectedHashes[1]])
+          ? "next"
+          : "current";
+      const usageId = `${metadata?.versionName}:${role}`;
+      if (
+        metadata &&
+        this.prisma &&
+        process.env.DATABASE_ENABLED === "true" &&
+        Date.now() - (this.usageRecordedAt.get(usageId) ?? 0) >= 60_000
+      ) {
+        if (this.usageRecordedAt.size >= 10_000) this.usageRecordedAt.clear();
+        this.usageRecordedAt.set(usageId, Date.now());
+        try {
+          await this.prisma.$executeRawUnsafe(
+            "INSERT INTO apic_catalog.service_credential_usage(service_id,environment,version_name,role,last_used_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT(service_id,environment,version_name,role) DO UPDATE SET last_used_at=now()",
+            serviceId,
+            environment,
+            metadata.versionName,
+            role,
+          );
+        } catch {
+          this.logger.warn(
+            "Service credential usage persistence unavailable",
+            "ServiceSecretResolverService",
+          );
+        }
+      }
+    }
+    return valid;
+  }
+
+  async credentialMetadata(
+    serviceId: string,
+    environment: ApicenterRuntimeEnvironment,
+  ) {
+    const hashes = await this.resolveEnvironmentSecretHashes(
+      serviceId,
+      environment,
+    );
+    if (!hashes.length) return null;
+    const metadata = this.credentialMetadataCache.get(
+      `environment:${serviceId}:${environment}`,
+    );
+    if (!metadata) return null;
+    let lastUsedAt: string | null = null;
+    let replacementVerifiedAt: string | null = null;
+    if (this.prisma && process.env.DATABASE_ENABLED === "true") {
+      try {
+        const rows = await this.prisma.$queryRawUnsafe<
+          Array<{
+            last_used_at: Date | null;
+            replacement_verified_at: Date | null;
+          }>
+        >(
+          "SELECT max(last_used_at) AS last_used_at,max(last_used_at) FILTER (WHERE role='next') AS replacement_verified_at FROM apic_catalog.service_credential_usage WHERE service_id=$1 AND environment=$2 AND version_name=$3",
+          serviceId,
+          environment,
+          metadata.versionName,
+        );
+        lastUsedAt = rows[0]?.last_used_at?.toISOString() ?? null;
+        replacementVerifiedAt =
+          rows[0]?.replacement_verified_at?.toISOString() ?? null;
+      } catch {
+        /* Missing usage telemetry remains unknown. */
+      }
+    }
+    return {
+      ...metadata,
+      lastUsedAt,
+      replacementVerifiedAt,
+      cacheTtlSeconds: this.getCacheTtlMs() / 1000,
+    };
   }
 
   async resolveEnvironmentSecretHash(
@@ -124,6 +209,7 @@ export class ServiceSecretResolverService {
   clearCache(serviceId?: string): void {
     if (!serviceId) {
       this.cache.clear();
+      this.credentialMetadataCache.clear();
       return;
     }
 
@@ -133,6 +219,7 @@ export class ServiceSecretResolverService {
     for (const key of [...this.cache.keys()]) {
       if (key.startsWith(`environment:${normalizedServiceId}:`)) {
         this.cache.delete(key);
+        this.credentialMetadataCache.delete(key);
       }
     }
   }
@@ -150,7 +237,28 @@ export class ServiceSecretResolverService {
     try {
       const raw = await this.readSecretPayload(resourceName, secretName);
       if (!raw) return [];
-      return this.parseEnvironmentPayload(serviceId, environment, secretName, raw);
+      const hashes = this.parseEnvironmentPayload(
+        serviceId,
+        environment,
+        secretName,
+        raw.raw,
+      );
+      if (hashes.length && raw.versionName) {
+        const payload = this.parseJsonPayload(secretName, raw.raw);
+        this.credentialMetadataCache.set(
+          `environment:${serviceId}:${environment}`,
+          {
+            versionName: raw.versionName,
+            rotationState:
+              typeof payload?.rotationState === "string"
+                ? payload.rotationState
+                : "active_current",
+            createdAt:
+              typeof payload?.rotatedAt === "string" ? payload.rotatedAt : null,
+          },
+        );
+      }
+      return hashes;
     } catch (error) {
       this.logger.warn(
         `Service Secret Manager lookup failed for '${secretName}': ${(error as Error).message}`,
@@ -180,7 +288,7 @@ export class ServiceSecretResolverService {
   private async readSecretPayload(
     resourceName: string,
     secretName: string,
-  ): Promise<string | null> {
+  ): Promise<{ raw: string; versionName: string | null } | null> {
     const [response] = await this.getSecretManagerClient().accessSecretVersion({
       name: resourceName,
     });
@@ -193,9 +301,10 @@ export class ServiceSecretResolverService {
       return null;
     }
 
-    return Buffer.isBuffer(rawPayload)
+    const raw = Buffer.isBuffer(rawPayload)
       ? rawPayload.toString("utf8")
       : Buffer.from(rawPayload).toString("utf8");
+    return { raw, versionName: response.name ?? null };
   }
 
   private parseEnvironmentPayload(
@@ -315,7 +424,7 @@ export class ServiceSecretResolverService {
         ? ttlSeconds
         : DEFAULT_CACHE_TTL_SECONDS;
 
-    return safeTtlSeconds * 1000;
+    return Math.min(safeTtlSeconds, 300) * 1000;
   }
 
   private isValidHash(hash: string): boolean {

@@ -168,7 +168,8 @@
       "requestType": "SmsSendRequest",
       "responseType": "SmsSendResponse",
       "requiredScopes": [
-        "sms:send"
+        "sms:send",
+        "sms:status"
       ],
       "idempotencyKey": {
         "required": true,
@@ -183,6 +184,7 @@
       "path": "/api/v1/shared/sms/status/{messageId}",
       "responseType": "SmsDeliveryStatus",
       "requiredScopes": [
+        "sms:send",
         "sms:status"
       ]
     },
@@ -194,7 +196,8 @@
       "requestType": "OtpGenerateRequest",
       "responseType": "OtpGenerateResponse",
       "requiredScopes": [
-        "otp:generate"
+        "otp:generate",
+        "otp:verify"
       ],
       "idempotencyKey": {
         "required": true,
@@ -210,6 +213,7 @@
       "requestType": "OtpVerifyRequest",
       "responseType": "OtpVerifyResponse",
       "requiredScopes": [
+        "otp:generate",
         "otp:verify"
       ],
       "idempotencyKey": {
@@ -225,7 +229,8 @@
       "path": "/api/v1/shared/otp/status/{otpId}",
       "responseType": "OtpStatusResponse",
       "requiredScopes": [
-        "otp:generate"
+        "otp:generate",
+        "otp:verify"
       ]
     },
     {

@@ -3,6 +3,15 @@
 .gcloudignore
 
 node_modules/
+**/node_modules/
+**/.next/
+**/.turbo/
+**/out/
+**/dist/
+**/*.tsbuildinfo
+supabase/.temp/
+supabase/.branches/
+supabase/backups/
 dist/
 coverage/
 logs/
@@ -10,11 +19,15 @@ logs/
 
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
 .agents/
 .augment/
 .claude/
+.codex/
 .vscode/
 .idea/
 

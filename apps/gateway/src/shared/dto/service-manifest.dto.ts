@@ -27,6 +27,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import { PROJECT_ID_PATTERN } from "../tenancy-identifiers";
+import { APICENTER_RUNTIME_ENVIRONMENT_KEYS } from "../../types";
 
 /** Tribe services must name a project; shared platform services must not. */
 @ValidatorConstraint({ name: "projectId", async: false })
@@ -37,7 +38,9 @@ class ProjectIdConstraint implements ValidatorConstraintInterface {
       return shared;
     }
 
-    return !shared && typeof value === "string" && PROJECT_ID_PATTERN.test(value);
+    return (
+      !shared && typeof value === "string" && PROJECT_ID_PATTERN.test(value)
+    );
   }
 
   defaultMessage(args: ValidationArguments): string {
@@ -53,17 +56,19 @@ class ProjectIdConstraint implements ValidatorConstraintInterface {
 }
 
 function isSharedManifest(object: object): boolean {
-  return ((object as { serviceType?: string }).serviceType ?? "tribe") === "shared";
+  return (
+    ((object as { serviceType?: string }).serviceType ?? "tribe") === "shared"
+  );
 }
 
 export class ServiceEnvironmentDto {
   @ApiProperty({
     example: "test",
-    enum: ["test", "staging", "uat", "demo", "live"],
+    enum: APICENTER_RUNTIME_ENVIRONMENT_KEYS,
   })
   @IsString()
-  @IsIn(["test", "staging", "uat", "demo", "live"], {
-    message: "environment must be one of test, staging, uat, demo, or live",
+  @IsIn(APICENTER_RUNTIME_ENVIRONMENT_KEYS, {
+    message: "environment must be test or live",
   })
   environment!: string;
 

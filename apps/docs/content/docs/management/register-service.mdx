@@ -26,21 +26,22 @@ The Registry view shows **Tribe → Project → Service**. Organization membersh
 1. From **Registry**, choose **Register service**.
 2. Enter a lowercase service ID, a display name, version, and tier. The service ID is fixed after creation.
 3. Set **Type** to `tribe` for a service owned by a project. The `shared` type is for platform-owned shared runtimes and has no project selection.
-4. Add an environment row with its environment, backend URL, and health path. Start with `test`. The SDK currently accepts `test` and `live` credentials; ask the platform team before using another environment label.
+4. Add an environment row with its environment, backend URL, and health path. Use `test` for local development, staging, UAT, and demos. Use `live` for production. New registrations accept only `test` and `live`, matching SDK credentials.
 5. For a `tribe` service, select an active project. The tribe is derived from the selected project. A service cannot move between projects after registration; create a new service entry if placement must change.
 6. Add the exposed route patterns and at least one required scope. Select the shared services this service is allowed to call.
-7. Register the service and open its detail page to review the manifest and status.
+7. If any row uses `live`, complete **Live registration approval** with the approved request ID, your reason, and the exact phrase `APPLY LIVE CHANGE`. The approved request must authorize registering this service in live. A typed phrase does not replace approval. Use `test` while setting up your integration.
+8. Register the service and open its detail page to review the manifest and status.
 
 The gateway routes requests to the registered backend URL. Do not enter a URL that only the developer's laptop can reach unless APICenter is also running locally or the backend is exposed through an approved development tunnel.
 
 ## Issue a service secret
 
-From the service detail page, open **Actions** and the **Service secret** section. Select `test` and generate a secret. Use **Provision secret** to store its hash in APICenter's Google Secret Manager, then copy the plaintext value into the backend's secret manager. The plaintext is held in browser memory; the console does not retain it after you leave or reload the page. If you lose it, generate and provision a replacement.
+From the service detail page, open **Actions** and the **Service secret** section. Select `test` and generate a secret. Use **Provision secret** to store its hash in APICenter's Google Secret Manager, then copy the plaintext value into the backend's secret manager. The plaintext is held in browser memory; the console does not retain it after you leave or reload the page. Initial provisioning refuses to overwrite an existing secret. If you lose it, use controlled rotation under **Governance → Go live**.
 
 Configure these server-only values in the service:
 
 ```ini
-APICENTER_URL=https://api-center.itsandbox.site
+APICENTER_URL=https://api.apicenter.itsandbox.site
 APICENTER_SERVICE_ID=<registered-service-id>
 APICENTER_ENVIRONMENT=test
 APICENTER_SERVICE_SECRET=<issued-service-secret>
@@ -49,3 +50,15 @@ APICENTER_SERVICE_SECRET=<issued-service-secret>
 The SDK exchanges the service credentials for a bearer token and refreshes it when needed. Follow [SDK integration](/guides/sdk-usage) to make the first request.
 
 For live writes, Management requires an `admin` role, the exact confirmation phrase `APPLY LIVE CHANGE`, and a reason. Review the action before confirming it. For onboarding assistance, use the **Developer portal** to preview and copy the packet for the tribe; it does not contain service credentials.
+
+## Prepare live access
+
+Open **Governance → Go live** on the service detail page. Review live registration, approvals, credentials, subscription access, and current protected verification. Provision separate live credentials, install them in your backend secret manager, and deploy the matching environment configuration. Test credentials remain available during the handoff.
+
+Requesting protected verification queues a job for the platform's CI runner. Missing or stale results keep readiness blocked. The page does not switch traffic or invoke a provider. Ask a platform operator to configure and run acceptance when a required check is unavailable.
+
+For an existing service secret, start a replacement, install it in the backend, and obtain a token with it before verifying the replacement and revoking the old secret. Allow up to five minutes for other gateway instances to refresh their credential cache. Existing bearer tokens keep their configured lifetime.
+
+Payment key inventory shows key IDs, prefixes, scopes, expiry, and last authenticated use. Save newly issued plaintext once. A lost issuance response cannot be recovered by repeating issuance; ask an operator to revoke the inaccessible key and create a deliberate replacement. Keep a working key until its replacement is installed.
+
+Use **Evidence** to investigate a response's correlation ID and review payment event publication. Replaying an event preserves its identity and does not repeat a payment command. Consumer acknowledgement remains unknown unless the platform has connected trusted consumer telemetry.
