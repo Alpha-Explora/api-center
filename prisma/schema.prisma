@@ -27,7 +27,11 @@ model Organization {
 model OrganizationMember {
   organizationId String   @map("organization_id") @db.Uuid
   email          String
+  /// owner, admin, developer or viewer. Legacy values: operator = developer, observer = viewer.
   role           String
+  /// Verified identity subject, linked on first verified sign-in.
+  subject        String?
+  status         String   @default("active")
   createdBy      String?  @map("created_by")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -631,5 +635,47 @@ model CpCredentialOperation {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("cp_credential_operations")
+  @@schema("apic_catalog")
+}
+
+/// Optional group of organization members that receives project roles.
+model CpTeam {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  slug           String
+  name           String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([organizationId, slug])
+  @@unique([id, organizationId])
+  @@map("cp_teams")
+  @@schema("apic_catalog")
+}
+
+model CpTeamMember {
+  organizationId String   @map("organization_id") @db.Uuid
+  teamId         String   @map("team_id")
+  email          String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([teamId, email])
+  @@map("cp_team_members")
+  @@schema("apic_catalog")
+}
+
+/// A project role granted to exactly one member or one team.
+model CpProjectRoleAssignment {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  memberEmail    String?  @map("member_email")
+  teamId         String?  @map("team_id")
+  role           String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_project_role_assignments")
   @@schema("apic_catalog")
 }

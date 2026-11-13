@@ -156,6 +156,37 @@ describeWithDatabase("control plane on PostgreSQL", () => {
       ).rejects.toMatchObject({ code: "23503" });
     });
 
+    it("allows team membership and project roles only for organization members", async () => {
+      const team = `tm_${randomUUID().replaceAll("-", "").slice(0, 24)}`;
+      await pool.query("INSERT INTO apic_catalog.cp_teams (id, organization_id, slug, name, created_by) VALUES ($1, $2, $3, 'T', 'test')", [
+        team,
+        orgA,
+        `team-${team.slice(3, 11)}`,
+      ]);
+      await expect(
+        pool.query("INSERT INTO apic_catalog.cp_team_members (organization_id, team_id, email, created_by) VALUES ($1, $2, 'stranger@example.test', 'test')", [orgA, team]),
+      ).rejects.toMatchObject({ code: "23503" });
+      await expect(
+        pool.query(
+          "INSERT INTO apic_catalog.cp_project_role_assignments (id, organization_id, project_id, member_email, team_id, role, created_by) VALUES ($1, $2, $3, NULL, NULL, 'viewer', 'test')",
+          [id("pra"), orgA, projectA],
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+      await expect(
+        pool.query(
+          "INSERT INTO apic_catalog.cp_project_role_assignments (id, organization_id, project_id, team_id, role, created_by) VALUES ($1, $2, $3, $4, 'viewer', 'test')",
+          [id("pra"), orgB, projectA, team],
+        ),
+      ).rejects.toMatchObject({ code: "23503" });
+    });
+
+    it("accepts the new organization roles alongside legacy ones", async () => {
+      await pool.query("INSERT INTO apic_catalog.organization_members (organization_id, email, role) VALUES ($1, 'owner@example.test', 'owner')", [orgA]);
+      await expect(
+        pool.query("INSERT INTO apic_catalog.organization_members (organization_id, email, role) VALUES ($1, 'x@example.test', 'superuser')", [orgA]),
+      ).rejects.toMatchObject({ code: "23514" });
+    });
+
     it("keeps environment kind immutable", async () => {
       await expect(pool.query("UPDATE apic_catalog.cp_environments SET kind = 'live' WHERE id = $1", [environmentA])).rejects.toThrow(
         "immutable",

@@ -43,3 +43,4 @@ These need real environments and are not claimed by repository checks:
 
 - [x] Slice 1 — committed `ae6c3a6`.
 - [x] Slice 2 — SMS, OTP, geo and Google sign-in verify the signed context (`createRuntimeContextGate`, `readRuntimeApplicationContext`, `callerIdempotencyScope`); 14 operations catalogued. Valid, tampered and misaddressed contexts tested against the real SMS, OTP and geo apps.
+- [x] Slice 3 — `ConsoleActorGuard` verifies the member's Google ID token (`X-APICenter-User-Token`, `MANAGEMENT_GOOGLE_CLIENT_IDS`) behind platform authentication; identity subject linked on first use; owner/admin/developer/viewer roles, teams and project roles enforced on every control-plane route; last owner protected. Migration `20261114000200`.

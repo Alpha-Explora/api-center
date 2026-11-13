@@ -14,12 +14,39 @@ class FakeDelegate {
 
   private matches(row: Row, where: Row = {}): boolean {
     return Object.entries(where).every(([field, expected]) => {
+      if (field === "OR") return (expected as Row[]).some((clause) => this.matches(row, clause));
+      if (field === "AND") return (expected as Row[]).every((clause) => this.matches(row, clause));
       if (expected && typeof expected === "object" && !(expected instanceof Date)) {
+        const operators = expected as Row;
+        if ("in" in operators) return (operators.in as unknown[]).includes(row[field]);
+        if ("not" in operators) return row[field] !== operators.not;
+        if ("lt" in operators || "gte" in operators) {
+          const value = row[field] as number | Date;
+          return (!("lt" in operators) || value < (operators.lt as number | Date)) && (!("gte" in operators) || value >= (operators.gte as number | Date));
+        }
         // Compound unique selectors such as { environmentId_capability: {...} }.
-        return Object.entries(expected as Row).every(([inner, value]) => row[inner] === value);
+        return Object.entries(operators).every(([inner, value]) => row[inner] === value);
       }
       return row[field] === expected;
     });
+  }
+
+  async count({ where }: { where?: Row } = {}) {
+    return this.rows.filter((row) => this.matches(row, where)).length;
+  }
+
+  async delete({ where }: { where: Row }) {
+    const index = this.rows.findIndex((row) => this.matches(row, where));
+    if (index < 0) throw new Error("Record to delete not found");
+    return this.rows.splice(index, 1)[0];
+  }
+
+  async deleteMany({ where }: { where?: Row } = {}) {
+    const before = this.rows.length;
+    for (let index = this.rows.length - 1; index >= 0; index -= 1) {
+      if (this.matches(this.rows[index], where)) this.rows.splice(index, 1);
+    }
+    return { count: before - this.rows.length };
   }
 
   private assertUnique(candidate: Row, ignore?: Row) {
@@ -81,6 +108,7 @@ class FakeDelegate {
 
 function defaults(data: Row): Row {
   const base: Row = { status: "active" };
+  if ("email" in data && "role" in data && !("projectId" in data)) base.subject = null;
   if ("capability" in data) base.status = "enabled";
   if ("slug" in data && "environmentId" in data) base.authorizationVersion = 1;
   if ("lookupPrefix" in data) base.lastUsedAt = null;
@@ -110,6 +138,10 @@ export function createFakeControlPlanePrisma() {
     cpApplicationGrant: new FakeDelegate((row) => String(row.id)),
     cpCredential: new FakeDelegate((row) => String(row.id), [(row) => String(row.lookupPrefix)]),
     cpCredentialOperation: new FakeDelegate((row) => String(row.operationId)),
+    organizationMember: new FakeDelegate((row) => `${row.organizationId}/${row.email}`),
+    cpTeam: new FakeDelegate((row) => String(row.id), [(row) => `${row.organizationId}/${row.slug}`]),
+    cpTeamMember: new FakeDelegate((row) => `${row.teamId}/${row.email}`),
+    cpProjectRoleAssignment: new FakeDelegate((row) => String(row.id)),
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
       return work(prisma);
