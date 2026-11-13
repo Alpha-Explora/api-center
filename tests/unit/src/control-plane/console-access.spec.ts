@@ -47,6 +47,8 @@ beforeEach(() => {
     new ConsoleAccessService(db),
     new OrganizationPeopleService(db, audit),
     new QuotaService(db, audit),
+    {} as never,
+    {} as never,
   );
 });
 

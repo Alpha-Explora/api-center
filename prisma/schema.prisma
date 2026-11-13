@@ -533,7 +533,11 @@ model CpEnvironment {
   organizationId String   @map("organization_id") @db.Uuid
   projectId      String   @map("project_id")
   kind           String
+  /// provisioning (live only, before approval), active or suspended.
   status         String   @default("active")
+  activatedAt    DateTime? @map("activated_at") @db.Timestamptz(6)
+  activatedBy    String?   @map("activated_by")
+  activationApprovalId String? @map("activation_approval_id")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

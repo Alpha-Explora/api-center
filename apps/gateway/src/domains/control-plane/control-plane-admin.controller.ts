@@ -10,6 +10,8 @@ import { ControlPlaneAdminService, type EnvironmentScope } from "./control-plane
 import { ConsoleAccessService } from "./console-access.service";
 import { OrganizationPeopleService } from "./organization-people.service";
 import { QuotaService } from "./quota.service";
+import { LiveEnvironmentService } from "./live-environment.service";
+import { CapabilityConfigurationService } from "./capability-configuration.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
@@ -55,6 +57,8 @@ const schemas = {
     })
     .strict(),
   policyStatus: z.object({ status: z.enum(["active", "disabled"]), actor: onBehalfOf.optional() }).strict(),
+  activateLive: z.object({ approvalRequestId: z.string().min(1).max(100), actor: onBehalfOf.optional() }).strict(),
+  environmentStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
@@ -89,6 +93,8 @@ export class ControlPlaneAdminController {
     private readonly access: ConsoleAccessService,
     private readonly people: OrganizationPeopleService,
     private readonly quotas: QuotaService,
+    private readonly live: LiveEnvironmentService,
+    private readonly configuration: CapabilityConfigurationService,
   ) {}
 
   @Get("capabilities")
@@ -311,6 +317,66 @@ export class ControlPlaneAdminController {
       await this.access.require(actor, org, "organization.quotas.manage");
     }
     return { success: true, data: await this.quotas.setPolicyStatus(org, policyId, input.status, actorLabel(actor, input.actor)) };
+  }
+
+  // ── Live environments and configuration ──────────────────────────────────
+
+  @Post("organizations/:organizationId/projects/:projectId/environments/live")
+  async provisionLive(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const input = parse(schemas.actorOnly, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    return { success: true, data: await this.live.provision(organizationId, projectId, actorLabel(actor, input.actor)) };
+  }
+
+  @Get("organizations/:organizationId/projects/:projectId/environments/live/readiness")
+  async liveReadiness(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    await this.access.require(actorOf(req), organizationId, "environment.read", { projectId, environmentKind: "live" });
+    return { success: true, data: await this.live.readiness(organizationId, projectId) };
+  }
+
+  @Post("organizations/:organizationId/projects/:projectId/environments/live/activate")
+  async activateLive(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const input = parse(schemas.activateLive, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    return {
+      success: true,
+      data: await this.live.activate(organizationId, projectId, input.approvalRequestId, actorLabel(actor, input.actor)),
+    };
+  }
+
+  @Put(`${ENV}/status`)
+  async setEnvironmentStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const scope = scopeFrom(params);
+    const input = parse(schemas.environmentStatus, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, scope.organizationId, "project.manage", { projectId: scope.projectId });
+    return {
+      success: true,
+      data: await this.live.setStatus(scope.organizationId, scope.projectId, scope.environmentKind, input.status, actorLabel(actor, input.actor)),
+    };
+  }
+
+  @Get(`${ENV}/capabilities/:capability/configuration`)
+  async readConfiguration(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.read");
+    return { success: true, data: await this.configuration.configure(scope, params.capability, "GET", undefined, actorLabel(actor)) };
+  }
+
+  @Put(`${ENV}/capabilities/:capability/configuration`)
+  async writeConfiguration(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    return { success: true, data: await this.configuration.configure(scope, params.capability, "PUT", body, actorLabel(actor)) };
+  }
+
+  @Delete(`${ENV}/capabilities/:capability/configuration`)
+  async deleteConfiguration(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    return { success: true, data: await this.configuration.configure(scope, params.capability, "DELETE", undefined, actorLabel(actor)) };
   }
 
   // ── Environment resources ────────────────────────────────────────────────

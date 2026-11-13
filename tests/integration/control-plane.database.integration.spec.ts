@@ -13,6 +13,8 @@ import { ControlPlaneAdminService } from "../../apps/gateway/src/domains/control
 import { ApplicationAccessService } from "../../apps/gateway/src/domains/control-plane/application-access.service";
 import { RuntimeContextSigner } from "../../apps/gateway/src/domains/control-plane/runtime-context.signer";
 import { QuotaService } from "../../apps/gateway/src/domains/control-plane/quota.service";
+import { LiveEnvironmentService } from "../../apps/gateway/src/domains/control-plane/live-environment.service";
+import { ApprovalRequestService } from "../../apps/gateway/src/domains/governance/approvals/approval-request.service";
 
 const url = process.env.APICENTER_CONTROL_PLANE_TEST_URL;
 if (url && !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
@@ -30,6 +32,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
   let admin: ControlPlaneAdminService;
   let access: ApplicationAccessService;
   let quotas: QuotaService;
+  let live: LiveEnvironmentService;
   const orgA = randomUUID();
   const orgB = randomUUID();
 
@@ -54,6 +57,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
     admin = new ControlPlaneAdminService(prisma, audit);
     quotas = new QuotaService(prisma, audit);
+    live = new LiveEnvironmentService(prisma, new ApprovalRequestService(prisma), audit);
     access = new ApplicationAccessService(
       prisma,
       new RuntimeContextSigner({
@@ -110,6 +114,57 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const count = await pool.query("SELECT count(*)::int AS n FROM apic_catalog.cp_credentials WHERE application_id = $1", [app.id]);
     expect(count.rows[0].n).toBe(1);
+  });
+
+  describe("live activation", () => {
+    async function approval(targetId: string, status = "approved") {
+      const result = await pool.query(
+        `INSERT INTO apic_governance.approval_requests (action_type, target_id, target_environment, status, before, after, risk_level, reason, requested_by, approved_by, approved_at)
+         VALUES ('environment.activate_live', $1, 'live', $2, '{}', '{}', 'high', 'go live', 'dev@example.test', 'owner@example.test', now()) RETURNING id`,
+        [targetId, status],
+      );
+      return result.rows[0].id as string;
+    }
+
+    async function readyLiveProject(slug: string) {
+      const project = await admin.createProject(orgA, { slug, name: slug }, actor);
+      await live.provision(orgA, project.id, actor);
+      const scope = { organizationId: orgA, projectId: project.id, environmentKind: "live" as const };
+      await quotas.assignPlan(scope, "standard", actor);
+      await admin.setCapability(scope, "email", true, actor);
+      const app = await admin.createApplication(scope, { slug: "api", name: "API" }, actor);
+      await admin.grant(scope, app.id, { capability: "email", action: "email:send" }, actor);
+      return { project, scope, app };
+    }
+
+    it("consumes one approval for exactly one project, then issues live credentials", async () => {
+      const first = await readyLiveProject("live-first");
+      const second = await readyLiveProject("live-second");
+      const approvalId = await approval(first.project.id);
+
+      await expect(live.activate(orgA, second.project.id, approvalId, actor)).rejects.toThrow("target does not match");
+      await live.activate(orgA, first.project.id, approvalId, actor);
+      const status = await pool.query("SELECT status FROM apic_governance.approval_requests WHERE id = $1", [approvalId]);
+      expect(status.rows[0].status).toBe("applied");
+
+      const { secret } = await admin.issueCredential(first.scope, first.app.id, { operationId: randomUUID() }, actor);
+      const call = await access.authorize({ bearer: secret, capability: "email", method: "POST", relativePath: "/send", requestId: randomUUID() });
+      expect(call.identity.environmentKind).toBe("live");
+    });
+
+    it("leaves the environment provisioning when activation fails after readiness", async () => {
+      const { project } = await readyLiveProject("live-pending");
+      const pending = await approval(project.id, "pending");
+      await expect(live.activate(orgA, project.id, pending, actor)).rejects.toThrow("not approved");
+      expect((await live.readiness(orgA, project.id)).status).toBe("provisioning");
+    });
+
+    it("cannot be marked active in the database without an approval", async () => {
+      const { project } = await readyLiveProject("live-direct");
+      await expect(
+        pool.query("UPDATE apic_catalog.cp_environments SET status = 'active' WHERE project_id = $1 AND kind = 'live'", [project.id]),
+      ).rejects.toMatchObject({ code: "23514" });
+    });
   });
 
   describe("request budgets", () => {
@@ -220,7 +275,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
 
     it("rejects an environment whose organization differs from its project's", async () => {
       await expect(
-        pool.query("INSERT INTO apic_catalog.cp_environments (id, organization_id, project_id, kind) VALUES ($1, $2, $3, 'live')", [
+        pool.query("INSERT INTO apic_catalog.cp_environments (id, organization_id, project_id, kind, status) VALUES ($1, $2, $3, 'live', 'provisioning')", [
           id("env"),
           orgB,
           projectA,

@@ -9,6 +9,9 @@ import { ConsoleAccessService } from "./console-access.service";
 import { OrganizationPeopleService } from "./organization-people.service";
 import { ConsoleActorGuard } from "./console-actor.guard";
 import { QuotaService } from "./quota.service";
+import { LiveEnvironmentService } from "./live-environment.service";
+import { CapabilityConfigurationService } from "./capability-configuration.service";
+import { ApprovalsModule } from "@approvals/approvals.module";
 
 /**
  * Control plane v2: organization-owned projects, environment-bound applications, explicit
@@ -17,7 +20,7 @@ import { QuotaService } from "./quota.service";
  * ApplicationAccessService is the public entry point for the request path.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, ApprovalsModule],
   controllers: [ControlPlaneAdminController],
   providers: [
     ControlPlaneAdminService,
@@ -27,6 +30,8 @@ import { QuotaService } from "./quota.service";
     OrganizationPeopleService,
     ConsoleActorGuard,
     QuotaService,
+    LiveEnvironmentService,
+    CapabilityConfigurationService,
   ],
   exports: [ApplicationAccessService],
 })
