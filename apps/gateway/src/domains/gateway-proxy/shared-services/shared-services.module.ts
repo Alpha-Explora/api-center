@@ -19,6 +19,7 @@ import { DeliveryWebhookController } from "./delivery-webhook.controller";
 import { ControlPlaneModule } from "@domains/control-plane/control-plane.module";
 import { ApplicationCapabilityProxy } from "./application-capability-proxy";
 import { SharedCallerGuard } from "./shared-caller.guard";
+import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
 
 @Module({
   imports: [
@@ -31,6 +32,6 @@ import { SharedCallerGuard } from "./shared-caller.guard";
     ControlPlaneModule,
   ],
   controllers: [PaymentWebhookController, SharedServicesController, GoogleSignInAdminController, EmailSenderAdminController, DeliveryWebhookController],
-  providers: [SharedServiceEventPublisher, SharedServiceRoutingService, ApplicationCapabilityProxy, SharedCallerGuard],
+  providers: [SharedServiceEventPublisher, SharedServiceRoutingService, ApplicationCapabilityProxy, SharedCallerGuard, LegacyCallerDispatcher],
 })
 export class SharedServicesModule {}

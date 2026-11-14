@@ -71,6 +71,7 @@ import { ProjectOverviewModule } from "./domains/catalog-registry/project-overvi
 import { ControlPlaneModule } from "./domains/control-plane/control-plane.module";
 import { PublishedApisModule } from "./domains/gateway-proxy/published-apis/published-apis.module";
 import { EventDestinationsModule } from "./domains/control-plane/event-destinations/event-destinations.module";
+import { MigrationModule } from "./domains/control-plane/migration/migration.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { RequestDiagnosticsMiddleware } from "./shared/middleware/request-diagnostics.middleware";
@@ -117,6 +118,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     ControlPlaneModule, // Control plane v2: organization projects, applications, explicit grants, credentials
     PublishedApisModule, // /api/v1/apis/:apiId/* for control-plane published APIs
     EventDestinationsModule, // Per-environment event destinations for applications
+    MigrationModule, // Legacy tribe/project/service migration: inventory, backfill, cutover, rollback
 
     // ── 5. Infrastructure services ────────────────────────────────────────────
     AuthModule, // JWT providers + Vault + TokenStore — guards every proxy

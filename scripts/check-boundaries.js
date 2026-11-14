@@ -183,7 +183,11 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   // Control plane event destinations reuse the payment event subscription provisioner.
   'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service.ts',
   'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service.ts',
-  // Control plane v2 entry point for the shared-service request path.
+  // Read-only payment consumer listing for the control plane migration inventory.
+  'apps/gateway/src/domains/payments/features/consumer-management/payment-consumer-management.service.ts',
+  // Control plane v2 entry points for the request path and legacy migration bridge.
+  'apps/gateway/src/domains/control-plane/migration/legacy-bridge.service.ts',
+  'apps/gateway/src/domains/control-plane/migration/authority.ts',
   'apps/gateway/src/domains/control-plane/application-access.service.ts',
 ]);
 

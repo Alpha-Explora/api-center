@@ -12,6 +12,8 @@ import { QuotaService } from "./quota.service";
 import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
 import { PublishedApiService } from "./published-api.service";
+import { LegacyBridgeService } from "./migration/legacy-bridge.service";
+import { RegistryModule } from "@registry/registry.module";
 import { ApprovalsModule } from "@approvals/approvals.module";
 
 /**
@@ -21,7 +23,7 @@ import { ApprovalsModule } from "@approvals/approvals.module";
  * ApplicationAccessService is the public entry point for the request path.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule, ApprovalsModule],
+  imports: [DatabaseModule, AuthModule, ApprovalsModule, RegistryModule],
   controllers: [ControlPlaneAdminController],
   providers: [
     ControlPlaneAdminService,
@@ -34,7 +36,8 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     LiveEnvironmentService,
     CapabilityConfigurationService,
     PublishedApiService,
+    LegacyBridgeService,
   ],
-  exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, AuthModule],
+  exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, LegacyBridgeService, AuthModule],
 })
 export class ControlPlaneModule {}

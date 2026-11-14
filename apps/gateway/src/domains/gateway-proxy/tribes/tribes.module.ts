@@ -10,6 +10,8 @@ import { AnalyticsModule } from "@analytics/analytics.module";
 import { QuotasModule } from "@quotas/quotas.module";
 import { PolicyEngineModule } from "@policy/policy-engine.module";
 import { OperationsModule } from "@operations/operations.module";
+import { ControlPlaneModule } from "@domains/control-plane/control-plane.module";
+import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
 
 @Module({
   imports: [
@@ -19,7 +21,9 @@ import { OperationsModule } from "@operations/operations.module";
     QuotasModule,
     PolicyEngineModule,
     OperationsModule,
+    ControlPlaneModule,
   ],
   controllers: [TribesController],
+  providers: [LegacyCallerDispatcher],
 })
 export class TribesModule {}

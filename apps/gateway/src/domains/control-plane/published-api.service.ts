@@ -14,6 +14,7 @@ import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstre
 import { newResourceId } from "./application-credential";
 import { isValidPathPattern } from "./api-operations";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { assertControlPlaneAuthority } from "./migration/authority";
 import type { EnvironmentScope } from "./control-plane-admin.service";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -57,6 +58,7 @@ export class PublishedApiService {
     await assertPublicUpstream(input.upstreamUrl, upstreamGuardOptions());
     const api = await this.tenant(scope.organizationId, async (db) => {
       const environment = await requireEnvironment(db, scope);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       try {
         const created = await db.cpPublishedApi.create({
           data: {
@@ -130,6 +132,7 @@ export class PublishedApiService {
     const api = await this.tenant(organizationId, async (db) => {
       const existing = await db.cpPublishedApi.findFirst({ where: { id: apiId, organizationId } });
       if (!existing) throw new NotFoundError(`API '${apiId}' was not found`);
+      await assertControlPlaneAuthority(db, existing.projectId, existing.environmentKind as "test" | "live");
       if (change.operations) {
         await db.cpPublishedApiOperation.deleteMany({ where: { apiId, organizationId } });
         await db.cpPublishedApiOperation.createMany({ data: operationRows(organizationId, apiId, change.operations) });
@@ -158,6 +161,7 @@ export class PublishedApiService {
   async requestAccess(consumer: EnvironmentScope, applicationId: string, apiId: string, action: string, actor: string) {
     const outcome = await this.tenant(consumer.organizationId, async (db) => {
       const environment = await requireEnvironment(db, consumer);
+      await assertControlPlaneAuthority(db, consumer.projectId, consumer.environmentKind);
       const application = await db.cpApplication.findFirst({
         where: { id: applicationId, organizationId: consumer.organizationId, projectId: consumer.projectId, environmentId: environment.id },
       });

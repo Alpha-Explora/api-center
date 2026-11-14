@@ -11,6 +11,7 @@ import { PaymentPubSubProvisioningService } from "@payments/features/pubsub-prov
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { newResourceId } from "../application-credential";
 import { withTenant } from "../tenant-transaction";
+import { assertControlPlaneAuthority } from "../migration/authority";
 import type { EnvironmentScope } from "../control-plane-admin.service";
 
 export interface DestinationInput {
@@ -34,6 +35,7 @@ export class EventDestinationService {
         where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
       });
       if (!environment) throw new NotFoundError(`Project '${scope.projectId}' has no ${scope.environmentKind} environment`);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       const application = await db.cpApplication.findFirst({
         where: { id: input.recipientApplicationId, organizationId: scope.organizationId, environmentId: environment.id },
       });

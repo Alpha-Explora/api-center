@@ -40,6 +40,7 @@ import { stripApicenterIdentityHeaders } from "../../../shared/proxy/environment
 import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
 import { ApplicationCapabilityProxy } from "./application-capability-proxy";
 import { SharedCallerGuard, bearerToken } from "./shared-caller.guard";
+import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
 
 @Controller("shared")
 export class SharedServicesController implements OnModuleDestroy {
@@ -60,6 +61,7 @@ export class SharedServicesController implements OnModuleDestroy {
     policyEngine: PolicyEngineService,
     emergencyControls: EmergencyControlService,
     private readonly applicationProxy: ApplicationCapabilityProxy,
+    private readonly legacyCallers: LegacyCallerDispatcher,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
@@ -127,8 +129,20 @@ export class SharedServicesController implements OnModuleDestroy {
       stripApicenterIdentityHeaders(req.headers as Record<string, unknown> | undefined);
       throw new ForbiddenError("GAuth administrative routes are not available through the shared-service proxy");
     }
-    await this.handler.proxyRequest(serviceId, req, res);
+    const capability = serviceId.toLowerCase();
+    await this.legacyCallers.dispatch(
+      req,
+      res,
+      { kind: "capability", capability, method: req.method, relativePath: legacyRelativePath(req.path, `/api/v1/shared/${serviceId}`) },
+      () => this.handler.proxyRequest(serviceId, req, res),
+    );
   }
+}
+
+/** The path below the service prefix, for comparing decisions; "/" when it cannot be derived. */
+function legacyRelativePath(path: string | undefined, prefix: string): string {
+  if (!path || !path.startsWith(`${prefix}/`)) return "/";
+  return path.slice(prefix.length);
 }
 
 function isGauthAdminPath(path: string): boolean {

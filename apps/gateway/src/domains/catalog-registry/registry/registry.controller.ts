@@ -30,6 +30,8 @@ import {
   Optional,
 } from "@nestjs/common";
 import { TENANCY_DIRECTORY, type TenancyDirectory } from "./tenancy.types";
+import { PrismaService } from "@database/prisma.service";
+import { assertLegacyRegistryWritable } from "@domains/control-plane/migration/authority";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { RegistryService } from "./registry.service";
 import { AuditEventsService } from "@audit/audit-events.service";
@@ -59,7 +61,19 @@ export class RegistryController {
     private readonly auditEvents: AuditEventsService,
     private readonly approvals: ApprovalRequestService,
     @Optional() @Inject(TENANCY_DIRECTORY) private readonly tenancy?: TenancyDirectory,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
+
+  /** Refuses legacy writes to a project environment the control plane now governs. */
+  private async fenceLegacyWrite(projectId: string | undefined, environments: string[]) {
+    if (this.prisma) await assertLegacyRegistryWritable(this.prisma, this.tenancy, projectId, environments);
+  }
+
+  private async fenceServiceWrite(serviceId: string) {
+    if (!this.prisma) return;
+    const entry = this.registry.get(serviceId);
+    await this.fenceLegacyWrite(entry?.projectId, (entry?.environments ?? []).map((environment) => environment.environment));
+  }
 
   /**
    * POST /api/v1/registry/register
@@ -82,6 +96,8 @@ export class RegistryController {
       serviceTier: manifestDto.serviceTier as ServiceTier | undefined,
       serviceType: (manifestDto.serviceType ?? "tribe") as ServiceType,
     };
+    await this.fenceLegacyWrite(manifest.projectId, manifest.environments.map((environment) => environment.environment));
+    await this.fenceServiceWrite(dto.serviceId);
     await this.requireApproval({
       approvalRequestId: dto.approvalRequestId,
       actionType: "service.register_live",
@@ -247,6 +263,7 @@ export class RegistryController {
     @Param("serviceId") serviceId: string,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.fenceServiceWrite(serviceId);
     await this.registry.deregister(serviceId);
 
     this.logger.info("Service deregistered via API", {
@@ -280,6 +297,7 @@ export class RegistryController {
     @Body() dto: DeprecateServiceDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.fenceServiceWrite(serviceId);
     const entry = await this.registry.deprecate(
       serviceId,
       dto.sunsetDate,
@@ -327,6 +345,7 @@ export class RegistryController {
     @Body() body: { approvalRequestId?: string } = {},
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.fenceServiceWrite(serviceId);
     await this.requireApproval({
       approvalRequestId: body.approvalRequestId,
       actionType: "service.retire",
@@ -374,6 +393,7 @@ export class RegistryController {
     @Param("serviceId") serviceId: string,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.fenceServiceWrite(serviceId);
     const entry = await this.registry.activate(serviceId);
 
     this.logger.info(`Service '${serviceId}' activated via API`, {

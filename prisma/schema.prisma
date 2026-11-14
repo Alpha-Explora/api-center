@@ -853,3 +853,75 @@ model CpEventDestination {
   @@map("cp_event_destinations")
   @@schema("apic_catalog")
 }
+
+/// Which control-plane record a legacy record became. Makes backfill idempotent.
+model CpLegacyMapping {
+  organizationId    String   @map("organization_id") @db.Uuid
+  sourceKind        String   @map("source_kind")
+  sourceId          String   @map("source_id")
+  environmentKind   String   @default("") @map("environment_kind")
+  targetKind        String   @map("target_kind")
+  targetId          String   @map("target_id")
+  migrationRevision String   @map("migration_revision")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([sourceKind, sourceId, environmentKind])
+  @@map("cp_legacy_mappings")
+  @@schema("apic_catalog")
+}
+
+/// Which model is authoritative for a migrated project environment. Transitions name the fence.
+model CpControlPlaneAssignment {
+  organizationId    String    @map("organization_id") @db.Uuid
+  projectId         String    @map("project_id")
+  environmentKind   String    @map("environment_kind")
+  authority         String
+  fenceVersion      Int       @default(0) @map("fence_version")
+  legacyProjectId   String    @map("legacy_project_id")
+  legacyTribeId     String    @map("legacy_tribe_id")
+  migrationRevision String    @map("migration_revision")
+  changedBy         String    @map("changed_by")
+  changedAt         DateTime  @default(now()) @map("changed_at") @db.Timestamptz(6)
+  cutOverAt         DateTime? @map("cut_over_at") @db.Timestamptz(6)
+
+  @@id([projectId, environmentKind])
+  @@map("cp_control_plane_assignments")
+  @@schema("apic_catalog")
+}
+
+/// A legacy call whose new-model decision differs. Cutover waits until none is unresolved.
+model CpShadowMismatch {
+  organizationId  String    @map("organization_id") @db.Uuid
+  projectId       String    @map("project_id")
+  environmentKind String    @map("environment_kind")
+  sourceServiceId String    @map("source_service_id")
+  target          String
+  action          String
+  legacyAllowed   Boolean   @map("legacy_allowed")
+  newAllowed      Boolean   @map("new_allowed")
+  occurrences     Int       @default(1)
+  firstSeenAt     DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy      String?   @map("resolved_by")
+  resolution      String?
+
+  @@id([projectId, environmentKind, sourceServiceId, target, action, legacyAllowed])
+  @@map("cp_shadow_mismatches")
+  @@schema("apic_catalog")
+}
+
+model CpMigrationRun {
+  id                String   @id
+  organizationId    String   @map("organization_id") @db.Uuid
+  kind              String
+  projectId         String?  @map("project_id")
+  environmentKind   String?  @map("environment_kind")
+  migrationRevision String   @map("migration_revision")
+  report            Json     @default("{}")
+  actor             String
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_migration_runs")
+  @@schema("apic_catalog")
+}

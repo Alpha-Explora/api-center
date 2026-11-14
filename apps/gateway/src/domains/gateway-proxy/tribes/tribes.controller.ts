@@ -35,6 +35,7 @@ import { PolicyEngineService } from "@policy/policy-engine.service";
 import { EmergencyControlService } from "@operations/emergency-control.service";
 import { ProxyHandler } from "@shared/proxy-handler";
 import { AuthenticatedRequest } from "../../../types";
+import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
 
 @Controller("tribes")
 @UseGuards(JwtAuthGuard)
@@ -52,6 +53,7 @@ export class TribesController implements OnModuleDestroy {
     quotaEnforcer: TribeQuotaEnforcerService,
     policyEngine: PolicyEngineService,
     emergencyControls: EmergencyControlService,
+    private readonly legacyCallers: LegacyCallerDispatcher,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
@@ -103,6 +105,13 @@ export class TribesController implements OnModuleDestroy {
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
-    await this.handler.proxyRequest(targetServiceId, req, res);
+    const prefix = `/api/v1/tribes/${targetServiceId}`;
+    const relativePath = req.path?.startsWith(`${prefix}/`) ? req.path.slice(prefix.length) : "/";
+    await this.legacyCallers.dispatch(
+      req,
+      res,
+      { kind: "service", legacyServiceId: targetServiceId, method: req.method, relativePath },
+      () => this.handler.proxyRequest(targetServiceId, req, res),
+    );
   }
 }

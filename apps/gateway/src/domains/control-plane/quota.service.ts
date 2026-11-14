@@ -12,6 +12,7 @@ import { AppError, NotFoundError, ValidationError } from "@shared/errors";
 import { isKnownCapability } from "./capability-catalog";
 import { composeBudgets, listPlans, planAllowsLive, testDefaultDailyRequests, windowStart, type Budget } from "./quota-budgets";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { assertControlPlaneAuthority } from "./migration/authority";
 import type { ApplicationIdentity, EnvironmentKind } from "./control-plane.types";
 import type { EnvironmentScope } from "./control-plane-admin.service";
 
@@ -174,6 +175,7 @@ export class QuotaService {
     }
     const entitlement = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
       const environment = await requireEnvironment(db, scope);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       await db.cpEntitlement.updateMany({
         where: { organizationId: scope.organizationId, environmentId: environment.id, status: "active" },
         data: { status: "archived", archivedAt: new Date() },

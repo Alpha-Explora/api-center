@@ -177,6 +177,10 @@ export function createFakeControlPlanePrisma() {
     cpPublishedApiOperation: new FakeDelegate((row) => `${row.apiId}/${row.method}/${row.pathPattern}`),
     cpApiAccessRequest: new FakeDelegate((row) => String(row.id)),
     cpEventDestination: new FakeDelegate((row) => String(row.id)),
+    cpControlPlaneAssignment: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}`),
+    cpLegacyMapping: new FakeDelegate((row) => `${row.sourceKind}/${row.sourceId}/${row.environmentKind}`),
+    cpShadowMismatch: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}/${row.sourceServiceId}/${row.target}/${row.action}/${row.legacyAllowed}`),
+    cpMigrationRun: new FakeDelegate((row) => String(row.id)),
     quotaCounters: new Map<string, number>(),
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {

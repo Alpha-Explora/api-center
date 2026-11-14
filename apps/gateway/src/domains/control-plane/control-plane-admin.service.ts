@@ -13,6 +13,7 @@ import { generateApplicationCredential, newResourceId } from "./application-cred
 import type { EnvironmentKind } from "./control-plane.types";
 import { withTenant, type TenantDb } from "./tenant-transaction";
 import { assertMerchantBinding } from "./merchant-binding";
+import { assertControlPlaneAuthority } from "./migration/authority";
 
 const DEFAULT_CREDENTIAL_LIFETIME_DAYS = 90;
 
@@ -108,6 +109,7 @@ export class ControlPlaneAdminService {
     const status = enabled ? "enabled" : "disabled";
     const { environment, installation } = await this.tenant(scope.organizationId, async (db) => {
       const environment = await this.resolveEnvironment(db, scope);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       const installation = await db.cpCapabilityInstallation.upsert({
       where: { environmentId_capability: { environmentId: environment.id, capability } },
       create: {
@@ -134,6 +136,7 @@ export class ControlPlaneAdminService {
     const { environment, application } = await this.uniqueOrConflict(`Application slug '${input.slug}' is already used in this environment`, () =>
       this.tenant(scope.organizationId, async (db) => {
         const environment = await this.resolveEnvironment(db, scope);
+        await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
         const application = await db.cpApplication.create({
         data: {
           id: newResourceId("app"),
@@ -177,6 +180,7 @@ export class ControlPlaneAdminService {
     const outcome = await this.uniqueOrConflict("This action is already granted", () =>
       this.tenant(scope.organizationId, async (db) => {
         const application = await this.resolveApplication(db, scope, applicationId);
+        await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
         const existing = await db.cpApplicationGrant.findFirst({
           where: { applicationId: application.id, ...target, status: "active" },
         });
@@ -219,6 +223,7 @@ export class ControlPlaneAdminService {
   async revokeGrant(scope: EnvironmentScope, applicationId: string, grantId: string, actor: string) {
     const outcome = await this.tenant(scope.organizationId, async (db) => {
       const application = await this.resolveApplication(db, scope, applicationId);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       const grant = await db.cpApplicationGrant.findFirst({
         where: { id: grantId, applicationId: application.id, organizationId: application.organizationId },
       });
@@ -262,6 +267,7 @@ export class ControlPlaneAdminService {
 
     const outcome = await this.tenant(scope.organizationId, async (db) => {
       const environment = await this.resolveEnvironment(db, scope);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       if (environment.kind === "live" && environment.status !== "active") {
         throw new AppError("The live environment must be activated before live credentials can be issued", 409, "LIVE_ENVIRONMENT_NOT_ACTIVE");
       }
@@ -341,6 +347,7 @@ export class ControlPlaneAdminService {
   async revokeCredential(scope: EnvironmentScope, applicationId: string, credentialId: string, reason: string, actor: string) {
     const outcome = await this.tenant(scope.organizationId, async (db) => {
       const application = await this.resolveApplication(db, scope, applicationId);
+      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       const credential = await db.cpCredential.findFirst({
         where: { id: credentialId, applicationId: application.id, organizationId: application.organizationId },
       });
