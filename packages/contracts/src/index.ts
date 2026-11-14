@@ -32,6 +32,22 @@ export interface SharedServiceManifest {
 
 export type PaymentEnvironment = 'test' | 'live';
 
+export type ProjectSetupStatus = 'ready' | 'missing' | 'unknown';
+
+export interface ProjectSetupCheck {
+  id: string;
+  status: ProjectSetupStatus;
+  detail: string;
+  fix: string;
+}
+
+export interface ProjectSetupStatusResponse {
+  projectId: string;
+  serviceId: string;
+  environment: PaymentEnvironment;
+  checks: ProjectSetupCheck[];
+}
+
 export interface PaymentRecord {
   type: string;
   id: string;
@@ -71,7 +87,7 @@ export type SubscriptionStatus =
   | 'incomplete'
   | 'expired';
 
-export type RefundStatus = 'pending' | 'succeeded' | 'failed';
+export type RefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed';
 
 export interface PaymentEventEnvelope<T = Record<string, unknown>> {
   eventId: string;
@@ -424,6 +440,15 @@ export interface PaymentIntent {
   status: PaymentIntentStatus | string;
   amount: Money;
   aggregateVersion?: number;
+  clientKey?: string;
+  nextAction?: PaymentIntentNextAction;
+}
+
+/** A provider action the customer must complete to advance a payment intent. */
+export interface PaymentIntentNextAction {
+  type: 'redirect';
+  redirectUrl: string;
+  returnUrl?: string;
 }
 
 export interface QrPhPaymentIntent extends PaymentIntent {
@@ -431,7 +456,12 @@ export interface QrPhPaymentIntent extends PaymentIntent {
   expirySeconds: number;
 }
 
-export type ConfirmPaymentIntentInput = Record<string, never>;
+/** Client-created payment method and redirect context used to confirm an intent. */
+export interface ConfirmPaymentIntentInput {
+  paymentMethodId: string;
+  clientKey: string;
+  returnUrl: string;
+}
 
 export interface CreateCustomerInput {
   customerReference: string;

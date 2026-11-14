@@ -34,7 +34,8 @@ describe('ApiCenter payments namespace', () => {
     await api.payments.intents.create({ referenceId: 'order-2', amount: { amountMinor: 500, currency: 'PHP' } }, idem);
     await api.payments.intents.createQrPh({ referenceId: 'order-3', amount: { amountMinor: 500, currency: 'PHP' } }, idem);
     await api.payments.intents.get('intent-1');
-    await api.payments.intents.confirm('intent-1', idem);
+    const confirmation = { paymentMethodId: 'pm_1', clientKey: 'pi_1_client', returnUrl: 'https://app.example.test/return' };
+    await api.payments.intents.confirm('intent-1', confirmation, idem);
     await api.payments.intents.cancel('intent-1', idem);
     await api.payments.customers.create({ customerReference: 'cust-1', email: 'person@example.com' }, idem);
     await api.payments.customers.get('customer-1');
@@ -97,6 +98,7 @@ describe('ApiCenter payments namespace', () => {
     for (const index of [0, 3, 4, 5, 7, 8, 9, 11, 14, 17, 18, 19, 21, 23]) {
       expect(new Headers(calls(fetchImpl)[index]?.[1].headers).get('idempotency-key')).toBe('payment-operation-0001');
     }
+    expect(JSON.parse(String(calls(fetchImpl)[7]?.[1].body))).toEqual(confirmation);
     expect(new URL(calls(fetchImpl)[26]?.[0] ?? '').searchParams.get('cursor')).toBe('page / +');
   });
 

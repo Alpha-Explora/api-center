@@ -9,6 +9,7 @@
     "/oauth/token",
     "/oauth/token/refresh",
     "/oauth/logout",
+    "/verify-token",
     "/health"
   ],
   "consumes": [],

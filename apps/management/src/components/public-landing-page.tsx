@@ -3,14 +3,18 @@ import Link from "next/link";
 import {
   ArrowRightIcon,
   BarChart3Icon,
-  CalendarIcon,
+  Code2Icon,
+  CreditCardIcon,
   CheckCircle2Icon,
   FolderOpenIcon,
-  Link2Icon,
+  KeyRoundIcon,
+  MailIcon,
+  MapPinIcon,
+  MessageSquareIcon,
   SearchIcon,
   SparklesIcon,
-  StarIcon,
-  WandSparklesIcon,
+  ShieldCheckIcon,
+  UserRoundCheckIcon,
   WaypointsIcon,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,166 +22,182 @@ import { cn } from "@/lib/utils";
 
 /*
  * Landing-page composition copied/adapted from Shreyas-29/linkify under the
- * MIT License. Auth routes are mapped locally so this app can preview it.
+ * MIT License. Styling is retained; content and previews describe APICenter.
  */
 
+const DOCS_URL = "https://docs.apicenter.itsandbox.site";
+const guideUrl = (path: string) => `${DOCS_URL}/guides/${path}`;
+
 const navItems = [
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Testimonials", href: "#reviews" },
-  { label: "Process", href: "#process" },
+  { label: "Platform", href: "#features" },
+  { label: "Getting started", href: "#process" },
+  { label: "For teams", href: "#teams" },
+  { label: "Shared services", href: "#services" },
 ];
 
-const companies = [
-  { name: "Asana", logo: "/linkify/assets/company-01.svg" },
-  { name: "Tidal", logo: "/linkify/assets/company-02.svg" },
-  { name: "Innovaccer", logo: "/linkify/assets/company-03.svg" },
-  { name: "Linear", logo: "/linkify/assets/company-04.svg" },
-  { name: "Raycast", logo: "/linkify/assets/company-05.svg" },
-  { name: "Labelbox", logo: "/linkify/assets/company-06.svg" },
+const sharedServices = [
+  "Payments",
+  "Email",
+  "SMS",
+  "OTP",
+  "Geocoding",
+  "Google sign-in",
 ];
 
 const featureCards = [
   {
-    icon: Link2Icon,
-    name: "Shorten links",
-    description: "Create short links that are easy to remember and share.",
+    icon: WaypointsIcon,
+    name: "One gateway",
+    description:
+      "Call registered team APIs and shared services through a common entry point.",
+    href: guideUrl("identity-gateway/registry-health"),
     className: "lg:col-span-1",
-    background: <ShortenLinksCard />,
+    background: <GatewayCard />,
   },
   {
     icon: SearchIcon,
-    name: "Search your links",
-    description: "Quickly find the links you need with AI-powered search.",
+    name: "A catalog your teams can use",
+    description:
+      "Find services, their owners, exposed routes, and dependencies in the registry.",
+    href: guideUrl("management/register-service"),
     className: "lg:col-span-2",
-    background: <SearchLinksCard />,
+    background: <RegistryCard />,
   },
   {
     icon: WaypointsIcon,
-    name: "Connect your apps",
-    description: "Integrate with your favorite apps and services.",
+    name: "Shared services, ready to integrate",
+    description:
+      "Use payments, messaging, verification, location, and Google sign-in through the server-side SDK.",
+    href: guideUrl("sdk-usage"),
     className: "lg:col-span-2",
-    background: <IntegrationsCard />,
+    background: <SharedServicesCard />,
   },
   {
-    icon: CalendarIcon,
-    name: "Calendar",
-    description: "Keep track of your links with our calendar view.",
+    icon: ShieldCheckIcon,
+    name: "Governed access",
+    description:
+      "Manage service scopes, quotas, and audit records with separate test and live credentials.",
+    href: guideUrl("authentication"),
     className: "lg:col-span-1",
-    background: <CalendarCard />,
+    background: <AccessCard />,
   },
 ];
 
 const process = [
   {
-    title: "Organize Your Links",
+    title: "Register your service",
     description:
-      "Efficiently categorize and tag your links for quick access and easy management.",
+      "Get organization access, then place your service in a tribe and project. Define its routes, scopes, and dependencies.",
     icon: FolderOpenIcon,
   },
   {
-    title: "Shorten and Customize",
-    description: "Create concise, branded links that are easy to share and track.",
-    icon: WandSparklesIcon,
+    title: "Connect your backend",
+    description:
+      "Install the APICenter SDK and configure the service credentials issued for your environment.",
+    icon: Code2Icon,
   },
   {
-    title: "Analyze and Optimize",
+    title: "Call and monitor",
     description:
-      "Gain insights into link performance and optimize for better engagement.",
+      "Call shared APIs from your backend. Use the console to review usage, quotas, and audit records.",
     icon: BarChart3Icon,
   },
 ];
 
-const plans = [
+const workflows = [
   {
-    name: "Free",
-    info: "For most individuals",
-    price: 0,
+    name: "Application developers",
+    info: "Integrate shared capabilities into your backend.",
+    focus: "Build with the SDK",
     features: [
-      "Shorten links",
-      "Up to 100 tags",
-      "Customizable branded links",
-      "Track clicks",
-      "Community support",
-      "AI powered suggestions",
+      "Server-side TypeScript SDK",
+      "Service authentication",
+      "Shared-service namespaces",
+      "Payment and event guides",
+      "Separate test and live credentials",
     ],
-    button: "Start for free",
+    button: "Read the integration guide",
+    href: guideUrl("sdk-usage"),
   },
   {
-    name: "Pro",
-    info: "For small businesses",
-    price: 9,
+    name: "Platform teams",
+    info: "Manage services and access across your organization.",
+    focus: "Run the platform",
     featured: true,
     features: [
-      "Shorten links",
-      "Up to 500 tags",
-      "Customizable branded links",
-      "Track clicks",
-      "Export click data",
-      "Priority support",
-      "AI powered suggestions",
+      "Organization-scoped console",
+      "Tribe and project registry",
+      "Service scopes and quotas",
+      "Gateway usage and health",
+      "Operational audit records",
     ],
-    button: "Get started",
+    button: "Open the console",
+    href: "/dashboard",
   },
   {
-    name: "Business",
-    info: "For large organizations",
-    price: 49,
+    name: "Service owners",
+    info: "Make your team's APIs discoverable and governed.",
+    focus: "Publish your API",
     features: [
-      "Shorten links",
-      "Unlimited tags",
-      "Customizable branded links",
-      "Track clicks",
-      "Export click data",
-      "Dedicated manager",
-      "AI powered suggestions",
+      "Service manifests",
+      "Registered routes and scopes",
+      "Project and environment placement",
+      "Shared-service dependencies",
+      "Registration and lifecycle controls",
     ],
-    button: "Contact team",
+    button: "Read the registration guide",
+    href: guideUrl("management/register-service"),
   },
 ];
 
-const reviews = [
+const services = [
   {
-    name: "Michael Smith",
-    username: "@michaelsmith",
-    rating: 5,
-    review:
-      "This tool is a lifesaver! Managing and tracking my links has never been easier. A must-have for anyone dealing with numerous links.",
+    name: "Payments",
+    label: "Checkout and payment lifecycle",
+    icon: CreditCardIcon,
+    description:
+      "Integrate checkouts, payment intents, refunds, subscriptions, and payment events through APICenter.",
+    href: guideUrl("payments/overview"),
   },
   {
-    name: "Emily Johnson",
-    username: "@emilyjohnson",
-    rating: 4,
-    review:
-      "Very useful app! It has streamlined my workflow considerably. A few minor bugs, but overall a great experience.",
+    name: "Email",
+    label: "Application messaging",
+    icon: MailIcon,
+    description:
+      "Send transactional email from your backend and check delivery status through the shared email service.",
+    href: guideUrl("messaging-verification/email"),
   },
   {
-    name: "Daniel Williams",
-    username: "@danielwilliams",
-    rating: 5,
-    review:
-      "I've been using this app daily for months. The insights and analytics it provides are invaluable. Highly recommend it!",
+    name: "SMS",
+    label: "Text messaging",
+    icon: MessageSquareIcon,
+    description:
+      "Send SMS notifications and retrieve message status with service-scoped access.",
+    href: guideUrl("messaging-verification/sms"),
   },
   {
-    name: "Sophia Brown",
-    username: "@sophiabrown",
-    rating: 4,
-    review:
-      "This app is fantastic! It offers everything I need to manage my links efficiently.",
+    name: "OTP",
+    label: "Verification",
+    icon: KeyRoundIcon,
+    description:
+      "Request and verify one-time codes through the shared verification service.",
+    href: guideUrl("messaging-verification/otp"),
   },
   {
-    name: "James Taylor",
-    username: "@jamestaylor",
-    rating: 5,
-    review:
-      "Absolutely love this app! It's intuitive and feature-rich. Has significantly improved how I manage and track links.",
+    name: "Geocoding",
+    label: "Location utilities",
+    icon: MapPinIcon,
+    description:
+      "Look up addresses and coordinates through APICenter's location service.",
+    href: guideUrl("platform-utilities/geo"),
   },
   {
-    name: "Olivia Martinez",
-    username: "@oliviamartinez",
-    rating: 4,
-    review:
-      "Great app with a lot of potential. It has already saved me a lot of time. Looking forward to future updates and improvements.",
+    name: "Google sign-in",
+    label: "Identity integration",
+    icon: UserRoundCheckIcon,
+    description:
+      "Configure project Google sign-in and integrate Google authentication through the shared service.",
+    href: guideUrl("identity-gateway/gauth"),
   },
 ];
 
@@ -193,33 +213,37 @@ export function PublicLandingPage() {
         <div className="relative mx-auto flex max-w-screen-xl flex-col items-center justify-center text-center">
           <div className="landing-reveal mt-24 flex flex-col items-center md:mt-28">
             <SparkBadge>
-              Manage links smarter
+              APIs and shared services, governed
               <ArrowRightIcon className="ml-1 size-3 transition-transform duration-300 group-hover:translate-x-0.5" />
             </SparkBadge>
             <h1 className="w-full max-w-5xl py-6 text-balance text-center text-5xl font-medium leading-[1.08] tracking-normal text-white sm:text-6xl md:text-7xl lg:text-8xl">
-              Smart Links with{" "}
+              One gateway for your APIs and{" "}
               <span className="inline-block bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
-                Precision
+                shared services
               </span>
             </h1>
             <p className="mb-12 max-w-2xl text-balance text-lg leading-8 text-white/58 md:text-xl">
-              Effortlessly streamline your link management with Linkify.
-              <span className="hidden md:inline">
-                {" "}
-                Shorten, track, and organize all your links in one place.
-              </span>
+              Connect your team&apos;s APIs, use shared services, and manage access
+              across your organization. APICenter brings service registration,
+              routing, and governance into one platform.
             </p>
-            <div className="z-10 flex items-center justify-center gap-4 whitespace-nowrap">
+            <div className="z-10 flex flex-wrap items-center justify-center gap-4">
               <Link
-                href="/signup"
+                href="/dashboard"
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   "h-11 rounded-[8px] bg-white px-5 text-sm font-semibold text-black hover:bg-violet-100",
                 )}
               >
-                Start creating for free
+                Open the console
                 <ArrowRightIcon data-icon="inline-end" />
               </Link>
+              <a
+                href={guideUrl("getting-started")}
+                className="inline-flex h-11 items-center rounded-[8px] border border-white/20 px-5 text-sm font-semibold text-white/80 transition-colors hover:border-violet-300/50 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300"
+              >
+                Read the docs
+              </a>
             </div>
           </div>
 
@@ -231,15 +255,8 @@ export function PublicLandingPage() {
             <div className="-m-2 rounded-xl bg-white/[0.04] p-2 ring-1 ring-inset ring-white/18 backdrop-blur-3xl lg:-m-4 lg:rounded-2xl">
               <BorderBeam />
               <div className="relative overflow-hidden rounded-md border border-white/10 bg-black ring-1 ring-white/8 lg:rounded-xl">
-                <Image
-                  src="/linkify/assets/dashboard-dark.svg"
-                  alt="Linkify dashboard"
-                  width={1920}
-                  height={1080}
-                  priority
-                  className="h-auto w-full"
-                />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#050505] to-transparent" />
+                <ConsolePreview />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#050505] to-transparent" />
               </div>
             </div>
           </div>
@@ -248,19 +265,16 @@ export function PublicLandingPage() {
 
       <MaxWidthSection>
         <div className="py-14">
-          <h2 className="text-center text-sm font-medium uppercase tracking-[0.14em] text-white/42">
-            Trusted by the best in the industry
+          <h2 className="text-center text-sm font-medium text-white/58">
+            Shared capabilities for your applications
           </h2>
           <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
-            {companies.map((company) => (
-              <li key={company.name}>
-                <Image
-                  src={company.logo}
-                  alt={company.name}
-                  width={120}
-                  height={40}
-                  className="h-8 w-auto opacity-80 brightness-0 invert transition-opacity hover:opacity-100"
-                />
+            {sharedServices.map((service) => (
+              <li
+                key={service}
+                className="text-base font-semibold text-white/75"
+              >
+                {service}
               </li>
             ))}
           </ul>
@@ -270,8 +284,8 @@ export function PublicLandingPage() {
       <MaxWidthSection id="features" className="pt-10">
         <SectionHeader
           badge="Features"
-          title="Manage Links Like a Pro"
-          text="Linkify is a powerful link management tool that helps you shorten, track, and organize all your links in one place."
+          title="Connect services. Control access."
+          text="Give your teams a common way to discover APIs, call shared services, and manage who can use them."
         />
         <div className="grid auto-rows-[22rem] grid-cols-1 gap-4 py-8 lg:grid-cols-3">
           {featureCards.map((feature) => {
@@ -279,7 +293,7 @@ export function PublicLandingPage() {
             return (
               <BentoCard key={feature.name} className={feature.className}>
                 {feature.background}
-                <div className="pointer-events-none relative z-10 mt-auto flex flex-col gap-1 p-6 transition-all duration-300 group-hover:-translate-y-10">
+                <div className="pointer-events-none relative z-10 mt-auto flex flex-col gap-1 p-6 pb-16 transition-all duration-300 group-hover:-translate-y-10 group-focus-within:-translate-y-10 lg:pb-6">
                   <Icon className="size-11 origin-left text-neutral-700 transition-all duration-300 group-hover:scale-75" />
                   <h3 className="text-xl font-semibold text-neutral-300">
                     {feature.name}
@@ -288,10 +302,11 @@ export function PublicLandingPage() {
                     {feature.description}
                   </p>
                 </div>
-                <div className="absolute bottom-0 flex w-full translate-y-10 items-center p-4 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                <div className="absolute bottom-0 flex w-full items-center p-4 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 lg:translate-y-10 lg:opacity-0">
                   <a
-                    href="#features"
-                    className="inline-flex items-center text-sm font-semibold text-violet-200"
+                    href={feature.href}
+                    className="inline-flex items-center rounded text-sm font-semibold text-violet-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300"
+                    aria-label={`Read about ${feature.name}`}
                   >
                     Learn more
                     <ArrowRightIcon className="ml-2 size-4" />
@@ -305,9 +320,9 @@ export function PublicLandingPage() {
 
       <MaxWidthSection id="process" className="py-10">
         <SectionHeader
-          badge="The Process"
-          title="Effortless link management in 3 steps"
-          text="Follow these simple steps to optimize, organize, and share your links with ease."
+          badge="Getting started"
+          title="Bring your service into APICenter"
+          text="Start with organization access and service registration, then connect your backend to the APIs it needs."
         />
         <div className="grid w-full gap-4 py-8 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
           {process.map((item, index) => {
@@ -334,14 +349,14 @@ export function PublicLandingPage() {
         </div>
       </MaxWidthSection>
 
-      <MaxWidthSection id="pricing" className="py-10">
+      <MaxWidthSection id="teams" className="py-10">
         <SectionHeader
-          badge="Simple Pricing"
-          title="Choose a plan that works for you"
-          text="Get started with Linkify today and enjoy more features with our pro plans."
+          badge="For teams"
+          title="A shared platform for every team"
+          text="Application developers, platform teams, and service owners work from the same registry and access rules."
         />
         <div className="grid gap-4 py-8 lg:grid-cols-3">
-          {plans.map((plan) => (
+          {workflows.map((plan) => (
             <article
               key={plan.name}
               className={cn(
@@ -354,13 +369,10 @@ export function PublicLandingPage() {
               <div className="text-sm font-medium text-white/60">
                 {plan.name}
               </div>
-              <div className="mt-1 text-sm text-white/42">{plan.info}</div>
-              <div className="mt-5 flex items-end gap-1">
-                <span className="text-4xl font-semibold">${plan.price}</span>
-                <span className="pb-1 text-sm text-white/45">/month</span>
-              </div>
+              <div className="mt-1 min-h-10 text-sm text-white/42">{plan.info}</div>
+              <h3 className="mt-5 text-3xl font-semibold">{plan.focus}</h3>
               <Link
-                href="/signup"
+                href={plan.href}
                 className={cn(
                   buttonVariants({ size: "sm" }),
                   "mt-6 h-9 w-full rounded-[8px] text-xs font-semibold",
@@ -384,48 +396,48 @@ export function PublicLandingPage() {
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-white/54">
           <CheckCircle2Icon className="size-5 text-violet-300" />
-          <span>No credit card required</span>
+          <span>Access is managed by your organization</span>
         </div>
       </MaxWidthSection>
 
-      <MaxWidthSection id="reviews" className="py-10">
+      <MaxWidthSection id="services" className="py-10">
         <SectionHeader
-          badge="Our Customers"
-          title="What our users are saying"
-          text="Here's what some of our users have to say about Linkify."
+          badge="Shared services"
+          title="Common capabilities, one integration"
+          text="Use APICenter's shared services from your backend. Follow each integration guide for setup and provider requirements."
         />
         <div className="grid grid-cols-1 gap-4 py-10 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
-          {reviews.map((review) => (
-            <MagicCard key={`${review.name}-${review.username}`} className="p-0">
-              <article className="flex h-full flex-col p-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white">
-                    {review.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")}
+          {services.map((service) => {
+            const Icon = service.icon;
+            return (
+              <MagicCard key={service.name} className="p-0">
+                <article className="flex h-full flex-col p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-violet-200">
+                      <Icon className="size-5" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-medium text-white/85">
+                        {service.name}
+                      </h3>
+                      <p className="text-sm text-white/52">{service.label}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-medium text-white/76">
-                      {review.name}
-                    </h3>
-                    <p className="text-sm text-white/42">{review.username}</p>
-                  </div>
-                </div>
-                <p className="mt-5 text-sm leading-6 text-white/56">
-                  {review.review}
-                </p>
-                <div className="mt-auto flex gap-1 pt-6">
-                  {Array.from({ length: review.rating }, (_, index) => (
-                    <StarIcon
-                      key={index}
-                      className="size-4 fill-[#f5a524] text-[#f5a524]"
-                    />
-                  ))}
-                </div>
-              </article>
-            </MagicCard>
-          ))}
+                  <p className="mt-5 text-sm leading-6 text-white/65">
+                    {service.description}
+                  </p>
+                  <a
+                    href={service.href}
+                    className="mt-auto inline-flex items-center gap-2 rounded pt-6 text-sm font-medium text-violet-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300"
+                    aria-label={"Read the " + service.name + " guide"}
+                  >
+                    Read the guide{" "}
+                    <ArrowRightIcon className="size-4" aria-hidden="true" />
+                  </a>
+                </article>
+              </MagicCard>
+            );
+          })}
         </div>
       </MaxWidthSection>
 
@@ -445,16 +457,19 @@ function Navbar() {
         <div className="flex items-center gap-12">
           <Link href="/#home" className="flex items-center gap-3">
             <Image
-              src="/linkify/icons/logo.svg"
+              src="/brand/apicenter-geometric-mark-light.svg"
               alt=""
               aria-hidden="true"
               width={32}
               height={32}
               className="size-8"
             />
-            <span className="text-lg font-bold leading-none">Linkify</span>
+            <span className="text-lg font-bold leading-none">APICenter</span>
           </Link>
-          <nav className="hidden items-center gap-7 text-sm text-white/58 lg:flex">
+          <nav
+            aria-label="Main navigation"
+            className="hidden items-center gap-7 text-sm text-white/58 lg:flex"
+          >
             {navItems.map((link) => (
               <a
                 key={link.label}
@@ -474,13 +489,13 @@ function Navbar() {
             Sign in
           </Link>
           <Link
-            href="/signup"
+            href={guideUrl("getting-started")}
             className={cn(
               buttonVariants({ size: "sm" }),
               "h-9 rounded-[8px] bg-white px-4 text-xs font-semibold text-black hover:bg-violet-100",
             )}
           >
-            Get started
+            Read the docs
           </Link>
         </div>
       </div>
@@ -599,37 +614,47 @@ function MagicCard({
   );
 }
 
-function ShortenLinksCard() {
+function GatewayCard() {
   return (
-    <div className="absolute left-10 top-10 w-[78%] origin-top rounded-md border border-white/10 bg-[#050505] p-4 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_0%,#000_100%)] group-hover:scale-105">
-      <div className="text-base font-medium text-white">Create short links</div>
-      <p className="mt-1 text-sm leading-6 text-white/44">
-        Create short links that are easy to remember and share.
-      </p>
-      <label className="mt-4 block text-sm text-white/58">Paste your link</label>
-      <div className="mt-2 rounded-[8px] border border-white/10 bg-white/[0.045] px-3 py-2 text-sm text-white/36">
-        Paste your link here...
+    <div
+      aria-hidden="true"
+      className="absolute left-10 top-10 w-[78%] origin-top rounded-md border border-white/10 bg-[#050505] p-4 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_0%,#000_100%)] group-hover:scale-105"
+    >
+      <div className="text-base font-medium text-white">Your application</div>
+      <div className="my-3 h-5 border-l border-dashed border-violet-300/50" />
+      <div className="rounded-[8px] border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-200">
+        APICenter gateway
+      </div>
+      <div className="my-3 h-5 border-l border-dashed border-violet-300/50" />
+      <div className="text-sm text-white/60">
+        Registered APIs + shared services
       </div>
     </div>
   );
 }
 
-function SearchLinksCard() {
+function RegistryCard() {
   return (
-    <div className="absolute right-10 top-10 w-[70%] origin-top border border-white/10 bg-[#050505] p-3 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)] group-hover:-translate-x-10">
-      <div className="rounded-[7px] border border-white/10 bg-white/[0.045] px-3 py-2 text-sm text-white/46">
-        Type to search...
+    <div
+      aria-hidden="true"
+      className="absolute right-10 top-10 w-[70%] origin-top rounded-md border border-white/10 bg-[#050505] p-3 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)] group-hover:-translate-x-10"
+    >
+      <div className="rounded-[7px] border border-white/10 bg-white/[0.045] px-3 py-2 text-sm text-white/65">
+        Organization / Tribe / Project
       </div>
-      <div className="mt-2 space-y-1 text-sm text-white/54">
+      <div className="mt-2 space-y-1 text-sm text-white/65">
         {[
-          "linkify.io/hdf00c",
-          "linkify.io/sdv0n0",
-          "linkify.io/03gndo",
-          "linkify.io/09vmmw",
-          "linkify.io/s09vws",
-          "linkify.io/sd8fv5",
+          "Service registry",
+          "Exposed API routes",
+          "Required scopes",
+          "Shared-service dependencies",
+          "Test and live environments",
         ].map((item) => (
-          <div key={item} className="rounded-md px-3 py-2 hover:bg-white/8">
+          <div
+            key={item}
+            className="flex items-center gap-3 rounded-md px-3 py-2"
+          >
+            <FolderOpenIcon className="size-4 text-violet-300" />
             {item}
           </div>
         ))}
@@ -638,15 +663,16 @@ function SearchLinksCard() {
   );
 }
 
-function IntegrationsCard() {
-  const names = ["Slack", "Notion", "GitHub", "Linear", "Raycast", "Stripe"];
-
+function SharedServicesCard() {
   return (
-    <div className="absolute right-2 top-4 grid h-[300px] w-[600px] grid-cols-3 gap-3 border-none pl-28 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_10%,#000_100%)] group-hover:scale-105 md:pl-0">
-      {names.map((name) => (
+    <div
+      aria-hidden="true"
+      className="absolute inset-x-5 top-4 grid h-[220px] grid-cols-3 gap-3 border-none transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_10%,#000_100%)] group-hover:scale-105 lg:left-auto lg:right-2 lg:h-[300px] lg:w-[600px]"
+    >
+      {sharedServices.map((name) => (
         <div
           key={name}
-          className="flex h-20 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.045] text-sm font-semibold text-white/62"
+          className="flex h-20 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.045] px-2 text-center text-sm font-semibold text-white/70"
         >
           {name}
         </div>
@@ -655,27 +681,142 @@ function IntegrationsCard() {
   );
 }
 
-function CalendarCard() {
+function AccessCard() {
   return (
-    <div className="absolute right-0 top-10 w-[86%] origin-top rounded-md border border-white/10 bg-[#050505] p-4 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)] group-hover:scale-105">
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-white/38">
-        {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-          <div key={`${day}-${index}`} className="pb-2">
-            {day}
-          </div>
-        ))}
-        {Array.from({ length: 35 }, (_, index) => (
+    <div
+      aria-hidden="true"
+      className="absolute right-0 top-10 w-[86%] origin-top rounded-md border border-white/10 bg-[#050505] p-4 transition-all duration-300 [mask-image:linear-gradient(to_top,transparent_20%,#000_100%)] group-hover:scale-105"
+    >
+      <div className="text-sm font-medium text-white/75">Service access</div>
+      <div className="mt-4 space-y-3 text-sm text-white/65">
+        {[
+          "Authenticated service",
+          "Required scopes",
+          "Quota policy",
+          "Audit record",
+        ].map((label) => (
           <div
-            key={index}
-            className={cn(
-              "flex aspect-square items-center justify-center rounded-[4px] border border-white/8",
-              index === 17 && "bg-violet-500/70 text-white",
-              index === 19 && "bg-fuchsia-500/40 text-white",
-            )}
+            key={label}
+            className="flex items-center gap-3 rounded-md border border-white/10 p-2"
           >
-            {index + 1 <= 31 ? index + 1 : ""}
+            <ShieldCheckIcon className="size-4 text-violet-300" />
+            {label}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ConsolePreview() {
+  return (
+    <div
+      role="img"
+      aria-label="Illustrative APICenter console preview showing a service registry, shared services, and governed API access"
+      className="bg-[#09090c] text-left"
+    >
+      <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4 md:px-8">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/brand/apicenter-geometric-mark-light.svg"
+            alt=""
+            width={24}
+            height={24}
+          />
+          <span className="text-sm font-semibold">APICenter</span>
+          <span className="hidden text-sm text-white/50 sm:inline">
+            Management console
+          </span>
+        </div>
+        <span className="rounded-full border border-violet-300/25 bg-violet-500/10 px-3 py-1 text-xs text-violet-200">
+          Illustrative preview
+        </span>
+      </div>
+      <div className="grid md:min-h-[420px] md:grid-cols-[180px_1fr] lg:grid-cols-[210px_1fr]">
+        <div className="hidden border-r border-white/10 px-4 py-6 md:block">
+          {[
+            "Dashboard",
+            "Service registry",
+            "Shared services",
+            "Quotas",
+            "Audit",
+          ].map((item) => (
+            <div
+              key={item}
+              className={cn(
+                "mb-2 rounded-md px-3 py-3 text-sm",
+                item === "Service registry"
+                  ? "bg-violet-500/15 text-violet-200"
+                  : "text-white/55",
+              )}
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+        <div className="min-w-0 p-5 md:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs text-white/50">
+                Organization / Tribe / Project
+              </div>
+              <div className="mt-2 text-xl font-semibold md:text-2xl">
+                Service registry
+              </div>
+            </div>
+            <span className="rounded-md border border-white/15 px-3 py-2 text-xs text-white/65">
+              Environment: test
+            </span>
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[
+              ["Discover", "Registered APIs"],
+              ["Integrate", "Shared services"],
+              ["Govern", "Scopes and quotas"],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-lg border border-white/10 bg-white/[0.025] p-4"
+              >
+                <div className="text-xs text-white/55">{label}</div>
+                <div className="mt-2 text-sm font-medium text-white/85">
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 overflow-hidden rounded-lg border border-white/10">
+            <div className="grid grid-cols-[1fr_1fr] gap-3 border-b border-white/10 bg-white/[0.025] px-4 py-3 text-xs text-white/55 sm:grid-cols-[1fr_1fr_1fr]">
+              <span>Service</span>
+              <span>Capability</span>
+              <span className="hidden sm:block">Access</span>
+            </div>
+            {[
+              ["payments", "Checkout and billing"],
+              ["email", "Transactional email"],
+              ["otp", "Verification codes"],
+            ].map(([name, capability]) => (
+              <div
+                key={name}
+                className="grid grid-cols-[1fr_1fr] gap-3 border-b border-white/5 px-4 py-4 text-sm sm:grid-cols-[1fr_1fr_1fr]"
+              >
+                <span className="text-white/80">{name}</span>
+                <span className="text-white/55">{capability}</span>
+                <span className="hidden text-violet-200 sm:block">
+                  Service-scoped
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-white/55">
+            <ShieldCheckIcon
+              className="size-4 text-violet-300"
+              aria-hidden="true"
+            />
+            Service credentials<span aria-hidden="true">/</span>Required scopes
+            <span aria-hidden="true">/</span>Usage quotas
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -686,21 +827,21 @@ function LampSection() {
     <div className="relative flex w-full flex-col items-center justify-center overflow-hidden rounded-[14px] border border-white/10 bg-[radial-gradient(42%_180px_at_50%_0%,rgba(139,92,246,0.34),transparent),#08080a] px-6 py-20 text-center">
       <div className="absolute top-0 h-px w-3/4 bg-gradient-to-r from-transparent via-violet-300 to-transparent" />
       <h2 className="mt-8 bg-gradient-to-b from-neutral-200 to-neutral-400 bg-clip-text py-4 text-center text-4xl font-medium leading-[1.15] tracking-normal text-transparent md:text-7xl">
-        Step into the future of link management
+        Connect your next service
       </h2>
       <p className="mx-auto mt-6 max-w-md text-white/54">
-        Experience the cutting-edge solution that transforms how you handle your
-        links. Elevate your online presence with our next-gen platform.
+        Register your API, connect the server-side SDK, and use the shared
+        services your application needs.
       </p>
       <div className="mt-6">
         <Link
-          href="/signup"
+          href={guideUrl("getting-started")}
           className={cn(
             buttonVariants({ size: "lg" }),
             "h-11 rounded-[8px] bg-white px-5 text-sm font-semibold text-black hover:bg-violet-100",
           )}
         >
-          Get started for free
+          Read the getting started guide
           <ArrowRightIcon data-icon="inline-end" />
         </Link>
       </div>
@@ -714,14 +855,14 @@ function Footer() {
       <div className="mx-auto flex max-w-screen-xl flex-col gap-8 md:flex-row md:items-center md:justify-between">
         <Link href="/#home" className="flex items-center gap-3">
           <Image
-            src="/linkify/icons/logo.svg"
+            src="/brand/apicenter-geometric-mark-light.svg"
             alt=""
             aria-hidden="true"
             width={28}
             height={28}
             className="size-7"
           />
-          <span className="text-lg font-bold">Linkify</span>
+          <span className="text-lg font-bold">APICenter</span>
         </Link>
         <div className="flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/50">
           {navItems.map((item) => (
@@ -732,7 +873,7 @@ function Footer() {
         </div>
       </div>
       <div className="mx-auto mt-12 max-w-screen-xl text-center text-6xl font-semibold tracking-normal text-white/[0.04] md:text-9xl">
-        LINKIFY
+        APICENTER
       </div>
     </footer>
   );

@@ -6,11 +6,11 @@ owner: platform-operators
 audience: [operators, engineers]
 last_verified: "2026-10-12"
 verification: runtime
-sources: ["infra/gcp/cloud-build/apicenter-workspace-images.json", "supabase/migrations/20261012011500_legacy_audit_write_compatibility.sql"]
+sources: ["infra/gcp/cloud-build/apicenter-workspace-images.json", "supabase/migrations"]
 ---
 # APICenter Cloud Run deployment - 2026-10-12
 
-This records the live deployment checked on 2026-10-12. Cloud resources were deployed manually to avoid writing against the unreconciled Terraform state described in [the Cloud Run ownership notes](../deployment-cloud-run.md#ownership-and-iac-boundary). The eight new workspace service definitions are saved under `infra/gcp/cloud-run/workspace/`, and the payment manifests reflect the live Cloud Run specifications. These files do not reconcile the recovered Terraform state or company Terraform.
+This records the live deployment checked on 2026-10-12. Cloud resources were deployed manually to avoid writing against the unreconciled Terraform state described in [the Cloud Run ownership notes](../deployment-cloud-run.md#ownership-and-iac-boundary). The eight new workspace service definitions are saved under `infra/gcp/cloud-run/workspace/`, and the payment manifests recorded the Cloud Run specifications observed then. Current checked-in versions are maintained configuration rather than verbatim exports: generated revision metadata is removed and newer scaling limits are retained. These files do not reconcile the recovered Terraform state or company Terraform.
 
 ## Project and billing
 
@@ -73,3 +73,5 @@ These checks cover startup, routing, database access, and service health. They d
 - Keep `apicenter.itsandbox.site` deferred until the domain is verified for the Google Cloud account.
 - Reconcile the live service definitions and new Memorystore Redis instance with the recovered infrastructure ownership before the next release. No Terraform state was changed by this deployment.
 - No spending budget or cap was configured for the Blaine billing account.
+
+Repository preparation note (2026-11-07): the legacy audit compatibility migration is proposed separately in [PR #168](https://github.com/Alpha-Explora/api-center/pull/168). This dated record does not verify the current migration or deployment state.

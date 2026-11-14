@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const { runSharedServiceGatewaySmoke } = require("./shared-service-gateway-smoke.cjs");
+
 const args = process.argv.slice(2);
 
 function getArg(name, fallback = "") {
@@ -27,6 +29,9 @@ const options = {
     process.env.API_CENTER_PLATFORM_ADMIN_SECRET ||
     process.env.PLATFORM_ADMIN_SECRET ||
     "",
+  sharedServiceGatewaySmoke: args.includes("--gateway-shared-services"),
+  sharedServiceSmokeToken:
+    process.env.APICENTER_SHARED_SERVICE_SMOKE_BEARER_TOKEN || "",
 };
 
 function requireValue(name, value) {
@@ -146,6 +151,17 @@ async function smokeManagement() {
 }
 
 async function main() {
+  if (options.sharedServiceGatewaySmoke) {
+    requireValue("APICENTER_URL", options.apiCenterBaseUrl);
+    requireValue("APICENTER_SHARED_SERVICE_SMOKE_BEARER_TOKEN", options.sharedServiceSmokeToken);
+    const results = await runSharedServiceGatewaySmoke({
+      baseUrl: options.apiCenterBaseUrl,
+      bearerToken: options.sharedServiceSmokeToken,
+    });
+    console.log(JSON.stringify({ environment: options.environment, gatewaySharedServices: results }, null, 2));
+    return;
+  }
+
   const result = {
     environment: options.environment,
     partition: {

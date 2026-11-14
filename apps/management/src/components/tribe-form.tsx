@@ -144,6 +144,9 @@ export function TribeForm({
   const projectLocked = mode === "edit" && Boolean(initialValue?.projectId);
   const watchedEnvironments =
     useWatch({ control: form.control, name: "environments" }) ?? [];
+  const hasLegacyEnvironments = watchedEnvironments.some(
+    (row) => row.environment !== "test" && row.environment !== "live",
+  );
   const targetsLive = watchedEnvironments.some(
     (row) => row.environment === "live",
   );
@@ -318,6 +321,17 @@ export function TribeForm({
               Use test for local development and staging, or live for
               production.
             </FieldDescription>
+            {hasLegacyEnvironments ? (
+              <Alert>
+                <AlertTriangleIcon data-icon="inline-start" />
+                <AlertTitle>Convert legacy environments before saving</AlertTitle>
+                <AlertDescription>
+                  Change or remove staging, uat, and demo rows below. Use test for
+                  development or staging, or live for production. Review each
+                  runtime URL and credential binding before changing its environment.
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <FieldGroup>
               {environmentFields.fields.map((field, index) => {
                 const selectedEnvironment =

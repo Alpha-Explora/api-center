@@ -2,7 +2,7 @@ BEGIN;
 CREATE TABLE apic_runtime.verification_runs (
   run_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   service_id text NOT NULL,
-  project_id text NOT NULL REFERENCES apic_catalog.projects(project_id),
+  project_id text NOT NULL, -- apic_catalog.projects(project_id); validated by the catalog, not a cross-schema foreign key
   environment text NOT NULL CHECK(environment IN ('test','live')),
   fingerprint text NOT NULL,
   gateway_revision text NOT NULL,

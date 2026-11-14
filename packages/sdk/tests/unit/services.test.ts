@@ -14,6 +14,28 @@ function calls(fetchImpl: jest.Mock): Array<[string, RequestInit]> {
 }
 
 describe('ApiCenter shared-service namespaces', () => {
+  it('reads setup status with the service bearer token', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({
+      projectId: 'shop',
+      serviceId: 'orders-api',
+      environment: 'test',
+      checks: [{ id: 'payments-access', status: 'unknown', detail: 'Key configured, caller possession is unknown.', fix: 'Ask an operator.' }],
+    }));
+    const api = new ApiCenter({
+      baseUrl: 'https://gateway.example.test',
+      auth: { getAccessToken: async () => 'service-token' },
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const status = await api.setup.status();
+
+    expect(status.projectId).toBe('shop');
+    expect(status.checks[0]?.status).toBe('unknown');
+    expect(calls(fetchImpl)[0]?.[0]).toBe('https://gateway.example.test/api/v1/setup/status');
+    expect(calls(fetchImpl)[0]?.[1].method).toBe('GET');
+    expect(new Headers(calls(fetchImpl)[0]?.[1].headers).get('authorization')).toBe('Bearer service-token');
+  });
+
   it('maps each supported operation to its route and preserves contract payloads', async () => {
     const fetchImpl = jest.fn().mockImplementation(async () => jsonResponse({ ok: true }));
     const api = new ApiCenter({

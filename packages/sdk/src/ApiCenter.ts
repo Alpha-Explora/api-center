@@ -5,6 +5,7 @@ import { GoogleAuthClient } from './services/google-auth';
 import { OtpClient } from './services/otp';
 import { PaymentsNamespace } from './services/payments';
 import { SmsClient } from './services/sms';
+import { SetupClient } from './services/setup';
 import type { ApiCenterOptions } from './types';
 
 /** Server-side client for APICenter shared services and payments. */
@@ -15,6 +16,7 @@ export class ApiCenter {
   readonly geo: GeoClient;
   readonly googleAuth: GoogleAuthClient;
   readonly payments: PaymentsNamespace;
+  readonly setup: SetupClient;
 
   constructor(options: ApiCenterOptions) {
     const transport = new ApiCenterTransport(options);
@@ -24,5 +26,6 @@ export class ApiCenter {
     this.geo = new GeoClient(transport);
     this.googleAuth = new GoogleAuthClient(transport);
     this.payments = new PaymentsNamespace(transport);
+    this.setup = new SetupClient(transport);
   }
 }

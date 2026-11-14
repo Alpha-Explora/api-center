@@ -73,6 +73,7 @@ const registeredService: ServiceRegistryEntry = {
 
 describe("TribeForm", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(listTribes).mockResolvedValue([smurfTribe]);
   });
 
@@ -90,6 +91,27 @@ describe("TribeForm", () => {
     expect((screen.getByLabelText("Project") as HTMLSelectElement).value).toBe(
       "smurf-village-default",
     );
+  });
+
+  it("requires explicit environment conversion when editing a legacy service", async () => {
+    vi.mocked(registerService).mockResolvedValue(registeredService);
+    renderWithClient(<TribeForm mode="edit" initialValue={{
+      ...registeredService,
+      environments: [{ environment: "staging", baseUrl: "https://legacy.example.test", status: "active" }],
+    }} />);
+    await screen.findByRole("option", { name: /smurf-village-default/ });
+    expect(screen.getByText("Convert legacy environments before saving")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Service name"), { target: { value: "Updated legacy service" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update service" }));
+    await screen.findByText("Use test for development or staging, or live for production");
+    expect(registerService).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Environment key for row 1"), { target: { value: "test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update service" }));
+    await waitFor(() => expect(registerService).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Updated legacy service",
+      environments: [expect.objectContaining({ environment: "test", baseUrl: "https://legacy.example.test" })],
+    })));
+    expect(screen.queryByText("Convert legacy environments before saving")).toBeNull();
   });
 
   it("gives shared-service checkboxes explicit labels", () => {
@@ -129,13 +151,13 @@ describe("TribeForm", () => {
       target: { value: "live" },
     });
     fireEvent.change(screen.getByLabelText("Environment URL for live"), {
-      target: { value: "https://trinithrive-staging.example.com" },
+      target: { value: "https://trinithrive-live.example.com" },
     });
 
-    fireEvent.change(screen.getByLabelText("Approved request ID"), { target: { value: "00000000-0000-4000-8000-000000000001" } });
-    fireEvent.change(screen.getByLabelText("Reason for live registration"), { target: { value: "Approved production registration" } });
+    fireEvent.change(screen.getByLabelText("Approved request ID"), { target: { value: "approval-123" } });
+    fireEvent.change(screen.getByLabelText("Reason for live registration"), { target: { value: "Launch approved" } });
     fireEvent.change(screen.getByLabelText("Live confirmation"), { target: { value: "APPLY LIVE CHANGE" } });
-
+    expect(screen.getByRole("button", { name: "Add environment" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Register service" }));
 
     await waitFor(() =>
@@ -150,11 +172,11 @@ describe("TribeForm", () => {
             }),
             expect.objectContaining({
               environment: "live",
-              baseUrl: "https://trinithrive-staging.example.com",
+              baseUrl: "https://trinithrive-live.example.com",
             }),
           ],
         }),
-        expect.objectContaining({ approvalRequestId: "00000000-0000-4000-8000-000000000001", confirmation: { typedPhrase: "APPLY LIVE CHANGE", reason: "Approved production registration" } }),
+        { confirmation: { typedPhrase: "APPLY LIVE CHANGE", reason: "Launch approved" }, approvalRequestId: "approval-123" },
       ),
     );
     expect(vi.mocked(registerService).mock.calls[0]?.[0]).not.toHaveProperty(

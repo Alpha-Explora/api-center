@@ -15,6 +15,7 @@ import { ApplicationAccessService } from "@domains/control-plane/application-acc
 import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import { z } from "zod";
 import { Request, Response } from "express";
+import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { PaymentAuthGuard } from "../../shared/payment-auth.guard";
 import { PaymentIdempotencyService } from "../../shared/payment-idempotency.service";
 import { AuthenticatedRequest } from "../../../../types";
@@ -181,6 +182,25 @@ export class PaymentsController {
       "x-tribe-id": principal.ownerTribeId,
     };
     headers.authorization = `Bearer ${token}`;
+    // The payments runtime reads its internal token from Authorization. Cloud Run
+    // checks the caller's Google identity in X-Serverless-Authorization and
+    // forwards Authorization to the container unchanged.
+    let cloudRunAuthorization: string | undefined;
+    try {
+      cloudRunAuthorization = await getCloudRunAuthorizationHeader(upstreamUrl);
+    } catch (error: unknown) {
+      await this.preserveUnknownOutcome({ principal, method: req.method, path, key: idempotencyKey });
+      const message = error instanceof Error ? error.message : "Payment upstream authentication unavailable";
+      res.status(HttpStatus.BAD_GATEWAY).json({
+        success: false,
+        error: {
+          code: "PAYMENT_UPSTREAM_UNREACHABLE",
+          message,
+        },
+      });
+      return;
+    }
+    if (cloudRunAuthorization) headers["x-serverless-authorization"] = cloudRunAuthorization;
     if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
 
     const config: AxiosRequestConfig = {
@@ -196,14 +216,29 @@ export class PaymentsController {
 
     try {
       const response = await axios.request(config);
-      const parsed =
-        typeof response.data === "string" || Buffer.isBuffer(response.data)
-          ? JSON.parse(
-              Buffer.isBuffer(response.data)
-                ? response.data.toString("utf8")
-                : response.data,
-            )
-          : response.data;
+      let parsed: unknown;
+      try {
+        parsed =
+          typeof response.data === "string" || Buffer.isBuffer(response.data)
+            ? JSON.parse(
+                Buffer.isBuffer(response.data)
+                  ? response.data.toString("utf8")
+                  : response.data,
+              )
+            : response.data;
+      } catch {
+        await this.preserveUnknownOutcome({ principal, method: req.method, path, key: idempotencyKey });
+        this.logger.error(`Payment runtime returned HTTP ${response.status} with a non-JSON body for ${req.method} ${runtimePath}`);
+        res.locals.requestDiagnostic = { code: "PAYMENT_UPSTREAM_INVALID_RESPONSE", stage: "runtime" };
+        res.status(HttpStatus.BAD_GATEWAY).json({
+          success: false,
+          error: {
+            code: "PAYMENT_UPSTREAM_INVALID_RESPONSE",
+            message: `Payment runtime returned HTTP ${response.status} with a non-JSON body`,
+          },
+        });
+        return;
+      }
       const mapped = paymentResponseBody(operation.resource, parsed);
       if (response.status < 400) this.recordResource(res, mapped);
       if (response.status >= 400) {

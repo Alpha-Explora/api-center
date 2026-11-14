@@ -13,8 +13,36 @@
 
 - Proposed an operability design covering guided go-live, credential lifecycle controls, request diagnostics and payment event replay, shared-service HTTP contracts, and repeatable release verification. The user subsequently approved implementation; fresh deployed acceptance remains pending.
 
-## 2026-10-12
+## 2026-11-07
 
+- Verify the existing enabled test-payment database secret reference and guard against reverting to a destroyed historical version.
+
+- Preserve internal payment-runtime ingress during hosted manifest reconciliation and document the separately observed live ingress drift.
+
+- Reconcile hosted access and deployment sources on current main; retain incomplete acceptance checks and historical rollout dates without claiming fresh cloud verification.
+
+- Expose project/service setup checks through the gateway, SDK and console, preserve React hook order, and revalidate payment API-key lifecycle state.
+
+- Replace the generic public landing page with APICenter-specific gateway, registry, governance and shared-service content and clear console/docs entry points.
+- Support HTTPS payment-event receivers outside Cloud Run and configurable OIDC audiences while retaining environment and endpoint validation.
+- Authenticate private payment runtime calls, preserve uncertain proxy outcomes, restore scoped service JWT payment access, verify Google tokens against registered clients, and bound authenticated health sweeps.
+- Bound gateway database pools to two connections per instance by default and allow canonical audit writes on legacy schemas without deleting historical audit values.
+- Explain and test explicit legacy-environment conversion before editing registrations, preserving test/live-only writes and live approval checks.
+
+- Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
+
+## 2026-10-19
+
+- Updated payment recovery ownership to describe payment records registered by checkout polling, while retaining signed webhook receipts and event publication as separate operations.
+
+## 2026-10-17
+
+- Documented checkout status reconciliation, the distinction between polling and webhook events, and recovery of disabled PayMongo webhooks with matching secrets on gateway and payments runtime.
+- Updated the consumer refunds guide and public status contract to document refreshed provider-backed refund states.
+- Deployment and provider acceptance remain separate rollout checks; this entry records repository behavior and operator instructions.
+- Updated the public payment-intent guide with confirmation fields, client-key handling, and redirect completion guidance.
+
+## 2026-10-12
 - Documented the gateway's per-service credential prefix and per-instance database pool budget after Serbizio onboarding exposed the legacy prefix and a Supabase session-pooler capacity failure. The dated rollout record distinguishes registration, pending live approval and credential acceptance.
 - Clarified service registration environments and live approval requirements after the deployed form accepted unsupported labels and omitted confirmation fields. Updated the consumer guide to distinguish a deployment called staging from APICenter's test credential environment.
 - Applied the approved hostname rollout: recorded active HTTPS certificates, four Cloudflare records, deployed app revisions, confirmed OAuth origin, access restrictions, and rollback inputs. Aligned active SDK, Management, public contract, and docs app URL examples with the canonical API and docs hostnames. Added the hosted access runbook and fixed docs redirects behind the load balancer. Interactive sign-in and consumer/provider acceptance remain pending in the rollout record.

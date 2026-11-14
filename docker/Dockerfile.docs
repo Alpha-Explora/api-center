@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/ ./apps/
 COPY packages/ ./packages/
+COPY examples/ ./examples/
 RUN npm ci --include=dev --no-audit --no-fund
 COPY contracts/ ./contracts/
 RUN npm run build --workspace @apicenter/docs

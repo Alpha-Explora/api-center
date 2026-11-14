@@ -62,11 +62,12 @@ describe("RegistryController", () => {
       expect(result.meta.total).toBe(1);
     });
 
-    it("returns ownerTribeId in service list responses", () => {
+    it("preserves project placement in service list responses", () => {
       (mockRegistry.getAll as jest.Mock).mockReturnValue({
         "logistics-orders": {
           serviceId: "logistics-orders",
           ownerTribeId: "logistics",
+          projectId: "logistics-orders-project",
           name: "Logistics Orders",
           baseUrl: "https://orders.example.test",
           status: "active",
@@ -85,6 +86,7 @@ describe("RegistryController", () => {
       expect(result.data[0]).toMatchObject({
         serviceId: "logistics-orders",
         ownerTribeId: "logistics",
+        projectId: "logistics-orders-project",
       });
     });
 

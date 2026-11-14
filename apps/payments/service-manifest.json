@@ -3,7 +3,7 @@
   "serviceType": "shared",
   "name": "Payment Gateway",
   "baseUrl": "http://payment-service:4010",
-  "requiredScopes": ["payment:charge", "payment:refund"],
+  "requiredScopes": ["payments:read", "payments:write"],
   "exposes": [
     "/customers",
     "/customers/:id",
@@ -32,7 +32,7 @@
   "consumes": [],
   "healthCheck": "/health",
   "version": "1.0.0",
-  "description": "Platform-owned payment gateway service (Stripe, etc.)",
+  "description": "Platform-owned payment gateway service powered by PayMongo.",
   "ownerTeam": "platform-payments",
   "contact": "#platform-payments-oncall",
   "serviceTier": "critical",

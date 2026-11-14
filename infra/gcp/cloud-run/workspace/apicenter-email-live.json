@@ -2,7 +2,8 @@
   "metadata": {
     "name": "apicenter-email-live",
     "annotations": {
-      "run.googleapis.com/ingress": "all"
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/maxScale": "1"
     }
   },
   "kind": "Service",

@@ -57,6 +57,42 @@ function linkPaymentPaid(eventId, reference) {
 
 const count = async (table) => Number((await pool.query('SELECT count(*) FROM shared_payment.' + table)).rows[0].count);
 
+test('fresh intent reads clear redirects, preserve terminal status and do not version unchanged facts', { skip }, async () => {
+  await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_fresh', referenceId: 'ORDER-FRESH',
+    snapshot: { status: 'awaiting_next_action', clientKey: 'client-key',
+      nextAction: { type: 'redirect', redirectUrl: 'https://provider.example/authorize' } } });
+  const completed = await owners.reconcileFreshRead('intent', 'pi_fresh', owner, { status: 'succeeded', nextAction: undefined });
+  assert.equal(completed.aggregateVersion, 2);
+  assert.equal(Object.hasOwn(completed.snapshot, 'nextAction'), false);
+  assert.equal(completed.referenceId, 'ORDER-FRESH');
+  assert.equal(completed.snapshot.clientKey, 'client-key');
+  const before = (await pool.query("SELECT updated_at FROM shared_payment.resource_owners WHERE resource_id = 'pi_fresh'")).rows[0];
+  const results = await Promise.all([
+    owners.reconcileFreshRead('intent', 'pi_fresh', owner, { status: 'succeeded' }),
+    owners.reconcileFreshRead('intent', 'pi_fresh', owner, { status: 'awaiting_next_action',
+      nextAction: { type: 'redirect', redirectUrl: 'https://provider.example/stale' } }),
+  ]);
+  for (const result of results) {
+    assert.equal(result.aggregateVersion, 2);
+    assert.equal(result.status, 'succeeded');
+    assert.equal(Object.hasOwn(result.snapshot, 'nextAction'), false);
+  }
+  const after = (await pool.query("SELECT updated_at FROM shared_payment.resource_owners WHERE resource_id = 'pi_fresh'")).rows[0];
+  assert.equal(after.updated_at.toISOString(), before.updated_at.toISOString());
+  await assert.rejects(owners.reconcileFreshRead('intent', 'pi_fresh', { ...owner, projectId: 'foreign-project' },
+    { status: 'succeeded' }), { statusCode: 403 });
+});
+
+test('unchanged invoice and subscription reads preserve versions regardless of object key order', { skip }, async () => {
+  for (const type of ['invoice', 'subscription']) {
+    await owners.save({ ...owner, resourceType: type, resourceId: type + '_fresh',
+      snapshot: { status: 'pending', amount: 100, currency: 'PHP' } });
+    const result = await owners.reconcileFreshRead(type, type + '_fresh', owner,
+      { currency: 'PHP', amount: 100, status: 'pending' });
+    assert.equal(result.aggregateVersion, 1);
+  }
+});
+
 test('a paid checkout updates the owner, records the receipt and queues one event together', { skip }, async () => {
   const payload = checkoutPaid('evt_1');
   const result = await webhooks.processWebhook(payload, signed(payload));
@@ -147,6 +183,58 @@ test('a checkout without a merchant reference is flagged for reconciliation and 
   assert.equal(await count('payment_event_outbox'), 0);
   const receipt = (await pool.query('SELECT status FROM shared_payment.payment_webhook_events')).rows[0];
   assert.equal(receipt.status, 'needs_reconciliation');
+});
+
+test('polling persists paid checkout facts once without fabricating a webhook receipt or event', { skip }, async () => {
+  const fresh = { checkoutId: 'chk_123', status: 'paid', provider: 'paymongo' };
+  const first = await owners.reconcileCheckout('chk_123', owner, fresh);
+  const second = await owners.reconcileCheckout('chk_123', owner, fresh);
+  assert.equal(first.aggregateVersion, 2);
+  assert.equal(second.aggregateVersion, 2);
+  assert.equal(second.referenceId, 'ORDER-1');
+  assert.equal(second.consumerServiceId, 'service-a');
+  assert.equal(second.snapshot.status, 'paid');
+  assert.equal(await count('payment_webhook_events'), 0);
+  assert.equal(await count('payment_event_outbox'), 0);
+  const records = await owners.listRecords(owner, { type: 'checkout', status: 'paid' });
+  assert.equal(records.records[0].id, 'chk_123');
+  assert.equal(records.records[0].status, 'paid');
+});
+
+test('reconciliation permits another service in the project but denies foreign owners and environments', { skip }, async () => {
+  for (const context of [{ ...owner, projectId: 'project-b' }, { ...owner, tribeId: 'tribe-b' },
+    { ...owner, environment: 'live' }]) {
+    await assert.rejects(owners.reconcileCheckout('chk_123', context, { status: 'paid' }), { statusCode: 404 });
+  }
+  const updated = await owners.reconcileCheckout('chk_123', { ...owner, consumerServiceId: 'service-b' }, { status: 'pending' });
+  assert.equal(updated.snapshot.status, 'pending');
+  assert.equal(updated.consumerServiceId, 'service-a');
+  assert.equal(updated.referenceId, 'ORDER-1');
+  const unchanged = await owners.reconcileCheckout('chk_123', owner, { status: 'pending' });
+  assert.equal(unchanged.aggregateVersion, updated.aggregateVersion);
+});
+
+test('a stale poll cannot regress a paid webhook and repeated recovery still allows one later event', { skip }, async () => {
+  const payload = checkoutPaid('evt_reconciled');
+  await owners.reconcileCheckout('chk_123', owner, { status: 'paid' });
+  await webhooks.processWebhook(payload, signed(payload));
+  await webhooks.processWebhook(payload, signed(payload));
+  const stale = await owners.reconcileCheckout('chk_123', owner, { status: 'pending' });
+  assert.equal(stale.snapshot.status, 'paid');
+  assert.equal(stale.aggregateVersion, 3);
+  assert.equal(await count('payment_webhook_events'), 1);
+  assert.equal(await count('payment_event_outbox'), 1);
+});
+
+test('a concurrent provider poll and webhook always leave the checkout paid', { skip }, async () => {
+  const payload = checkoutPaid('evt_racing');
+  await Promise.all([
+    owners.reconcileCheckout('chk_123', owner, { status: 'pending' }),
+    webhooks.processWebhook(payload, signed(payload)),
+  ]);
+  const current = await owners.assertOwned('checkout', 'chk_123', owner);
+  assert.equal(current.snapshot.status, 'paid');
+  assert.equal(await count('payment_event_outbox'), 1);
 });
 
 test('a paid link payment updates only the link whose PayMongo reference was saved', { skip }, async () => {

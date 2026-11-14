@@ -19,11 +19,16 @@ import axios from "axios";
 import { RegistryService } from "./registry.service";
 import { LoggerService } from "@shared/logger.service";
 import { ConfigService } from "@config/config.service";
+import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
+
+const HEALTH_CHECK_CONCURRENCY = 2;
 
 @Injectable()
 export class HealthMonitorService implements OnModuleDestroy {
   /** Tracks whether a health-check sweep is already in progress. */
   private healthCheckRunning = false;
+  /** Keep health transitions from opening a burst of concurrent DB writes. */
+  private healthUpdateQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly registry: RegistryService,
@@ -60,43 +65,66 @@ export class HealthMonitorService implements OnModuleDestroy {
 
       if (checkable.length === 0) return;
 
-      // Fire all health checks concurrently (each has its own timeout)
-      const results = await Promise.allSettled(
-        checkable.map(async (svc) => {
-          const url = `${svc.baseUrl}${svc.healthCheck}`;
-          try {
-            const response = await axios.get(url, {
-              timeout: this.config.health.checkTimeoutMs,
-              validateStatus: (status) => status < 500, // 2xx–4xx = alive
-            });
+      // Bound upstream concurrency and serialize registry updates. This avoids
+      // turning one sweep into a burst of database transactions.
+      const results: PromiseSettledResult<void>[] = [];
+      for (
+        let index = 0;
+        index < checkable.length;
+        index += HEALTH_CHECK_CONCURRENCY
+      ) {
+        const batch = checkable.slice(index, index + HEALTH_CHECK_CONCURRENCY);
+        results.push(
+          ...(await Promise.allSettled(
+            batch.map(async (svc) => {
+              const url = `${svc.baseUrl}${svc.healthCheck}`;
+              let healthy = false;
+              let responseStatus: number | undefined;
+              let failureReason: string | undefined;
+              try {
+                const authorization = await getCloudRunAuthorizationHeader(
+                  svc.baseUrl,
+                );
+                const response = await axios.get(url, {
+                  timeout: this.config.health.checkTimeoutMs,
+                  ...(authorization
+                    ? { headers: { Authorization: authorization } }
+                    : {}),
+                  validateStatus: (status) => status < 500, // 2xx–4xx = alive
+                });
+                healthy = true;
+                responseStatus = response.status;
+              } catch (err) {
+                failureReason = (err as Error).message || "Unknown error";
+              }
 
-            // Mark healthy
-            const changed = await this.registry.setHealthStatus(svc.serviceId, true);
-            if (changed) {
-              this.logger.info(
-                `Service '${svc.serviceId}' recovered — marked healthy`,
-                { serviceId: svc.serviceId, url, status: response.status },
-              );
-            } else {
-              // No state change — just touch the timestamp
-              await this.registry.touchHealthCheck(svc.serviceId);
-            }
-          } catch (err) {
-            const reason = (err as Error).message || "Unknown error";
+              let changed: boolean;
+              try {
+                changed = await this.updateHealthStatus(svc.serviceId, healthy);
+              } catch {
+                this.logger.warn(
+                  `Failed to persist health-check result for '${svc.serviceId}'`,
+                  "HealthMonitor",
+                );
+                return;
+              }
 
-            // Mark unhealthy
-            const changed = await this.registry.setHealthStatus(svc.serviceId, false);
-            if (changed) {
-              this.logger.warn(
-                `Service '${svc.serviceId}' is unreachable — marked unhealthy: ${reason}`,
-                "HealthMonitor",
-              );
-            } else {
-              await this.registry.touchHealthCheck(svc.serviceId);
-            }
-          }
-        }),
-      );
+              if (!changed) return;
+              if (healthy) {
+                this.logger.info(
+                  `Service '${svc.serviceId}' recovered — marked healthy`,
+                  { serviceId: svc.serviceId, url, status: responseStatus },
+                );
+              } else {
+                this.logger.warn(
+                  `Service '${svc.serviceId}' is unreachable — marked unhealthy: ${failureReason}`,
+                  "HealthMonitor",
+                );
+              }
+            }),
+          )),
+        );
+      }
 
       // Log any unexpected promise rejections (should not happen, but belt & suspenders)
       const failures = results.filter((r) => r.status === "rejected");
@@ -109,6 +137,20 @@ export class HealthMonitorService implements OnModuleDestroy {
     } finally {
       this.healthCheckRunning = false;
     }
+  }
+
+  private async updateHealthStatus(
+    serviceId: string,
+    healthy: boolean,
+  ): Promise<boolean> {
+    let changed = false;
+    const update = this.healthUpdateQueue.then(async () => {
+      changed = await this.registry.setHealthStatus(serviceId, healthy);
+      if (!changed) this.registry.touchHealthCheck(serviceId);
+    });
+    this.healthUpdateQueue = update.catch(() => undefined);
+    await update;
+    return changed;
   }
 
   // =========================================================================

@@ -591,11 +591,11 @@ paymongo_store_new_secret() {
   if confirm "Store it as a new version of $signing_secret? It is not shown."; then
     if paymongo signing-secret "$hook_id" \
         | gcloud secrets versions add "$signing_secret" --project="$PROJECT_ID" --data-file=- --quiet; then
-      ok "stored it. Redeploy apicenter-payments-$environment to use it."
+      ok "stored it. Redeploy the gateway and apicenter-payments-$environment to use it."
       return 0
     fi
   fi
-  later "store the new signing secret of $hook_id in $signing_secret, then redeploy apicenter-payments-$environment"
+  later "store the new signing secret of $hook_id in $signing_secret, then redeploy the gateway and apicenter-payments-$environment"
 }
 
 # paymongo_environment ENV checks the PayMongo webhook of one environment, test or live.
@@ -630,7 +630,7 @@ paymongo_environment() {
     say "(https://docs.paymongo.com/reference/create-a-webhook): url $url,"
     say "events ${PAYMONGO_EVENTS//,/, }."
     say "$signing_secret must hold that webhook's signing secret (secret_key). A new webhook has a new one;"
-    say "after storing it as a new version, redeploy apicenter-payments-$environment."
+    say "after storing it as a new version, redeploy the gateway and apicenter-payments-$environment."
     later "point a PayMongo $environment webhook at $url and keep $signing_secret in step with it"
   else
     if [[ "$hook_status" != "enabled" ]]; then
@@ -893,7 +893,9 @@ stage_paymongo_webhooks() {
   note "Webhook API responses include each webhook's signing secret, so only IDs, URLs, statuses, and events are shown."
   note "This wizard never creates a webhook: a new one has a new signing secret for apicenter-payments-<env>-webhook-secret."
   paymongo_environment test
+  grant_secret_accessor apicenter-payments-test-webhook-secret "$GATEWAY_SA"
   paymongo_environment live
+  grant_secret_accessor apicenter-payments-live-webhook-secret "$GATEWAY_SA"
   pause
 }
 
