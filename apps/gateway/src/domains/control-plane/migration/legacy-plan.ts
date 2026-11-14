@@ -134,6 +134,8 @@ function active(status: string | undefined) {
   return !status || status === "active";
 }
 
+const PAYMENT_SERVICE_IDS = new Set(["payment", "payments"]);
+
 export function planMigration(snapshot: LegacySnapshot): MigrationPlan {
   const blockers: MigrationPlan["blockers"] = [];
   const approximations: MigrationPlan["approximations"] = [];
@@ -203,9 +205,12 @@ export function planMigration(snapshot: LegacySnapshot): MigrationPlan {
           if (!target.requiredScopes.every((scope) => scopes.has(scope))) continue;
 
           if (target.serviceType === "shared") {
+            // Payment access comes from the payment consumer registration below, whichever id
+            // the registry gives the payment service (the live registry calls it "payment").
+            const isPayments = PAYMENT_SERVICE_IDS.has(target.serviceId);
             const actions = capabilities.get(target.serviceId);
-            if (!actions || target.serviceId === "payments") {
-              if (target.serviceId !== "payments") {
+            if (!actions || isPayments) {
+              if (!isPayments) {
                 blockers.push({ legacyId: source.serviceId, reason: `access to shared service '${target.serviceId}' has no catalogued capability` });
               }
               continue;
