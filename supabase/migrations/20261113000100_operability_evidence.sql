@@ -1,9 +1,9 @@
 BEGIN;
 CREATE TABLE apic_runtime.verification_reports (
   run_id uuid PRIMARY KEY,
-  service_row_id uuid NOT NULL REFERENCES apic_catalog.services(id),
+  service_row_id uuid NOT NULL, -- apic_catalog.services(id); validated by the catalog, not a cross-schema foreign key
   service_id text NOT NULL,
-  project_id text NOT NULL REFERENCES apic_catalog.projects(project_id),
+  project_id text NOT NULL, -- apic_catalog.projects(project_id); validated by the catalog, not a cross-schema foreign key
   environment text NOT NULL CHECK (environment IN ('test','live')),
   runner text NOT NULL,
   observed_at timestamptz NOT NULL,
