@@ -56,6 +56,9 @@ type NavIcon = React.ComponentType<{
 }>;
 
 const navIconByHref: Record<string, NavIcon> = {
+  "/control-plane/projects": FileJsonIcon,
+  "/control-plane/people": ShieldCheckIcon,
+  "/control-plane/migration": RocketIcon,
   "/dashboard": HomeIcon,
   "/lifecycle": ListChecksIcon,
   "/alerts": BellIcon,
