@@ -112,14 +112,26 @@
             },
             "contractVersion": {
               "type": "string",
-              "const": "1.0"
+              "enum": [
+                "1.0",
+                "1.1"
+              ]
             },
             "eventType": {
               "type": "string",
               "const": "payment.checkout.paid"
             },
             "ownerTribeId": {
-              "type": "string"
+              "type": "string",
+              "description": "Deprecated: same value as ownerGroupId. Removed in contract 2.0."
+            },
+            "ownerGroupId": {
+              "type": "string",
+              "description": "Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project)."
+            },
+            "ownerProjectId": {
+              "type": "string",
+              "description": "Contract 1.1: owning project of the resource."
             },
             "consumerServiceId": {
               "type": "string"
@@ -204,13 +216,25 @@
           },
           "contractVersion": {
             "type": "string",
-            "const": "1.0"
+            "enum": [
+              "1.0",
+              "1.1"
+            ]
           },
           "eventType": {
             "type": "string"
           },
           "ownerTribeId": {
-            "type": "string"
+            "type": "string",
+            "description": "Deprecated: same value as ownerGroupId. Removed in contract 2.0."
+          },
+          "ownerGroupId": {
+            "type": "string",
+            "description": "Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project)."
+          },
+          "ownerProjectId": {
+            "type": "string",
+            "description": "Contract 1.1: owning project of the resource."
           },
           "consumerServiceId": {
             "type": "string"

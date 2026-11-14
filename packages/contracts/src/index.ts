@@ -4,6 +4,9 @@
  */
 
 export const PUBLIC_CONTRACT_VERSION = '1.0';
+/** Payment event envelope versions in circulation. 1.1 adds ownerGroupId and ownerProjectId. */
+export const PAYMENT_EVENT_CONTRACT_VERSIONS = ['1.0', '1.1'] as const;
+export type PaymentEventContractVersion = (typeof PAYMENT_EVENT_CONTRACT_VERSIONS)[number];
 export const OPENAPI_VERSION = '3.2.0';
 export const ASYNCAPI_VERSION = '3.1.0';
 
@@ -72,9 +75,14 @@ export type RefundStatus = 'pending' | 'succeeded' | 'failed';
 
 export interface PaymentEventEnvelope<T = Record<string, unknown>> {
   eventId: string;
-  contractVersion: typeof PUBLIC_CONTRACT_VERSION;
+  contractVersion: PaymentEventContractVersion;
   eventType: string;
+  /** @deprecated Same value as ownerGroupId; removed in contract 2.0. */
   ownerTribeId: string;
+  /** Contract 1.1: the resource's owner group (organization, or legacy tribe of a migrated project). */
+  ownerGroupId?: string;
+  /** Contract 1.1: the resource's owning project. */
+  ownerProjectId?: string;
   consumerServiceId: string;
   referenceId: string;
   aggregateType: string;

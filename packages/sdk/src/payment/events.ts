@@ -1,8 +1,11 @@
 import { z } from 'zod';
 
+// Contract 1.1 adds ownerGroupId and ownerProjectId; 1.0 events still parse. ownerTribeId is kept
+// for 1.0 consumers and carries the same value as ownerGroupId.
 const PaymentEventSchema = z.object({
-  eventId: z.string().min(1), contractVersion: z.literal('1.0'), eventType: z.string().min(1),
-  ownerTribeId: z.string().min(1), consumerServiceId: z.string().min(1), referenceId: z.string().min(1),
+  eventId: z.string().min(1), contractVersion: z.enum(['1.0', '1.1']), eventType: z.string().min(1),
+  ownerTribeId: z.string().min(1), ownerGroupId: z.string().min(1).optional(), ownerProjectId: z.string().min(1).optional(),
+  consumerServiceId: z.string().min(1), referenceId: z.string().min(1),
   aggregateType: z.enum(['checkout', 'payment_intent', 'refund', 'subscription', 'invoice']),
   aggregateId: z.string().min(1), aggregateVersion: z.number().int().min(1),
   occurredAt: z.string().datetime({ offset: true }), correlationId: z.string().min(1).optional(),
@@ -13,6 +16,15 @@ const PaymentEventSchema = z.object({
   }
 });
 
-export type PaymentEvent = z.infer<typeof PaymentEventSchema>;
-export function parsePaymentEvent(input: unknown): PaymentEvent { return PaymentEventSchema.parse(input); }
+export type PaymentEvent = z.infer<typeof PaymentEventSchema> & {
+  /** Who owns the resource, whichever contract version delivered the event. */
+  owner: { groupId: string; projectId?: string };
+};
+export function parsePaymentEvent(input: unknown): PaymentEvent {
+  const event = PaymentEventSchema.parse(input);
+  return {
+    ...event,
+    owner: { groupId: event.ownerGroupId ?? event.ownerTribeId, ...(event.ownerProjectId ? { projectId: event.ownerProjectId } : {}) },
+  };
+}
 export { PaymentEventSchema };

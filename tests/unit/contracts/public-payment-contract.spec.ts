@@ -117,7 +117,7 @@ describe('public payment contracts', () => {
     const paid = readJson('contracts/public/examples/payment-checkout-paid-event.json');
     for (const event of [created, paid]) {
       for (const field of requiredEnvelopeFields) expect(event[field]).toBeDefined();
-      expect(event.contractVersion).toBe('1.0');
+      expect(['1.0', '1.1']).toContain(event.contractVersion);
       expect(event.data.environment).toMatch(/^(test|live)$/);
       expect(event.data.aggregateVersion).toBe(event.aggregateVersion);
     }

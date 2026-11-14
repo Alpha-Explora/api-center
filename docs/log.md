@@ -2,6 +2,7 @@
 
 ## 2026-11-14
 
+- Recorded control plane rebuild slices 2–12 in the execution plan, the SDK 2.1 README (application keys, published API verification, legacy credentials deprecated), and payment event contract 1.1 in the AsyncAPI source.
 - Marked the control plane rebuild design approved and added the slice 1 execution plan: organization-owned projects, test environments, applications, explicit grants, `ak_test_` credentials and the signed runtime context for email. Deferred work and pending database and staging acceptance are listed in the plan.
 - Recorded the selected control plane rebuild direction as a proposed design, including a logical schema, explicit authorization, tenancy constraints, migration and rollback gates, and preservation of existing operability safeguards. Written-design approval and implementation remain pending.
 - Recorded the approved operability implementation in the maintained go-live and release verification runbook, including credential recovery, redacted diagnostics, event replay, protected runner configuration, and explicit external acceptance gaps.

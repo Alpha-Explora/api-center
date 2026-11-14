@@ -50,11 +50,15 @@ function toCanonicalPaymentEvent(event) {
   if (!Number.isInteger(aggregateVersion) || aggregateVersion < 1) throw new Error('Payment event aggregateVersion must be a positive integer');
   if (event.eventType === 'payment.checkout.paid' && !payload.amount) throw new Error('Paid checkout event amount is required');
 
+  const ownerProjectId = payload.ownerProjectId || event.ownerProjectId;
   return {
     eventId: publicEventId(event.providerEventId),
-    contractVersion: '1.0',
+    contractVersion: '1.1',
     eventType: event.eventType,
+    // ownerTribeId stays for contract 1.0 consumers; ownerGroupId carries the same owner group.
     ownerTribeId,
+    ownerGroupId: ownerTribeId,
+    ...(ownerProjectId ? { ownerProjectId } : {}),
     consumerServiceId,
     referenceId,
     aggregateType: event.aggregateType,
@@ -95,6 +99,8 @@ async function publishPaymentEvent(event, { topic: providedTopic } = {}) {
       aggregateVersion: String(canonicalEvent.aggregateVersion),
       environment: event.environment,
       ownerTribeId: canonicalEvent.ownerTribeId,
+      ownerGroupId: canonicalEvent.ownerGroupId,
+      ...(canonicalEvent.ownerProjectId ? { ownerProjectId: canonicalEvent.ownerProjectId } : {}),
       consumerServiceId: canonicalEvent.consumerServiceId,
       referenceId: canonicalEvent.referenceId,
     },

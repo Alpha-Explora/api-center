@@ -66,9 +66,11 @@ components:
         required: [eventId, contractVersion, eventType, ownerTribeId, consumerServiceId, referenceId, aggregateType, aggregateId, aggregateVersion, occurredAt, data]
         properties:
           eventId: { type: string }
-          contractVersion: { type: string, const: '1.0' }
+          contractVersion: { type: string, enum: ['1.0', '1.1'] }
           eventType: { type: string, const: payment.checkout.paid }
-          ownerTribeId: { type: string }
+          ownerTribeId: { type: string, description: 'Deprecated: same value as ownerGroupId. Removed in contract 2.0.' }
+          ownerGroupId: { type: string, description: 'Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project).' }
+          ownerProjectId: { type: string, description: 'Contract 1.1: owning project of the resource.' }
           consumerServiceId: { type: string }
           referenceId: { type: string }
           aggregateType: { type: string, const: checkout }
@@ -98,9 +100,11 @@ components:
       required: [eventId, contractVersion, eventType, ownerTribeId, consumerServiceId, referenceId, aggregateType, aggregateId, aggregateVersion, occurredAt, data]
       properties:
         eventId: { type: string }
-        contractVersion: { type: string, const: '1.0' }
+        contractVersion: { type: string, enum: ['1.0', '1.1'] }
         eventType: { type: string }
-        ownerTribeId: { type: string }
+        ownerTribeId: { type: string, description: 'Deprecated: same value as ownerGroupId. Removed in contract 2.0.' }
+        ownerGroupId: { type: string, description: 'Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project).' }
+        ownerProjectId: { type: string, description: 'Contract 1.1: owning project of the resource.' }
         consumerServiceId: { type: string }
         referenceId: { type: string }
         aggregateType: { type: string, enum: [checkout, payment_intent, refund, subscription, invoice] }

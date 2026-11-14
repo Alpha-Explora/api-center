@@ -32,7 +32,10 @@ const protectedHeaders = new Set([
   'x-apicenter-consumer-service-id',
   'x-apicenter-source-service-id',
   'x-apicenter-environment',
+  'x-apicenter-context',
 ]);
+
+const APPLICATION_KEY = /^ak_(test|live)_[a-z0-9]{16}_[A-Za-z0-9_-]{43}$/;
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object'
@@ -113,6 +116,7 @@ export class ApiCenterTransport {
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private readonly paymentApiKey?: string;
+  private readonly applicationKey?: string;
   private readonly accessTokenProvider?: AccessTokenProvider;
   private readonly serviceTokenProvider?: ServiceTokenProvider;
 
@@ -129,7 +133,11 @@ export class ApiCenterTransport {
     }
     this.paymentApiKey = options.paymentApiKey?.trim() || undefined;
 
-    if (options.auth && 'getAccessToken' in options.auth) {
+    if (options.auth && 'apiKey' in options.auth) {
+      const apiKey = options.auth.apiKey?.trim() ?? '';
+      if (!APPLICATION_KEY.test(apiKey)) throw new TypeError('apiKey must be an APICenter application key (ak_test_… or ak_live_…)');
+      this.applicationKey = apiKey;
+    } else if (options.auth && 'getAccessToken' in options.auth) {
       this.accessTokenProvider = options.auth;
     } else if (options.auth) {
       const credentials = options.auth as ServiceCredentials;
@@ -213,6 +221,7 @@ export class ApiCenterTransport {
   ): Promise<string | undefined> {
     if (credential === 'none') return undefined;
     if (credential === 'payment' && this.paymentApiKey) return this.paymentApiKey;
+    if (this.applicationKey) return this.applicationKey;
     if (this.accessTokenProvider) {
       const token = await this.accessTokenProvider.getAccessToken({ signal });
       if (typeof token !== 'string' || !token.trim()) {

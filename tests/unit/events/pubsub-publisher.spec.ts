@@ -21,9 +21,10 @@ describe('payment Pub/Sub publisher contract', () => {
       },
     })).toEqual({
       eventId: 'evt_123',
-      contractVersion: '1.0',
+      contractVersion: '1.1',
       eventType: 'payment.checkout.paid',
       ownerTribeId: 'tribe_alpha',
+      ownerGroupId: 'tribe_alpha',
       consumerServiceId: 'svc_alphaci',
       referenceId: 'ACI-123',
       aggregateType: 'checkout',
