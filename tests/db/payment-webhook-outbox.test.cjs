@@ -30,7 +30,7 @@ const owner = { tribeId: 'tribe-a', projectId: 'project-a', consumerServiceId: '
 test.after(async () => { if (pool) await pool.end(); });
 test.beforeEach(async () => {
   if (!pool) return;
-  await pool.query('TRUNCATE shared_payment.payment_event_outbox, shared_payment.payment_webhook_events, shared_payment.resource_owners');
+  await pool.query('TRUNCATE shared_payment.payment_replay_attempts, shared_payment.payment_event_outbox, shared_payment.payment_webhook_events, shared_payment.resource_owners');
   await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', referenceId: 'ORDER-1',
     snapshot: { checkoutId: 'chk_123' } });
 });

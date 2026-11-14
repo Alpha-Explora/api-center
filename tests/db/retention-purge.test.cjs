@@ -24,6 +24,12 @@ test.beforeEach(async () => {
 
 // One insert per managed table. The age argument is how many days old the row's dated column should be.
 const inserts = {
+  'apic_runtime.verification_runs': (days) => client.query(
+    "insert into apic_runtime.verification_runs (service_id, project_id, environment, fingerprint, gateway_revision, requested_by, status, created_at) values ('svc', 'prj', 'test', 'f', 'g', 'a', 'passed', now() - make_interval(days => $1))", [days]),
+  'apic_runtime.request_diagnostics': (days) => client.query(
+    "insert into apic_runtime.request_diagnostics (request_id, correlation_id, route, method, status_code, duration_ms, created_at) values (gen_random_uuid(), 'c', '/r', 'GET', 200, 1, now() - make_interval(days => $1))", [days]),
+  'apic_runtime.verification_reports': (days) => client.query(
+    "insert into apic_runtime.verification_reports (run_id, service_row_id, service_id, project_id, environment, runner, observed_at, report, created_at) values (gen_random_uuid(), gen_random_uuid(), 'svc', 'prj', 'test', 'runner', now(), '{}'::jsonb, now() - make_interval(days => $1))", [days]),
   'apic_audit.audit_events': (days) => client.query(
     "insert into apic_audit.audit_events (environment, action, resource_type, created_at) values ('test', 'a', 'r', now() - make_interval(days => $1))", [days]),
   'apic_runtime.quota_evaluations': (days) => client.query(
