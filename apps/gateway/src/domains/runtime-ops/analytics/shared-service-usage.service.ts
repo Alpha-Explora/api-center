@@ -82,6 +82,7 @@ export class SharedServiceUsageService
       await this.redis.connect();
       this.logger.info("SharedServiceUsageService connected to Redis", {});
     } catch (err) {
+      this.redis?.disconnect();
       this.redis = null;
       this.logger.warn(
         `SharedServiceUsageService Redis unavailable; using in-memory counters: ${(err as Error).message}`,

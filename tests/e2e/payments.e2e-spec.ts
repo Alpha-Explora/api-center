@@ -8,6 +8,7 @@ import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/fe
 import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security';
 import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry/registry/registry.service';
 import { TENANCY_DIRECTORY } from '../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types';
+import { ApplicationAccessService } from '../../apps/gateway/src/domains/control-plane/application-access.service';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -44,6 +45,7 @@ describe('Payments facade (e2e)', () => {
               : null),
           },
         },
+        { provide: ApplicationAccessService, useValue: { authorizeAction: jest.fn(), recordOutcome: jest.fn() } },
         { provide: JwtAuthGuard, useValue: { canActivate: jest.fn().mockReturnValue(false) } },
         { provide: RegistryService, useValue: { get: jest.fn(), canAccess: jest.fn() } },
         { provide: TENANCY_DIRECTORY, useValue: { resolveServicePlacement: jest.fn(), resolveProject: jest.fn() } },

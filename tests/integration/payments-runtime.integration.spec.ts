@@ -7,6 +7,7 @@ import { PaymentApiKeyService } from '../../apps/gateway/src/domains/payments/fe
 import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
 import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/features/payment-limits/payment-limits.service';
+import { ApplicationAccessService } from '../../apps/gateway/src/domains/control-plane/application-access.service';
 import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard';
 import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry/registry/registry.service';
 import { TENANCY_DIRECTORY } from '../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types';
@@ -65,6 +66,8 @@ describe('payment gateway to runtime integration', () => {
               : null),
           },
         },
+        // Legacy keys resolve their own principal; control-plane bearers are not used here.
+        { provide: ApplicationAccessService, useValue: { authorizeAction: jest.fn(), recordOutcome: jest.fn() } },
         { provide: JwtAuthGuard, useValue: { canActivate: jest.fn().mockReturnValue(false) } },
         { provide: RegistryService, useValue: { get: jest.fn(), canAccess: jest.fn() } },
         { provide: TENANCY_DIRECTORY, useValue: { resolveServicePlacement: jest.fn(), resolveProject: jest.fn() } },

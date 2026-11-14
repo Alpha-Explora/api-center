@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, OnModuleDestroy, ServiceUnavailableException } from "@nestjs/common";
 import Redis from "ioredis";
 import { PaymentPrincipal } from "../features/payment-facade/payment-api-key.service";
 
@@ -43,11 +43,16 @@ return 1
 `;
 
 @Injectable()
-export class PaymentIdempotencyService {
+export class PaymentIdempotencyService implements OnModuleDestroy {
   private readonly memory = new Map<string, StoredRecord & { expiresAt: number }>();
   private readonly leases = new Map<string, number>();
   private redis: Redis | null = null;
   private redisConnectPromise: Promise<Redis | null> | null = null;
+
+  onModuleDestroy(): void {
+    this.redis?.disconnect();
+    this.redis = null;
+  }
 
   async lookupOrValidate(input: {
     principal: PaymentPrincipal;

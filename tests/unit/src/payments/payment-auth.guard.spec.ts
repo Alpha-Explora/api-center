@@ -172,6 +172,7 @@ describe("PaymentAuthGuard service-token path", () => {
     const controller = new PaymentsController(
       new PaymentIdempotencyService(),
       { enforce: jest.fn() } as any,
+      { authorizeAction: jest.fn(), recordOutcome: jest.fn() } as any,
     );
     const response = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
     await expect(controller.proxy(h.request as any, response)).rejects.toMatchObject({

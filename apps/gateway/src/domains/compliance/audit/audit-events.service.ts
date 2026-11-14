@@ -109,6 +109,7 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
       await this.redis.connect();
       this.logger.info("AuditEventsService connected to Redis", {});
     } catch (err) {
+      this.redis?.disconnect();
       this.redis = null;
       this.logger.warn(
         `AuditEventsService Redis unavailable; using in-memory events: ${(err as Error).message}`,
