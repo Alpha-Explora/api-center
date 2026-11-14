@@ -49,3 +49,7 @@ Guide aliases preserve replaced public paths. Old synthetic shared-operation pag
 ## Verification boundaries
 
 Typecheck, unit tests, contract validation, docs builds, and boundary scans are repository checks. Provider behavior, database permissions, IAM, DNS, and deployment health need environment-specific evidence. Use [deployment guidance](../deployment-cloud-run.md), [platform setup](../apicenter-platform-setup.md), and the [capability register](../product/capability-evidence.md) without treating recorded snapshots as current state.
+
+### Runtime identity and health sweeps
+
+Payment proxy requests carry distinct APICenter runtime and Cloud Run identities. Google ID-token verification checks the client registered for the requested project and environment. Registry health sweeps authenticate to private runtimes and bound concurrent requests.

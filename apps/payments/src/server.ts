@@ -9,9 +9,9 @@ import { WebhooksService } from './features/webhooks/webhooks.service';
 import { InvoicesService } from './features/invoices/invoices.service';
 import { PaymentLinksService, QrPhService } from './features/payment-links/payment-links.service';
 import { PayMongoError } from './shared/payment-errors';
-import { providerMode } from './shared/paymongo-client';
+import { isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
-import { PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
+import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
 import { PaymentReplayStore } from './events/paymentReplayStore';
 import { z } from 'zod';
 
@@ -116,6 +116,28 @@ async function owned(type: string, id: string, req: Request) {
   return owners.assertOwned(type, id, paymentContext(req));
 }
 
+async function checkoutSnapshot(owner: OwnerRecord) {
+  if (isMockMode()) return { ...owner.snapshot, aggregateVersion: owner.aggregateVersion };
+  const paid = owner.status === 'paid' || owner.snapshot.status === 'paid';
+  const paymentId = owner.snapshot.paymentId;
+  if (paid && typeof paymentId === 'string') {
+    try {
+      const payment = await owners.assertOwned('payment', paymentId, owner);
+      if (payment.status === 'paid' || payment.snapshot.status === 'paid') {
+        return { ...owner.snapshot, status: 'paid', aggregateVersion: owner.aggregateVersion };
+      }
+    } catch (error) {
+      if (!(error instanceof PayMongoError) || error.code !== 'NOT_FOUND') throw error;
+    }
+  }
+  const { paidPayment, ...fresh } = await checkoutService.getCheckoutSession(owner.resourceId, { includePayment: true });
+  const record = await owners.reconcileCheckout(owner.resourceId, owner, fresh);
+  if (paidPayment) await owners.registerCheckoutPayment(record, paidPayment);
+  const snapshot = record.snapshot.status === 'paid' || record.status === 'paid'
+    ? { ...record.snapshot, status: 'paid' } : record.snapshot;
+  return { ...snapshot, aggregateVersion: record.aggregateVersion };
+}
+
 function idempotencyKey(req: Request): string | undefined {
   return req.get('Idempotency-Key') || req.body?.idempotencyKey;
 }
@@ -182,9 +204,10 @@ app.post('/payment-intents/qrph', async (req: Request, res: Response) => {
 app.get('/payment-intents/:paymentIntentId', async (req: Request, res: Response) => {
   try {
     const paymentIntentId = Array.isArray(req.params.paymentIntentId) ? req.params.paymentIntentId[0] : req.params.paymentIntentId;
-    const owner = await owned('intent', paymentIntentId, req);
+    await owned('intent', paymentIntentId, req);
     const data = await paymentIntentsService.getPaymentIntent(paymentIntentId);
-    return ok(res, { ...owner.snapshot, ...data });
+    const owner = await owners.reconcileFreshRead('intent', paymentIntentId, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -227,17 +250,15 @@ app.get('/checkout/sessions/:checkoutId', async (req: Request, res: Response) =>
   try {
     const checkoutId = Array.isArray(req.params.checkoutId) ? req.params.checkoutId[0] : req.params.checkoutId;
     const owner = await owned('checkout', checkoutId, req);
-    const data = await checkoutService.getCheckoutSession(checkoutId);
-    return ok(res, { ...owner.snapshot, ...data });
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
 app.get('/checkout/sessions/:checkoutId/status', async (req: Request, res: Response) => {
   try {
     const checkoutId = Array.isArray(req.params.checkoutId) ? req.params.checkoutId[0] : req.params.checkoutId;
-    await owned('checkout', checkoutId, req);
-    const data = await checkoutService.getCheckoutStatus(checkoutId, { tribeId: tribeId(req) });
-    return ok(res, data);
+    const owner = await owned('checkout', checkoutId, req);
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -245,7 +266,7 @@ app.get('/checkout/sessions/by-reference/:referenceId/status', async (req: Reque
   try {
     const referenceId = Array.isArray(req.params.referenceId) ? req.params.referenceId[0] : req.params.referenceId;
     const owner = await owners.findByReference('checkout', referenceId, paymentContext(req));
-    return ok(res, owner.snapshot);
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -253,7 +274,7 @@ app.get('/checkout/sessions/by-reference/:referenceId', async (req: Request, res
   try {
     const referenceId = String(req.params.referenceId);
     const owner = await owners.findByReference('checkout', referenceId, paymentContext(req));
-    return ok(res, owner.snapshot);
+    return ok(res, await checkoutSnapshot(owner));
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -348,12 +369,10 @@ app.get('/payment-links/:paymentLinkId', async (req: Request, res: Response) => 
 app.patch('/payment-links/:paymentLinkId', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.paymentLinkId);
-    const owner = await owned('payment_link', id, req);
+    await owned('payment_link', id, req);
     const data = await paymentLinksService.setArchived(id, req.body?.archive, idempotencyKey(req));
-    const snapshot = { ...owner.snapshot, ...data, referenceId: owner.referenceId,
-      ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) };
-    await remember('payment_link', id, req, snapshot);
-    return ok(res, snapshot);
+    const owner = await owners.reconcilePaymentLink(id, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -371,9 +390,10 @@ app.post('/subscriptions', async (req: Request, res: Response) => {
 app.get('/subscriptions/:subscriptionId', async (req: Request, res: Response) => {
   try {
     const subscriptionId = Array.isArray(req.params.subscriptionId) ? req.params.subscriptionId[0] : req.params.subscriptionId;
-    const owner = await owned('subscription', subscriptionId, req);
+    await owned('subscription', subscriptionId, req);
     const data = await subscriptionsService.getSubscription(subscriptionId);
-    return ok(res, { ...owner.snapshot, ...data });
+    const owner = await owners.reconcileFreshRead('subscription', subscriptionId, paymentContext(req), data);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -393,17 +413,22 @@ app.get('/subscriptions/:subscriptionId/invoices', async (req: Request, res: Res
     const subscriptionId = String(req.params.subscriptionId);
     await owned('subscription', subscriptionId, req);
     const invoices = await invoicesService.listForSubscription(subscriptionId);
-    for (const invoice of invoices) await remember('invoice', invoice.invoiceId, req, invoice);
-    return ok(res, invoices);
+    const context = paymentContext(req);
+    const reconciled: OwnerRecord[] = [];
+    for (const invoice of invoices) {
+      reconciled.push(await owners.reconcileFreshRead('invoice', invoice.invoiceId, context, invoice));
+    }
+    return ok(res, reconciled.map((owner) => owner.snapshot));
   } catch (err) { return handleCustomError(res, err); }
 });
 
 app.get('/invoices/:invoiceId', async (req: Request, res: Response) => {
   try {
     const invoiceId = String(req.params.invoiceId);
-    const owner = await owned('invoice', invoiceId, req);
+    await owned('invoice', invoiceId, req);
     const invoice = await invoicesService.get(invoiceId);
-    return ok(res, { ...owner.snapshot, ...invoice });
+    const owner = await owners.reconcileFreshRead('invoice', invoiceId, paymentContext(req), invoice);
+    return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -422,7 +447,9 @@ app.get('/refunds/:refundId', async (req: Request, res: Response) => {
   try {
     const refundId = String(req.params.refundId);
     const owner = await owned('refund', refundId, req);
-    return ok(res, owner.snapshot);
+    const record = isMockMode() ? owner
+      : await owners.reconcileRefund(refundId, paymentContext(req), await refundsService.getRefund(refundId));
+    return ok(res, { ...record.snapshot, aggregateVersion: record.aggregateVersion });
   } catch (err) { return handleCustomError(res, err); }
 });
 

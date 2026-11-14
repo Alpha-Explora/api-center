@@ -34,6 +34,7 @@ export interface OAuthAppAdminDependencies {
   expectedToken: string | undefined;
   secretManager?: OAuthAdminSecretManager;
   cloudProjectId?: string;
+  env?: Record<string, string | undefined>;
   now?: () => Date;
 }
 
@@ -77,9 +78,23 @@ export function createOAuthAppAdminHandler(deps: OAuthAppAdminDependencies) {
           projectId,
           environment,
         );
+        const registered = Boolean(record && record.status === 'active');
+        const ownCredentialsConfigured = Boolean(
+          record?.clientId && record.clientSecretRef
+        );
+        const sharedCredentialsConfigured = Boolean(
+          (deps.env ?? process.env).GOOGLE_CLIENT_ID &&
+            (deps.env ?? process.env).GOOGLE_CLIENT_SECRET,
+        );
         res.status(200).json({
           projectId,
           environment,
+          registered,
+          credentialSettingsConfigured: Boolean(
+            registered && record?.redirectUris.length &&
+              (ownCredentialsConfigured || sharedCredentialsConfigured),
+          ),
+          status: record?.status ?? null,
           redirectUris: record?.redirectUris ?? [],
           displayName: record?.displayName ?? "",
           hasOwnClient: Boolean(record?.clientId && record.clientSecretRef),

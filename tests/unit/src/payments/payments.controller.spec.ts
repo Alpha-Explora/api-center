@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCloudRunAuthorizationHeader } from '../../../../apps/gateway/src/shared/proxy/cloud-run-auth';
 import { PaymentsController } from '../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
 import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 const paymentLimits = { enforce: jest.fn().mockResolvedValue(undefined) } as any;
@@ -6,6 +7,10 @@ const createController = () => new PaymentsController(new PaymentIdempotencyServ
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
+jest.mock('../../../../apps/gateway/src/shared/proxy/cloud-run-auth', () => ({
+  getCloudRunAuthorizationHeader: jest.fn(),
+}));
+const mockedCloudRunAuthorization = getCloudRunAuthorizationHeader as jest.MockedFunction<typeof getCloudRunAuthorizationHeader>;
 
 function request(path: string, method: string, body?: Record<string, unknown>) {
   return {
@@ -61,6 +66,7 @@ describe('PaymentsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedCloudRunAuthorization.mockResolvedValue(undefined);
     mockedAxios.request.mockResolvedValue({
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -87,7 +93,7 @@ describe('PaymentsController', () => {
     ['POST', '/intents', { referenceId: 'order-123', amount: { amountMinor: 39900, currency: 'PHP' } }],
     ['POST', '/intents/qrph', { referenceId: 'qr-123', amount: { amountMinor: 39900, currency: 'PHP' }, expirySeconds: 300 }],
     ['GET', '/intents/pi_123', undefined],
-    ['POST', '/intents/pi_123/confirm', {}],
+    ['POST', '/intents/pi_123/confirm', { paymentMethodId: 'pm_123', clientKey: 'pi_123_client', returnUrl: 'https://app.test/return' }],
     ['POST', '/intents/pi_123/cancel', {}],
     ['POST', '/customers', { customerReference: 'customer-123', email: 'customer@example.test' }],
     ['GET', '/customers/cus_123', undefined],
@@ -118,6 +124,11 @@ describe('PaymentsController', () => {
       method,
       url: expect.stringContaining('/'),
     }));
+    if (path.endsWith('/confirm')) {
+      expect(mockedAxios.request.mock.calls[0][0].data).toEqual({
+        payment_method: 'pm_123', client_key: 'pi_123_client', return_url: 'https://app.test/return',
+      });
+    }
   });
 
   it('uses the authenticated principal for tenant/environment and normalizes provider resources', async () => {
@@ -268,5 +279,59 @@ describe('PaymentsController', () => {
       expect((mockedAxios.request.mock.calls[1][0] as any).headers['idempotency-key'])
         .toBe('idempotency-key-123456');
     } finally { clock.mockRestore(); }
+  });
+
+  it('sends the Cloud Run identity separately from the payment runtime token', async () => {
+    mockedCloudRunAuthorization.mockResolvedValue('Bearer google-id-token');
+    const { res, state } = response();
+    await createController().proxy(request('/checkouts', 'POST', {
+      referenceId: 'order-iam', amount: { amountMinor: 100, currency: 'PHP' },
+      successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel',
+    }), res);
+
+    expect(state.status).toBe(200);
+    const headers = (mockedAxios.request.mock.calls[0][0] as any).headers;
+    expect(headers['x-serverless-authorization']).toBe('Bearer google-id-token');
+    expect(headers.authorization).toBe('Bearer unit-test-runtime-token');
+  });
+
+  it('handles Cloud Run identity failures without leaving an idempotency request unreported', async () => {
+    mockedCloudRunAuthorization.mockRejectedValueOnce(new Error('identity token unavailable'));
+    const { res, state } = response();
+    await createController().proxy(request('/checkouts', 'POST', {
+      referenceId: 'order-iam-failure', amount: { amountMinor: 100, currency: 'PHP' },
+      successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel',
+    }), res);
+
+    expect(state.status).toBe(502);
+    expect(state.body).toEqual({
+      success: false,
+      error: { code: 'PAYMENT_UPSTREAM_UNREACHABLE', message: 'identity token unavailable' },
+    });
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
+
+  it('reports a non-JSON runtime rejection with its HTTP status', async () => {
+    mockedAxios.request.mockResolvedValueOnce({
+      status: 401,
+      headers: { 'content-type': 'text/html' },
+      data: '<html><title>401 Unauthorized</title></html>',
+      config: {},
+      statusText: 'Unauthorized',
+    } as any);
+    const { res, state } = response();
+    await createController().proxy(request('/checkouts', 'POST', {
+      referenceId: 'order-html', amount: { amountMinor: 100, currency: 'PHP' },
+      successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel',
+    }), res);
+
+    expect(state.status).toBe(502);
+    expect(state.body).toEqual({
+      success: false,
+      error: {
+        code: 'PAYMENT_UPSTREAM_INVALID_RESPONSE',
+        message: 'Payment runtime returned HTTP 401 with a non-JSON body',
+      },
+    });
   });
 });

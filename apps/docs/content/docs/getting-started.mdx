@@ -84,3 +84,7 @@ APICenter checks the service's registered placement and scopes. If a call is den
 - [Management access and tenancy](/guides/management/access-and-tenancy)
 - [Register a service](/guides/management/register-service)
 - [Consumer runbook](/guides/consumer-runbook)
+
+## Check project setup
+
+The Management project overview shows setup checks for the selected service and test/live environment. The SDK exposes `client.setup.status()` for an authenticated service caller. Checks distinguish active registration, current payment access, Google sign-in configuration, and dependencies. A configured credential does not prove the caller possesses it; payment-event delivery remains unknown until verified separately.

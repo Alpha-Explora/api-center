@@ -40,7 +40,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -59,7 +61,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -78,7 +82,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -97,7 +103,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -116,7 +124,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -135,7 +145,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -154,7 +166,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "workspace"
+      "waitFor": [
+        "workspace"
+      ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
@@ -200,7 +214,9 @@
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}",
         "."
       ],
-      "waitFor": "build-management"
+      "waitFor": [
+        "build-management"
+      ]
     }
   ],
   "images": [

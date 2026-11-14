@@ -16,7 +16,8 @@ const argsSchema = z.object({
   environment: z.enum(['test', 'live']),
   consumerServiceId: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
   endpoint: z.string().url(),
-  cloudRunServiceName: z.string().regex(/^[a-z][a-z0-9-]{0,48}$/),
+  cloudRunServiceName: z.string().regex(/^[a-z][a-z0-9-]{0,48}$/).optional(),
+  audience: z.string().url().optional(),
   deliveryServiceAccount: z.string().email(),
   notificationChannel: z.string().optional(),
   apply: z.boolean().default(false),
@@ -43,14 +44,22 @@ function parseArgs(argv) {
 function validateEndpoint(endpoint, environment) {
   const parsed = new URL(endpoint);
   if (parsed.protocol !== 'https:') throw new Error('Consumer endpoint must use HTTPS.');
-  if (!parsed.hostname.endsWith('.run.app')) throw new Error('Consumer endpoint must be a Cloud Run run.app URL.');
+  if (parsed.username || parsed.password) throw new Error('Consumer endpoint must not contain credentials.');
   if (parsed.search || parsed.hash) throw new Error('Consumer endpoint must not contain a query or fragment.');
   if (environment === 'test' && /(^|[-.])live([-.]|$)/i.test(parsed.hostname)) {
-    throw new Error('Test delivery endpoint cannot be a live Cloud Run hostname.');
+    throw new Error('Test delivery endpoint cannot use a live hostname.');
   }
   if (environment === 'live' && /(^|[-.])test([-.]|$)/i.test(parsed.hostname)) {
-    throw new Error('Live delivery endpoint cannot be a test Cloud Run hostname.');
+    throw new Error('Live delivery endpoint cannot use a test hostname.');
   }
+  return parsed.toString().replace(/\/$/, '');
+}
+
+function validateAudience(audience) {
+  const parsed = new URL(audience);
+  if (parsed.protocol !== 'https:') throw new Error('OIDC audience must use HTTPS.');
+  if (parsed.username || parsed.password) throw new Error('OIDC audience must not contain credentials.');
+  if (parsed.search || parsed.hash) throw new Error('OIDC audience must not contain a query or fragment.');
   return parsed.toString().replace(/\/$/, '');
 }
 
@@ -67,6 +76,12 @@ function resourceNames(environment, consumerServiceId) {
 
 function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
   const endpoint = validateEndpoint(input.endpoint, input.environment);
+  const parsedEndpoint = new URL(endpoint);
+  const isCloudRunEndpoint = parsedEndpoint.hostname.endsWith('.run.app');
+  if (isCloudRunEndpoint && !input.cloudRunServiceName) {
+    throw new Error("Cloud Run endpoints require --cloud-run-service-name.");
+  }
+  const audience = input.audience ? validateAudience(input.audience) : endpoint;
   const consumerProject = input.consumerProject || input.project;
   const projectDomain = `${input.project}.iam.gserviceaccount.com`;
   if (!input.deliveryServiceAccount.endsWith(`@${projectDomain}`)) {
@@ -85,13 +100,15 @@ function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
     ['pubsub', 'topics', 'create', names.deadLetterTopic, `--project=${input.project}`],
     ['pubsub', 'topics', 'update', names.deadLetterTopic, `--project=${input.project}`, `--message-retention-duration=${DAY_SECONDS}s`],
     ['pubsub', 'subscriptions', 'create', names.deadLetterSubscription, `--project=${input.project}`, `--topic=${names.deadLetterTopic}`, '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
-    ['pubsub', 'subscriptions', 'create', names.subscription, `--project=${input.project}`, `--topic=${names.topic}`, consumerFilter, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${endpoint}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
-    ['pubsub', 'subscriptions', 'update', names.subscription, `--project=${input.project}`, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${endpoint}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
+    ['pubsub', 'subscriptions', 'create', names.subscription, `--project=${input.project}`, `--topic=${names.topic}`, consumerFilter, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${audience}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
+    ['pubsub', 'subscriptions', 'update', names.subscription, `--project=${input.project}`, `--push-endpoint=${endpoint}`, `--push-auth-service-account=${input.deliveryServiceAccount}`, `--push-auth-token-audience=${audience}`, `--dead-letter-topic=${deadLetterTopicResource}`, '--max-delivery-attempts=20', '--ack-deadline=30', '--expiration-period=never', `--message-retention-duration=${DAY_SECONDS}s`],
     ['pubsub', 'topics', 'add-iam-policy-binding', names.deadLetterTopic, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/pubsub.publisher'],
     ['pubsub', 'subscriptions', 'add-iam-policy-binding', names.subscription, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/pubsub.subscriber'],
     ['iam', 'service-accounts', 'add-iam-policy-binding', input.deliveryServiceAccount, `--project=${input.project}`, `--member=serviceAccount:${pubsubAgent}`, '--role=roles/iam.serviceAccountTokenCreator'],
-    ['run', 'services', 'add-iam-policy-binding', input.cloudRunServiceName, `--project=${consumerProject}`, `--region=${input.region}`, `--member=${member}`, '--role=roles/run.invoker'],
   ];
+  if (input.cloudRunServiceName) {
+    commands.push(['run', 'services', 'add-iam-policy-binding', input.cloudRunServiceName, `--project=${consumerProject}`, `--region=${input.region}`, `--member=${member}`, '--role=roles/run.invoker']);
+  }
   const policy = {
     displayName: names.alertPolicy,
     combiner: 'OR',
@@ -109,7 +126,7 @@ function buildPlan(input, projectNumber = '${PROJECT_NUMBER}') {
     alertStrategy: { autoClose: '604800s' },
     documentation: { content: `APICenter ${input.environment} payment event delivery has dead-letter messages for ${input.consumerServiceId}.`, mimeType: 'text/markdown' },
   };
-  return { names, endpoint, commands, policy, projectNumber };
+  return { names, endpoint, audience, commands, policy, projectNumber };
 }
 
 function runGcloud(args, { allowAlreadyExists = false } = {}) {

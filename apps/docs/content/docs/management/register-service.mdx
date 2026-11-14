@@ -36,7 +36,7 @@ The gateway routes requests to the registered backend URL. Do not enter a URL th
 
 ## Issue a service secret
 
-From the service detail page, open **Actions** and the **Service secret** section. Select `test` and generate a secret. Use **Provision secret** to store its hash in APICenter's Google Secret Manager, then copy the plaintext value into the backend's secret manager. The plaintext is held in browser memory; the console does not retain it after you leave or reload the page. Initial provisioning refuses to overwrite an existing secret. If you lose it, use controlled rotation under **Governance → Go live**.
+From the service detail page, open **Actions** and the **Service secret** section. Select `test` and generate a secret. Use **Provision secret** to store its hash in APICenter's Google Secret Manager, then copy the plaintext value into the backend's secret manager. The plaintext is held in browser memory; the console does not retain it after you leave or reload the page. If you lose it, generate and provision a replacement.
 
 Configure these server-only values in the service:
 
@@ -51,14 +51,6 @@ The SDK exchanges the service credentials for a bearer token and refreshes it wh
 
 For live writes, Management requires an `admin` role, the exact confirmation phrase `APPLY LIVE CHANGE`, and a reason. Review the action before confirming it. For onboarding assistance, use the **Developer portal** to preview and copy the packet for the tribe; it does not contain service credentials.
 
-## Prepare live access
+### Editing legacy environment labels
 
-Open **Governance → Go live** on the service detail page. Review live registration, approvals, credentials, subscription access, and current protected verification. Provision separate live credentials, install them in your backend secret manager, and deploy the matching environment configuration. Test credentials remain available during the handoff.
-
-Requesting protected verification queues a job for the platform's CI runner. Missing or stale results keep readiness blocked. The page does not switch traffic or invoke a provider. Ask a platform operator to configure and run acceptance when a required check is unavailable.
-
-For an existing service secret, start a replacement, install it in the backend, and obtain a token with it before verifying the replacement and revoking the old secret. Allow up to five minutes for other gateway instances to refresh their credential cache. Existing bearer tokens keep their configured lifetime.
-
-Payment key inventory shows key IDs, prefixes, scopes, expiry, and last authenticated use. Save newly issued plaintext once. A lost issuance response cannot be recovered by repeating issuance; ask an operator to revoke the inaccessible key and create a deliberate replacement. Keep a working key until its replacement is installed.
-
-Use **Evidence** to investigate a response's correlation ID and review payment event publication. Replaying an event preserves its identity and does not repeat a payment command. Consumer acknowledgement remains unknown unless the platform has connected trusted consumer telemetry.
+Existing records with `staging`, `uat`, or `demo` remain readable. Before saving edits, explicitly change or remove those rows in **Environments**: use `test` for development/staging or `live` for production. Review the runtime URLs and credential bindings as part of that conversion. The form does not silently rename environments or bypass live approval.

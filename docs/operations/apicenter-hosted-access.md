@@ -58,3 +58,19 @@ Set `TRIBE_SECRET_GCP_PREFIX=api-center-service-secret-` on the gateway. The var
 The dated record identifies the deployed revisions and precise verification scope. Successful HTTPS and administrative access do not prove consumer SDK grants, interactive user sign-in, SMS/email delivery, payment processing, or signed provider callbacks. Complete those checks with an agreed credential and request scope before claiming that integration is verified.
 
 The repository manifests describe manual runtime changes. They do not reconcile the recovered Terraform state. Refresh actual DNS, certificates, routing, ingress and revision traffic before changing or rolling back the deployment.
+
+## Review and apply this configuration
+
+These checked-in deployment records describe the dated rollout, not a new deployment verification. Preserve the service and revision scaling limits already on main. The eight workspace service manifests already exist on main and are retained unchanged; historical local exports omitted the newer service-level cap. Review runtime ownership, current image digests, IAM, ingress, routes and secret-version references before applying any manifest. The payment YAML keeps the main image reference instead of the older snapshot build; replace it with the reviewed release digest through the deployment pipeline.
+
+This change depends on the console registration/OAuth PR. Apply the separate runtime-authentication and database-resilience changes before treating the full hosted onboarding flow as ready. No DNS, IAM, billing, database or service deployment is performed by this PR.
+
+## Payment ingress policy and observed drift
+
+The payment manifests retain main's `internal` ingress policy. Provider webhooks enter the public gateway at `/api/v1/shared/payment/webhooks/test` or `/live`; the gateway verifies signatures and forwards with runtime identity. Payment runtimes are not load-balancer backends in the checked-in hostname map.
+
+A read-only Cloud Run/IAM refresh on 2026-11-07 found payment service ingress set to `all`, while the payment and shared runtimes had no public invoker binding and did not disable invoker IAM. That is network-policy drift, not proof of anonymous access. This repository change does not modify those live services. Before applying manifests, verify the gateway-to-runtime VPC path under internal ingress and keep webhook delivery through the gateway. Live routing and certificate control-plane checks are separate from this Cloud Run evidence.
+
+The same read-only refresh found test database secret version 3 destroyed and version 4 enabled. The current test payment service references version 4; the test manifest already matched that enabled reference, so no reference change was needed. Live database version 3 was enabled. Only version metadata and references were read, not secret payloads; no secret version or service was modified.
+
+The URL map and certificate were also read on 2026-11-07 using the already-authorized abtorres.it account. The apicenter-hosted-apps host rules matched the Management, gateway (including the old API alias) and docs configuration, and apicenter-hosted-domains was ACTIVE for all four exact hostnames. DNS resolved the three canonical names to the same address. No IAM grant, route, certificate or DNS change was made. These reads do not verify an interactive sign-in or a provider action.

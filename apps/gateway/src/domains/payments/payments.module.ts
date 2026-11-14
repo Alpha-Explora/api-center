@@ -17,11 +17,11 @@ import { ApprovalsModule } from "@approvals/approvals.module";
 import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/payment-limits";
 import { PaymentEventRecoveryController } from "./features/event-recovery/payment-event-recovery.controller";
 import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
+import { PAYMENT_ACCESS_DIRECTORY } from "./shared/payment-access.types";
 
 @Module({
   imports: [AuthModule, ApprovalsModule, DatabaseModule, RegistryModule],
   controllers: [
-    PaymentEventRecoveryController,
     PaymentsController,
     PaymentConsumerManagementController,
     PaymentPubSubProvisioningController,
@@ -34,6 +34,7 @@ import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, PAYMENT_CREDENTIAL_EVIDENCE_DI
     PaymentConsumerManagementService,
     { provide: PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, useExisting: PaymentConsumerManagementService },
     { provide: PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY, useExisting: PaymentConsumerManagementService },
+    { provide: PAYMENT_ACCESS_DIRECTORY, useExisting: PaymentApiKeyService },
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
     PaymentPubSubProvisioningService,
@@ -45,6 +46,7 @@ import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, PAYMENT_CREDENTIAL_EVIDENCE_DI
     PaymentConsumerManagementService,
     PAYMENT_CONSUMER_REGISTRATION_DIRECTORY,
     PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY,
+    PAYMENT_ACCESS_DIRECTORY,
   ],
 })
 export class PaymentsModule {}

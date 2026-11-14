@@ -1,5 +1,6 @@
 import type {
   Checkout,
+  ConfirmPaymentIntentInput,
   CreateCheckoutInput,
   CreateCustomerInput,
   CreatePaymentIntentInput,
@@ -103,8 +104,8 @@ class IntentClient {
   }
 
   /** @sdk-operation confirmPaymentIntent POST /api/v1/payments/intents/{paymentIntentId}/confirm */
-  confirm(paymentIntentId: string, options: IdempotencyOptions): Promise<PaymentResource<PaymentIntent>> {
-    return this.mutate(`/intents/${encodeURIComponent(paymentIntentId)}/confirm`, {}, options);
+  confirm(paymentIntentId: string, input: ConfirmPaymentIntentInput, options: IdempotencyOptions): Promise<PaymentResource<PaymentIntent>> {
+    return this.mutate(`/intents/${encodeURIComponent(paymentIntentId)}/confirm`, input, options);
   }
 
   /** @sdk-operation cancelPaymentIntent POST /api/v1/payments/intents/{paymentIntentId}/cancel */

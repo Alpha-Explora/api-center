@@ -64,6 +64,16 @@ spec:
                 secretKeyRef:
                   name: apicenter-payments-live-internal-token
                   key: latest
+            - name: PAYMONGO_TEST_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-payments-test-webhook-secret
+                  key: latest
+            - name: PAYMONGO_LIVE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-payments-live-webhook-secret
+                  key: latest
             - name: GAUTH_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:
