@@ -20,7 +20,7 @@ import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstream-guard";
 import { newResourceId } from "../application-credential";
 import { merchantOrganizationIds } from "../merchant-binding";
-import { withTenant, type TenantDb } from "../tenant-transaction";
+import { BULK_TENANT_TRANSACTION, withTenant, type TenantDb } from "../tenant-transaction";
 import type { EnvironmentKind } from "../control-plane.types";
 import { planDigest, planMigration, type Kind, type LegacySnapshot, type MigrationPlan } from "./legacy-plan";
 
@@ -153,7 +153,7 @@ export class LegacyMigrationService {
     if (plan.blockers.length) {
       throw new AppError(`Resolve ${plan.blockers.length} blocker(s) before backfill`, 409, "MIGRATION_BLOCKED");
     }
-    const counts = await withTenant(this.prisma, { organizationId }, (db) => this.apply(db, plan, revision, actor));
+    const counts = await withTenant(this.prisma, { organizationId }, (db) => this.apply(db, plan, revision, actor), BULK_TENANT_TRANSACTION);
     await this.recordRun(organizationId, "backfill", revision, { counts }, actor);
     return { revision, counts };
   }

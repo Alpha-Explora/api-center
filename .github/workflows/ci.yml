@@ -314,19 +314,21 @@ jobs:
           smoke_runtime() {
             local image="$1"
             local name="apicenter-runtime-smoke"
-            docker run --rm -d --name "$name" \
+            # --rm removes the container asynchronously after stop; remove it synchronously so the next image can reuse the name.
+            docker rm -f "$name" >/dev/null 2>&1 || true
+            docker run -d --name "$name" \
               -e NODE_ENV=test -e PORT=8080 \
               -p 18080:8080 \
               "$image"
             for attempt in {1..30}; do
               if curl --fail --silent --show-error http://127.0.0.1:18080/health; then
-                docker stop "$name" >/dev/null
+                docker rm -f "$name" >/dev/null
                 return 0
               fi
               sleep 2
             done
             docker logs "$name" || true
-            docker stop "$name" || true
+            docker rm -f "$name" >/dev/null || true
             return 1
           }
           smoke_runtime "api-center-payments:${{ github.sha }}"
