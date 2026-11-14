@@ -27,7 +27,11 @@ model Organization {
 model OrganizationMember {
   organizationId String   @map("organization_id") @db.Uuid
   email          String
+  /// owner, admin, developer or viewer. Legacy values: operator = developer, observer = viewer.
   role           String
+  /// Verified identity subject, linked on first verified sign-in.
+  subject        String?
+  status         String   @default("active")
   createdBy      String?  @map("created_by")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -499,4 +503,446 @@ model ApiSubscription {
   @@index([apiProjectId, apiServiceId, environment, status, requestedAt(sort: Desc)], name: "api_subscriptions_api_idx")
   @@map("api_subscriptions")
   @@schema("apic_governance")
+}
+
+// ── Control plane v2 (rebuild slice 1) ──────────────────────────────────────
+// Organization-owned projects with environment-bound applications, explicit grants and
+// credentials. Ownership tuples are enforced by composite foreign keys in
+// supabase/migrations/20261114000100_control_plane_foundation.sql. No tribe.
+
+/// A product owned directly by an organization.
+model CpProject {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  slug           String
+  name           String
+  status         String   @default("active")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([organizationId, slug])
+  @@unique([id, organizationId])
+  @@map("cp_projects")
+  @@schema("apic_catalog")
+}
+
+/// An isolated test or live workspace of a project. Kind and ownership are immutable.
+model CpEnvironment {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  kind           String
+  /// provisioning (live only, before approval), active or suspended.
+  status         String   @default("active")
+  activatedAt    DateTime? @map("activated_at") @db.Timestamptz(6)
+  activatedBy    String?   @map("activated_by")
+  activationApprovalId String? @map("activation_approval_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([projectId, kind])
+  @@unique([id, projectId, organizationId])
+  @@map("cp_environments")
+  @@schema("apic_catalog")
+}
+
+/// A backend, worker or integration identity that calls APIs from one environment.
+model CpApplication {
+  id                   String   @id
+  organizationId       String   @map("organization_id") @db.Uuid
+  projectId            String   @map("project_id")
+  environmentId        String   @map("environment_id")
+  slug                 String
+  name                 String
+  status               String   @default("active")
+  authorizationVersion Int      @default(1) @map("authorization_version")
+  createdBy            String   @map("created_by")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([environmentId, slug])
+  @@unique([id, environmentId, projectId, organizationId])
+  @@map("cp_applications")
+  @@schema("apic_catalog")
+}
+
+/// A platform capability enabled for one environment. Enabling it grants no application access.
+model CpCapabilityInstallation {
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  environmentId  String   @map("environment_id")
+  capability     String
+  status         String   @default("enabled")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([environmentId, capability])
+  @@map("cp_capability_installations")
+  @@schema("apic_catalog")
+}
+
+/// Explicit permission for one application to perform one catalogued action.
+model CpApplicationGrant {
+  id             String    @id
+  organizationId String    @map("organization_id") @db.Uuid
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  applicationId  String    @map("application_id")
+  targetKind     String    @map("target_kind")
+  targetId       String    @map("target_id")
+  action         String
+  status         String    @default("active")
+  provenance     String    @default("explicit")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedBy      String?   @map("revoked_by")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  // One active grant per application/target/action is a partial unique index in SQL.
+  @@map("cp_application_grants")
+  @@schema("apic_catalog")
+}
+
+/// Environment-bound application credential. Only a SHA-256 verifier is stored.
+model CpCredential {
+  id              String    @id
+  organizationId  String    @map("organization_id") @db.Uuid
+  projectId       String    @map("project_id")
+  environmentId   String    @map("environment_id")
+  applicationId   String    @map("application_id")
+  environmentKind String    @map("environment_kind")
+  lookupPrefix    String    @unique @map("lookup_prefix")
+  verifierSha256  String    @map("verifier_sha256") @db.Char(64)
+  status          String    @default("active")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdBy       String    @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedBy       String?   @map("revoked_by")
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason   String?   @map("revoked_reason")
+
+  @@index([applicationId, status], name: "cp_credentials_application_idx")
+  @@map("cp_credentials")
+  @@schema("apic_catalog")
+}
+
+/// Credential issuance receipt keyed by the caller's operation ID.
+model CpCredentialOperation {
+  operationId    String   @id @map("operation_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  applicationId  String   @map("application_id")
+  fingerprint    String   @db.Char(64)
+  credentialId   String   @map("credential_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_credential_operations")
+  @@schema("apic_catalog")
+}
+
+/// Optional group of organization members that receives project roles.
+model CpTeam {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  slug           String
+  name           String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([organizationId, slug])
+  @@unique([id, organizationId])
+  @@map("cp_teams")
+  @@schema("apic_catalog")
+}
+
+model CpTeamMember {
+  organizationId String   @map("organization_id") @db.Uuid
+  teamId         String   @map("team_id")
+  email          String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([teamId, email])
+  @@map("cp_team_members")
+  @@schema("apic_catalog")
+}
+
+/// A project role granted to exactly one member or one team.
+model CpProjectRoleAssignment {
+  id             String   @id
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  memberEmail    String?  @map("member_email")
+  teamId         String?  @map("team_id")
+  role           String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_project_role_assignments")
+  @@schema("apic_catalog")
+}
+
+/// The plan assigned to one project environment. One active entitlement per environment.
+model CpEntitlement {
+  id             String    @id
+  organizationId String    @map("organization_id") @db.Uuid
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  planKey        String    @map("plan_key")
+  status         String    @default("active")
+  assignedBy     String    @map("assigned_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  @@map("cp_entitlements")
+  @@schema("apic_catalog")
+}
+
+/// A request budget for one project environment kind, or a shared ceiling over covered projects.
+model CpQuotaPolicy {
+  id              String   @id
+  organizationId  String   @map("organization_id") @db.Uuid
+  scope           String
+  projectId       String?  @map("project_id")
+  environmentKind String   @map("environment_kind")
+  capability      String?
+  windowSeconds   Int      @map("window_seconds")
+  maxRequests     Int      @map("max_requests")
+  mode            String   @default("enforce")
+  status          String   @default("active")
+  provenance      String   @default("explicit")
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([id, organizationId])
+  @@map("cp_quota_policies")
+  @@schema("apic_catalog")
+}
+
+model CpQuotaPolicyProject {
+  organizationId String @map("organization_id") @db.Uuid
+  policyId       String @map("policy_id")
+  projectId      String @map("project_id")
+
+  @@id([policyId, projectId])
+  @@map("cp_quota_policy_projects")
+  @@schema("apic_catalog")
+}
+
+model CpQuotaCounter {
+  organizationId String   @map("organization_id") @db.Uuid
+  budgetKey      String   @map("budget_key")
+  windowStart    DateTime @map("window_start") @db.Timestamptz(6)
+  requestCount   Int      @map("request_count")
+
+  @@id([budgetKey, windowStart])
+  @@map("cp_quota_counters")
+  @@schema("apic_catalog")
+}
+
+/// One admitted application request, counted once per request key.
+model CpUsageRecord {
+  organizationId String    @map("organization_id") @db.Uuid
+  requestKey     String    @map("request_key")
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  applicationId  String    @map("application_id")
+  capability     String
+  action         String
+  outcome        String    @default("admitted")
+  statusCode     Int?      @map("status_code")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@id([organizationId, requestKey])
+  @@map("cp_usage_records")
+  @@schema("apic_catalog")
+}
+
+/// The owner a project environment's runtime records are scoped to, when it differs from
+/// (organization, project): a migrated project keeps its legacy (tribe, project) owner.
+model CpResourceOwnerMapping {
+  organizationId    String   @map("organization_id") @db.Uuid
+  projectId         String   @map("project_id")
+  environmentKind   String   @map("environment_kind")
+  ownerGroupId      String   @map("owner_group_id")
+  ownerProjectId    String   @map("owner_project_id")
+  migrationRevision String   @map("migration_revision")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([projectId, environmentKind])
+  @@map("cp_resource_owner_mappings")
+  @@schema("apic_catalog")
+}
+
+/// An API a project publishes in one environment. Optional; calling APIs never requires it.
+model CpPublishedApi {
+  id              String   @id
+  organizationId  String   @map("organization_id") @db.Uuid
+  projectId       String   @map("project_id")
+  environmentId   String   @map("environment_id")
+  environmentKind String   @map("environment_kind")
+  slug            String
+  name            String
+  upstreamUrl     String   @map("upstream_url")
+  status          String   @default("active")
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([environmentId, slug])
+  @@unique([id, organizationId])
+  @@map("cp_published_apis")
+  @@schema("apic_catalog")
+}
+
+model CpPublishedApiOperation {
+  organizationId String  @map("organization_id") @db.Uuid
+  apiId          String  @map("api_id")
+  method         String
+  pathPattern    String  @map("path_pattern")
+  action         String
+  description    String?
+
+  @@id([apiId, method, pathPattern])
+  @@map("cp_published_api_operations")
+  @@schema("apic_catalog")
+}
+
+/// A request for an application in another project to be granted an API action.
+model CpApiAccessRequest {
+  id                    String    @id
+  organizationId        String    @map("organization_id") @db.Uuid
+  apiId                 String    @map("api_id")
+  action                String
+  consumerProjectId     String    @map("consumer_project_id")
+  consumerEnvironmentId String    @map("consumer_environment_id")
+  consumerApplicationId String    @map("consumer_application_id")
+  status                String    @default("pending")
+  requestedBy           String    @map("requested_by")
+  decidedBy             String?   @map("decided_by")
+  decidedAt             DateTime? @map("decided_at") @db.Timestamptz(6)
+  grantId               String?   @map("grant_id")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_api_access_requests")
+  @@schema("apic_catalog")
+}
+
+/// Delivers one recipient application's events in one environment to a Pub/Sub push endpoint.
+model CpEventDestination {
+  id                          String   @id
+  organizationId              String   @map("organization_id") @db.Uuid
+  projectId                   String   @map("project_id")
+  environmentId               String   @map("environment_id")
+  recipientApplicationId      String   @map("recipient_application_id")
+  eventFamily                 String   @default("payments") @map("event_family")
+  transport                   String   @default("pubsub-push")
+  pushEndpoint                String   @map("push_endpoint")
+  oidcAudience                String?  @map("oidc_audience")
+  deliveryServiceAccountEmail String   @map("delivery_service_account_email")
+  subscriptionName            String?  @map("subscription_name")
+  status                      String   @default("provisioning")
+  lastError                   String?  @map("last_error")
+  createdBy                   String   @map("created_by")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("cp_event_destinations")
+  @@schema("apic_catalog")
+}
+
+/// Which control-plane record a legacy record became. Makes backfill idempotent.
+model CpLegacyMapping {
+  organizationId    String   @map("organization_id") @db.Uuid
+  sourceKind        String   @map("source_kind")
+  sourceId          String   @map("source_id")
+  environmentKind   String   @default("") @map("environment_kind")
+  targetKind        String   @map("target_kind")
+  targetId          String   @map("target_id")
+  migrationRevision String   @map("migration_revision")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([sourceKind, sourceId, environmentKind])
+  @@map("cp_legacy_mappings")
+  @@schema("apic_catalog")
+}
+
+/// Which model is authoritative for a migrated project environment. Transitions name the fence.
+model CpControlPlaneAssignment {
+  organizationId    String    @map("organization_id") @db.Uuid
+  projectId         String    @map("project_id")
+  environmentKind   String    @map("environment_kind")
+  authority         String
+  fenceVersion      Int       @default(0) @map("fence_version")
+  legacyProjectId   String    @map("legacy_project_id")
+  legacyTribeId     String    @map("legacy_tribe_id")
+  migrationRevision String    @map("migration_revision")
+  changedBy         String    @map("changed_by")
+  changedAt         DateTime  @default(now()) @map("changed_at") @db.Timestamptz(6)
+  cutOverAt         DateTime? @map("cut_over_at") @db.Timestamptz(6)
+
+  @@id([projectId, environmentKind])
+  @@map("cp_control_plane_assignments")
+  @@schema("apic_catalog")
+}
+
+/// A legacy call whose new-model decision differs. Cutover waits until none is unresolved.
+model CpShadowMismatch {
+  organizationId  String    @map("organization_id") @db.Uuid
+  projectId       String    @map("project_id")
+  environmentKind String    @map("environment_kind")
+  sourceServiceId String    @map("source_service_id")
+  target          String
+  action          String
+  legacyAllowed   Boolean   @map("legacy_allowed")
+  newAllowed      Boolean   @map("new_allowed")
+  occurrences     Int       @default(1)
+  firstSeenAt     DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy      String?   @map("resolved_by")
+  resolution      String?
+
+  @@id([projectId, environmentKind, sourceServiceId, target, action, legacyAllowed])
+  @@map("cp_shadow_mismatches")
+  @@schema("apic_catalog")
+}
+
+model CpMigrationRun {
+  id                String   @id
+  organizationId    String   @map("organization_id") @db.Uuid
+  kind              String
+  projectId         String?  @map("project_id")
+  environmentKind   String?  @map("environment_kind")
+  migrationRevision String   @map("migration_revision")
+  report            Json     @default("{}")
+  actor             String
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("cp_migration_runs")
+  @@schema("apic_catalog")
+}
+
+/// Binds one exact OIDC workload identity (issuer, subject, audience) to one application.
+model CpWorkloadBinding {
+  id             String    @id
+  organizationId String    @map("organization_id") @db.Uuid
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  applicationId  String    @map("application_id")
+  issuer         String
+  subject        String
+  audience       String
+  description    String?
+  status         String    @default("active")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedBy      String?   @map("revoked_by")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  @@map("cp_workload_bindings")
+  @@schema("apic_catalog")
 }

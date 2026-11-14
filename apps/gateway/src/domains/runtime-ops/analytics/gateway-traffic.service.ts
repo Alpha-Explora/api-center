@@ -81,6 +81,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       await this.redis.connect();
       this.logger.info("GatewayTrafficService connected to Redis", {});
     } catch (err) {
+      this.redis?.disconnect();
       this.redis = null;
       this.logger.warn(
         `GatewayTrafficService Redis unavailable; using in-memory counters: ${(err as Error).message}`,

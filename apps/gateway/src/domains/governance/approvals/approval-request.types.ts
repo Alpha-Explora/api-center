@@ -7,7 +7,8 @@ export type ApprovalActionType =
   | "service.register_live"
   | "service.retire"
   | "plan.assign_live"
-  | "payments.live_access";
+  | "payments.live_access"
+  | "environment.activate_live";
 
 export type ApprovalRiskLevel = "low" | "medium" | "high" | "critical";
 export type ApprovalRequestStatus =

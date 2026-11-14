@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import {
   createMemoryRateLimitStore,
   createSharedServiceApp,
+  readRuntimeApplicationContext,
   fail,
   ok,
   registerWithGateway as registerSharedServiceWithGateway,
@@ -57,15 +58,26 @@ const verifyTokenService = new VerifyTokenService({
 
 app.all('/admin/oauth-apps/:projectId/:environment', oauthAppAdminHandler);
 
-/** The gateway sets the project and environment headers and strips any the caller sends, so they can be trusted. */
+/**
+ * The project and environment come from the verified control-plane context when one is present.
+ * Otherwise the gateway sets the legacy project and environment headers and strips any the caller
+ * sends, so they can be trusted.
+ */
 async function resolveCredentialForRequest(req: Request, res: Response): Promise<GoogleOAuthCredential | null> {
   const redirectUri = typeof req.body?.redirectUri === 'string' ? req.body.redirectUri : null;
+  let context;
+  try {
+    context = readRuntimeApplicationContext(req, { runtimeAudience: 'apicenter-runtime:gauth' });
+  } catch (error) {
+    fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Runtime context is invalid');
+    return null;
+  }
   let resolved;
   try {
     resolved = await resolveGoogleOAuthCredential(
       {
-        projectId: req.header('X-APICenter-Project-Id'),
-        environment: req.header('X-APICenter-Environment'),
+        projectId: context ? context.projectId : req.header('X-APICenter-Project-Id'),
+        environment: context ? context.environmentKind : req.header('X-APICenter-Environment'),
         redirectUri,
       },
       credentialDependencies,

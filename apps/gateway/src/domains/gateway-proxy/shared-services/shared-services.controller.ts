@@ -37,9 +37,12 @@ import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 import { SharedServiceRoutingService } from "./shared-service-routing.service";
 import { ForbiddenError } from "@shared/errors";
 import { stripApicenterIdentityHeaders } from "../../../shared/proxy/environment-leak-guard";
+import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
+import { ApplicationCapabilityProxy } from "./application-capability-proxy";
+import { SharedCallerGuard, bearerToken } from "./shared-caller.guard";
+import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
 
 @Controller("shared")
-@UseGuards(JwtAuthGuard)
 export class SharedServicesController implements OnModuleDestroy {
   private readonly handler: ProxyHandler;
   private readonly auth: AuthService;
@@ -57,6 +60,8 @@ export class SharedServicesController implements OnModuleDestroy {
     quotaEnforcer: TribeQuotaEnforcerService,
     policyEngine: PolicyEngineService,
     emergencyControls: EmergencyControlService,
+    private readonly applicationProxy: ApplicationCapabilityProxy,
+    private readonly legacyCallers: LegacyCallerDispatcher,
   ) {
     this.auth = auth;
     this.handler = new ProxyHandler(
@@ -84,6 +89,7 @@ export class SharedServicesController implements OnModuleDestroy {
 
   // ─── List shared platform services ───────────────────────────────────────────
   @Get()
+  @UseGuards(JwtAuthGuard)
   listSharedServices(@Req() req: AuthenticatedRequest) {
     const tribeId = req.tribeId;
     const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
@@ -105,18 +111,38 @@ export class SharedServicesController implements OnModuleDestroy {
   }
 
   // ─── Dynamic Proxy to shared services ────────────────────────────────────────
+  // Legacy service JWTs use the registry-based ProxyHandler. Control-plane application
+  // credentials (ak_…) use ApplicationCapabilityProxy: explicit grants and a signed runtime context.
   @All(":serviceId/*path")
+  @UseGuards(SharedCallerGuard)
   async proxy(
     @Param("serviceId") serviceId: string,
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
+    const bearer = bearerToken(req);
+    if (bearer && isControlPlaneBearer(bearer)) {
+      await this.applicationProxy.forward(serviceId.toLowerCase(), bearer, req, res);
+      return;
+    }
     if (serviceId.toLowerCase() === "gauth" && isGauthAdminPath(req.path)) {
       stripApicenterIdentityHeaders(req.headers as Record<string, unknown> | undefined);
       throw new ForbiddenError("GAuth administrative routes are not available through the shared-service proxy");
     }
-    await this.handler.proxyRequest(serviceId, req, res);
+    const capability = serviceId.toLowerCase();
+    await this.legacyCallers.dispatch(
+      req,
+      res,
+      { kind: "capability", capability, method: req.method, relativePath: legacyRelativePath(req.path, `/api/v1/shared/${serviceId}`) },
+      () => this.handler.proxyRequest(serviceId, req, res),
+    );
   }
+}
+
+/** The path below the service prefix, for comparing decisions; "/" when it cannot be derived. */
+function legacyRelativePath(path: string | undefined, prefix: string): string {
+  if (!path || !path.startsWith(`${prefix}/`)) return "/";
+  return path.slice(prefix.length);
 }
 
 function isGauthAdminPath(path: string): boolean {

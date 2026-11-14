@@ -3,7 +3,8 @@ import { getCloudRunAuthorizationHeader } from '../../../../apps/gateway/src/sha
 import { PaymentsController } from '../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
 import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 const paymentLimits = { enforce: jest.fn().mockResolvedValue(undefined) } as any;
-const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits);
+const applications = { authorizeAction: jest.fn(), recordOutcome: jest.fn().mockResolvedValue(undefined) } as any;
+const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits, applications);
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -113,7 +114,7 @@ describe('PaymentsController', () => {
     ['GET', '/invoices/inv_123', undefined],
   ])('maps %s %s to the private payments runtime', async (method, path, body) => {
     const idempotency = new PaymentIdempotencyService();
-    const controller = new PaymentsController(idempotency, paymentLimits);
+    const controller = new PaymentsController(idempotency, paymentLimits, applications);
     const { res, state } = response();
 
     await controller.proxy(request(path, method, body), res);
@@ -281,6 +282,57 @@ describe('PaymentsController', () => {
     } finally { clock.mockRestore(); }
   });
 
+  it('authorizes an application credential per operation and scopes the runtime call to its resolved owner', async () => {
+    const bearer = 'ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
+    applications.authorizeAction.mockResolvedValue({
+      identity: {
+        organizationId: 'org-1',
+        projectId: 'prj_aaaaaaaaaaaaaaaaaaaaaaaa',
+        environmentId: 'env_aaaaaaaaaaaaaaaaaaaaaaaa',
+        environmentKind: 'test',
+        applicationId: 'app_aaaaaaaaaaaaaaaaaaaaaaaa',
+        credentialId: 'crd_aaaaaaaaaaaaaaaaaaaaaaaa',
+      },
+      resourceOwner: { groupId: 'legacy-tribe', projectId: 'legacy-project' },
+      requestKey: 'req:1',
+      capability: 'payments',
+      action: 'payments:checkout:write',
+      signedContext: 'unused',
+    });
+    const req = request('/checkouts', 'POST', {
+      referenceId: 'order-123',
+      amount: { amountMinor: 39900, currency: 'PHP' },
+      successUrl: 'https://app.test/success',
+      cancelUrl: 'https://app.test/cancel',
+    });
+    delete req.paymentPrincipal;
+    req.headers.authorization = `Bearer ${bearer}`;
+    const { res } = response();
+    res.on = jest.fn();
+
+    await createController().proxy(req, res);
+
+    expect(applications.authorizeAction).toHaveBeenCalledWith(
+      expect.objectContaining({ bearer, capability: 'payments', action: 'payments:checkout:write', idempotencyKey: 'idempotency-key-123456' }),
+    );
+    const headers = mockedAxios.request.mock.calls[0][0].headers as Record<string, string>;
+    expect(headers['x-apicenter-owner-tribe-id']).toBe('legacy-tribe');
+    expect(headers['x-apicenter-project-id']).toBe('legacy-project');
+    expect(headers['x-apicenter-consumer-service-id']).toBe('app_aaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(headers.authorization).toBe('Bearer unit-test-runtime-token');
+    expect(JSON.stringify(mockedAxios.request.mock.calls[0][0])).not.toContain(bearer);
+  });
+
+  it('never reaches the payment runtime when the application lacks the grant', async () => {
+    applications.authorizeAction.mockRejectedValue(Object.assign(new Error('The application has not been granted this action'), { status: 403 }));
+    const req = request('/checkouts/chk_1', 'GET');
+    delete req.paymentPrincipal;
+    req.headers.authorization = 'Bearer ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
+    const { res } = response();
+    await expect(createController().proxy(req, res)).rejects.toThrow('not been granted');
+    expect(applications.authorizeAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'payments:checkout:read' }));
+    expect(mockedAxios.request).not.toHaveBeenCalled();
+  });
   it('sends the Cloud Run identity separately from the payment runtime token', async () => {
     mockedCloudRunAuthorization.mockResolvedValue('Bearer google-id-token');
     const { res, state } = response();

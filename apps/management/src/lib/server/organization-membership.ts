@@ -6,6 +6,15 @@ import type { MembershipLookup, MembershipLookupFn } from "./management-auth";
 export const MEMBERSHIP_CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 500;
 
+const LEGACY_CONSOLE_ROLE = {
+  owner: "admin",
+  admin: "admin",
+  developer: "operator",
+  operator: "operator",
+  viewer: "observer",
+  observer: "observer",
+} as const;
+
 const membershipLookupResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
@@ -16,7 +25,10 @@ const membershipLookupResponseSchema = z.object({
         organizationId: z.string(),
         organizationSlug: z.string(),
         organizationName: z.string(),
-        role: z.enum(["admin", "operator", "observer"]),
+        // Control-plane roles map onto the legacy console's role names.
+        role: z
+          .enum(["owner", "admin", "developer", "viewer", "operator", "observer"])
+          .transform((role) => LEGACY_CONSOLE_ROLE[role]),
       }),
     ),
   }),

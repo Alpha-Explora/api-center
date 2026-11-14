@@ -41,6 +41,7 @@ describe("TribesController", () => {
       mockQuotaEnforcer as any,
       mockPolicyEngine as any,
       mockEmergencyControls as any,
+      { dispatch: (_req: unknown, _res: unknown, _target: unknown, legacy: () => Promise<void>) => legacy() } as any,
     );
 
     handler = {

@@ -44,6 +44,10 @@ describe("app navigation", () => {
       })),
     ).toEqual([
       {
+        label: "Workspace",
+        items: ["Projects", "People", "Migration"],
+      },
+      {
         label: "Command",
         items: ["Overview", "Lifecycle", "Issues", "Readiness"],
       },

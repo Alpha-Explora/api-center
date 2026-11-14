@@ -12,6 +12,7 @@ import { AuthenticatedRequest, isApicenterRuntimeEnvironment } from "../../../ty
 import { RegistryService } from "@registry/registry.service";
 import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
 import { PaymentApiKeyService } from "../features/payment-facade/payment-api-key.service";
+import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import { normalizePaymentServiceScopes } from "./payment-service-scopes";
 
 @Injectable()
@@ -27,6 +28,10 @@ export class PaymentAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.bearerToken(request);
     if (!token) throw new UnauthorizedException("Missing authorization token");
+
+    // Control-plane application credentials are authorized per operation in PaymentsController,
+    // once the operation's action is known. That path fails closed.
+    if (isControlPlaneBearer(token)) return true;
 
     if (token.startsWith("apic_")) {
       const principal = await this.apiKeys.resolve(token);

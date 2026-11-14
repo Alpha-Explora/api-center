@@ -64,6 +64,7 @@ export class TokenStoreService implements OnModuleInit, OnModuleDestroy {
         `TokenStoreService: Redis unavailable — refresh token persistence disabled: ${(err as Error).message}`,
         "TokenStoreService",
       );
+      this.redis?.disconnect();
       this.redis = null;
     }
   }

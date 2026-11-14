@@ -16,6 +16,29 @@ export type AppNavSearchResult<TItem extends AppNavItem = AppNavItem> = TItem & 
 
 export const commandCenterNavGroups: AppNavGroup[] = [
   {
+    label: "Workspace",
+    items: [
+      {
+        href: "/control-plane/projects",
+        label: "Projects",
+        description: "Projects, environments, capabilities, applications, grants and credentials.",
+        keywords: ["project", "application", "api key", "credential", "grant", "capability", "live"],
+      },
+      {
+        href: "/control-plane/people",
+        label: "People",
+        description: "Organization members, roles and teams.",
+        keywords: ["members", "roles", "teams", "owner", "admin", "developer", "viewer"],
+      },
+      {
+        href: "/control-plane/migration",
+        label: "Migration",
+        description: "Move legacy tribes, projects and services to the control plane.",
+        keywords: ["migrate", "tribe", "cutover", "rollback", "shadow"],
+      },
+    ],
+  },
+  {
     label: "Command",
     items: [
       {

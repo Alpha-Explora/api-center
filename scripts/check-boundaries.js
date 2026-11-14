@@ -49,6 +49,8 @@ const BOUNDED_CONTEXTS = [
       'apps/gateway/src/registry',
       'apps/gateway/src/catalog',
       'apps/gateway/src/domains/catalog-registry',
+      // Control plane v2 owns its apic_catalog.cp_* tables alongside the legacy catalog.
+      'apps/gateway/src/domains/control-plane',
     ],
     schemas: ['apic_catalog'],
   },
@@ -176,6 +178,17 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service.ts',
   'apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service.ts',
   'apps/gateway/src/domains/auth-security/secrets/tribe-secret-rotation.service.ts',
+  // Code-owned plan catalogue; the control plane prices project environments with it.
+  'apps/gateway/src/domains/governance/entitlements/tribe-plan-definitions.ts',
+  // Control plane event destinations reuse the payment event subscription provisioner.
+  'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service.ts',
+  'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service.ts',
+  // Read-only payment consumer listing for the control plane migration inventory.
+  'apps/gateway/src/domains/payments/features/consumer-management/payment-consumer-management.service.ts',
+  // Control plane v2 entry points for the request path and legacy migration bridge.
+  'apps/gateway/src/domains/control-plane/migration/legacy-bridge.service.ts',
+  'apps/gateway/src/domains/control-plane/migration/authority.ts',
+  'apps/gateway/src/domains/control-plane/application-access.service.ts',
 ]);
 
 function toPosixPath(filePath) {
