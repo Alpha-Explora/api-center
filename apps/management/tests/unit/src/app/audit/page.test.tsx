@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AuditPage from "../../../../../src/app/(management)/audit/page";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/components/audit-log-client", () => ({
   AuditLogClient: ({
@@ -23,12 +24,12 @@ describe("AuditPage", () => {
 
   it("passes service and action family filters from the route", async () => {
     render(
-      await AuditPage({
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{await AuditPage({
         searchParams: Promise.resolve({
           serviceId: "logistics-orders",
           actionFamily: "approval",
         }),
-      }),
+      })}</QueryClientProvider>,
     );
 
     expect(

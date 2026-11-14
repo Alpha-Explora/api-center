@@ -15,7 +15,8 @@ import { PaymentRecordsManagementController } from "./features/records-managemen
 import { PaymentRecordsManagementService } from "./features/records-management/payment-records-management.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { PaymentLimitsAdminController, PaymentLimitsService } from "./features/payment-limits";
-import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
+import { PaymentEventRecoveryController } from "./features/event-recovery/payment-event-recovery.controller";
+import { PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY } from "./features/consumer-management/payment-consumer.types";
 import { PAYMENT_ACCESS_DIRECTORY } from "./shared/payment-access.types";
 
 @Module({
@@ -32,6 +33,7 @@ import { PAYMENT_ACCESS_DIRECTORY } from "./shared/payment-access.types";
     PaymentAuthGuard,
     PaymentConsumerManagementService,
     { provide: PAYMENT_CONSUMER_REGISTRATION_DIRECTORY, useExisting: PaymentConsumerManagementService },
+    { provide: PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY, useExisting: PaymentConsumerManagementService },
     { provide: PAYMENT_ACCESS_DIRECTORY, useExisting: PaymentApiKeyService },
     PaymentIdempotencyService,
     PaymentPubSubIamProvisioningService,
@@ -43,6 +45,7 @@ import { PAYMENT_ACCESS_DIRECTORY } from "./shared/payment-access.types";
     PaymentApiKeyService,
     PaymentConsumerManagementService,
     PAYMENT_CONSUMER_REGISTRATION_DIRECTORY,
+    PAYMENT_CREDENTIAL_EVIDENCE_DIRECTORY,
     PAYMENT_ACCESS_DIRECTORY,
   ],
 })

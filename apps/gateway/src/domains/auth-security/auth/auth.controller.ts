@@ -20,7 +20,10 @@ import { Response } from "express";
 import { AuthService, type ServiceTokenGrant } from "./auth.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RegistryService } from "@registry/registry.service";
-import { TENANCY_DIRECTORY, type TenancyDirectory } from "@registry/tenancy.types";
+import {
+  TENANCY_DIRECTORY,
+  type TenancyDirectory,
+} from "@registry/tenancy.types";
 import { LoggerService } from "@shared/logger.service";
 import {
   ForbiddenError,
@@ -74,7 +77,14 @@ export class AuthController {
       throw new UnauthorizedError("Invalid credentials");
     }
 
-    const { identity, permissions, scopes } = this.buildGrant(serviceId, placement);
+    const { identity, permissions, scopes } = this.buildGrant(
+      serviceId,
+      placement,
+    );
+    req.sourceServiceId = identity.serviceId;
+    req.projectId = identity.projectId;
+    req.tribeId = identity.tribeId;
+    req.diagnosticEnvironment = environment;
 
     const token = await this.auth.issueServiceToken(
       identity,
@@ -120,7 +130,10 @@ export class AuthController {
     // A refresh is a new grant: the service, project, and tribe must still be active, and scopes are
     // recomputed from the registry as it stands now.
     const resp = await this.auth.refreshToken(dto.refreshToken, (subject) => {
-      const service = this.validateTokenService(subject.serviceId, subject.environment);
+      const service = this.validateTokenService(
+        subject.serviceId,
+        subject.environment,
+      );
       const placement = this.resolvePlacement(service);
       if (placement.project.projectId !== subject.projectId) {
         throw new ForbiddenError(

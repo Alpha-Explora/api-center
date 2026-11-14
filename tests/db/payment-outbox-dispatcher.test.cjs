@@ -22,7 +22,7 @@ if (!skip) {
 }
 
 test.after(async () => { if (pool) await pool.end(); });
-test.beforeEach(async () => { if (pool) await pool.query('TRUNCATE shared_payment.payment_event_outbox'); });
+test.beforeEach(async () => { if (pool) await pool.query('TRUNCATE shared_payment.payment_replay_attempts, shared_payment.payment_event_outbox'); });
 
 async function insertEvent(overrides = {}) {
   const row = {

@@ -16,6 +16,7 @@ const accessMocks = vi.hoisted(() => ({
   authorizeService: vi.fn().mockResolvedValue("org-1"),
 }));
 const secretMocks = vi.hoisted(() => ({
+  getTribeSecretStatus: vi.fn(async () => ({ exists: false, latestEnabledVersion: undefined as string | undefined })),
   getProjectId: vi.fn(() => "api-center-test"),
   getSecretManagerAuthReadiness: vi.fn(() => ({ ok: true })),
   shouldUseLocalGcloudImpersonation: vi.fn(() => true),
@@ -32,6 +33,12 @@ vi.mock("@/lib/server/organization-access", () => accessMocks);
 vi.mock("@/lib/server/gcp-secret-manager", () => secretMocks);
 
 describe("POST /api/local/tribe-secrets", () => {
+  it("does not overwrite an existing service secret", async () => {
+    secretMocks.getTribeSecretStatus.mockResolvedValueOnce({ exists: true, latestEnabledVersion: "7" });
+    const response = await POST(new Request("http://localhost/api/local/tribe-secrets", { method: "POST", body: JSON.stringify({ serviceId: "spark-site", environment: "live", secretHashSha256: "a".repeat(64), mode: "create-or-rotate", confirmation: { typedPhrase: "APPLY LIVE CHANGE", reason: "Approved" } }) }));
+    expect(response.status).toBe(409);
+    expect(secretMocks.provisionSecretWithLocalGcloudImpersonation).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     vi.clearAllMocks();
   });

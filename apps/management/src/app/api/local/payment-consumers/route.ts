@@ -15,14 +15,17 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const input = await request.json();
+    const input = await request.clone().json();
     if (!input || typeof input.consumerServiceId !== "string") {
       return Response.json({ success: false, error: { message: "Organization scope could not be resolved" } }, { status: 503 });
     }
     await authorizeService(request, input.consumerServiceId, "operator");
     const service = await requireManagementService();
     if (service instanceof Response) return service;
-    await requireManagementRouteAction({ request, actionRisk: "provider-write", actionId: "payment.consumer.provision" });
+    if (input.environment !== "test" && input.environment !== "live") {
+      return Response.json({ success: false, error: { message: "Environment must be test or live" } }, { status: 400 });
+    }
+    await requireManagementRouteAction({ request, environment: input.environment, actionRisk: "provider-write", actionId: "payment.consumer.provision" });
     const result = await service.registerPaymentConsumer(input);
     return Response.json({ success: true, data: result }, { status: 201 });
   } catch (error) {

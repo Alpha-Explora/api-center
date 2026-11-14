@@ -26,6 +26,8 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 ## Operations
 
+- [Go-live, credential recovery, and release verification](operations/operability-and-release-verification.md)
+
 - [Documentation entry-point compatibility](README.md)
 - [Cloud review recorded on 2026-10-11](operations/cloud-live-status-2026-10-11.md)
 - [Cloud Run deployment verified on 2026-10-12](operations/cloud-live-status-2026-10-12.md)
@@ -63,8 +65,8 @@ This is the canonical internal reading map. Consumer and Management guides are p
 ## Public documentation sources
 
 - [Guide membership and aliases](../apps/docs/content/guides.json)
-- [Public payment OpenAPI](../contracts/public/apicenter.openapi.yaml)
+- [Public consumer OpenAPI](../contracts/public/apicenter.openapi.yaml)
 - [Public payment event AsyncAPI](../contracts/public/apicenter.asyncapi.yaml)
 - [Published SDK](../packages/sdk/README.md)
 
-Root internal documents are not automatically published. Shared-service guides do not imply full public OpenAPI coverage. See the maintenance rules for ownership, retirement, and the automated checks.
+Root internal documents are not automatically published. The public OpenAPI covers payments, identity bootstrap, and supported shared-service HTTP operations. See the maintenance rules for ownership, retirement, and the automated checks.

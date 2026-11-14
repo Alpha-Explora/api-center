@@ -8,6 +8,7 @@ function createHost(
   request: Record<string, unknown>,
   response: Record<string, unknown>,
 ): ArgumentsHost {
+  response.locals = {};
   return {
     switchToHttp: () => ({
       getRequest: () => request,

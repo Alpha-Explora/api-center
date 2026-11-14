@@ -70,6 +70,7 @@ import { PaymentsModule } from "./domains/payments/payments.module";
 import { ProjectOverviewModule } from "./domains/catalog-registry/project-overview/project-overview.module";
 
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
+import { RequestDiagnosticsMiddleware } from "./shared/middleware/request-diagnostics.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
 import { ResponseListenerBudgetMiddleware } from "./shared/middleware/response-listener-budget.middleware";
 import { RedisThrottlerStorage } from "./shared/redis-throttler-storage";
@@ -160,6 +161,7 @@ export class AppModule implements NestModule {
     consumer
       .apply(
         ResponseListenerBudgetMiddleware,
+        RequestDiagnosticsMiddleware,
         SecurityMiddleware,
         MorganMiddleware,
       )

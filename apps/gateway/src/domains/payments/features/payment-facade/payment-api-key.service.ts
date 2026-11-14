@@ -28,6 +28,7 @@ type DatabaseKey = {
 
 @Injectable()
 export class PaymentApiKeyService implements PaymentAccessDirectory {
+  private readonly usageRecordedAt = new Map<string, number>();
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: RegistryService,
@@ -70,7 +71,23 @@ export class PaymentApiKeyService implements PaymentAccessDirectory {
       projectPlacement.tribe.tribeId !== placement.tribeId ||
       projectPlacement.tribe.status !== "active"
     ) return null;
+    if (credential.keyId && process.env.DATABASE_ENABLED === "true") await this.recordUsage(credential.keyId);
     return { ...credential, projectId: placement.projectId };
+  }
+
+  private async recordUsage(keyId: string): Promise<void> {
+    const now = Date.now();
+    if (now - (this.usageRecordedAt.get(keyId) ?? 0) < 60_000) return;
+    if (this.usageRecordedAt.size >= 10_000) this.usageRecordedAt.clear();
+    this.usageRecordedAt.set(keyId, now);
+    try {
+      await this.prisma.$executeRawUnsafe(
+        "UPDATE apic_governance.payment_api_keys SET last_used_at=now() WHERE id=$1::uuid AND (last_used_at IS NULL OR last_used_at < now()-interval '1 minute')",
+        keyId,
+      );
+    } catch {
+      // Authentication remains available when optional usage telemetry cannot be written.
+    }
   }
 
   async hasActiveReadWriteKey(serviceId: string, projectId: string, environment: "test" | "live"): Promise<boolean | null> {

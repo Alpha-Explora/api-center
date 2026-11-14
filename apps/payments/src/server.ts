@@ -12,6 +12,8 @@ import { PayMongoError } from './shared/payment-errors';
 import { isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
 import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
+import { PaymentReplayStore } from './events/paymentReplayStore';
+import { z } from 'zod';
 
 const port = Number(process.env.PORT || 4010);
 const { app, ok, fail } = createSharedServiceApp({
@@ -35,6 +37,8 @@ const invoicesService = new InvoicesService();
 const paymentLinksService = new PaymentLinksService();
 const qrPhService = new QrPhService();
 const owners = PaymentOwnerStore.getInstance();
+const eventRecovery = new PaymentReplayStore();
+const replayInput = z.object({ eventId: z.string().uuid(), operationId: z.string().uuid(), reason: z.string().trim().min(1).max(500), actor: z.string().trim().min(1).max(200) }).strict();
 
 function recordFilters(query: Request['query']): PaymentRecordFilters {
   const one = (key: string): string | undefined => {
@@ -158,6 +162,21 @@ app.get('/admin/payments/records', async (req: Request, res: Response) => {
     const context = paymentContext(req);
     return ok(res, await owners.listRecords(context, recordFilters(req.query)));
   } catch (err) { return handleCustomError(res, err); }
+});
+
+app.get('/admin/payments/events', async (req: Request, res: Response) => {
+  try { return ok(res, await eventRecovery.list(paymentContext(req))); }
+  catch (error) { return handleCustomError(res, error); }
+});
+
+app.post('/admin/payments/events/replay', async (req: Request, res: Response) => {
+  const parsed = replayInput.safeParse(req.body);
+  if (!parsed.success) return fail(res, 400, 'INVALID_REPLAY', 'A valid event, operation ID, actor and reason are required');
+  try { return ok(res, await eventRecovery.replay({ ...parsed.data, context: paymentContext(req) })); }
+  catch (error) {
+    if (error instanceof Error && 'status' in error && 'code' in error && typeof error.status === 'number' && typeof error.code === 'string') return fail(res, error.status, error.code, error.code);
+    return handleCustomError(res, error);
+  }
 });
 
 // Payment Intents

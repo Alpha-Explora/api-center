@@ -1,0 +1,55 @@
+name: Release verification
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        type: choice
+        options: [repository, deployed, all]
+        default: repository
+      environment:
+        type: choice
+        options: [test, live]
+        default: test
+      submit_evidence:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - uses: google-github-actions/auth@v2
+        if: inputs.phase != 'repository' && vars.APICENTER_VERIFY_WORKLOAD_IDENTITY_PROVIDER != '' && vars.APICENTER_VERIFY_SERVICE_ACCOUNT != ''
+        with:
+          workload_identity_provider: ${{ vars.APICENTER_VERIFY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.APICENTER_VERIFY_SERVICE_ACCOUNT }}
+      - name: Verify selected revision
+        run: npm run release:verify -- --phase '${{ inputs.phase }}' --environment '${{ inputs.environment }}' --output /tmp/apicenter-release-verification.json ${{ inputs.submit_evidence && '--submit' || '' }}
+        env:
+          APICENTER_URL: ${{ secrets.APICENTER_VERIFY_URL }}
+          APICENTER_SERVICE_ID: ${{ vars.APICENTER_VERIFY_SERVICE_ID }}
+          APICENTER_SERVICE_SECRET: ${{ secrets.APICENTER_VERIFY_SERVICE_SECRET }}
+          APICENTER_VERIFY_DEPLOYMENTS: ${{ vars.APICENTER_VERIFY_DEPLOYMENTS }}
+          APICENTER_VERIFICATION_RUNNER_TOKEN: ${{ secrets.APICENTER_VERIFICATION_RUNNER_TOKEN }}
+          APICENTER_VERIFY_CASES: ${{ secrets.APICENTER_VERIFY_CASES }}
+          APICENTER_VERIFY_RECIPIENT_ALLOWLIST: ${{ secrets.APICENTER_VERIFY_RECIPIENT_ALLOWLIST }}
+          APICENTER_VERIFY_ALLOW_TEST_WRITES: ${{ vars.APICENTER_VERIFY_ALLOW_TEST_WRITES }}
+          APICENTER_VERIFY_ALLOW_LIVE_CASES: ${{ vars.APICENTER_VERIFY_ALLOW_LIVE_CASES }}
+          APICENTER_VERIFY_LIVE_PHRASE: ${{ secrets.APICENTER_VERIFY_LIVE_PHRASE }}
+          APICENTER_VERIFY_LIVE_REASON: ${{ vars.APICENTER_VERIFY_LIVE_REASON }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-verification-${{ github.sha }}
+          path: /tmp/apicenter-release-verification.json
+          if-no-files-found: error

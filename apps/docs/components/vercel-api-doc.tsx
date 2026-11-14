@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DetailedOperation } from "@/lib/contracts";
+import { buildSnippet } from "@/lib/snippets";
 
 interface VercelApiDocProps {
   operations: DetailedOperation[];
@@ -36,51 +37,7 @@ export function VercelApiDoc({ operations }: VercelApiDocProps) {
 
   if (!activeOp) return null;
 
-  // Generate dynamic code snippets
-  const getCodeSnippet = (lang: "TypeScript" | "Next.js" | "cURL") => {
-    const fullUrl = `https://api.apicenter.itsandbox.site${activeOp.path}`;
-    const reqBody = activeOp.sampleRequest ? JSON.stringify(activeOp.sampleRequest, null, 2) : null;
-
-    if (lang === "TypeScript") {
-      return `// Run on a trusted server. Keep this token in a server-only environment variable.
-const response = await fetch("${fullUrl}", {
-  method: "${activeOp.method}",
-  headers: {
-    Authorization: "Bearer " + process.env.APICENTER_ACCESS_TOKEN,
-    "Content-Type": "application/json"${activeOp.requiresIdempotency ? ',\n    "Idempotency-Key": "unique-operation-' + activeOp.operationId + '-0001"' : ""}
-  }${reqBody ? `,\n  body: JSON.stringify(${reqBody})` : ""}
-});
-
-const envelope = await response.json();
-if (!response.ok || envelope.success !== true) throw new Error("APICenter request failed");
-console.log(envelope.data);`;
-    }
-
-    if (lang === "Next.js") {
-      return `const response = await fetch("${fullUrl}", {
-  method: "${activeOp.method}",
-  headers: {
-    "Authorization": "Bearer YOUR_ACCESS_TOKEN",
-    "Content-Type": "application/json"${activeOp.requiresIdempotency ? ',\n    "Idempotency-Key": "' + activeOp.operationId + '-idem-123"' : ""}
-  }${reqBody ? `,\n  body: JSON.stringify(${reqBody})` : ""}
-});
-
-const data = await response.json();
-console.log(data);`;
-    }
-
-    // cURL
-    let curl = `curl -X ${activeOp.method} "${fullUrl}" \\\n  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\\n  -H "Content-Type: application/json"`;
-    if (activeOp.requiresIdempotency) {
-      curl += ` \\\n  -H "Idempotency-Key: ${activeOp.operationId}-idem-123"`;
-    }
-    if (reqBody) {
-      curl += ` \\\n  -d '${JSON.stringify(activeOp.sampleRequest)}'`;
-    }
-    return curl;
-  };
-
-  const codeText = getCodeSnippet(activeTab);
+  const codeText = buildSnippet(activeOp, activeTab);
   const responseJson = JSON.stringify(activeOp.sampleResponse, null, 2);
 
   return (

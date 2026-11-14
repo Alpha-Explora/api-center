@@ -34,6 +34,7 @@ export interface AuthenticatedRequest extends Request {
   sourceServiceId?: string;
   /** Unique correlation ID for distributed request tracing */
   correlationId?: string;
+  diagnosticEnvironment?: ApicenterRuntimeEnvironment;
   paymentPrincipal?: PaymentPrincipal;
 }
 

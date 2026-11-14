@@ -26,6 +26,8 @@ import { DatabaseModule } from "@database/database.module";
 import { TribeSecretRotationService } from "@secrets/tribe-secret-rotation.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { RegistryChangeRequestModule } from "@change-requests/registry-change-request.module";
+import { ServiceCredentialLifecycleService } from "./service-credential-lifecycle.service";
+import { ServiceCredentialLifecycleController } from "./service-credential-lifecycle.controller";
 
 @Module({
   imports: [
@@ -37,12 +39,14 @@ import { RegistryChangeRequestModule } from "@change-requests/registry-change-re
     forwardRef(() => AuthModule),
   ],
   controllers: [
+    ServiceCredentialLifecycleController,
     RegistryController,
     RegistrationRequestsController,
     TenancyController,
     OrganizationMembershipController,
   ],
   providers: [
+    ServiceCredentialLifecycleService,
     RegistryService,
     TenancyService,
     PostgresTenancyStoreService,

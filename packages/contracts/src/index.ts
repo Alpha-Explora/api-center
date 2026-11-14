@@ -265,6 +265,7 @@ export interface GauthUserInfo {
 }
 
 export interface GoogleAuthorizationUrlRequest {
+  redirectUri?: string;
   scopes?: string[];
   state?: string;
   loginHint?: string;
@@ -283,12 +284,14 @@ export interface GoogleAuthorizationUrlResponse {
 }
 
 export interface GoogleTokenExchangeRequest {
+  redirectUri?: string;
   code: string;
   codeVerifier?: string;
   state: string;
 }
 
 export interface GoogleTokenRefreshRequest {
+  redirectUri?: string;
   refreshToken: string;
 }
 

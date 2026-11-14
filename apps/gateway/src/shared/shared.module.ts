@@ -14,10 +14,16 @@ import { SecurityMiddleware } from "./middleware/security.middleware";
 import { MorganMiddleware } from "./middleware/morgan.middleware";
 import { ResponseListenerBudgetMiddleware } from "./middleware/response-listener-budget.middleware";
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
+import { DatabaseModule } from "@database/database.module";
+import { RequestDiagnosticsStore } from "./request-diagnostics.store";
+import { RequestDiagnosticsMiddleware } from "./middleware/request-diagnostics.middleware";
 
 @Global()
 @Module({
+  imports: [DatabaseModule],
   providers: [
+    RequestDiagnosticsStore,
+    RequestDiagnosticsMiddleware,
     LoggerService,
     AllExceptionsFilter,
     CorrelationIdInterceptor,
@@ -28,6 +34,8 @@ import { RedisThrottlerStorage } from "./redis-throttler-storage";
     RedisThrottlerStorage,
   ],
   exports: [
+    RequestDiagnosticsStore,
+    RequestDiagnosticsMiddleware,
     LoggerService,
     AllExceptionsFilter,
     CorrelationIdInterceptor,

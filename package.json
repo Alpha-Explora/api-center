@@ -4,6 +4,8 @@
   "description": "APICenter - centralized gateway for tribe-to-tribe calls, shared services, auth, registry, and governed event publishing.",
   "main": "./dist/main.js",
   "scripts": {
+    "release:verify": "node scripts/release/verify-release.cjs",
+    "test:release-verification": "node --test tests/integration/scripts/verify-release.test.cjs",
     "build": "turbo run build",
     "start": "node apps/gateway/dist/main",
     "start:dev": "nest start --watch",
@@ -33,7 +35,7 @@
     "check:monorepo": "node scripts/check-monorepo-boundary.js",
     "check:contracts": "node scripts/check-contract-compatibility.js && node scripts/check-sdk-contracts.js",
     "contracts:validate": "ts-node scripts/contracts/validate-public-contracts.ts",
-    "contracts:test": "jest --runInBand tests/unit/contracts/public-payment-contract.spec.ts",
+    "contracts:test": "jest --runInBand tests/unit/contracts/public-payment-contract.spec.ts tests/unit/contracts/public-shared-service-contract.spec.ts",
     "smoke:post-deploy": "node scripts/post-deploy-smoke.js",
     "smoke:cloud-run": "node scripts/smoke-cloud-run-deploy.js",
     "dns:cloud-run:cutover": "node scripts/cloudflare-dns-cutover.js",

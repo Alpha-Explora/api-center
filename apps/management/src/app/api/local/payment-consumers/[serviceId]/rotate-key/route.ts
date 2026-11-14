@@ -11,8 +11,12 @@ export async function POST(
     await authorizeService(request, serviceId, "operator");
     const service = await requireManagementService();
     if (service instanceof Response) return service;
-    await requireManagementRouteAction({ request, actionRisk: "provider-write", actionId: "payment.consumer.rotate-key" });
-    const result = await service.rotatePaymentApiKey(serviceId, await request.json());
+    const input = await request.clone().json();
+    if (input?.environment !== "test" && input?.environment !== "live") {
+      return Response.json({ success: false, error: { message: "Environment must be test or live" } }, { status: 400 });
+    }
+    await requireManagementRouteAction({ request, environment: input.environment, actionRisk: "provider-write", actionId: "payment.consumer.rotate-key" });
+    const result = await service.rotatePaymentApiKey(serviceId, input);
     return Response.json({ success: true, data: result });
   } catch (error) {
     return managementError(error);

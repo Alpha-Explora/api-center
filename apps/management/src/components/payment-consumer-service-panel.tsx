@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { request } from "@/lib/api-center/client-core";
 
 type PaymentScope = "payments:read" | "payments:write";
@@ -32,6 +32,9 @@ export function PaymentConsumerServicePanel() {
   const [serviceId, setServiceId] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
   const [approvalRequestId, setApprovalRequestId] = useState("");
+  const [typedPhrase, setTypedPhrase] = useState("");
+  const [reason, setReason] = useState("");
+  const operation = useRef<{ fingerprint: string; id: string } | null>(null);
   const [scopes, setScopes] = useState<PaymentScope[]>(["payments:read", "payments:write"]);
   const [pushEndpoint, setPushEndpoint] = useState("");
   const [deliveryServiceAccountEmail, setDeliveryServiceAccountEmail] = useState("");
@@ -41,17 +44,29 @@ export function PaymentConsumerServicePanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const liveConfirmed = environment === "test" || (typedPhrase === "APPLY LIVE CHANGE" && reason.trim().length > 0);
+
+  function operationId(action: "register" | "rotate") {
+    const fingerprint = JSON.stringify({ action, serviceId, environment, scopes, approvalRequestId, pushEndpoint });
+    if (operation.current?.fingerprint !== fingerprint) {
+      operation.current = { fingerprint, id: crypto.randomUUID() };
+    }
+    return operation.current.id;
+  }
+
   async function register(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!liveConfirmed || busy) return;
     setBusy(true);
     setError("");
-    setResult(null);
     try {
       const payload = await request<ApiResponse>("/api/local/payment-consumers", {
         method: "POST",
         body: JSON.stringify({
           consumerServiceId: serviceId,
+          operationId: operationId("register"),
           environment,
+          ...(environment === "live" ? { confirmation: { typedPhrase, reason } } : {}),
           scopes,
           approvalRequestId: environment === "live" ? approvalRequestId || undefined : undefined,
           pushEndpoint: pushEndpoint || undefined,
@@ -64,6 +79,7 @@ export function PaymentConsumerServicePanel() {
       });
       if (!payload.success || !payload.data) throw new Error(payload.error?.message ?? "Registration failed");
       setResult(payload.data);
+      operation.current = null;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Registration failed");
     } finally {
@@ -72,16 +88,17 @@ export function PaymentConsumerServicePanel() {
   }
 
   async function rotate() {
+    if (!liveConfirmed || busy) return;
     setBusy(true);
     setError("");
-    setResult(null);
     try {
       const payload = await request<ApiResponse>(
         `/api/local/payment-consumers/${encodeURIComponent(serviceId)}/rotate-key`,
-        { method: "POST", body: JSON.stringify({ environment, scopes }) },
+        { method: "POST", body: JSON.stringify({ environment, scopes, operationId: operationId("rotate"), ...(environment === "live" ? { confirmation: { typedPhrase, reason } } : {}) }) },
       );
       if (!payload.success || !payload.data) throw new Error(payload.error?.message ?? "Rotation failed");
       setResult(payload.data);
+      operation.current = null;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Rotation failed");
     } finally {
@@ -103,9 +120,13 @@ export function PaymentConsumerServicePanel() {
 
       <form className="mt-6 grid gap-4" onSubmit={register}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium" htmlFor="serviceId">Consumer service ID<input className="h-10 rounded-md border bg-background px-3 font-normal" id="serviceId" value={serviceId} onChange={(event) => setServiceId(event.target.value)} required /></label>
-          <label className="grid gap-2 text-sm font-medium" htmlFor="environment">Environment<select className="h-10 rounded-md border bg-background px-3 font-normal" id="environment" value={environment} onChange={(event) => setEnvironment(event.target.value as "test" | "live")}><option value="test">Test</option><option value="live">Live</option></select></label>
+          <label className="grid gap-2 text-sm font-medium" htmlFor="serviceId">Consumer service ID<input className="h-10 rounded-md border bg-background px-3 font-normal" id="serviceId" value={serviceId} onChange={(event) => { setServiceId(event.target.value); setResult(null); }} required /></label>
+          <label className="grid gap-2 text-sm font-medium" htmlFor="environment">Environment<select className="h-10 rounded-md border bg-background px-3 font-normal" id="environment" value={environment} onChange={(event) => { if (event.target.value === "test" || event.target.value === "live") { setEnvironment(event.target.value); setResult(null); setTypedPhrase(""); setReason(""); } }}><option value="test">Test</option><option value="live">Live</option></select></label>
           {environment === "live" ? <label className="grid gap-2 text-sm font-medium" htmlFor="approvalRequestId">Approval request ID<input className="h-10 rounded-md border bg-background px-3 font-normal" id="approvalRequestId" placeholder="UUID of the approved payments.live_access request" value={approvalRequestId} onChange={(event) => setApprovalRequestId(event.target.value)} /><span className="text-xs font-normal text-muted-foreground">Required for the first live registration. Key rotation does not need a new approval.</span></label> : null}
+          {environment === "live" ? <>
+            <label className="grid gap-2 text-sm font-medium" htmlFor="payment-live-phrase">Live confirmation<input id="payment-live-phrase" className="h-10 rounded-md border bg-background px-3 font-normal" placeholder="APPLY LIVE CHANGE" value={typedPhrase} onChange={(event) => setTypedPhrase(event.target.value)} required /></label>
+            <label className="grid gap-2 text-sm font-medium" htmlFor="payment-live-reason">Reason<input id="payment-live-reason" className="h-10 rounded-md border bg-background px-3 font-normal" value={reason} onChange={(event) => setReason(event.target.value)} required /></label>
+          </> : null}
           <fieldset className="grid gap-2 text-sm font-medium"><legend>Scopes</legend><div className="flex flex-wrap gap-3 font-normal"><label className="flex items-center gap-2"><input type="checkbox" checked={scopes.includes("payments:read")} onChange={() => toggleScope("payments:read")} /> payments:read</label><label className="flex items-center gap-2"><input type="checkbox" checked={scopes.includes("payments:write")} onChange={() => toggleScope("payments:write")} /> payments:write</label></div></fieldset>
           <label className="grid gap-2 text-sm font-medium" htmlFor="deliveryServiceAccountEmail">Delivery service account<input className="h-10 rounded-md border bg-background px-3 font-normal" id="deliveryServiceAccountEmail" type="email" required={Boolean(pushEndpoint)} value={deliveryServiceAccountEmail} onChange={(event) => setDeliveryServiceAccountEmail(event.target.value)} /></label>
           <label className="grid gap-2 text-sm font-medium" htmlFor="consumerProjectId">Consumer GCP project<input className="h-10 rounded-md border bg-background px-3 font-normal" id="consumerProjectId" required={Boolean(pushEndpoint)} value={consumerProjectId} onChange={(event) => setConsumerProjectId(event.target.value)} /></label>
@@ -113,7 +134,8 @@ export function PaymentConsumerServicePanel() {
           <label className="grid gap-2 text-sm font-medium" htmlFor="cloudRunServiceName">Cloud Run service name<input className="h-10 rounded-md border bg-background px-3 font-normal" id="cloudRunServiceName" required={Boolean(pushEndpoint)} value={cloudRunServiceName} onChange={(event) => setCloudRunServiceName(event.target.value)} /></label>
         </div>
         <label className="grid gap-2 text-sm font-medium" htmlFor="pushEndpoint">Cloud Run event endpoint<input className="h-10 rounded-md border bg-background px-3 font-normal" id="pushEndpoint" type="url" placeholder="https://service-xxxxx-uc.a.run.app/api/v1/payments/events" value={pushEndpoint} onChange={(event) => setPushEndpoint(event.target.value)} /></label>
-        <div className="flex flex-wrap gap-2"><button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50" disabled={busy || scopes.length === 0} type="submit">{busy ? "Working..." : "Register consumer"}</button><button className="rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-50" disabled={busy || !serviceId || scopes.length === 0} type="button" onClick={rotate}>Rotate key</button></div>
+        <p className="text-sm text-muted-foreground">Rotation issues a replacement valid for 365 days. Existing keys expire within 24 hours. If a key response is lost, use an explicit rotation to replace it; retrying the same request cannot reveal it.</p>
+        <div className="flex flex-wrap gap-2"><button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50" disabled={busy || scopes.length === 0 || !liveConfirmed} type="submit">{busy ? "Working..." : "Register consumer"}</button><button className="rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-50" disabled={busy || !serviceId || scopes.length === 0 || !liveConfirmed} type="button" onClick={rotate}>Rotate key</button></div>
       </form>
 
       {error ? <p className="mt-4 text-sm text-destructive" role="alert">{error}</p> : null}
@@ -122,7 +144,7 @@ export function PaymentConsumerServicePanel() {
         <p className="mt-1 text-muted-foreground">Copy this value now. Only the prefix, hash-backed lifecycle metadata, and scopes remain available later.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2"><code className="rounded bg-white px-2 py-1">{result.apiKey}</code><button className="rounded-md border bg-white px-3 py-1 text-xs font-semibold" type="button" onClick={() => navigator.clipboard.writeText(result.apiKey)}>Copy</button></div>
         <dl className="mt-3 grid gap-1 text-muted-foreground sm:grid-cols-2"><div><dt className="inline font-semibold">Prefix:</dt> <dd className="inline"><code>{result.keyPrefix}</code></dd></div><div><dt className="inline font-semibold">Scopes:</dt> <dd className="inline">{result.scopes.join(", ")}</dd></div><div><dt className="inline font-semibold">Created:</dt> <dd className="inline">{new Date(result.createdAt).toLocaleString()}</dd></div><div><dt className="inline font-semibold">Expires:</dt> <dd className="inline">{result.expiresAt ? new Date(result.expiresAt).toLocaleString() : "No expiry"}</dd></div><div><dt className="inline font-semibold">Key status:</dt> <dd className="inline">{result.status}</dd></div></dl>
-        {result.eventDelivery ? <div className="mt-3 border-t border-emerald-200 pt-3 text-muted-foreground"><div>Delivery: <span className="font-semibold">{result.eventDelivery.status}</span></div><div>Last delivery: {result.eventDelivery.lastDeliveryAt ? new Date(result.eventDelivery.lastDeliveryAt).toLocaleString() : "No delivery recorded"}</div><div>Dead-letter count: {result.eventDelivery.deadLetterCount ?? "Unavailable until telemetry is connected"}</div></div> : null}
+        {result.eventDelivery ? <div className="mt-3 border-t border-emerald-200 pt-3 text-muted-foreground"><div>Delivery: <span className="font-semibold">{result.eventDelivery.status}</span></div>{result.eventDelivery.status === "delivery_failed" ? <p>The key was issued. Save it now, then retry subscription setup separately; registering again replaces the key.</p> : null}<div>Last delivery: {result.eventDelivery.lastDeliveryAt ? new Date(result.eventDelivery.lastDeliveryAt).toLocaleString() : "Unknown"}</div><div>Dead-letter count: {result.eventDelivery.deadLetterCount ?? "Unavailable until telemetry is connected"}</div></div> : null}
       </div> : null}
     </section>
   );

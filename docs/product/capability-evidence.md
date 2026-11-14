@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, reviewers, operators, agents]
-last_verified: "2026-10-10"
+last_verified: "2026-11-14"
 verification: repository
 sources: [contracts/public, apps/docs/content/guides.json, packages/contracts/src/index.ts, docs/superpowers/plans/README.md]
 ---
@@ -16,8 +16,9 @@ This register distinguishes documentation coverage from implementation and runti
 | --- | --- | --- | --- |
 | Payments | Gateway facade and private payments runtime; [current ownership](../payments-platform-current.md) | Public OpenAPI, payment guides, SDK and contract checks | Live-provider, settlement, IAM, and database behavior require separate environment verification |
 | Payment events | Pub/Sub delivery and outbox; [event operations](../integrations/payment-event-outbox-operations.md) | AsyncAPI and event/consumer guides | Historical records exist; delivery and replay need current consumer/provider evidence |
-| Email, SMS, OTP | Independent runtimes and shared-service proxy | Authored integration guides and TypeScript contracts; downloadable OpenAPI coverage is partial | Provider delivery, approved senders, and production storage need current verification |
-| Geo and Google Auth | Independent `geo`/`gauth` runtimes | Authored guides; shared OpenAPI coverage is partial | Provider credentials, OAuth configuration, and live calls remain environment-specific |
+| Email, SMS, OTP | Independent runtimes and shared-service proxy | Authored integration guides, TypeScript contracts, and all supported shared HTTP operations in public OpenAPI | Provider delivery, approved senders, and production storage need current verification |
+| Geo and Google Auth | Independent `geo`/`gauth` runtimes | Authored guides and supported shared HTTP operations in public OpenAPI | Provider credentials, OAuth configuration, and live calls remain environment-specific |
+| Operability | Durable revision-bound verification, safe credential lifecycle, request diagnostics, and payment event replay | [Operator procedure](../operations/operability-and-release-verification.md) | Disposable database and repository checks; deployment and provider acceptance pending |
 | Registry and governance | Gateway domains and management console | Internal developer/runbook guidance and selected public guides | Placement, scopes, and quota enforcement need focused tests and environment evidence |
 | Documentation governance | Canonical internal bundle, guide registry, contract-derived reference | Link/metadata/source audits, contract fidelity tests, and static-export checks | The workflow produces verified artifacts; public hosting is not verified here |
 
@@ -27,6 +28,6 @@ Use **implemented** when code exists with the stated focused verification; **par
 
 ## Remaining work
 
-- Define and validate a full machine-readable shared-service HTTP contract before presenting shared services as part of the downloadable public OpenAPI.
+- Complete deployment and provider acceptance for the [go-live and release verification workflow](../operations/operability-and-release-verification.md). Durable evidence, credentials, diagnostics, and replay controls are implemented locally; production permissions and consumer acknowledgement remain environment-specific.
 - Reconcile pending provider/deployment checks in the [working-document register](../superpowers/plans/README.md).
 - Attach fresh deployment and provider evidence when updating historical operational records. A docs-only PR must not manufacture these results.

@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import legacyReferences from "@/content/legacy-reference.json";
 
 export function generateStaticParams() {
-  return [...getDetailedOperations().map((op) => ({ operationId: op.operationId })), ...Object.keys(legacyReferences).map((operationId) => ({ operationId }))];
+  return [...new Set([...getDetailedOperations().map((op) => op.operationId), ...Object.keys(legacyReferences)])].map((operationId) => ({ operationId }));
 }
 
 export const dynamicParams = false;
@@ -70,7 +70,7 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
     const guide = (legacyReferences as Record<string, string>)[operationId];
     if (!guide) notFound();
     return <DocsPage><DocsTitle>Shared-service integration guide</DocsTitle><DocsBody>
-      <p>This bookmark now points to maintained integration guidance. The downloadable OpenAPI describes payment operations; shared services have separate guides.</p>
+      <p>This bookmark points to maintained integration guidance. The downloadable OpenAPI includes supported consumer payment, identity, and shared-service operations.</p>
       <p><a href={"/guides/" + guide}>Read the integration guide</a></p>
     </DocsBody></DocsPage>;
   }

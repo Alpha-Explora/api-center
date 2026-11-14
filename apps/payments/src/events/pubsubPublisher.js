@@ -60,7 +60,7 @@ function toCanonicalPaymentEvent(event) {
     aggregateType: event.aggregateType,
     aggregateId: publicResourceId(event.aggregateType, event.aggregateId),
     aggregateVersion,
-    occurredAt: payload.occurredAt || new Date().toISOString(),
+    occurredAt: payload.occurredAt || (event.createdAt ? new Date(event.createdAt).toISOString() : new Date().toISOString()),
     ...(payload.correlationId ? { correlationId: publicEventId(payload.correlationId) } : {}),
     data: omitUndefined({
       environment: event.environment,
@@ -108,4 +108,4 @@ async function closePaymentEventPublishers() {
   publisherCache.clear();
 }
 
-module.exports = { closePaymentEventPublishers, paymentEventTopicName, publishPaymentEvent, toCanonicalPaymentEvent };
+module.exports = { closePaymentEventPublishers, paymentEventTopicName, publishPaymentEvent, toCanonicalPaymentEvent, publicEventId };

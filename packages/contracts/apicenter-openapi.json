@@ -1,9 +1,9 @@
 {
   "openapi": "3.2.0",
   "info": {
-    "title": "APICenter Payments API",
+    "title": "APICenter API",
     "version": "1.0.0",
-    "description": "Provider-neutral payment API for registered consumer services."
+    "description": "Consumer HTTP API for service authentication, payments, messaging, verification, geolocation and Google sign-in."
   },
   "servers": [
     {
@@ -21,6 +21,24 @@
   "tags": [
     {
       "name": "Payments"
+    },
+    {
+      "name": "Identity"
+    },
+    {
+      "name": "EMAIL"
+    },
+    {
+      "name": "SMS"
+    },
+    {
+      "name": "OTP"
+    },
+    {
+      "name": "GEO"
+    },
+    {
+      "name": "Google Auth"
     }
   ],
   "paths": {
@@ -1271,6 +1289,2495 @@
           }
         }
       }
+    },
+    "/api/v1/shared/email/send": {
+      "post": {
+        "operationId": "email.send",
+        "tags": [
+          "EMAIL"
+        ],
+        "summary": "email.send",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: email:send.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation.",
+        "x-required-scopes": [
+          "email:send"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EmailSendResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSendRequest"
+              },
+              "example": {
+                "to": "recipient@example.test",
+                "subject": "Integration verification",
+                "text": "A test notification."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/email/status/{messageId}": {
+      "get": {
+        "operationId": "email.getStatus",
+        "tags": [
+          "EMAIL"
+        ],
+        "summary": "email.getStatus",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: email:send. ",
+        "x-required-scopes": [
+          "email:send"
+        ],
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Resource identifier, scoped to the authenticated project and environment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EmailDeliveryStatus"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/sms/send": {
+      "post": {
+        "operationId": "sms.send",
+        "tags": [
+          "SMS"
+        ],
+        "summary": "sms.send",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: sms:send, sms:status.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation.",
+        "x-required-scopes": [
+          "sms:send",
+          "sms:status"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SmsSendResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsSendRequest"
+              },
+              "example": {
+                "to": "+639171234567",
+                "message": "Integration verification"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/sms/status/{messageId}": {
+      "get": {
+        "operationId": "sms.getStatus",
+        "tags": [
+          "SMS"
+        ],
+        "summary": "sms.getStatus",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: sms:send, sms:status. ",
+        "x-required-scopes": [
+          "sms:send",
+          "sms:status"
+        ],
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Resource identifier, scoped to the authenticated project and environment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SmsDeliveryStatus"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/otp/generate": {
+      "post": {
+        "operationId": "otp.generate",
+        "tags": [
+          "OTP"
+        ],
+        "summary": "otp.generate",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation.",
+        "x-required-scopes": [
+          "otp:generate",
+          "otp:verify"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/OtpGenerateResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpGenerateRequest"
+              },
+              "example": {
+                "channel": "email",
+                "recipient": "recipient@example.test"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/otp/verify": {
+      "post": {
+        "operationId": "otp.verify",
+        "tags": [
+          "OTP"
+        ],
+        "summary": "otp.verify",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation.",
+        "x-required-scopes": [
+          "otp:generate",
+          "otp:verify"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/OtpVerifyResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpVerifyRequest"
+              },
+              "example": {
+                "otpId": "otp_example",
+                "code": "123456"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/otp/status/{otpId}": {
+      "get": {
+        "operationId": "otp.getStatus",
+        "tags": [
+          "OTP"
+        ],
+        "summary": "otp.getStatus",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify. ",
+        "x-required-scopes": [
+          "otp:generate",
+          "otp:verify"
+        ],
+        "parameters": [
+          {
+            "name": "otpId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Resource identifier, scoped to the authenticated project and environment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/OtpStatusResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/geo/geocode": {
+      "post": {
+        "operationId": "geo.geocodeAddress",
+        "tags": [
+          "GEO"
+        ],
+        "summary": "geo.geocodeAddress",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. ",
+        "x-required-scopes": [
+          "geo:read",
+          "geo:write"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GeoAddressResult"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeoGeocodeRequest"
+              },
+              "example": {
+                "address": "Manila, Philippines"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/geo/reverse-geocode": {
+      "post": {
+        "operationId": "geo.reverseGeocode",
+        "tags": [
+          "GEO"
+        ],
+        "summary": "geo.reverseGeocode",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. ",
+        "x-required-scopes": [
+          "geo:read",
+          "geo:write"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GeoAddressResult"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeoReverseGeocodeRequest"
+              },
+              "example": {
+                "latitude": 14.5995,
+                "longitude": 120.9842
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/geo/geofence/check": {
+      "post": {
+        "operationId": "geo.checkFence",
+        "tags": [
+          "GEO"
+        ],
+        "summary": "geo.checkFence",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. ",
+        "x-required-scopes": [
+          "geo:read",
+          "geo:write"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GeoFenceCheckResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeoFenceCheckRequest"
+              },
+              "example": {
+                "latitude": 14.5995,
+                "longitude": 120.9842
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/gauth/oauth/authorize": {
+      "post": {
+        "operationId": "googleAuth.getAuthorizationUrl",
+        "tags": [
+          "Google Auth"
+        ],
+        "summary": "googleAuth.getAuthorizationUrl",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. Returns a JSON authorization URL, not an HTTP redirect. Navigate the browser to this URL; Google redirects to the registered consumer callback. Signed state expires after ten minutes.",
+        "x-required-scopes": [
+          "auth:google:login"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GoogleAuthorizationUrlResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleAuthorizationUrlRequest"
+              },
+              "example": {
+                "redirectUri": "https://app.example.test/auth/callback"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/gauth/oauth/token": {
+      "post": {
+        "operationId": "googleAuth.exchangeCode",
+        "tags": [
+          "Google Auth"
+        ],
+        "summary": "googleAuth.exchangeCode",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. ",
+        "x-required-scopes": [
+          "auth:google:login"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GoogleOAuthTokenResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleTokenExchangeRequest"
+              },
+              "example": {
+                "code": "<google-authorization-code>",
+                "state": "<signed-state>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/gauth/oauth/token/refresh": {
+      "post": {
+        "operationId": "googleAuth.refreshToken",
+        "tags": [
+          "Google Auth"
+        ],
+        "summary": "googleAuth.refreshToken",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. ",
+        "x-required-scopes": [
+          "auth:google:login"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GoogleOAuthTokenResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleTokenRefreshRequest"
+              },
+              "example": {
+                "refreshToken": "<google-refresh-token>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared/gauth/oauth/logout": {
+      "post": {
+        "operationId": "googleAuth.logout",
+        "tags": [
+          "Google Auth"
+        ],
+        "summary": "googleAuth.logout",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "description": "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. ",
+        "x-required-scopes": [
+          "auth:google:login"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GoogleLogoutResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, credentials or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid APICenter service bearer token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource is not available in this project and environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request or project delivery quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Provider configuration is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Runtime, storage or provider configuration is unavailable. An uncertain delivery outcome must be reconciled before another send.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLogoutRequest"
+              },
+              "example": {
+                "refreshToken": "<google-refresh-token>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/token": {
+      "post": {
+        "operationId": "issueToken",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "issueToken",
+        "description": "Server-side service authentication. Keep service secrets and refresh tokens out of browser code.",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ServiceTokenResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials or request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Service placement or authorization is not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Service or signing-key endpoint is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity provider or credential store unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceTokenRequest"
+              },
+              "example": {
+                "serviceId": "example-api",
+                "environment": "test",
+                "secret": "<server-only-service-secret>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/token/refresh": {
+      "post": {
+        "operationId": "refreshServiceToken",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "refreshServiceToken",
+        "description": "Server-side service authentication. Keep service secrets and refresh tokens out of browser code.",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RefreshTokenResponse"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "correlationId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials or request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Service placement or authorization is not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Service or signing-key endpoint is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity provider or credential store unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              },
+              "example": {
+                "refreshToken": "<refresh-token>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/token/revoke": {
+      "post": {
+        "operationId": "revokeServiceToken",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "revokeServiceToken",
+        "description": "Server-side service authentication. Keep service secrets and refresh tokens out of browser code.",
+        "security": [
+          {
+            "ServiceBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Refresh token revoked. No response body."
+          },
+          "400": {
+            "description": "Invalid credentials or request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Service placement or authorization is not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Service or signing-key endpoint is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity provider or credential store unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeTokenRequest"
+              },
+              "example": {
+                "refreshToken": "<refresh-token>",
+                "revokeAll": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/.well-known/jwks.json": {
+      "get": {
+        "operationId": "getJwks",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "getJwks",
+        "description": "Public signing keys when supported by the configured auth provider. Returns raw JWKS.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Public JSON Web Key Set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Jwks"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials or request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Service placement or authorization is not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Service or signing-key endpoint is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity provider or credential store unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2248,7 +4755,1057 @@
             "default": 1800
           }
         }
+      },
+      "SharedError": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "correlationId": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EmailSendRequest": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "email": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "email"
+                    ]
+                  }
+                ],
+                "description": "A nonempty address string. Legacy recipient objects containing email are also accepted; syntax is not validated by the runtime."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "email"
+                      ]
+                    }
+                  ],
+                  "description": "A nonempty address string. Legacy recipient objects containing email are also accepted; syntax is not validated by the runtime."
+                },
+                "minItems": 1
+              }
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "html": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "subject"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "html"
+            ],
+            "properties": {
+              "html": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "templateId"
+              ]
+            },
+            {
+              "required": [
+                "templateVariables"
+              ]
+            }
+          ]
+        }
+      },
+      "EmailSendResponse": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipientCount": {
+            "type": "integer"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "provider",
+          "status",
+          "recipient",
+          "recipientCount",
+          "sentAt"
+        ]
+      },
+      "EmailDeliveryStatus": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipientCount": {
+            "type": "integer"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "provider",
+          "status",
+          "recipient",
+          "recipientCount",
+          "sentAt",
+          "createdAt"
+        ]
+      },
+      "SmsSendRequest": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "senderId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "message"
+        ],
+        "not": {
+          "required": [
+            "templateId"
+          ]
+        }
+      },
+      "SmsSendResponse": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "status",
+          "to",
+          "sentAt"
+        ]
+      },
+      "SmsDeliveryStatus": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "senderId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "status",
+          "to",
+          "message",
+          "createdAt"
+        ]
+      },
+      "OtpGenerateRequest": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          },
+          "recipient": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "deprecated": true,
+            "description": "Legacy fallback when recipient is absent."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "login",
+              "transaction",
+              "verification"
+            ],
+            "description": "Accepted correlation purpose; does not change verification behavior."
+          },
+          "digits": {
+            "type": "number",
+            "default": 6,
+            "description": "Requested length; runtime coerces numeric values and clamps the effective length to 4–10."
+          },
+          "ttlSeconds": {
+            "type": "number",
+            "default": 300,
+            "description": "Requested lifetime; runtime clamps the effective lifetime to 60–3600 seconds."
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "recipient"
+            ]
+          },
+          {
+            "required": [
+              "target"
+            ]
+          }
+        ]
+      },
+      "OtpGenerateResponse": {
+        "type": "object",
+        "properties": {
+          "otpId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Returned only in explicitly configured nonproduction mock mode."
+          }
+        },
+        "required": [
+          "otpId",
+          "expiresAt",
+          "channel",
+          "recipient",
+          "target"
+        ]
+      },
+      "OtpVerifyRequest": {
+        "type": "object",
+        "properties": {
+          "otpId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recipient": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "otpId",
+          "code"
+        ]
+      },
+      "OtpVerifyResponse": {
+        "type": "object",
+        "properties": {
+          "verified": {
+            "const": true
+          },
+          "otpId": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          }
+        },
+        "required": [
+          "verified",
+          "otpId",
+          "target",
+          "channel"
+        ]
+      },
+      "OtpStatusResponse": {
+        "type": "object",
+        "properties": {
+          "otpId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "otpId",
+          "status",
+          "target",
+          "channel",
+          "expiresAt"
+        ]
+      },
+      "GeoGeocodeRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "GeoReverseGeocodeRequest": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "language": {
+            "type": "string"
+          },
+          "resultType": {
+            "type": "string"
+          },
+          "locationType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "GeoAddressResult": {
+        "type": "object",
+        "properties": {
+          "formattedAddress": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "placeId": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "google-maps"
+            ]
+          },
+          "raw": {}
+        },
+        "required": [
+          "formattedAddress",
+          "latitude",
+          "longitude",
+          "types",
+          "provider",
+          "raw"
+        ]
+      },
+      "GeoFenceInput": {
+        "type": "object",
+        "properties": {
+          "fenceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "radiusMeters": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "fenceId",
+          "latitude",
+          "longitude",
+          "radiusMeters"
+        ]
+      },
+      "GeoFenceCheckRequest": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "fenceId": {
+            "type": "string"
+          },
+          "fences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeoFenceInput"
+            },
+            "description": "An absent or empty array uses the configured default Metro Manila circle."
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "GeoFenceCheckResponse": {
+        "type": "object",
+        "properties": {
+          "inside": {
+            "type": "boolean"
+          },
+          "distanceDetails": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fenceId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "inside": {
+                  "type": "boolean"
+                },
+                "distanceMeters": {
+                  "type": "number"
+                },
+                "radiusMeters": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "fenceId",
+                "inside",
+                "distanceMeters",
+                "radiusMeters"
+              ]
+            }
+          },
+          "provider": {
+            "const": "local"
+          }
+        },
+        "required": [
+          "inside",
+          "distanceDetails",
+          "provider"
+        ]
+      },
+      "GoogleAuthorizationUrlRequest": {
+        "type": "object",
+        "properties": {
+          "redirectUri": {
+            "type": "string",
+            "format": "uri",
+            "description": "Must match a registered project/environment redirect. Defaults to the first registered redirect."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string"
+          },
+          "loginHint": {
+            "type": "string"
+          },
+          "accessType": {
+            "type": "string",
+            "enum": [
+              "online",
+              "offline"
+            ],
+            "default": "online"
+          },
+          "includeGrantedScopes": {
+            "type": "boolean",
+            "default": true
+          },
+          "prompt": {
+            "type": "string",
+            "default": "consent"
+          },
+          "codeChallenge": {
+            "type": "string"
+          },
+          "codeChallengeMethod": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "S256"
+            ],
+            "default": "S256"
+          }
+        }
+      },
+      "GoogleAuthorizationUrlResponse": {
+        "type": "object",
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "state": {
+            "type": "string"
+          },
+          "credentialSource": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "authorizationUrl",
+          "state",
+          "credentialSource",
+          "expiresAt"
+        ]
+      },
+      "GoogleTokenExchangeRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "codeVerifier": {
+            "type": "string"
+          },
+          "redirectUri": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "code",
+          "state"
+        ]
+      },
+      "GoogleTokenRefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "redirectUri": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "GoogleOAuthTokenResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "number"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken"
+        ]
+      },
+      "GoogleLogoutRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "idTokenHint": {
+            "type": "string"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "refreshToken"
+            ],
+            "properties": {
+              "refreshToken": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "idTokenHint"
+            ],
+            "properties": {
+              "idTokenHint": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ]
+      },
+      "GoogleLogoutResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "ServiceTokenRequest": {
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "serviceId",
+          "environment",
+          "secret"
+        ]
+      },
+      "ServiceTokenResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresIn": {
+            "type": "number"
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "tribeId": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn",
+          "serviceId",
+          "projectId",
+          "tribeId",
+          "environment",
+          "permissions",
+          "scopes"
+        ]
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "RefreshTokenResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresIn": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn"
+        ]
+      },
+      "RevokeTokenRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true
+          },
+          "revokeAll": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "Jwks": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kty": {
+                  "type": "string"
+                },
+                "kid": {
+                  "type": "string"
+                },
+                "use": {
+                  "type": "string"
+                },
+                "alg": {
+                  "type": "string"
+                },
+                "n": {
+                  "type": "string"
+                },
+                "e": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kty"
+              ]
+            }
+          }
+        },
+        "required": [
+          "keys"
+        ]
       }
     }
-  }
+  },
+  "x-apicenter-excluded-routes": [
+    {
+      "path": "/api/v1/shared/gauth/verify-token",
+      "reason": "Mock-only implementation; not exposed by the service manifest or supported SDK."
+    },
+    {
+      "path": "/api/v1/shared/*/health",
+      "reason": "Operational probes, not consumer operations."
+    },
+    {
+      "path": "/api/v1/admin/*",
+      "reason": "Control-plane administration; requires operator authorization."
+    },
+    {
+      "path": "provider webhooks",
+      "reason": "Provider callbacks use separate verification and are not consumer commands."
+    }
+  ]
 }

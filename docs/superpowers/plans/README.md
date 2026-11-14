@@ -12,6 +12,8 @@ Plans record execution scope and pending checks. Use [current architecture](../.
 
 ## Working specifications
 
+- [Control plane rebuild](../specs/2026-11-14-control-plane-rebuild-design.md), direction selected; written design proposed for review. Covers organization-owned projects, environment-bound applications, explicit grants, credential unification and gradual migration. No rebuild implementation or cutover is claimed.
+- [APICenter operability improvements](../specs/2026-11-13-apicenter-operability-design.md), approved; local implementation verified, external acceptance pending in [readiness and provisioning](2026-11-13-readiness-and-live-provisioning.md), [go-live and credentials](2026-11-13-go-live-and-credentials.md), [diagnostics and event recovery](2026-11-13-request-diagnostics-and-event-recovery.md), [shared-service contracts](2026-11-13-shared-service-http-contracts.md), and [release verification](2026-11-13-release-verification.md). Runtime acceptance remains pending.
 - [APICenter domain layout and consumer access](../specs/2026-10-12-apicenter-domain-layout-design.md), native execution approved; remaining acceptance checks are in the dated domain rollout record.
 - [APICenter SDK redesign](../specs/2026-10-12-apicenter-sdk-overhaul-design.md)
 - [Shared-services design](../specs/2026-07-28-apicenter-shared-services-design.md)

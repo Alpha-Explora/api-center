@@ -16,6 +16,11 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Add service go-live checks, protected verification runs tied to deployed revisions, payment key metadata and targeted revocation, and controlled service-secret rotation.
+- Add redacted request diagnostics and tenant-scoped payment event replay with immutable operation IDs and reconciliation gates.
+- Publish supported shared-service and identity HTTP operations in the consumer OpenAPI, with matching reference pages and credential-aware examples.
+- Add a manual release verification workflow and sanitized reports. Provider and deployment acceptance require protected environment configuration.
+
 - Add the contract-backed APICenter 2.0.0 server-side SDK for shared services and payments.
 - Allow payment-intent confirmation with a payment method, return URL, and client key, and return the provider's next action for customer redirects.
 
@@ -38,6 +43,14 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 - Limit new service registrations to test/live, submit live approval confirmations, preserve OAuth form drafts during refreshes, and use the versioned membership route.
 
 - Refresh consumer and Management guidance for SDK 2.0.0, organization-scoped access, service registration, and project Google sign-in. Keep operator procedures in the internal `docs/` collection.
+- Deploy the APICenter gateway, management console, developer docs, payments, and shared runtimes to Blaine-billed Cloud Run with the `apicenter` service names.
+- Start the APICenter Supabase catalog with a fresh organization and no old tribes, projects, or service records; register the deployed shared runtimes.
+- Add IAM ID-token authentication from the management console and gateway to private Cloud Run services.
+- Allow the deployed gateway to use private Redis and verify each shared-service database login.
+- Serve the built developer docs from their static export with the docs workspace start command.
+- Include UI, documentation, and root configuration changes in Turborepo cache inputs and preserve exported docs in build outputs.
+- Exclude nested environment files and dependency directories from Docker build contexts.
+
 - Added APICenter's canonical internal docs bundle with ownership, authority, evidence, and plan-retirement rules.
 - Published all registered consumer guides, including Payment Links, Google Auth, and payment architecture; retained the payment-intents alias.
 - Rendered guide links and tables with native MDX and removed leaked frontmatter and generic framework guidance.
