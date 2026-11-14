@@ -13,6 +13,7 @@ import { QuotaService } from "./quota.service";
 import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
 import { PublishedApiService } from "./published-api.service";
+import { WorkloadBindingService } from "./workload-binding.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
@@ -112,6 +113,7 @@ export class ControlPlaneAdminController {
     private readonly live: LiveEnvironmentService,
     private readonly configuration: CapabilityConfigurationService,
     private readonly apis: PublishedApiService,
+    private readonly workloads: WorkloadBindingService,
   ) {}
 
   @Get("capabilities")
@@ -469,6 +471,39 @@ export class ControlPlaneAdminController {
     const apiProjectId = await this.apis.accessRequestApiProject(org, requestId);
     await this.access.require(actor, org, "project.manage", { projectId: apiProjectId });
     return { success: true, data: await this.apis.decide(org, requestId, input.approve, actorLabel(actor, input.actor)) };
+  }
+
+  // ── Workload identity ────────────────────────────────────────────────────
+
+  @Post(`${APP}/workload-bindings`)
+  async bindWorkload(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = parse(
+      z
+        .object({
+          subject: z.string().min(1).max(64),
+          audience: z.string().min(1).max(2048),
+          description: z.string().max(200).optional(),
+          actor: onBehalfOf.optional(),
+        })
+        .strict(),
+      body,
+      "body",
+    );
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    return { success: true, data: await this.workloads.bind(scope, applicationIdFrom(params), input, actorLabel(actor, input.actor)) };
+  }
+
+  @Get(`${APP}/workload-bindings`)
+  async listWorkloads(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope } = await this.authorizeEnvironment(params, req, "environment.read");
+    return { success: true, data: await this.workloads.list(scope, applicationIdFrom(params)) };
+  }
+
+  @Post(`${APP}/workload-bindings/:bindingId/revoke`)
+  async revokeWorkload(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    const bindingId = parse(schemas.resourceId("wlb"), params.bindingId, "bindingId");
+    return { success: true, data: await this.workloads.revoke(scope, applicationIdFrom(params), bindingId, actorLabel(actor)) };
   }
 
   // ── Environment resources ────────────────────────────────────────────────

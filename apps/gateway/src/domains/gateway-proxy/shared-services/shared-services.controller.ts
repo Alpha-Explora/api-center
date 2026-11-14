@@ -37,7 +37,7 @@ import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
 import { SharedServiceRoutingService } from "./shared-service-routing.service";
 import { ForbiddenError } from "@shared/errors";
 import { stripApicenterIdentityHeaders } from "../../../shared/proxy/environment-leak-guard";
-import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
+import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import { ApplicationCapabilityProxy } from "./application-capability-proxy";
 import { SharedCallerGuard, bearerToken } from "./shared-caller.guard";
 import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
@@ -121,7 +121,7 @@ export class SharedServicesController implements OnModuleDestroy {
     @Res() res: Response,
   ) {
     const bearer = bearerToken(req);
-    if (bearer && isApplicationCredential(bearer)) {
+    if (bearer && isControlPlaneBearer(bearer)) {
       await this.applicationProxy.forward(serviceId.toLowerCase(), bearer, req, res);
       return;
     }

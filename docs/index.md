@@ -26,6 +26,7 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 ## Operations
 
+- [Control plane operations: deploy, configure, migrate](operations/control-plane-operations.md)
 - [Go-live, credential recovery, and release verification](operations/operability-and-release-verification.md)
 
 - [Documentation entry-point compatibility](README.md)

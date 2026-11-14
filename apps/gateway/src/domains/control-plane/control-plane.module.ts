@@ -13,6 +13,8 @@ import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
 import { PublishedApiService } from "./published-api.service";
 import { LegacyBridgeService } from "./migration/legacy-bridge.service";
+import { WorkloadTokenVerifier } from "./workload-identity";
+import { WorkloadBindingService } from "./workload-binding.service";
 import { RegistryModule } from "@registry/registry.module";
 import { ApprovalsModule } from "@approvals/approvals.module";
 
@@ -37,6 +39,8 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     CapabilityConfigurationService,
     PublishedApiService,
     LegacyBridgeService,
+    WorkloadTokenVerifier,
+    WorkloadBindingService,
   ],
   exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, LegacyBridgeService, AuthModule],
 })

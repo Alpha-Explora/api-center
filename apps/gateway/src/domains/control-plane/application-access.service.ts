@@ -3,7 +3,7 @@
 // selects the organization, project, environment or application. Reads authoritative state on
 // every request (no cache), so revocation and grant removal take effect immediately.
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import { AppError, UnauthorizedError } from "@shared/errors";
 import { credentialOrganization, withTenant, type TenantDb } from "./tenant-transaction";
@@ -14,6 +14,7 @@ import { matchApiOperation } from "./api-operations";
 import { assertMerchantBinding } from "./merchant-binding";
 import { RuntimeContextSigner } from "./runtime-context.signer";
 import { QuotaService } from "./quota.service";
+import { isWorkloadIdentityToken, WorkloadTokenVerifier } from "./workload-identity";
 import type { ApplicationIdentity, AuthorizedCapabilityCall, EnvironmentKind } from "./control-plane.types";
 
 const LAST_USED_RESOLUTION_MS = 60_000;
@@ -54,7 +55,10 @@ type Target = AccessTarget;
  * Who is calling. A credential identifies itself. A migrated legacy service, already
  * authenticated by its legacy token, is identified by the application it was mapped to.
  */
-type Principal = { kind: "credential"; bearer: string } | { kind: "mapped"; organizationId: string; applicationId: string };
+type Principal =
+  | { kind: "credential"; bearer: string }
+  | { kind: "workload"; token: string }
+  | { kind: "mapped"; organizationId: string; applicationId: string; label?: string };
 
 /** A request target expressed without resolver callbacks, for callers outside this module. */
 export type RequestTarget =
@@ -80,6 +84,7 @@ export class ApplicationAccessService {
     private readonly prisma: PrismaService,
     private readonly signer: RuntimeContextSigner,
     private readonly quota: QuotaService,
+    @Optional() private readonly workloads?: WorkloadTokenVerifier,
   ) {}
 
   /** Authorizes a request on a capability route; the route maps to its catalogued action. */
@@ -145,7 +150,12 @@ export class ApplicationAccessService {
     target: Target,
     now: Date,
   ): Promise<AuthorizedCapabilityCall & { upstreamUrl?: string }> {
-    const principal: Principal = "principal" in request ? request.principal : { kind: "credential", bearer: request.bearer };
+    const principal: Principal =
+      "principal" in request
+        ? request.principal
+        : isWorkloadIdentityToken(request.bearer)
+          ? { kind: "workload", token: request.bearer }
+          : { kind: "credential", bearer: request.bearer };
     const loaded = await this.load(principal, target);
     if (!loaded) throw new UnauthorizedError("Invalid application credential");
     const decision = this.decide(loaded, target.kind, now);
@@ -163,7 +173,7 @@ export class ApplicationAccessService {
       ...scope,
       environmentKind: environment.kind as EnvironmentKind,
       applicationId: application.id,
-      credentialId: credential.id ?? `legacy:${application.id}`,
+      credentialId: credential.id ?? loaded.label ?? `legacy:${application.id}`,
     };
     const requestKey = request.idempotencyKey
       ? `idem:${application.id}:${decision.action}:${request.idempotencyKey}`
@@ -198,7 +208,21 @@ export class ApplicationAccessService {
    * Loads everything one decision needs in one tenant transaction. Returns undefined when the
    * principal does not resolve (unknown or mismatched credential, unmapped application).
    */
-  private async load(principal: Principal, target: Target) {
+  private async load(principal: Principal, target: Target): Promise<LoadedDecision | undefined> {
+    if (principal.kind === "workload") {
+      // Verify first; only a verified (issuer, subject, audience) can name a binding.
+      if (!this.workloads) return undefined;
+      const workload = await this.workloads.verify(principal.token);
+      const rows = await this.prisma.$queryRaw<{ organization_id: string; application_id: string; binding_id: string }[]>`
+        SELECT organization_id, application_id, binding_id
+          FROM apic_catalog.cp_workload_binding(${workload.issuer}, ${workload.subject}, ${workload.audience})`;
+      const binding = rows[0];
+      if (!binding) return undefined;
+      return this.load(
+        { kind: "mapped", organizationId: binding.organization_id, applicationId: binding.application_id, label: `workload:${binding.binding_id}` },
+        target,
+      );
+    }
     let organizationId: string | undefined;
     let lookupPrefix: string | undefined;
     let presentedKind: EnvironmentKind | undefined;
@@ -267,10 +291,11 @@ export class ApplicationAccessService {
       environment: loaded.environment,
       application: loaded.application,
       presentedKind: presentedKind as EnvironmentKind,
+      label: principal.kind === "mapped" ? principal.label : undefined,
     };
   }
 
-  private decide(loaded: NonNullable<Awaited<ReturnType<ApplicationAccessService["load"]>>>, targetKind: "capability" | "api", now: Date) {
+  private decide(loaded: LoadedDecision, targetKind: "capability" | "api", now: Date) {
     const { credential, organization, project, environment, application, grants, resolved } = loaded;
     return decideCapabilityAccess({
       now,
@@ -325,6 +350,20 @@ export class ApplicationAccessService {
       // Usage timestamps are advisory; a failed write must not fail an authorized request.
     }
   }
+}
+
+interface LoadedDecision {
+  credential: { id?: string; status: string; expiresAt: Date; environmentKind: string; lastUsedAt: Date | null; applicationId: string; organizationId: string; projectId: string; environmentId: string };
+  scope: { organizationId: string; projectId: string; environmentId: string };
+  organization: { status: string };
+  project: { status: string };
+  environment: { kind: string; status: string };
+  application: { id: string; status: string };
+  grants: { targetKind: string; targetId: string; action: string; status: string }[];
+  ownerMapping: { ownerGroupId: string; ownerProjectId: string } | null;
+  resolved: ResolvedTarget | undefined;
+  presentedKind: EnvironmentKind;
+  label: string | undefined;
 }
 
 function denialMessage(code: string): string {

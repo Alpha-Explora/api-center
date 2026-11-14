@@ -24,7 +24,15 @@ APICenter is a Turborepo monorepo with independently deployed runtimes. This map
 | `packages/runtime` | Common runtime bootstrap and infrastructure helpers | Reused by independent service apps |
 | `packages/sdk` | Published `@alpha-explora/apicenter-sdk` | Consumer transport and public integration operations |
 
-Gateway domain roots live under `apps/gateway/src/domains/`: `auth-security`, `catalog-registry`, `compliance`, `gateway-proxy`, `governance`, `payments`, and `runtime-ops`. Shared infrastructure stays outside those domain roots. Respect the [boundary checks](../../scripts/check-boundaries.js) and [monorepo checks](../../scripts/check-monorepo-boundary.js).
+Gateway domain roots live under `apps/gateway/src/domains/`: `auth-security`, `catalog-registry`, `compliance`, `control-plane`, `gateway-proxy`, `governance`, `payments`, and `runtime-ops`. Shared infrastructure stays outside those domain roots. Respect the [boundary checks](../../scripts/check-boundaries.js) and [monorepo checks](../../scripts/check-monorepo-boundary.js).
+
+## Control plane
+
+Organizations own projects directly; tribes are legacy. A project has separate `test` and `live` environments. Each environment holds its own applications (backend identities), explicit grants on catalogued capability actions or published-API actions, application keys (`ak_test_…`, `ak_live_…`, stored only as verifiers) and optional workload-identity bindings, plans and request budgets, capability configuration, published APIs and event destinations. Console roles (owner, admin, developer, viewer), optional teams and project roles govern people; grants govern applications. Code: `apps/gateway/src/domains/control-plane`.
+
+Request path: the gateway resolves the credential to exactly one application, checks organization, project, environment and application status, the catalogued action, the enabled capability or published API and an explicit grant, reserves every applicable budget atomically, and forwards a 60-second Ed25519-signed runtime context (`X-APICenter-Context`) instead of identity headers. Runtimes and publishers verify it for their own audience. Control-plane rows are protected by PostgreSQL row-level security per organization.
+
+Legacy services keep working during migration: a fenced assignment per project environment decides whether the legacy registry or the control plane governs it, legacy calls are shadowed before cutover, and cut-over legacy tokens are authorized through their mapped application. Operations and migration: [control plane operations](../operations/control-plane-operations.md).
 
 ## Data and provider ownership
 

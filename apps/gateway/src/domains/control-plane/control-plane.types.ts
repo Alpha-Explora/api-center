@@ -1,3 +1,5 @@
+import { isWorkloadIdentityToken } from "./workload-identity";
+
 // Public types of the control plane (rebuild slice 1). Other gateway contexts may import this file.
 
 export type EnvironmentKind = "test" | "live";
@@ -40,4 +42,11 @@ export const APPLICATION_CREDENTIAL_PREFIX = "ak_";
 
 export function isApplicationCredential(bearer: string | undefined): boolean {
   return typeof bearer === "string" && bearer.startsWith(APPLICATION_CREDENTIAL_PREFIX);
+}
+
+export { isWorkloadIdentityToken };
+
+/** Bearers the control plane authenticates: application keys and bound workload identity tokens. */
+export function isControlPlaneBearer(bearer: string | undefined): boolean {
+  return isApplicationCredential(bearer) || isWorkloadIdentityToken(bearer);
 }

@@ -120,6 +120,33 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     expect(count.rows[0].n).toBe(1);
   });
 
+  describe("workload identity bindings", () => {
+    it("resolves only an exact, active (issuer, subject, audience) and refuses duplicates", async () => {
+      const project = await admin.createProject(orgA, { slug: "workloads", name: "Workloads" }, actor);
+      const app = await admin.createApplication({ organizationId: orgA, projectId: project.id, environmentKind: "test" }, { slug: "job", name: "Job" }, actor);
+      const environmentId = project.environments[0].id;
+      const insert = (id: string, subject: string) =>
+        pool.query(
+          `INSERT INTO apic_catalog.cp_workload_bindings (id, organization_id, project_id, environment_id, application_id, issuer, subject, audience, created_by)
+           VALUES ($1, $2, $3, $4, $5, 'https://accounts.google.com', $6, 'https://gateway.example', 'test')`,
+          [id, orgA, project.id, environmentId, app.id, subject],
+        );
+      const subject = String(Date.now()).padEnd(21, "7");
+      await insert(`wlb_${"a".repeat(24)}`, subject);
+      await expect(insert(`wlb_${"b".repeat(24)}`, subject)).rejects.toMatchObject({ code: "23505" });
+      await expect(insert(`wlb_${"c".repeat(24)}`, "*")).rejects.toMatchObject({ code: "23514" });
+
+      const lookup = (audience: string) =>
+        pool.query("SELECT * FROM apic_catalog.cp_workload_binding('https://accounts.google.com', $1, $2)", [subject, audience]);
+      expect((await lookup("https://gateway.example")).rows).toEqual([
+        expect.objectContaining({ organization_id: orgA, application_id: app.id, binding_id: `wlb_${"a".repeat(24)}` }),
+      ]);
+      expect((await lookup("https://gateway.example/")).rows).toEqual([]);
+      await pool.query("UPDATE apic_catalog.cp_workload_bindings SET status = 'revoked', revoked_at = now() WHERE id = $1", [`wlb_${"a".repeat(24)}`]);
+      expect((await lookup("https://gateway.example")).rows).toEqual([]);
+    });
+  });
+
   describe("published APIs", () => {
     it("grants across projects only after the publisher approves, and never across environment kinds", async () => {
       const publisher = await admin.createProject(orgA, { slug: "orders-api", name: "Orders" }, actor);

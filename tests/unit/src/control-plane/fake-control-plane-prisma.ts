@@ -181,6 +181,7 @@ export function createFakeControlPlanePrisma() {
     cpLegacyMapping: new FakeDelegate((row) => `${row.sourceKind}/${row.sourceId}/${row.environmentKind}`),
     cpShadowMismatch: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}/${row.sourceServiceId}/${row.target}/${row.action}/${row.legacyAllowed}`),
     cpMigrationRun: new FakeDelegate((row) => String(row.id)),
+    cpWorkloadBinding: new FakeDelegate((row) => String(row.id)),
     quotaCounters: new Map<string, number>(),
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
@@ -198,6 +199,13 @@ export function createFakeControlPlanePrisma() {
       if (sql.includes("cp_credential_organization")) {
         const row = prisma.cpCredential.rows.find((candidate) => candidate.lookupPrefix === values[0]);
         return [{ organization_id: row ? row.organizationId : null }];
+      }
+      if (sql.includes("cp_workload_binding(")) {
+        const [issuer, subject, audience] = values as string[];
+        const binding = prisma.cpWorkloadBinding.rows.find(
+          (row) => row.issuer === issuer && row.subject === subject && row.audience === audience && row.status === "active",
+        );
+        return binding ? [{ organization_id: binding.organizationId, application_id: binding.applicationId, binding_id: binding.id }] : [];
       }
       if (sql.includes("cp_quota_counters")) {
         const [, key, start, limit] = values as [string, string, Date, number];

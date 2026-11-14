@@ -12,7 +12,7 @@ import {
 import axios, { AxiosRequestConfig } from "axios";
 import { randomUUID } from "node:crypto";
 import { ApplicationAccessService } from "@domains/control-plane/application-access.service";
-import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
+import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import { z } from "zod";
 import { Request, Response } from "express";
 import { PaymentAuthGuard } from "../../shared/payment-auth.guard";
@@ -63,7 +63,7 @@ export class PaymentsController {
 
     const authorization = req.headers.authorization;
     const bearer = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : undefined;
-    if (!authReq.paymentPrincipal && bearer && isApplicationCredential(bearer)) {
+    if (!authReq.paymentPrincipal && bearer && isControlPlaneBearer(bearer)) {
       // A control-plane application needs an explicit grant for this operation's action. Its
       // records are scoped to the resolved owner: the project, or a migrated project's legacy owner.
       const call = await this.applications.authorizeAction({

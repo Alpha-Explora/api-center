@@ -925,3 +925,24 @@ model CpMigrationRun {
   @@map("cp_migration_runs")
   @@schema("apic_catalog")
 }
+
+/// Binds one exact OIDC workload identity (issuer, subject, audience) to one application.
+model CpWorkloadBinding {
+  id             String    @id
+  organizationId String    @map("organization_id") @db.Uuid
+  projectId      String    @map("project_id")
+  environmentId  String    @map("environment_id")
+  applicationId  String    @map("application_id")
+  issuer         String
+  subject        String
+  audience       String
+  description    String?
+  status         String    @default("active")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedBy      String?   @map("revoked_by")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  @@map("cp_workload_bindings")
+  @@schema("apic_catalog")
+}

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { JwtAuthGuard } from "@auth/guards/jwt-auth.guard";
-import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
+import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import type { AuthenticatedRequest } from "../../../types";
 
 const BEARER_PREFIX = "Bearer ";
@@ -21,7 +21,7 @@ export class SharedCallerGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): Promise<boolean> | boolean {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (isApplicationCredential(bearerToken(request))) return true;
+    if (isControlPlaneBearer(bearerToken(request))) return true;
     return this.jwt.canActivate(context);
   }
 }

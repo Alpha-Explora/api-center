@@ -7,7 +7,7 @@ import { All, Controller, Injectable, Optional, Param, Req, Res } from "@nestjs/
 import type { Response } from "express";
 import { randomUUID } from "node:crypto";
 import { ApplicationAccessService } from "@domains/control-plane/application-access.service";
-import { isApplicationCredential } from "@domains/control-plane/control-plane.types";
+import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import { UnauthorizedError } from "@shared/errors";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { assertNoEnvironmentOverrides } from "@shared/proxy/environment-leak-guard";
@@ -38,8 +38,8 @@ export class PublishedApiForwarder {
   async forward(apiId: string, req: AuthenticatedRequest, res: Response): Promise<void> {
     const authorization = req.headers.authorization;
     const bearer = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : undefined;
-    if (!bearer || !isApplicationCredential(bearer)) {
-      throw new UnauthorizedError("Published APIs accept application credentials only");
+    if (!bearer || !isControlPlaneBearer(bearer)) {
+      throw new UnauthorizedError("Published APIs accept application keys and bound workload identities only");
     }
     assertNoEnvironmentOverrides({
       headers: req.headers as Record<string, unknown>,
