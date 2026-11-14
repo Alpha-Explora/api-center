@@ -86,6 +86,19 @@ describe("planMigration", () => {
     expect(actions.every((action) => action.endsWith(":read"))).toBe(true);
   });
 
+  it("takes payment access from the consumer registration when the registry names the service 'payment'", () => {
+    const base = snapshot();
+    const withPaymentService = planMigration({
+      ...base,
+      services: [...base.services, service({ serviceId: "payment", serviceType: "shared" })],
+      canAccess: (source, target) => target === "payment" || base.canAccess(source, target, "test"),
+    });
+    expect(withPaymentService.blockers.filter((b) => b.reason.includes("payment"))).toEqual([]);
+    const actions = application(withPaymentService, "shop", "shop-api").grants.filter((g) => g.target === "payments").map((g) => g.action);
+    expect(actions.length).toBeGreaterThan(0);
+    expect(actions.every((action) => action.endsWith(":read"))).toBe(true);
+  });
+
   it("does not grant what legacy did not allow", () => {
     expect(application(plan, "shop", "shop-worker").grants).toEqual([]);
   });
