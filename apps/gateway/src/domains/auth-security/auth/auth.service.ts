@@ -61,7 +61,7 @@ export class AuthService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Issue a scoped M2M token and persist the refresh token in Redis.
+   * Issue a scoped M2M token and persist the refresh token metadata.
    */
   async issueToken(
     serviceId: string,

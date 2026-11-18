@@ -51,9 +51,9 @@ const projectSenderAdminHandler = createProjectSenderAdminHandler({
   expectedToken: process.env.EMAIL_ADMIN_TOKEN,
 });
 
-const stateUrl = process.env.EMAIL_REDIS_URL || process.env.REDIS_URL;
-const idempotencyStore = createSharedIdempotencyStore({ url: stateUrl, namespace: 'email' });
-const rateLimitStore = createSharedRateLimitStore({ url: stateUrl, namespace: 'email' });
+const sharedState = { databaseUrl: process.env.DATABASE_URL, schema: 'shared_email' };
+const idempotencyStore = createSharedIdempotencyStore(sharedState);
+const rateLimitStore = createSharedRateLimitStore(sharedState);
 const sendLimit = Number(process.env.EMAIL_SEND_LIMIT_PER_RECIPIENT || 20);
 const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
 const idempotencyTtlMs = Number(process.env.EMAIL_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);

@@ -18,7 +18,7 @@ describe("operations source metadata schemas", () => {
           {
             sourceType: "volatile",
             sourceName: "shared-service-usage-memory-window",
-            durability: "redis-window",
+            durability: "memory-window",
             window: "24h",
             degradedReason:
               "Redis unavailable; using in-memory usage counters.",
@@ -30,7 +30,7 @@ describe("operations source metadata schemas", () => {
     expect(parsed.meta?.sourceMetadata?.[0]).toMatchObject({
       sourceType: "volatile",
       sourceName: "shared-service-usage-memory-window",
-      durability: "redis-window",
+      durability: "memory-window",
     });
   });
 
@@ -53,8 +53,8 @@ describe("operations source metadata schemas", () => {
         sourceMetadata: [
           {
             sourceType: "volatile",
-            sourceName: "gateway-traffic-redis-window",
-            durability: "redis-window",
+            sourceName: "gateway-traffic-memory-window",
+            durability: "memory-window",
             window: "1h",
           },
         ],
@@ -62,7 +62,7 @@ describe("operations source metadata schemas", () => {
     });
 
     expect(parsed.meta?.sourceMetadata?.[0]?.sourceName).toBe(
-      "gateway-traffic-redis-window",
+      "gateway-traffic-memory-window",
     );
   });
 

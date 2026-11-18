@@ -19,6 +19,7 @@ const controlledSchemas = [
   "apic_governance",
   "apic_runtime",
   "apic_audit",
+  "apic_identity",
 ];
 const legacySchemas = ["api_center", "api_center_ops", "api_center_audit"];
 // Every schema the platform owns. Each is a bounded context: no foreign key may cross between them.
@@ -57,6 +58,8 @@ const requiredTables: QualifiedObject[] = [
   ["apic_runtime", "usage_rollups"],
   ["apic_runtime", "pipeline_feedback_actions"],
   ["apic_audit", "audit_events"],
+  ["apic_identity", "refresh_tokens"],
+  ["apic_governance", "payment_idempotency_keys"],
 ].map(([schema, name]) => ({ schema, name }));
 
 const compatibilityViews: QualifiedObject[] = [
@@ -249,6 +252,10 @@ const requiredSharedTables = [
   "shared_email.project_senders",
   "shared_email.email_delivery_events",
   "shared_sms.sms_delivery_events",
+  ...["shared_email", "shared_sms", "shared_otp"].flatMap((schema) => [
+    schema + ".idempotency_keys",
+    schema + ".rate_limit_windows",
+  ]),
 ];
 const retiredSharedTables = [
   "shared_sms.sms_records",

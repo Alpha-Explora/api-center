@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-18
+
+- Consumer guides and the SDK README now configure the SDK with one application key (`APICENTER_API_KEY`); service credentials and payment keys are described as deprecated. Deployment and platform setup references record PostgreSQL as the only shared-state store.
+
 ## 2026-11-14
 
 - Recorded control plane rebuild slices 2–12 in the execution plan, the SDK 2.1 README (application keys, published API verification, legacy credentials deprecated), and payment event contract 1.1 in the AsyncAPI source.

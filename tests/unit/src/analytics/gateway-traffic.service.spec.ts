@@ -1,4 +1,3 @@
-import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service";
 
@@ -7,9 +6,6 @@ describe("GatewayTrafficService", () => {
 
   beforeEach(() => {
     service = new GatewayTrafficService(
-      {
-        redis: { cacheUrl: "redis://localhost:6381" },
-      } as ConfigService,
       {
         info: jest.fn(),
         warn: jest.fn(),
@@ -80,9 +76,8 @@ describe("GatewayTrafficService", () => {
       expect.objectContaining({
         sourceType: "volatile",
         sourceName: "gateway-traffic-memory-window",
-        durability: "redis-window",
+        durability: "memory-window",
         window: "1h",
-        degradedReason: expect.stringContaining("Redis unavailable"),
       }),
     );
   });

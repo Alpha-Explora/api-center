@@ -94,10 +94,6 @@
                 "name": "DATABASE_URL"
               },
               {
-                "value": "redis://10.124.52.91:6379",
-                "name": "EMAIL_REDIS_URL"
-              },
-              {
                 "valueFrom": {
                   "secretKeyRef": {
                     "name": "apicenter-email-admin-token",

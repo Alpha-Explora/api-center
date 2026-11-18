@@ -1,8 +1,8 @@
 // =============================================================================
-// Unit tests â€” RedisThrottlerStorage (in-memory fallback path)
+// Unit tests â€” MemoryThrottlerStorage (in-memory fallback path)
 // =============================================================================
 
-import { RedisThrottlerStorage } from "../../../../apps/gateway/src/shared/redis-throttler-storage";
+import { MemoryThrottlerStorage } from "../../../../apps/gateway/src/shared/memory-throttler-storage";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 
 const mockLogger = {
@@ -12,11 +12,11 @@ const mockLogger = {
   debug: jest.fn(),
 } as Partial<LoggerService>;
 
-describe("RedisThrottlerStorage (in-memory fallback)", () => {
-  let storage: RedisThrottlerStorage;
+describe("MemoryThrottlerStorage (in-memory fallback)", () => {
+  let storage: MemoryThrottlerStorage;
 
   beforeEach(() => {
-    storage = new RedisThrottlerStorage(
+    storage = new MemoryThrottlerStorage(
       mockLogger as LoggerService,
     );
     // Don't call onModuleInit â€” this simulates Redis being unavailable

@@ -96,7 +96,7 @@ export default function SettingsPage() {
         <AlertTitle>Secrets policy</AlertTitle>
         <AlertDescription>
           Do not put platform admin secrets, Google OAuth client secrets,
-          PayMongo keys, Resend keys, Kafka credentials, or Redis URLs in
+          PayMongo keys, Resend keys, Kafka credentials, or database URLs in
           browser-exposed variables. The platform admin secret belongs only as a
           server environment variable named `API_CENTER_PLATFORM_ADMIN_SECRET`.
         </AlertDescription>

@@ -33,9 +33,9 @@ const generateOtpService = new GenerateOtpService();
 const verifyOtpService = new VerifyOtpService();
 const getOtpStatusService = new GetOtpStatusService();
 
-const stateUrl = process.env.OTP_REDIS_URL || process.env.REDIS_URL;
-const idempotencyStore = createSharedIdempotencyStore({ url: stateUrl, namespace: 'otp' });
-const rateLimitStore = createSharedRateLimitStore({ url: stateUrl, namespace: 'otp' });
+const sharedState = { databaseUrl: process.env.DATABASE_URL, schema: 'shared_otp' };
+const idempotencyStore = createSharedIdempotencyStore(sharedState);
+const rateLimitStore = createSharedRateLimitStore(sharedState);
 const idempotencyTtlMs = Number(process.env.OTP_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 const generateLimit = Number(process.env.OTP_GENERATE_LIMIT_PER_TARGET || 3);
 const generateWindowMs = Number(process.env.OTP_GENERATE_LIMIT_WINDOW_MS || 60_000);

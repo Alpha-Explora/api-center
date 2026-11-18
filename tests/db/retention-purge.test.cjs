@@ -42,6 +42,16 @@ const inserts = {
     "insert into shared_email.email_delivery_events (provider_event_id, message_id, status, payload, received_at) values ($1, 'msg_retention', 'delivered', '{}'::jsonb, now() - make_interval(days => $2))", [`email_retention_${Date.now()}_${Math.random()}`, days]),
   'shared_sms.sms_delivery_events': (days) => client.query(
     "insert into shared_sms.sms_delivery_events (provider_event_id, message_id, status, payload, received_at) values ($1, 'SMretention', 'delivered', '{}'::jsonb, now() - make_interval(days => $2))", [`sms_retention_${Date.now()}_${Math.random()}`, days]),
+  ...Object.fromEntries(['shared_email', 'shared_sms', 'shared_otp'].flatMap((schema) => [
+    [schema + '.idempotency_keys', (days) => client.query(
+      'insert into ' + schema + ".idempotency_keys (key, fingerprint, state, expires_at) values ($1, 'f', 'completed', now() - make_interval(days => $2))", [`retention_${Math.random()}`, days])],
+    [schema + '.rate_limit_windows', (days) => client.query(
+      'insert into ' + schema + '.rate_limit_windows (key, count, reset_at) values ($1, 1, now() - make_interval(days => $2))', [`retention_${Math.random()}`, days])],
+  ])),
+  'apic_identity.refresh_tokens': (days) => client.query(
+    "insert into apic_identity.refresh_tokens (jti, subject, record, expires_at) values ($1, 's', '{}'::jsonb, now() - make_interval(days => $2))", [`retention_${Math.random()}`, days]),
+  'apic_governance.payment_idempotency_keys': (days) => client.query(
+    "insert into apic_governance.payment_idempotency_keys (storage_key, fingerprint, expires_at) values ($1, 'f', now() - make_interval(days => $2))", [`retention_${Math.random()}`, days]),
 };
 
 async function count(qualified) {

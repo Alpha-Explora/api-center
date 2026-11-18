@@ -85,7 +85,11 @@ test('the retired record tables are gone and the owned record and sender tables 
   const result = await client.query(
     "select table_schema || '.' || table_name as name from information_schema.tables where table_schema in ('shared_sms', 'shared_otp', 'shared_email') order by 1",
   );
-  assert.deepEqual(result.rows.map((row) => row.name), ['shared_email.email_delivery_events', 'shared_email.email_messages', 'shared_email.project_senders', 'shared_otp.otp_challenges', 'shared_sms.sms_delivery_events', 'shared_sms.sms_messages']);
+  assert.deepEqual(result.rows.map((row) => row.name), [
+    'shared_email.email_delivery_events', 'shared_email.email_messages', 'shared_email.idempotency_keys', 'shared_email.project_senders', 'shared_email.rate_limit_windows',
+    'shared_otp.idempotency_keys', 'shared_otp.otp_challenges', 'shared_otp.rate_limit_windows',
+    'shared_sms.idempotency_keys', 'shared_sms.rate_limit_windows', 'shared_sms.sms_delivery_events', 'shared_sms.sms_messages',
+  ]);
 });
 
 test('SMS: a second service in the same project reads the record; another project does not', { skip }, async () => {

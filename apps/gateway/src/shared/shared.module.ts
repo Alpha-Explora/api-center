@@ -13,7 +13,7 @@ import { AuditLogInterceptor } from "./interceptors/audit-log.interceptor";
 import { SecurityMiddleware } from "./middleware/security.middleware";
 import { MorganMiddleware } from "./middleware/morgan.middleware";
 import { ResponseListenerBudgetMiddleware } from "./middleware/response-listener-budget.middleware";
-import { RedisThrottlerStorage } from "./redis-throttler-storage";
+import { MemoryThrottlerStorage } from "./memory-throttler-storage";
 import { DatabaseModule } from "@database/database.module";
 import { RequestDiagnosticsStore } from "./request-diagnostics.store";
 import { RequestDiagnosticsMiddleware } from "./middleware/request-diagnostics.middleware";
@@ -31,7 +31,7 @@ import { RequestDiagnosticsMiddleware } from "./middleware/request-diagnostics.m
     SecurityMiddleware,
     MorganMiddleware,
     ResponseListenerBudgetMiddleware,
-    RedisThrottlerStorage,
+    MemoryThrottlerStorage,
   ],
   exports: [
     RequestDiagnosticsStore,
@@ -43,7 +43,7 @@ import { RequestDiagnosticsMiddleware } from "./middleware/request-diagnostics.m
     SecurityMiddleware,
     MorganMiddleware,
     ResponseListenerBudgetMiddleware,
-    RedisThrottlerStorage,
+    MemoryThrottlerStorage,
   ],
 })
 export class SharedModule {}

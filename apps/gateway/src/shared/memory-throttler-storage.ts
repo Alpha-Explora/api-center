@@ -1,8 +1,8 @@
 // =============================================================================
-// src/shared/redis-throttler-storage.ts — In-Memory ThrottlerStorage
+// src/shared/memory-throttler-storage.ts — In-Memory ThrottlerStorage
 // =============================================================================
 // Implements the @nestjs/throttler ThrottlerStorage interface using an in-memory Map.
-// Provides fast rate-limiting for API Center gateway without external Redis dependency.
+// Counters are per instance: with N instances a client can reach N times the limit.
 // =============================================================================
 
 import { Injectable, OnModuleInit } from "@nestjs/common";
@@ -17,7 +17,7 @@ interface ThrottlerStorageRecord {
 }
 
 @Injectable()
-export class RedisThrottlerStorage
+export class MemoryThrottlerStorage
   implements ThrottlerStorage, OnModuleInit
 {
   private readonly memoryStore = new Map<
@@ -32,7 +32,7 @@ export class RedisThrottlerStorage
   async onModuleInit() {
     this.logger.log(
       "Throttler initialized (in-memory rate-limiting)",
-      "RedisThrottlerStorage",
+      "MemoryThrottlerStorage",
     );
   }
 

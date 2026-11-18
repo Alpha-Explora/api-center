@@ -56,10 +56,12 @@ export function createMemoryIdempotencyStore(options?: { now?: () => number }): 
 /** Hash an idempotency key together with its trusted consumer and operation scope. */
 export function createScopedIdempotencyKey(options: ScopedIdempotencyKeyOptions): string | null;
 export function createMemoryRateLimitStore(): RateLimitStore;
-/** Create a shared Redis-backed idempotency store; production requires a Redis URL. */
-export function createSharedIdempotencyStore(options: { url?: string; namespace: string }): IdempotencyStore;
-/** Create a shared Redis-backed rate limiter; production requires a Redis URL. */
-export function createSharedRateLimitStore(options: { url?: string; namespace: string }): RateLimitStore;
+/** Where a runtime keeps shared state: its database and its own `shared_*` schema. */
+export interface SharedStoreOptions { databaseUrl?: string; schema: string }
+/** Idempotency claims in `<schema>.idempotency_keys`; production requires a database URL. */
+export function createSharedIdempotencyStore(options: SharedStoreOptions): IdempotencyStore;
+/** Fixed-window limits in `<schema>.rate_limit_windows`; production requires a database URL. */
+export function createSharedRateLimitStore(options: SharedStoreOptions): RateLimitStore;
 /** Send an SMS through Twilio and return its APICenter delivery status. */
 export function sendTwilioSms(input: { to: string; message: string; senderId?: string; statusCallback?: string }): Promise<{ messageId: string; status: 'queued' | 'sent' | 'delivered' | 'failed' }>;
 /** Send a plain-text email through Resend and return its APICenter delivery status. */

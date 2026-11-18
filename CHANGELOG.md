@@ -4,6 +4,11 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ## Unreleased
 
+### Changed
+
+- Remove Redis. Runtime idempotency and per-recipient send limits for email, SMS and OTP, the gateway's refresh tokens and payment idempotency now live in PostgreSQL (migration `20261118000100`: `<runtime schema>.idempotency_keys` and `rate_limit_windows`, `apic_identity.refresh_tokens`, `apic_governance.payment_idempotency_keys`), purged by the retention job. Gateway rate limits, tribe quotas, traffic and usage dashboards count per instance in memory; dashboard metadata now reports `memory-window`. Readiness no longer reports Redis. Deployments drop every `*_REDIS_URL` setting.
+- SDK 2.2.0: `new ApiCenter()` needs only `APICENTER_API_KEY`. `baseUrl` defaults to `APICENTER_URL`, then `https://api.apicenter.itsandbox.site`; explicit options always win.
+
 ### Fixed
 
 - Build shared contracts before compiling gateway images that consume project setup status types.

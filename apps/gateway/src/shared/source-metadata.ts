@@ -7,7 +7,7 @@ export type ManagementSourceType =
 
 export type ManagementSourceDurability =
   | "postgres"
-  | "redis-window"
+  | "memory-window"
   | "provider-api"
   | "athena"
   | "computed-projection"
@@ -35,7 +35,7 @@ const WINDOW_SECONDS: Record<ManagementSourceWindow, number> = {
   "15m": 15 * 60,
 };
 
-export function redisWindowSourceMetadata(input: {
+export function memoryWindowSourceMetadata(input: {
   sourceName: string;
   window: ManagementSourceWindow;
   now?: Date;
@@ -45,7 +45,7 @@ export function redisWindowSourceMetadata(input: {
   return {
     sourceType: "volatile",
     sourceName: input.sourceName,
-    durability: "redis-window",
+    durability: "memory-window",
     window: input.window,
     lastRefreshedAt: (input.now ?? new Date()).toISOString(),
     staleAfterSeconds: WINDOW_SECONDS[input.window],

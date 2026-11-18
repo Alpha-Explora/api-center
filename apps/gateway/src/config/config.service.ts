@@ -112,17 +112,9 @@ export class ConfigService implements OnApplicationBootstrap {
       .filter(Boolean);
   }
 
-  readonly redis = {
-    rateLimitUrl: process.env.REDIS_RATE_LIMIT_URL || "redis://localhost:6380",
-    cacheUrl: process.env.REDIS_CACHE_URL || "redis://localhost:6381",
-    tokenTtlSeconds: parseInt(
-      process.env.REDIS_TOKEN_TTL_SECONDS || "3600",
-      10,
-    ),
-    sessionTtlSeconds: parseInt(
-      process.env.REDIS_SESSION_TTL_SECONDS || "86400",
-      10,
-    ),
+  /** Refresh token lifetime in the token store. */
+  readonly tokenStore = {
+    tokenTtlSeconds: parseInt(process.env.REFRESH_TOKEN_TTL_SECONDS || "3600", 10),
   };
 
   readonly database = {
@@ -303,17 +295,6 @@ export class ConfigService implements OnApplicationBootstrap {
       warnings.push(
         "No Vault credentials configured — secrets read from process.env only. Set VAULT_ROLE_ID+VAULT_SECRET_ID for production.",
       );
-    }
-
-    if (this.isProduction) {
-      if (this.redis.rateLimitUrl.includes("localhost"))
-        warnings.push(
-          "REDIS_RATE_LIMIT_URL still points to localhost in production",
-        );
-      if (this.redis.cacheUrl.includes("localhost"))
-        warnings.push(
-          "REDIS_CACHE_URL still points to localhost in production",
-        );
     }
 
     for (const w of warnings) console.warn(`[ConfigService] WARNING: ${w}`);

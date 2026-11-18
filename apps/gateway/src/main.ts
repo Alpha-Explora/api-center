@@ -25,12 +25,12 @@
 //     /api/v1/health/*               — liveness + readiness probes
 //
 // STATELESS DESIGN (checklist §1, §8):
-//   No local mutable state. All shared state lives in Redis:
-//     • registry entries  — survives container restart
-//     • refresh tokens    — revocable across any container
-//     • rate-limit counters — enforced consistently across all 3 containers
-//   This means every container is interchangeable and any can be restarted
-//   without disrupting inflight requests on the other two.
+//   Durable shared state lives in Postgres:
+//     • registry entries   — survives container restart
+//     • refresh tokens     — revocable across any container
+//     • payment idempotency — replays are consistent across containers
+//   Rate-limit counters and dashboard counters are per container, in memory.
+//   Every container is interchangeable and can restart without losing state.
 //
 // CORS (checklist §8 — "foundation is ready for future … policies"):
 //   Enabled globally here via NestJS app.enableCors().
@@ -204,7 +204,7 @@ async function bootstrap() {
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   // On SIGTERM/SIGINT, NestJS calls onModuleDestroy() on all modules before
-  // the process exits — allowing Kafka, Redis, and proxy connections to close.
+  // the process exits — allowing Kafka, database, and proxy connections to close.
   app.enableShutdownHooks();
 
   await app.listen(config.port);
@@ -221,7 +221,7 @@ async function bootstrap() {
     "Bootstrap",
   );
   logger.log(`  swagger enabled    |  ${isSwaggerEnabled}`, "Bootstrap");
-  logger.log(`  stateless          |  Redis shared state enabled`, "Bootstrap");
+  logger.log(`  shared state       |  Postgres; counters in memory`, "Bootstrap");
   logger.log(
     `  flow               |  consumer → NGINX → container → upstream`,
     "Bootstrap",

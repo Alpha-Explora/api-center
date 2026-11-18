@@ -1,5 +1,4 @@
 import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
-import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { QuotaEvaluationLedger } from "../../../../apps/gateway/src/domains/runtime-ops/quota-ledger/quota-evaluation-ledger.types";
 import { TribeCostService } from "../../../../apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service";
 import { TribeQuotaEnforcerService } from "../../../../apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service";
@@ -22,9 +21,6 @@ describe("TribeQuotaEnforcerService", () => {
     service = new TribeQuotaEnforcerService(
       policies as unknown as TribeQuotaPolicyService,
       ledger as unknown as QuotaEvaluationLedger,
-      {
-        redis: { rateLimitUrl: "" },
-      } as ConfigService,
       new TribeCostService(),
       auditEvents as unknown as AuditEventsService,
     );
@@ -130,19 +126,22 @@ describe("TribeQuotaEnforcerService", () => {
     );
   });
 
-  it("falls back to memory counters when Redis is not writeable", async () => {
-    policies.resolvePolicies.mockResolvedValue(tribeOnly(policy({ maxRequests: 1 })));
-    (service as unknown as { getRedis: jest.Mock }).getRedis = jest
-      .fn()
-      .mockResolvedValue({
-        incr: jest.fn().mockRejectedValue(new Error("Stream isn't writeable")),
+  it("counts in memory and starts a fresh count in the next window", async () => {
+    jest.useFakeTimers({ now: Date.parse("2026-11-18T00:00:10Z"), doNotFake: ["nextTick", "setImmediate"] });
+    try {
+      policies.resolvePolicies.mockResolvedValue(tribeOnly(policy({ maxRequests: 1 })));
+
+      await service.check(request());
+      await expect(service.check(request())).rejects.toMatchObject({
+        status: 429,
+        code: "TRIBE_API_QUOTA_EXCEEDED",
       });
 
-    await service.check(request());
-    await expect(service.check(request())).rejects.toMatchObject({
-      status: 429,
-      code: "TRIBE_API_QUOTA_EXCEEDED",
-    });
+      jest.setSystemTime(Date.parse("2026-11-18T00:01:10Z"));
+      await expect(service.check(request())).resolves.toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("does nothing when no policy is active", async () => {

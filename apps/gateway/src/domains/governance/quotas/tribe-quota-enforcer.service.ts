@@ -1,7 +1,5 @@
-import { Inject, Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
-import Redis from "ioredis";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AuditEventsService } from "@audit/audit-events.service";
-import { ConfigService } from "@config/config.service";
 import { TribeCostService } from "@costs/tribe-cost.service";
 import {
   QUOTA_EVALUATION_LEDGER,
@@ -26,30 +24,21 @@ interface CheckTribeQuotaInput {
   environment?: string;
 }
 
+/** Legacy tribe quotas. Counters are per instance: with N instances a limit admits up to N times its count. */
 @Injectable()
-export class TribeQuotaEnforcerService implements OnModuleDestroy {
+export class TribeQuotaEnforcerService {
   private readonly memoryCounters = new Map<
     string,
     { count: number; expiresAt: number }
   >();
-  private redis: Redis | null = null;
-  private redisConnectPromise: Promise<Redis | null> | null = null;
 
   constructor(
     private readonly policies: TribeQuotaPolicyService,
     @Inject(QUOTA_EVALUATION_LEDGER)
     private readonly ledger: QuotaEvaluationLedger,
-    private readonly config: ConfigService,
     @Optional() private readonly costs?: TribeCostService,
     @Optional() private readonly auditEvents?: AuditEventsService,
   ) {}
-
-  async onModuleDestroy() {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-    }
-  }
 
   async check(input: CheckTribeQuotaInput): Promise<void> {
     const resolved = await this.policies.resolvePolicies(input);
@@ -157,27 +146,9 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
     windowEnd: Date,
   ): Promise<number> {
     const key = this.counterKey(policy, input, windowStart);
-    const redis = await this.getRedis();
-    if (redis) {
-      try {
-        const count = await redis.incr(key);
-        if (count === 1) {
-          await redis.pexpire(
-            key,
-            Math.max(1, windowEnd.getTime() - Date.now()),
-          );
-        }
-        return count;
-      } catch {
-        this.redis?.disconnect();
-        this.redis = null;
-      }
-    }
-
     const now = Date.now();
-    const existing = this.memoryCounters.get(key);
-    if (existing && existing.expiresAt <= now) {
-      this.memoryCounters.delete(key);
+    for (const [counter, entry] of this.memoryCounters) {
+      if (entry.expiresAt <= now) this.memoryCounters.delete(counter);
     }
 
     const entry = this.memoryCounters.get(key) ?? {
@@ -282,44 +253,5 @@ export class TribeQuotaEnforcerService implements OnModuleDestroy {
       policy.id ?? "unpersisted-policy",
       windowStart.getTime(),
     ].join(":");
-  }
-
-  private async getRedis(): Promise<Redis | null> {
-    if (!this.config.redis.rateLimitUrl) {
-      return null;
-    }
-
-    if (this.redis?.status === "ready") {
-      return this.redis;
-    }
-
-    if (this.redis?.status === "end") {
-      this.redis = null;
-    }
-
-    if (!this.redis) {
-      this.redis = new Redis(this.config.redis.rateLimitUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        enableOfflineQueue: false,
-      });
-      this.redis.on("error", () => undefined);
-    }
-
-    if (!this.redisConnectPromise) {
-      this.redisConnectPromise = this.redis
-        .connect()
-        .then(() => this.redis)
-        .catch(() => {
-          this.redis?.disconnect();
-          this.redis = null;
-          return null;
-        })
-        .finally(() => {
-          this.redisConnectPromise = null;
-        });
-    }
-
-    return this.redisConnectPromise;
   }
 }

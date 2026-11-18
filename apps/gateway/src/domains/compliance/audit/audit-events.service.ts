@@ -1,18 +1,11 @@
-import {
-  Injectable,
-  OnModuleDestroy,
-  OnModuleInit,
-  Optional,
-} from "@nestjs/common";
-import Redis from "ioredis";
+import { Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { ConfigService } from "@config/config.service";
 import { PrismaService } from "@database/prisma.service";
 import { LoggerService } from "@shared/logger.service";
 import {
   durablePostgresSourceMetadata,
   ManagementSourceMetadata,
-  redisWindowSourceMetadata,
+  memoryWindowSourceMetadata,
 } from "@shared/source-metadata";
 
 export interface AuditEventRecord {
@@ -59,7 +52,6 @@ export interface AuditEventListResult {
   sourceMetadata: ManagementSourceMetadata;
 }
 
-const AUDIT_KEY = "api-center:audit:events";
 const MAX_EVENTS = 500;
 const DATABASE_READ_LIMIT = 500;
 
@@ -86,44 +78,15 @@ type AuditEventRow = {
 };
 
 @Injectable()
-export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
-  private redis: Redis | null = null;
-
+export class AuditEventsService {
   private readonly memoryEvents: AuditEventRecord[] = [];
 
   private readonly databaseEnabled = process.env.DATABASE_ENABLED === "true";
 
   constructor(
-    private readonly config: ConfigService,
     private readonly logger: LoggerService,
     @Optional() private readonly prisma?: PrismaService,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    try {
-      this.redis = new Redis(this.config.redis.cacheUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        enableReadyCheck: false,
-      });
-      await this.redis.connect();
-      this.logger.info("AuditEventsService connected to Redis", {});
-    } catch (err) {
-      this.redis?.disconnect();
-      this.redis = null;
-      this.logger.warn(
-        `AuditEventsService Redis unavailable; using in-memory events: ${(err as Error).message}`,
-        "AuditEventsService",
-      );
-    }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-    }
-  }
 
   async record(event: AuditEventInput): Promise<AuditEventRecord> {
     return this.recordInternal(event, { requirePostgres: false });
@@ -146,21 +109,6 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
 
     this.memoryEvents.unshift(record);
     this.memoryEvents.splice(MAX_EVENTS);
-
-    if (this.redis) {
-      try {
-        await this.redis
-          .multi()
-          .lpush(AUDIT_KEY, JSON.stringify(record))
-          .ltrim(AUDIT_KEY, 0, MAX_EVENTS - 1)
-          .exec();
-      } catch (err) {
-        this.logger.warn(
-          `AuditEventsService Redis write failed; retained in-memory event only: ${(err as Error).message}`,
-          "AuditEventsService",
-        );
-      }
-    }
 
     await this.persistAuditEvent(record, options);
 
@@ -242,10 +190,8 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
     now: Date,
     degradedReason?: string,
   ): ManagementSourceMetadata {
-    return redisWindowSourceMetadata({
-      sourceName: this.redis
-        ? "audit-events-redis-cache"
-        : "audit-events-memory-cache",
+    return memoryWindowSourceMetadata({
+      sourceName: "audit-events-memory-cache",
       window: "24h",
       now,
       degradedReason,
@@ -315,33 +261,9 @@ export class AuditEventsService implements OnModuleInit, OnModuleDestroy {
   private async listCacheWithFallback(
     limit: number,
   ): Promise<AuditEventRecord[]> {
-    return this.redis
-      ? await this.listRedisWithFallback(limit)
-      : this.memoryEvents.slice(0, limit);
+    return this.memoryEvents.slice(0, limit);
   }
 
-  private async listRedisWithFallback(
-    limit: number,
-  ): Promise<AuditEventRecord[]> {
-    try {
-      const rawEvents = await this.redis!.lrange(AUDIT_KEY, 0, limit - 1);
-      return rawEvents
-        .map((raw) => {
-          try {
-            return JSON.parse(raw) as AuditEventRecord;
-          } catch {
-            return null;
-          }
-        })
-        .filter((event): event is AuditEventRecord => Boolean(event));
-    } catch (err) {
-      this.logger.warn(
-        `AuditEventsService Redis read failed; using in-memory events: ${(err as Error).message}`,
-        "AuditEventsService",
-      );
-      return this.memoryEvents.slice(0, limit);
-    }
-  }
 
   private validateRequiredAuditEvent(event: AuditEventInput): void {
     if (!event.actor?.trim()) {
