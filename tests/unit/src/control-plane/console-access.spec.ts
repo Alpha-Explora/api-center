@@ -143,6 +143,34 @@ describe("console access through the control plane API", () => {
     await expect(controller.createApplication(env(project.id, "live"), { slug: "api", name: "API" }, dev2)).rejects.toMatchObject({ status: 403 });
   });
 
+  it("lets only a signed-in project admin decide a live activation request", async () => {
+    const project = await createProject(member("owner@example.test"));
+    const decideActivation = jest.fn().mockResolvedValue({ id: "apr_1", status: "approved" });
+    const db = prisma as unknown as PrismaService;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+    const withLive = new ControlPlaneAdminController(
+      new ControlPlaneAdminService(db, audit),
+      new ConsoleAccessService(db),
+      new OrganizationPeopleService(db, audit),
+      new QuotaService(db, audit),
+      { decideActivation } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const params = (decision: string) => ({ organizationId: ORG, projectId: project.id, approvalRequestId: "apr_1", decision });
+
+    await expect(withLive.decideActivation(params("approve"), {}, req(platform))).rejects.toMatchObject({ code: "APPROVER_NOT_A_PERSON" });
+    // The project is invisible to someone without a role on it.
+    await expect(withLive.decideActivation(params("approve"), {}, req(member("viewer@example.test")))).rejects.toMatchObject({ status: 404 });
+    await expect(withLive.decideActivation(params("reject"), {}, req(member("owner@example.test")))).rejects.toThrow("reason is required");
+    await expect(withLive.decideActivation(params("delete"), {}, req(member("owner@example.test")))).rejects.toMatchObject({ status: 400 });
+    expect(decideActivation).not.toHaveBeenCalled();
+
+    await withLive.decideActivation(params("approve"), {}, req(member("owner@example.test")));
+    expect(decideActivation).toHaveBeenCalledWith(ORG, project.id, "apr_1", { approve: true, by: "owner@example.test" });
+  });
+
   it("protects owners: admins cannot change them and the last owner cannot leave", async () => {
     const admin = req(member("admin@example.test"));
     await expect(controller.setMember({ organizationId: ORG, email: "owner@example.test" }, { role: "admin" }, admin)).rejects.toMatchObject({ status: 403 });

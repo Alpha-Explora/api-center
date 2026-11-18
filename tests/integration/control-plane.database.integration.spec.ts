@@ -216,6 +216,21 @@ describeWithDatabase("control plane on PostgreSQL", () => {
       expect(call.identity.environmentKind).toBe("live");
     });
 
+    it("activates through a console request approved by a different person", async () => {
+      const { project, scope, app } = await readyLiveProject("live-console");
+      const request = await live.requestActivation(orgA, project.id, "platform-admin", "launch");
+      const id = String(request.id);
+      await expect(live.decideActivation(orgA, project.id, id, { approve: true, by: "platform-admin" })).rejects.toThrow(
+        "Requesters cannot approve their own approval request",
+      );
+      await expect(live.activate(orgA, project.id, id, actor)).rejects.toThrow("not approved");
+
+      await live.decideActivation(orgA, project.id, id, { approve: true, by: "owner@example.test" });
+      await expect(live.activate(orgA, project.id, id, actor)).resolves.toMatchObject({ status: "active", activationApprovalId: id });
+      const { secret } = await admin.issueCredential(scope, app.id, { operationId: randomUUID() }, actor);
+      expect(secret).toMatch(/^ak_live_/);
+    });
+
     it("leaves the environment provisioning when activation fails after readiness", async () => {
       const { project } = await readyLiveProject("live-pending");
       const pending = await approval(project.id, "pending");

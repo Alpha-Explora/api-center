@@ -63,6 +63,53 @@ export class LiveEnvironmentService {
     });
   }
 
+  /** File the environment.activate_live request that a different person must approve. */
+  async requestActivation(organizationId: string, projectId: string, requestedBy: string, reason: string) {
+    const readiness = await this.readiness(organizationId, projectId);
+    const request = await this.approvals.createRequest({
+      actionType: "environment.activate_live",
+      targetId: projectId,
+      targetEnvironment: "live",
+      before: { status: readiness.status },
+      after: { status: "active", checks: readiness.checks.map((check) => check.detail) },
+      riskLevel: "high",
+      reason,
+      requestedBy,
+    });
+    await this.recordAudit("control_plane.live.activation_requested", requestedBy, readiness.environmentId, { projectId, approvalRequestId: request.id });
+    return request;
+  }
+
+  /** Activation requests for this project, newest first. */
+  async listActivationRequests(organizationId: string, projectId: string) {
+    await this.readiness(organizationId, projectId);
+    return this.approvals.listForTarget("environment.activate_live", projectId);
+  }
+
+  /**
+   * Approve or reject one activation request. The decider is a signed-in person; the approval
+   * service refuses a requester approving their own request.
+   */
+  async decideActivation(
+    organizationId: string,
+    projectId: string,
+    approvalRequestId: string,
+    decision: { approve: true; by: string } | { approve: false; by: string; reason: string },
+  ) {
+    const pending = (await this.listActivationRequests(organizationId, projectId)).find((request) => request.id === approvalRequestId);
+    if (!pending) throw new NotFoundError(`No live activation request '${approvalRequestId}' for project '${projectId}'`);
+    const request = decision.approve
+      ? await this.approvals.approveRequest(approvalRequestId, decision.by)
+      : await this.approvals.rejectRequest(approvalRequestId, decision.by, decision.reason);
+    await this.recordAudit(
+      decision.approve ? "control_plane.live.activation_approved" : "control_plane.live.activation_rejected",
+      decision.by,
+      projectId,
+      { projectId, approvalRequestId, requestedBy: request.requestedBy },
+    );
+    return request;
+  }
+
   async activate(organizationId: string, projectId: string, approvalRequestId: string, actor: string) {
     const environment = await withTenant(this.prisma, { organizationId }, async (db) => {
       const live = await requireLive(db, organizationId, projectId);

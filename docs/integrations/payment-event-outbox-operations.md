@@ -10,7 +10,7 @@ sources: ["packages/contracts/src/index.ts","apps/payments/src/server.ts"]
 ---
 # Payment event outbox operations
 
-Payment events are published from `shared_payment.payment_event_outbox` by a Cloud Run Job that claims bounded batches of pending rows and publishes them to Pub/Sub. This document covers running and operating that job. The job only drains the outbox; rows are added by the payment runtime. The consumer must deduplicate the stable `eventId`; Pub/Sub can redeliver a message after APICenter publishes but before its database acknowledgement.
+Payment events are published from `shared_payment.payment_event_outbox` in two ways. The payment runtime publishes the events a verified webhook just queued before it acknowledges the webhook, so consumers usually hear about a payment within seconds. A scheduled Cloud Run Job claims bounded batches of anything still pending (a failed publish, or an event queued while publishing was unavailable) and publishes it to Pub/Sub; it is the retry path, and it must run in every environment that takes payments. This document covers running and operating that job. The job only drains the outbox; rows are added by the payment runtime. The consumer must deduplicate the stable `eventId`; Pub/Sub can redeliver a message after APICenter publishes but before its database acknowledgement.
 
 ## Deploy order
 
