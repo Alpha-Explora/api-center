@@ -30,15 +30,6 @@
             ],
             "env": [
               {
-                "name": "SMS_DATABASE_URL",
-                "valueFrom": {
-                  "secretKeyRef": {
-                    "key": "latest",
-                    "name": "apicenter-sms-database-url"
-                  }
-                }
-              },
-              {
                 "name": "SMS_SEND_LIMIT_WINDOW_MS",
                 "value": "60000"
               },
@@ -49,10 +40,6 @@
               {
                 "name": "NODE_ENV",
                 "value": "production"
-              },
-              {
-                "name": "SMS_STORE_MODE",
-                "value": "postgres"
               },
               {
                 "name": "SMS_IDEMPOTENCY_TTL_MS",
