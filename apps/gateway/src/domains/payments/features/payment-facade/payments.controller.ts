@@ -350,7 +350,7 @@ export class PaymentsController {
       await this.idempotency.markUnknown(input);
     } catch {
       // The durable reservation created before the upstream request remains in
-      // place, so stale provider keys still fail closed if Redis is unavailable.
+      // place, so stale provider keys still fail closed if the database is unavailable.
       this.logger.error(
         "Unable to update the payment idempotency outcome marker",
       );

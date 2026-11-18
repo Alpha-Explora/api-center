@@ -64,7 +64,7 @@ const sharedServices = [
     route: "/api/v1/shared/otp",
     icon: KeyRoundIcon,
     description: "OTP issue, verify, and rate-limit workflows.",
-    secret: "REDIS_URL",
+    secret: "DATABASE_URL",
   },
 ];
 

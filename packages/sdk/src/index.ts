@@ -1,4 +1,4 @@
-export { ApiCenter } from './ApiCenter';
+export { ApiCenter, DEFAULT_BASE_URL } from './ApiCenter';
 export { ApiCenterError } from './internal/errors';
 export { parsePaymentEvent, PaymentEventSchema } from './payment/events';
 export type { PaymentEvent } from './payment/events';

@@ -15,13 +15,13 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('Payments facade (e2e)', () => {
   let app: INestApplication;
-  const originalRedisUrl = process.env.REDIS_URL;
-  const originalRedisCacheUrl = process.env.REDIS_CACHE_URL;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalDatabaseEnabled = process.env.DATABASE_ENABLED;
   const originalInternalToken = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
 
   beforeAll(async () => {
-    delete process.env.REDIS_URL;
-    delete process.env.REDIS_CACHE_URL;
+    delete process.env.DATABASE_URL;
+    delete process.env.DATABASE_ENABLED;
     process.env.APICENTER_PAYMENTS_URL = 'http://payments.internal';
     process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN = 'test-internal-token';
 
@@ -84,8 +84,8 @@ describe('Payments facade (e2e)', () => {
     delete process.env.APICENTER_PAYMENTS_URL;
     if (originalInternalToken === undefined) delete process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
     else process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN = originalInternalToken;
-    if (originalRedisUrl === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = originalRedisUrl;
-    if (originalRedisCacheUrl === undefined) delete process.env.REDIS_CACHE_URL; else process.env.REDIS_CACHE_URL = originalRedisCacheUrl;
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = originalDatabaseUrl;
+    if (originalDatabaseEnabled === undefined) delete process.env.DATABASE_ENABLED; else process.env.DATABASE_ENABLED = originalDatabaseEnabled;
   });
 
   it('authenticates the consumer and prevents tenant/environment header spoofing', async () => {

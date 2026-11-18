@@ -73,8 +73,9 @@ export interface AccessTokenProvider {
 export type ApiCenterAuth = ApplicationKey | ServiceCredentials | AccessTokenProvider;
 
 export interface ApiCenterOptions {
-  baseUrl: string;
-  /** Omit only when configuring a payment API key for payment-only use. */
+  /** Defaults to `APICENTER_URL`, then the hosted APICenter gateway. */
+  baseUrl?: string;
+  /** Defaults to the application key in `APICENTER_API_KEY`. */
   auth?: ApiCenterAuth;
   /** @deprecated Legacy payment key (`apic_…`). An application key with payments grants replaces it. */
   paymentApiKey?: string;

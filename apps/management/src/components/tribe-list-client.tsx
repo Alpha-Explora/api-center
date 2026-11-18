@@ -79,8 +79,8 @@ export function TribeListClient() {
         <div>
           <CardTitle>Service registry</CardTitle>
           <CardDescription>
-            Runtime services registered in API Center Redis through the
-            protected registry API.
+            Runtime services registered in API Center through the protected
+            registry API.
           </CardDescription>
         </div>
         <div className="flex gap-2">

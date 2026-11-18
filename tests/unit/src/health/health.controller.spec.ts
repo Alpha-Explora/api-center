@@ -2,7 +2,6 @@ import { HealthCheckService } from "@nestjs/terminus";
 import { HealthController } from "../../../../apps/gateway/src/domains/runtime-ops/health/health.controller";
 import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { ExternalService } from "../../../../apps/gateway/src/domains/gateway-proxy/external/external.service";
-import { TokenStoreService } from "../../../../apps/gateway/src/domains/auth-security/auth/token-store.service";
 import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
@@ -30,7 +29,6 @@ function createHealthCheckServiceMock(): HealthCheckService {
 
 describe("HealthController", () => {
   let controller: HealthController;
-  let tokenStore: TokenStoreService;
   let externalService: ExternalService;
   let registry: RegistryService;
 
@@ -42,9 +40,6 @@ describe("HealthController", () => {
     externalService = {
       getAllBreakerStats: jest.fn().mockReturnValue([]),
     } as unknown as ExternalService;
-    tokenStore = {
-      isRedisConnected: jest.fn().mockReturnValue(true),
-    } as unknown as TokenStoreService;
     const gatewayTraffic = {
       recordReadinessFailure: jest.fn().mockResolvedValue(undefined),
     } as unknown as GatewayTrafficService;
@@ -58,7 +53,6 @@ describe("HealthController", () => {
       health,
       registry,
       externalService,
-      tokenStore,
       gatewayTraffic,
       auditEvents,
       governanceReadiness,
@@ -72,12 +66,11 @@ describe("HealthController", () => {
     expect((result as any).info.process.status).toBe("up");
   });
 
-  it("should report redis as down when token store is disconnected", async () => {
-    (tokenStore.isRedisConnected as jest.Mock).mockReturnValue(false);
-
+  it("does not depend on a cache server for readiness", async () => {
     const result = await controller.readiness();
 
-    expect((result as any).info.redis.status).toBe("down");
+    expect((result as any).info.redis).toBeUndefined();
+    expect((result as any).info.registry.status).toBe("up");
   });
 
   it("should report circuit breakers as down when at least one breaker is open", async () => {

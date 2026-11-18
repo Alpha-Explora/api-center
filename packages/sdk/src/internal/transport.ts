@@ -123,7 +123,7 @@ export class ApiCenterTransport {
   constructor(options: ApiCenterTransportOptions) {
     if (!options.baseUrl.trim()) throw new TypeError('baseUrl is required');
     if (!options.auth && !options.paymentApiKey?.trim()) {
-      throw new TypeError('Configure service auth or a paymentApiKey');
+      throw new TypeError('Set APICENTER_API_KEY, or pass auth or a paymentApiKey');
     }
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.fetchImpl = options.fetchImpl ?? fetch;

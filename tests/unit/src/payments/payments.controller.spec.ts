@@ -48,19 +48,19 @@ function response() {
 }
 
 describe('PaymentsController', () => {
-  const originalRedisUrl = process.env.REDIS_URL;
-  const originalRedisCacheUrl = process.env.REDIS_CACHE_URL;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalDatabaseEnabled = process.env.DATABASE_ENABLED;
   const originalRuntimeToken = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST;
 
   beforeAll(() => {
-    delete process.env.REDIS_URL;
-    delete process.env.REDIS_CACHE_URL;
+    delete process.env.DATABASE_URL;
+    delete process.env.DATABASE_ENABLED;
     process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST = 'unit-test-runtime-token';
   });
 
   afterAll(() => {
-    if (originalRedisUrl === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = originalRedisUrl;
-    if (originalRedisCacheUrl === undefined) delete process.env.REDIS_CACHE_URL; else process.env.REDIS_CACHE_URL = originalRedisCacheUrl;
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = originalDatabaseUrl;
+    if (originalDatabaseEnabled === undefined) delete process.env.DATABASE_ENABLED; else process.env.DATABASE_ENABLED = originalDatabaseEnabled;
     if (originalRuntimeToken === undefined) delete process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST;
     else process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST = originalRuntimeToken;
   });

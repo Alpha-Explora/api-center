@@ -207,7 +207,7 @@ export class AnalyticsController {
         firstSeenAt: gateway.lastSeenAt,
         lastSeenAt: gateway.lastSeenAt,
         recommendation:
-          "Inspect readiness checks for Kafka, Redis, registry, and circuit breakers.",
+          "Inspect readiness checks for Kafka, registry, and circuit breakers.",
       });
     }
 

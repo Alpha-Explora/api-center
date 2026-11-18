@@ -21,7 +21,6 @@ npm install @alpha-explora/apicenter-sdk
 Create a project in the APICenter console, add an application for your backend, grant it the actions it needs (for example `email:send`), and issue a key for the environment. Keep the key in a server-only environment variable; never expose it to a browser.
 
 ```env
-APICENTER_URL=https://api.apicenter.itsandbox.site
 APICENTER_API_KEY=ak_test_...
 ```
 
@@ -29,10 +28,9 @@ APICENTER_API_KEY=ak_test_...
 import { randomUUID } from 'node:crypto';
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-const api = new ApiCenter({
-  baseUrl: process.env.APICENTER_URL!,
-  auth: { apiKey: process.env.APICENTER_API_KEY! },
-});
+// Reads APICENTER_API_KEY. Set APICENTER_URL, or pass baseUrl, only for a gateway other than
+// https://api.apicenter.itsandbox.site. Explicit options always win.
+const api = new ApiCenter();
 
 await api.email.send(
   { to: 'person@example.com', subject: 'Welcome', text: 'Your account is ready.' },

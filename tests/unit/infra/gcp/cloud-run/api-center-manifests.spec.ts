@@ -25,12 +25,7 @@ describe("api-center Cloud Run manifests", () => {
 
       expectEnvValue(manifest, "AUTH_PROVIDER", "composite");
       expectEnvValue(manifest, "ALLOWED_ORIGINS", "https://api-center-management-test.itsandbox.site");
-      expectEnvValue(manifest, "REDIS_CACHE_URL", "redis://10.121.26.59:6379");
-      expectEnvValue(
-        manifest,
-        "REDIS_RATE_LIMIT_URL",
-        "redis://10.121.26.59:6379",
-      );
+      expect(manifest).not.toMatch(/REDIS/);
       expectEnvValue(manifest, "DATA_PIPELINE_ENABLED", '"false"');
       expectEnvValue(manifest, "KAFKA_ENABLED", '"false"');
       expect(manifest).toMatch(/startupProbe:\s+httpGet:\s+path: \/api\/v1\/health\/live/s);

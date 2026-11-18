@@ -31,23 +31,22 @@ Add this to the consumer repository's `.npmrc`:
 Set `NODE_AUTH_TOKEN` from a secret store to a GitHub token with package read access. Do not commit the token. Install the released SDK:
 
 ```bash
-npm install @alpha-explora/apicenter-sdk@2.0.0
+npm install @alpha-explora/apicenter-sdk@2.2.0
 ```
 
 See [SDK integration](/guides/sdk-usage) for payments, other namespaces, and error handling.
 
 ## 3. Configure server-only credentials
 
-Ask an operator to issue a service secret for each environment you use. Keep these values in your backend's environment or secret manager. Never put them in browser code, a mobile app, a checked-in `.env` file, or a `NEXT_PUBLIC_` variable.
+Ask an operator for an application key for each environment you use. Keep it in your backend's environment or secret manager. Never put it in browser code, a mobile app, a checked-in `.env` file, or a `NEXT_PUBLIC_` variable.
 
 ```ini
-APICENTER_URL=https://api.apicenter.itsandbox.site
-APICENTER_SERVICE_ID=orders-api
-APICENTER_ENVIRONMENT=test
-APICENTER_SERVICE_SECRET=<secret-issued-for-this-service-and-environment>
+APICENTER_API_KEY=ak_test_...
 ```
 
-Use separate credentials for `test` and `live`. The SDK exchanges the service ID, environment, and secret for a short-lived APICenter token and refreshes it when needed.
+This is the only setting the SDK needs. The key's prefix (`ak_test_` or `ak_live_`) selects the environment, and the key identifies your application, so there is no service ID or environment to configure. Payments use the same key when your application holds payment grants. Set `APICENTER_URL` only to call a gateway other than `https://api.apicenter.itsandbox.site`.
+
+Services registered before application keys can keep their service credentials (`APICENTER_SERVICE_ID`, `APICENTER_ENVIRONMENT`, `APICENTER_SERVICE_SECRET`) and pass them as `auth`; they are deprecated.
 
 ## 4. Make a shared-service request
 
@@ -56,14 +55,8 @@ This example sends email from a Node.js backend. Create and persist an idempoten
 ```ts
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-const api = new ApiCenter({
-  baseUrl: process.env.APICENTER_URL!,
-  auth: {
-    serviceId: process.env.APICENTER_SERVICE_ID!,
-    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
-    secret: process.env.APICENTER_SERVICE_SECRET!,
-  },
-});
+// Reads APICENTER_API_KEY; the key's prefix selects test or live.
+const api = new ApiCenter();
 
 await api.email.send(
   {

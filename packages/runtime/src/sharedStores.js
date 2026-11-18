@@ -1,73 +1,15 @@
-const Redis = require('ioredis');
+// Idempotency and per-recipient send limits shared by every instance of a runtime, kept in that
+// runtime's own Postgres schema. Runtime roles may select, insert and update but never delete,
+// so a released claim is marked 'released' and an expired one is overwritten by the next claim.
+const { Pool } = require('pg');
+const { createHash } = require('node:crypto');
 const { createMemoryIdempotencyStore } = require('./idempotencyStore');
 const { createMemoryRateLimitStore } = require('./rateLimitStore');
-const { createHash } = require('node:crypto');
 
 const DEFAULT_LEASE_MS = 30_000;
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-const CLAIM_SCRIPT = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then
-  local record = {
-    fingerprint = ARGV[1],
-    state = 'processing',
-    leaseUntil = tonumber(ARGV[2]) + tonumber(ARGV[3])
-  }
-  redis.call('SET', KEYS[1], cjson.encode(record))
-  return { 'claimed', '' }
-end
-
-local record = cjson.decode(raw)
-if record.fingerprint ~= ARGV[1] then return { 'payload_mismatch', '' } end
-if record.state == 'completed' then return { 'replay', cjson.encode(record.response) } end
-if record.state == 'unknown' then return { 'unknown', '' } end
-if tonumber(record.leaseUntil or 0) > tonumber(ARGV[2]) then
-  return { 'in_progress', '' }
-end
-
-record.state = 'unknown'
-record.unknownSince = tonumber(ARGV[2])
-record.leaseUntil = nil
-redis.call('SET', KEYS[1], cjson.encode(record))
-return { 'unknown', '' }
-`;
-
-const COMPLETE_SCRIPT = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
-local record = cjson.decode(raw)
-if record.fingerprint ~= ARGV[1] then return -1 end
-if record.state == 'completed' then return 1 end
-record.state = 'completed'
-record.response = cjson.decode(ARGV[2])
-record.completedAt = tonumber(ARGV[3])
-record.leaseUntil = nil
-redis.call('SET', KEYS[1], cjson.encode(record), 'PX', ARGV[4])
-return 1
-`;
-
-const MARK_UNKNOWN_SCRIPT = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
-local record = cjson.decode(raw)
-if record.fingerprint ~= ARGV[1] then return -1 end
-if record.state == 'completed' then return 1 end
-record.state = 'unknown'
-record.unknownSince = record.unknownSince or tonumber(ARGV[2])
-record.leaseUntil = nil
-redis.call('SET', KEYS[1], cjson.encode(record))
-return 1
-`;
-
-const RELEASE_SCRIPT = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
-local record = cjson.decode(raw)
-if record.fingerprint ~= ARGV[1] then return -1 end
-if record.state ~= 'processing' then return 0 end
-return redis.call('DEL', KEYS[1])
-`;
+const SCHEMA = /^shared_[a-z]+$/;
+const pools = new Map();
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -85,91 +27,156 @@ function fingerprint(value) {
     .digest('hex');
 }
 
-function parseClaimResult(result) {
-  const [status, rawResponse] = result;
-  return status === 'replay'
-    ? { status, response: JSON.parse(rawResponse) }
-    : { status };
-}
-
-function redisConnection(url) {
-  if (!url) {
-    if (process.env.NODE_ENV === 'production') throw new Error('Redis URL is required for shared service state');
-    return null;
+/** One pool per database URL, shared by both stores of a process. */
+function poolFor(databaseUrl) {
+  let pool = pools.get(databaseUrl);
+  if (!pool) {
+    pool = new Pool({
+      connectionString: databaseUrl,
+      max: 4,
+      allowExitOnIdle: true,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+    });
+    pool.on('error', () => undefined);
+    pools.set(databaseUrl, pool);
   }
-  const client = new Redis(url, { maxRetriesPerRequest: 1 });
-  client.on('error', () => undefined);
-  return client;
+  return pool;
 }
 
-/** Create a namespaced Redis idempotency store, failing closed in production without Redis. */
-function createSharedIdempotencyStore({ url, namespace }) {
-  const redis = redisConnection(url);
-  if (!redis) return createMemoryIdempotencyStore();
-  const keyFor = (key) => `${namespace}:idempotency:${key}`;
+/** The Postgres pool for these options, or null for the memory fallback outside production. */
+function resolvePool({ databaseUrl, schema }) {
+  if (!SCHEMA.test(schema ?? '')) throw new Error(`Invalid shared runtime schema: ${schema}`);
+  if (databaseUrl) return poolFor(databaseUrl);
+  if (process.env.NODE_ENV === 'production') throw new Error('DATABASE_URL is required for shared service state');
+  return null;
+}
+
+async function inTransaction(pool, work) {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const result = await work(client);
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Create an idempotency store in `<schema>.idempotency_keys`; memory outside production without a database. */
+function createSharedIdempotencyStore(options) {
+  const pool = resolvePool(options);
+  if (!pool) return createMemoryIdempotencyStore();
+  const table = `${options.schema}.idempotency_keys`;
+
   return {
     async claim(key, body, { leaseMs = DEFAULT_LEASE_MS } = {}) {
-      const result = await redis.eval(
-        CLAIM_SCRIPT,
-        1,
-        keyFor(key),
-        fingerprint(body),
-        Date.now(),
-        Math.max(1, Number(leaseMs) || DEFAULT_LEASE_MS),
-      );
-      return parseClaimResult(result);
+      const print = fingerprint(body);
+      const now = new Date();
+      const leaseUntil = new Date(now.getTime() + Math.max(1, Number(leaseMs) || DEFAULT_LEASE_MS));
+      return inTransaction(pool, async (client) => {
+        const claimed = await client.query(
+          `INSERT INTO ${table} AS k (key, fingerprint, state, lease_until, updated_at)
+           VALUES ($1, $2, 'processing', $3, $4)
+           ON CONFLICT (key) DO UPDATE
+             SET fingerprint = EXCLUDED.fingerprint, state = 'processing', response = NULL,
+                 lease_until = EXCLUDED.lease_until, unknown_since = NULL, expires_at = NULL,
+                 updated_at = EXCLUDED.updated_at
+             WHERE k.state = 'released' OR (k.state = 'completed' AND k.expires_at <= $4)
+           RETURNING key`,
+          [key, print, leaseUntil, now],
+        );
+        if (claimed.rowCount === 1) return { status: 'claimed' };
+
+        const { rows: [row] } = await client.query(
+          `SELECT fingerprint, state, response, lease_until FROM ${table} WHERE key = $1 FOR UPDATE`,
+          [key],
+        );
+        if (row.fingerprint !== print) return { status: 'payload_mismatch' };
+        if (row.state === 'completed') return { status: 'replay', response: row.response };
+        if (row.state === 'unknown') return { status: 'unknown' };
+        if (new Date(row.lease_until) > now) return { status: 'in_progress' };
+        await client.query(
+          `UPDATE ${table} SET state = 'unknown', unknown_since = $2, lease_until = NULL, updated_at = $2 WHERE key = $1`,
+          [key, now],
+        );
+        return { status: 'unknown' };
+      });
     },
+
     async complete(key, body, response, { ttlMs = DEFAULT_TTL_MS } = {}) {
-      const result = Number(await redis.eval(
-        COMPLETE_SCRIPT,
-        1,
-        keyFor(key),
-        fingerprint(body),
-        JSON.stringify(response),
-        Date.now(),
-        Math.max(1000, Number(ttlMs) || DEFAULT_TTL_MS),
-      ));
-      if (result !== 1) throw new Error('Idempotency claim was lost before its response could be stored');
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + Math.max(1000, Number(ttlMs) || DEFAULT_TTL_MS));
+      // A response already stored for this claim is kept, as the Redis store did.
+      const { rows } = await pool.query(
+        `UPDATE ${table}
+            SET state = 'completed',
+                response = CASE WHEN state = 'completed' THEN response ELSE $3::jsonb END,
+                expires_at = CASE WHEN state = 'completed' THEN expires_at ELSE $4 END,
+                lease_until = NULL, updated_at = $5
+          WHERE key = $1 AND fingerprint = $2 AND state IN ('processing', 'unknown', 'completed')
+          RETURNING key`,
+        [key, fingerprint(body), JSON.stringify(response ?? null), expiresAt, now],
+      );
+      if (rows.length !== 1) throw new Error('Idempotency claim was lost before its response could be stored');
     },
+
     async markUnknown(key, body) {
-      const result = Number(await redis.eval(
-        MARK_UNKNOWN_SCRIPT,
-        1,
-        keyFor(key),
-        fingerprint(body),
-        Date.now(),
-      ));
-      if (result !== 1) throw new Error('Idempotency claim was lost before its outcome could be recorded');
+      const now = new Date();
+      const { rows } = await pool.query(
+        `UPDATE ${table}
+            SET state = CASE WHEN state = 'completed' THEN state ELSE 'unknown' END,
+                unknown_since = CASE WHEN state = 'completed' THEN unknown_since ELSE COALESCE(unknown_since, $3) END,
+                lease_until = CASE WHEN state = 'completed' THEN lease_until ELSE NULL END,
+                updated_at = $3
+          WHERE key = $1 AND fingerprint = $2 AND state IN ('processing', 'unknown', 'completed')
+          RETURNING key`,
+        [key, fingerprint(body), now],
+      );
+      if (rows.length !== 1) throw new Error('Idempotency claim was lost before its outcome could be recorded');
     },
+
     async release(key, body) {
-      const result = Number(await redis.eval(
-        RELEASE_SCRIPT,
-        1,
-        keyFor(key),
-        fingerprint(body),
-      ));
-      if (result === -1) throw new Error('Idempotency claim payload changed before release');
+      const print = fingerprint(body);
+      const released = await pool.query(
+        `UPDATE ${table} SET state = 'released', lease_until = NULL, updated_at = now()
+          WHERE key = $1 AND fingerprint = $2 AND state = 'processing'`,
+        [key, print],
+      );
+      if (released.rowCount === 1) return;
+      const { rows } = await pool.query(`SELECT fingerprint FROM ${table} WHERE key = $1`, [key]);
+      if (rows.length === 1 && rows[0].fingerprint !== print) {
+        throw new Error('Idempotency claim payload changed before release');
+      }
     },
   };
 }
 
-const RATE_SCRIPT = `
-local count = redis.call('INCR', KEYS[1])
-if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
-local ttl = redis.call('PTTL', KEYS[1])
-return {count, ttl}
-`;
+/** Create a fixed-window limiter in `<schema>.rate_limit_windows`; memory outside production without a database. */
+function createSharedRateLimitStore(options) {
+  const pool = resolvePool(options);
+  if (!pool) return createMemoryRateLimitStore();
+  const table = `${options.schema}.rate_limit_windows`;
 
-/** Create a Redis-backed fixed-window rate-limit store for shared runtimes. */
-function createSharedRateLimitStore({ url, namespace }) {
-  const redis = redisConnection(url);
-  if (!redis) return createMemoryRateLimitStore();
   return {
     async consume(key, { limit, windowMs }) {
-      const window = Math.max(1000, Number(windowMs) || 60000);
+      const window = Math.max(1000, Number(windowMs) || 60_000);
       const max = Math.max(1, Number(limit) || 1);
-      const [count, ttl] = await redis.eval(RATE_SCRIPT, 1, `${namespace}:rate:${key}`, window);
-      return { allowed: count <= max, remaining: Math.max(0, max - count), resetAt: Date.now() + Math.max(0, ttl) };
+      const now = new Date();
+      const { rows: [row] } = await pool.query(
+        `INSERT INTO ${table} AS w (key, count, reset_at)
+         VALUES ($1, 1, $2::timestamptz + make_interval(secs => $3::double precision / 1000))
+         ON CONFLICT (key) DO UPDATE SET
+           count = CASE WHEN w.reset_at <= $2 THEN 1 ELSE w.count + 1 END,
+           reset_at = CASE WHEN w.reset_at <= $2 THEN EXCLUDED.reset_at ELSE w.reset_at END
+         RETURNING count, reset_at`,
+        [key, now, window],
+      );
+      const count = Number(row.count);
+      return { allowed: count <= max, remaining: Math.max(0, max - count), resetAt: new Date(row.reset_at).getTime() };
     },
   };
 }

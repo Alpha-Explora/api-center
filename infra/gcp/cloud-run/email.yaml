@@ -37,8 +37,6 @@ spec:
               value: "60000"
             - name: EMAIL_IDEMPOTENCY_TTL_MS
               value: "604800000"
-            - name: EMAIL_REDIS_URL
-              value: redis://10.121.26.59:6379
             - name: RESEND_API_KEY
               valueFrom:
                 secretKeyRef:

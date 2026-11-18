@@ -17,6 +17,7 @@ import { DevJwtProvider } from "./providers/dev-jwt.provider";
 import { InternalJwtProvider } from "./providers/internal-jwt.provider";
 import { CompositeAuthProvider } from "./providers/composite-auth.provider";
 import { TokenStoreService } from "./token-store.service";
+import { DatabaseModule } from "@database/database.module";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { PlatformAdminGuard } from "./guards/platform-admin.guard";
@@ -50,7 +51,7 @@ const authProviderFactory = {
 };
 
 @Module({
-  imports: [forwardRef(() => RegistryModule), VaultModule],
+  imports: [forwardRef(() => RegistryModule), VaultModule, DatabaseModule],
   controllers: [AuthController],
   providers: [
     TokenStoreService,

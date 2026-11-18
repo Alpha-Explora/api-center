@@ -5,7 +5,6 @@ describe("AuditEventsService", () => {
 
   beforeEach(() => {
     service = new AuditEventsService(
-      { redis: { cacheUrl: "" } } as any,
       { info: jest.fn(), warn: jest.fn() } as any,
     );
   });
@@ -70,7 +69,6 @@ describe("AuditEventsService", () => {
     };
     const logger = { info: jest.fn(), warn: jest.fn() };
     const databaseBackedService = new AuditEventsService(
-      { redis: { cacheUrl: "" } } as any,
       logger as any,
       prisma as any,
     );
@@ -122,7 +120,6 @@ describe("AuditEventsService", () => {
       },
     };
     const databaseBackedService = new AuditEventsService(
-      { redis: { cacheUrl: "" } } as any,
       { info: jest.fn(), warn: jest.fn() } as any,
       prisma as any,
     );
@@ -165,7 +162,6 @@ describe("AuditEventsService", () => {
       },
     };
     const databaseBackedService = new AuditEventsService(
-      { redis: { cacheUrl: "" } } as any,
       { info: jest.fn(), warn: jest.fn() } as any,
       prisma as any,
     );
@@ -220,7 +216,6 @@ describe("AuditEventsService", () => {
       },
     };
     const databaseBackedService = new AuditEventsService(
-      { redis: { cacheUrl: "" } } as any,
       { info: jest.fn(), warn: jest.fn() } as any,
       prisma as any,
     );
@@ -280,7 +275,6 @@ describe("AuditEventsService", () => {
       },
     };
     const databaseBackedService = new AuditEventsService(
-      { redis: { cacheUrl: "" } } as any,
       { info: jest.fn(), warn: jest.fn() } as any,
       prisma as any,
     );

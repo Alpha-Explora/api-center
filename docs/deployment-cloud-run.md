@@ -36,7 +36,7 @@ The live project, service, subscription, and IAM observations are maintained in 
 | Latest ready revision | `api-center-staging-00010-vpb` |
 | Deployed image | `asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/api-center:build-1ee3fb64-9588-47b5-8254-b9e224346c28` |
 | Deployed digest | `sha256:d4e5c20c16d5f69dec3d280d0146aa17baf95f211d7df6fb31d756b703fb4c27` |
-| Redis | Existing Memorystore `api-center-cache` at `10.121.26.59:6379` through VPC egress |
+| Shared state | PostgreSQL only (since migration `20261118000100`): runtime idempotency and send limits in each runtime's schema, refresh tokens in `apic_identity`, payment idempotency in `apic_governance`. Rate-limit and dashboard counters are per instance, in memory. No Redis or Memorystore. |
 | Payment test route | `https://payment-test-mvrs6gmtgq-as.a.run.app` |
 | Payment live route | `https://payment-live-mvrs6gmtgq-as.a.run.app` |
 
@@ -55,7 +55,7 @@ The live project, service, subscription, and IAM observations are maintained in 
 ## Verification
 
 - `/api/v1/health/live`: HTTP 200 with authenticated Cloud Run invocation.
-- `/api/v1/health/ready`: HTTP 200 with Redis `up`, registry `up`, and `registeredServices=30`.
+- `/api/v1/health/ready`: HTTP 200 with registry `up` and the expected `registeredServices` count. Readiness no longer reports Redis.
 - Kafka readiness: `up` with `skipped=true` because Kafka is disabled by configuration for this staging check.
 - Bounded smoke: 100 `/api/v1/health/ready` requests at concurrency 10, zero failures, p95 `235ms`, p99 `249ms` on revision `api-center-staging-00009-x9d`.
 

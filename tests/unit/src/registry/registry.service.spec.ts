@@ -31,7 +31,6 @@ const mockLogger: Partial<LoggerService> = {
 };
 
 const mockConfig: Partial<ConfigService> = {
-  redis: { cacheUrl: "", rateLimitUrl: "" } as any,
   database: {
     enabled: false,
     provider: "",

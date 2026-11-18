@@ -387,7 +387,7 @@ export const managementSourceMetadataSchema = z.object({
   sourceName: z.string(),
   durability: z.enum([
     "postgres",
-    "redis-window",
+    "memory-window",
     "provider-api",
     "athena",
     "computed-projection",

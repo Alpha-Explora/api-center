@@ -63,7 +63,7 @@ Required gateway settings include:
 - `APICENTER_PAYMENTS_URL` or the environment-specific shared payment route.
 - `APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST` and `_LIVE`.
 - `APICENTER_PAYMENT_EVENTS_TOPIC_TEST` and `_LIVE` for event publishing.
-- Redis settings for distributed rate limits and idempotency.
+- `DATABASE_URL` for durable idempotency and send limits (Postgres); no Redis is needed.
 
 The payment runtime requires PayMongo credentials only in its own Secret Manager
 binding. Never expose provider credentials to a consumer service.

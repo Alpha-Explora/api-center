@@ -1,12 +1,10 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import Redis from "ioredis";
-import { ConfigService } from "@config/config.service";
+import { Injectable } from "@nestjs/common";
 import { LoggerService } from "@shared/logger.service";
 import type { ServiceCallObservation } from "./service-call-observation";
 import { SharedServiceUsageWindow } from "./shared-service-usage.service";
 import {
   ManagementSourceMetadata,
-  redisWindowSourceMetadata,
+  memoryWindowSourceMetadata,
 } from "@shared/source-metadata";
 
 export type GatewayNamespace = "shared" | "tribe";
@@ -60,42 +58,14 @@ const WINDOW_HOURS: Record<SharedServiceUsageWindow, number> = {
   "30d": 30 * 24,
 };
 
+/** Hourly gateway traffic counters for this instance's dashboards; they reset when the instance restarts. */
 @Injectable()
-export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
-  private redis: Redis | null = null;
-
+export class GatewayTrafficService {
   private readonly memoryBuckets = new Map<string, GatewayBucket>();
 
   constructor(
-    private readonly config: ConfigService,
     private readonly logger: LoggerService,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    try {
-      this.redis = new Redis(this.config.redis.cacheUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        enableReadyCheck: false,
-      });
-      await this.redis.connect();
-      this.logger.info("GatewayTrafficService connected to Redis", {});
-    } catch (err) {
-      this.redis?.disconnect();
-      this.redis = null;
-      this.logger.warn(
-        `GatewayTrafficService Redis unavailable; using in-memory counters: ${(err as Error).message}`,
-        "GatewayTrafficService",
-      );
-    }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-    }
-  }
 
   async recordProxyRequest(event: GatewayTrafficEvent): Promise<void> {
     const increments = {
@@ -190,7 +160,7 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
         p95LatencyMs: aggregate.maxLatencyMs,
         lastSeenAt: aggregate.lastSeenAt,
       },
-      sourceMetadata: redisWindowSourceMetadata({
+      sourceMetadata: memoryWindowSourceMetadata({
         sourceName,
         window,
         now,
@@ -204,36 +174,10 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
     sourceName: string;
     degradedReason?: string;
   }> {
-    if (!this.redis) {
-      return {
-        buckets: hours.map((hour) =>
-          this.memoryBuckets.get(this.bucketKey(hour)),
-        ),
-        sourceName: "gateway-traffic-memory-window",
-        degradedReason: "Redis unavailable; using in-memory gateway counters.",
-      };
-    }
-
-    try {
-      const buckets = [];
-      for (const hour of hours) {
-        const raw = await this.redis.hgetall(this.bucketKey(hour));
-        buckets.push(
-          Object.keys(raw).length ? this.parseBucket(raw) : undefined,
-        );
-      }
-      return { buckets, sourceName: "gateway-traffic-redis-window" };
-    } catch (err) {
-      const degradedReason = `Redis read failed; using in-memory gateway counters: ${(err as Error).message}`;
-      this.logger.warn(degradedReason, "GatewayTrafficService");
-      return {
-        buckets: hours.map((hour) =>
-          this.memoryBuckets.get(this.bucketKey(hour)),
-        ),
-        sourceName: "gateway-traffic-memory-window",
-        degradedReason,
-      };
-    }
+    return {
+      buckets: hours.map((hour) => this.memoryBuckets.get(this.bucketKey(hour))),
+      sourceName: "gateway-traffic-memory-window",
+    };
   }
 
   private async recordBucket(
@@ -248,46 +192,15 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       key,
     );
 
-    if (!this.redis) return;
+    this.pruneBuckets(hourStart);
+  }
 
-    try {
-      const pipeline = this.redis.pipeline();
-      for (const field of [
-        "totalProxyRequests",
-        "tribeToTribeRequests",
-        "tribeToSharedRequests",
-        "status4xx",
-        "status5xx",
-        "kafkaPublishFailures",
-        "readinessFailures",
-        "latencyMsTotal",
-      ] as const) {
-        if (increments[field] > 0)
-          pipeline.hincrby(key, field, increments[field]);
-      }
-      const currentMax = await this.redis.hget(key, "maxLatencyMs");
-      if (increments.maxLatencyMs > Number(currentMax ?? 0)) {
-        pipeline.hset(key, "maxLatencyMs", increments.maxLatencyMs);
-      }
-      if (Object.keys(increments.environments).length) {
-        const existingEnvironments = this.parseEnvironmentCounts(
-          (await this.redis.hget(key, "environments")) ?? undefined,
-        );
-        for (const [environment, count] of Object.entries(increments.environments)) {
-          existingEnvironments[environment] =
-            (existingEnvironments[environment] ?? 0) + count;
-        }
-        pipeline.hset(key, "environments", JSON.stringify(existingEnvironments));
-      }
-      if (increments.lastSeenAt)
-        pipeline.hset(key, "lastSeenAt", increments.lastSeenAt);
-      pipeline.expire(key, RETENTION_SECONDS);
-      await pipeline.exec();
-    } catch (err) {
-      this.logger.warn(
-        `GatewayTrafficService Redis write failed; retained in-memory counter only: ${(err as Error).message}`,
-        "GatewayTrafficService",
-      );
+  /** Drop hours older than the longest window so counters stay bounded. */
+  private pruneBuckets(now: Date): void {
+    const oldest = now.getTime() - RETENTION_SECONDS * 1000;
+    for (const key of this.memoryBuckets.keys()) {
+      const hour = Date.parse(key.slice(BUCKET_PREFIX.length + 1));
+      if (Number.isFinite(hour) && hour < oldest) this.memoryBuckets.delete(key);
     }
   }
 
@@ -331,42 +244,6 @@ export class GatewayTrafficService implements OnModuleInit, OnModuleDestroy {
       target.lastSeenAt = source.lastSeenAt;
     }
     if (targetKey) this.memoryBuckets.set(targetKey, target);
-  }
-
-  private parseBucket(raw: Record<string, string>): GatewayBucket {
-    return {
-      totalProxyRequests: this.parseCount(raw.totalProxyRequests),
-      tribeToTribeRequests: this.parseCount(raw.tribeToTribeRequests),
-      tribeToSharedRequests: this.parseCount(raw.tribeToSharedRequests),
-      status4xx: this.parseCount(raw.status4xx),
-      status5xx: this.parseCount(raw.status5xx),
-      kafkaPublishFailures: this.parseCount(raw.kafkaPublishFailures),
-      readinessFailures: this.parseCount(raw.readinessFailures),
-      environments: this.parseEnvironmentCounts(raw.environments),
-      latencyMsTotal: this.parseCount(raw.latencyMsTotal),
-      maxLatencyMs: this.parseCount(raw.maxLatencyMs),
-      lastSeenAt: raw.lastSeenAt,
-    };
-  }
-
-  private parseEnvironmentCounts(value: string | undefined): Record<string, number> {
-    if (!value) return {};
-    try {
-      const parsed = JSON.parse(value) as Record<string, unknown>;
-      return Object.fromEntries(
-        Object.entries(parsed).map(([environment, count]) => [
-          environment,
-          typeof count === "number" ? count : this.parseCount(String(count)),
-        ]),
-      );
-    } catch {
-      return {};
-    }
-  }
-
-  private parseCount(value: string | undefined): number {
-    const parsed = Number.parseInt(value ?? "0", 10);
-    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   private getHourStarts(window: SharedServiceUsageWindow, now: Date): Date[] {

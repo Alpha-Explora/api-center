@@ -34,8 +34,8 @@
 //        Shared-service SDK calls use the corresponding typed service namespace.
 //
 //  §8  PRODUCTION RESILIENCE
-//        Rate limiting uses Redis so counters are consistent across all 3
-//        containers. Auth uses stateless JWTs. Registry is Redis-backed.
+//        Rate limits are counted per instance in memory. Auth uses stateless
+//        JWTs; durable state (refresh tokens, idempotency) lives in Postgres.
 //        Any container can be stopped; the other two keep serving traffic.
 //
 //  CORS (required):
@@ -77,7 +77,7 @@ import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { RequestDiagnosticsMiddleware } from "./shared/middleware/request-diagnostics.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
 import { ResponseListenerBudgetMiddleware } from "./shared/middleware/response-listener-budget.middleware";
-import { RedisThrottlerStorage } from "./shared/redis-throttler-storage";
+import { MemoryThrottlerStorage } from "./shared/memory-throttler-storage";
 import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
 
 @Module({
@@ -85,14 +85,13 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
     // ── 1. Configuration — loaded first, all other modules depend on it ──────
     ConfigModule,
 
-    // ── 2. Distributed rate limiting ─────────────────────────────────────────
-    // Because all 3 containers share Redis, rate-limit counters are consistent
-    // across the entire gateway fleet — not just per-container.
+    // ── 2. Rate limiting ─────────────────────────────────────────────────────
+    // Counters are per instance: with N instances a client can reach N times the limit.
     // ALLOWED_ORIGINS / rate-limit window / max are driven by env vars.
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule, SharedModule],
-      inject: [ConfigService, RedisThrottlerStorage],
-      useFactory: (config: ConfigService, storage: RedisThrottlerStorage) => ({
+      inject: [ConfigService, MemoryThrottlerStorage],
+      useFactory: (config: ConfigService, storage: MemoryThrottlerStorage) => ({
         throttlers: [
           { ttl: config.rateLimit.windowMs, limit: config.rateLimit.max },
         ],
@@ -125,7 +124,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
 
     // ── 6. Service registry ───────────────────────────────────────────────────
     // The registry is the source of truth for which services exist and where
-    // they live. Stored in Redis so all 3 containers see the same picture.
+    // they live. Each instance loads it from Postgres and refreshes it periodically.
     // Tribes register via POST /api/v1/registry/register — no static config.
     RegistryModule,
 
@@ -157,7 +156,7 @@ import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
   ],
   providers: [
     // TribeThrottlerGuard enforces per-tribe rate limits on every route.
-    // Using Redis storage means all 3 containers share the same counters.
+    // Counters are kept in memory per instance (MemoryThrottlerStorage).
     { provide: APP_GUARD, useClass: TribeThrottlerGuard },
   ],
 })

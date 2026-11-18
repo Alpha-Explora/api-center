@@ -73,7 +73,7 @@ describe("ComplianceExportController", () => {
         sourceMetadata: {
           sourceType: "volatile",
           sourceName: "audit-events-memory-cache",
-          durability: "redis-window",
+          durability: "memory-window",
         },
       }),
     };

@@ -1,11 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import Redis from "ioredis";
-import { ConfigService } from "@config/config.service";
+import { Injectable } from "@nestjs/common";
 import { LoggerService } from "@shared/logger.service";
 import type { ServiceCallObservation } from "./service-call-observation";
 import {
   ManagementSourceMetadata,
-  redisWindowSourceMetadata,
+  memoryWindowSourceMetadata,
 } from "@shared/source-metadata";
 
 export type SharedServiceUsageWindow = "1h" | "24h" | "7d" | "30d";
@@ -50,7 +48,6 @@ type UsageBucket = {
 };
 
 const BUCKET_PREFIX = "api-center:usage:shared";
-const INDEX_PREFIX = "api-center:usage:shared:index";
 const RETENTION_SECONDS = 45 * 24 * 60 * 60;
 const WINDOW_HOURS: Record<SharedServiceUsageWindow, number> = {
   "1h": 1,
@@ -59,53 +56,18 @@ const WINDOW_HOURS: Record<SharedServiceUsageWindow, number> = {
   "30d": 30 * 24,
 };
 
+/** Hourly shared-service usage per consumer for this instance's dashboards; resets on restart. */
 @Injectable()
-export class SharedServiceUsageService
-  implements OnModuleInit, OnModuleDestroy
-{
-  private redis: Redis | null = null;
-
+export class SharedServiceUsageService {
   private readonly memoryBuckets = new Map<string, UsageBucket>();
 
   constructor(
-    private readonly config: ConfigService,
     private readonly logger: LoggerService,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    try {
-      this.redis = new Redis(this.config.redis.cacheUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        enableReadyCheck: false,
-      });
-      await this.redis.connect();
-      this.logger.info("SharedServiceUsageService connected to Redis", {});
-    } catch (err) {
-      this.redis?.disconnect();
-      this.redis = null;
-      this.logger.warn(
-        `SharedServiceUsageService Redis unavailable; using in-memory counters: ${(err as Error).message}`,
-        "SharedServiceUsageService",
-      );
-    }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-    }
-  }
 
   async record(event: SharedServiceUsageEvent): Promise<void> {
     const hourStart = this.toHourStart(event.timestamp);
     const environment = this.resolveEnvironment(event);
-    const pair = this.encodePair(
-      environment,
-      event.tribeServiceId,
-      event.sharedServiceId,
-    );
     const key = this.bucketKey(
       hourStart,
       environment,
@@ -115,27 +77,15 @@ export class SharedServiceUsageService
     const lastUsedAt = event.timestamp.toISOString();
 
     this.recordInMemory(key, event, lastUsedAt);
+    this.pruneBuckets(hourStart);
+  }
 
-    if (!this.redis) {
-      return;
-    }
-
-    const indexKey = this.indexKey(hourStart);
-    const pipeline = this.redis.pipeline();
-    pipeline.hincrby(key, "totalRequests", 1);
-    pipeline.hincrby(key, event.ok ? "successRequests" : "failedRequests", 1);
-    pipeline.hincrby(key, "latencyMsTotal", Math.max(0, event.latencyMs));
-    pipeline.hset(key, "lastUsedAt", lastUsedAt);
-    pipeline.sadd(indexKey, pair);
-    pipeline.expire(key, RETENTION_SECONDS);
-    pipeline.expire(indexKey, RETENTION_SECONDS);
-    try {
-      await pipeline.exec();
-    } catch (err) {
-      this.logger.warn(
-        `SharedServiceUsageService Redis write failed; retained in-memory counter only: ${(err as Error).message}`,
-        "SharedServiceUsageService",
-      );
+  /** Drop hours older than the longest window so counters stay bounded. */
+  private pruneBuckets(now: Date): void {
+    const oldest = now.getTime() - RETENTION_SECONDS * 1000;
+    for (const key of this.memoryBuckets.keys()) {
+      const hour = Date.parse(key.slice(BUCKET_PREFIX.length + 1, BUCKET_PREFIX.length + 25));
+      if (Number.isFinite(hour) && hour < oldest) this.memoryBuckets.delete(key);
     }
   }
 
@@ -187,7 +137,7 @@ export class SharedServiceUsageService
           `${b.environment}:${b.tribeServiceId}:${b.sharedServiceId}`,
         );
       }),
-      sourceMetadata: redisWindowSourceMetadata({
+      sourceMetadata: memoryWindowSourceMetadata({
         sourceName,
         window,
         now,
@@ -225,48 +175,10 @@ export class SharedServiceUsageService
     sourceName: string;
     degradedReason?: string;
   }> {
-    if (!this.redis) {
-      return {
-        buckets: this.readMemoryBuckets(hours),
-        sourceName: "shared-service-usage-memory-window",
-        degradedReason: "Redis unavailable; using in-memory usage counters.",
-      };
-    }
-
-    try {
-      return {
-        buckets: await this.readRedisBuckets(hours),
-        sourceName: "shared-service-usage-redis-window",
-      };
-    } catch (err) {
-      const degradedReason = `Redis read failed; using in-memory usage counters: ${(err as Error).message}`;
-      this.logger.warn(degradedReason, "SharedServiceUsageService");
-      return {
-        buckets: this.readMemoryBuckets(hours),
-        sourceName: "shared-service-usage-memory-window",
-        degradedReason,
-      };
-    }
-  }
-
-  private async readRedisBuckets(
-    hours: Date[],
-  ): Promise<Map<string, UsageBucket>> {
-    const aggregate = new Map<string, UsageBucket>();
-
-    for (const hour of hours) {
-      const members = await this.redis!.smembers(this.indexKey(hour));
-      for (const pair of members) {
-        const [environment, tribeServiceId, sharedServiceId] =
-          this.decodePair(pair);
-        const raw = await this.redis!.hgetall(
-          this.bucketKey(hour, environment, tribeServiceId, sharedServiceId),
-        );
-        this.mergeBucket(aggregate, pair, this.parseBucket(raw));
-      }
-    }
-
-    return aggregate;
+    return {
+      buckets: this.readMemoryBuckets(hours),
+      sourceName: "shared-service-usage-memory-window",
+    };
   }
 
   private readMemoryBuckets(hours: Date[]): Map<string, UsageBucket> {
@@ -316,21 +228,6 @@ export class SharedServiceUsageService
     aggregate.set(pair, current);
   }
 
-  private parseBucket(raw: Record<string, string>): UsageBucket {
-    return {
-      totalRequests: this.parseCount(raw.totalRequests),
-      successRequests: this.parseCount(raw.successRequests),
-      failedRequests: this.parseCount(raw.failedRequests),
-      latencyMsTotal: this.parseCount(raw.latencyMsTotal),
-      lastUsedAt: raw.lastUsedAt,
-    };
-  }
-
-  private parseCount(value: string | undefined): number {
-    const parsed = Number.parseInt(value ?? "0", 10);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
   private getHourStarts(window: SharedServiceUsageWindow, now: Date): Date[] {
     const currentHour = this.toHourStart(now);
     return Array.from({ length: WINDOW_HOURS[window] }, (_, index) => {
@@ -357,10 +254,6 @@ export class SharedServiceUsageService
       tribeServiceId,
       sharedServiceId,
     )}`;
-  }
-
-  private indexKey(hourStart: Date): string {
-    return `${INDEX_PREFIX}:${hourStart.toISOString()}`;
   }
 
   private encodePair(

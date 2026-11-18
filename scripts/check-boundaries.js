@@ -106,7 +106,7 @@ const BOUNDED_CONTEXTS = [
       'apps/gateway/src/secrets',
       'apps/gateway/src/domains/auth-security',
     ],
-    schemas: [],
+    schemas: ['apic_identity'],
   },
   {
     name: 'payment_data_plane',

@@ -1,6 +1,9 @@
+// Replay records for payment mutations, keyed by caller, operation and Idempotency-Key. With a
+// database they live in apic_governance.payment_idempotency_keys so every gateway instance sees
+// them; without one (local runs and tests) they live in this process, and production refuses that.
 import { createHash } from "node:crypto";
-import { BadRequestException, ConflictException, Injectable, OnModuleDestroy, ServiceUnavailableException } from "@nestjs/common";
-import Redis from "ioredis";
+import { BadRequestException, ConflictException, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
+import { PrismaService } from "@database/prisma.service";
 import { PaymentPrincipal } from "../features/payment-facade/payment-api-key.service";
 
 type StoredResponse = {
@@ -16,6 +19,13 @@ type StoredRecord = {
   unknownSince?: number;
 };
 
+type Row = {
+  fingerprint: string;
+  response: StoredResponse | null;
+  created_at: Date;
+  unknown_since: Date | null;
+};
+
 export type IdempotencyLookup = { replay: StoredResponse } | { miss: true };
 
 const TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -23,36 +33,16 @@ const LEASE_MS = 30_000;
 // PayMongo expires provider idempotency keys after 24 hours. Leave a one-hour
 // margin for request/clock uncertainty before stopping automatic retries.
 const UNKNOWN_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
-
-const RESERVE_SCRIPT = `
-local result = redis.call('SET', KEYS[1], ARGV[1], 'NX')
-if not result then return 0 end
-redis.call('SET', KEYS[2], 'processing', 'PX', ARGV[2])
-return 1
-`;
-
-const MARK_UNKNOWN_SCRIPT = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
-local record = cjson.decode(raw)
-if record.response then return 1 end
-record.unknownSince = record.unknownSince or tonumber(ARGV[1])
-redis.call('SET', KEYS[1], cjson.encode(record))
-redis.call('PEXPIRE', KEYS[2], ARGV[2])
-return 1
-`;
+const TABLE = "apic_governance.payment_idempotency_keys";
 
 @Injectable()
-export class PaymentIdempotencyService implements OnModuleDestroy {
+export class PaymentIdempotencyService {
   private readonly memory = new Map<string, StoredRecord & { expiresAt: number }>();
   private readonly leases = new Map<string, number>();
-  private redis: Redis | null = null;
-  private redisConnectPromise: Promise<Redis | null> | null = null;
+  private readonly databaseEnabled =
+    process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL);
 
-  onModuleDestroy(): void {
-    this.redis?.disconnect();
-    this.redis = null;
-  }
+  constructor(@Optional() private readonly prisma?: PrismaService) {}
 
   async lookupOrValidate(input: {
     principal: PaymentPrincipal;
@@ -111,11 +101,20 @@ export class PaymentIdempotencyService implements OnModuleDestroy {
     response: StoredResponse;
   }): Promise<void> {
     const storageKey = this.storageKey(input.principal, input.method, input.path, input.key);
-    await this.write(storageKey, {
-      fingerprint: this.fingerprint(input.body),
-      response: input.response,
-    });
-    await this.releaseLease(storageKey);
+    const fingerprint = this.fingerprint(input.body);
+    const db = this.db();
+    if (db) {
+      // Storing the response also releases the lease and starts the replay TTL.
+      await db.$executeRawUnsafe(
+        `INSERT INTO ${TABLE} (storage_key, fingerprint, response, expires_at) VALUES ($1, $2, $3::jsonb, now() + make_interval(secs => $4::double precision))
+         ON CONFLICT (storage_key) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, response = EXCLUDED.response,
+           expires_at = EXCLUDED.expires_at, lease_until = NULL, updated_at = now()`,
+        storageKey, fingerprint, JSON.stringify(input.response), TTL_SECONDS,
+      );
+      return;
+    }
+    this.memory.set(storageKey, { fingerprint, response: input.response, expiresAt: Date.now() + TTL_SECONDS * 1000 });
+    this.leases.delete(storageKey);
   }
 
   async markUnknown(input: {
@@ -123,15 +122,22 @@ export class PaymentIdempotencyService implements OnModuleDestroy {
   }): Promise<void> {
     if (!input.key || !this.isMutation(input.method)) return;
     const storageKey = this.storageKey(input.principal, input.method, input.path, input.key);
-    const redis = await this.redisClient();
-    if (redis) {
-      // Keep unresolved outcomes beyond the ordinary replay TTL so an old key
-      // can never become a fresh charge after the provider forgets it.
-      const result = await redis.eval(MARK_UNKNOWN_SCRIPT, 2, storageKey, `${storageKey}:lease`, Date.now(), LEASE_MS);
-      if (Number(result) !== 1) throw new ServiceUnavailableException('Payment idempotency record is unavailable');
+    const db = this.db();
+    if (db) {
+      // Unresolved outcomes never expire, so an old key can never become a fresh charge after the
+      // provider forgets it. The lease is renewed so a concurrent retry waits for this one.
+      const rows = await db.$queryRawUnsafe<Array<{ storage_key: string }>>(
+        `UPDATE ${TABLE}
+            SET unknown_since = CASE WHEN response IS NULL THEN COALESCE(unknown_since, now()) ELSE unknown_since END,
+                lease_until = CASE WHEN response IS NULL AND lease_until IS NOT NULL THEN now() + make_interval(secs => $2::double precision) ELSE lease_until END,
+                updated_at = now()
+          WHERE storage_key = $1
+          RETURNING storage_key`,
+        storageKey, LEASE_MS / 1000,
+      );
+      if (rows.length !== 1) throw new ServiceUnavailableException('Payment idempotency record is unavailable');
       return;
     }
-    if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
     const current = this.memory.get(storageKey);
     if (!current) throw new ServiceUnavailableException('Payment idempotency record is unavailable');
     if (current.response) return;
@@ -140,27 +146,47 @@ export class PaymentIdempotencyService implements OnModuleDestroy {
     if (this.leases.has(storageKey)) this.leases.set(storageKey, Date.now() + LEASE_MS);
   }
 
-  private async claimLease(key: string): Promise<boolean> {
-    const redis = await this.redisClient();
-    if (redis) return (await redis.set(`${key}:lease`, 'processing', 'PX', LEASE_MS, 'NX')) === 'OK';
+  /** The database, or undefined for the in-process store that only non-production may use. */
+  private db(): PrismaService | undefined {
+    if (this.databaseEnabled && this.prisma) return this.prisma;
     if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
+    return undefined;
+  }
+
+  private async claimLease(key: string): Promise<boolean> {
+    const db = this.db();
+    if (db) {
+      const rows = await db.$queryRawUnsafe<Array<{ storage_key: string }>>(
+        `UPDATE ${TABLE} SET lease_until = now() + make_interval(secs => $2::double precision), updated_at = now()
+          WHERE storage_key = $1 AND response IS NULL AND (lease_until IS NULL OR lease_until <= now())
+          RETURNING storage_key`,
+        key, LEASE_MS / 1000,
+      );
+      return rows.length === 1;
+    }
     const expiresAt = this.leases.get(key);
     if (expiresAt && expiresAt > Date.now()) return false;
     this.leases.set(key, Date.now() + LEASE_MS);
     return true;
   }
 
-  private async releaseLease(key: string): Promise<void> {
-    const redis = await this.redisClient();
-    if (redis) await redis.del(`${key}:lease`);
-    else this.leases.delete(key);
-  }
-
   private async read(key: string): Promise<StoredRecord | null> {
-    const redis = await this.redisClient();
-    if (redis) {
-      const raw = await redis.get(key);
-      return raw ? (JSON.parse(raw) as StoredRecord) : null;
+    const db = this.db();
+    if (db) {
+      const rows = await db.$queryRawUnsafe<Row[]>(
+        `SELECT fingerprint, response, created_at, unknown_since FROM ${TABLE}
+          WHERE storage_key = $1 AND (expires_at IS NULL OR expires_at > now())`,
+        key,
+      );
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        fingerprint: row.fingerprint,
+        response: row.response ?? undefined,
+        // A record with a response no longer needs its reservation time.
+        createdAt: row.response ? undefined : new Date(row.created_at).getTime(),
+        unknownSince: row.unknown_since ? new Date(row.unknown_since).getTime() : undefined,
+      };
     }
 
     const value = this.memory.get(key);
@@ -172,63 +198,31 @@ export class PaymentIdempotencyService implements OnModuleDestroy {
       createdAt: value.createdAt, unknownSince: value.unknownSince };
   }
 
+  /**
+   * Reserve the key with a lease. A reservation stays until a response is stored: if the gateway
+   * crashes during a provider call, expiry must not turn the old key into a new charge after
+   * PayMongo forgets its idempotency key. Only an expired completed record can be reserved again.
+   */
   private async writeIfAbsentAndClaimLease(key: string, value: StoredRecord): Promise<boolean> {
-    const redis = await this.redisClient();
-    if (redis) {
-      // A reservation stays durable until a response is stored. If the gateway
-      // crashes during a provider call, expiry must not turn the old key into
-      // a new charge after PayMongo forgets its idempotency key.
-      const result = await redis.eval(
-        RESERVE_SCRIPT,
-        2,
-        key,
-        `${key}:lease`,
-        JSON.stringify(value),
-        LEASE_MS,
+    const db = this.db();
+    if (db) {
+      const rows = await db.$queryRawUnsafe<Array<{ storage_key: string }>>(
+        `INSERT INTO ${TABLE} AS k (storage_key, fingerprint, created_at, lease_until)
+         VALUES ($1, $2, $3, $3::timestamptz + make_interval(secs => $4::double precision))
+         ON CONFLICT (storage_key) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, response = NULL,
+           created_at = EXCLUDED.created_at, lease_until = EXCLUDED.lease_until, unknown_since = NULL,
+           expires_at = NULL, updated_at = now()
+           WHERE k.expires_at IS NOT NULL AND k.expires_at <= now()
+         RETURNING storage_key`,
+        key, value.fingerprint, new Date(value.createdAt ?? Date.now()), LEASE_MS / 1000,
       );
-      return Number(result) === 1;
+      return rows.length === 1;
     }
-    if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
     const existing = this.memory.get(key);
     if (existing && existing.expiresAt > Date.now()) return false;
     this.memory.set(key, { ...value, expiresAt: Number.POSITIVE_INFINITY });
     this.leases.set(key, Date.now() + LEASE_MS);
     return true;
-  }
-
-  private async write(key: string, value: StoredRecord): Promise<void> {
-    const redis = await this.redisClient();
-    if (redis) {
-      await redis.setex(key, TTL_SECONDS, JSON.stringify(value));
-      return;
-    }
-    if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Payment idempotency storage is unavailable');
-    this.memory.set(key, { ...value, expiresAt: Date.now() + TTL_SECONDS * 1000 });
-  }
-
-  private async redisClient(): Promise<Redis | null> {
-    const url = process.env.REDIS_URL || process.env.REDIS_CACHE_URL;
-    if (!url) return null;
-
-    if (!this.redis) {
-      this.redis = new Redis(url, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-      });
-      this.redis.on("error", () => undefined);
-    }
-    if (this.redis.status === "ready") return this.redis;
-    if (!this.redisConnectPromise) {
-      this.redisConnectPromise = this.redis
-        .connect()
-        .then(() => this.redis)
-        .catch(() => null)
-        .finally(() => {
-          this.redisConnectPromise = null;
-        });
-    }
-    const connected = await this.redisConnectPromise;
-    return connected?.status === "ready" ? connected : null;
   }
 
   private storageKey(

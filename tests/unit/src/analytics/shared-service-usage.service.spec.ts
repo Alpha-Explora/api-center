@@ -1,4 +1,3 @@
-import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { LoggerService } from "../../../../apps/gateway/src/shared/logger.service";
 import { SharedServiceUsageService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/shared-service-usage.service";
 
@@ -7,9 +6,6 @@ describe("SharedServiceUsageService", () => {
 
   beforeEach(() => {
     service = new SharedServiceUsageService(
-      {
-        redis: { cacheUrl: "redis://localhost:6381" },
-      } as ConfigService,
       {
         info: jest.fn(),
         warn: jest.fn(),
@@ -123,9 +119,8 @@ describe("SharedServiceUsageService", () => {
       expect.objectContaining({
         sourceType: "volatile",
         sourceName: "shared-service-usage-memory-window",
-        durability: "redis-window",
+        durability: "memory-window",
         window: "1h",
-        degradedReason: expect.stringContaining("Redis unavailable"),
       }),
     );
   });

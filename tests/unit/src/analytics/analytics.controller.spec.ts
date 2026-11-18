@@ -53,7 +53,7 @@ describe("AnalyticsController", () => {
       sourceMetadata: {
         sourceType: "volatile",
         sourceName: "shared-service-usage-memory-window",
-        durability: "redis-window",
+        durability: "memory-window",
         window: "24h",
       },
     });
@@ -85,7 +85,7 @@ describe("AnalyticsController", () => {
       sourceMetadata: {
         sourceType: "volatile",
         sourceName: "shared-service-usage-memory-window",
-        durability: "redis-window",
+        durability: "memory-window",
         window: "24h",
       },
     });
@@ -120,7 +120,7 @@ describe("AnalyticsController", () => {
       sourceMetadata: {
         sourceType: "volatile",
         sourceName: "gateway-traffic-memory-window",
-        durability: "redis-window",
+        durability: "memory-window",
         window: "24h",
       },
     });

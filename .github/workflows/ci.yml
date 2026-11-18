@@ -236,6 +236,14 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
 
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Test idempotency, send limits and refresh tokens against the replayed database
+        run: npm run db:test:shared-state
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/replay
+
       - name: Test the payment event dispatcher against the replayed database
         run: npm run db:test:payment-outbox
         env:

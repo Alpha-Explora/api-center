@@ -17,18 +17,15 @@ Add this configuration to the consumer repository's `.npmrc`:
 Set `NODE_AUTH_TOKEN` in your local environment or CI secret store to a GitHub token with package read access. Do not commit a token or paste it into source code. Install the current release:
 
 ```bash
-npm install @alpha-explora/apicenter-sdk@2.0.0
+npm install @alpha-explora/apicenter-sdk@2.2.0
 ```
 
 ## Configure a service
 
-Ask an APICenter operator to register your service and issue its credentials. Keep these values in a server-only environment or secret manager. Do not use `NEXT_PUBLIC_` variables or expose the service secret to a browser.
+Ask an APICenter operator for an application key per environment. Keep it in a server-only environment or secret manager. Do not use `NEXT_PUBLIC_` variables or expose the key to a browser.
 
 ```ini
-APICENTER_URL=https://api.apicenter.itsandbox.site
-APICENTER_SERVICE_ID=orders-api
-APICENTER_ENVIRONMENT=test
-APICENTER_SERVICE_SECRET=<secret-issued-for-this-service-and-environment>
+APICENTER_API_KEY=ak_test_...
 ```
 
 Create the client in backend code:
@@ -36,17 +33,11 @@ Create the client in backend code:
 ```ts
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-const api = new ApiCenter({
-  baseUrl: process.env.APICENTER_URL!,
-  auth: {
-    serviceId: process.env.APICENTER_SERVICE_ID!,
-    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
-    secret: process.env.APICENTER_SERVICE_SECRET!,
-  },
-});
+// Reads APICENTER_API_KEY, and APICENTER_URL when set; explicit options win.
+const api = new ApiCenter();
 ```
 
-The SDK obtains and refreshes the APICenter service token. APICenter resolves the service's project and tribe from its registry entry and enforces its scopes and shared-service dependencies.
+The key's prefix (`ak_test_` or `ak_live_`) selects the environment and the key identifies your application; APICenter enforces the actions it was granted. Services that still use service credentials pass `auth: { serviceId, environment, secret }` instead; that form is deprecated.
 
 ## Call a shared service
 
@@ -81,23 +72,9 @@ const location = await api.geo.reverseGeocode({
 
 ## Payments
 
-Use a payment API key when the platform has provisioned one. Otherwise, the service token must have the required payment scope.
-
-```ini
-APICENTER_PAYMENT_API_KEY=<optional-payment-key>
-```
+Payments use the same application key when the application holds the matching `payments:*` grants; there is no separate payment key. (The deprecated `paymentApiKey` option remains for services on legacy payment keys.)
 
 ```ts
-const api = new ApiCenter({
-  baseUrl: process.env.APICENTER_URL!,
-  auth: {
-    serviceId: process.env.APICENTER_SERVICE_ID!,
-    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
-    secret: process.env.APICENTER_SERVICE_SECRET!,
-  },
-  paymentApiKey: process.env.APICENTER_PAYMENT_API_KEY,
-});
-
 const checkout = await api.payments.checkouts.create(
   {
     referenceId: 'order-123',

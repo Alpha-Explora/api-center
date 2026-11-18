@@ -20,7 +20,6 @@ import { GatewayTrafficService } from "@analytics/gateway-traffic.service";
 import { ConfigService } from "@config/config.service";
 import { RegistryService } from "@registry/registry.service";
 import { ExternalService } from "@external/external.service";
-import { TokenStoreService } from "@auth/token-store.service";
 import { GovernanceReadinessService } from "./governance-readiness.service";
 
 @Controller("health")
@@ -29,7 +28,6 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly registry: RegistryService,
     private readonly externalService: ExternalService,
-    private readonly tokenStore: TokenStoreService,
     private readonly gatewayTraffic: GatewayTrafficService,
     private readonly auditEvents: AuditEventsService,
     private readonly governanceReadiness: GovernanceReadinessService,
@@ -53,7 +51,6 @@ export class HealthController {
   readiness(): Promise<HealthCheckResult> {
     return this.health.check([
       () => this.processCheck(),
-      () => this.redisCheck(),
       () => this.registryCheck(),
       () => this.circuitBreakerCheck(),
       () => this.governanceCheck(),
@@ -75,17 +72,6 @@ export class HealthController {
           heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
         },
         pid: process.pid,
-      },
-    };
-  }
-
-  private async redisCheck(): Promise<HealthIndicatorResult> {
-    const connected = this.tokenStore.isRedisConnected();
-    if (!connected) this.recordReadinessFailure("redis");
-
-    return {
-      redis: {
-        status: connected ? "up" : "down",
       },
     };
   }
