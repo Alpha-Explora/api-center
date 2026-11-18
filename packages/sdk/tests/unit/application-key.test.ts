@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { ApiCenter, ApiCenterContextError, createContextVerifier, parsePaymentEvent } from '../../src';
+import { ApiCenter, ApiCenterContextError, createContextVerifier, DEFAULT_BASE_URL, parsePaymentEvent } from '../../src';
 
 const KEY = `ak_test_abcdefghijklmnop_${'B'.repeat(43)}`;
 
@@ -26,6 +26,57 @@ describe('application key auth', () => {
     for (const apiKey of ['apic_test_legacy', 'ak_prod_abcdefghijklmnop_' + 'B'.repeat(43), '']) {
       expect(() => new ApiCenter({ baseUrl: 'https://api.example.test', auth: { apiKey } })).toThrow('application key');
     }
+  });
+
+  describe('configuration from the environment', () => {
+    const saved = { url: process.env.APICENTER_URL, key: process.env.APICENTER_API_KEY };
+    afterEach(() => {
+      for (const [name, value] of [['APICENTER_URL', saved.url], ['APICENTER_API_KEY', saved.key]] as const) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    });
+
+    async function firstCall(client: ApiCenter, fetchImpl: jest.Mock) {
+      fetchImpl.mockResolvedValueOnce(okResponse({ results: [] }));
+      await client.geo.reverseGeocode({ latitude: 14.55, longitude: 121.02 }).catch(() => undefined);
+      const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+      return { url, authorization: new Headers(init.headers).get('authorization') };
+    }
+
+    it('needs only APICENTER_API_KEY and calls the hosted gateway', async () => {
+      delete process.env.APICENTER_URL;
+      process.env.APICENTER_API_KEY = KEY;
+      const fetchImpl = jest.fn();
+      const call = await firstCall(new ApiCenter({ fetchImpl: fetchImpl as unknown as typeof fetch }), fetchImpl);
+      expect(call.url).toBe(`${DEFAULT_BASE_URL}/api/v1/shared/geo/reverse-geocode`);
+      expect(call.authorization).toBe(`Bearer ${KEY}`);
+    });
+
+    it('lets APICENTER_URL and explicit options override the defaults', async () => {
+      process.env.APICENTER_URL = 'https://env.example.test';
+      process.env.APICENTER_API_KEY = `ak_live_abcdefghijklmnop_${'C'.repeat(43)}`;
+      const fromEnv = jest.fn();
+      expect((await firstCall(new ApiCenter({ fetchImpl: fromEnv as unknown as typeof fetch }), fromEnv)).url)
+        .toBe('https://env.example.test/api/v1/shared/geo/reverse-geocode');
+
+      const explicit = jest.fn();
+      const call = await firstCall(
+        new ApiCenter({ baseUrl: 'https://api.example.test', auth: { apiKey: KEY }, fetchImpl: explicit as unknown as typeof fetch }),
+        explicit,
+      );
+      expect(call).toEqual({ url: 'https://api.example.test/api/v1/shared/geo/reverse-geocode', authorization: `Bearer ${KEY}` });
+    });
+
+    it('explains what to set when no credential is configured', () => {
+      delete process.env.APICENTER_API_KEY;
+      expect(() => new ApiCenter()).toThrow('Set APICENTER_API_KEY');
+    });
+
+    it('rejects a malformed APICENTER_API_KEY', () => {
+      process.env.APICENTER_API_KEY = 'apic_test_legacy';
+      expect(() => new ApiCenter()).toThrow('application key');
+    });
   });
 
   it('does not let callers set the signed context header', async () => {
