@@ -90,14 +90,50 @@ const removedPersistenceObjects: QualifiedObject[] = [
   ["apic_runtime", "provisioning_jobs"],
   ["apic_runtime", "health_snapshots"],
   ["apic_runtime", "smoke_test_runs"],
+  // Left by the retired per-domain services; dropped by 20261119000100_remove_retired_service_drift.
+  ["apic_audit", "audit_event_inbox"],
+  ["apic_audit", "audit_event_outbox"],
+  ["apic_audit", "evidence_packets"],
+  ["apic_catalog", "registry_event_outbox"],
+  ["apic_governance", "governance_event_inbox"],
+  ["apic_governance", "governance_event_outbox"],
+  ["apic_identity", "identity_event_inbox"],
+  ["apic_identity", "identity_event_outbox"],
+  ["apic_runtime", "gateway_rate_limit_counters"],
+  ["apic_runtime", "promotion_evidence_bundles"],
+  ["apic_runtime", "runtime_event_inbox"],
+  ["apic_runtime", "runtime_event_outbox"],
+  ["shared_email", "runtime_messages"],
+  ["shared_otp", "runtime_challenges"],
+  ["shared_sms", "runtime_messages"],
+  ["shared_payment", "live_payment_webhook_events"],
+  ["shared_payment", "test_payment_webhook_events"],
+  ["shared_payment", "payment_api_keys"],
+  ["shared_payment", "payment_consumer_services"],
   ["api_center", "tribe_secret_refs"],
   ["api_center_ops", "provisioning_jobs"],
   ["api_center_ops", "health_snapshots"],
   ["api_center_ops", "smoke_test_runs"],
 ].map(([schema, name]) => ({ schema, name }));
-const removedSchemas = ["shared_geo"];
+const removedSchemas = ["shared_geo", "apicenter_migrations"];
+const removedRoles = [
+  "audit_evidence_app",
+  "audit_evidence_runtime",
+  "governance_app",
+  "governance_runtime",
+  "identity_access_app",
+  "identity_access_runtime",
+  "platform_operations_app",
+  "platform_operations_runtime",
+  "registry_catalog_app",
+  "registry_catalog_runtime",
+  "geo_runtime",
+  "payment_runtime",
+];
 
 const requiredIndexes = [
+  // The webhook receipt insert's ON CONFLICT target; without it every PayMongo webhook fails.
+  "payment_webhook_events_provider_provider_mode_provider_even_key",
   "organization_members_email_idx",
   "service_environments_service_id_idx",
   "service_environments_env_status_idx",
@@ -539,7 +575,7 @@ async function main(): Promise<void> {
     const removedObjectRows = await queryRows(
       client,
       "select table_schema as schema, table_name as name from information_schema.tables where table_schema = any($1::text[]) and table_name = any($2::text[])",
-      [[...controlledSchemas, ...legacySchemas], removedPersistenceObjects.map((object) => object.name)],
+      [removedPersistenceObjects.map((object) => object.schema), removedPersistenceObjects.map((object) => object.name)],
     );
     const presentRemovedObjects = new Set(removedObjectRows.map((row) => String(row.schema) + "." + String(row.name)));
     addFailure(
@@ -554,6 +590,13 @@ async function main(): Promise<void> {
       [removedSchemas],
     );
     addFailure(failures, "Removed schemas still present", removedSchemaRows.map((row) => String(row.schema)));
+
+    const removedRoleRows = await queryRows(
+      client,
+      "select rolname from pg_roles where rolname = any($1::text[]) order by rolname",
+      [removedRoles],
+    );
+    addFailure(failures, "Removed roles still present", removedRoleRows.map((row) => String(row.rolname)));
 
     const sharedTableRows = await queryRows(
       client,
@@ -695,7 +738,7 @@ async function main(): Promise<void> {
     const indexRows = await queryRows(
       client,
       "select schemaname as schema, indexname as name from pg_indexes where schemaname = any($1::text[])",
-      [controlledSchemas],
+      [domainSchemas],
     );
     const indexNames = new Set(indexRows.map((row) => String(row.name)));
     addFailure(

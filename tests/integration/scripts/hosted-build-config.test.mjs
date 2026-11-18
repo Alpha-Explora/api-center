@@ -58,6 +58,21 @@ for (const [environment, cap] of [['live', '2'], ['test', '1']]) {
   });
 }
 
+for (const environment of ['live', 'test']) {
+  test(`payment event dispatcher ${environment} job manifest has only fields gcloud run jobs replace accepts`, () => {
+    const data = YAML.parse(fs.readFileSync(path.join(root, `infra/gcp/cloud-run/payment-event-dispatcher.${environment}.yaml`), 'utf8'));
+    assert.equal(data.kind, 'Job');
+    const execution = data.spec.template.spec;
+    assert.deepEqual(Object.keys(execution).sort(), ['parallelism', 'taskCount', 'template']);
+    const task = execution.template.spec;
+    assert.equal(task.restartPolicy, undefined);
+    assert.equal(task.serviceAccountName, 'apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com');
+    const env = Object.fromEntries(task.containers[0].env.map(item => [item.name, item]));
+    assert.equal(env.PUBSUB_DISPATCHER_ENABLED.value, 'true');
+    assert.equal(env.SHARED_SERVICES_DATABASE_URL.valueFrom.secretKeyRef.name, `apicenter-payments-${environment}-database-url`);
+  });
+}
+
 test('test payment database secret does not reference a destroyed historical version', () => {
   const data = YAML.parse(fs.readFileSync(path.join(root, 'infra/gcp/cloud-run/apicenter-payments.test.yaml'), 'utf8'));
   const reference = data.spec.template.spec.containers[0].env.find(item => item.name === 'SHARED_SERVICES_DATABASE_URL').valueFrom.secretKeyRef;

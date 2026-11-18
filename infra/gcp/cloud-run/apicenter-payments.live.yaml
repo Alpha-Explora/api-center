@@ -34,8 +34,6 @@ spec:
                 secretKeyRef:
                   key: latest
                   name: apicenter-payments-live-internal-token
-            - name: OUTBOX_WORKER_ENABLED
-              value: "true"
             - name: PAYMONGO_LIVE_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:

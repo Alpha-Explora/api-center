@@ -47,15 +47,6 @@
                 "value": "60000"
               },
               {
-                "name": "EMAIL_DATABASE_URL",
-                "valueFrom": {
-                  "secretKeyRef": {
-                    "key": "latest",
-                    "name": "apicenter-email-database-url"
-                  }
-                }
-              },
-              {
                 "name": "RESEND_API_KEY",
                 "valueFrom": {
                   "secretKeyRef": {
@@ -67,10 +58,6 @@
               {
                 "name": "NODE_ENV",
                 "value": "production"
-              },
-              {
-                "name": "EMAIL_STORE_MODE",
-                "value": "postgres"
               },
               {
                 "name": "EMAIL_IDEMPOTENCY_TTL_MS",
