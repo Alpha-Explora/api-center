@@ -65,6 +65,15 @@ export class ApprovalRequestService {
     });
   }
 
+  /** The latest requests for one action on one target, newest first. */
+  async listForTarget(actionType: ApprovalRequest["actionType"], targetId: string): Promise<ApprovalRequest[]> {
+    return this.approvalPrisma.approvalRequest.findMany({
+      where: { actionType, targetId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+  }
+
   async findApprovedAction(input: {
     actionType: ApprovalRequest["actionType"];
     targetId: string;

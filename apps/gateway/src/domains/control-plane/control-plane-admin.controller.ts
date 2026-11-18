@@ -5,7 +5,7 @@
 
 import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
-import { ValidationError } from "@shared/errors";
+import { AppError, ValidationError } from "@shared/errors";
 import { ControlPlaneAdminService, type EnvironmentScope } from "./control-plane-admin.service";
 import { ConsoleAccessService } from "./console-access.service";
 import { OrganizationPeopleService } from "./organization-people.service";
@@ -60,6 +60,8 @@ const schemas = {
     .strict(),
   policyStatus: z.object({ status: z.enum(["active", "disabled"]), actor: onBehalfOf.optional() }).strict(),
   activateLive: z.object({ approvalRequestId: z.string().min(1).max(100), actor: onBehalfOf.optional() }).strict(),
+  activationRequest: z.object({ reason: z.string().trim().min(1).max(500), actor: onBehalfOf.optional() }).strict(),
+  activationDecision: z.object({ reason: z.string().trim().min(1).max(500).optional() }).strict(),
   environmentStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   apiOperations: z
     .array(
@@ -354,6 +356,46 @@ export class ControlPlaneAdminController {
     const { organizationId, projectId } = projectScope(params);
     await this.access.require(actorOf(req), organizationId, "environment.read", { projectId, environmentKind: "live" });
     return { success: true, data: await this.live.readiness(organizationId, projectId) };
+  }
+
+  @Get("organizations/:organizationId/projects/:projectId/environments/live/activation-requests")
+  async listActivationRequests(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    await this.access.require(actorOf(req), organizationId, "environment.read", { projectId, environmentKind: "live" });
+    return { success: true, data: await this.live.listActivationRequests(organizationId, projectId) };
+  }
+
+  @Post("organizations/:organizationId/projects/:projectId/environments/live/activation-requests")
+  async requestActivation(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const input = parse(schemas.activationRequest, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    return {
+      success: true,
+      data: await this.live.requestActivation(organizationId, projectId, actorLabel(actor, input.actor), input.reason),
+    };
+  }
+
+  @Post("organizations/:organizationId/projects/:projectId/environments/live/activation-requests/:approvalRequestId/:decision")
+  async decideActivation(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const decision = parse(z.enum(["approve", "reject"]), params.decision, "decision");
+    const input = parse(schemas.activationDecision, body, "body");
+    const actor = actorOf(req);
+    // A decision needs a named person: the shared platform credential cannot approve its own requests.
+    if (actor.kind !== "member") {
+      throw new AppError("Approving or rejecting live activation requires a signed-in person", 403, "APPROVER_NOT_A_PERSON");
+    }
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    if (decision === "reject" && !input.reason) throw new ValidationError("body.reason is required to reject");
+    const data = await this.live.decideActivation(
+      organizationId,
+      projectId,
+      params.approvalRequestId,
+      decision === "approve" ? { approve: true, by: actor.email } : { approve: false, by: actor.email, reason: input.reason! },
+    );
+    return { success: true, data };
   }
 
   @Post("organizations/:organizationId/projects/:projectId/environments/live/activate")

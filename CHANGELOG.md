@@ -11,6 +11,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Publish payment events as soon as a verified webhook queues them; the scheduled dispatcher job now only retries. Payment runtime errors without a status are logged with their path and trace instead of returning a bare 502, and failed webhooks log the provider event ID and type. The dispatcher job manifests use the deployed database secrets and no VPC egress.
+- Live activation can be approved in the console: project admins see pending `environment.activate_live` requests with Approve and Reject. A decision requires a signed-in person and is recorded under their email; the requester still cannot approve their own request.
 - Build shared contracts before compiling gateway images that consume project setup status types.
 - Preserve gateway workspace-local dependencies through Docker build/runtime stages and keep the workspace directory layout for Node module resolution.
 - Recognize completed PayMongo payments in active checkout sessions, refresh checkout reads by ID and reference, and reconcile saved status without regressing confirmed payments. Include webhook signing-secret references on gateway deployments.

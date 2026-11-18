@@ -15,6 +15,7 @@ import {
   projectSchema,
   projectSummarySchema,
   readinessSchema,
+  activationRequestSchema,
   teamSchema,
   usageSchema,
   type EnvironmentKind,
@@ -80,6 +81,16 @@ export const controlPlane = {
     call(z.unknown(), `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live`, send("POST", {})),
   liveReadiness: (organizationId: string, projectId: string) =>
     call(readinessSchema, `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live/readiness`),
+  activationRequests: (organizationId: string, projectId: string) =>
+    call(z.array(activationRequestSchema), `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live/activation-requests`),
+  requestActivation: (organizationId: string, projectId: string, reason: string) =>
+    call(activationRequestSchema, `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live/activation-requests`, send("POST", { reason })),
+  decideActivation: (organizationId: string, projectId: string, approvalRequestId: string, decision: "approve" | "reject", reason?: string) =>
+    call(
+      activationRequestSchema,
+      `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live/activation-requests/${encodeURIComponent(approvalRequestId)}/${decision}`,
+      send("POST", reason ? { reason } : {}),
+    ),
   activateLive: (organizationId: string, projectId: string, approvalRequestId: string) =>
     call(z.unknown(), `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live/activate`, send("POST", { approvalRequestId })),
 

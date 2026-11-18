@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeading } from "@/components/page-heading";
 import { controlPlane } from "../data/control-plane-repository";
-import type { Application, Capability, EnvironmentKind, IssuedCredential, Project } from "../model/control-plane";
+import type { ActivationRequest, Application, Capability, EnvironmentKind, IssuedCredential, Project } from "../model/control-plane";
 import { useOrganization } from "../view-models/use-organization";
 import { toSlug } from "./projects-view";
 
@@ -363,14 +363,39 @@ function LiveSetup({ organizationId, projectId, hasLive }: { organizationId: str
     enabled: hasLive,
     retry: false,
   });
-  const [approvalId, setApprovalId] = useState("");
+  const activationRequests = useQuery({
+    queryKey: ["cp-live-activation-requests", projectId],
+    queryFn: () => controlPlane.activationRequests(organizationId, projectId),
+    enabled: hasLive,
+    retry: false,
+  });
+  const [reason, setReason] = useState("");
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["cp-project", organizationId, projectId] });
     void client.invalidateQueries({ queryKey: ["cp-live-readiness", projectId] });
+    void client.invalidateQueries({ queryKey: ["cp-live-activation-requests", projectId] });
   };
   const provision = useMutation({ mutationFn: () => controlPlane.provisionLive(organizationId, projectId), onSuccess: refresh, onError: (error: Error) => toast.error(error.message) });
+  const requestActivation = useMutation({
+    mutationFn: () => controlPlane.requestActivation(organizationId, projectId, reason.trim()),
+    onSuccess: () => {
+      toast.success("Activation requested. A different person must approve it.");
+      setReason("");
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const decide = useMutation({
+    mutationFn: (input: { id: string; decision: "approve" | "reject"; reason?: string }) =>
+      controlPlane.decideActivation(organizationId, projectId, input.id, input.decision, input.reason),
+    onSuccess: (_, input) => {
+      toast.success(input.decision === "approve" ? "Activation approved" : "Activation rejected");
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const activate = useMutation({
-    mutationFn: () => controlPlane.activateLive(organizationId, projectId, approvalId.trim()),
+    mutationFn: (approvalRequestId: string) => controlPlane.activateLive(organizationId, projectId, approvalRequestId),
     onSuccess: () => {
       toast.success("Live environment activated");
       refresh();
@@ -407,15 +432,76 @@ function LiveSetup({ organizationId, projectId, hasLive }: { organizationId: str
           ))}
         </ul>
         <p className="text-sm">
-          Activation consumes one approved <code>environment.activate_live</code> request for this project.
+          Activation needs one approved request. The person who approves must be signed in and must not be the person who
+          requested it.
         </p>
-        <div className="flex gap-2">
-          <Input aria-label="Approval request ID" placeholder="Approval request ID" value={approvalId} onChange={(event) => setApprovalId(event.target.value)} />
-          <Button disabled={!data.ready || !approvalId.trim() || activate.isPending} onClick={() => activate.mutate()}>
-            Activate live
-          </Button>
-        </div>
+        <ActivationRequests
+          requests={activationRequests.data ?? []}
+          ready={data.ready}
+          busy={decide.isPending || activate.isPending}
+          onDecide={(id, decision, rejection) => decide.mutate({ id, decision, reason: rejection })}
+          onActivate={(id) => activate.mutate(id)}
+        />
+        {!(activationRequests.data ?? []).some((request) => request.status === "pending" || request.status === "approved") && (
+          <div className="flex gap-2">
+            <Input aria-label="Reason for going live" placeholder="Reason for going live" value={reason} onChange={(event) => setReason(event.target.value)} />
+            <Button disabled={!data.ready || !reason.trim() || requestActivation.isPending} onClick={() => requestActivation.mutate()}>
+              Request activation
+            </Button>
+          </div>
+        )}
       </AlertDescription>
     </Alert>
+  );
+}
+
+function ActivationRequests({
+  requests,
+  ready,
+  busy,
+  onDecide,
+  onActivate,
+}: {
+  requests: ActivationRequest[];
+  ready: boolean;
+  busy: boolean;
+  onDecide: (id: string, decision: "approve" | "reject", reason?: string) => void;
+  onActivate: (id: string) => void;
+}) {
+  const open = requests.filter((request) => request.status === "pending" || request.status === "approved");
+  if (open.length === 0) return null;
+  return (
+    <ul className="flex flex-col gap-2 text-sm">
+      {open.map((request) => (
+        <li key={request.id} className="flex flex-wrap items-center gap-2">
+          <span>
+            {request.status === "pending" ? "Waiting for approval" : `Approved by ${request.approvedBy}`}: requested by{" "}
+            {request.requestedBy}, &ldquo;{request.reason}&rdquo;
+          </span>
+          {request.status === "pending" ? (
+            <>
+              <Button size="sm" disabled={busy} onClick={() => onDecide(request.id, "approve")}>
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  const rejection = window.prompt("Why reject this activation?")?.trim();
+                  if (rejection) onDecide(request.id, "reject", rejection);
+                }}
+              >
+                Reject
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" disabled={busy || !ready} onClick={() => onActivate(request.id)}>
+              Activate live
+            </Button>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -117,6 +117,76 @@ describe("live environments", () => {
   });
 });
 
+describe("live activation requests", () => {
+  /** The real approval service over an in-memory approval_requests table. */
+  function realApprovals() {
+    const rows: Array<Record<string, unknown>> = [];
+    const delegate = {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: `apr_${rows.length + 1}`, createdAt: new Date(Date.now() + rows.length), ...data };
+        rows.push(row);
+        return row;
+      },
+      findMany: async ({ where }: { where: Record<string, unknown> }) =>
+        rows
+          .filter((row) => Object.entries(where).every(([key, value]) => row[key] === value))
+          .sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime()),
+      findUnique: async ({ where }: { where: { id: string } }) => rows.find((row) => row.id === where.id) ?? null,
+      updateMany: async ({ where, data }: { where: { id: string; status: string }; data: Record<string, unknown> }) => {
+        const row = rows.find((candidate) => candidate.id === where.id && candidate.status === where.status);
+        if (row) Object.assign(row, data);
+        return { count: row ? 1 : 0 };
+      },
+    };
+    const { ApprovalRequestService: Service } = jest.requireActual(
+      "../../../../apps/gateway/src/domains/governance/approvals/approval-request.service",
+    ) as typeof import("../../../../apps/gateway/src/domains/governance/approvals/approval-request.service");
+    return new Service({ approvalRequest: delegate } as unknown as PrismaService);
+  }
+
+  async function readyLive(service: LiveEnvironmentService) {
+    const project = await admin.createProject(ORG, { slug: "serbizio", name: "Serbizio" }, actor);
+    await service.provision(ORG, project.id, actor);
+    const scope = { organizationId: ORG, projectId: project.id, environmentKind: "live" as const };
+    await quotas.assignPlan(scope, "standard", actor);
+    await admin.setCapability(scope, "email", true, actor);
+    const app = await admin.createApplication(scope, { slug: "api", name: "API" }, actor);
+    await admin.grant(scope, app.id, { capability: "email", action: "email:send" }, actor);
+    return project;
+  }
+
+  it("needs a second person to approve an activation request", async () => {
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+    const service = new LiveEnvironmentService(prisma as unknown as PrismaService, realApprovals(), audit);
+    const project = await readyLive(service);
+
+    const request = await service.requestActivation(ORG, project.id, "platform-admin", "Serbizio launch");
+    const id = String(request.id);
+    expect(request).toMatchObject({ actionType: "environment.activate_live", targetId: project.id, status: "pending" });
+    await expect(service.listActivationRequests(ORG, project.id)).resolves.toEqual([expect.objectContaining({ id })]);
+
+    await expect(service.decideActivation(ORG, project.id, id, { approve: true, by: "platform-admin" }))
+      .rejects.toThrow("Requesters cannot approve their own approval request");
+
+    const approved = await service.decideActivation(ORG, project.id, id, { approve: true, by: "abtorres.it@alphaexplora.com" });
+    expect(approved).toMatchObject({ status: "approved", approvedBy: "abtorres.it@alphaexplora.com" });
+  });
+
+  it("only decides requests for its own project, and records a rejection reason", async () => {
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+    const service = new LiveEnvironmentService(prisma as unknown as PrismaService, realApprovals(), audit);
+    const project = await readyLive(service);
+    const other = await admin.createProject(ORG, { slug: "other", name: "Other" }, actor);
+    await service.provision(ORG, other.id, actor);
+    const id = String((await service.requestActivation(ORG, project.id, "dev@example.test", "launch")).id);
+
+    await expect(service.decideActivation(ORG, other.id, id, { approve: true, by: "owner@example.test" })).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.decideActivation(ORG, project.id, id, { approve: false, by: "owner@example.test", reason: "webhooks not verified" }),
+    ).resolves.toMatchObject({ status: "rejected", rejectedBy: "owner@example.test", rejectionReason: "webhooks not verified" });
+  });
+});
+
 describe("capability configuration", () => {
   it("forwards the email sender for a control-plane project with the admin token, auditing only safe fields", async () => {
     const audit = { record: jest.fn().mockResolvedValue(undefined) };

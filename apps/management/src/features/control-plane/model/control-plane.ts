@@ -75,6 +75,19 @@ export const readinessSchema = z.object({
   checks: z.array(z.object({ key: z.string(), passed: z.boolean(), detail: z.string() })),
 });
 
+/** An environment.activate_live approval request; a person other than the requester must decide it. */
+export const activationRequestSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  reason: z.string(),
+  requestedBy: z.string(),
+  approvedBy: z.string().nullable().optional(),
+  rejectedBy: z.string().nullable().optional(),
+  rejectionReason: z.string().nullable().optional(),
+  createdAt: z.string(),
+});
+export type ActivationRequest = z.infer<typeof activationRequestSchema>;
+
 export const usageSchema = z.object({
   since: z.string(),
   requests: z.number(),

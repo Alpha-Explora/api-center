@@ -33,7 +33,7 @@ How to deploy, configure and migrate to the APICenter control plane described in
 
 - Create a project in the console, enable email, add an application, grant `email:send`, issue a test key, and send one email with SDK 2.1 (`auth: { apiKey }`). Confirm the email runtime logs an application caller and the console shows the usage.
 - Confirm a request without the grant returns `ACTION_NOT_GRANTED`, a revoked key returns `CREDENTIAL_REVOKED`, and the test budget returns `QUOTA_EXCEEDED` with `Retry-After`.
-- Provision live, assign a live-capable plan, create the live application and grant, request and approve `environment.activate_live` for the project (a different person approves), activate, and issue a live key.
+- Provision live, assign a live-capable plan, create the live application and grant, request and approve `environment.activate_live` for the project, activate, and issue a live key. The console's live panel files the request (`POST …/environments/live/activation-requests`) and shows **Approve** and **Reject** to project admins (`POST …/activation-requests/:id/approve|reject`). A decision needs a signed-in person, never the shared platform credential, and the approver must differ from the requester; a request filed by an operator script is recorded as `platform-admin`, so any signed-in project admin can approve it.
 
 ## Migrating an organization
 
