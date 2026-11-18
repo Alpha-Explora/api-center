@@ -13,6 +13,7 @@ import { isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
 import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
 import { PaymentReplayStore } from './events/paymentReplayStore';
+import { createPaymentEventPool, drainPaymentEventOutbox } from './events/paymentEventDispatcher';
 import { z } from 'zod';
 
 const port = Number(process.env.PORT || 4010);
@@ -148,7 +149,32 @@ function tribeId(req: Request): string | undefined {
 
 function handleCustomError(res: Response, err: any) {
   const status = err.statusCode || 502;
+  // Expected provider and validation errors carry a status; anything else is a defect worth a trace.
+  if (!err.statusCode) {
+    console.error(JSON.stringify({
+      type: 'apicenter_payment_unexpected_error',
+      path: res.req?.path,
+      message: err?.message,
+      stack: typeof err?.stack === 'string' ? err.stack.split('\n').slice(0, 6).join('\n') : undefined,
+    }));
+  }
   return fail(res, status, err.code || 'PROVIDER_ERROR', err.message || 'Payment processing failed', err.details);
+}
+
+let outboxPool: ReturnType<typeof createPaymentEventPool> | undefined;
+
+/**
+ * Publish the events a webhook just queued, so consumers hear about a payment without waiting for the
+ * scheduled dispatcher job. A failure stays in the outbox, and the job retries it.
+ */
+async function publishQueuedPaymentEvents(): Promise<void> {
+  if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return;
+  try {
+    outboxPool ??= createPaymentEventPool();
+    await drainPaymentEventOutbox({ pool: outboxPool, limit: 10 });
+  } catch (error) {
+    console.error(JSON.stringify({ type: 'apicenter_payment_outbox_drain_failed', message: (error as Error).message }));
+  }
 }
 
 app.get('/payments/records', async (req: Request, res: Response) => {
@@ -461,8 +487,18 @@ app.post('/webhooks', async (req: Request, res: Response) => {
       rawBody: (req as Request & { rawBody?: Buffer }).rawBody,
       environment: req.get('X-APICenter-Environment'),
     });
+    if ((data as { data?: { queued?: boolean } })?.data?.queued) await publishQueuedPaymentEvents();
     return ok(res, data);
-  } catch (err) { return handleCustomError(res, err); }
+  } catch (err) {
+    console.error(JSON.stringify({
+      type: 'apicenter_payment_webhook_failed',
+      providerEventId: req.body?.data?.id,
+      eventType: req.body?.data?.attributes?.type,
+      code: (err as { code?: string })?.code,
+      message: (err as Error)?.message,
+    }));
+    return handleCustomError(res, err);
+  }
 });
 
 if (require.main === module) {
