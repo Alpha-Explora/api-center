@@ -36,7 +36,3 @@ spec:
                 limits:
                   cpu: "1"
                   memory: 512Mi
-          restartPolicy: Never
-      metadata:
-        annotations:
-          run.googleapis.com/service-account: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
