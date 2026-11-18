@@ -43,8 +43,20 @@ BEGIN
 END
 $$;
 
--- The auth context's own schema; until now it kept no rows.
-CREATE SCHEMA apic_identity;
+-- The auth context's own schema. Databases that ran the retired identity-access service already have
+-- it, with an unused refresh_tokens table of another shape (sub, bigint expiry); that table is
+-- replaced only when it holds no rows.
+CREATE SCHEMA IF NOT EXISTS apic_identity;
+DO $$
+BEGIN
+  IF to_regclass('apic_identity.refresh_tokens') IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM apic_identity.refresh_tokens) THEN
+      RAISE EXCEPTION 'apic_identity.refresh_tokens from the retired identity service holds rows; migrate or remove them first';
+    END IF;
+    DROP TABLE apic_identity.refresh_tokens;
+  END IF;
+END
+$$;
 GRANT USAGE ON SCHEMA apic_identity TO api_center_app;
 GRANT USAGE ON SCHEMA apic_identity TO api_center_retention;
 
