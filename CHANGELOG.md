@@ -11,6 +11,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Accept PayMongo webhooks on databases upgraded from the retired services. Their `shared_payment.payment_webhook_events` kept an old `environment NOT NULL` column and lacked the `(provider, provider_mode, provider_event_id)` unique index, so every webhook insert failed with a 502. Migration `20261119000100` aligns such databases with a fresh replay: it fixes that table, drops the retired services' leftover tables, views, columns, migration tracker and database roles, and removes `DELETE` from runtime roles. `db:verify:control-plane` now fails if any of it comes back or the webhook index is missing.
 - Publish payment events as soon as a verified webhook queues them; the scheduled dispatcher job now only retries. Payment runtime errors without a status are logged with their path and trace instead of returning a bare 502, and failed webhooks log the provider event ID and type. The dispatcher job manifests use the deployed database secrets and no VPC egress.
 - Live activation can be approved in the console: project admins see pending `environment.activate_live` requests with Approve and Reject. A decision requires a signed-in person and is recorded under their email; the requester still cannot approve their own request.
 - Build shared contracts before compiling gateway images that consume project setup status types.
