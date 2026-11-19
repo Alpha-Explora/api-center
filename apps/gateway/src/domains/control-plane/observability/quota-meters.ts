@@ -37,44 +37,51 @@ export interface QuotaMeters {
 export function quotaMeterWindows(input: { environment: { id: string; kind: EnvironmentKind }; planKey: string | undefined; policies: MeterPolicy[]; testDailyRequests: number }) {
   const composition = composeBudgets({ ...input, capability: "", policies: [] });
   const base = composition.ok ? composition.budgets : [];
-  const policyBudgets = input.policies.map(
-    (policy): Budget => ({
-      key: `policy:${policy.id}`,
-      limit: policy.maxRequests,
-      windowSeconds: policy.windowSeconds,
-      mode: policy.mode === "observe" ? "observe" : "enforce",
-      source: policy.scope === "shared" ? "shared-ceiling" : "project-policy",
-    }),
-  );
-  return { composition, budgets: [...base, ...policyBudgets] };
+  return { composition, budgets: [...base, ...input.policies.map(policyBudget)] };
+}
+
+type Counter = { budgetKey: string; windowStart: Date; requestCount: number };
+
+function meterFor(budget: Budget, policy: MeterPolicy | undefined, counters: Counter[], now: Date): QuotaMeter {
+  const start = windowStart(now, budget.windowSeconds);
+  const counted = counters.find((counter) => counter.budgetKey === budget.key && counter.windowStart.getTime() === start.getTime());
+  return {
+    budgetKey: budget.key,
+    source: budget.source,
+    policyId: policy?.id ?? null,
+    capability: policy?.capability ?? null,
+    mode: budget.mode,
+    windowSeconds: budget.windowSeconds,
+    limit: budget.limit,
+    used: policy && policy.status !== "active" ? null : (counted?.requestCount ?? 0),
+    windowStart: start.toISOString(),
+    windowEnd: new Date(start.getTime() + budget.windowSeconds * 1000).toISOString(),
+  };
+}
+
+function policyBudget(policy: MeterPolicy): Budget {
+  return {
+    key: `policy:${policy.id}`,
+    limit: policy.maxRequests,
+    windowSeconds: policy.windowSeconds,
+    mode: policy.mode === "observe" ? "observe" : "enforce",
+    source: policy.scope === "shared" ? "shared-ceiling" : "project-policy",
+  };
+}
+
+/** Shared ceilings count once for every covered project, so their meters are organization-wide. */
+export function sharedCeilingMeters(policies: MeterPolicy[], counters: Counter[], now: Date) {
+  return { generatedAt: now.toISOString(), meters: policies.map((policy) => meterFor(policyBudget(policy), policy, counters, now)) };
 }
 
 export function buildQuotaMeters(
   input: { environment: { id: string; kind: EnvironmentKind }; planKey: string | undefined; policies: MeterPolicy[]; testDailyRequests: number },
-  counters: { budgetKey: string; windowStart: Date; requestCount: number }[],
+  counters: Counter[],
   now: Date,
 ): QuotaMeters {
   const { composition, budgets } = quotaMeterWindows(input);
   const policies = new Map(input.policies.map((policy) => [`policy:${policy.id}`, policy]));
-  const count = (key: string, start: Date) =>
-    counters.find((counter) => counter.budgetKey === key && counter.windowStart.getTime() === start.getTime())?.requestCount ?? 0;
-
-  const meters: QuotaMeter[] = budgets.map((budget) => {
-    const start = windowStart(now, budget.windowSeconds);
-    const policy = policies.get(budget.key);
-    return {
-      budgetKey: budget.key,
-      source: budget.source,
-      policyId: policy?.id ?? null,
-      capability: policy?.capability ?? null,
-      mode: budget.mode,
-      windowSeconds: budget.windowSeconds,
-      limit: budget.limit,
-      used: policy && policy.status !== "active" ? null : count(budget.key, start),
-      windowStart: start.toISOString(),
-      windowEnd: new Date(start.getTime() + budget.windowSeconds * 1000).toISOString(),
-    };
-  });
+  const meters = budgets.map((budget) => meterFor(budget, policies.get(budget.key), counters, now));
 
   const plan = input.planKey ? PLAN_DEFINITIONS.find((entry) => entry.planKey === input.planKey) : undefined;
   let baseBudget: QuotaMeters["baseBudget"];

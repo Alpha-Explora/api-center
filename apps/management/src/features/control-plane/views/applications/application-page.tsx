@@ -13,6 +13,7 @@ import type { Application } from "../../model/control-plane";
 import { PageSkeleton, RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { AccessTab } from "./access-tab";
+import { RequestLogPanel } from "../requests/request-log-panel";
 import { KeysTab } from "./keys-tab";
 import { WebhookTab } from "./webhook-tab";
 import { WorkloadIdentitiesTab } from "./workload-identities-tab";
@@ -23,6 +24,7 @@ const TABS: { id: string; label: string; render: (application: Application) => R
   { id: "keys", label: "Keys", render: (application) => <KeysTab application={application} /> },
   { id: "workload-identities", label: "Workload identities", render: (application) => <WorkloadIdentitiesTab application={application} /> },
   { id: "webhook", label: "Webhook", render: (application) => <WebhookTab application={application} /> },
+  { id: "requests", label: "Requests", render: (application) => <RequestLogPanel applicationId={application.id} /> },
 ];
 
 export function ApplicationPage({ applicationId }: { applicationId: string }) {

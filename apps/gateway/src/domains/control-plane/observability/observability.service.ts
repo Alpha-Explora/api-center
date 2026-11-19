@@ -14,7 +14,7 @@ import type { EnvironmentScope } from "../control-plane-admin.service";
 import { decodeCursor, pageOf } from "./cursor";
 import { requestLogWindow, statusRange, toRequestLogEntry, type RequestLogQuery, type RequestLogRow } from "./request-log";
 import { buildUsageSeries, usageWindow, type UsageRange, type UsageRow } from "./usage-series";
-import { buildQuotaMeters, quotaMeterWindows, type MeterPolicy } from "./quota-meters";
+import { buildQuotaMeters, quotaMeterWindows, sharedCeilingMeters, type MeterPolicy } from "./quota-meters";
 import { auditLogWhere, toAuditLogEntry, type AuditLogQuery } from "./audit-log";
 
 @Injectable()
@@ -89,6 +89,20 @@ export class ObservabilityService {
           })
         : [];
       return buildQuotaMeters(input, counters, now);
+    });
+  }
+
+  /** Current-window usage of every shared ceiling in the organization. */
+  async sharedCeilingMeters(organizationId: string, now = new Date()) {
+    return withTenant(this.prisma, { organizationId }, async (db) => {
+      const policies = (await db.cpQuotaPolicy.findMany({ where: { organizationId, scope: "shared" } })) as MeterPolicy[];
+      const earliest = policies.reduce((min, policy) => Math.min(min, windowStart(now, policy.windowSeconds).getTime()), now.getTime());
+      const counters = policies.length
+        ? await db.cpQuotaCounter.findMany({
+            where: { organizationId, budgetKey: { in: policies.map((policy) => `policy:${policy.id}`) }, windowStart: { gte: new Date(earliest) } },
+          })
+        : [];
+      return sharedCeilingMeters(policies, counters, now);
     });
   }
 

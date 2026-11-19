@@ -18,6 +18,9 @@ import { PROJECT_ADMIN_REASON } from "../../model/access";
 import { EMPTY_QUOTA_FORM, policiesForEnvironment, quotaFormToBody, type QuotaForm, type QuotaFormErrors, type QuotaPolicy } from "../../model/quotas";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { baseMeter } from "../../model/observability";
+import { observabilityKeys, useQuotaUsage } from "../../view-models/observability";
+import { QuotaMeterBar } from "./quota-meter";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
 
 export function ProjectQuotasPage() {
@@ -41,9 +44,14 @@ function ProjectQuotas() {
       toast.success(updated.status === "active" ? "Policy enabled" : "Policy disabled");
       setChanging(null);
       void client.invalidateQueries({ queryKey: key });
+      void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const usage = useQuotaUsage(organizationId, project.id, kind);
+  const meters = new Map((usage.data?.meters ?? []).flatMap((meter) => (meter.policyId ? [[meter.policyId, meter] as const] : [])));
+  const usageCell = (policy: QuotaPolicy) =>
+    usage.isLoading ? <Skeleton className="h-4 w-32" /> : usage.error ? <span className="text-xs text-muted-foreground">Unavailable</span> : <QuotaMeterBar meter={meters.get(policy.id)} />;
   const { project: own, shared } = policiesForEnvironment(policies.data ?? [], kind);
   const copy = statusChangeCopy(changing);
   const label = kind === "live" ? "Live" : "Test";
@@ -63,6 +71,21 @@ function ProjectQuotas() {
         {`${QUOTA_RULES} ${QUOTA_LIMITATIONS}`}
       </Notice>
       {policies.error ? <ErrorPanel title="Quota policies could not be loaded" error={policies.error} /> : null}
+      {usage.error ? <ErrorPanel title="Quota usage could not be loaded" error={usage.error} /> : null}
+
+      <Panel title="Daily allowance" description="The plan's requests per UTC day for this environment, or the test default when no plan is assigned.">
+        {usage.isLoading ? (
+          <Skeleton className="h-8 w-full" />
+        ) : usage.data?.baseBudget === "live-plan-required" ? (
+          <p className="text-[13px] text-muted-foreground">No plan is assigned, so live requests are refused. Assign a plan on the overview.</p>
+        ) : usage.data?.baseBudget === "plan-not-available" ? (
+          <p className="text-[13px] text-muted-foreground">The assigned plan does not allow this environment, so requests are refused.</p>
+        ) : usage.data ? (
+          <QuotaMeterBar meter={baseMeter(usage.data)} />
+        ) : (
+          <p className="text-[13px] text-muted-foreground">—</p>
+        )}
+      </Panel>
 
       <Panel title={`${label} project policies`} description="Each policy limits every application in this environment together." flush>
         {policies.isLoading ? (
@@ -76,6 +99,7 @@ function ProjectQuotas() {
         ) : (
           <QuotaPolicyTable
             policies={own}
+            usage={usageCell}
             actions={(policy) =>
               canManage ? (
                 <Button size="sm" variant="ghost" onClick={() => setChanging(policy)}>
@@ -106,6 +130,7 @@ function ProjectQuotas() {
         ) : (
           <QuotaPolicyTable
             policies={shared}
+            usage={usageCell}
             extra={{
               label: "Shared with",
               render: (policy) => {
@@ -121,7 +146,14 @@ function ProjectQuotas() {
         )}
       </Panel>
 
-      <CreateProjectPolicySheet open={creating} onOpenChange={setCreating} onCreated={() => void client.invalidateQueries({ queryKey: key })} />
+      <CreateProjectPolicySheet
+        open={creating}
+        onOpenChange={setCreating}
+        onCreated={() => {
+          void client.invalidateQueries({ queryKey: key });
+          void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
+        }}
+      />
 
       <ConfirmDialog
         open={changing !== null}

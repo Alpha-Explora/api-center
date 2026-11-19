@@ -74,6 +74,14 @@ export class ObservabilityController {
     return { success: true, data: await this.observability.quotaMeters(scope) };
   }
 
+  /** Current-window usage of the organization's shared ceilings. Organization owners and admins. */
+  @Get("organizations/:organizationId/quota-usage")
+  async sharedQuotaUsage(@Param("organizationId") rawOrganizationId: string, @Req() req: ConsoleRequest) {
+    const organizationId = parse(pathSchemas.organizationId, rawOrganizationId, "organizationId");
+    await this.access.require(actorOf(req), organizationId, "organization.quotas.manage");
+    return { success: true, data: await this.observability.sharedCeilingMeters(organizationId) };
+  }
+
   /** Owners and admins read every event in the organization; a project admin reads their projects' events. */
   @Get("organizations/:organizationId/audit-events")
   async organizationAudit(@Param("organizationId") rawOrganizationId: string, @Query() query: unknown, @Req() req: ConsoleRequest) {

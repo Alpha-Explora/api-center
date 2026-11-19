@@ -14,6 +14,7 @@ import {
   FolderIcon,
   GaugeIcon,
   InboxIcon,
+  HistoryIcon,
   LayoutDashboardIcon,
   SearchIcon,
   Settings2Icon,
@@ -59,6 +60,7 @@ const ORGANIZATION_ICONS: Record<string, LucideIcon> = {
   quotas: GaugeIcon,
   approvals: InboxIcon,
   organizations: Building2Icon,
+  audit: HistoryIcon,
   requests: ActivityIcon,
   settings: SettingsIcon,
 };
@@ -69,6 +71,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   capabilities: BlocksIcon,
   apis: WaypointsIcon,
   webhooks: WebhookIcon,
+  requests: ActivityIcon,
   quotas: GaugeIcon,
   settings: Settings2Icon,
 };
