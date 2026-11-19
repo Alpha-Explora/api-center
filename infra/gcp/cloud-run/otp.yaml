@@ -22,6 +22,11 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: OTP_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-otp-admin-token
+                  key: latest
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
