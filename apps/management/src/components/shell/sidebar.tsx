@@ -1,5 +1,5 @@
 "use client";
-import Image from "next/image";
+import { BrandMark } from "@/components/brand-mark";
 import Link from "next/link";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -130,7 +130,7 @@ function OrganizationSwitcher() {
           />
         }
       >
-        <Image src="/brand/apicenter-logo-icon-v2.png" alt="" aria-hidden width={24} height={24} className="size-6 shrink-0 object-contain" />
+        <BrandMark />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-[13px] leading-4 font-semibold">{label}</span>
           <span className="truncate text-[11px] leading-4 text-muted-foreground">APICenter</span>

@@ -1,11 +1,13 @@
 # APICenter console design system
 
 The console is a developer tool: neutral, dense, keyboard-friendly. Color carries meaning (status, and
-marking the live environment) and nothing else. The public landing page keeps its own look until it is
-redesigned; this document covers the signed-in console.
+marking the live environment) and nothing else. The sign-in screens and the public landing page use the
+same tokens, type and components; the landing page may use larger type for its headings but no other
+palette.
 
 Tokens live in `src/app/globals.css`; components in `src/components/ui` (shadcn on Base UI) and
-`src/components/patterns` (console patterns).
+`src/components/patterns` (console patterns). Render the logo with `BrandMark` (`src/components/brand-mark.tsx`),
+which keeps its dark strokes legible on dark backgrounds.
 
 ## Principles
 

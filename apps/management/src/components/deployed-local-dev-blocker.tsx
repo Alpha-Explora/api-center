@@ -1,3 +1,4 @@
+import { AlertTriangleIcon } from "lucide-react";
 import type { DeploymentConfigCheck } from "@/lib/server/deployment-config";
 
 export function DeployedLocalDevBlocker({
@@ -6,56 +7,46 @@ export function DeployedLocalDevBlocker({
   deployment: DeploymentConfigCheck;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
-      <section className="w-full max-w-3xl rounded-lg border border-amber-200 bg-card p-6 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-amber-700">Deployment blocked</p>
-          <h1 className="text-2xl font-semibold tracking-normal">
-            Deployed management is running local-dev auth
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            This runtime looks deployed, but `MANAGEMENT_AUTH_MODE` is not set to
-            `google`. Privileged management pages are blocked until deployed auth
-            is configured and the project is redeployed.
-          </p>
+    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12 text-foreground">
+      <section className="w-full max-w-2xl rounded-lg border bg-card shadow-xs">
+        <div className="flex gap-3 border-b px-6 py-5">
+          <AlertTriangleIcon aria-hidden className="mt-1 size-4 shrink-0 text-warning" />
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight">
+              Deployed management is running local-dev auth
+            </h1>
+            <p className="mt-1.5 max-w-xl text-[13px] text-muted-foreground">
+              This runtime looks deployed, but <code className="font-mono text-xs">MANAGEMENT_AUTH_MODE</code> is
+              not <code className="font-mono text-xs">google</code>. Management pages stay blocked until deployed
+              auth is configured and the console is redeployed.
+            </p>
+          </div>
         </div>
 
-        <div className="mt-5 grid gap-3 text-sm md:grid-cols-2">
+        <dl className="grid gap-x-8 gap-y-2.5 px-6 py-5 text-[13px] sm:grid-cols-[max-content_1fr]">
           <Diagnostic label="Runtime" value={deployment.isDeployed ? "deployed" : "local"} />
           <Diagnostic label="Auth mode" value={deployment.authMode} />
-          <Diagnostic
-            label="Management environment"
-            value={deployment.managementEnvironment.toUpperCase()}
-          />
-          <Diagnostic
-            label="API Center"
-            value={deployment.apiCenterBaseUrl || "not configured"}
-          />
-          <Diagnostic
-            label="Public base URL"
-            value={deployment.publicBaseUrl || "not configured"}
-          />
-        </div>
+          <Diagnostic label="Management environment" value={deployment.managementEnvironment} />
+          <Diagnostic label="API Center" value={deployment.apiCenterBaseUrl || "not configured"} />
+          <Diagnostic label="Public base URL" value={deployment.publicBaseUrl || "not configured"} />
+        </dl>
 
-        <div className="mt-5 rounded-lg border bg-muted/40 p-4">
-          <h2 className="text-sm font-semibold">Required fix</h2>
-          <pre className="mt-3 overflow-x-auto text-xs leading-6">
+        <div className="border-t px-6 py-5">
+          <h2 className="text-sm font-semibold">Required configuration</h2>
+          <pre className="mt-3 overflow-x-auto rounded-md border bg-muted/50 px-3 py-2.5 font-mono text-xs leading-5">
             MANAGEMENT_AUTH_MODE=google{"\n"}
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=&lt;google-oauth-client-id&gt;{"\n"}
             GOOGLE_CLIENT_ID=&lt;google-oauth-client-id&gt;
           </pre>
+          {deployment.missingEnv.length ? (
+            <div role="alert" className="mt-4 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px]">
+              <p className="font-medium text-foreground">Missing environment variables</p>
+              <p className="mt-0.5 break-words font-mono text-xs text-muted-foreground">
+                {deployment.missingEnv.join(", ")}
+              </p>
+            </div>
+          ) : null}
         </div>
-
-        {deployment.missingEnv.length ? (
-          <div className="mt-5 rounded-lg border border-destructive/30 bg-[#fff7f7] p-4">
-            <h2 className="text-sm font-semibold text-destructive">
-              Missing env vars
-            </h2>
-            <p className="mt-2 break-words text-sm text-muted-foreground">
-              {deployment.missingEnv.join(", ")}
-            </p>
-          </div>
-        ) : null}
       </section>
     </main>
   );
@@ -63,9 +54,9 @@ export function DeployedLocalDevBlocker({
 
 function Diagnostic({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-background p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 break-all font-mono text-[13px] font-medium">{value}</div>
+    <div className="contents">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-all font-mono text-xs leading-5">{value}</dd>
     </div>
   );
 }
