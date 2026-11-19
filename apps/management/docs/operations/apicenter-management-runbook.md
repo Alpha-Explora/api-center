@@ -1,21 +1,20 @@
 # APICenter Management Runbook
 
-This runbook covers the active management console in `apps/management`.
-The console provisions APICenter consumers, scoped API keys, service registry
-records, readiness checks, and payment-event delivery settings.
+This runbook covers the console in `apps/management`. The console is a client of the gateway's control-plane
+API (`/api/v1/admin/control-plane/*`): it forwards the signed-in member's Google token, and the gateway decides
+what each role may do. The console holds no business state and no provider credentials.
 
-## Current Runtime
+Pages, routes and design rules: [README](../../README.md) and [DESIGN.md](../../DESIGN.md).
 
-- Management UI: the `apps/management` workspace.
-- Gateway: APICenter Cloud Run gateway.
-- Payment runtime: APICenter private payment services in `apps/payments`.
-- Payment events: APICenter-owned Google Pub/Sub test/live topics.
-- Consumer payments: use `@alpha-explora/apicenter-sdk`; do not distribute PayMongo credentials.
+## Runtime
 
-The former standalone management repository, `api-shared`, Confluent operator
-workflows, and GKE deployment flow are retired migration sources.
+- Console: Next.js app in `apps/management`, deployed on Vercel. Google sign-in in deployments
+  (`MANAGEMENT_AUTH_MODE=google`); `local-dev` sign-in is refused outside local test development.
+- Gateway: the APICenter Cloud Run gateway, called server-side with `API_CENTER_PLATFORM_ADMIN_SECRET`.
+- Sign-in looks up the account's memberships at `GET /api/v1/admin/control-plane/memberships`. An account with
+  no membership cannot sign in unless it is a platform operator (`PLATFORM_ADMIN_EMAILS`).
 
-## Local Checks
+## Local checks
 
 ```powershell
 npm install
@@ -24,36 +23,60 @@ npm test --workspace @apicenter/management
 npm run build --workspace @apicenter/management
 ```
 
-## Consumer Provisioning
+For local UI work, set `MANAGEMENT_AUTH_MODE=local-dev` and point `API_CENTER_BASE_URL` at a local gateway in
+`apps/management/.env.local`. Do not point a local console at the deployed gateway to try out changes: it acts
+on production data.
 
-1. Register the consumer service in its project; the tribe is derived from the project.
-2. Grant only the scopes required by that consumer.
-3. Generate an API key and deliver it through the approved secret channel.
-4. Configure shared-service access with `APICENTER_URL`, `APICENTER_SERVICE_ID`,
-   the environment-specific service secret, and a minted service token.
-5. Configure payment access with the payment API key issued for that service and environment.
+## Onboarding a team
 
-Immediate subscription cancellation is separately scoped from cancel-at-period-end.
-Rotate keys with the management action; prior keys remain valid only during the
-configured overlap window.
+1. A platform operator provisions the organization and its first owner (the console does not create
+   organizations).
+2. The owner adds members on **People** with an organization role, and optionally groups them into teams.
+3. A developer or above creates a project on **Projects**. It starts with a test environment.
+4. In the project's **Settings**, give members or teams a project role (admin, developer, viewer). Organization
+   owners and admins are implicitly admins of every project.
+5. In test: enable capabilities on **Capabilities**, add an application on **Applications**, grant it actions on
+   its **Access** tab, and issue a key on its **Keys** tab. The key (`ak_test_…`) is shown once; deliver it through
+   the team's secret store.
 
-## Payment Event Delivery
+## Going live
 
-The payment runtime publishes to the test or live Pub/Sub topic. The receiving
-Cloud Run service must use OIDC authentication and the configured AlphaCI service
-account. Failed deliveries go to the configured dead-letter topic after the
-subscription retry policy is exhausted.
+1. On the project's **Live** overview, create the live environment. Nothing is copied from test.
+2. Assign a live-capable plan and meet the readiness checks shown on the overview.
+3. Request activation with a reason. A different project admin approves it; the console disables approving your
+   own request.
+4. Activate. Then add live applications, grants and keys (`ak_live_…`) as in test.
 
-Verify these settings from the deployment manifests before enabling a consumer:
+## Routine operations
 
-- Topic and subscription names match the environment.
-- Publisher and subscriber service accounts are distinct.
-- The AlphaCI receiver accepts only the expected OIDC audience and subscription.
-- APICenter and AlphaCI use the same contract version and consumer service ID.
+- **Rotate a key:** issue a new key, deploy it, then revoke the old one with a reason (kept in the audit log).
+- **Webhooks:** on **Webhooks**, add a destination per application (payments must be enabled). The signing secret
+  is shown once. Rotating keeps the previous secret signing for 24 hours. A destination created with status
+  `failed` shows its provisioning error; fix the cause and add it again.
+- **Published APIs:** on **APIs**, publish an API with a public https upstream and its operations. Another
+  project's applications request access from their **Access** tab; a project admin of the publishing project
+  approves or rejects it on the API's page.
+- **Quotas:** create limits per environment on the project's **Quotas**, or shared ceilings on the organization
+  **Quotas** page. Policies cannot be edited or deleted: disable one and create a replacement. Use observe mode
+  before enforcing in live.
+- **Suspend an environment:** on the project's **Settings**. A suspended environment refuses requests.
+- **Look up a failed request:** platform operators use **Requests** with the correlation ID from the response.
 
-## Related Current Sources
+## Known gaps
 
-- `docs/apicenter-platform-setup.md`
+These are gateway limitations; the console states them where they apply.
+
+- Only email and Google sign-in have capability settings. The email sender cannot be read back.
+- Webhooks have no event-type filter; a destination receives every payment event for its application.
+- Quota usage is not reported, and policies cannot be edited or deleted.
+- A project cannot list the API access requests it has sent; rejecting a request records no reason.
+- Allowed workload-identity audiences are not discoverable, and a workload binding conflict can come from
+  another organization.
+- Nothing stops removing a project's last explicit admin; the console warns first.
+
+## Related sources
+
+- `docs/architecture/current-architecture.md`
+- `docs/operations/control-plane-operations.md`
 - `docs/payments-platform-current.md`
-- `apps/management/README.md`
-- `infra/gcp/pubsub/README.md`
+- `apps/docs/content/docs/management/`

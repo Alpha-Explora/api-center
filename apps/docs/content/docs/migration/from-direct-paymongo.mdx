@@ -7,7 +7,7 @@ Move provider access behind APICenter without changing your application’s doma
 
 ## 1. Replace the boundary
 
-Register the backend service in Management, then replace direct PayMongo calls with the APICenter SDK or the documented `/api/v1/payments/*` routes. Keep your existing `referenceId`, order IDs, and success/cancel URLs. For TypeScript, the SDK exposes methods such as `api.payments.checkouts.create(...)` and `api.payments.intents.create(...)`.
+In Management, add an application for the backend, grant it the payment actions it calls and issue it a key; then replace direct PayMongo calls with the APICenter SDK or the documented `/api/v1/payments/*` routes. Keep your existing `referenceId`, order IDs, and success/cancel URLs. For TypeScript, the SDK exposes methods such as `api.payments.checkouts.create(...)` and `api.payments.intents.create(...)`.
 
 ## 2. Move credentials
 
