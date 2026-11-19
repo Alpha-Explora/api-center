@@ -3,6 +3,8 @@ import type { PrismaService } from "../../../../apps/gateway/src/database/prisma
 import type { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import type { PaymentPubSubProvisioningService } from "../../../../apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service";
 import { ControlPlaneAdminService } from "../../../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
+import { LiveEnvironmentService } from "../../../../apps/gateway/src/domains/control-plane/live-environment.service";
+import type { ApprovalRequestService } from "../../../../apps/gateway/src/domains/governance/approvals/approval-request.service";
 import { EventDestinationService, ROTATION_OVERLAP_MS } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/event-destination.service";
 import { createMemoryWebhookConfigStore } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-config-store";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
@@ -168,6 +170,22 @@ describe("webhook destinations", () => {
     await destinations.disable(scope, created.id, actor);
     expect(await webhookConfigs.read(created.id)).toMatchObject({ disabled: true });
     await expect(destinations.rotateSecret(scope, created.id, actor)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("never rotates or disables a live webhook through the test environment", async () => {
+    const { project, scope: test } = await setup();
+    const approvals = { assertApprovedForAction: jest.fn() } as unknown as ApprovalRequestService;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+    await new LiveEnvironmentService(prisma as unknown as PrismaService, approvals, audit).provision(ORG, project.id, actor);
+    const live = { ...test, environmentKind: "live" as const };
+    await admin.setCapability(live, "payments", true, actor);
+    const liveApp = await admin.createApplication(live, { slug: "live-worker", name: "Live worker" }, actor);
+    const created = await destinations.createWebhook(live, { recipientApplicationId: liveApp.id, url: URL }, actor);
+
+    await expect(destinations.rotateSecret(test, created.id, actor)).rejects.toMatchObject({ status: 404 });
+    await expect(destinations.disable(test, created.id, actor)).rejects.toMatchObject({ status: 404 });
+    expect(await webhookConfigs.read(created.id)).toEqual({ url: URL, secrets: [{ value: created.signingSecret }] });
+    expect(prisma.cpEventDestination.rows.find((row) => row.id === created.id)).toMatchObject({ status: "active" });
   });
 
   it("does not rotate a Pub/Sub push destination", async () => {

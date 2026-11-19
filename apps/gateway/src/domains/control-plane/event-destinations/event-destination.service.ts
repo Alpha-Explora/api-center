@@ -224,10 +224,17 @@ export class EventDestinationService {
     return destination;
   }
 
+  /** The destination in this exact environment; a test path never reaches a live destination. */
   private async find(scope: EnvironmentScope, destinationId: string) {
-    const found = await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
-      db.cpEventDestination.findFirst({ where: { id: destinationId, organizationId: scope.organizationId, projectId: scope.projectId } }),
-    );
+    const found = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
+      const environment = await db.cpEnvironment.findFirst({
+        where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
+      });
+      if (!environment) return null;
+      return db.cpEventDestination.findFirst({
+        where: { id: destinationId, organizationId: scope.organizationId, projectId: scope.projectId, environmentId: environment.id },
+      });
+    });
     if (!found) throw new NotFoundError(`Event destination '${destinationId}' was not found`);
     return found;
   }

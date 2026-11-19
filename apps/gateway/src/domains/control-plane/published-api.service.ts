@@ -124,11 +124,15 @@ export class PublishedApiService {
     });
   }
 
-  async update(organizationId: string, apiId: string, change: { status?: "active" | "disabled"; upstreamUrl?: string; operations?: OperationInput[] }, actor: string) {
+  /** Changes an API in this exact project and environment; a test path never reaches a live API. */
+  async update(scope: EnvironmentScope, apiId: string, change: { status?: "active" | "disabled"; upstreamUrl?: string; operations?: OperationInput[] }, actor: string) {
     if (change.operations) validateOperations(change.operations);
     if (change.upstreamUrl) await assertPublicUpstream(change.upstreamUrl, upstreamGuardOptions());
+    const { organizationId } = scope;
     const api = await this.tenant(organizationId, async (db) => {
-      const existing = await db.cpPublishedApi.findFirst({ where: { id: apiId, organizationId } });
+      const existing = await db.cpPublishedApi.findFirst({
+        where: { id: apiId, organizationId, projectId: scope.projectId, environmentKind: scope.environmentKind },
+      });
       if (!existing) throw new NotFoundError(`API '${apiId}' was not found`);
       if (change.operations) {
         await db.cpPublishedApiOperation.deleteMany({ where: { apiId, organizationId } });
@@ -145,10 +149,6 @@ export class PublishedApiService {
       ...(change.operations ? { operations: change.operations.length } : {}),
     });
     return this.get(organizationId, apiId);
-  }
-
-  async apiProjectId(organizationId: string, apiId: string): Promise<string> {
-    return (await this.get(organizationId, apiId)).projectId;
   }
 
   /**
