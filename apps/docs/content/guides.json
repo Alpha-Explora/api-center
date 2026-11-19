@@ -99,6 +99,10 @@
     "section": "Integration and events"
   },
   {
+    "slug": "events/webhooks",
+    "section": "Integration and events"
+  },
+  {
     "slug": "events/pubsub-delivery",
     "section": "Integration and events"
   },

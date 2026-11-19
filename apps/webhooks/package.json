@@ -1,0 +1,25 @@
+{
+  "name": "@apicenter/webhooks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "APICenter signed webhook delivery: receives events from Pub/Sub and POSTs them, signed, to consumer HTTPS endpoints.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@apicenter/runtime": "1.0.0",
+    "@google-cloud/secret-manager": "^6.1.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.7.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}

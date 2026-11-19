@@ -1,0 +1,54 @@
+---
+title: "Payment Event Webhooks"
+description: "Receive signed payment events at any HTTPS endpoint and verify them."
+---
+
+APICenter can POST your application's payment events, such as `payment.checkout.paid`, to any public HTTPS URL on your backend. Each delivery is signed with a secret only you and APICenter know, and APICenter retries until your endpoint answers with a 2xx status. Your backend can run anywhere and be written in any language.
+
+## Set up an endpoint
+
+1. Add an HTTPS route to your backend, for example `POST /apicenter/events`. It must be publicly reachable; private and internal addresses are refused.
+2. Ask your APICenter operator, or use the console, to add a webhook destination for your application in each environment (test and live), giving that URL.
+3. Store the signing secret (`whsec_…`) shown when the destination is created. It is shown once. Keep it in your backend's secret store, never in a browser or mobile app.
+
+## Verify every delivery
+
+Each request carries three headers, following the [Standard Webhooks](https://www.standardwebhooks.com/) format:
+
+| Header | Meaning |
+| :--- | :--- |
+| `webhook-id` | The event's `eventId`. The same event always has the same ID, including retries. |
+| `webhook-timestamp` | Seconds since the Unix epoch when this attempt was signed. |
+| `webhook-signature` | One or more `v1,<base64 HMAC-SHA256>` values, separated by spaces. |
+
+With the SDK, pass the **raw** request body (before JSON parsing), the headers and your secret:
+
+```ts
+import express from 'express';
+import { verifyWebhook, ApiCenterWebhookError } from '@alpha-explora/apicenter-sdk';
+
+app.post('/apicenter/events', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event;
+  try {
+    event = verifyWebhook(req.body, req.headers, process.env.APICENTER_WEBHOOK_SECRET!);
+  } catch (error) {
+    if (error instanceof ApiCenterWebhookError) return res.status(400).end();
+    throw error;
+  }
+  await recordOnce(event); // see "Process each event once"
+  res.status(204).end();
+});
+```
+
+Without the SDK, any Standard Webhooks library works. To verify by hand: decode the secret after `whsec_` from base64, compute HMAC-SHA256 over `${webhook-id}.${webhook-timestamp}.${rawBody}`, base64-encode it, and compare it in constant time with each `v1,` value. Reject timestamps more than five minutes from your clock.
+
+## Process each event once
+
+- **Answer quickly.** Return 2xx as soon as the event is stored, and do slow work afterwards. A request has 10 seconds; anything else (a non-2xx status, a redirect, a timeout) counts as a failure.
+- **Expect retries.** A failed delivery is retried with growing delays of up to 10 minutes between attempts, for about half a day, before it is set aside for an operator to replay. A retry can also arrive after a success, so the same `eventId` may come more than once.
+- **Deduplicate by `eventId`**, and apply a change only when its `aggregateVersion` is newer than the version you stored for that resource. Events for one resource can arrive out of order.
+- **Treat a checkout as paid only after `payment.checkout.paid`** (or after reading the checkout by reference). A browser redirect to your success URL does not prove payment.
+
+## Rotate the secret
+
+A rotation issues a new secret and keeps signing with the old one for 24 hours, so each delivery carries both signatures. Deploy the new secret, and during the overlap you can pass both to `verifyWebhook` as an array. After 24 hours only the new secret signs.

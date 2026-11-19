@@ -844,6 +844,9 @@ model CpEventDestination {
   oidcAudience                String?  @map("oidc_audience")
   deliveryServiceAccountEmail String   @map("delivery_service_account_email")
   subscriptionName            String?  @map("subscription_name")
+  /// Consumer HTTPS endpoint for transport 'webhook'; its signing secrets are in Secret Manager.
+  webhookUrl                  String?  @map("webhook_url")
+  secretRotatedAt             DateTime? @map("secret_rotated_at") @db.Timestamptz(6)
   status                      String   @default("provisioning")
   lastError                   String?  @map("last_error")
   createdBy                   String   @map("created_by")

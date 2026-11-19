@@ -27,6 +27,7 @@ How to deploy, configure and migrate to the APICenter control plane described in
    - `CONTROL_PLANE_TEST_DAILY_REQUESTS` (default 1,000): the test-environment budget when no plan is assigned.
    - Never set `CONTROL_PLANE_ALLOW_PRIVATE_UPSTREAMS` outside local development.
 5. Existing `SHARED_SERVICE_ROUTE_<SERVICE>_<ENV>` variables route application calls; no new routes are needed.
+6. Signed webhooks (`apps/webhooks`, Cloud Run `apicenter-webhooks-live`): deploy the service with `GCP_PROJECT_ID`, a dedicated runtime identity holding `roles/secretmanager.secretAccessor` only on secrets named `apicenter-webhook-*`, and no unauthenticated invokers. Create the push identity (`WEBHOOK_PUSH_SERVICE_ACCOUNT`); destination provisioning grants it `run.invoker` on the delivery service. Give the gateway `WEBHOOK_DELIVERY_URL` (the service's `run.app` URL) and permission to create, version and destroy versions of `apicenter-webhook-*` secrets. Each destination's URL and signing secrets live in its own secret; the database row holds only the URL.
 6. Run the wiring check (`npx jest --config tests/e2e/jest-e2e.json control-plane-wiring`) against the built gateway, then the staging acceptance below.
 
 ## Staging acceptance

@@ -185,6 +185,14 @@
               {
                 "value": "20261012-reset1",
                 "name": "APICENTER_DEPLOYMENT_EPOCH"
+              },
+              {
+                "value": "https://apicenter-webhooks-live-565306324295.asia-southeast1.run.app",
+                "name": "WEBHOOK_DELIVERY_URL"
+              },
+              {
+                "value": "apicenter-webhook-push@apicenter-alpha-20260623.iam.gserviceaccount.com",
+                "name": "WEBHOOK_PUSH_SERVICE_ACCOUNT"
               }
             ],
             "resources": {
