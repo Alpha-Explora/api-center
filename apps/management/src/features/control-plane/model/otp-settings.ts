@@ -87,15 +87,16 @@ export function otpSettingsFormFrom(current: OtpSettings | undefined): OtpSettin
 export function otpMessagePreview(template: string, codeLength: number, expirySeconds: number): string {
   const code = "123456789012".slice(0, codeLength);
   const minutes = String(Math.max(1, Math.round(expirySeconds / 60)));
-  return template.replace(PLACEHOLDER, (_match, name: string) => (name === "code" ? code : minutes));
+  // Unknown placeholders stay as typed, so the preview shows what the validation complains about.
+  return template.replace(PLACEHOLDER, (match, name: string) => (name === "code" ? code : name === "minutes" ? minutes : match));
 }
 
-/** The values a form's empty fields fall back to, for hints and the preview. */
+/** The values the preview uses: each valid field as typed, otherwise the platform default. */
 export function effectiveOtpSettings(form: OtpSettingsForm, defaults: OtpSettings["defaults"]) {
-  const valid = otpSettingsFormSchema.safeParse(form);
+  const shape = otpSettingsFormSchema.shape;
   const value = (field: "codeLength" | "expirySeconds", fallback: number) => {
     const raw = form[field].trim();
-    return valid.success && raw !== "" ? Number(raw) : fallback;
+    return raw !== "" && shape[field].safeParse(raw).success ? Number(raw) : fallback;
   };
   return {
     codeLength: value("codeLength", defaults.codeLength),

@@ -78,6 +78,9 @@ describe("OTP settings", () => {
     expect(otpMessagePreview(effective.template, effective.codeLength, effective.expirySeconds)).toBe("Code 1234 (10 min)");
     const fallback = effectiveOtpSettings(form({ codeLength: "99" }), defaults);
     expect(otpMessagePreview(fallback.template, fallback.codeLength, fallback.expirySeconds)).toBe("Your APICenter verification code is 123456");
+    const partly = effectiveOtpSettings(form({ codeLength: "8", expirySeconds: "30" }), defaults);
+    expect(partly).toMatchObject({ codeLength: 8, expirySeconds: 300 });
+    expect(otpMessagePreview("{{code}} for {{name}}", 4, 300)).toBe("1234 for {{name}}");
   });
 });
 

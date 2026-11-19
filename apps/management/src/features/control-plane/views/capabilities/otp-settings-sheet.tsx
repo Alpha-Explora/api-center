@@ -120,7 +120,7 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
                 },
                 { label: "Code length", value: orDefault(current.codeLength, (v) => `${v} digits`, `${defaults.codeLength} digits`) },
                 { label: "Expiry", value: orDefault(current.expirySeconds, (v) => `${v} seconds`, `${defaults.expirySeconds} seconds`) },
-                { label: "Wrong codes allowed", value: describeAttempts(current.maxAttempts) },
+                { label: "Max attempts", value: describeAttempts(current.maxAttempts) },
                 { label: "Message", value: <span className="break-words">{current.messageTemplate ?? `${defaults.messageTemplate} (default)`}</span> },
               ]}
             />
@@ -140,10 +140,10 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
                   />
                 </FormRow>
                 <FormRow
-                  label="Expiry (seconds)"
+                  label="Expiry (s)"
                   htmlFor="otp-expiry"
                   error={errors.expirySeconds}
-                  hint={`${OTP_BOUNDS.expirySeconds.min}–${OTP_BOUNDS.expirySeconds.max}.`}
+                  hint={`${OTP_BOUNDS.expirySeconds.min}–${OTP_BOUNDS.expirySeconds.max} seconds.`}
                 >
                   <Input
                     id="otp-expiry"
@@ -155,10 +155,10 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
                   />
                 </FormRow>
                 <FormRow
-                  label="Wrong codes allowed"
+                  label="Max attempts"
                   htmlFor="otp-attempts"
                   error={errors.maxAttempts}
-                  hint={`${OTP_BOUNDS.maxAttempts.min}–${OTP_BOUNDS.maxAttempts.max}; empty for no cap.`}
+                  hint={`Wrong codes, ${OTP_BOUNDS.maxAttempts.min}–${OTP_BOUNDS.maxAttempts.max}.`}
                 >
                   <Input
                     id="otp-attempts"
