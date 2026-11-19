@@ -11,7 +11,7 @@ Use this checklist when a backend service starts using APICenter. The [Managemen
 - Ask an operator to issue separate test and live service credentials and grant only the scopes the service needs.
 - Store `APICENTER_SERVICE_SECRET` and any payment credential in the backend secret manager. Never send them to a browser or commit them.
 - Add the package's GitHub Packages configuration and a CI token with package read access.
-- If payment lifecycle events are part of the integration, ask the APICenter operator to configure the consumer's Pub/Sub push subscription and Cloud Run OIDC identity.
+- If payment lifecycle events are part of the integration, add a [webhook destination](/guides/events/webhooks) for the backend's HTTPS endpoint in each environment and store its signing secret.
 - Make event processing idempotent by `eventId` and monotonic by `aggregateVersion`.
 
 ## Create a payment checkout
@@ -34,7 +34,7 @@ Treat the checkout as pending until your service processes the `payment.checkout
 
 ## Process payment events
 
-Verify the Cloud Run OIDC token on the push endpoint. Validate the event envelope, ignore an `eventId` already recorded, and apply only an event whose `aggregateVersion` is newer than the version stored for that resource. Acknowledge a valid duplicate after confirming it was already applied. See [payment event delivery](/guides/events/pubsub-delivery) for the envelope and delivery behavior.
+Verify each delivery's signature with the endpoint's signing secret (`verifyWebhook` in the SDK). Ignore an `eventId` already recorded, and apply only an event whose `aggregateVersion` is newer than the version stored for that resource. Answer 2xx for a valid duplicate after confirming it was already applied. See [payment event webhooks](/guides/events/webhooks).
 
 ## Handle failures and rollbacks
 

@@ -18,6 +18,19 @@ const createSchema = z
   })
   .strict();
 
+const webhookSchema = z
+  .object({
+    recipientApplicationId: z.string().regex(/^app_[a-z0-9]{24}$/),
+    url: z.string().url().max(2048),
+    actor: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+
+function destinationId(params: Record<string, string>): string {
+  if (!/^dst_[a-z0-9]{24}$/.test(params.destinationId ?? "")) throw new ValidationError("Invalid destination ID");
+  return params.destinationId;
+}
+
 function scopeFrom(params: Record<string, string>): EnvironmentScope {
   const organizationId = z.string().uuid().safeParse(params.organizationId);
   const projectId = z.string().regex(/^prj_[a-z0-9]{24}$/).safeParse(params.projectId);
@@ -45,6 +58,28 @@ export class EventDestinationsController {
     return { success: true, data: await this.destinations.create(scope, input, actorLabel(actor, onBehalfOf)) };
   }
 
+  /** A signed HTTPS webhook to any public URL. The response carries the signing secret, once. */
+  @Post(`${ENV}/event-destinations/webhooks`)
+  async createWebhook(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const scope = scopeFrom(params);
+    const parsed = webhookSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new ValidationError(`body ${parsed.error.issues[0]?.path.join(".")} ${parsed.error.issues[0]?.message}`);
+    const actor = req.consoleActor!;
+    await this.access.require(actor, scope.organizationId, "environment.write", { projectId: scope.projectId, environmentKind: scope.environmentKind });
+    const { actor: onBehalfOf, ...input } = parsed.data;
+    return { success: true, data: await this.destinations.createWebhook(scope, input, actorLabel(actor, onBehalfOf)) };
+  }
+
+  /** Issues a new signing secret; the previous one keeps signing for a day. Returns it once. */
+  @Post(`${ENV}/event-destinations/:destinationId/rotate-secret`)
+  async rotateSecret(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const scope = scopeFrom(params);
+    const id = destinationId(params);
+    const actor = req.consoleActor!;
+    await this.access.require(actor, scope.organizationId, "environment.write", { projectId: scope.projectId, environmentKind: scope.environmentKind });
+    return { success: true, data: await this.destinations.rotateSecret(scope, id, actorLabel(actor)) };
+  }
+
   @Get(`${ENV}/event-destinations`)
   async list(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
     const scope = scopeFrom(params);
@@ -55,9 +90,9 @@ export class EventDestinationsController {
   @Post(`${ENV}/event-destinations/:destinationId/disable`)
   async disable(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
     const scope = scopeFrom(params);
-    if (!/^dst_[a-z0-9]{24}$/.test(params.destinationId ?? "")) throw new ValidationError("Invalid destination ID");
+    const id = destinationId(params);
     const actor = req.consoleActor!;
     await this.access.require(actor, scope.organizationId, "environment.write", { projectId: scope.projectId, environmentKind: scope.environmentKind });
-    return { success: true, data: await this.destinations.disable(scope, params.destinationId, actorLabel(actor)) };
+    return { success: true, data: await this.destinations.disable(scope, id, actorLabel(actor)) };
   }
 }

@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-19
+
+- Added the consumer guide for payment event webhooks (endpoint setup, signature verification, retries, deduplication and secret rotation), pointed the consumer runbook at it, and recorded the webhook delivery service's deployment requirements in control plane operations.
+
 ## 2026-11-18
 
 - Consumer guides and the SDK README now configure the SDK with one application key (`APICENTER_API_KEY`); service credentials and payment keys are described as deprecated. Deployment and platform setup references record PostgreSQL as the only shared-state store.

@@ -5,3 +5,5 @@ export type { PaymentEvent } from './payment/events';
 export { ApiCenterContextError, createContextVerifier } from './publisher/verify-context';
 export type { ApiCenterCallerContext, ContextVerifierOptions } from './publisher/verify-context';
 export * from './types';
+export { ApiCenterWebhookError, verifyWebhook } from './webhooks/verify-webhook';
+export type { ApiCenterWebhookErrorCode, VerifyWebhookOptions, WebhookHeaders } from './webhooks/verify-webhook';

@@ -7,7 +7,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 ### Changed
 
 - Remove Redis. Runtime idempotency and per-recipient send limits for email, SMS and OTP, the gateway's refresh tokens and payment idempotency now live in PostgreSQL (migration `20261118000100`: `<runtime schema>.idempotency_keys` and `rate_limit_windows`, `apic_identity.refresh_tokens`, `apic_governance.payment_idempotency_keys`), purged by the retention job. Gateway rate limits, tribe quotas, traffic and usage dashboards count per instance in memory; dashboard metadata now reports `memory-window`. Readiness no longer reports Redis. Deployments drop every `*_REDIS_URL` setting.
-- SDK 2.2.0: `new ApiCenter()` needs only `APICENTER_API_KEY`. `baseUrl` defaults to `APICENTER_URL`, then `https://api.apicenter.itsandbox.site`; explicit options always win.
+- SDK 2.2.0: `new ApiCenter()` needs only `APICENTER_API_KEY`, and `verifyWebhook` verifies signed webhook deliveries. `baseUrl` defaults to `APICENTER_URL`, then `https://api.apicenter.itsandbox.site`; explicit options always win.
 
 ### Fixed
 
@@ -24,6 +24,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Signed HTTPS webhooks for payment events, usable by any backend: `POST …/event-destinations/webhooks` takes a public HTTPS URL and returns a `whsec_` signing secret once; `…/rotate-secret` issues a new one and keeps the old one signing for 24 hours. The new `apps/webhooks` delivery service receives each event from the destination's filtered Pub/Sub subscription, signs it in the Standard Webhooks format and POSTs it, refusing private and internal addresses at connect time; Pub/Sub retries anything not answered with 2xx and dead-letters it after the attempt limit. URLs and secrets live in Secret Manager (`apicenter-webhook-<id>`). SDK `verifyWebhook(rawBody, headers, secret)` verifies a delivery and returns the payment event. Requires migration `20261119000200`.
 - Add the APICenter control plane: organization-owned projects with separate test and live environments, applications with explicit grants, and `ak_test_`/`ak_live_` application keys. Applications call every shared service and payments without registering a service, URL or routes; the gateway forwards a short-lived Ed25519-signed runtime context that every runtime verifies. Adds console roles (owner, admin, developer, viewer), teams and project roles enforced by the gateway; PostgreSQL row-level tenant isolation; project plans, request budgets and usage; approved live activation; optional published APIs with approved cross-project grants and SSRF-guarded upstreams; per-environment payment event destinations; and a fenced, shadowed, reversible migration from tribes, projects and services. Requires migrations `20261114000100`–`20261114000900` and runtime context keys.
 - Add the console Workspace section (Projects, People, Migration).
 - SDK 2.1.0: `auth: { apiKey }` for application keys, `createContextVerifier` for published APIs, and payment event contract 1.1 (`ownerGroupId`, `ownerProjectId`; `ownerTribeId` kept for 1.0 consumers).
