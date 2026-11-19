@@ -23,4 +23,10 @@ export const cpKeys = {
     ["cp", organizationId, "project", projectId, "live", "activation-requests"] as const,
   members: (organizationId: string) => ["cp", organizationId, "members"] as const,
   teams: (organizationId: string) => ["cp", organizationId, "teams"] as const,
+  /** Platform operators: every organization. */
+  organizations: ["cp", "organizations"] as const,
+  /** Pending decisions; invalidate `approvalsRoot` after deciding anything. */
+  approvalsRoot: ["cp", "approvals"] as const,
+  approvals: (scope: "platform" | { organizationId: string }) =>
+    ["cp", "approvals", scope === "platform" ? "platform" : scope.organizationId] as const,
 };

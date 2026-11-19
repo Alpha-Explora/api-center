@@ -74,6 +74,16 @@ export class ApprovalRequestService {
     });
   }
 
+  /** Pending requests for one action, newest first, optionally only for these targets. */
+  async listPending(actionType: ApprovalRequest["actionType"], targetIds?: string[]): Promise<ApprovalRequest[]> {
+    if (targetIds && targetIds.length === 0) return [];
+    return this.approvalPrisma.approvalRequest.findMany({
+      where: { actionType, status: "pending", ...(targetIds ? { targetId: { in: targetIds } } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
+  }
+
   async findApprovedAction(input: {
     actionType: ApprovalRequest["actionType"];
     targetId: string;

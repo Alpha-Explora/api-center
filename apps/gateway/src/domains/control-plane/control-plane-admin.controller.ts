@@ -3,7 +3,7 @@
 // signed-in member's Google ID token so their roles apply; a platform caller without a user
 // token acts as the platform.
 
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Optional, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import { AppError, ForbiddenError, ValidationError } from "@shared/errors";
 import { ControlPlaneAdminService, type EnvironmentScope } from "./control-plane-admin.service";
@@ -14,6 +14,7 @@ import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
 import { PublishedApiService } from "./published-api.service";
 import { WorkloadBindingService } from "./workload-binding.service";
+import { MemberInviteService } from "./member-invite.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
@@ -116,6 +117,8 @@ export class ControlPlaneAdminController {
     private readonly configuration: CapabilityConfigurationService,
     private readonly apis: PublishedApiService,
     private readonly workloads: WorkloadBindingService,
+    // Optional so the controller can be built without email wiring; the module always provides it.
+    @Optional() private readonly invites?: MemberInviteService,
   ) {}
 
   /** Which organizations an email belongs to. Only the console's server asks, at sign-in. */
@@ -164,7 +167,11 @@ export class ControlPlaneAdminController {
     const current = await this.people.memberRole(org, memberEmail);
     const touchesOwner = input.role === "owner" || current === "owner";
     await this.access.require(actor, org, touchesOwner ? "organization.owners.manage" : "organization.members.manage");
-    return { success: true, data: await this.people.setMember(org, memberEmail, input.role, actorLabel(actor, input.actor)) };
+    const label = actorLabel(actor, input.actor);
+    const member = await this.people.setMember(org, memberEmail, input.role, label);
+    // A new member is sent an invite. Sending never fails the change, which is already saved.
+    const invite = member.previousRole || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
+    return { success: true, data: { ...member, invite } };
   }
 
   @Delete("organizations/:organizationId/members/:email")

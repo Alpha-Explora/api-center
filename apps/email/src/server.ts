@@ -15,6 +15,7 @@ import { GetEmailStatusService } from './features/get-email-status/get-email-sta
 import { createEmailStore } from './shared/email-store';
 import { DailyLimitReachedError, SenderNotApprovedError } from './shared/email-policy-errors';
 import { createProjectSenderAdminHandler } from './shared/project-sender-admin';
+import { createPlatformMessageAdminHandler } from './shared/platform-message-admin';
 
 const port = Number(process.env.PORT || 4012);
 /** Audience the gateway signs control-plane application contexts for. */
@@ -46,6 +47,10 @@ const sendEmailService = new SendEmailService(emailStore);
 const getEmailStatusService = new GetEmailStatusService(emailStore);
 const projectSenderAdminHandler = createProjectSenderAdminHandler({
   store: emailStore,
+  expectedToken: process.env.EMAIL_ADMIN_TOKEN,
+});
+const platformMessageAdminHandler = createPlatformMessageAdminHandler({
+  sendEmail: (input, owner) => sendEmailService.execute(input, owner),
   expectedToken: process.env.EMAIL_ADMIN_TOKEN,
 });
 
@@ -186,6 +191,7 @@ app.post('/send', async (req: Request, res: Response) => {
 });
 
 app.put('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
+app.post('/admin/platform-messages', platformMessageAdminHandler);
 
 app.post('/webhooks/resend', async (req: Request, res: Response) => {
   const event = req.body || {};

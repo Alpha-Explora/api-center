@@ -52,6 +52,22 @@ describe("ApprovalRequestService", () => {
     expect(result.id).toBe("approval-1");
   });
 
+  it("lists pending requests for one action, optionally only for given targets", async () => {
+    approvals.findMany.mockResolvedValue([]);
+    await service.listPending("environment.activate_live");
+    expect(approvals.findMany).toHaveBeenLastCalledWith({
+      where: { actionType: "environment.activate_live", status: "pending" },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
+    await service.listPending("environment.activate_live", ["prj_a"]);
+    expect(approvals.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { actionType: "environment.activate_live", status: "pending", targetId: { in: ["prj_a"] } } }),
+    );
+    await expect(service.listPending("environment.activate_live", [])).resolves.toEqual([]);
+    expect(approvals.findMany).toHaveBeenCalledTimes(2);
+  });
+
   it("requires before and after preview payloads", async () => {
     await expect(
       service.createRequest({

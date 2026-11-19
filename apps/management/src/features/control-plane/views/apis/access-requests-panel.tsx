@@ -76,6 +76,7 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
       void client.invalidateQueries({ queryKey: key });
       // An approval adds a grant to the requesting application, in its own project.
       void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, request.consumerProjectId) });
+      void client.invalidateQueries({ queryKey: cpKeys.approvalsRoot });
     },
   });
 

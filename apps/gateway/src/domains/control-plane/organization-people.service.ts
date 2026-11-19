@@ -101,7 +101,7 @@ export class OrganizationPeopleService {
       return current;
     });
     await this.recordAudit("control_plane.member.set", actor, `${organizationId}:${email}`, { role, previousRole: previous ?? null });
-    return { email, role };
+    return { email, role, previousRole: previous ?? null };
   }
 
   async removeMember(organizationId: string, email: string, actor: string) {

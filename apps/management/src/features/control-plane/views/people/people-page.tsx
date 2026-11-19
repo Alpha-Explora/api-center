@@ -18,10 +18,13 @@ import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { toSlug } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
+import { members as memberRoutes } from "../../data/members";
 import { ORGANIZATION_ADMIN_REASON, type Access, type OrganizationRole } from "../../model/access";
 import type { Member, Team } from "../../model/control-plane";
+import type { MemberChange } from "../../model/organizations";
 import { cpKeys } from "../../view-models/query-keys";
 import { useAccess, useOrganization } from "../../view-models/use-organization";
+import { InviteResult } from "./invite-result";
 
 const ROLES: { value: OrganizationRole; label: string; description: string }[] = [
   { value: "owner", label: "Owner", description: "Everything, including managing other owners." },
@@ -176,14 +179,26 @@ function AddMemberSheet({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrganizationRole>("developer");
+  // A new member's invite outcome, shown in place of the form until the sheet closes.
+  const [added, setAdded] = useState<MemberChange | null>(null);
   const normalized = email.trim().toLowerCase();
-  const add = useMutation({
-    mutationFn: () => controlPlane.setMember(organizationId, normalized, role),
-    onSuccess: () => {
-      toast.success(`Added ${normalized}. They can sign in with Google now.`);
+  const close = (next: boolean) => {
+    if (!next) {
+      setAdded(null);
       setEmail("");
-      onOpenChange(false);
+    }
+    onOpenChange(next);
+  };
+  const add = useMutation({
+    mutationFn: () => memberRoutes.set(organizationId, normalized, role),
+    onSuccess: (change) => {
       onAdded();
+      if (change.invite) {
+        setAdded(change);
+        return;
+      }
+      toast.success(`${change.email} is now ${change.role}`);
+      close(false);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -191,8 +206,29 @@ function AddMemberSheet({
   const routable = ROUTABLE_EMAIL.test(normalized);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={close}>
       <SheetContent className="sm:max-w-md">
+        {added?.invite ? (
+          <div className="flex h-full flex-col">
+            <SheetHeader>
+              <SheetTitle>Added {added.email}</SheetTitle>
+              <SheetDescription>
+                They are {added.role === "admin" || added.role === "owner" ? "an" : "a"} {added.role} now and can sign in with the Google account for this email.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="px-4">
+              <InviteResult email={added.email} invite={added.invite} />
+            </div>
+            <SheetFooter className="mt-auto flex-row justify-end border-t">
+              <Button type="button" variant="outline" onClick={() => { setAdded(null); setEmail(""); }}>
+                Add another
+              </Button>
+              <Button type="button" onClick={() => close(false)}>
+                Done
+              </Button>
+            </SheetFooter>
+          </div>
+        ) : (
         <form
           className="flex h-full flex-col"
           onSubmit={(event) => {
@@ -202,7 +238,7 @@ function AddMemberSheet({
         >
           <SheetHeader>
             <SheetTitle>Add member</SheetTitle>
-            <SheetDescription>They sign in with the Google account for this email. Adding an existing member changes their role.</SheetDescription>
+            <SheetDescription>They are emailed an invite and sign in with the Google account for this email. Adding an existing member changes their role.</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 px-4">
             <FormRow
@@ -226,7 +262,7 @@ function AddMemberSheet({
             </fieldset>
           </div>
           <SheetFooter className="mt-auto flex-row justify-end border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => close(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={!valid || !routable || add.isPending}>
@@ -234,6 +270,7 @@ function AddMemberSheet({
             </Button>
           </SheetFooter>
         </form>
+        )}
       </SheetContent>
     </Sheet>
   );

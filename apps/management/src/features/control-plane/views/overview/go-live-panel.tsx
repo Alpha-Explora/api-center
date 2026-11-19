@@ -24,6 +24,7 @@ export function GoLivePanel() {
   const client = useQueryClient();
   const refresh = () => {
     void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+    void client.invalidateQueries({ queryKey: cpKeys.approvalsRoot });
   };
   const provision = useMutation({
     mutationFn: () => controlPlane.provisionLive(organizationId, project.id),
@@ -89,6 +90,7 @@ function ProvisioningPanel() {
   const [rejecting, setRejecting] = useState<ActivationRequest | null>(null);
   const refresh = () => {
     void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+    void client.invalidateQueries({ queryKey: cpKeys.approvalsRoot });
     void client.invalidateQueries({ queryKey: cpKeys.liveReadiness(organizationId, project.id) });
     void client.invalidateQueries({ queryKey: cpKeys.activationRequests(organizationId, project.id) });
   };
