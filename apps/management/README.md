@@ -14,9 +14,12 @@ Design rules and components are in [DESIGN.md](DESIGN.md).
 |---|---|
 | `/projects` | Projects in the current organization |
 | `/projects/:projectId/:env` | Environment overview: status, plan, usage, going live (`env` is `test` or `live`) |
-| `/projects/:projectId/:env/applications[/:applicationId]` | Applications, their capability grants and keys |
+| `/projects/:projectId/:env/applications[/:applicationId]` | Applications: capability grants, keys, workload identities, webhook |
 | `/projects/:projectId/:env/capabilities` | Capabilities enabled in the environment, and email and Google sign-in settings |
 | `/projects/:projectId/:env/webhooks` | Payment event destinations: signed webhooks or Pub/Sub push, secret rotation, disable |
+| `/projects/:projectId/:env/quotas` | Quota policies for the environment, and the shared ceilings that cover it |
+| `/projects/:projectId/settings` | Project roles and environment status (both environments) |
+| `/quotas` | Shared quota ceilings across projects (organization owners and admins) |
 | `/people` | Members, organization roles, teams |
 | `/requests`, `/settings` | Platform operators only: request lookup and console configuration |
 

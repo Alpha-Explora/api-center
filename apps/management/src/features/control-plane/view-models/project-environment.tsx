@@ -35,6 +35,53 @@ export function useProjectEnvironment() {
 
 /** Loads the project and the person's roles once for every page under /projects/:projectId/:env. */
 export function ProjectEnvironmentProvider({ projectId, kind, children }: { projectId: string; kind: EnvironmentKind; children: ReactNode }) {
+  return (
+    <LoadProject projectId={projectId}>
+      {({ organizationId, project, access }) => {
+        const value: ProjectEnvironmentContext = {
+          organizationId,
+          project,
+          kind,
+          environment: project.environments.find((entry) => entry.kind === kind),
+          access,
+          canWrite: access.canWriteEnvironment(project.id, kind),
+          canManage: access.canManageProject(project.id),
+        };
+        return <Context.Provider value={value}>{children}</Context.Provider>;
+      }}
+    </LoadProject>
+  );
+}
+
+/** A project page that covers both environments (/projects/:projectId/settings). */
+export type ProjectContext = { organizationId: string; project: Project; access: Access; canManage: boolean };
+
+const ProjectOnlyContext = createContext<ProjectContext | null>(null);
+
+export function useProject() {
+  const value = useContext(ProjectOnlyContext);
+  if (!value) throw new Error("useProject must be used inside a project page");
+  return value;
+}
+
+/** Loads the project and the person's roles for project pages outside an environment. */
+export function ProjectProvider({ projectId, children }: { projectId: string; children: ReactNode }) {
+  return (
+    <LoadProject projectId={projectId}>
+      {({ organizationId, project, access }) => (
+        <ProjectOnlyContext.Provider value={{ organizationId, project, access, canManage: access.canManageProject(project.id) }}>{children}</ProjectOnlyContext.Provider>
+      )}
+    </LoadProject>
+  );
+}
+
+function LoadProject({
+  projectId,
+  children,
+}: {
+  projectId: string;
+  children: (loaded: { organizationId: string; project: Project; access: Access }) => ReactNode;
+}) {
   const { organizationId, loading } = useOrganization();
   const { access, loading: accessLoading } = useAccess(organizationId);
   const project = useQuery({
@@ -49,18 +96,7 @@ export function ProjectEnvironmentProvider({ projectId, kind, children }: { proj
   }
   if (project.error) return <ErrorPanel title="This project could not be loaded" error={project.error} />;
   if (!project.data || !organizationId || accessLoading) return <PageSkeleton />;
-
-  const environment = project.data.environments.find((entry) => entry.kind === kind);
-  const value: ProjectEnvironmentContext = {
-    organizationId,
-    project: project.data,
-    kind,
-    environment,
-    access,
-    canWrite: access.canWriteEnvironment(project.data.id, kind),
-    canManage: access.canManageProject(project.data.id),
-  };
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return children({ organizationId, project: project.data, access });
 }
 
 /** For sections that need the environment to exist: explains that live is not set up and links to going live. */

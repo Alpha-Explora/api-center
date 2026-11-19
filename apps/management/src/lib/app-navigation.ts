@@ -8,6 +8,8 @@ export type NavItem = {
   keywords?: string[];
   /** Only platform operators see it. */
   platformOnly?: boolean;
+  /** Only organization owners and admins (and platform operators) see it. */
+  organizationAdminOnly?: boolean;
 };
 
 /** Pages that act on the whole organization. */
@@ -25,6 +27,14 @@ export const organizationNav: NavItem[] = [
     label: "People",
     description: "Members, their organization roles, and teams.",
     keywords: ["members", "roles", "teams", "owner", "admin", "developer", "viewer", "invite"],
+  },
+  {
+    id: "quotas",
+    href: "/quotas",
+    label: "Quotas",
+    description: "Shared request ceilings across several projects.",
+    keywords: ["quota", "limit", "ceiling", "rate", "budget", "shared"],
+    organizationAdminOnly: true,
   },
   {
     id: "requests",
@@ -68,24 +78,54 @@ export const projectSections: { id: string; path: string; label: string; descrip
     description: "Payment event destinations and signing secrets.",
     keywords: ["events", "destinations", "signing secret", "rotate", "pubsub", "callback", "payment"],
   },
+  {
+    id: "quotas",
+    path: "/quotas",
+    label: "Quotas",
+    description: "Request limits for this environment.",
+    keywords: ["quota", "limit", "rate", "budget", "observe", "enforce"],
+  },
 ];
 
-export function visibleOrganizationNav(platformAdmin: boolean) {
-  return organizationNav.filter((item) => platformAdmin || !item.platformOnly);
+/** Project pages that cover both environments, at /projects/:projectId/<path>. */
+export const projectPages: { id: string; path: string; label: string; description: string; keywords?: string[] }[] = [
+  {
+    id: "settings",
+    path: "/settings",
+    label: "Settings",
+    description: "Project roles and environment status.",
+    keywords: ["roles", "members", "teams", "admin", "suspend", "resume", "status"],
+  },
+];
+
+export function visibleOrganizationNav(platformAdmin: boolean, organizationAdmin = false) {
+  return organizationNav.filter((item) => platformAdmin || (!item.platformOnly && (organizationAdmin || !item.organizationAdminOnly)));
 }
 
 export function projectHref(projectId: string, environment: EnvironmentKind, sectionPath = "") {
   return `/projects/${encodeURIComponent(projectId)}/${environment}${sectionPath}`;
 }
 
+export function projectPageHref(projectId: string, pagePath: string) {
+  return `/projects/${encodeURIComponent(projectId)}${pagePath}`;
+}
+
 export type ConsoleLocation =
   | { kind: "organization"; sectionId: string | undefined }
   | { kind: "project"; projectId: string; environment: EnvironmentKind | undefined; sectionId: string | undefined; rest: string };
 
-/** Where a pathname sits in the console: an organization page, or a project environment and its section. */
+/**
+ * Where a pathname sits in the console: an organization page, a project environment and its section, or a
+ * project page that covers both environments (no environment).
+ */
 export function parseConsolePath(pathname: string): ConsoleLocation {
   const segments = pathname.split("/").filter(Boolean);
   if (segments[0] === "projects" && segments[1]) {
+    const page = projectPages.find((entry) => entry.path === `/${segments[2]}`);
+    if (page) {
+      const rest = `/${segments.slice(2).join("/")}`;
+      return { kind: "project", projectId: decodeURIComponent(segments[1]), environment: undefined, sectionId: page.id, rest };
+    }
     const environment = segments[2] === "test" || segments[2] === "live" ? segments[2] : undefined;
     const rest = environment ? `/${segments.slice(3).join("/")}`.replace(/\/$/, "") : "";
     const section = environment ? projectSections.find((entry) => entry.path && (rest === entry.path || rest.startsWith(`${entry.path}/`))) : undefined;
@@ -103,11 +143,12 @@ export function parseConsolePath(pathname: string): ConsoleLocation {
 
 /**
  * The same section in the other environment. Object pages (an application, an API) are environment-specific,
- * so switching lands on their section's list instead.
+ * so switching lands on their section's list instead. Project pages cover both environments, so there is
+ * nothing to switch to.
  */
 export function switchEnvironmentPath(pathname: string, environment: EnvironmentKind): string | undefined {
   const location = parseConsolePath(pathname);
-  if (location.kind !== "project") return undefined;
+  if (location.kind !== "project" || !location.environment) return undefined;
   const section = projectSections.find((entry) => entry.id === location.sectionId);
   return projectHref(location.projectId, environment, section?.path ?? "");
 }

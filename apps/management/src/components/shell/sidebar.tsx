@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,8 +11,10 @@ import {
   CheckIcon,
   ChevronsUpDownIcon,
   FolderIcon,
+  GaugeIcon,
   LayoutDashboardIcon,
   SearchIcon,
+  Settings2Icon,
   SettingsIcon,
   UsersIcon,
   WebhookIcon,
@@ -29,10 +32,12 @@ import {
 import { Kbd } from "@/components/patterns/form";
 import { controlPlane } from "@/features/control-plane/data/control-plane-repository";
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
-import { useOrganization } from "@/features/control-plane/view-models/use-organization";
+import { useAccess, useOrganization } from "@/features/control-plane/view-models/use-organization";
 import {
   parseConsolePath,
   projectHref,
+  projectPageHref,
+  projectPages,
   projectSections,
   switchEnvironmentPath,
   visibleOrganizationNav,
@@ -45,6 +50,7 @@ import { UserMenu } from "./user-menu";
 const ORGANIZATION_ICONS: Record<string, LucideIcon> = {
   projects: FolderIcon,
   people: UsersIcon,
+  quotas: GaugeIcon,
   requests: ActivityIcon,
   settings: SettingsIcon,
 };
@@ -54,12 +60,15 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   applications: AppWindowIcon,
   capabilities: BlocksIcon,
   webhooks: WebhookIcon,
+  quotas: GaugeIcon,
+  settings: Settings2Icon,
 };
 
 export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "google"; onNavigate?: () => void }) {
   const pathname = usePathname();
   const location = parseConsolePath(pathname);
-  const { platformAdmin } = useOrganization();
+  const { organizationId, platformAdmin } = useOrganization();
+  const { access } = useAccess(organizationId);
 
   return (
     <div className="flex h-full flex-col">
@@ -78,7 +87,7 @@ export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "goo
 
       <nav aria-label="Console" className="sidebar-scroll flex flex-1 flex-col gap-5 overflow-y-auto px-3 pb-3">
         <ul className="flex flex-col gap-px">
-          {visibleOrganizationNav(platformAdmin).map((item) => (
+          {visibleOrganizationNav(platformAdmin, access.canManageQuotas).map((item) => (
             <li key={item.id}>
               <NavLink
                 href={item.href}
@@ -91,7 +100,7 @@ export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "goo
           ))}
         </ul>
 
-        {location.kind === "project" && location.environment ? (
+        {location.kind === "project" ? (
           <ProjectNav projectId={location.projectId} environment={location.environment} sectionId={location.sectionId} onNavigate={onNavigate} />
         ) : null}
       </nav>
@@ -153,17 +162,59 @@ function OrganizationSwitcher() {
   );
 }
 
+const LAST_ENVIRONMENT_KEY = "apicenter.console.lastEnvironment";
+const LAST_ENVIRONMENT_EVENT = "apicenter:last-environment-change";
+
+function readLastEnvironment(projectId: string): EnvironmentKind | undefined {
+  try {
+    const value = window.sessionStorage.getItem(`${LAST_ENVIRONMENT_KEY}:${projectId}`);
+    return value === "test" || value === "live" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function subscribeLastEnvironment(onChange: () => void) {
+  window.addEventListener(LAST_ENVIRONMENT_EVENT, onChange);
+  return () => window.removeEventListener(LAST_ENVIRONMENT_EVENT, onChange);
+}
+
+/**
+ * The environment the project nav links to. On an environment page it is that page's; on a project page that
+ * covers both (Settings) it is the one last visited, so leaving Settings returns to where the person was.
+ */
+function useNavEnvironment(projectId: string, current: EnvironmentKind | undefined) {
+  const remembered = useSyncExternalStore(subscribeLastEnvironment, () => readLastEnvironment(projectId), () => undefined);
+  const remember = useCallback(
+    (value: EnvironmentKind) => {
+      try {
+        window.sessionStorage.setItem(`${LAST_ENVIRONMENT_KEY}:${projectId}`, value);
+      } catch {
+        // Remembering is a convenience only.
+      }
+      window.dispatchEvent(new Event(LAST_ENVIRONMENT_EVENT));
+    },
+    [projectId],
+  );
+  useEffect(() => {
+    if (current) remember(current);
+  }, [current, remember]);
+  return { environment: current ?? remembered ?? "test", remember };
+}
+
 function ProjectNav({
   projectId,
-  environment,
+  environment: current,
   sectionId,
   onNavigate,
 }: {
   projectId: string;
-  environment: EnvironmentKind;
+  /** Undefined on project pages that cover both environments. */
+  environment: EnvironmentKind | undefined;
   sectionId: string | undefined;
   onNavigate?: () => void;
 }) {
+  const { environment, remember } = useNavEnvironment(projectId, current);
   const { organizationId } = useOrganization();
   const pathname = usePathname();
   const router = useRouter();
@@ -214,7 +265,12 @@ function ProjectNav({
         value={environment}
         onChange={(next) => {
           const href = switchEnvironmentPath(pathname, next);
-          if (href) router.push(href);
+          if (!href) {
+            // A page covering both environments stays put; the section links follow the switch.
+            remember(next);
+            return;
+          }
+          router.push(href);
           onNavigate?.();
         }}
       />
@@ -226,7 +282,18 @@ function ProjectNav({
               href={projectHref(projectId, environment, section.path)}
               label={section.label}
               icon={SECTION_ICONS[section.id] ?? FolderIcon}
-              active={sectionId === section.id}
+              active={current !== undefined && sectionId === section.id}
+              onNavigate={onNavigate}
+            />
+          </li>
+        ))}
+        {projectPages.map((page) => (
+          <li key={page.id}>
+            <NavLink
+              href={projectPageHref(projectId, page.path)}
+              label={page.label}
+              icon={SECTION_ICONS[page.id] ?? FolderIcon}
+              active={current === undefined && sectionId === page.id}
               onNavigate={onNavigate}
             />
           </li>

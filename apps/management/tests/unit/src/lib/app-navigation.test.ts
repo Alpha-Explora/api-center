@@ -5,7 +5,11 @@ import { matchesQuery, parseConsolePath, switchEnvironmentPath, visibleOrganizat
 describe("app navigation", () => {
   it("hides platform-only pages from organization members", () => {
     expect(visibleOrganizationNav(false).map((item) => item.href)).toEqual(["/projects", "/people"]);
-    expect(visibleOrganizationNav(true).map((item) => item.href)).toEqual(["/projects", "/people", "/requests", "/settings"]);
+    expect(visibleOrganizationNav(true).map((item) => item.href)).toEqual(["/projects", "/people", "/quotas", "/requests", "/settings"]);
+  });
+
+  it("shows organization quotas to organization owners and admins", () => {
+    expect(visibleOrganizationNav(false, true).map((item) => item.href)).toEqual(["/projects", "/people", "/quotas"]);
   });
 
   it("locates organization pages and project sections", () => {
@@ -18,6 +22,12 @@ describe("app navigation", () => {
       sectionId: "applications",
       rest: "/applications/app_2",
     });
+    expect(parseConsolePath("/projects/prj_1/live/quotas")).toMatchObject({ environment: "live", sectionId: "quotas" });
+  });
+
+  it("locates project pages that cover both environments", () => {
+    expect(parseConsolePath("/projects/prj_1/settings")).toEqual({ kind: "project", projectId: "prj_1", environment: undefined, sectionId: "settings", rest: "/settings" });
+    expect(switchEnvironmentPath("/projects/prj_1/settings", "live")).toBeUndefined();
   });
 
   it("switches environment to the same section, dropping environment-specific objects", () => {
