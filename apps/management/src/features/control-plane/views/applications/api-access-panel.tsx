@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon, WaypointsIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
@@ -79,6 +80,11 @@ export function ApiAccessPanel({ application }: { application: Application }) {
         {grants.error ? (
           <div className="p-4">
             <ErrorPanel title="Grants could not be loaded" error={grants.error} />
+          </div>
+        ) : grants.isLoading ? (
+          <div className="flex flex-col gap-2 p-3">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
           </div>
         ) : active.length === 0 ? (
           <EmptyState icon={<WaypointsIcon />} title="No API access" description="This application cannot call any published API yet." />

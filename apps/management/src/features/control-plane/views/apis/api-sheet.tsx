@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-center/client-core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { FormRow } from "@/components/patterns/form";
 import { Notice } from "@/components/patterns/notices";
 import { projectHref } from "@/lib/app-navigation";
@@ -164,6 +165,7 @@ function EditForm({ api, onDone }: { api: PublishedApi; onDone: () => void }) {
   const [rows, setRows] = useState<OperationDraft[]>(() => draftsFrom(api.operations));
   const [attempted, setAttempted] = useState(false);
   const [serverErrors, setServerErrors] = useState<FieldErrors>({});
+  const [confirming, setConfirming] = useState(false);
 
   const upstreamChanged = upstreamUrl.trim() !== api.upstreamUrl;
   const opsChanged = operationsChanged(api.operations, rows);
@@ -194,47 +196,70 @@ function EditForm({ api, onDone }: { api: PublishedApi; onDone: () => void }) {
   const removedActions = [...new Set(api.operations.map((operation) => operation.action))].filter((action) => !rows.some((row) => row.action.trim() === action));
 
   return (
-    <form
-      className="flex h-full min-h-0 flex-col"
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        setAttempted(true);
-        if (!invalid) update.mutate();
-      }}
-    >
-      <SheetHeader>
-        <SheetTitle>Edit {api.name}</SheetTitle>
-        <SheetDescription>Changes apply to the next request. The slug and name cannot be changed.</SheetDescription>
-      </SheetHeader>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
-        <UpstreamField
-          value={upstreamUrl}
-          onChange={(value) => {
-            setUpstreamUrl(value);
-            setServerErrors({});
-          }}
-          error={upstreamError}
-        />
-        <Notice title="Saving replaces every operation">
-          The gateway stores exactly the rows below. A request that matches no row is refused.
-        </Notice>
-        {opsChanged && removedActions.length > 0 ? (
-          <Notice tone="warning" title="Some actions are no longer declared">
-            No operation uses <span className="font-mono">{removedActions.join(", ")}</span> any more. Applications granted only these actions cannot call this API.
+    <>
+      <form
+        className="flex h-full min-h-0 flex-col"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          setAttempted(true);
+          if (invalid) return;
+          // Live consumers are affected from the next request, so live edits ask first.
+          if (kind === "live") setConfirming(true);
+          else update.mutate();
+        }}
+      >
+        <SheetHeader>
+          <SheetTitle>Edit {api.name}</SheetTitle>
+          <SheetDescription>Changes apply to the next request. The slug and name cannot be changed.</SheetDescription>
+        </SheetHeader>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+          <UpstreamField
+            value={upstreamUrl}
+            onChange={(value) => {
+              setUpstreamUrl(value);
+              setServerErrors({});
+            }}
+            error={upstreamError}
+          />
+          <Notice title="Saving replaces every operation">
+            The gateway stores exactly the rows below. A request that matches no row is refused.
           </Notice>
-        ) : null}
-        <OperationsEditor rows={rows} onChange={setRows} errors={operations.rows} formError={operations.form} showErrors={attempted || opsChanged} />
-      </div>
-      <SheetFooter className="flex-row justify-end border-t">
-        <Button type="button" variant="outline" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={update.isPending || (!upstreamChanged && !opsChanged)}>
-          {update.isPending ? "Saving…" : "Save changes"}
-        </Button>
-      </SheetFooter>
-    </form>
+          {opsChanged && removedActions.length > 0 ? (
+            <Notice tone="warning" title="Some actions are no longer declared">
+              No operation uses <span className="font-mono">{removedActions.join(", ")}</span> any more. Applications granted only these actions cannot call this API.
+            </Notice>
+          ) : null}
+          <OperationsEditor rows={rows} onChange={setRows} errors={operations.rows} formError={operations.form} showErrors={attempted || opsChanged} />
+        </div>
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button type="button" variant="outline" onClick={onDone}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={update.isPending || (!upstreamChanged && !opsChanged)}>
+            {update.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </SheetFooter>
+      </form>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Save live changes to ${api.name}`}
+        description={[
+          upstreamChanged ? "Live requests go to the new upstream from the next request." : null,
+          opsChanged ? "These operations replace every live operation; requests that match none are refused." : null,
+          removedActions.length > 0 ? `Applications granted only ${removedActions.join(", ")} lose access.` : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        confirmLabel="Save live changes"
+        busy={update.isPending}
+        onConfirm={() => {
+          setConfirming(false);
+          update.mutate();
+        }}
+      />
+    </>
   );
 }
 
