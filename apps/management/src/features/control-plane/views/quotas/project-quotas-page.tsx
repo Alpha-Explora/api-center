@@ -16,11 +16,19 @@ import { Panel } from "@/components/patterns/panel";
 import { quotas } from "../../data/quotas";
 import { PROJECT_ADMIN_REASON } from "../../model/access";
 import { EMPTY_QUOTA_FORM, policiesForEnvironment, quotaFormToBody, type QuotaForm, type QuotaFormErrors, type QuotaPolicy } from "../../model/quotas";
-import { useProjectEnvironment } from "../../view-models/project-environment";
+import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
 
 export function ProjectQuotasPage() {
+  return (
+    <RequireEnvironment>
+      <ProjectQuotas />
+    </RequireEnvironment>
+  );
+}
+
+function ProjectQuotas() {
   const { organizationId, project, kind, access, canManage } = useProjectEnvironment();
   const client = useQueryClient();
   const key = [...cpKeys.project(organizationId, project.id), "quota-policies"];
@@ -142,6 +150,7 @@ function CreateProjectPolicySheet({ open, onOpenChange, onCreated }: { open: boo
   const { organizationId, project, kind } = useProjectEnvironment();
   const [form, setForm] = useState<QuotaForm>(EMPTY_QUOTA_FORM);
   const [errors, setErrors] = useState<QuotaFormErrors>({});
+  const [confirming, setConfirming] = useState<Parameters<typeof quotas.createProjectPolicy>[2] | null>(null);
   const create = useMutation({
     mutationFn: (body: Parameters<typeof quotas.createProjectPolicy>[2]) => quotas.createProjectPolicy(organizationId, project.id, body),
     onSuccess: () => {
@@ -155,6 +164,7 @@ function CreateProjectPolicySheet({ open, onOpenChange, onCreated }: { open: boo
     if (!next) {
       setForm(EMPTY_QUOTA_FORM);
       setErrors({});
+      setConfirming(null);
       create.reset();
     }
     onOpenChange(next);
@@ -169,7 +179,10 @@ function CreateProjectPolicySheet({ open, onOpenChange, onCreated }: { open: boo
             event.preventDefault();
             const result = quotaFormToBody(form, kind);
             setErrors(result.ok ? {} : result.errors);
-            if (result.ok) create.mutate(result.body);
+            if (!result.ok) return;
+            // An enforcing live policy can refuse live traffic on the next request.
+            if (kind === "live" && result.body.mode !== "observe") setConfirming(result.body);
+            else create.mutate(result.body);
           }}
         >
           <SheetHeader>
@@ -191,6 +204,18 @@ function CreateProjectPolicySheet({ open, onOpenChange, onCreated }: { open: boo
             </Button>
           </SheetFooter>
         </form>
+        <ConfirmDialog
+          open={confirming !== null}
+          onOpenChange={(next) => !next && setConfirming(null)}
+          title="Enforce a live quota"
+          description={`Live requests from ${project.name} over this limit are refused with 429 from the next request. Use observe mode to measure first.`}
+          confirmLabel="Create and enforce"
+          busy={create.isPending}
+          onConfirm={() => {
+            if (confirming) create.mutate(confirming);
+            setConfirming(null);
+          }}
+        />
       </SheetContent>
     </Sheet>
   );

@@ -160,6 +160,7 @@ function CreateSharedCeilingSheet({
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
   const [errors, setErrors] = useState<QuotaFormErrors>({});
+  const [confirming, setConfirming] = useState<SharedQuotaPolicyBody | null>(null);
   const create = useMutation({
     mutationFn: (body: SharedQuotaPolicyBody) => quotas.createSharedPolicy(organizationId, body),
     onSuccess: (_, body) => {
@@ -178,6 +179,7 @@ function CreateSharedCeilingSheet({
       setProjectIds([]);
       setFilter("");
       setErrors({});
+      setConfirming(null);
       create.reset();
     }
     onOpenChange(next);
@@ -192,7 +194,10 @@ function CreateSharedCeilingSheet({
             event.preventDefault();
             const result = sharedQuotaFormToBody({ ...form, projectIds }, kind);
             setErrors(result.ok ? {} : result.errors);
-            if (result.ok) create.mutate(result.body);
+            if (!result.ok) return;
+            // An enforcing live ceiling can refuse live traffic on the next request.
+            if (result.body.environmentKind === "live" && result.body.mode !== "observe") setConfirming(result.body);
+            else create.mutate(result.body);
           }}
         >
           <SheetHeader>
@@ -257,6 +262,18 @@ function CreateSharedCeilingSheet({
             </Button>
           </SheetFooter>
         </form>
+        <ConfirmDialog
+          open={confirming !== null}
+          onOpenChange={(next) => !next && setConfirming(null)}
+          title="Enforce a live shared ceiling"
+          description={`Live requests from the ${confirming?.projectIds.length ?? 0} chosen project${confirming?.projectIds.length === 1 ? "" : "s"} over this limit are refused with 429 from the next request. Use observe mode to measure first.`}
+          confirmLabel="Create and enforce"
+          busy={create.isPending}
+          onConfirm={() => {
+            if (confirming) create.mutate(confirming);
+            setConfirming(null);
+          }}
+        />
       </SheetContent>
     </Sheet>
   );

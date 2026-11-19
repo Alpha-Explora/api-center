@@ -179,7 +179,7 @@ function RolesPanel() {
         )}
       </Panel>
 
-      <AddRoleSheet open={adding} onOpenChange={setAdding} assignments={rows} teams={teams.data ?? []} onSaved={refresh} />
+      <AddRoleSheet open={adding} onOpenChange={setAdding} assignments={rows} teams={teams.data ?? []} teamsError={teams.error} onSaved={refresh} />
 
       <ConfirmDialog
         open={removing !== null}
@@ -232,12 +232,14 @@ function AddRoleSheet({
   onOpenChange,
   assignments,
   teams,
+  teamsError,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assignments: ProjectRoleAssignment[];
   teams: Team[];
+  teamsError: unknown;
   onSaved: () => void;
 }) {
   const { organizationId, project } = useProject();
@@ -264,6 +266,7 @@ function AddRoleSheet({
 
   function close(next: boolean) {
     if (!next) {
+      setKind("member");
       setEmail("");
       setTeamId("");
       setRole("developer");
@@ -328,6 +331,8 @@ function AddRoleSheet({
                   ))}
                 </datalist>
               </FormRow>
+            ) : teamsError ? (
+              <ErrorPanel title="Teams could not be loaded" error={teamsError} />
             ) : teams.length === 0 ? (
               <Notice title="No teams yet">
                 Create a team on{" "}
@@ -418,6 +423,7 @@ function EnvironmentStatusPanel() {
       toast.success(`${input.status === "suspended" ? "Suspended" : "Resumed"} ${input.kind}`);
       setPending(null);
       void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+      void client.invalidateQueries({ queryKey: cpKeys.projects(organizationId) });
     },
     onError: (error: Error) => {
       setPending(null);
