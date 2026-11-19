@@ -3,6 +3,7 @@ import { WhoAmIController } from "./whoami.controller";
 import { DatabaseModule } from "@database/database.module";
 import { AuthModule } from "@auth/auth.module";
 import { ControlPlaneAdminController } from "./control-plane-admin.controller";
+import { PaymentsMerchantController } from "./payments-merchant.controller";
 import { ControlPlaneAdminService } from "./control-plane-admin.service";
 import { ApplicationAccessService } from "./application-access.service";
 import { RuntimeContextSigner } from "./runtime-context.signer";
@@ -34,7 +35,15 @@ import { EnvironmentInventoryService } from "./environment-inventory.service";
  */
 @Module({
   imports: [DatabaseModule, AuthModule, ApprovalsModule],
-  controllers: [ControlPlaneAdminController, OrganizationAdminController, ApprovalsQueueController, WhoAmIController, ObservabilityController, EnvironmentInventoryController],
+  controllers: [
+    ControlPlaneAdminController,
+    OrganizationAdminController,
+    ApprovalsQueueController,
+    PaymentsMerchantController,
+    WhoAmIController,
+    ObservabilityController,
+    EnvironmentInventoryController,
+  ],
   providers: [
     ControlPlaneAdminService,
     ApplicationAccessService,

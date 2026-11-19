@@ -204,9 +204,40 @@ describe("capability configuration", () => {
     expect(url).toBe(`http://email.internal:4012/admin/projects/${project.id}/email-sender/test`);
     expect(init.headers["X-APICenter-Email-Admin-Token"]).toBe("email-admin-token");
     expect(audit.record.mock.calls[0][0].payload).toEqual({ fromAddress: "hello@serbizio.example", dailyLimit: 200 });
-    await expect(service.configure(scope, "sms", "PUT", {}, actor)).rejects.toMatchObject({ status: 404 });
+    await expect(service.configure(scope, "geo", "PUT", {}, actor)).rejects.toMatchObject({ status: 404 });
+    await expect(service.configure(scope, "email", "DELETE", undefined, actor)).rejects.toMatchObject({ status: 404 });
     await expect(
       service.configure({ ...scope, projectId: "prj_zzzzzzzzzzzzzzzzzzzzzzzz" }, "email", "PUT", {}, actor),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("reads the email sender without auditing and proxies SMS and OTP settings with their own tokens", async () => {
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const service = new CapabilityConfigurationService(prisma as unknown as PrismaService, audit as unknown as AuditEventsService);
+    const fetchImpl = jest.fn().mockImplementation(async () => new Response(JSON.stringify({ configured: true }), { status: 200 }));
+    service.useFetch(fetchImpl);
+    process.env.EMAIL_ADMIN_TOKEN = "email-admin-token";
+    process.env.SMS_ADMIN_TOKEN = "sms-admin-token";
+    process.env.OTP_ADMIN_TOKEN = "otp-admin-token";
+    process.env.SHARED_SERVICE_ROUTE_EMAIL_TEST = "http://email.internal:4012";
+    process.env.SHARED_SERVICE_ROUTE_SMS_TEST = "http://sms.internal:4011";
+    process.env.SHARED_SERVICE_ROUTE_OTP_TEST = "http://otp.internal:4014";
+    const project = await admin.createProject(ORG, { slug: "cfg2", name: "Cfg 2" }, actor);
+    const scope = { organizationId: ORG, projectId: project.id, environmentKind: "test" as const };
+
+    await expect(service.configure(scope, "email", "GET", undefined, actor)).resolves.toEqual({ configured: true });
+    await service.configure(scope, "sms", "PUT", { senderId: "Serbizio" }, actor);
+    await service.configure(scope, "otp", "DELETE", undefined, actor);
+
+    const calls = fetchImpl.mock.calls.map(([url, init]) => ({ url, method: init.method, headers: init.headers }));
+    expect(calls[0]).toMatchObject({ url: `http://email.internal:4012/admin/projects/${project.id}/email-sender/test`, method: "GET" });
+    expect(calls[1]).toMatchObject({ url: `http://sms.internal:4011/admin/projects/${project.id}/sms-sender/test`, method: "PUT" });
+    expect(calls[1].headers["X-APICenter-Sms-Admin-Token"]).toBe("sms-admin-token");
+    expect(calls[2]).toMatchObject({ url: `http://otp.internal:4014/admin/projects/${project.id}/otp-settings/test`, method: "DELETE" });
+    expect(calls[2].headers["X-APICenter-Otp-Admin-Token"]).toBe("otp-admin-token");
+    expect(audit.record.mock.calls.map(([event]) => [event.type, event.resourceType, event.payload])).toEqual([
+      ["control_plane.capability_config.put", "cp_sms_config", { senderId: "Serbizio" }],
+      ["control_plane.capability_config.delete", "cp_otp_config", {}],
+    ]);
   });
 });

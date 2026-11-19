@@ -12,6 +12,16 @@ export function merchantOrganizationIds(env: NodeJS.ProcessEnv = process.env): s
     .filter(Boolean);
 }
 
+/** Whether payments can be enabled for an organization, and why not when they cannot. */
+export function merchantBindingStatus(organizationId: string, env: NodeJS.ProcessEnv = process.env) {
+  const bound = merchantOrganizationIds(env).includes(organizationId.toLowerCase());
+  return {
+    organizationId,
+    bound,
+    reason: bound ? null : "This organization has no approved payments merchant binding, so payments cannot be enabled.",
+  };
+}
+
 export function assertMerchantBinding(organizationId: string, env: NodeJS.ProcessEnv = process.env): void {
   if (!merchantOrganizationIds(env).includes(organizationId.toLowerCase())) {
     throw new AppError(

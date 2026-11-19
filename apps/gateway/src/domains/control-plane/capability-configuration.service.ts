@@ -1,6 +1,7 @@
-// Per-environment capability configuration held by the capability runtimes: the email sender and
-// the Google sign-in OAuth app of a control-plane project. Secrets stay in the runtime; responses
-// and audit records carry only non-secret fields.
+// Per-environment capability configuration held by the capability runtimes: the email sender, the
+// pinned SMS sender ID, OTP code settings and the Google sign-in OAuth app of a control-plane project.
+// Secrets stay in the runtime; responses and audit records carry only non-secret fields. Geolocation
+// has no per-project settings: its lookups are stateless and its volume is capped by quotas.
 
 import { HttpException, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
@@ -27,8 +28,22 @@ const CONFIGURABLE: Record<string, ConfigurableCapability> = {
     tokenEnv: "EMAIL_ADMIN_TOKEN",
     tokenHeader: "X-APICenter-Email-Admin-Token",
     path: (projectId, environment) => `/admin/projects/${encodeURIComponent(projectId)}/email-sender/${environment}`,
-    methods: ["PUT"],
+    methods: ["GET", "PUT"],
     auditFields: ["fromAddress", "dailyLimit"],
+  },
+  sms: {
+    tokenEnv: "SMS_ADMIN_TOKEN",
+    tokenHeader: "X-APICenter-Sms-Admin-Token",
+    path: (projectId, environment) => `/admin/projects/${encodeURIComponent(projectId)}/sms-sender/${environment}`,
+    methods: ["GET", "PUT", "DELETE"],
+    auditFields: ["senderId"],
+  },
+  otp: {
+    tokenEnv: "OTP_ADMIN_TOKEN",
+    tokenHeader: "X-APICenter-Otp-Admin-Token",
+    path: (projectId, environment) => `/admin/projects/${encodeURIComponent(projectId)}/otp-settings/${environment}`,
+    methods: ["GET", "PUT", "DELETE"],
+    auditFields: ["codeLength", "expirySeconds", "maxAttempts", "messageTemplate"],
   },
   gauth: {
     tokenEnv: "GAUTH_ADMIN_TOKEN",
