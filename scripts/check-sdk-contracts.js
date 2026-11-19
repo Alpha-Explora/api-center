@@ -18,12 +18,12 @@ const publicTypeSource = readText('packages/sdk/src/types.ts');
 const eventSource = readText('packages/sdk/src/payment/events.ts');
 
 const requiredSharedOperations = [
-  'email.send', 'email.getStatus',
-  'sms.send', 'sms.getStatus',
-  'otp.generate', 'otp.verify', 'otp.getStatus',
-  'geo.geocodeAddress', 'geo.reverseGeocode', 'geo.checkFence',
-  'googleAuth.getAuthorizationUrl', 'googleAuth.exchangeCode',
-  'googleAuth.refreshToken', 'googleAuth.logout',
+  'email.send', 'email.get',
+  'sms.send', 'sms.get',
+  'otp.send', 'otp.verify', 'otp.get',
+  'geo.geocode', 'geo.reverseGeocode', 'geo.checkGeofence',
+  'auth.google.getAuthorizationUrl', 'auth.google.exchangeCode',
+  'auth.google.refreshToken', 'auth.google.logout',
 ];
 const sharedOperationFiles = {
   email: 'packages/sdk/src/services/email.ts',
@@ -66,7 +66,7 @@ for (const operationId of requiredSharedOperations) {
     if (accepted.minLength !== 16 || accepted.maxLength !== 255) {
       fail(`${operationId} idempotency limits must match the gateway (16-255)`);
     }
-    if (!source.includes('idempotencyKey: options.idempotencyKey')) {
+    if (!source.includes('idempotencyKey: options?.idempotencyKey')) {
       fail(`${operationId} must pass its typed idempotency key through the transport`);
     }
   }
@@ -102,15 +102,12 @@ if (publicTypeSource.match(/\bprovider\b/i)) fail('Public SDK types must not dec
 
 const eventSchema = asyncApi.components?.schemas?.PaymentEvent;
 const requiredEventFields = [
-  'eventId', 'contractVersion', 'eventType', 'ownerTribeId', 'consumerServiceId',
+  'eventId', 'contractVersion', 'eventType', 'environment', 'organizationId', 'projectId', 'applicationId',
   'referenceId', 'aggregateType', 'aggregateId', 'aggregateVersion', 'occurredAt', 'data',
 ];
 for (const field of requiredEventFields) {
   if (!eventSchema?.required?.includes(field)) fail(`AsyncAPI PaymentEvent must require ${field}`);
   if (!eventSource.includes(field)) fail(`SDK event parser must validate ${field}`);
-}
-if (!eventSource.includes('data.aggregateVersion') || !eventSource.includes('aggregateVersion')) {
-  fail('SDK event parser must validate aggregate version parity');
 }
 
 const entryPoint = readText('packages/sdk/src/index.ts');

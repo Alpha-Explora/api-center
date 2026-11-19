@@ -19,7 +19,7 @@ The consumer owns its business records and maps APICenter resources to those rec
 
 ## Event flow
 
-Payment lifecycle events can be delivered to a consumer's configured endpoint through Google Pub/Sub. The APICenter operator configures the subscription and OIDC identity for the consumer. Consumers should verify the push identity, deduplicate by `eventId`, and apply events in `aggregateVersion` order. See [Event delivery](/guides/events/pubsub-delivery) for the event envelope and handling guidance.
+Payment lifecycle events are delivered to the application's webhook as signed HTTPS requests. Consumers verify the signature, deduplicate by `eventId`, and apply events in `aggregateVersion` order. See [Payment event webhooks](/guides/events/webhooks).
 
 Do not grant access based only on a browser redirect. Update the consumer's local payment state after receiving the corresponding verified payment event or after performing an authorized resource read.
 

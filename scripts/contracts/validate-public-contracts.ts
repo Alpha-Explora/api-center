@@ -74,23 +74,22 @@ assert(openApi.components?.schemas?.CheckoutCreateRequest?.properties?.metadata?
 const channel = asyncApi.channels?.['apicenter.payment-events.{environment}'];
 assert(channel, 'payment event channel is missing');
 assert(channel['x-apicenter-consumer-filter']?.attribute === 'consumerServiceId', 'event channel must filter by consumerServiceId');
-assert(channel['x-apicenter-push-delivery']?.authentication === 'oidc', 'event delivery must use OIDC push authentication');
-assert(channel['x-apicenter-push-delivery']?.maxDeliveryAttempts === 20, 'event delivery must define a 20-attempt dead-letter policy');
+assert(channel['x-apicenter-webhook-delivery']?.signature === 'standard-webhooks-v1', 'event delivery must be signed Standard Webhooks');
+assert(channel['x-apicenter-webhook-delivery']?.maxDeliveryAttempts === 20, 'event delivery must define a 20-attempt dead-letter policy');
 const paymentEvent = asyncApi.components?.schemas?.PaymentEvent;
-const requiredEnvelopeFields = ['eventId', 'contractVersion', 'eventType', 'ownerTribeId', 'consumerServiceId', 'referenceId', 'aggregateType', 'aggregateId', 'aggregateVersion', 'occurredAt', 'data'];
+const requiredEnvelopeFields = ['eventId', 'contractVersion', 'eventType', 'environment', 'organizationId', 'projectId', 'applicationId', 'referenceId', 'aggregateType', 'aggregateId', 'aggregateVersion', 'occurredAt', 'data'];
 for (const field of requiredEnvelopeFields) assert(paymentEvent?.required?.includes(field), `PaymentEvent must require ${field}`);
-const checkoutSnapshot = asyncApi.components?.schemas?.CheckoutSnapshot;
-for (const field of ['checkoutId', 'referenceId', 'status', 'amount', 'aggregateVersion']) assert(checkoutSnapshot?.required?.includes(field), `CheckoutSnapshot must require ${field}`);
+const checkoutPaid = asyncApi.components?.schemas?.CheckoutPaid;
+for (const field of ['status', 'checkoutId', 'paymentId', 'amount', 'currency']) assert(checkoutPaid?.required?.includes(field), `CheckoutPaid must require ${field}`);
 
-const examplePaths = ['contracts/public/examples/payment-checkout-created.json', 'contracts/public/examples/payment-checkout-paid-event.json'];
+const examplePaths = ['contracts/public/examples/payment-checkout-paid-event.json'];
 for (const relativePath of examplePaths) {
   const example = readJson(relativePath);
   for (const field of requiredEnvelopeFields) assert(example[field] !== undefined, `${relativePath} is missing ${field}`);
-  assert(example.contractVersion === '1.0', `${relativePath} must use contractVersion 1.0`);
-  assert(['test', 'live'].includes(example.data?.environment), `${relativePath} has an invalid environment`);
-  assert(example.data?.aggregateVersion === example.aggregateVersion, `${relativePath} data aggregateVersion must match envelope`);
+  assert(example.contractVersion === '2.0', `${relativePath} must use contractVersion 2.0`);
+  assert(['test', 'live'].includes(example.environment), `${relativePath} has an invalid environment`);
 }
-const paidExample = readJson(examplePaths[1]);
+const paidExample = readJson(examplePaths[0]);
 assert(paidExample.eventType === 'payment.checkout.paid', 'paid example must use payment.checkout.paid');
 assert(paidExample.data?.status === 'paid', 'paid example must have paid status');
 console.log('Public APICenter consumer contracts are valid.');

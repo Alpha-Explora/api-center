@@ -1,8 +1,11 @@
 asyncapi: 3.1.0
 info:
   title: APICenter Payment Events
-  version: 1.0.0
-  description: Normalized payment lifecycle events delivered through Google Pub/Sub.
+  version: 2.0.0
+  description: >-
+    Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the
+    application that created the resource, and delivers it to that application's webhook as a signed
+    HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature).
 defaultContentType: application/json
 servers:
   test:
@@ -16,13 +19,14 @@ servers:
 channels:
   "apicenter.payment-events.{environment}":
     address: apicenter.payment-events.{environment}
-    description: Filtered payment events for registered consumer services.
+    description: Payment events, filtered per recipient application and delivered to its webhook.
     x-apicenter-consumer-filter:
       attribute: consumerServiceId
-      source: control_plane.consumer_services
-    x-apicenter-push-delivery:
-      authentication: oidc
-      audience: Cloud Run event endpoint
+      source: control_plane.applications
+    x-apicenter-webhook-delivery:
+      signature: standard-webhooks-v1
+      headers: [webhook-id, webhook-timestamp, webhook-signature]
+      successStatus: 2xx
       deadLetterTopic: apicenter.payment-events.{environment}.dead-letter
       maxDeliveryAttempts: 20
     parameters:
@@ -30,20 +34,8 @@ channels:
         description: APICenter environment.
         enum: [test, live]
     messages:
-      PaymentCheckoutCreated:
-        $ref: '#/components/messages/PaymentCheckoutCreated'
       PaymentCheckoutPaid:
         $ref: '#/components/messages/PaymentCheckoutPaid'
-      PaymentCheckoutFailed:
-        $ref: '#/components/messages/PaymentCheckoutFailed'
-      PaymentRefunded:
-        $ref: '#/components/messages/PaymentRefunded'
-      PaymentSubscriptionActive:
-        $ref: '#/components/messages/PaymentSubscriptionActive'
-      PaymentSubscriptionPastDue:
-        $ref: '#/components/messages/PaymentSubscriptionPastDue'
-      PaymentSubscriptionCancelled:
-        $ref: '#/components/messages/PaymentSubscriptionCancelled'
 operations:
   receivePaymentEvent:
     action: receive
@@ -53,77 +45,42 @@ operations:
       - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentCheckoutPaid'
 components:
   messages:
-    PaymentCheckoutCreated:
-      name: payment.checkout.created
-      title: Checkout created
-      payload:
-        $ref: '#/components/schemas/PaymentEvent'
     PaymentCheckoutPaid:
       name: payment.checkout.paid
       title: Checkout paid
       payload:
-        type: object
-        required: [eventId, contractVersion, eventType, ownerTribeId, consumerServiceId, referenceId, aggregateType, aggregateId, aggregateVersion, occurredAt, data]
-        properties:
-          eventId: { type: string }
-          contractVersion: { type: string, enum: ['1.0', '1.1'] }
-          eventType: { type: string, const: payment.checkout.paid }
-          ownerTribeId: { type: string, description: 'Deprecated: same value as ownerGroupId. Removed in contract 2.0.' }
-          ownerGroupId: { type: string, description: 'Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project).' }
-          ownerProjectId: { type: string, description: 'Contract 1.1: owning project of the resource.' }
-          consumerServiceId: { type: string }
-          referenceId: { type: string }
-          aggregateType: { type: string, const: checkout }
-          aggregateId: { type: string }
-          aggregateVersion: { type: integer, minimum: 1 }
-          occurredAt: { type: string, format: date-time }
-          correlationId: { type: string }
-          data: { $ref: '#/components/schemas/CheckoutSnapshot' }
-    PaymentCheckoutFailed:
-      name: payment.checkout.failed
-      payload: { $ref: '#/components/schemas/PaymentEvent' }
-    PaymentRefunded:
-      name: payment.refunded
-      payload: { $ref: '#/components/schemas/PaymentEvent' }
-    PaymentSubscriptionActive:
-      name: subscription.active
-      payload: { $ref: '#/components/schemas/PaymentEvent' }
-    PaymentSubscriptionPastDue:
-      name: subscription.past_due
-      payload: { $ref: '#/components/schemas/PaymentEvent' }
-    PaymentSubscriptionCancelled:
-      name: subscription.cancelled
-      payload: { $ref: '#/components/schemas/PaymentEvent' }
+        allOf:
+          - $ref: '#/components/schemas/PaymentEvent'
+          - type: object
+            properties:
+              eventType: { type: string, const: payment.checkout.paid }
+              aggregateType: { type: string, const: checkout }
+              data: { $ref: '#/components/schemas/CheckoutPaid' }
   schemas:
     PaymentEvent:
       type: object
-      required: [eventId, contractVersion, eventType, ownerTribeId, consumerServiceId, referenceId, aggregateType, aggregateId, aggregateVersion, occurredAt, data]
+      required: [eventId, contractVersion, eventType, environment, organizationId, projectId, applicationId, referenceId, aggregateType, aggregateId, aggregateVersion, occurredAt, data]
       properties:
-        eventId: { type: string }
-        contractVersion: { type: string, enum: ['1.0', '1.1'] }
+        eventId: { type: string, description: 'Stable across retries; deduplicate by it.' }
+        contractVersion: { type: string, const: '2.0' }
         eventType: { type: string }
-        ownerTribeId: { type: string, description: 'Deprecated: same value as ownerGroupId. Removed in contract 2.0.' }
-        ownerGroupId: { type: string, description: 'Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project).' }
-        ownerProjectId: { type: string, description: 'Contract 1.1: owning project of the resource.' }
-        consumerServiceId: { type: string }
-        referenceId: { type: string }
+        environment: { type: string, enum: [test, live] }
+        organizationId: { type: string }
+        projectId: { type: string }
+        applicationId: { type: string, description: 'The application whose call created the resource.' }
+        referenceId: { type: string, description: 'The reference the application gave the resource.' }
         aggregateType: { type: string, enum: [checkout, payment_intent, refund, subscription, invoice] }
         aggregateId: { type: string }
-        aggregateVersion: { type: integer, minimum: 1 }
+        aggregateVersion: { type: integer, minimum: 1, description: 'Apply an event only when it is newer than the stored version.' }
         occurredAt: { type: string, format: date-time }
         correlationId: { type: string }
         data: { type: object, additionalProperties: true }
-    CheckoutSnapshot:
+    CheckoutPaid:
       type: object
-      required: [checkoutId, referenceId, status, amount, aggregateVersion]
+      required: [status, checkoutId, paymentId, amount, currency]
       properties:
+        status: { type: string, const: paid }
         checkoutId: { type: string }
-        referenceId: { type: string }
-        status: { type: string, enum: [created, pending, paid, failed, cancelled, expired] }
-        amount:
-          type: object
-          required: [amountMinor, currency]
-          properties:
-            amountMinor: { type: integer, minimum: 1 }
-            currency: { type: string, const: PHP }
-        aggregateVersion: { type: integer, minimum: 1 }
+        paymentId: { type: string }
+        amount: { type: integer, minimum: 1, description: 'Minor units (centavos for PHP).' }
+        currency: { type: string, minLength: 3, maxLength: 3 }

@@ -2,6 +2,7 @@
 
 ## 2026-11-19
 
+- Rewrote getting started, authentication, access and tenancy, and SDK integration for SDK 3.0 and application keys; added `packages/sdk/UPGRADING.md`. Removed the guides for service registration, token exchange, registry health and Pub/Sub push delivery, and the payment runbook's AlphaCI smoke harness.
 - Added the consumer guide for payment event webhooks (endpoint setup, signature verification, retries, deduplication and secret rotation), pointed the consumer runbook at it, and recorded the webhook delivery service's deployment requirements in control plane operations.
 
 ## 2026-11-18

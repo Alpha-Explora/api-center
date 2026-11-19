@@ -1,30 +1,63 @@
 import { z } from 'zod';
 
-// Contract 1.1 adds ownerGroupId and ownerProjectId; 1.0 events still parse. ownerTribeId is kept
-// for 1.0 consumers and carries the same value as ownerGroupId.
-const PaymentEventSchema = z.object({
-  eventId: z.string().min(1), contractVersion: z.enum(['1.0', '1.1']), eventType: z.string().min(1),
-  ownerTribeId: z.string().min(1), ownerGroupId: z.string().min(1).optional(), ownerProjectId: z.string().min(1).optional(),
-  consumerServiceId: z.string().min(1), referenceId: z.string().min(1),
-  aggregateType: z.enum(['checkout', 'payment_intent', 'refund', 'subscription', 'invoice']),
-  aggregateId: z.string().min(1), aggregateVersion: z.number().int().min(1),
-  occurredAt: z.string().datetime({ offset: true }), correlationId: z.string().min(1).optional(),
-  data: z.record(z.string(), z.unknown()),
-}).superRefine((event, context) => {
-  if (event.data.aggregateVersion !== undefined && event.data.aggregateVersion !== event.aggregateVersion) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['data', 'aggregateVersion'], message: 'data.aggregateVersion must match aggregateVersion' });
-  }
+// Payment event contract 2.0. Every event names the organization, project and application it
+// belongs to; contract 1.x fields (ownerTribeId, ownerGroupId, consumerServiceId) are gone.
+const envelope = {
+  eventId: z.string().min(1),
+  contractVersion: z.literal('2.0'),
+  environment: z.enum(['test', 'live']),
+  organizationId: z.string().min(1),
+  projectId: z.string().min(1),
+  applicationId: z.string().min(1),
+  /** Your reference for the resource, such as the order ID you gave the checkout. */
+  referenceId: z.string().min(1),
+  aggregateId: z.string().min(1),
+  /** Increases with every change to the resource; apply an event only if it is newer than what you stored. */
+  aggregateVersion: z.number().int().min(1),
+  occurredAt: z.string().datetime({ offset: true }),
+  correlationId: z.string().min(1).optional(),
+};
+
+const CheckoutPaidEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payment.checkout.paid'),
+  aggregateType: z.literal('checkout'),
+  data: z.object({
+    status: z.literal('paid'),
+    checkoutId: z.string().min(1),
+    paymentId: z.string().min(1),
+    /** In minor units (centavos for PHP). */
+    amount: z.number().int().positive(),
+    currency: z.string().length(3),
+  }).passthrough(),
 });
 
-export type PaymentEvent = z.infer<typeof PaymentEventSchema> & {
-  /** Who owns the resource, whichever contract version delivered the event. */
-  owner: { groupId: string; projectId?: string };
+/** An event type this SDK version does not know yet. Acknowledge it; upgrade to read it. */
+const UnrecognizedEventSchema = z.object({
+  ...envelope,
+  eventType: z.string().min(1),
+  aggregateType: z.string().min(1),
+  data: z.record(z.string(), z.unknown()),
+});
+
+export type CheckoutPaidEvent = z.infer<typeof CheckoutPaidEventSchema>;
+export type UnrecognizedPaymentEvent = Omit<z.infer<typeof UnrecognizedEventSchema>, 'eventType'> & {
+  eventType: 'unrecognized';
+  /** The event type as sent. */
+  type: string;
 };
+/** Narrow on `eventType`: `if (event.eventType === 'payment.checkout.paid') { event.data.amount … }`. */
+export type PaymentEvent = CheckoutPaidEvent | UnrecognizedPaymentEvent;
+
+const KNOWN = { 'payment.checkout.paid': CheckoutPaidEventSchema } as const;
+
+/** Validates a contract 2.0 payment event. Throws a ZodError for anything malformed. */
 export function parsePaymentEvent(input: unknown): PaymentEvent {
-  const event = PaymentEventSchema.parse(input);
-  return {
-    ...event,
-    owner: { groupId: event.ownerGroupId ?? event.ownerTribeId, ...(event.ownerProjectId ? { projectId: event.ownerProjectId } : {}) },
-  };
+  const type = (input as { eventType?: unknown } | null)?.eventType;
+  const known = typeof type === 'string' ? KNOWN[type as keyof typeof KNOWN] : undefined;
+  if (known) return known.parse(input);
+  const event = UnrecognizedEventSchema.parse(input);
+  return { ...event, eventType: 'unrecognized', type: event.eventType };
 }
-export { PaymentEventSchema };
+
+export const PaymentEventSchema = z.union([CheckoutPaidEventSchema, UnrecognizedEventSchema]);

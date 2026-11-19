@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const DEFAULT_REPO_ROOT = path.resolve(__dirname, '..');
 
-const FORBIDDEN_DIRECTORIES = ['apps/gateway/src/sdk', 'examples/sandbox/sdk'];
+const FORBIDDEN_DIRECTORIES = ['apps/gateway/src/sdk'];
 const FORBIDDEN_IMPORT_PATTERNS = [
   {
     description:

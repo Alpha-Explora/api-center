@@ -17,7 +17,7 @@ Add this configuration to the consumer repository's `.npmrc`:
 Set `NODE_AUTH_TOKEN` in your local environment or CI secret store to a GitHub token with package read access. Do not commit a token or paste it into source code. Install the current release:
 
 ```bash
-npm install @alpha-explora/apicenter-sdk@2.2.0
+npm install @alpha-explora/apicenter-sdk@3.0.0
 ```
 
 ## Configure a service
@@ -33,11 +33,11 @@ Create the client in backend code:
 ```ts
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-// Reads APICENTER_API_KEY, and APICENTER_URL when set; explicit options win.
+// Reads APICENTER_API_KEY; the key selects test or live.
 const api = new ApiCenter();
 ```
 
-The key's prefix (`ak_test_` or `ak_live_`) selects the environment and the key identifies your application; APICenter enforces the actions it was granted. Services that still use service credentials pass `auth: { serviceId, environment, secret }` instead; that form is deprecated.
+The key's prefix (`ak_test_` or `ak_live_`) selects the environment and the key identifies your application; APICenter enforces the actions it was granted.
 
 ## Call a shared service
 
@@ -54,15 +54,10 @@ const result = await api.email.send(
 );
 ```
 
-Available namespaces include `email`, `sms`, `otp`, `geo`, `googleAuth`, and `payments`. Request and response types are re-exported from `@alpha-explora/apicenter-contracts`.
+Available namespaces include `email`, `sms`, `otp`, `geo`, `auth.google`, and `payments`. Request and response types are re-exported from `@alpha-explora/apicenter-contracts`.
 
 ```ts
-import { randomUUID } from 'node:crypto';
-
-const challenge = await api.otp.generate(
-  { recipient: 'person@example.com', channel: 'email', purpose: 'login' },
-  { idempotencyKey: randomUUID() },
-);
+const challenge = await api.otp.send({ recipient: 'person@example.com', channel: 'email', purpose: 'login' });
 
 const location = await api.geo.reverseGeocode({
   latitude: 14.5995,
@@ -72,7 +67,7 @@ const location = await api.geo.reverseGeocode({
 
 ## Payments
 
-Payments use the same application key when the application holds the matching `payments:*` grants; there is no separate payment key. (The deprecated `paymentApiKey` option remains for services on legacy payment keys.)
+Payments use the same application key when the application holds the matching `payments:*` grants; there is no separate payment key.
 
 ```ts
 const checkout = await api.payments.checkouts.create(
@@ -86,27 +81,22 @@ const checkout = await api.payments.checkouts.create(
 );
 ```
 
-Payment writes require a unique idempotency key between 16 and 255 characters. Persist the key with the business operation so a retry uses the same value. The SDK does not retry mutations automatically. It accepts the gateway's `202` pending-resource response as well as completed resources.
+Every write carries an idempotency key. The SDK generates one per call and reuses it when it retries network errors, timeouts, 408, 429 and 5xx responses. For a write tied to a business operation, such as one checkout per order, store your own key (16 to 255 characters) with the operation and pass it, so a retry after a restart cannot repeat the write. A write the provider has not finished returns `{ status: 'pending', resourceId }`; check with `isPending(result)`.
 
 ## Errors
 
-The SDK throws `ApiCenterError` for APICenter failures. It includes the HTTP `status`, APICenter `code` and `details` when present, and `correlationId` when the gateway returns one.
+Every failure is an `ApiCenterError` with the HTTP `status`, APICenter's `code`, `details` when present, and a `requestId` to quote to support. Subclasses name the kind of failure: `AuthenticationError`, `PermissionError`, `ValidationError`, `NotFoundError`, `IdempotencyError`, `RateLimitError` and `QuotaExceededError` (with `retryAfterSeconds`), `ServerError`, and `ConnectionError`.
 
 ```ts
-import { randomUUID } from 'node:crypto';
-import { ApiCenterError } from '@alpha-explora/apicenter-sdk';
+import { PermissionError, QuotaExceededError } from '@alpha-explora/apicenter-sdk';
 
 try {
-  await api.sms.send(
-    { to: '+639171234567', message: 'Your code is ready.' },
-    { idempotencyKey: randomUUID() },
-  );
+  await api.sms.send({ to: '+639171234567', message: 'Your code is ready.' });
 } catch (error) {
-  if (error instanceof ApiCenterError) {
-    console.error(error.status, error.code, error.correlationId);
-  }
-  throw error;
+  if (error instanceof PermissionError) console.error('Ask for the sms:send grant', error.requestId);
+  else if (error instanceof QuotaExceededError) console.error(`Budget used up; retry in ${error.retryAfterSeconds}s`);
+  else throw error;
 }
 ```
 
-Choose `test` or `live` using the credentials issued for that environment. Never share credentials between services or environments.
+Use the key issued for each environment: `ak_test_…` in test deployments, `ak_live_…` in production. Never share a key between applications or environments.

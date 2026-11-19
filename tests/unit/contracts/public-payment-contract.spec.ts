@@ -13,7 +13,7 @@ function readText(relativePath: string) {
 describe('public payment contracts', () => {
   const openApi = parse(readFileSync(join(process.cwd(), 'contracts/public/apicenter.openapi.yaml'), 'utf8')) as Record<string, any>;
   const asyncApi = parse(readFileSync(join(process.cwd(), 'contracts/public/apicenter.asyncapi.yaml'), 'utf8')) as Record<string, any>;
-  const requiredEnvelopeFields = ['eventId', 'contractVersion', 'eventType', 'ownerTribeId', 'consumerServiceId', 'referenceId', 'aggregateType', 'aggregateId', 'aggregateVersion', 'occurredAt', 'data'];
+  const requiredEnvelopeFields = ['eventId', 'contractVersion', 'eventType', 'environment', 'organizationId', 'projectId', 'applicationId', 'referenceId', 'aggregateType', 'aggregateId', 'aggregateVersion', 'occurredAt', 'data'];
 
   it('exposes versioned HTTP and event contracts', () => {
     expect(openApi.openapi).toBe('3.2.0');
@@ -35,7 +35,7 @@ describe('public payment contracts', () => {
     expect(asyncApi.asyncapi).toBe('3.1.0');
     expect(asyncApi.channels['apicenter.payment-events.{environment}']).toBeDefined();
     expect(asyncApi.components.schemas.PaymentEvent.required).toEqual(expect.arrayContaining(requiredEnvelopeFields));
-    expect(asyncApi.components.messages.PaymentCheckoutPaid.payload.properties.aggregateVersion).toBeDefined();
+    expect(asyncApi.components.messages.PaymentCheckoutPaid.payload.allOf[1].properties.data).toEqual({ $ref: '#/components/schemas/CheckoutPaid' });
   });
 
   it('keeps every HTTP mutation idempotent and inside the public payment namespace', () => {
@@ -66,11 +66,11 @@ describe('public payment contracts', () => {
     };
     const operations = shared.sdkOperations as Array<Record<string, any>>;
     expect(operations.map((operation) => operation.operationId)).toEqual(expect.arrayContaining([
-      'email.send', 'email.getStatus', 'sms.send', 'sms.getStatus',
-      'otp.generate', 'otp.verify', 'otp.getStatus',
-      'geo.geocodeAddress', 'geo.reverseGeocode', 'geo.checkFence',
-      'googleAuth.getAuthorizationUrl', 'googleAuth.exchangeCode',
-      'googleAuth.refreshToken', 'googleAuth.logout',
+      'email.send', 'email.get', 'sms.send', 'sms.get',
+      'otp.send', 'otp.verify', 'otp.get',
+      'geo.geocode', 'geo.reverseGeocode', 'geo.checkGeofence',
+      'auth.google.getAuthorizationUrl', 'auth.google.exchangeCode',
+      'auth.google.refreshToken', 'auth.google.logout',
     ]));
 
     for (const operation of operations) {
@@ -83,7 +83,7 @@ describe('public payment contracts', () => {
       }
       if (operation.idempotencyKey?.required) {
         expect(operation.idempotencyKey).toMatchObject({ minLength: 16, maxLength: 255 });
-        expect(sources[operation.serviceId]).toContain('idempotencyKey: options.idempotencyKey');
+        expect(sources[operation.serviceId]).toContain('write: true, idempotencyKey: options?.idempotencyKey');
       }
     }
   });
@@ -112,17 +112,12 @@ describe('public payment contracts', () => {
     expect([...discovered].sort()).toEqual([...supportedIds].sort());
   });
 
-  it('ships canonical created and paid event examples', () => {
-    const created = readJson('contracts/public/examples/payment-checkout-created.json');
+  it('ships a canonical contract 2.0 paid-checkout event example', () => {
     const paid = readJson('contracts/public/examples/payment-checkout-paid-event.json');
-    for (const event of [created, paid]) {
-      for (const field of requiredEnvelopeFields) expect(event[field]).toBeDefined();
-      expect(['1.0', '1.1']).toContain(event.contractVersion);
-      expect(event.data.environment).toMatch(/^(test|live)$/);
-      expect(event.data.aggregateVersion).toBe(event.aggregateVersion);
-    }
+    for (const field of requiredEnvelopeFields) expect(paid[field]).toBeDefined();
+    expect(paid.contractVersion).toBe('2.0');
+    expect(paid.environment).toMatch(/^(test|live)$/);
     expect(paid.eventType).toBe('payment.checkout.paid');
-    expect(paid.data.status).toBe('paid');
-    expect(paid.data.amount).toEqual({ amountMinor: 39900, currency: 'PHP' });
+    expect(paid.data).toEqual({ status: 'paid', checkoutId: 'chk_example_01', paymentId: 'pay_example_01', amount: 39900, currency: 'PHP' });
   });
 });

@@ -176,6 +176,7 @@
       "<rootDir>/.claude/"
     ],
     "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1",
       "^@config/(.*)$": "<rootDir>/apps/gateway/src/config/$1",
       "^@shared/(.*)$": "<rootDir>/apps/gateway/src/shared/$1",
       "^@database/(.*)$": "<rootDir>/apps/gateway/src/database/$1",
@@ -209,7 +210,6 @@
   "packageManager": "npm@11.6.2",
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "examples/sandbox/demand-service"
+    "packages/*"
   ]
 }

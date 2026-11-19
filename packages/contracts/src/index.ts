@@ -4,9 +4,8 @@
  */
 
 export const PUBLIC_CONTRACT_VERSION = '1.0';
-/** Payment event envelope versions in circulation. 1.1 adds ownerGroupId and ownerProjectId. */
-export const PAYMENT_EVENT_CONTRACT_VERSIONS = ['1.0', '1.1'] as const;
-export type PaymentEventContractVersion = (typeof PAYMENT_EVENT_CONTRACT_VERSIONS)[number];
+/** The payment event contract version every event carries. */
+export const PAYMENT_EVENT_CONTRACT_VERSION = '2.0';
 export const OPENAPI_VERSION = '3.2.0';
 export const ASYNCAPI_VERSION = '3.1.0';
 
@@ -89,26 +88,23 @@ export type SubscriptionStatus =
 
 export type RefundStatus = 'pending' | 'processing' | 'succeeded' | 'failed';
 
+/** Payment event contract 2.0: who the resource belongs to, which change this is, and its data. */
 export interface PaymentEventEnvelope<T = Record<string, unknown>> {
   eventId: string;
-  contractVersion: PaymentEventContractVersion;
+  contractVersion: typeof PAYMENT_EVENT_CONTRACT_VERSION;
   eventType: string;
-  /** @deprecated Same value as ownerGroupId; removed in contract 2.0. */
-  ownerTribeId: string;
-  /** Contract 1.1: the resource's owner group (organization, or legacy tribe of a migrated project). */
-  ownerGroupId?: string;
-  /** Contract 1.1: the resource's owning project. */
-  ownerProjectId?: string;
-  consumerServiceId: string;
+  environment: PaymentEnvironment;
+  organizationId: string;
+  projectId: string;
+  /** The application whose call created the resource. */
+  applicationId: string;
   referenceId: string;
   aggregateType: string;
   aggregateId: string;
   aggregateVersion: number;
   occurredAt: string;
-  data: T & {
-    environment: PaymentEnvironment;
-    aggregateVersion: number;
-  };
+  correlationId?: string;
+  data: T;
 }
 
 export interface CheckoutSnapshot {

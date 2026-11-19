@@ -1,131 +1,144 @@
-import { ApiCenter } from '../../src';
+import { ApiCenter, isPending } from '../../src';
 
-function jsonResponse(data: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    headers: new Headers(),
-    text: async () => JSON.stringify({ success: true, data }),
-  } as Response;
-}
+const KEY = `ak_test_abcdefghijklmnop_${'B'.repeat(43)}`;
+const BASE = 'https://api.apicenter.itsandbox.site';
 
-function calls(fetchImpl: jest.Mock): Array<[string, RequestInit]> {
-  return fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>;
-}
-
-describe('ApiCenter shared-service namespaces', () => {
-  it('reads setup status with the service bearer token', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({
-      projectId: 'shop',
-      serviceId: 'orders-api',
-      environment: 'test',
-      checks: [{ id: 'payments-access', status: 'unknown', detail: 'Key configured, caller possession is unknown.', fix: 'Ask an operator.' }],
-    }));
-    const api = new ApiCenter({
-      baseUrl: 'https://gateway.example.test',
-      auth: { getAccessToken: async () => 'service-token' },
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+function recorder(data: (url: string) => unknown = () => ({})) {
+  const calls: Array<{ method: string; path: string; body: unknown; write: boolean }> = [];
+  const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    calls.push({
+      method: init?.method ?? 'GET',
+      path: String(url).slice(BASE.length),
+      body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+      write: headers.has('idempotency-key'),
     });
-
-    const status = await api.setup.status();
-
-    expect(status.projectId).toBe('shop');
-    expect(status.checks[0]?.status).toBe('unknown');
-    expect(calls(fetchImpl)[0]?.[0]).toBe('https://gateway.example.test/api/v1/setup/status');
-    expect(calls(fetchImpl)[0]?.[1].method).toBe('GET');
-    expect(new Headers(calls(fetchImpl)[0]?.[1].headers).get('authorization')).toBe('Bearer service-token');
+    return new Response(JSON.stringify({ success: true, data: data(String(url)) }), { status: 200 });
   });
+  return { api: new ApiCenter({ apiKey: KEY, fetch: fetchImpl as unknown as typeof fetch }), calls };
+}
 
-  it('maps each supported operation to its route and preserves contract payloads', async () => {
-    const fetchImpl = jest.fn().mockImplementation(async () => jsonResponse({ ok: true }));
-    const api = new ApiCenter({
-      baseUrl: 'https://gateway.example.test/',
-      auth: { getAccessToken: async () => 'service-token' },
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
+describe('shared services', () => {
+  it('maps each operation to its route, with idempotency keys only on writes', async () => {
+    const { api, calls } = recorder();
+    await api.email.send({ to: 'a@example.test', subject: 'S', text: 'T' });
+    await api.email.get('msg/1');
+    await api.sms.send({ to: '+639170000000', message: 'hi' });
+    await api.sms.get('SM1');
+    await api.otp.send({ channel: 'email', recipient: 'a@example.test' } as never);
+    await api.otp.verify({ otpId: 'otp_1', code: '123456' } as never);
+    await api.otp.get('otp_1');
+    await api.geo.geocode({ address: 'Makati' });
+    await api.geo.reverseGeocode({ latitude: 1, longitude: 2 });
+    await api.geo.checkGeofence({ point: { latitude: 1, longitude: 2 } } as never);
+    await api.auth.google.getAuthorizationUrl({ redirectUri: 'https://app.test/cb' } as never);
+    await api.auth.google.exchangeCode({ code: 'c' } as never);
+    await api.auth.google.refreshToken({ refreshToken: 'r' } as never);
+    await api.auth.google.logout({ refreshToken: 'r' } as never);
 
-    await api.email.send({ to: 'person@example.com', subject: 'Hello', text: 'Welcome' }, {
-      idempotencyKey: 'email-send-000001',
-    });
-    await api.email.getStatus('message id/1');
-    await api.sms.send({ to: '+639171234567', message: 'Hello' }, {
-      idempotencyKey: 'sms-send-00000001',
-    });
-    await api.sms.getStatus('sms-1');
-    await api.otp.generate({ channel: 'email', recipient: 'person@example.com', purpose: 'login' }, {
-      idempotencyKey: 'otp-generate-0001',
-    });
-    await api.otp.verify({ otpId: 'otp-1', code: '123456' }, {
-      idempotencyKey: 'otp-verify-00001',
-    });
-    await api.otp.getStatus('otp 1');
-    await api.geo.geocodeAddress({ address: 'Manila, Philippines' });
-    await api.geo.reverseGeocode({ latitude: 14.5995, longitude: 120.9842 });
-    await api.geo.checkFence({ latitude: 14.5995, longitude: 120.9842, fenceId: 'metro-manila' });
-    await api.googleAuth.getAuthorizationUrl({ scopes: ['openid', 'email'] });
-    await api.googleAuth.exchangeCode({ code: 'code', state: 'state' });
-    await api.googleAuth.refreshToken({ refreshToken: 'google-refresh-token' });
-    await api.googleAuth.logout({ refreshToken: 'google-refresh-token' });
-
-    expect(calls(fetchImpl).map(([url, init]) => [url, init.method])).toEqual([
-      ['https://gateway.example.test/api/v1/shared/email/send', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/email/status/message%20id%2F1', 'GET'],
-      ['https://gateway.example.test/api/v1/shared/sms/send', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/sms/status/sms-1', 'GET'],
-      ['https://gateway.example.test/api/v1/shared/otp/generate', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/otp/verify', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/otp/status/otp%201', 'GET'],
-      ['https://gateway.example.test/api/v1/shared/geo/geocode', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/geo/reverse-geocode', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/geo/geofence/check', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/gauth/oauth/authorize', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/gauth/oauth/token', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/gauth/oauth/token/refresh', 'POST'],
-      ['https://gateway.example.test/api/v1/shared/gauth/oauth/logout', 'POST'],
+    expect(calls.map(({ method, path, write }) => `${method} ${path}${write ? ' (write)' : ''}`)).toEqual([
+      'POST /api/v1/shared/email/send (write)',
+      'GET /api/v1/shared/email/status/msg%2F1',
+      'POST /api/v1/shared/sms/send (write)',
+      'GET /api/v1/shared/sms/status/SM1',
+      'POST /api/v1/shared/otp/generate (write)',
+      'POST /api/v1/shared/otp/verify (write)',
+      'GET /api/v1/shared/otp/status/otp_1',
+      'POST /api/v1/shared/geo/geocode',
+      'POST /api/v1/shared/geo/reverse-geocode',
+      'POST /api/v1/shared/geo/geofence/check',
+      'POST /api/v1/shared/gauth/oauth/authorize',
+      'POST /api/v1/shared/gauth/oauth/token',
+      'POST /api/v1/shared/gauth/oauth/token/refresh',
+      'POST /api/v1/shared/gauth/oauth/logout',
     ]);
+    expect(calls[0].body).toEqual({ to: 'a@example.test', subject: 'S', text: 'T' });
+  });
+});
 
-    for (const [, init] of calls(fetchImpl)) {
-      expect(new Headers(init.headers).get('authorization')).toBe('Bearer service-token');
-    }
-    for (const index of [0, 2, 4, 5]) {
-      expect(new Headers(calls(fetchImpl)[index]?.[1].headers).get('idempotency-key')).toBeTruthy();
-    }
+describe('payments', () => {
+  it('maps resources to the published routes', async () => {
+    const { api, calls } = recorder();
+    const p = api.payments;
+    await p.checkouts.create({ referenceId: 'o1', amount: { amountMinor: 100, currency: 'PHP' }, successUrl: 'https://a.test/s', cancelUrl: 'https://a.test/c' });
+    await p.checkouts.get('chk_1');
+    await p.checkouts.getByReference('order 1');
+    await p.checkouts.cancel('chk_1', { reason: 'customer left' });
+    await p.intents.create({} as never);
+    await p.intents.createQrPh({} as never);
+    await p.intents.get('pi_1');
+    await p.intents.confirm('pi_1', {} as never);
+    await p.intents.cancel('pi_1');
+    await p.customers.create({} as never);
+    await p.customers.get('cus_1');
+    await p.plans.create({} as never);
+    await p.plans.get('plan_1');
+    await p.plans.list();
+    await p.paymentLinks.create({} as never);
+    await p.paymentLinks.list();
+    await p.paymentLinks.get('pl_1');
+    await p.paymentLinks.archive('pl_1');
+    await p.paymentLinks.unarchive('pl_1');
+    await p.refunds.create({} as never);
+    await p.refunds.get('ref_1');
+    await p.subscriptions.create({} as never);
+    await p.subscriptions.get('sub_1');
+    await p.subscriptions.cancel('sub_1');
+    await p.subscriptions.listInvoices('sub_1');
+    await p.invoices.get('inv_1');
+    await p.capabilities.get();
+
+    expect(calls.map(({ method, path, write }) => `${method} ${path}${write ? ' (write)' : ''}`)).toEqual([
+      'POST /api/v1/payments/checkouts (write)',
+      'GET /api/v1/payments/checkouts/chk_1',
+      'GET /api/v1/payments/checkouts/by-reference/order%201',
+      'POST /api/v1/payments/checkouts/chk_1/cancel (write)',
+      'POST /api/v1/payments/intents (write)',
+      'POST /api/v1/payments/intents/qrph (write)',
+      'GET /api/v1/payments/intents/pi_1',
+      'POST /api/v1/payments/intents/pi_1/confirm (write)',
+      'POST /api/v1/payments/intents/pi_1/cancel (write)',
+      'POST /api/v1/payments/customers (write)',
+      'GET /api/v1/payments/customers/cus_1',
+      'POST /api/v1/payments/plans (write)',
+      'GET /api/v1/payments/plans/plan_1',
+      'GET /api/v1/payments/plans',
+      'POST /api/v1/payments/payment-links (write)',
+      'GET /api/v1/payments/payment-links',
+      'GET /api/v1/payments/payment-links/pl_1',
+      'PATCH /api/v1/payments/payment-links/pl_1 (write)',
+      'PATCH /api/v1/payments/payment-links/pl_1 (write)',
+      'POST /api/v1/payments/refunds (write)',
+      'GET /api/v1/payments/refunds/ref_1',
+      'POST /api/v1/payments/subscriptions (write)',
+      'GET /api/v1/payments/subscriptions/sub_1',
+      'POST /api/v1/payments/subscriptions/sub_1/cancel (write)',
+      'GET /api/v1/payments/subscriptions/sub_1/invoices',
+      'GET /api/v1/payments/invoices/inv_1',
+      'GET /api/v1/payments/capabilities',
+    ]);
+    expect(calls[3].body).toEqual({ reason: 'customer left' });
+    expect(calls[17].body).toEqual({ archive: true });
+    expect(calls[18].body).toEqual({ archive: false });
   });
 
-  it('acquires and caches registered service credentials through the gateway', async () => {
-    const fetchImpl = jest.fn()
-      .mockResolvedValueOnce(jsonResponse({
-        accessToken: 'service-access-token', refreshToken: 'service-refresh-token', expiresIn: 3600,
-      }))
-      .mockResolvedValueOnce(jsonResponse({ messageId: 'msg-1' }));
-    const api = new ApiCenter({
-      baseUrl: 'https://gateway.example.test',
-      auth: { serviceId: 'orders-api', environment: 'test', secret: 'service-secret' },
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    await api.email.getStatus('msg-1');
-
-    expect(calls(fetchImpl)[0]?.[0]).toBe('https://gateway.example.test/api/v1/auth/token');
-    expect(JSON.parse(String(calls(fetchImpl)[0]?.[1].body))).toEqual({
-      serviceId: 'orders-api', environment: 'test', secret: 'service-secret',
-    });
-    expect(new Headers(calls(fetchImpl)[1]?.[1].headers).get('authorization'))
-      .toBe('Bearer service-access-token');
+  it('pages through records with listAll', async () => {
+    const pages: Record<string, unknown> = {
+      first: { records: [{ id: 'r1' }, { id: 'r2' }], nextCursor: 'c2' },
+      c2: { records: [{ id: 'r3' }] },
+    };
+    const { api, calls } = recorder((url) => pages[new URL(url).searchParams.get('cursor') ?? 'first']);
+    const ids: string[] = [];
+    for await (const record of api.payments.records.listAll({ status: 'paid', limit: 2 })) ids.push((record as unknown as { id: string }).id);
+    expect(ids).toEqual(['r1', 'r2', 'r3']);
+    expect(calls.map((call) => call.path)).toEqual([
+      '/api/v1/payments/records?status=paid&limit=2',
+      '/api/v1/payments/records?status=paid&limit=2&cursor=c2',
+    ]);
   });
 
-  it('supports payment-only setup but fails shared-service calls without service auth', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ ok: true }));
-    const api = new ApiCenter({
-      baseUrl: 'https://gateway.example.test',
-      paymentApiKey: 'apic_test_key',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    await api.payments.capabilities.get();
-    await expect(api.email.getStatus('msg-1')).rejects.toThrow('This operation requires service auth');
-    expect(calls(fetchImpl)).toHaveLength(1);
-    expect(new Headers(calls(fetchImpl)[0]?.[1].headers).get('authorization'))
-      .toBe('Bearer apic_test_key');
+  it('tells a pending write from a finished resource', () => {
+    expect(isPending({ status: 'pending', resourceId: 'chk_1' })).toBe(true);
+    expect(isPending({ checkoutId: 'chk_1', status: 'pending', referenceId: 'o1' } as never)).toBe(false);
   });
 });

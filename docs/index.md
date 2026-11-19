@@ -54,7 +54,6 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 ## Research
 
-- [Credential onboarding comparison](research/2026-10-12-credential-onboarding-comparison.md)
 
 ## Decisions, plans, and history
 

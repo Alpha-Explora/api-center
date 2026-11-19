@@ -1,45 +1,61 @@
-import { ApiCenterTransport, type ApiCenterTransportOptions } from './internal/transport';
-import { EmailClient } from './services/email';
-import { GeoClient } from './services/geo';
-import { GoogleAuthClient } from './services/google-auth';
-import { OtpClient } from './services/otp';
-import { PaymentsNamespace } from './services/payments';
-import { SmsClient } from './services/sms';
-import { SetupClient } from './services/setup';
-import type { ApiCenterOptions } from './types';
+import { ApiCenterTransport } from './internal/transport.js';
+import { EmailClient } from './services/email.js';
+import { GeoClient } from './services/geo.js';
+import { GoogleAuthClient } from './services/google-auth.js';
+import { OtpClient } from './services/otp.js';
+import { PaymentsNamespace } from './services/payments.js';
+import { SmsClient } from './services/sms.js';
+import type { ApiCenterOptions, RequestOptions } from './types.js';
 
-/** The hosted APICenter gateway, used when neither `baseUrl` nor `APICENTER_URL` is set. */
-export const DEFAULT_BASE_URL = 'https://api.apicenter.itsandbox.site';
+/** The hosted APICenter gateway. The key's prefix selects test or live; there is one address. */
+const API_BASE_URL = 'https://api.apicenter.itsandbox.site';
+export const SDK_VERSION = '3.0.0';
 
-/** Fill unset options from `APICENTER_URL` and `APICENTER_API_KEY`; explicit options always win. */
-function resolveOptions(options: ApiCenterOptions): ApiCenterTransportOptions {
-  const env = typeof process === 'undefined' ? {} : process.env;
-  const apiKey = env.APICENTER_API_KEY?.trim();
-  return {
-    ...options,
-    baseUrl: options.baseUrl ?? (env.APICENTER_URL?.trim() || DEFAULT_BASE_URL),
-    auth: options.auth ?? (apiKey ? { apiKey } : undefined),
-  };
+/** Who the API key belongs to and what it may do. */
+export interface WhoAmI {
+  application: { id: string; slug: string; name: string };
+  project: { id: string };
+  organizationId: string;
+  environment: 'test' | 'live';
+  /** Granted actions, such as `email:send` or `payments:checkout:write`. */
+  grants: string[];
 }
 
 /** Server-side client for APICenter shared services and payments. */
 export class ApiCenter {
+  /** `test` or `live`, from the API key. */
+  readonly environment: 'test' | 'live';
   readonly email: EmailClient;
   readonly sms: SmsClient;
   readonly otp: OtpClient;
   readonly geo: GeoClient;
-  readonly googleAuth: GoogleAuthClient;
+  readonly auth: { readonly google: GoogleAuthClient };
   readonly payments: PaymentsNamespace;
-  readonly setup: SetupClient;
+  private readonly transport: ApiCenterTransport;
 
   constructor(options: ApiCenterOptions = {}) {
-    const transport = new ApiCenterTransport(resolveOptions(options));
-    this.email = new EmailClient(transport);
-    this.sms = new SmsClient(transport);
-    this.otp = new OtpClient(transport);
-    this.geo = new GeoClient(transport);
-    this.googleAuth = new GoogleAuthClient(transport);
-    this.payments = new PaymentsNamespace(transport);
-    this.setup = new SetupClient(transport);
+    const apiKey = options.apiKey ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.APICENTER_API_KEY;
+    if (!apiKey?.trim()) throw new TypeError('Set APICENTER_API_KEY or pass apiKey');
+    this.transport = new ApiCenterTransport({
+      apiKey,
+      baseUrl: API_BASE_URL,
+      fetch: options.fetch,
+      timeoutMs: options.timeoutMs,
+      maxRetries: options.maxRetries,
+      hooks: options.hooks,
+      sdkVersion: SDK_VERSION,
+    });
+    this.environment = this.transport.environment;
+    this.email = new EmailClient(this.transport);
+    this.sms = new SmsClient(this.transport);
+    this.otp = new OtpClient(this.transport);
+    this.geo = new GeoClient(this.transport);
+    this.auth = { google: new GoogleAuthClient(this.transport) };
+    this.payments = new PaymentsNamespace(this.transport);
+  }
+
+  /** The application, project and environment of the API key, and its grants. Useful as a startup check. */
+  whoami(options?: RequestOptions): Promise<WhoAmI> {
+    return this.transport.request({ path: '/api/v1/whoami', method: 'GET', options });
   }
 }

@@ -1,3 +1,4 @@
+import { WhoAmIController } from "./whoami.controller";
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "@database/database.module";
 import { AuthModule } from "@auth/auth.module";
@@ -26,7 +27,7 @@ import { ApprovalsModule } from "@approvals/approvals.module";
  */
 @Module({
   imports: [DatabaseModule, AuthModule, ApprovalsModule, RegistryModule],
-  controllers: [ControlPlaneAdminController],
+  controllers: [ControlPlaneAdminController, WhoAmIController],
   providers: [
     ControlPlaneAdminService,
     ApplicationAccessService,
