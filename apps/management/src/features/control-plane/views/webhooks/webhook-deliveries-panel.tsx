@@ -170,7 +170,7 @@ function DeliveriesTable({ rows, highlight }: { rows: WebhookDelivery[]; highlig
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Time</TableHead>
+          <TableHead className="hidden sm:table-cell">Time</TableHead>
           <TableHead>Event</TableHead>
           <TableHead>Result</TableHead>
           <TableHead className="hidden md:table-cell">Response</TableHead>
@@ -186,10 +186,10 @@ function DeliveriesTable({ rows, highlight }: { rows: WebhookDelivery[]; highlig
               key={`${delivery.eventId}-${delivery.attempt}-${delivery.attemptedAt}-${index}`}
               className={cn(delivery.eventId === highlight && "bg-muted/40")}
             >
-              <TableCell className="text-muted-foreground" title={formatDateTime(delivery.attemptedAt)}>
+              <TableCell className="hidden text-muted-foreground sm:table-cell" title={formatDateTime(delivery.attemptedAt)}>
                 {formatRelative(delivery.attemptedAt)}
               </TableCell>
-              <TableCell className="max-w-[12rem] sm:max-w-xs">
+              <TableCell className="max-w-[11rem] sm:max-w-xs">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate font-mono text-xs">{delivery.eventType ?? "event"}</span>
                   {delivery.eventType === TEST_EVENT_TYPE ? <StatusBadge tone="info">Test</StatusBadge> : null}
@@ -197,10 +197,11 @@ function DeliveriesTable({ rows, highlight }: { rows: WebhookDelivery[]; highlig
                 <span className="block truncate font-mono text-[11px] text-muted-foreground" title={delivery.eventId}>
                   {delivery.eventId}
                 </span>
+                <span className="block text-xs text-muted-foreground sm:hidden">{formatRelative(delivery.attemptedAt)}</span>
               </TableCell>
               <TableCell className="whitespace-normal">
                 <StatusBadge tone={outcome.tone}>{outcome.label}</StatusBadge>
-                <span className="mt-1 block max-w-[12rem] truncate text-xs text-muted-foreground md:hidden" title={deliveryResponse(delivery)}>
+                <span className="mt-1 block max-w-[9rem] truncate text-xs text-muted-foreground md:hidden" title={deliveryResponse(delivery)}>
                   {deliveryResponse(delivery)}
                 </span>
               </TableCell>

@@ -81,16 +81,11 @@ export function KeysTab({ application }: { application: Application }) {
     <>
       {application.status !== "active" ? <Notice tone="warning" title="This application is not active">Keys cannot be issued for it.</Notice> : null}
       {needsReplacement.length > 0 && application.status === "active" ? (
-        <Notice
-          tone="warning"
-          title={replacementTitle(needsReplacement.length, expiredCount)}
-          action={
-            <GuardedButton size="sm" variant="outline" allowed={canWrite} reason={environmentWriteReason(kind)} onClick={() => setIssuing(true)}>
-              Issue a replacement
-            </GuardedButton>
-          }
-        >
-          Requests with an expired key are refused. Issue a new key, deploy it as APICENTER_API_KEY, then revoke the old one.
+        <Notice tone="warning" title={replacementTitle(needsReplacement.length, expiredCount)}>
+          <p>Requests with an expired key are refused. Issue a new key, deploy it as APICENTER_API_KEY, then revoke the old one.</p>
+          <GuardedButton size="sm" variant="outline" className="mt-2" allowed={canWrite} reason={environmentWriteReason(kind)} onClick={() => setIssuing(true)}>
+            Issue a replacement
+          </GuardedButton>
         </Notice>
       ) : null}
       <Panel

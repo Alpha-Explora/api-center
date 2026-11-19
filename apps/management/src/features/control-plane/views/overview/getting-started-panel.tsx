@@ -138,7 +138,7 @@ function StepItem({ step, number, href }: { step: GettingStartedStep; number: nu
           <CircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" aria-label="Not done" />
         )}
         <span className="min-w-0 text-[13px]">
-          <span className={cn("font-medium", step.done && "text-muted-foreground line-through decoration-muted-foreground/40")}>
+          <span className={cn("font-medium", step.done && "text-muted-foreground")}>
             {number}. {step.label}
           </span>
           {step.done ? null : <span className="mt-0.5 block text-muted-foreground">{step.hint}</span>}
