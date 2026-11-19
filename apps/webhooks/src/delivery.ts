@@ -12,11 +12,12 @@ export interface PushEnvelope {
 }
 
 export type DeliveryOutcome =
-  | { ack: true; reason: "delivered" | "disabled"; eventId?: string; status?: number }
+  | { ack: true; reason: "delivered" | "disabled"; eventId?: string; eventType?: string; status?: number }
   | {
       ack: false;
       reason: "unknown_destination" | "malformed_message" | "no_active_secret" | "rejected" | "unreachable";
       eventId?: string;
+      eventType?: string;
       status?: number;
       error?: string;
     };
@@ -33,17 +34,21 @@ export async function deliver(
   const encoded = push.message?.data;
   const body = encoded ? Buffer.from(encoded, "base64").toString("utf8") : "";
   let eventId: string | undefined;
+  let eventType: string | undefined;
   try {
-    eventId = (JSON.parse(body) as { eventId?: unknown }).eventId as string | undefined;
+    const parsed = JSON.parse(body) as { eventId?: unknown; eventType?: unknown };
+    eventId = parsed.eventId as string | undefined;
+    if (typeof parsed.eventType === "string") eventType = parsed.eventType;
   } catch {
     // Left undefined; reported below.
   }
   if (typeof eventId !== "string" || !eventId) return { ack: false, reason: "malformed_message" };
-  if (config.disabled) return { ack: true, reason: "disabled", eventId };
+  const event = { eventId, ...(eventType ? { eventType } : {}) };
+  if (config.disabled) return { ack: true, reason: "disabled", ...event };
 
   const now = (deps.now ?? Date.now)();
   const secrets = activeSecrets(config, now);
-  if (secrets.length === 0) return { ack: false, reason: "no_active_secret", eventId };
+  if (secrets.length === 0) return { ack: false, reason: "no_active_secret", ...event };
   const timestamp = Math.floor(now / 1000);
   const headers = {
     "content-type": "application/json",
@@ -57,9 +62,9 @@ export async function deliver(
   try {
     const { status } = await deps.send(config.url, headers, body);
     return status >= 200 && status < 300
-      ? { ack: true, reason: "delivered", eventId, status }
-      : { ack: false, reason: "rejected", eventId, status };
+      ? { ack: true, reason: "delivered", ...event, status }
+      : { ack: false, reason: "rejected", ...event, status };
   } catch (error) {
-    return { ack: false, reason: "unreachable", eventId, error: (error as Error).message.slice(0, 300) };
+    return { ack: false, reason: "unreachable", ...event, error: (error as Error).message.slice(0, 300) };
   }
 }

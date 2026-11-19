@@ -21,6 +21,7 @@ const MANAGED_TABLES = [
   { schema: 'apic_runtime', table: 'pipeline_feedback_actions', column: 'created_at' },
   { schema: 'shared_email', table: 'email_delivery_events', column: 'received_at' },
   { schema: 'shared_sms', table: 'sms_delivery_events', column: 'received_at' },
+  { schema: 'shared_webhooks', table: 'webhook_deliveries', column: 'attempted_at' },
   // State that replaced Redis. A NULL expiry (an unresolved claim) is never purged.
   ...['shared_email', 'shared_sms', 'shared_otp'].flatMap((schema) => [
     { schema, table: 'idempotency_keys', column: 'expires_at' },
