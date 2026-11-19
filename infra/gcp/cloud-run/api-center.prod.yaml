@@ -30,18 +30,8 @@ spec:
               value: apicenter-alpha-20260623
             - name: GCP_SECRET_NAME
               value: api-center-prod
-            - name: AUTH_PROVIDER
-              value: composite
             - name: ALLOWED_ORIGINS
               value: https://api-center-management-test.itsandbox.site
-            - name: DATA_PIPELINE_ENABLED
-              value: "false"
-            - name: KAFKA_ENABLED
-              value: "false"
-            - name: SHARED_SERVICE_PUBSUB_ENABLED
-              value: "true"
-            - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_TEST
-              value: apicenter.shared-service-events.test
             - name: PAYMENT_PUBSUB_IAM_ENABLED
               value: "true"
             - name: CLOUD_RUN_AUTH_ENABLED
@@ -94,8 +84,6 @@ spec:
               value: https://api-center.itsandbox.site/api/v1/webhooks/twilio
             - name: APICENTER_RUNTIME_TARGET
               value: cloud-run-prod
-            - name: APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE
-              value: apicenter.shared-service-events.live
           resources:
             limits:
               cpu: "1"
