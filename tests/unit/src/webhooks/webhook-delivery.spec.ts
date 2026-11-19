@@ -7,6 +7,7 @@ import { ADMIN_TOKEN_HEADER, createWebhookApp } from "../../../../apps/webhooks/
 import { attemptFor, createMemoryDeliveryLog } from "../../../../apps/webhooks/src/delivery-log";
 import { isPrivateAddress as gatewayIsPrivate } from "../../../../apps/gateway/src/shared/proxy/upstream-guard";
 import { newSigningSecret } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-config-store";
+import { buildTestEvent } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-test-event";
 import { ApiCenterWebhookError, verifyWebhook } from "../../../../packages/sdk/src";
 
 const DESTINATION = "dst_abcdefghijklmnopqrstuvwx";
@@ -61,6 +62,18 @@ describe("webhook delivery", () => {
     expect(call.headers).toMatchObject({ "webhook-id": "evt_7f3c1a", "webhook-timestamp": String(NOW / 1000), "apicenter-delivery-attempt": "3" });
     const verified = await verifyWebhook(call.body, call.headers, secret, { now: () => NOW });
     expect(verified).toMatchObject({ eventId: "evt_7f3c1a", organizationId: "org-1", projectId: "prj_serbizio", applicationId: "app_serbizio" });
+  });
+
+  it("signs a console test event so the SDK verifies it as an unrecognized webhook.test event", async () => {
+    const { event: testEvent } = buildTestEvent(
+      { destinationId: DESTINATION, environment: "test", organizationId: "org-1", projectId: "prj_serbizio", applicationId: "app_serbizio" },
+      new Date(NOW),
+    );
+    const { send, calls } = capture(204);
+    const outcome = await deliver(DESTINATION, push(testEvent), { store: store(config), send, now: () => NOW });
+    expect(outcome).toMatchObject({ ack: true, reason: "delivered", eventId: testEvent.eventId, eventType: "webhook.test" });
+    const verified = await verifyWebhook(calls[0].body, calls[0].headers, secret, { now: () => NOW });
+    expect(verified).toMatchObject({ eventType: "unrecognized", type: "webhook.test", eventId: testEvent.eventId, applicationId: "app_serbizio" });
   });
 
   it("is rejected by the SDK when the body, secret or timestamp is wrong", async () => {
