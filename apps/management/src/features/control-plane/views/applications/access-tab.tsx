@@ -19,12 +19,13 @@ import { environmentWriteReason } from "../../model/access";
 import type { Application, Grant } from "../../model/control-plane";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { ApiAccessPanel } from "./api-access-panel";
 
 export function grantsKey(organizationId: string, projectId: string, kind: "test" | "live", applicationId: string) {
   return [...cpKeys.application(organizationId, projectId, kind, applicationId), "grants"] as const;
 }
 
-/** Capability actions this application may call. Enabling a capability grants nothing by itself. */
+/** Capability and API actions this application may call. Enabling a capability grants nothing by itself. */
 export function AccessTab({ application }: { application: Application }) {
   const { organizationId, project, kind, environment, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
@@ -109,6 +110,8 @@ export function AccessTab({ application }: { application: Application }) {
           </Table>
         )}
       </Panel>
+
+      <ApiAccessPanel application={application} />
 
       <GrantSheet application={application} open={granting} onOpenChange={setGranting} granted={new Set(active.map((grant) => grant.action))} enabled={enabled} />
       <ConfirmDialog
