@@ -2,6 +2,6 @@
 
 Google Cloud deployment assets for the management UI.
 
-- `gke/` - Workload Identity and RBAC manifests for private GKE deployment.
-
-Vercel remains the default deployment path unless a runbook explicitly selects private GKE.
+The console runs on Cloud Run (`apicenter-management-test`, region `asia-southeast1`), serving
+`https://apicenter.itsandbox.site`. Its image is built by `infra/gcp/cloud-build/apicenter-workspace-images.json` at the
+repository root and deployed with `gcloud run services update --image`.

@@ -68,11 +68,7 @@ function resolveFetchUrl(path: string) {
     return path;
   }
 
-  const baseUrl =
-    process.env.MANAGEMENT_PUBLIC_BASE_URL ??
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
+  const baseUrl = process.env.MANAGEMENT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
   return new URL(path, baseUrl).toString();
 }

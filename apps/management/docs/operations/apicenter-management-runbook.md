@@ -8,8 +8,12 @@ Pages, routes and design rules: [README](../../README.md) and [DESIGN.md](../../
 
 ## Runtime
 
-- Console: Next.js app in `apps/management`, deployed on Vercel. Google sign-in in deployments
-  (`MANAGEMENT_AUTH_MODE=google`); `local-dev` sign-in is refused outside local test development.
+- Console: Next.js app in `apps/management`, deployed to Cloud Run as `apicenter-management-test`
+  (`asia-southeast1`) and served at `https://apicenter.itsandbox.site`. Build images with
+  `gcloud builds submit --config infra/gcp/cloud-build/apicenter-workspace-images.json` and deploy with
+  `gcloud run services update apicenter-management-test --image …`. Google sign-in in deployments
+  (`MANAGEMENT_AUTH_MODE=google`); `local-dev` sign-in is refused on Cloud Run (`K_SERVICE` set) and outside local test
+  development.
 - Gateway: the APICenter Cloud Run gateway, called server-side with `API_CENTER_PLATFORM_ADMIN_SECRET`.
 - Sign-in looks up the account's memberships at `GET /api/v1/admin/control-plane/memberships`. An account with
   no membership cannot sign in unless it is a platform operator (`PLATFORM_ADMIN_EMAILS`).

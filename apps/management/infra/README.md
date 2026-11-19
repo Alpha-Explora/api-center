@@ -2,6 +2,8 @@
 
 Provider-owned infrastructure and deployment manifests for the management UI.
 
-- `gcp/` - GKE identity and RBAC fallback deployment assets.
+- `gcp/` - Google Cloud notes for the console.
 
-Next.js, Vercel, lint, and TypeScript entrypoint files remain at the repository root because their tools expect them there.
+The console is deployed to Cloud Run as `apicenter-management-test` from the workspace image build
+(`infra/gcp/cloud-build/apicenter-workspace-images.json`). Next.js, lint and TypeScript entrypoint files remain at the
+app root because their tools expect them there.
