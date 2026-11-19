@@ -115,6 +115,23 @@ describe("live environments", () => {
     await live.setStatus(ORG, project.id, "test", "active", actor);
     await expect(send()).resolves.toBeDefined();
   });
+
+  it("records suspend and resume against the environment they changed", async () => {
+    const record = jest.fn().mockResolvedValue(undefined);
+    const audited = new LiveEnvironmentService(prisma as unknown as PrismaService, approvals as unknown as ApprovalRequestService, {
+      record,
+    } as unknown as AuditEventsService);
+    const project = await admin.createProject(ORG, { slug: "audited", name: "Audited" }, actor);
+    await audited.provision(ORG, project.id, actor);
+    await audited.setStatus(ORG, project.id, "test", "suspended", actor);
+    await audited.setStatus(ORG, project.id, "test", "active", actor);
+
+    expect(record.mock.calls.map(([event]) => [event.type, event.environment])).toEqual([
+      ["control_plane.live.provisioned", "live"],
+      ["control_plane.environment.suspended", "test"],
+      ["control_plane.environment.active", "test"],
+    ]);
+  });
 });
 
 describe("live activation requests", () => {
