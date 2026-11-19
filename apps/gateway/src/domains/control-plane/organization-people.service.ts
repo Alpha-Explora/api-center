@@ -9,6 +9,7 @@ import { ConfigService } from "@config/config.service";
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { assertProjectKeepsAdministrator } from "./project-admin-guard";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -192,6 +193,7 @@ export class OrganizationPeopleService {
       }
       const where = { organizationId, projectId, ...assignee };
       const existing = await db.cpProjectRoleAssignment.findFirst({ where });
+      if (existing?.role === "admin" && role !== "admin") await assertProjectKeepsAdministrator(db, organizationId, projectId, existing.id);
       return existing
         ? db.cpProjectRoleAssignment.update({ where: { id: existing.id }, data: { role } })
         : db.cpProjectRoleAssignment.create({ data: { id: prefixedId("pra"), ...where, role, createdBy: actor } });
@@ -202,8 +204,10 @@ export class OrganizationPeopleService {
 
   async removeProjectRole(organizationId: string, projectId: string, assignmentId: string, actor: string) {
     await this.tenant(organizationId, async (db) => {
-      const removed = await db.cpProjectRoleAssignment.deleteMany({ where: { id: assignmentId, organizationId, projectId } });
-      if (removed.count === 0) throw new NotFoundError(`Role assignment '${assignmentId}' was not found`);
+      const existing = await db.cpProjectRoleAssignment.findFirst({ where: { id: assignmentId, organizationId, projectId } });
+      if (!existing) throw new NotFoundError(`Role assignment '${assignmentId}' was not found`);
+      if (existing.role === "admin") await assertProjectKeepsAdministrator(db, organizationId, projectId, assignmentId);
+      await db.cpProjectRoleAssignment.delete({ where: { id: assignmentId } });
     });
     await this.recordAudit({ organizationId, projectId }, "control_plane.project_role.removed", actor, assignmentId, { projectId });
     return { id: assignmentId, removed: true };
