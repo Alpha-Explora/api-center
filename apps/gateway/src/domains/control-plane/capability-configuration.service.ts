@@ -100,6 +100,8 @@ export class CapabilityConfigurationService {
     if (method !== "GET") {
       await this.audit.record({
         type: `control_plane.capability_config.${method.toLowerCase()}`,
+        organizationId: scope.organizationId,
+        projectId: scope.projectId,
         actionFamily: "registration",
         actor,
         resourceType: `cp_${capability}_config`,

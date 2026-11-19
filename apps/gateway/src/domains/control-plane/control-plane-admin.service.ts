@@ -6,7 +6,7 @@ import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "@database/prisma.service";
-import { AuditEventsService } from "@audit/audit-events.service";
+import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "@shared/errors";
 import { isCatalogedAction, isKnownCapability, listCapabilities } from "./capability-catalog";
 import { generateApplicationCredential, newResourceId } from "./application-credential";
@@ -57,7 +57,7 @@ export class ControlPlaneAdminService {
         return created;
       }),
     );
-    await this.recordAudit("control_plane.project.created", actor, "cp_project", project.id, "test", {
+    await this.recordAudit({ organizationId, projectId: project.id }, "control_plane.project.created", actor, "cp_project", project.id, "test", {
       organizationId,
       slug: project.slug,
     });
@@ -122,7 +122,7 @@ export class ControlPlaneAdminService {
       });
       return { environment, installation };
     });
-    await this.recordAudit(`control_plane.capability.${status}`, actor, "cp_capability", `${environment.id}:${capability}`, environment.kind, {
+    await this.recordAudit(scope, `control_plane.capability.${status}`, actor, "cp_capability", `${environment.id}:${capability}`, environment.kind, {
       projectId: environment.projectId,
     });
     return { capability: installation.capability, status: installation.status };
@@ -148,7 +148,7 @@ export class ControlPlaneAdminService {
         return { environment, application };
       }),
     );
-    await this.recordAudit("control_plane.application.created", actor, "cp_application", application.id, environment.kind, {
+    await this.recordAudit(scope, "control_plane.application.created", actor, "cp_application", application.id, environment.kind, {
       projectId: environment.projectId,
       slug: application.slug,
     });
@@ -197,7 +197,7 @@ export class ControlPlaneAdminService {
       }),
     );
     if (outcome.created) {
-      await this.recordAudit("control_plane.grant.created", actor, "cp_application_grant", outcome.grant.id, scope.environmentKind, {
+      await this.recordAudit(scope, "control_plane.grant.created", actor, "cp_application_grant", outcome.grant.id, scope.environmentKind, {
         applicationId,
         action: outcome.grant.action,
       });
@@ -232,7 +232,7 @@ export class ControlPlaneAdminService {
       return { grant: updated, changed: true };
     });
     if (outcome.changed) {
-      await this.recordAudit("control_plane.grant.revoked", actor, "cp_application_grant", grantId, scope.environmentKind, {
+      await this.recordAudit(scope, "control_plane.grant.revoked", actor, "cp_application_grant", grantId, scope.environmentKind, {
         applicationId,
         action: outcome.grant.action,
       });
@@ -311,7 +311,7 @@ export class ControlPlaneAdminService {
       );
     }
 
-    await this.recordAudit("control_plane.credential.issued", actor, "cp_credential", credentialId, scope.environmentKind, {
+    await this.recordAudit(scope, "control_plane.credential.issued", actor, "cp_credential", credentialId, scope.environmentKind, {
       applicationId,
       lookupPrefix: generated.lookupPrefix,
       expiresAt: expiresAt.toISOString(),
@@ -353,7 +353,7 @@ export class ControlPlaneAdminService {
       return { credential: revoked, changed: true };
     });
     if (outcome.changed) {
-      await this.recordAudit("control_plane.credential.revoked", actor, "cp_credential", credentialId, scope.environmentKind, {
+      await this.recordAudit(scope, "control_plane.credential.revoked", actor, "cp_credential", credentialId, scope.environmentKind, {
         applicationId,
         reason,
       });
@@ -398,6 +398,7 @@ export class ControlPlaneAdminService {
   }
 
   private async recordAudit(
+    owner: AuditOwner,
     type: string,
     actor: string,
     resourceType: string,
@@ -407,6 +408,8 @@ export class ControlPlaneAdminService {
   ) {
     await this.audit.record({
       type,
+      organizationId: owner.organizationId,
+      projectId: owner.projectId,
       actionFamily: type.includes("credential") ? "secret" : "registration",
       actor,
       resourceType,

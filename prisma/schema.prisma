@@ -348,8 +348,14 @@ model AuditEvent {
   outcome         String   @default("succeeded")
   metadata        Json     @default("{}")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Owning control-plane organization; null for platform and legacy events.
+  organizationId  String?  @map("organization_id") @db.Uuid
+  /// Owning control-plane project; null for organization-level events.
+  projectId       String?  @map("project_id")
 
   @@index([createdAt], name: "audit_events_created_idx")
+  @@index([organizationId, createdAt(sort: Desc), id(sort: Desc)], name: "audit_events_organization_idx")
+  @@index([organizationId, projectId, createdAt(sort: Desc), id(sort: Desc)], name: "audit_events_project_idx")
   @@index([resourceType, resourceId, createdAt], name: "audit_events_resource_idx")
   @@index([actorType, actorId, createdAt], name: "audit_events_actor_idx")
   @@index([environment, resourceType, resourceId, correlationId, createdAt], name: "audit_events_env_resource_correlation_idx")

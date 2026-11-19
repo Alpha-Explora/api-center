@@ -184,6 +184,17 @@ export function createFakeControlPlanePrisma() {
     cpMigrationRun: new FakeDelegate((row) => String(row.id)),
     cpWorkloadBinding: new FakeDelegate((row) => String(row.id)),
     quotaCounters: new Map<string, number>(),
+    /** Reads the counters `$queryRaw` writes for cp_quota_counters. */
+    cpQuotaCounter: {
+      async findMany({ where }: { where: { budgetKey: { in: string[] }; windowStart: { gte: Date } } }) {
+        return [...prisma.quotaCounters]
+          .map(([key, requestCount]) => {
+            const at = key.lastIndexOf("@");
+            return { budgetKey: key.slice(0, at), windowStart: new Date(key.slice(at + 1)), requestCount };
+          })
+          .filter((row) => where.budgetKey.in.includes(row.budgetKey) && row.windowStart >= where.windowStart.gte);
+      },
+    },
     advisoryLocks: [] as string[],
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
       return work(prisma);
@@ -219,6 +230,20 @@ export function createFakeControlPlanePrisma() {
         if (current >= limit) return [];
         prisma.quotaCounters.set(counterKey, current + 1);
         return [{ request_count: current + 1 }];
+      }
+      if (sql.includes("FROM apic_catalog.cp_usage_records")) {
+        const [bucket, organizationId, environmentId, from] = values as [string, string, string, Date];
+        const size = bucket === "hour" ? 3_600_000 : 86_400_000;
+        const groups = new Map<string, Record<string, unknown>>();
+        for (const row of prisma.cpUsageRecord.rows) {
+          if (row.organizationId !== organizationId || row.environmentId !== environmentId || (row.createdAt as Date) < from) continue;
+          const bucketStart = new Date(Math.floor((row.createdAt as Date).getTime() / size) * size);
+          const key = [bucketStart.toISOString(), row.applicationId, row.capability, row.action, row.outcome].join("|");
+          const group = groups.get(key) ?? { bucketStart, applicationId: row.applicationId, capability: row.capability, action: row.action, outcome: row.outcome, requests: 0 };
+          group.requests = (group.requests as number) + 1;
+          groups.set(key, group);
+        }
+        return [...groups.values()];
       }
       throw new Error(`Unexpected raw query: ${sql}`);
     },

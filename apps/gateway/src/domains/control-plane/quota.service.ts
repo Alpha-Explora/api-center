@@ -7,7 +7,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
-import { AuditEventsService } from "@audit/audit-events.service";
+import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service";
 import { AppError, NotFoundError, ValidationError } from "@shared/errors";
 import { isKnownCapability } from "./capability-catalog";
 import { composeBudgets, listPlans, planAllowsLive, testDefaultDailyRequests, windowStart, type Budget } from "./quota-budgets";
@@ -189,7 +189,7 @@ export class QuotaService {
         },
       });
     });
-    await this.recordAudit("control_plane.plan.assigned", actor, entitlement.id, scope.environmentKind, { projectId: scope.projectId, planKey });
+    await this.recordAudit(scope, "control_plane.plan.assigned", actor, entitlement.id, scope.environmentKind, { projectId: scope.projectId, planKey });
     return entitlement;
   }
 
@@ -236,7 +236,7 @@ export class QuotaService {
       if (!existing) throw new NotFoundError(`Quota policy '${policyId}' was not found`);
       return db.cpQuotaPolicy.update({ where: { id: policyId }, data: { status } });
     });
-    await this.recordAudit(`control_plane.quota.${status}`, actor, policyId, policy.environmentKind, {});
+    await this.recordAudit({ organizationId, projectId: policy.projectId ?? undefined }, `control_plane.quota.${status}`, actor, policyId, policy.environmentKind, {});
     return policy;
   }
 
@@ -290,13 +290,15 @@ export class QuotaService {
       }
       return created;
     });
-    await this.recordAudit("control_plane.quota.created", actor, policy.id, input.environmentKind, { scope: target.scope, ...input });
+    await this.recordAudit({ organizationId, projectId: policy.projectId ?? undefined }, "control_plane.quota.created", actor, policy.id, input.environmentKind, { scope: target.scope, ...input });
     return policy;
   }
 
-  private async recordAudit(type: string, actor: string, resourceId: string, environment: string, payload: Record<string, unknown>) {
+  private async recordAudit(owner: AuditOwner, type: string, actor: string, resourceId: string, environment: string, payload: Record<string, unknown>) {
     await this.audit.record({
       type,
+      organizationId: owner.organizationId,
+      projectId: owner.projectId,
       actionFamily: type.includes(".plan.") ? "plan" : "quota",
       actor,
       resourceType: type.split(".")[1],

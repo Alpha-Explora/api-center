@@ -24,6 +24,9 @@ export interface AuditEventRecord {
     | "gateway"
     | "lifecycle";
   actor?: string;
+  /** The control-plane organization and project the event belongs to, for the console's audit log. */
+  organizationId?: string;
+  projectId?: string;
   serviceId?: string;
   tribeServiceId?: string;
   sharedServiceId?: string;
@@ -36,6 +39,9 @@ export interface AuditEventRecord {
   payload?: Record<string, unknown>;
   timestamp: string;
 }
+
+/** Which organization and project an audit event belongs to. */
+export type AuditOwner = Pick<AuditEventRecord, "organizationId" | "projectId">;
 
 export interface AuditEventFilter {
   limit?: number;
@@ -75,6 +81,8 @@ type AuditEventRow = {
   outcome: string;
   metadata: unknown;
   createdAt: Date | string;
+  organizationId?: string | null;
+  projectId?: string | null;
 };
 
 @Injectable()
@@ -227,6 +235,8 @@ export class AuditEventsService {
           resourceType: record.resourceType ?? this.resolveResourceType(record),
           resourceId: record.resourceId ?? this.resolveResourceId(record),
           outcome: record.severity === "error" ? "failed" : "succeeded",
+          organizationId: record.organizationId ?? null,
+          projectId: record.projectId ?? null,
           metadata: {
             actionFamily: record.actionFamily,
             severity: record.severity,
@@ -329,8 +339,10 @@ function resolveActorType(record: AuditEventRecord): "system" | "operator" | "tr
   return "tribe";
 }
 
-function resolveAuditEnvironment(record: AuditEventRecord): string {
-  return record.environment?.trim() || "unknown";
+/** Organization-level events have no environment; the table accepts test, live or none. */
+export function resolveAuditEnvironment(record: Pick<AuditEventRecord, "environment">): "test" | "live" | "none" {
+  const environment = record.environment?.trim();
+  return environment === "test" || environment === "live" ? environment : "none";
 }
 
 function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
@@ -340,6 +352,8 @@ function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
     type: row.action,
     actionFamily: metadata.actionFamily as AuditEventRecord["actionFamily"],
     actor: row.actorId ?? undefined,
+    organizationId: row.organizationId ?? undefined,
+    projectId: row.projectId ?? undefined,
     serviceId: stringValue(metadata.serviceId),
     tribeServiceId: stringValue(metadata.tribeServiceId),
     sharedServiceId: stringValue(metadata.sharedServiceId),

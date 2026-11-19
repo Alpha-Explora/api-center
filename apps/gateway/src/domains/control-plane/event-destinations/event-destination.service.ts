@@ -250,6 +250,8 @@ export class EventDestinationService {
   ) {
     return this.audit.record({
       type: `control_plane.event_destination.${outcome}`,
+      organizationId: scope.organizationId,
+      projectId: scope.projectId,
       actionFamily: "runtime",
       actor,
       resourceType: "cp_event_destination",
