@@ -80,8 +80,16 @@ const requiredEnvelopeFields = ['eventId', 'contractVersion', 'eventType', 'envi
 for (const field of requiredEnvelopeFields) assert(paymentEvent?.required?.includes(field), `PaymentEvent must require ${field}`);
 const checkoutPaid = asyncApi.components?.schemas?.CheckoutPaid;
 for (const field of ['status', 'checkoutId', 'paymentId', 'amount', 'currency']) assert(checkoutPaid?.required?.includes(field), `CheckoutPaid must require ${field}`);
+for (const name of ['IntentPaid', 'IntentFailed']) {
+  const schema = asyncApi.components?.schemas?.[name];
+  for (const field of ['status', 'paymentIntentId', 'paymentId', 'amount', 'currency']) assert(schema?.required?.includes(field), `${name} must require ${field}`);
+}
 
-const examplePaths = ['contracts/public/examples/payment-checkout-paid-event.json'];
+const examplePaths = [
+  'contracts/public/examples/payment-checkout-paid-event.json',
+  'contracts/public/examples/payment-intent-paid-event.json',
+  'contracts/public/examples/payment-intent-failed-event.json',
+];
 for (const relativePath of examplePaths) {
   const example = readJson(relativePath);
   for (const field of requiredEnvelopeFields) assert(example[field] !== undefined, `${relativePath} is missing ${field}`);

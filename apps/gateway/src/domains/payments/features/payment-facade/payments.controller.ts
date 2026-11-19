@@ -18,11 +18,13 @@ import { PaymentIdempotencyService } from "../../shared/payment-idempotency.serv
 import { AuthenticatedRequest } from "../../../../types";
 import type { PaymentPrincipal } from "../../shared/payment-access.types";
 import {
+  enabledPaymentMethods,
   paymentRequestBody,
   paymentResponseBody,
   resolvePaymentOperation,
 } from "./payment-public-operation";
 import { PaymentLimitsService } from "../payment-limits/payment-limits.service";
+import { PaymentReturnLinks } from "../payment-return/payment-return-links";
 
 const internalBaseUrl = (environment: "test" | "live") => {
   const configured =
@@ -47,6 +49,7 @@ export class PaymentsController {
     private readonly idempotency: PaymentIdempotencyService,
     private readonly paymentLimits: PaymentLimitsService,
     private readonly applications: ApplicationAccessService,
+    private readonly returnLinks: PaymentReturnLinks,
   ) {}
 
   @All("*")
@@ -98,7 +101,7 @@ export class PaymentsController {
           success: true,
           data: {
             currency: "PHP",
-            paymentMethods: ["card", "gcash", "paymaya", "qrph"],
+            paymentMethods: enabledPaymentMethods(env),
             resources: [
               "checkouts",
               "intents",
@@ -118,11 +121,12 @@ export class PaymentsController {
       throw new ServiceUnavailableException(
         "Payment runtime token is not configured",
       );
-    const runtimeBody = paymentRequestBody(
-      operation.shape,
-      req.body,
-      principal.consumerServiceId,
-    );
+    const requestOrigin = `https://${req.get("host")}`;
+    const runtimeBody = paymentRequestBody(operation.shape, req.body, {
+      serviceId: principal.consumerServiceId,
+      enabledMethods: enabledPaymentMethods(env),
+      returnLink: (url) => this.returnLinks.forProvider(url, requestOrigin),
+    });
     const runtimePath =
       req.method.toUpperCase() === "POST" && path === "/refunds"
         ? `/payments/${encodeURIComponent((runtimeBody as { paymentId: string }).paymentId)}/refunds`

@@ -7,6 +7,7 @@ import type {
   CreatePaymentLinkInput,
   CreatePlanInput,
   CreateQrPhPaymentIntentInput,
+  CreateWalletPaymentIntentInput,
   CreateRefundInput,
   CreateSubscriptionInput,
   Customer,
@@ -74,8 +75,12 @@ class CheckoutClient extends PaymentsResource {
 }
 
 class IntentClient extends PaymentsResource {
-  /** @sdk-operation createPaymentIntent POST /api/v1/payments/intents */
-  create(input: CreatePaymentIntentInput, options?: WriteOptions): Promise<PaymentResource<PaymentIntent>> {
+  /**
+   * With `paymentMethod` and `returnUrl`, opens that wallet directly: send the customer to
+   * `nextAction.redirectUrl`, then confirm the result with `get` or a `payment.intent.*` event.
+   * @sdk-operation createPaymentIntent POST /api/v1/payments/intents
+   */
+  create(input: CreatePaymentIntentInput | CreateWalletPaymentIntentInput, options?: WriteOptions): Promise<PaymentResource<PaymentIntent>> {
     return this.write('/intents', input, options);
   }
 

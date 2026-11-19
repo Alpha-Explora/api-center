@@ -219,7 +219,7 @@ DEPLOYER_SA="apicenter-cloudbuild-deployer@${ACCOUNT_DOMAIN}"
 IMAGE_REPOSITORY="${REGION}-docker.pkg.dev/${PROJECT_ID}/api-center"
 SECRET_ACCESSOR="roles/secretmanager.secretAccessor"
 # Events the payment runtime handles. payment.paid includes payment-link payments (origin "links").
-PAYMONGO_EVENTS="checkout_session.payment.paid,payment.paid,link.payment.paid"
+PAYMONGO_EVENTS="checkout_session.payment.paid,payment.paid,payment.failed,link.payment.paid"
 # Resend events the gateway maps to delivery statuses (delivery-webhook.controller.ts).
 RESEND_EVENTS="email.sent, email.delivered, email.delivery_delayed, email.bounced, email.complained, email.failed, email.suppressed, email.opened, email.clicked"
 

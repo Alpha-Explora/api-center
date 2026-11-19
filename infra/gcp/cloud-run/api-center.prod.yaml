@@ -28,6 +28,8 @@ spec:
               value: production
             - name: GCP_PROJECT_ID
               value: apicenter-alpha-20260623
+            - name: APICENTER_PUBLIC_URL
+              value: https://api.apicenter.itsandbox.site
             - name: GCP_SECRET_NAME
               value: api-center-prod
             - name: ALLOWED_ORIGINS

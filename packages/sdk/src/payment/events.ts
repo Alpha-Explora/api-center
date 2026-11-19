@@ -32,6 +32,34 @@ const CheckoutPaidEventSchema = z.object({
   }).passthrough(),
 });
 
+const intentPayment = {
+  paymentIntentId: z.string().min(1),
+  paymentId: z.string().min(1),
+  /** In minor units (centavos for PHP). */
+  amount: z.number().int().positive(),
+  currency: z.string().length(3),
+};
+
+const IntentPaidEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payment.intent.paid'),
+  aggregateType: z.literal('payment_intent'),
+  data: z.object({ status: z.literal('succeeded'), ...intentPayment }).passthrough(),
+});
+
+/** The customer's attempt did not go through. Create a new intent, with a new idempotency key, to let them retry. */
+const IntentFailedEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payment.intent.failed'),
+  aggregateType: z.literal('payment_intent'),
+  data: z.object({
+    status: z.literal('failed'),
+    ...intentPayment,
+    failureCode: z.string().optional(),
+    failureMessage: z.string().optional(),
+  }).passthrough(),
+});
+
 /** An event type this SDK version does not know yet. Acknowledge it; upgrade to read it. */
 const UnrecognizedEventSchema = z.object({
   ...envelope,
@@ -41,15 +69,21 @@ const UnrecognizedEventSchema = z.object({
 });
 
 export type CheckoutPaidEvent = z.infer<typeof CheckoutPaidEventSchema>;
+export type IntentPaidEvent = z.infer<typeof IntentPaidEventSchema>;
+export type IntentFailedEvent = z.infer<typeof IntentFailedEventSchema>;
 export type UnrecognizedPaymentEvent = Omit<z.infer<typeof UnrecognizedEventSchema>, 'eventType'> & {
   eventType: 'unrecognized';
   /** The event type as sent. */
   type: string;
 };
 /** Narrow on `eventType`: `if (event.eventType === 'payment.checkout.paid') { event.data.amount … }`. */
-export type PaymentEvent = CheckoutPaidEvent | UnrecognizedPaymentEvent;
+export type PaymentEvent = CheckoutPaidEvent | IntentPaidEvent | IntentFailedEvent | UnrecognizedPaymentEvent;
 
-const KNOWN = { 'payment.checkout.paid': CheckoutPaidEventSchema } as const;
+const KNOWN = {
+  'payment.checkout.paid': CheckoutPaidEventSchema,
+  'payment.intent.paid': IntentPaidEventSchema,
+  'payment.intent.failed': IntentFailedEventSchema,
+} as const;
 
 /** Validates a contract 2.0 payment event. Throws a ZodError for anything malformed. */
 export function parsePaymentEvent(input: unknown): PaymentEvent {
@@ -60,4 +94,5 @@ export function parsePaymentEvent(input: unknown): PaymentEvent {
   return { ...event, eventType: 'unrecognized', type: event.eventType };
 }
 
-export const PaymentEventSchema = z.union([CheckoutPaidEventSchema, UnrecognizedEventSchema]);
+export const PaymentEventSchema = z.union([CheckoutPaidEventSchema, IntentPaidEventSchema, IntentFailedEventSchema,
+  UnrecognizedEventSchema]);

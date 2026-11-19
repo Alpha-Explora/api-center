@@ -49,6 +49,18 @@ Without the SDK, any Standard Webhooks library works. To verify by hand: decode 
 - **Deduplicate by `eventId`**, and apply a change only when its `aggregateVersion` is newer than the version you stored for that resource. Events for one resource can arrive out of order.
 - **Treat a checkout as paid only after `payment.checkout.paid`** (or after reading the checkout by reference). A browser redirect to your success URL does not prove payment.
 
+## Event types
+
+| Event | When | `data` |
+| :--- | :--- | :--- |
+| `payment.checkout.paid` | A checkout was paid. | `status: "paid"`, `checkoutId`, `paymentId`, `amount`, `currency` |
+| `payment.intent.paid` | A payment intent was paid, for example a [GCash or Maya intent](/guides/payments/intents). | `status: "succeeded"`, `paymentIntentId`, `paymentId`, `amount`, `currency` |
+| `payment.intent.failed` | The customer's attempt on an intent did not go through. To let them retry, create a new intent with a new idempotency key. | `status: "failed"`, `paymentIntentId`, `paymentId`, `amount`, `currency`, `failureCode`, `failureMessage` |
+
+Intent events have `aggregateType: "payment_intent"`. APICenter does not send an event when a checkout or intent expires or is abandoned; read it to see its current status.
+
+Accept event types you don't handle with a 2xx, so that new types never block your endpoint. The SDK returns them as `eventType: "unrecognized"`.
+
 ## Rotate the secret
 
 A rotation issues a new secret and keeps signing with the old one for 24 hours, so each delivery carries both signatures. Deploy the new secret, and during the overlap you can pass both to `verifyWebhook` as an array. After 24 hours only the new secret signs.

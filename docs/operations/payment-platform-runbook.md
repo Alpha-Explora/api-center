@@ -72,6 +72,13 @@ service. The payments runtime service account needs Pub/Sub publisher access on
 the environment topic. Confirm both IAM bindings and the Cloud Run revision
 before enabling delivery.
 
+## Payment methods and return links
+
+The gateway settings that shape what consumers can ask for:
+
+- `APICENTER_PAYMENT_METHODS_TEST` and `APICENTER_PAYMENT_METHODS_LIVE`: comma-separated methods the environment offers, from `card`, `gcash`, `paymaya` and `qrph`. Unset means all four. Leave out any method the PayMongo account is not approved for; `GET /payments/capabilities` then hides it, and checkouts or intents that ask for it get `400 PAYMENT_METHOD_UNAVAILABLE` instead of a provider error.
+- `APICENTER_PUBLIC_URL`: the gateway's public origin, such as `https://api.apicenter.itsandbox.site`. A return link that is an app link (`myapp://…`) is replaced with `<APICENTER_PUBLIC_URL>/api/v1/payment-return/<token>`, an HTTPS page that forwards to it. The token is signed with `APICENTER_RUNTIME_CONTEXT_SIGNING_KEY`; rotating that key breaks return links for payments still in progress, which then show a "link not valid" page. Without `APICENTER_PUBLIC_URL` the gateway uses the request's host.
+
 ## 4. Smoke And Release Verification
 
 Install dependencies and run the deterministic integration smoke:
@@ -143,7 +150,7 @@ Retrieve the session from PayMongo using the matching environment's secret key. 
 
 Polling repairs checkout status without creating a webhook receipt or event. Payment-resource records and Pub/Sub events still require the signed webhook path. To restore delivery:
 
-1. Verify the intended PayMongo webhook is enabled, points at the deployed gateway's `/api/v1/shared/payment/webhooks/test` or `/live` endpoint, and subscribes to `checkout_session.payment.paid`. Check the actual deployed hostname; an old gateway URL can remain registered at PayMongo.
+1. Verify the intended PayMongo webhook is enabled, points at the deployed gateway's `/api/v1/shared/payment/webhooks/test` or `/live` endpoint, and subscribes to `checkout_session.payment.paid`, `payment.paid`, `payment.failed` and `link.payment.paid`. Without `payment.paid` and `payment.failed`, payment intents (GCash, Maya, QR Ph) never send `payment.intent.*` events. Check the actual deployed hostname; an old gateway URL can remain registered at PayMongo.
 2. Store that webhook's signing secret in `apicenter-payments-test-webhook-secret` or `apicenter-payments-live-webhook-secret`. Configure the corresponding `PAYMONGO_TEST_WEBHOOK_SECRET` or `PAYMONGO_LIVE_WEBHOOK_SECRET` on both the gateway and the matching payments runtime. The gateway runtime identity needs Secret Manager access to these secrets. The gateway verifies the signature before forwarding, and the payments runtime verifies it again.
 3. After adding or rotating a secret version, redeploy both services. A Secret Manager `latest` reference does not refresh an already running instance. The checked-in gateway manifests include both references because the gateway routes both payment environments; adapt their service name to the deployment being updated.
 4. Verify a controlled test payment produces a successful webhook response, a processed receipt, one outbox event, and consumer delivery. Repeated polling and webhook redelivery must not duplicate the event. Verify the consumer's OIDC delivery service account and audience separately.

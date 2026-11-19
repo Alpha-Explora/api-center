@@ -3,8 +3,9 @@
 // Key: APICENTER_RUNTIME_CONTEXT_SIGNING_KEY, a single-line Ed25519 private JWK with a kid.
 
 import { Injectable, Optional } from "@nestjs/common";
-import { createPrivateKey, sign, type KeyObject } from "node:crypto";
+import { sign } from "node:crypto";
 import { ServiceUnavailableError } from "@shared/errors";
+import { parseSigningKey, type SigningKey } from "@shared/signing-key";
 import type { ApplicationIdentity, ResourceOwner } from "./control-plane.types";
 
 export const RUNTIME_CONTEXT_LIFETIME_SECONDS = 60;
@@ -14,26 +15,6 @@ const ISSUER = "apicenter-gateway";
 /** Capability runtimes verify `apicenter-runtime:<capability>`; API publishers `apicenter-api:<apiId>`. */
 export function runtimeAudience(target: string): string {
   return target.startsWith("api:") ? `apicenter-api:${target.slice(4)}` : `apicenter-runtime:${target}`;
-}
-
-interface SigningKey {
-  kid: string;
-  key: KeyObject;
-}
-
-export function parseSigningKey(raw: string | undefined): SigningKey | undefined {
-  if (!raw?.trim()) return undefined;
-  let jwk: Record<string, unknown>;
-  try {
-    jwk = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    throw new Error("APICENTER_RUNTIME_CONTEXT_SIGNING_KEY must be an Ed25519 private JWK");
-  }
-  const { kty, crv, x, d, kid } = jwk;
-  if (kty !== "OKP" || crv !== "Ed25519" || typeof x !== "string" || typeof d !== "string" || typeof kid !== "string" || !kid) {
-    throw new Error("APICENTER_RUNTIME_CONTEXT_SIGNING_KEY must be an Ed25519 private JWK with a kid");
-  }
-  return { kid, key: createPrivateKey({ key: { kty, crv, x, d }, format: "jwk" }) };
 }
 
 @Injectable()

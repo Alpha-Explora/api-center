@@ -3699,11 +3699,23 @@
           },
           "successUrl": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "An HTTPS link, or your app's own link such as myapp://booking/123. APICenter forwards to an app link from an HTTPS page it hosts."
           },
           "cancelUrl": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "An HTTPS link, or your app's own link. APICenter forwards to an app link from an HTTPS page it hosts."
+          },
+          "paymentMethods": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethod"
+            },
+            "description": "Limits the checkout page to these methods. Each must be enabled for the environment (see getPaymentCapabilities). Defaults to card, gcash and paymaya."
           },
           "metadata": {
             "type": "object",
@@ -3716,6 +3728,7 @@
       },
       "PaymentIntentCreateRequest": {
         "type": "object",
+        "description": "Send paymentMethod and returnUrl together to open that wallet directly; the response's nextAction.redirectUrl takes the customer straight to it. Leave both out for an intent you confirm yourself.",
         "required": [
           "referenceId",
           "amount"
@@ -3726,7 +3739,50 @@
           },
           "amount": {
             "$ref": "#/components/schemas/Money"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "gcash",
+              "paymaya"
+            ],
+            "description": "The wallet to open. Requires returnUrl."
+          },
+          "returnUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Where the wallet sends the customer afterwards, paid or not. An HTTPS link, or your app's own link; APICenter forwards to an app link from an HTTPS page it hosts. Requires paymentMethod."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "phone": {
+                "type": "string",
+                "maxLength": 32
+              }
+            }
           }
+        },
+        "dependentRequired": {
+          "paymentMethod": [
+            "returnUrl"
+          ],
+          "returnUrl": [
+            "paymentMethod"
+          ]
         }
       },
       "ConfirmPaymentIntentRequest": {
@@ -3749,7 +3805,8 @@
           },
           "returnUrl": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "maxLength": 2048
           }
         }
       },
@@ -3907,6 +3964,26 @@
                 "format": "uri"
               }
             }
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "gcash",
+              "paymaya"
+            ],
+            "description": "Set on a wallet payment intent."
+          },
+          "lastPaymentError": {
+            "type": "object",
+            "description": "Why the last payment attempt failed, when status is failed.",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -4016,6 +4093,15 @@
           }
         }
       },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": [
+          "card",
+          "gcash",
+          "paymaya",
+          "qrph"
+        ]
+      },
       "PaymentCapabilities": {
         "type": "object",
         "required": [
@@ -4032,8 +4118,9 @@
           },
           "paymentMethods": {
             "type": "array",
+            "description": "The methods enabled for this environment. Hide any method that is not listed.",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PaymentMethod"
             }
           },
           "resources": {

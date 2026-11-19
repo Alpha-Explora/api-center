@@ -1,12 +1,34 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 
+export const PAYMENT_METHODS = ['card', 'gcash', 'paymaya', 'qrph'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+const WALLET_METHODS = ['gcash', 'paymaya'] as const;
+
+/**
+ * The methods an environment offers: APICENTER_PAYMENT_METHODS_TEST / _LIVE, comma-separated. A method
+ * the PayMongo account is not approved for belongs out of the list, so apps can hide it.
+ */
+export function enabledPaymentMethods(environment: 'test' | 'live', env: NodeJS.ProcessEnv = process.env): PaymentMethod[] {
+  const configured = env[`APICENTER_PAYMENT_METHODS_${environment.toUpperCase()}`];
+  if (configured === undefined) return [...PAYMENT_METHODS];
+  const listed = new Set(configured.split(',').map((method) => method.trim()));
+  return PAYMENT_METHODS.filter((method) => listed.has(method));
+}
+
 const money = z.object({ amountMinor: z.number().int().positive(), currency: z.literal('PHP') });
 const reference = z.string().min(1).max(255);
+const link = z.string().min(1).max(2048);
 const schemas = {
-  checkout: z.object({ referenceId: reference, amount: money, successUrl: z.url(), cancelUrl: z.url(),
+  checkout: z.object({ referenceId: reference, amount: money, successUrl: link, cancelUrl: link,
+    paymentMethods: z.array(z.enum(PAYMENT_METHODS)).min(1).max(PAYMENT_METHODS.length).optional(),
     metadata: z.record(z.string(), z.string()).optional() }),
-  intent: z.object({ referenceId: reference, amount: money }),
+  // A wallet intent names its wallet and where the wallet returns the customer; a plain intent has neither.
+  intent: z.object({ referenceId: reference, amount: money, paymentMethod: z.enum(WALLET_METHODS).optional(),
+    returnUrl: link.optional(), description: z.string().max(255).optional(),
+    billing: z.object({ name: z.string().trim().min(1).max(255).optional(), email: z.email().optional(),
+      phone: z.string().trim().min(1).max(32).optional() }).optional() })
+    .refine((intent) => !intent.paymentMethod === !intent.returnUrl),
   qrph: z.object({ referenceId: reference, amount: money, description: z.string().max(255).optional(),
     expirySeconds: z.number().int().min(60).max(9000).optional() }),
   paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().trim().min(1).max(255),
@@ -18,7 +40,7 @@ const schemas = {
     interval: z.enum(['weekly', 'monthly', 'yearly']), intervalCount: z.number().int().min(1).max(10).optional(),
     cycleCount: z.number().int().min(2).max(Number.MAX_SAFE_INTEGER).optional(), metadata: z.record(z.string(), z.string()).optional() }),
   refund: z.object({ paymentId: z.string().min(1), amount: money, reason: z.string().optional() }),
-  intentConfirmation: z.object({ paymentMethodId: z.string().min(1), clientKey: z.string().min(1), returnUrl: z.url() }),
+  intentConfirmation: z.object({ paymentMethodId: z.string().min(1), clientKey: z.string().min(1), returnUrl: link }),
   subscription: z.object({ customerId: z.string().min(1), referenceId: reference,
     planId: z.string().min(1) }),
   cancellation: z.object({ reason: z.string().optional() }),
@@ -69,8 +91,21 @@ export function resolvePaymentOperation(method: string, path: string) {
   return { ...operation, runtimePath: operation.target(match) };
 }
 
+export interface PaymentRequestContext {
+  serviceId: string;
+  enabledMethods: readonly PaymentMethod[];
+  /** The link to hand the provider for a customer-facing return URL. */
+  returnLink: (url: string) => string;
+}
+
+function assertEnabled(methods: readonly string[], enabled: readonly PaymentMethod[]) {
+  const unavailable = methods.filter((method) => !enabled.includes(method as PaymentMethod));
+  if (unavailable.length) throw new BadRequestException({ code: 'PAYMENT_METHOD_UNAVAILABLE',
+    message: `Not enabled for this environment: ${unavailable.join(', ')}` });
+}
+
 /** Validate and translate a public payment request before proxying it to the runtime. */
-export function paymentRequestBody(shape: Shape | undefined, input: unknown, serviceId: string): unknown {
+export function paymentRequestBody(shape: Shape | undefined, input: unknown, context: PaymentRequestContext): unknown {
   if (!shape) return undefined;
   const result = schemas[shape].safeParse(input || {});
   if (!result.success) throw new BadRequestException({ code: 'INVALID_PAYMENT_REQUEST',
@@ -85,10 +120,23 @@ export function paymentRequestBody(shape: Shape | undefined, input: unknown, ser
     const metadata = data.metadata && typeof data.metadata === 'object'
       ? data.metadata as Record<string, string>
       : {};
-    data.metadata = { ...metadata, __apicenterConsumerServiceId: serviceId };
+    data.metadata = { ...metadata, __apicenterConsumerServiceId: context.serviceId };
+    data.successUrl = context.returnLink(data.successUrl as string);
+    data.cancelUrl = context.returnLink(data.cancelUrl as string);
+    if (data.paymentMethods) {
+      assertEnabled(data.paymentMethods as string[], context.enabledMethods);
+      data.paymentMethodsAllowed = data.paymentMethods;
+      delete data.paymentMethods;
+    }
   }
+  if (shape === 'intent' && data.paymentMethod) {
+    assertEnabled([data.paymentMethod as string], context.enabledMethods);
+    data.returnUrl = context.returnLink(data.returnUrl as string);
+  }
+  if (shape === 'qrph') assertEnabled(['qrph'], context.enabledMethods);
   if (shape === 'intentConfirmation') {
-    return { payment_method: data.paymentMethodId, client_key: data.clientKey, return_url: data.returnUrl };
+    return { payment_method: data.paymentMethodId, client_key: data.clientKey,
+      return_url: context.returnLink(data.returnUrl as string) };
   }
   return data;
 }
@@ -121,7 +169,8 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
       case 'intent': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId,
         status: raw.status === 'awaiting_payment_method' || raw.status === 'awaiting_next_action' ? 'requires_action' : raw.status,
         amount: amount(raw.amount, responseCurrency(raw)), aggregateVersion: raw.aggregateVersion,
-        clientKey: raw.clientKey, nextAction: raw.nextAction };
+        clientKey: raw.clientKey, nextAction: raw.nextAction, paymentMethod: raw.paymentMethod,
+        lastPaymentError: raw.lastPaymentError };
       case 'qrph': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId, status: raw.status,
         amount: amount(raw.amount, responseCurrency(raw)), qrCodeImageUrl: raw.qrCodeImageUrl, expirySeconds: raw.expirySeconds };
       case 'payment_link': return { paymentLinkId: raw.paymentLinkId, referenceId: raw.referenceId,

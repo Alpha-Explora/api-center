@@ -107,6 +107,20 @@ describe('payment events (contract 2.0)', () => {
     expect(() => parsePaymentEvent(noOrganization)).toThrow();
   });
 
+  it('parses paid and failed payment intents', () => {
+    const intent = { ...paid, aggregateType: 'payment_intent', aggregateId: 'pi_1' };
+    const intentPaid = parsePaymentEvent({ ...intent, eventType: 'payment.intent.paid',
+      data: { status: 'succeeded', paymentIntentId: 'pi_1', paymentId: 'pay_1', amount: 39900, currency: 'PHP' } });
+    expect(intentPaid).toMatchObject({ eventType: 'payment.intent.paid', data: { paymentIntentId: 'pi_1' } });
+    const intentFailed = parsePaymentEvent({ ...intent, eventType: 'payment.intent.failed',
+      data: { status: 'failed', paymentIntentId: 'pi_1', paymentId: 'pay_1', amount: 39900, currency: 'PHP',
+        failureCode: 'payment_cancelled' } });
+    if (intentFailed.eventType !== 'payment.intent.failed') throw new Error('expected a failed intent');
+    expect(intentFailed.data.failureCode).toBe('payment_cancelled');
+    expect(() => parsePaymentEvent({ ...intent, eventType: 'payment.intent.paid',
+      data: { status: 'failed', paymentIntentId: 'pi_1', paymentId: 'pay_1', amount: 39900, currency: 'PHP' } })).toThrow();
+  });
+
   it('returns event types it does not know as unrecognized instead of failing', () => {
     const later = { ...paid, eventType: 'payment.refund.succeeded', aggregateType: 'refund', data: { refundId: 'ref_1' } };
     expect(parsePaymentEvent(later)).toMatchObject({ eventType: 'unrecognized', type: 'payment.refund.succeeded', data: { refundId: 'ref_1' } });

@@ -7,6 +7,7 @@ export type {
   CreatePaymentLinkInput,
   CreatePlanInput,
   CreateQrPhPaymentIntentInput,
+  CreateWalletPaymentIntentInput,
   CreateRefundInput,
   CreateSubscriptionInput,
   Customer,
@@ -33,9 +34,12 @@ export type {
   OtpStatusResponse,
   OtpVerifyRequest,
   OtpVerifyResponse,
+  PaymentBilling,
   PaymentCapabilities,
+  PaymentError,
   PaymentIntent,
   PaymentLink,
+  PaymentMethod,
   PaymentRecord,
   PaymentRecordPage,
   PaymentResource,
@@ -46,6 +50,7 @@ export type {
   SmsSendRequest,
   SmsSendResponse,
   Subscription,
+  WalletPaymentMethod,
 } from '@alpha-explora/apicenter-contracts';
 
 /** Per-call settings. */
