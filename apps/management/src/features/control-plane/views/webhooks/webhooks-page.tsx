@@ -93,7 +93,7 @@ function Webhooks() {
           <GuardedButton
             allowed={canWrite}
             reason={environmentWriteReason(kind)}
-            disabled={!paymentsEnabled || !hasApplications}
+            disabled={!paymentsEnabled || !hasApplications || Boolean(applications.error)}
             onClick={() => setCreating(true)}
           >
             <PlusIcon data-icon="inline-start" /> Add webhook
@@ -131,6 +131,8 @@ function Webhooks() {
         </ul>
       </Notice>
 
+      {applications.error ? <ErrorPanel title="Applications could not be loaded" error={applications.error} /> : null}
+
       <Panel title="Destinations" flush>
         {destinations.error ? (
           <div className="p-4">
@@ -146,11 +148,13 @@ function Webhooks() {
             icon={<WebhookIcon />}
             title="No webhooks yet"
             description={
-              !hasApplications
-                ? "Create an application first; each webhook delivers to one application."
-                : paymentsEnabled
-                  ? "Add a webhook to receive payment events for an application."
-                  : "Enable payments in this environment, then add a webhook."
+              applications.error
+                ? "Applications could not be loaded, so webhooks cannot be added right now."
+                : !hasApplications
+                  ? "Create an application first; each webhook delivers to one application."
+                  : paymentsEnabled
+                    ? "Add a webhook to receive payment events for an application."
+                    : "Enable payments in this environment, then add a webhook."
             }
           />
         ) : (
