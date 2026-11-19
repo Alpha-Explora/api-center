@@ -1,10 +1,11 @@
 // Organization members, teams and project role assignments.
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
 import { AuditEventsService } from "@audit/audit-events.service";
+import { ConfigService } from "@config/config.service";
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
 import { withTenant, type TenantDb } from "./tenant-transaction";
@@ -27,9 +28,32 @@ export class OrganizationPeopleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditEventsService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   // ── Members ──────────────────────────────────────────────────────────────
+
+  /**
+   * The organizations an email belongs to, across all organizations, for console sign-in. Platform
+   * operators (PLATFORM_ADMIN_EMAILS) act in every organization.
+   */
+  async membershipsOf(email: string) {
+    const rows = await this.prisma.organizationMember.findMany({
+      where: { email },
+      include: { organization: { select: { slug: true, name: true } } },
+      orderBy: { organizationId: "asc" },
+    });
+    return {
+      email,
+      platformAdmin: this.config?.platformAdminEmails.includes(email) ?? false,
+      memberships: rows.map((row) => ({
+        organizationId: row.organizationId,
+        organizationSlug: row.organization.slug,
+        organizationName: row.organization.name,
+        role: normalizeOrganizationRole(row.role) ?? "viewer",
+      })),
+    };
+  }
 
   async listMembers(organizationId: string) {
     return this.tenant(organizationId, async (db) => {

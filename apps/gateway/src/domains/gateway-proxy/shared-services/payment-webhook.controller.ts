@@ -11,7 +11,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Request, Response } from "express";
 import { AuditEventsService } from "@audit/audit-events.service";
 import { ConfigService } from "@config/config.service";
-import { RegistryService } from "@registry/registry.service";
 import {
   BadGatewayError,
   NotFoundError,
@@ -28,7 +27,6 @@ import { SharedServiceRoutingService } from "./shared-service-routing.service";
 @Controller("shared/payment/webhooks")
 export class PaymentWebhookController {
   constructor(
-    private readonly registry: RegistryService,
     private readonly config: ConfigService,
     private readonly auditEvents: AuditEventsService,
     private readonly sharedServiceRouting: SharedServiceRoutingService,

@@ -36,7 +36,7 @@ run("keeps the public contract list and legacy baseline pointing at files that e
 run("reports public contract paths and baseline entries that do not exist", () => {
   withTempRepo({ "scripts/boundary-legacy-imports.json": JSON.stringify(["apps/a.ts -> apps/b.ts"]) }, (repoRoot) => {
     const reasons = collectStaleAllowlistViolations(repoRoot).map((violation) => violation.reason).join("\n");
-    assert.match(reasons, /PUBLIC_SERVICE_CONTRACT_FILES lists apps\/gateway\/src\/domains\/auth-security\/auth\/auth\.service\.ts, which does not exist/);
+    assert.match(reasons, /PUBLIC_SERVICE_CONTRACT_FILES lists apps\/gateway\/src\/domains\/auth-security\/auth\/guards\/scoped-admin\.guard\.ts, which does not exist/);
     assert.match(reasons, /Baseline entry "apps\/a\.ts -> apps\/b\.ts" names apps\/a\.ts, which does not exist/);
   });
 });
@@ -73,8 +73,8 @@ run("fails direct cross-context imports of internal services", () => {
   withTempRepo(
     {
       "apps/gateway/src/domains/runtime-ops/analytics/bad.ts":
-        'import { RegistryInternalService } from "../../catalog-registry/registry/registry-internal.service";\nexport const x = RegistryInternalService;\n',
-      "apps/gateway/src/domains/catalog-registry/registry/registry-internal.service.ts": "export class RegistryInternalService {}\n",
+        'import { RegistryInternalService } from "../../control-plane/registry-internal.service";\nexport const x = RegistryInternalService;\n',
+      "apps/gateway/src/domains/control-plane/registry-internal.service.ts": "export class RegistryInternalService {}\n",
     },
     (repoRoot) => {
       const violations = runBoundaryChecks({ repoRoot });
@@ -89,11 +89,11 @@ run("fails direct cross-context imports of internal services", () => {
 run("fails alias imports that reach another context's internals", () => {
   withTempRepo({
     "apps/gateway/tsconfig.json": JSON.stringify({ compilerOptions: { paths: {
-      "@registry/*": ["src/domains/catalog-registry/registry/*"],
+      "@control-plane/*": ["src/domains/control-plane/*"],
     } } }),
     "apps/gateway/src/domains/runtime-ops/analytics/bad.ts":
-      'import { RegistryInternalService } from "@registry/registry-internal.service";\n',
-    "apps/gateway/src/domains/catalog-registry/registry/registry-internal.service.ts":
+      'import { RegistryInternalService } from "@control-plane/registry-internal.service";\n',
+    "apps/gateway/src/domains/control-plane/registry-internal.service.ts":
       'export class RegistryInternalService {}\n',
   }, (repoRoot) => {
     const violations = runBoundaryChecks({ repoRoot });
@@ -106,9 +106,9 @@ run("allows public module and dto imports across contexts", () => {
   withTempRepo(
     {
       "apps/gateway/src/domains/runtime-ops/analytics/good.ts":
-        'import { RegistryModule } from "../../catalog-registry/registry/registry.module";\nimport { RegistryDto } from "../../catalog-registry/registry/registry.dto";\nexport const x = [RegistryModule, RegistryDto];\n',
-      "apps/gateway/src/domains/catalog-registry/registry/registry.module.ts": "export class RegistryModule {}\n",
-      "apps/gateway/src/domains/catalog-registry/registry/registry.dto.ts": "export class RegistryDto {}\n",
+        'import { RegistryModule } from "../../control-plane/registry.module";\nimport { RegistryDto } from "../../control-plane/registry.dto";\nexport const x = [RegistryModule, RegistryDto];\n',
+      "apps/gateway/src/domains/control-plane/registry.module.ts": "export class RegistryModule {}\n",
+      "apps/gateway/src/domains/control-plane/registry.dto.ts": "export class RegistryDto {}\n",
     },
     (repoRoot) => {
       const violations = runBoundaryChecks({ repoRoot });

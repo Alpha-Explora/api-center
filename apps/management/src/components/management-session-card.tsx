@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getManagementSession } from "@/lib/api-center-client";
-import { getManagementActionAvailability } from "@/lib/action-capabilities";
 import { queryKeys } from "@/lib/query-keys";
-import type { ManagementEnvironment } from "@/lib/server/management-auth";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -15,11 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function ManagementSessionCard({
-  environment,
-}: {
-  environment: ManagementEnvironment;
-}) {
+export function ManagementSessionCard() {
   const sessionQuery = useQuery({
     queryKey: queryKeys.managementSession,
     queryFn: getManagementSession,
@@ -44,10 +38,6 @@ export function ManagementSessionCard({
   }
 
   const session = sessionQuery.data;
-  const availability = getManagementActionAvailability({
-    role: session.role,
-    environment,
-  });
 
   return (
     <Card>
@@ -56,7 +46,7 @@ export function ManagementSessionCard({
           <div>
             <CardTitle>Management session</CardTitle>
             <CardDescription>
-              Resolved identity and management action availability.
+              Who you are signed in as and your console access.
             </CardDescription>
           </div>
           <Badge variant={session.role === "admin" ? "default" : "outline"}>
@@ -69,29 +59,6 @@ export function ManagementSessionCard({
           <SessionDetail label="Email" value={session.email} />
           <SessionDetail label="Source" value={session.source} />
           <SessionDetail label="User ID" value={session.userId} />
-        </div>
-        <div className="grid gap-2 text-sm md:grid-cols-2">
-          {availability.map((item) => (
-            <div
-              key={item.actionId}
-              className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3"
-            >
-              <div className="min-w-0">
-                <div className="font-medium">{item.label}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {item.risk}
-                  {item.confirmationRequired ? " · confirmation" : ""}
-                  {item.reasonRequired ? " · reason" : ""}
-                </div>
-              </div>
-              <Badge
-                variant={item.allowed ? "secondary" : "destructive"}
-                className="shrink-0"
-              >
-                {item.allowed ? "allowed" : "blocked"}
-              </Badge>
-            </div>
-          ))}
         </div>
       </CardContent>
     </Card>

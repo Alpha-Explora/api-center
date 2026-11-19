@@ -23,7 +23,7 @@ For payments, `referenceId` must be unique within your application and environme
 
 ## Email, SMS, and OTP
 
-Email and SMS sends, OTP generation, and OTP verification also require an `Idempotency-Key` containing 16–255 characters. Keys are scoped to the authenticated consumer service, tribe, environment, and operation. Reuse the same key with the same request body when retrying.
+Email and SMS sends, OTP generation, and OTP verification also require an `Idempotency-Key` containing 16–255 characters. Keys are scoped to the calling application, its environment, and the operation. Reuse the same key with the same request body when retrying.
 
 After a completed operation, APICenter replays the original HTTP status and response body for seven days and includes `x-idempotency-replayed: true`. A changed body returns HTTP `409` with `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`; a concurrent request returns `IDEMPOTENCY_KEY_IN_PROGRESS`. Rate-limit rejections do not consume the key.
 

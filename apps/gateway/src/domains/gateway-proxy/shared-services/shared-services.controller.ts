@@ -1,151 +1,32 @@
-// =============================================================================
-// src/shared-services/shared-services.controller.ts — Shared Platform Services Proxy
-// =============================================================================
-// Routes /api/v1/shared/:serviceId/* to platform-owned shared services
-// (e.g., payment, email, SMS) that are registered via the service registry
-// with serviceType: 'shared'.
-//
-// Uses the same ProxyHandler utility as TribesController to avoid duplication
-// of proxy creation, lifecycle gating, scope checking, and metrics recording.
-// =============================================================================
-
-import {
-  Controller,
-  Get,
-  All,
-  Req,
-  Res,
-  Param,
-  UseGuards,
-  OnModuleDestroy,
-} from "@nestjs/common";
-import { Response } from "express";
-import { RegistryService } from "@registry/registry.service";
-import { JwtAuthGuard } from "@auth/guards/jwt-auth.guard";
-import { AuthService } from "@auth/auth.service";
-import { LoggerService } from "@shared/logger.service";
-import { MetricsService } from "@metrics/metrics.service";
-import { AuditEventsService } from "@audit/audit-events.service";
-import { GatewayTrafficService } from "@analytics/gateway-traffic.service";
-import { SharedServiceUsageService } from "@analytics/shared-service-usage.service";
-import { TribeQuotaEnforcerService } from "@quotas/tribe-quota-enforcer.service";
-import { PolicyEngineService } from "@policy/policy-engine.service";
-import { EmergencyControlService } from "@operations/emergency-control.service";
-import { ProxyHandler } from "@shared/proxy-handler";
-import { AuthenticatedRequest } from "../../../types";
-import { SharedServiceEventPublisher } from "./shared-service-event-publisher";
-import { SharedServiceRoutingService } from "./shared-service-routing.service";
-import { ForbiddenError } from "@shared/errors";
-import { stripApicenterIdentityHeaders } from "../../../shared/proxy/environment-leak-guard";
+// /api/v1/shared/:capability/* — calls to the capability runtimes (email, SMS, OTP, geo, Google
+// sign-in). Callers present an application key; ApplicationCapabilityProxy authenticates it,
+// checks the grant, quota and budget, and forwards the call with a signed runtime context.
+import { All, Controller, Param, Req, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { ForbiddenError, UnauthorizedError } from "@shared/errors";
 import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
+import type { AuthenticatedRequest } from "../../../types";
 import { ApplicationCapabilityProxy } from "./application-capability-proxy";
-import { SharedCallerGuard, bearerToken } from "./shared-caller.guard";
-import { LegacyCallerDispatcher } from "../legacy-bridge/legacy-caller-dispatcher";
 
 @Controller("shared")
-export class SharedServicesController implements OnModuleDestroy {
-  private readonly handler: ProxyHandler;
-  private readonly auth: AuthService;
+export class SharedServicesController {
+  constructor(private readonly applicationProxy: ApplicationCapabilityProxy) {}
 
-  constructor(
-    registry: RegistryService,
-    auth: AuthService,
-    logger: LoggerService,
-    metrics: MetricsService,
-    auditEvents: AuditEventsService,
-    gatewayTraffic: GatewayTrafficService,
-    sharedServiceUsage: SharedServiceUsageService,
-    sharedServiceEvents: SharedServiceEventPublisher,
-    sharedServiceRouting: SharedServiceRoutingService,
-    quotaEnforcer: TribeQuotaEnforcerService,
-    policyEngine: PolicyEngineService,
-    emergencyControls: EmergencyControlService,
-    private readonly applicationProxy: ApplicationCapabilityProxy,
-    private readonly legacyCallers: LegacyCallerDispatcher,
-  ) {
-    this.auth = auth;
-    this.handler = new ProxyHandler(
-      {
-        registry,
-        auth,
-        logger,
-        metrics,
-        auditEvents,
-        gatewayTraffic,
-        sharedServiceUsage,
-        sharedServiceEvents,
-        sharedServiceRouting,
-        quotaEnforcer,
-        policyEngine,
-        emergencyControls,
-      },
-      { namespace: "shared", pathPrefix: "/api/v1/shared" },
-    );
-  }
-
-  onModuleDestroy() {
-    this.handler.destroy();
-  }
-
-  // ─── List shared platform services ───────────────────────────────────────────
-  @Get()
-  @UseGuards(JwtAuthGuard)
-  listSharedServices(@Req() req: AuthenticatedRequest) {
-    const tribeId = req.tribeId;
-    const callerScopes = this.auth.mergeCallerScopes(req.user ?? {});
-    const includeNonConsumable = callerScopes.includes("platform:admin");
-    const environment = req.user?.environment === "live" ? "live" : "test";
-    const services = this.handler.listServices(req.sourceServiceId, includeNonConsumable, environment);
-
-    return {
-      success: true,
-      data: services,
-      meta: {
-        total: services.length,
-        tribeId,
-        namespace: "shared",
-        timestamp: new Date().toISOString(),
-        correlationId: req.correlationId,
-      },
-    };
-  }
-
-  // ─── Dynamic Proxy to shared services ────────────────────────────────────────
-  // Legacy service JWTs use the registry-based ProxyHandler. Control-plane application
-  // credentials (ak_…) use ApplicationCapabilityProxy: explicit grants and a signed runtime context.
-  @All(":serviceId/*path")
-  @UseGuards(SharedCallerGuard)
-  async proxy(
-    @Param("serviceId") serviceId: string,
-    @Req() req: AuthenticatedRequest,
-    @Res() res: Response,
-  ) {
-    const bearer = bearerToken(req);
-    if (bearer && isControlPlaneBearer(bearer)) {
-      await this.applicationProxy.forward(serviceId.toLowerCase(), bearer, req, res);
-      return;
+  @All(":capability/*path")
+  async proxy(@Param("capability") capability: string, @Req() req: AuthenticatedRequest, @Res() res: Response) {
+    const header = req.headers?.authorization;
+    const bearer = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
+    if (!bearer || !isControlPlaneBearer(bearer)) {
+      throw new UnauthorizedError("An application key is required (Authorization: Bearer ak_…)");
     }
-    if (serviceId.toLowerCase() === "gauth" && isGauthAdminPath(req.path)) {
-      stripApicenterIdentityHeaders(req.headers as Record<string, unknown> | undefined);
-      throw new ForbiddenError("GAuth administrative routes are not available through the shared-service proxy");
+    if (capability.toLowerCase() === "gauth" && isAdminPath(req.path)) {
+      throw new ForbiddenError("Google sign-in administration is not available through the capability proxy");
     }
-    const capability = serviceId.toLowerCase();
-    await this.legacyCallers.dispatch(
-      req,
-      res,
-      { kind: "capability", capability, method: req.method, relativePath: legacyRelativePath(req.path, `/api/v1/shared/${serviceId}`) },
-      () => this.handler.proxyRequest(serviceId, req, res),
-    );
+    await this.applicationProxy.forward(capability.toLowerCase(), bearer, req, res);
   }
 }
 
-/** The path below the service prefix, for comparing decisions; "/" when it cannot be derived. */
-function legacyRelativePath(path: string | undefined, prefix: string): string {
-  if (!path || !path.startsWith(`${prefix}/`)) return "/";
-  return path.slice(prefix.length);
-}
-
-function isGauthAdminPath(path: string): boolean {
+function isAdminPath(path: string): boolean {
   try {
     return /\/admin(?:\/|$)/i.test(decodeURIComponent(path));
   } catch {

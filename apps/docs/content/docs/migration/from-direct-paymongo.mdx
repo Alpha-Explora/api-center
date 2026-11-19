@@ -11,7 +11,7 @@ Register the backend service in Management, then replace direct PayMongo calls w
 
 ## 2. Move credentials
 
-Configure the service ID, environment, and APICenter service secret in the consumer backend's secret manager. If a payment API key is provisioned, store it there as well. After APICenter traffic has been verified, remove the consumer's direct PayMongo credentials. Provider credentials belong to the APICenter payment runtime.
+Store the application's `APICENTER_API_KEY` in the backend's secret manager; the key alone selects the environment. After APICenter traffic has been verified, remove the consumer's direct PayMongo credentials. Provider credentials belong to the APICenter payment runtime.
 
 ## 3. Make events authoritative
 

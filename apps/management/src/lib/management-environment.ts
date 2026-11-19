@@ -46,13 +46,3 @@ export function normalizeManagementEnvironment(value: string | undefined) {
 
   return environments.local;
 }
-
-export function getKafkaTopicPrefix() {
-  return (
-    process.env.NEXT_PUBLIC_KAFKA_TOPIC_PREFIX ||
-    process.env.KAFKA_TOPIC_PREFIX ||
-    ""
-  )
-    .trim()
-    .replace(/\.+$/, "");
-}

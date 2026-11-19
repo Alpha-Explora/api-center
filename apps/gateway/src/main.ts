@@ -1,44 +1,8 @@
 // =============================================================================
-// src/main.ts — APICenter Gateway Bootstrap
-// =============================================================================
-//
-// FOUNDATION ROLE (checklist §1, §4, §8):
-//   APICenter is the SINGLE centralized API gateway for the entire platform.
-//
-//   All traffic — without exception — routes through here:
-//     ┌─────────────────────────────────────────────────────────┐
-//     │  consumer (tribe SDK / browser / external client)       │
-//     │    ↓                                                     │
-//     │  NGINX  :3000  (round-robin across 3 containers)        │
-//     │    ↓                                                     │
-//     │  APICenter container  ← this process                    │
-//     │    ↓                                                     │
-//     │  target upstream  (tribe API / shared service)          │
-//     └─────────────────────────────────────────────────────────┘
-//
-//   Route namespaces:
-//     /api/v1/tribes/:serviceId/*    — tribe-to-tribe calls
-//     /api/v1/shared/:serviceId/*    — shared platform services
-//     /api/v1/external/:apiName/*    — legacy guarded external proxy namespace
-//     /api/v1/auth/*                 — token issuance / refresh / revoke
-//     /api/v1/registry/*             — service self-registration
-//     /api/v1/health/*               — liveness + readiness probes
-//
-// STATELESS DESIGN (checklist §1, §8):
-//   Durable shared state lives in Postgres:
-//     • registry entries   — survives container restart
-//     • refresh tokens     — revocable across any container
-//     • payment idempotency — replays are consistent across containers
-//   Rate-limit counters and dashboard counters are per container, in memory.
-//   Every container is interchangeable and can restart without losing state.
-//
-// CORS (checklist §8 — "foundation is ready for future … policies"):
-//   Enabled globally here via NestJS app.enableCors().
-//   ALLOWED_ORIGINS controls which origins receive the
-//   Access-Control-Allow-Origin header. In development use * (default).
-//   In production, set a comma-separated list of allowed origins.
-//   NGINX also handles OPTIONS preflight at the load-balancer level
-//   (zero Node process overhead) with matching settings.
+// Gateway entry point. Applications call /api/v1/shared/:capability/*, /api/v1/payments/* and
+// /api/v1/apis/:apiId/* with an application key; the console and operator scripts use
+// /api/v1/admin/* with the platform credential. Durable state lives in Postgres; rate-limit
+// counters are per instance, in memory, so instances are interchangeable.
 // =============================================================================
 
 // OTel MUST be initialized first — patches http/express before any require
@@ -46,11 +10,7 @@ import { initTracing } from "./tracing";
 initTracing();
 
 import { NestFactory } from "@nestjs/core";
-import express, {
-  NextFunction,
-  Request,
-  Response as ExpressResponse,
-} from "express";
+import express, { Request } from "express";
 import { ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
@@ -81,33 +41,12 @@ async function bootstrap() {
   ) => {
     (request as Request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
   };
-  const defaultJsonParser = express.json({
-    limit: "100kb",
-    verify: captureRawBody,
-  });
-  const serviceSpecJsonParser = express.json({
-    limit: "2mb",
-    verify: captureRawBody,
-  });
-  app.use((request: Request, response: ExpressResponse, next: NextFunction) => {
-    const isServiceSpecPublish =
-      request.method === "POST" &&
-      /^\/api\/v1\/admin\/catalog\/services\/[^/]+\/spec-versions\/?$/.test(
-        request.path,
-      );
-    return (isServiceSpecPublish ? serviceSpecJsonParser : defaultJsonParser)(
-      request,
-      response,
-      next,
-    );
-  });
+  app.use(express.json({ limit: "100kb", verify: captureRawBody }));
   app.use(
     express.urlencoded({
       extended: true,
       limit: "100kb",
-      verify: (request, _response, body) => {
-        (request as Request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
-      },
+      verify: captureRawBody,
     }),
   );
 
@@ -118,38 +57,28 @@ async function bootstrap() {
   // ── Security headers ──────────────────────────────────────────────────────
   app.use(
     helmet({
-      // Allow cross-origin resource loading (CDN assets, tribe frontends)
+      // The gateway serves JSON to other origins; pages set their own CSP.
       crossOriginResourcePolicy: { policy: "cross-origin" },
-      // CSP not set here — each tribe's frontend should set its own policy
       contentSecurityPolicy: false,
     }),
   );
 
-  // ── CORS ──────────────────────────────────────────────────────────────────
-  // This config MUST match the NGINX CORS block in nginx.conf so that direct
-  // container calls (CI, health checks, local dev) and load-balanced calls
-  // both honour the same CORS policy.
-  //
-  // Configuration:
-  //   ALLOWED_ORIGINS=*                            → dev / permissive
-  //   ALLOWED_ORIGINS=https://app.acme.com,https://admin.acme.com  → prod
+  // ── CORS ── ALLOWED_ORIGINS: * in development, an explicit list in production.
   app.enableCors({
-    origin: config.cors.origin, // driven by ALLOWED_ORIGINS env var
+    origin: config.cors.origin,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "X-Correlation-ID",
       "X-Platform-Secret",
-      "X-Tribe-Id",
       "Idempotency-Key",
+      "APICenter-Version",
+      "APICenter-SDK",
     ],
     exposedHeaders: [
-      "X-Correlation-ID", // trace requests across services
-      "Deprecation", // RFC 8594 — service lifecycle signal
-      "Sunset", // RFC 8594 — deadline for migration
-      "Link", // points to replacement service
-      "Retry-After", // rate-limit backoff
+      "X-Correlation-ID",
+      "Retry-After",
       "x-idempotency-replayed",
     ],
     credentials: true, // allow Authorization header from browsers
@@ -168,7 +97,7 @@ async function bootstrap() {
   // ── Global interceptors ───────────────────────────────────────────────────
   // Run on every request, in this order:
   //   1. CorrelationId — assign / propagate X-Correlation-ID
-  //   2. AuditLog      — publish Kafka audit event after response
+  //   2. AuditLog      — log the request after the response
   //   3. Metrics       — record Prometheus counter + histogram
   app.useGlobalInterceptors(
     app.get(CorrelationIdInterceptor),
@@ -188,7 +117,7 @@ async function bootstrap() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle("APICenter Gateway API")
       .setDescription(
-        "Centralized gateway API for tribe, shared-service, and external integrations",
+        "Shared services, payments and published APIs for applications with an APICenter key",
       )
       .setVersion("1.0.0")
       .addBearerAuth()
@@ -204,7 +133,7 @@ async function bootstrap() {
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   // On SIGTERM/SIGINT, NestJS calls onModuleDestroy() on all modules before
-  // the process exits — allowing Kafka, database, and proxy connections to close.
+  // the process exits, so database connections close cleanly.
   app.enableShutdownHooks();
 
   await app.listen(config.port);
@@ -215,17 +144,12 @@ async function bootstrap() {
   );
   logger.log(`  APICenter gateway  |  port: ${config.port}`, "Bootstrap");
   logger.log(`  environment        |  ${config.nodeEnv}`, "Bootstrap");
-  logger.log(`  auth provider      |  ${config.authProvider}`, "Bootstrap");
   logger.log(
     `  CORS origins       |  ${JSON.stringify(config.cors.origin)}`,
     "Bootstrap",
   );
   logger.log(`  swagger enabled    |  ${isSwaggerEnabled}`, "Bootstrap");
   logger.log(`  shared state       |  Postgres; counters in memory`, "Bootstrap");
-  logger.log(
-    `  flow               |  consumer → NGINX → container → upstream`,
-    "Bootstrap",
-  );
   logger.log(
     `────────────────────────────────────────────────────`,
     "Bootstrap",

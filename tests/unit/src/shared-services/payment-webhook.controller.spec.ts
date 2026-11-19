@@ -1,7 +1,6 @@
 import { createHmac } from "node:crypto";
 import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { PaymentWebhookController } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/payment-webhook.controller";
-import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
 import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
 import { SharedServiceRoutingService } from "../../../../apps/gateway/src/domains/gateway-proxy/shared-services/shared-service-routing.service";
 import {
@@ -18,12 +17,10 @@ jest.mock("../../../../apps/gateway/src/shared/proxy/cloud-run-auth", () => ({
 }));
 
 describe("PaymentWebhookController", () => {
-  const mockRegistry = {} as RegistryService;
   const mockConfig = {
     paymentWebhooks: {
       paymongoTestSecret: "test-key",
       paymongoLiveSecret: "live-key",
-      paymongoSecret: "legacy-key",
     },
   } as unknown as ConfigService;
   const mockRouting = {
@@ -38,7 +35,6 @@ describe("PaymentWebhookController", () => {
     jest.clearAllMocks();
     mockConfig.paymentWebhooks.paymongoTestSecret = "test-key";
     mockConfig.paymentWebhooks.paymongoLiveSecret = "live-key";
-    mockConfig.paymentWebhooks.paymongoSecret = "legacy-key";
     (mockRouting.resolve as jest.Mock).mockImplementation(
       (_serviceId: string, environment: string) => ({
         sharedServiceId: "payment",
@@ -48,7 +44,6 @@ describe("PaymentWebhookController", () => {
     );
     auditEvents = { record: jest.fn().mockResolvedValue(undefined) };
     controller = new PaymentWebhookController(
-      mockRegistry,
       mockConfig,
       auditEvents as unknown as AuditEventsService,
       mockRouting,

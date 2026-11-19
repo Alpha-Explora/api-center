@@ -2,12 +2,11 @@ openapi: 3.2.0
 info:
   title: APICenter API
   version: 1.0.0
-  description: Consumer HTTP API for service authentication, payments, messaging, verification, geolocation and Google sign-in.
+  description: Consumer HTTP API for payments, messaging, verification, geolocation and Google sign-in. Every call authenticates with an application key.
 servers:
   - url: https://api.apicenter.itsandbox.site
 security:
-  - ApiKeyAuth: []
-  - ServiceBearerAuth: []
+  - ApplicationKey: []
 tags:
   - name: Payments
   - name: Identity
@@ -16,6 +15,8 @@ tags:
   - name: OTP
   - name: GEO
   - name: Google Auth
+  - name: Account
+    description: The calling application's identity.
 paths:
   /api/v1/payments/checkouts:
     post:
@@ -766,8 +767,8 @@ paths:
         - EMAIL
       summary: email.send
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: email:send.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: email:send.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
       x-required-scopes:
         - email:send
       parameters:
@@ -862,8 +863,8 @@ paths:
         - EMAIL
       summary: email.get
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: email:send. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: email:send. "
       x-required-scopes:
         - email:send
       parameters:
@@ -952,8 +953,8 @@ paths:
         - SMS
       summary: sms.send
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: sms:send, sms:status.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: sms:send, sms:status.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
       x-required-scopes:
         - sms:send
         - sms:status
@@ -1048,8 +1049,8 @@ paths:
         - SMS
       summary: sms.get
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: sms:send, sms:status. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: sms:send, sms:status. "
       x-required-scopes:
         - sms:send
         - sms:status
@@ -1139,8 +1140,8 @@ paths:
         - OTP
       summary: otp.send
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
       x-required-scopes:
         - otp:generate
         - otp:verify
@@ -1235,8 +1236,8 @@ paths:
         - OTP
       summary: otp.verify
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
       x-required-scopes:
         - otp:generate
         - otp:verify
@@ -1331,8 +1332,8 @@ paths:
         - OTP
       summary: otp.get
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: otp:generate, otp:verify. "
       x-required-scopes:
         - otp:generate
         - otp:verify
@@ -1422,8 +1423,8 @@ paths:
         - GEO
       summary: geo.geocode
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: geo:read, geo:write. "
       x-required-scopes:
         - geo:read
         - geo:write
@@ -1514,8 +1515,8 @@ paths:
         - GEO
       summary: geo.reverseGeocode
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: geo:read, geo:write. "
       x-required-scopes:
         - geo:read
         - geo:write
@@ -1607,8 +1608,8 @@ paths:
         - GEO
       summary: geo.checkGeofence
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: geo:read, geo:write. "
       x-required-scopes:
         - geo:read
         - geo:write
@@ -1700,8 +1701,8 @@ paths:
         - Google Auth
       summary: auth.google.getAuthorizationUrl
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. Returns a JSON authorization URL, not an HTTP redirect. Navigate the browser to this URL; Google redirects to the registered consumer callback. Signed state expires after ten minutes."
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: auth:google:login. Returns a JSON authorization URL, not an HTTP redirect. Navigate the browser to this URL; Google redirects to the registered consumer callback. Signed state expires after ten minutes."
       x-required-scopes:
         - auth:google:login
       parameters: []
@@ -1791,8 +1792,8 @@ paths:
         - Google Auth
       summary: auth.google.exchangeCode
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: auth:google:login. "
       x-required-scopes:
         - auth:google:login
       parameters: []
@@ -1883,8 +1884,8 @@ paths:
         - Google Auth
       summary: auth.google.refreshToken
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: auth:google:login. "
       x-required-scopes:
         - auth:google:login
       parameters: []
@@ -1974,8 +1975,8 @@ paths:
         - Google Auth
       summary: auth.google.logout
       security:
-        - ServiceBearerAuth: []
-      description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. "
+        - ApplicationKey: []
+      description: "The application key selects the environment. The application needs a grant for each listed action: auth:google:login. "
       x-required-scopes:
         - auth:google:login
       parameters: []
@@ -2058,253 +2059,77 @@ paths:
               $ref: "#/components/schemas/GoogleLogoutRequest"
             example:
               refreshToken: <google-refresh-token>
-  /api/v1/auth/token:
-    post:
-      operationId: issueToken
-      tags:
-        - Identity
-      summary: issueToken
-      description: Server-side service authentication. Keep service secrets and refresh tokens out of browser code.
-      security: []
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    const: true
-                  data:
-                    $ref: "#/components/schemas/ServiceTokenResponse"
-                  meta:
-                    type: object
-                    properties:
-                      timestamp:
-                        type: string
-                        format: date-time
-                      correlationId:
-                        type: string
-                required:
-                  - success
-                  - data
-        "400":
-          description: Invalid credentials or request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "401":
-          description: Authentication failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "403":
-          description: Service placement or authorization is not allowed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "404":
-          description: Service or signing-key endpoint is unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "503":
-          description: Identity provider or credential store unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ServiceTokenRequest"
-            example:
-              serviceId: example-api
-              environment: test
-              secret: <server-only-service-secret>
-  /api/v1/auth/token/refresh:
-    post:
-      operationId: refreshServiceToken
-      tags:
-        - Identity
-      summary: refreshServiceToken
-      description: Server-side service authentication. Keep service secrets and refresh tokens out of browser code.
-      security: []
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    const: true
-                  data:
-                    $ref: "#/components/schemas/RefreshTokenResponse"
-                  meta:
-                    type: object
-                    properties:
-                      timestamp:
-                        type: string
-                        format: date-time
-                      correlationId:
-                        type: string
-                required:
-                  - success
-                  - data
-        "400":
-          description: Invalid credentials or request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "401":
-          description: Authentication failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "403":
-          description: Service placement or authorization is not allowed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "404":
-          description: Service or signing-key endpoint is unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "503":
-          description: Identity provider or credential store unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RefreshTokenRequest"
-            example:
-              refreshToken: <refresh-token>
-  /api/v1/auth/token/revoke:
-    post:
-      operationId: revokeServiceToken
-      tags:
-        - Identity
-      summary: revokeServiceToken
-      description: Server-side service authentication. Keep service secrets and refresh tokens out of browser code.
-      security:
-        - ServiceBearerAuth: []
-      responses:
-        "204":
-          description: Refresh token revoked. No response body.
-        "400":
-          description: Invalid credentials or request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "401":
-          description: Authentication failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "403":
-          description: Service placement or authorization is not allowed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "404":
-          description: Service or signing-key endpoint is unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "503":
-          description: Identity provider or credential store unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RevokeTokenRequest"
-            example:
-              refreshToken: <refresh-token>
-              revokeAll: false
-  /api/v1/auth/.well-known/jwks.json:
+  /api/v1/whoami:
     get:
-      operationId: getJwks
+      operationId: whoami
+      summary: whoami
+      description: Returns the application, project, organization and environment a key belongs to, and its grants. Use it to check a key after setup.
       tags:
-        - Identity
-      summary: getJwks
-      description: Public signing keys when supported by the configured auth provider. Returns raw JWKS.
-      security: []
+        - Account
       responses:
         "200":
-          description: Public JSON Web Key Set
+          description: The key's identity
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Jwks"
-        "400":
-          description: Invalid credentials or request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    required:
+                      - application
+                      - project
+                      - organizationId
+                      - environment
+                      - grants
+                    properties:
+                      application:
+                        type: object
+                        required:
+                          - id
+                          - slug
+                          - name
+                        properties:
+                          id:
+                            type: string
+                          slug:
+                            type: string
+                          name:
+                            type: string
+                      project:
+                        type: object
+                        required:
+                          - id
+                        properties:
+                          id:
+                            type: string
+                      organizationId:
+                        type: string
+                      environment:
+                        type: string
+                        enum:
+                          - test
+                          - live
+                      grants:
+                        type: array
+                        items:
+                          type: string
         "401":
-          description: Authentication failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "403":
-          description: Service placement or authorization is not allowed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "404":
-          description: Service or signing-key endpoint is unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
-        "503":
-          description: Identity provider or credential store unavailable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedError"
+          description: The key is missing, invalid, expired or revoked
 components:
   securitySchemes:
-    ServiceBearerAuth:
+    ApplicationKey:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: Registered APICenter service JWT with gateway-enforced scopes.
-    ApiKeyAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: APICenterApiKey
+      bearerFormat: ApplicationKey
+      description: >-
+        An application key (ak_test_… or ak_live_…). The key alone identifies the application, its project and its environment; each call needs a grant for its action.
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -2589,7 +2414,7 @@ components:
           properties:
             type:
               type: string
-              enum: [redirect]
+              enum: [ redirect ]
             redirectUrl:
               type: string
               format: uri
@@ -2740,15 +2565,6 @@ components:
           items:
             type: string
         detail: {}
-    SuccessEnvelope:
-      type: object
-      required:
-        - success
-        - data
-      properties:
-        success:
-          const: true
-        data: {}
     ErrorEnvelope:
       type: object
       required:
@@ -3458,114 +3274,6 @@ components:
           const: true
       required:
         - success
-    ServiceTokenRequest:
-      type: object
-      properties:
-        serviceId:
-          type: string
-          pattern: ^[a-z0-9-]+$
-          minLength: 1
-          maxLength: 64
-        environment:
-          type: string
-          enum:
-            - test
-            - live
-        secret:
-          type: string
-          minLength: 1
-          writeOnly: true
-      required:
-        - serviceId
-        - environment
-        - secret
-    ServiceTokenResponse:
-      type: object
-      properties:
-        accessToken: &a1
-          type: string
-        refreshToken:
-          type:
-            - string
-            - "null"
-        expiresIn:
-          type: number
-        serviceId: *a1
-        projectId: *a1
-        tribeId: *a1
-        environment:
-          type: string
-          enum:
-            - test
-            - live
-        permissions: &a2
-          type: array
-          items: *a1
-        scopes: *a2
-      required:
-        - accessToken
-        - refreshToken
-        - expiresIn
-        - serviceId
-        - projectId
-        - tribeId
-        - environment
-        - permissions
-        - scopes
-    RefreshTokenRequest:
-      type: object
-      properties:
-        refreshToken:
-          type: string
-          minLength: 1
-          writeOnly: true
-      required:
-        - refreshToken
-    RefreshTokenResponse:
-      type: object
-      properties:
-        accessToken:
-          type: string
-        refreshToken:
-          type:
-            - string
-            - "null"
-        expiresIn:
-          type: number
-      required:
-        - accessToken
-        - refreshToken
-        - expiresIn
-    RevokeTokenRequest:
-      type: object
-      properties:
-        refreshToken:
-          type: string
-          minLength: 1
-          writeOnly: true
-        revokeAll:
-          type: boolean
-      required:
-        - refreshToken
-    Jwks:
-      type: object
-      properties:
-        keys:
-          type: array
-          items:
-            type: object
-            properties:
-              kty: &a1
-                type: string
-              kid: *a1
-              use: *a1
-              alg: *a1
-              n: *a1
-              e: *a1
-            required:
-              - kty
-      required:
-        - keys
 x-apicenter-excluded-routes:
   - path: /api/v1/shared/gauth/verify-token
     reason: Mock-only implementation; not exposed by the service manifest or supported SDK.

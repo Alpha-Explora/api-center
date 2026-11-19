@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Request, Response } from 'express';
 import {
   createScopedIdempotencyKey,
@@ -9,7 +8,6 @@ import {
   callerIdempotencyScope,
   createSuccessResponse,
   type SharedServiceCaller,
-  registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { SendSmsService } from './features/send-sms/send-sms.service';
 import { SmsMessagePayload, SmsRecipient } from './features/send-sms/send-sms.model';
@@ -84,7 +82,7 @@ app.post('/send', async (req: Request, res: Response) => {
     namespace: 'sms',
     route: 'POST /send',
     clientKey,
-    ...callerIdempotencyScope(caller, req),
+    ...callerIdempotencyScope(caller),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
@@ -197,18 +195,9 @@ app.get('/status/:messageId', async (req: Request, res: Response) => {
   return ok(res, entry);
 });
 
-export async function registerWithGateway() {
-  return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
-    baseUrl: process.env.SERVICE_BASE_URL,
-    serviceLabel: 'sms-gateway',
-  });
-}
-
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`[sms-gateway] listening on port ${port}`);
-    registerWithGateway();
   });
 }
 

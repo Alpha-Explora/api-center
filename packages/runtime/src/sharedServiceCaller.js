@@ -1,19 +1,14 @@
 const { RuntimeContextError, loadRuntimeContextKeys, verifyRuntimeContext } = require('./runtimeContext');
 
 const RUNTIME_CONTEXT_HEADER = 'X-APICenter-Context';
-const CALLER_HEADERS = Object.freeze({
-  tribeId: 'X-Tribe-Id',
-  projectId: 'X-APICenter-Project-Id',
-  serviceId: 'X-APICenter-Source-Service-Id',
-  environment: 'X-APICenter-Environment',
-});
 
-const ENVIRONMENTS = new Set(['test', 'live']);
-const LOCAL_DEFAULTS = Object.freeze({
+/** The caller for a direct call to a runtime on a developer machine, where no gateway signs. */
+const LOCAL_CALLER = Object.freeze({
   tribeId: 'local',
   projectId: 'local',
   serviceId: 'local',
   environment: 'test',
+  model: 'local',
 });
 
 class SharedServiceCallerError extends Error {
@@ -55,81 +50,47 @@ function readRuntimeApplicationContext(req, options = {}) {
 }
 
 /**
- * Reads the caller the gateway authenticated for this request.
- *
- * A control-plane application call carries a signed `X-APICenter-Context`. When that header is
- * present it is the only source of identity: it must verify for this runtime's audience, and the
- * legacy identity headers are ignored. A present but invalid context is rejected; it never falls
- * back to headers.
- *
- * Legacy callers send plain identity headers. Production requires every one of them. Other
- * environments fill missing headers with local defaults so direct calls and tests keep working.
+ * Reads the caller the gateway authenticated for this request, from its signed
+ * `X-APICenter-Context`. The context must verify for this runtime's audience. Production requires
+ * it; outside production a request without one acts as a fixed local caller.
  */
 function readSharedServiceCaller(req, options = {}) {
   const { production = process.env.NODE_ENV === 'production' } = options;
   const context = readRuntimeApplicationContext(req, options);
-  if (context) {
-    // Records are scoped to the resolved resource owner: normally (organization, prj_ project);
-    // for a migrated project, its legacy (tribe, project) until historical records are reconciled.
-    // Control-plane IDs are prefixed (prj_, app_) and cannot collide with legacy slugs.
-    return {
-      tribeId: context.ownerGroupId,
-      projectId: context.ownerProjectId,
-      serviceId: context.applicationId,
-      environment: context.environmentKind,
-      model: 'application',
-      organizationId: context.organizationId,
-      environmentId: context.environmentId,
-      applicationId: context.applicationId,
-      action: context.action,
-      requestId: context.requestId,
-    };
+  if (!context) {
+    if (production) throw new SharedServiceCallerError('A signed APICenter runtime context is required');
+    return { ...LOCAL_CALLER };
   }
-
-  const caller = {};
-  const missing = [];
-  for (const [field, header] of Object.entries(CALLER_HEADERS)) {
-    const value = headerValue(req, header);
-    if (value) {
-      caller[field] = value;
-    } else if (production) {
-      missing.push(header);
-    } else {
-      caller[field] = LOCAL_DEFAULTS[field];
-    }
-  }
-  if (missing.length > 0) {
-    throw new SharedServiceCallerError('Missing caller headers: ' + missing.join(', '));
-  }
-  if (!ENVIRONMENTS.has(caller.environment)) {
-    throw new SharedServiceCallerError('X-APICenter-Environment must be test or live');
-  }
-  return caller;
-}
-
-/**
- * Identity fields for createScopedIdempotencyKey. Application callers use their verified context;
- * legacy callers keep the header-derived values so existing idempotency records still match.
- */
-function callerIdempotencyScope(caller, req) {
-  if (caller.model === 'application') {
-    return { sourceServiceId: caller.serviceId, tribeId: caller.tribeId, environment: caller.environment };
-  }
+  // Records are scoped to the resolved resource owner: the organization and project.
   return {
-    sourceServiceId: headerValue(req, CALLER_HEADERS.serviceId) || undefined,
-    tribeId: headerValue(req, CALLER_HEADERS.tribeId) || undefined,
-    environment: headerValue(req, CALLER_HEADERS.environment) || undefined,
+    tribeId: context.ownerGroupId,
+    projectId: context.ownerProjectId,
+    serviceId: context.applicationId,
+    environment: context.environmentKind,
+    model: 'application',
+    organizationId: context.organizationId,
+    environmentId: context.environmentId,
+    applicationId: context.applicationId,
+    action: context.action,
+    requestId: context.requestId,
   };
 }
 
+/** Identity fields for createScopedIdempotencyKey, from the caller. */
+function callerIdempotencyScope(caller) {
+  return { sourceServiceId: caller.serviceId, tribeId: caller.tribeId, environment: caller.environment };
+}
+
 /**
- * Express middleware for runtimes that do not otherwise read caller identity: a request carrying a
- * signed context must verify for this runtime, or it is rejected with 403.
+ * Express middleware for runtimes that do not otherwise read caller identity. The signed context
+ * must verify for this runtime, or the request is rejected with 403. Production requires it.
  */
-function createRuntimeContextGate(runtimeAudience) {
+function createRuntimeContextGate(runtimeAudience, { production = process.env.NODE_ENV === 'production' } = {}) {
   return (req, res, next) => {
     try {
-      req.apicenterApplicationContext = readRuntimeApplicationContext(req, { runtimeAudience });
+      const context = readRuntimeApplicationContext(req, { runtimeAudience });
+      if (!context && production) throw new SharedServiceCallerError('A signed APICenter runtime context is required');
+      req.apicenterApplicationContext = context;
       next();
     } catch (error) {
       res.status(403).json({

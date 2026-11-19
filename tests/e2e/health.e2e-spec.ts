@@ -1,88 +1,19 @@
 import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { HealthCheckService } from '@nestjs/terminus';
+import { Test } from '@nestjs/testing';
+import { TerminusModule } from '@nestjs/terminus';
 import { HealthController } from '../../apps/gateway/src/domains/runtime-ops/health/health.controller';
-import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry';
-import { ExternalService } from '../../apps/gateway/src/domains/gateway-proxy/external/external.service';
-import { GatewayTrafficService } from '../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service';
-import { AuditEventsService } from '../../apps/gateway/src/domains/compliance/audit/audit-events.service';
-import { GovernanceReadinessService } from '../../apps/gateway/src/domains/runtime-ops/health/governance-readiness.service';
-import { ConfigService } from '../../apps/gateway/src/config/config.service';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication;
   let baseUrl: string;
+  const saved = { databaseUrl: process.env.DATABASE_URL, databaseEnabled: process.env.DATABASE_ENABLED };
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
+    delete process.env.DATABASE_URL;
+    delete process.env.DATABASE_ENABLED;
+    const moduleFixture = await Test.createTestingModule({
+      imports: [TerminusModule],
       controllers: [HealthController],
-      providers: [
-        {
-          provide: HealthCheckService,
-          useValue: {
-            check: jest.fn(async (indicators: Array<() => Promise<Record<string, unknown>>>) => {
-              const results = await Promise.all(indicators.map((indicator) => indicator()));
-              const info = Object.assign({}, ...results);
-
-              return {
-                status: 'ok',
-                info,
-                error: {},
-                details: info,
-              };
-            }),
-          },
-        },
-        {
-          provide: 'KafkaService',
-          useValue: {
-            isConnected: jest.fn().mockReturnValue(true),
-          },
-        },
-        {
-          provide: RegistryService,
-          useValue: {
-            count: jest.fn().mockReturnValue(2),
-          },
-        },
-        {
-          provide: ExternalService,
-          useValue: {
-            getAllBreakerStats: jest.fn().mockReturnValue([]),
-          },
-        },
-        {
-          provide: GatewayTrafficService,
-          useValue: {
-            recordReadinessFailure: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-        {
-          provide: AuditEventsService,
-          useValue: {
-            record: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-        {
-          provide: GovernanceReadinessService,
-          useValue: {
-            snapshot: jest.fn().mockReturnValue({
-              status: 'up',
-              quotaEnforcer: 'up',
-              policyEngine: 'up',
-              approvals: 'up',
-              sdkContractVersion: 'local',
-              imageTag: 'local',
-            }),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            kafka: { enabled: true },
-          },
-        },
-      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -93,32 +24,22 @@ describe('HealthController (e2e)', () => {
   });
 
   afterAll(async () => {
-    if (app) {
-      await app.close();
-    }
+    await app?.close();
+    if (saved.databaseUrl !== undefined) process.env.DATABASE_URL = saved.databaseUrl;
+    if (saved.databaseEnabled !== undefined) process.env.DATABASE_ENABLED = saved.databaseEnabled;
   });
 
-  it('should return liveness payload at GET /api/v1/health/live', async () => {
+  it('answers liveness at GET /api/v1/health/live', async () => {
     const response = await fetch(`${baseUrl}/api/v1/health/live`);
-    const body = (await response.json()) as {
-      info: { process: { status: string } };
-    };
-
+    const body = (await response.json()) as { info: { process: { status: string } } };
     expect(response.status).toBe(200);
     expect(body.info.process.status).toBe('up');
   });
 
-  it('should return the readiness payload without a cache dependency at GET /api/v1/health/ready', async () => {
+  it('answers readiness with the database and release at GET /api/v1/health/ready', async () => {
     const response = await fetch(`${baseUrl}/api/v1/health/ready`);
-    const body = (await response.json()) as {
-      info: {
-        redis?: unknown;
-        registry: { registeredServices: number };
-      };
-    };
-
+    const body = (await response.json()) as { info: Record<string, { status: string }> };
     expect(response.status).toBe(200);
-    expect(body.info.redis).toBeUndefined();
-    expect(body.info.registry.registeredServices).toBe(2);
+    expect(Object.keys(body.info).sort()).toEqual(['database', 'process', 'release']);
   });
 });

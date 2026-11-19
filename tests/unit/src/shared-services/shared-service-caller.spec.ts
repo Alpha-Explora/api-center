@@ -1,57 +1,34 @@
 import { readSharedServiceCaller, sameProject, SharedServiceCallerError } from '@apicenter/runtime';
 
-const gatewayHeaders = {
+const requestWith = (values: Record<string, string>) => ({ get: (name: string) => values[name] });
+const forgedHeaders = {
   'X-Tribe-Id': 'tribe-a',
   'X-APICenter-Project-Id': 'project-a',
   'X-APICenter-Source-Service-Id': 'service-a',
   'X-APICenter-Environment': 'live',
 };
 
-function requestWith(values: Record<string, string>) {
-  return { get: (name: string) => values[name] };
-}
-
-describe('readSharedServiceCaller', () => {
-  it('reads the caller headers the gateway sets', () => {
-    expect(readSharedServiceCaller(requestWith(gatewayHeaders), { production: true })).toEqual({
-      tribeId: 'tribe-a',
-      projectId: 'project-a',
-      serviceId: 'service-a',
-      environment: 'live',
-    });
+describe('readSharedServiceCaller without a signed context', () => {
+  it('refuses the call in production, whatever identity headers it carries', () => {
+    expect(() => readSharedServiceCaller(requestWith(forgedHeaders), { production: true })).toThrow(SharedServiceCallerError);
+    expect(() => readSharedServiceCaller(requestWith({}), { production: true })).toThrow('signed APICenter runtime context is required');
   });
 
-  it('rejects a production request that is missing a caller header', () => {
-    expect(() => readSharedServiceCaller(requestWith({ 'X-Tribe-Id': 'tribe-a' }), { production: true }))
-      .toThrow(SharedServiceCallerError);
-    expect(() => readSharedServiceCaller(requestWith({ 'X-Tribe-Id': 'tribe-a' }), { production: true }))
-      .toThrow('X-APICenter-Project-Id');
-  });
-
-  it('treats a blank caller header as missing in production', () => {
-    expect(() => readSharedServiceCaller(requestWith({ ...gatewayHeaders, 'X-APICenter-Project-Id': '   ' }), { production: true }))
-      .toThrow('X-APICenter-Project-Id');
-  });
-
-  it('fills local defaults outside production', () => {
-    expect(readSharedServiceCaller(requestWith({}), { production: false })).toEqual({
+  it('acts as the fixed local caller outside production and ignores identity headers', () => {
+    expect(readSharedServiceCaller(requestWith(forgedHeaders), { production: false })).toEqual({
       tribeId: 'local',
       projectId: 'local',
       serviceId: 'local',
       environment: 'test',
+      model: 'local',
     });
-  });
-
-  it('rejects an environment that is neither test nor live', () => {
-    expect(() => readSharedServiceCaller(requestWith({ ...gatewayHeaders, 'X-APICenter-Environment': 'staging' }), { production: true }))
-      .toThrow('X-APICenter-Environment must be test or live');
   });
 });
 
 describe('sameProject', () => {
-  const caller = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'live' as const };
+  const caller = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'live' as const, model: 'application' as const };
 
-  it('matches a different service in the same project and environment', () => {
+  it('matches a different application in the same project and environment', () => {
     expect(sameProject(caller, { ...caller, serviceId: 'service-b' })).toBe(true);
   });
 

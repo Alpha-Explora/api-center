@@ -139,8 +139,8 @@ describe("readSharedServiceCaller with a signed context", () => {
       .toThrow("audience");
   });
 
-  it("keeps the legacy header path unchanged when no context is present", () => {
-    expect(
+  it("refuses a production call without a context instead of reading identity headers", () => {
+    expect(() =>
       readSharedServiceCaller(
         requestWith({
           "X-Tribe-Id": "tribe-a",
@@ -148,8 +148,8 @@ describe("readSharedServiceCaller with a signed context", () => {
           "X-APICenter-Source-Service-Id": "service-a",
           "X-APICenter-Environment": "test",
         }),
-        options,
+        { ...options, production: true },
       ),
-    ).toEqual({ tribeId: "tribe-a", projectId: "project-a", serviceId: "service-a", environment: "test" });
+    ).toThrow("signed APICenter runtime context is required");
   });
 });

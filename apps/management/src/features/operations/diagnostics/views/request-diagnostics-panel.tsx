@@ -112,13 +112,10 @@ export function RequestDiagnosticsPanel({ serviceId }: { serviceId?: string }) {
                 <p className="break-all font-mono">
                   Correlation: {record.correlationId}
                 </p>
-                {serviceId && record.paymentResourceId ? (
-                  <a
-                    className="underline"
-                    href={`/tribes/${encodeURIComponent(serviceId)}?section=evidence&environment=${environment}&paymentResource=${encodeURIComponent(record.paymentResourceId)}`}
-                  >
-                    View events for {record.paymentResourceId}
-                  </a>
+                {record.paymentResourceId ? (
+                  <p className="break-all font-mono">
+                    Payment resource: {record.paymentResourceId}
+                  </p>
                 ) : null}
               </li>
             ))}

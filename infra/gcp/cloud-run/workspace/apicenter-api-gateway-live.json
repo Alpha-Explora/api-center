@@ -31,24 +31,8 @@
             ],
             "env": [
               {
-                "name": "APICENTER_SHARED_SERVICE_EVENTS_TOPIC_TEST",
-                "value": "apicenter.shared-service-events.test"
-              },
-              {
                 "name": "ALLOWED_ORIGINS",
                 "value": "https://api-center-management-test.itsandbox.site,https://apicenter.itsandbox.site,https://docs.apicenter.itsandbox.site"
-              },
-              {
-                "name": "AUTH_PROVIDER",
-                "value": "composite"
-              },
-              {
-                "name": "KAFKA_ENABLED",
-                "value": "false"
-              },
-              {
-                "name": "DATA_PIPELINE_ENABLED",
-                "value": "false"
               },
               {
                 "name": "CLOUD_RUN_AUTH_ENABLED",
@@ -62,10 +46,6 @@
                     "name": "apicenter-payments-test-internal-token"
                   }
                 }
-              },
-              {
-                "name": "APICENTER_SHARED_SERVICE_EVENTS_TOPIC_LIVE",
-                "value": "apicenter.shared-service-events.live"
               },
               {
                 "name": "GCP_SECRET_NAME",
@@ -89,24 +69,12 @@
                 "value": "apicenter-alpha-20260623"
               },
               {
-                "name": "TRIBE_SECRET_GCP_PREFIX",
-                "value": "api-center-service-secret-"
-              },
-              {
                 "name": "DATABASE_POOL_MAX",
                 "value": "2"
               },
               {
-                "name": "SHARED_SERVICE_PUBSUB_ENABLED",
-                "value": "true"
-              },
-              {
                 "value": "true",
                 "name": "DATABASE_ENABLED"
-              },
-              {
-                "value": "postgres",
-                "name": "REGISTRY_SOURCE"
               },
               {
                 "value": "abtorres.it@alphaexplora.com",

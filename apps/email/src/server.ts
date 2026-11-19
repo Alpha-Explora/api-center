@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Request, Response } from 'express';
 import {
   createScopedIdempotencyKey,
@@ -9,7 +8,6 @@ import {
   callerIdempotencyScope,
   createSuccessResponse,
   type SharedServiceCaller,
-  registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { SendEmailService } from './features/send-email/send-email.service';
 import { EmailRecipients, EmailSubject } from './features/send-email/send-email.model';
@@ -98,7 +96,7 @@ app.post('/send', async (req: Request, res: Response) => {
     return fail(res, 400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key must be between 16 and 255 characters');
   }
   const storageKey = createScopedIdempotencyKey({
-    namespace: 'email', route: 'POST /send', clientKey, ...callerIdempotencyScope(caller, req),
+    namespace: 'email', route: 'POST /send', clientKey, ...callerIdempotencyScope(caller),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
@@ -219,18 +217,9 @@ app.get('/status/:messageId', async (req: Request, res: Response) => {
   return ok(res, entry);
 });
 
-export async function registerWithGateway() {
-  return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
-    baseUrl: process.env.SERVICE_BASE_URL,
-    serviceLabel: 'email-gateway',
-  });
-}
-
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`[email-gateway] listening on port ${port}`);
-    registerWithGateway();
   });
 }
 

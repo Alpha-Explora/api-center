@@ -2,23 +2,8 @@
 
 Plans record execution scope and pending checks. Use [current architecture](../../architecture/current-architecture.md), [payment ownership](../../payments-platform-current.md), contracts, code, and maintained runbooks for implemented behavior. Old checked boxes and deployment snapshots are not fresh verification.
 
-| Document | Status and remaining evidence | Durable authority |
-| --- | --- | --- |
-| [APICenter hosted domain rollout](2026-10-12-apicenter-domain-rollout.md) | DNS, HTTPS certificate, gateway access, Management and docs deployment, docs redirect fix and OAuth origin confirmed. Interactive sign-in and consumer/provider acceptance remain pending | Hosted access runbook, dated domain rollout record, gateway authentication and deployment manifests |
-| [Shared-services migration](2026-07-28-apicenter-shared-services.md) | Partially delivered in the recorded checklist; authenticated consumer/provider smoke checks remain pending in that record | Current architecture, runtime apps, shared-service guides, deployment manifests |
-| [Codebase structure cleanup](2026-07-28-apicenter-codebase-cleanup.md) | Working scope; unchecked stages require code and test reconciliation before closure | Gateway domain roots and boundary checks |
-| [Secret Manager cleanup](2026-05-22-secret-manager-migration-cleanup.md) | Historical GKE-era reference; do not execute its commands against the current platform without a fresh inventory | Current Cloud Run manifests, platform setup, current operator inventory |
-| [Control plane rebuild](2026-11-14-control-plane-rebuild.md) | Slices 2–13 execution record; progress list tracks each committed slice. Deployment, cutover and legacy deletion are operator gates | Approved rebuild design, `apps/gateway/src/domains/control-plane` |
-| [Control plane rebuild, slice 1](2026-11-14-control-plane-slice-1.md) | Implemented locally with unit, boundary and type checks. Migration replay against a database and staging acceptance (signing keys, one test email) remain pending | Approved control plane rebuild design, `apps/gateway/src/domains/control-plane`, `supabase/migrations/20261114000100_control_plane_foundation.sql` |
+No plan is open. Completed work is promoted into maintained concepts, ADRs, and runbooks; git history preserves the original plans.
 
 ## Working specifications
 
-- [Control plane rebuild](../specs/2026-11-14-control-plane-rebuild-design.md), approved. Covers organization-owned projects, environment-bound applications, explicit grants, credential unification and gradual migration. Slice 1 is implemented locally; no migration, live provisioning or cutover is claimed.
-- [APICenter operability improvements](../specs/2026-11-13-apicenter-operability-design.md), approved; local implementation verified, external acceptance pending in [readiness and provisioning](2026-11-13-readiness-and-live-provisioning.md), [go-live and credentials](2026-11-13-go-live-and-credentials.md), [diagnostics and event recovery](2026-11-13-request-diagnostics-and-event-recovery.md), [shared-service contracts](2026-11-13-shared-service-http-contracts.md), and [release verification](2026-11-13-release-verification.md). Runtime acceptance remains pending.
-- [APICenter domain layout and consumer access](../specs/2026-10-12-apicenter-domain-layout-design.md), native execution approved; remaining acceptance checks are in the dated domain rollout record.
-- [Shared-services design](../specs/2026-07-28-apicenter-shared-services-design.md)
-- [Review remediation design](../specs/2026-10-01-apicenter-review-remediation-design.md)
-
-Completed work is promoted into maintained concepts, ADRs, and runbooks. Remove the completed execution artifact and its pointers after recording the remaining evidence. Git history preserves the original plan. No incomplete plan is marked complete by this docs update.
-
-The completed 2026-10-01 review-remediation plan was retired after its local image and liveness checks. Its evidence and remaining production checks are recorded in [the 2026-10-11 cloud review](../../operations/cloud-live-status-2026-10-11.md).
+- [Control plane rebuild](../specs/2026-11-14-control-plane-rebuild-design.md): organization-owned projects, environment-bound applications, explicit grants and one application key. Built, deployed, and the only access model since the legacy model was removed on 2026-11-19.

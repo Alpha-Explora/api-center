@@ -1,177 +1,69 @@
 // =============================================================================
-// src/app.module.ts — Root Application Module
-// =============================================================================
+// Root module of the APICenter gateway.
 //
-// FOUNDATION OVERVIEW (all 8 checklist sections map here):
-//
-//  §1  GATEWAY FOUNDATION
-//        APICenter is the ONE gateway. Every route in this module tree
-//        represents a centralized path — no tribe calls another tribe directly.
-//
-//  §2  3-CONTAINER SETUP
-//        This module runs identically in api-center-1, api-center-2,
-//        api-center-3. No container-specific branching. Stateless by design.
-//
-//  §3  LOAD BALANCING
-//        NGINX sits in front (see nginx.conf). This module doesn't know or
-//        care which container it is — any container serves any request.
-//
-//  §4  REQUEST FLOW:  consumer → NGINX → this module → upstream
-//        ThrottlerModule  — rate-limit before touching business logic
-//        AuthModule       — validate JWT before proxying
-//        RegistryModule   — look up upstream URL
-//        TribesModule     — proxy tribe-to-tribe calls
-//        SharedServicesModule — proxy shared platform service calls
-//        ExternalModule   — legacy external proxy namespace; no providers configured by default
-//
-//  §5 / §6  SDK
-//        @alpha-explora/apicenter-sdk lives in packages/sdk and provides typed
-//        wrappers for the documented shared-service and payment operations.
-//        It does not expose generic tribe-proxy or event-publishing methods.
-//
-//  §7  TRIBE CONSUMPTION
-//        Tribe-to-tribe traffic is authorized and routed by TribesModule.
-//        Shared-service SDK calls use the corresponding typed service namespace.
-//
-//  §8  PRODUCTION RESILIENCE
-//        Rate limits are counted per instance in memory. Auth uses stateless
-//        JWTs; durable state (refresh tokens, idempotency) lives in Postgres.
-//        Any container can be stopped; the other two keep serving traffic.
-//
-//  CORS (required):
-//        Configured in main.ts (app.enableCors). All proxy controllers also
-//        inherit CORS headers because the global CORS configuration applies
-//        to every route registered in this module tree.
+// Callers are applications with keys (ak_test_/ak_live_) or Google workload identities. The
+// control plane authenticates them, checks their grants, quotas and budgets, and forwards calls to
+// the capability runtimes (/api/v1/shared/:capability/*), the payments facade (/api/v1/payments/*)
+// or published APIs (/api/v1/apis/:apiId/*) with a signed runtime context. The management console
+// and operator scripts use the admin routes with the platform credential, acting as the signed-in
+// person where the console forwards one.
 // =============================================================================
 
 import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerModule } from "@nestjs/throttler";
-
 import { ConfigModule } from "./config/config.module";
 import { ConfigService } from "./config/config.service";
 import { SharedModule } from "./shared/shared.module";
-import { AuthModule } from "./domains/auth-security/auth/auth.module";
-import { RegistryModule } from "./domains/catalog-registry/registry/registry.module";
-import { TribesModule } from "./domains/gateway-proxy/tribes/tribes.module";
-import { ExternalModule } from "./domains/gateway-proxy/external/external.module";
 import { SharedServicesModule } from "./domains/gateway-proxy/shared-services/shared-services.module";
 import { HealthModule } from "./domains/runtime-ops/health/health.module";
+import { DiagnosticsModule } from "./domains/runtime-ops/diagnostics/diagnostics.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { AuditModule } from "./domains/compliance/audit/audit.module";
-import { AnalyticsModule } from "./domains/runtime-ops/analytics/analytics.module";
-import { GovernanceModule } from "@governance";
-import { CatalogModule } from "./domains/catalog-registry/catalog/catalog.module";
-import { ComplianceModule } from "./domains/compliance/compliance/compliance.module";
-import { ForecastingModule } from "./domains/runtime-ops/forecasting/forecasting.module";
-import { OperationsModule } from "./domains/runtime-ops/operations/operations.module";
-import { CapabilitiesModule } from "./domains/runtime-ops/capabilities/capabilities.module";
+import { ApprovalsModule } from "./domains/governance/approvals/approvals.module";
 import { PaymentsModule } from "./domains/payments/payments.module";
-import { ProjectOverviewModule } from "./domains/catalog-registry/project-overview/project-overview.module";
 import { ControlPlaneModule } from "./domains/control-plane/control-plane.module";
 import { PublishedApisModule } from "./domains/gateway-proxy/published-apis/published-apis.module";
 import { EventDestinationsModule } from "./domains/control-plane/event-destinations/event-destinations.module";
-import { MigrationModule } from "./domains/control-plane/migration/migration.module";
-
 import { SecurityMiddleware } from "./shared/middleware/security.middleware";
 import { RequestDiagnosticsMiddleware } from "./shared/middleware/request-diagnostics.middleware";
 import { MorganMiddleware } from "./shared/middleware/morgan.middleware";
 import { ResponseListenerBudgetMiddleware } from "./shared/middleware/response-listener-budget.middleware";
 import { MemoryThrottlerStorage } from "./shared/memory-throttler-storage";
-import { TribeThrottlerGuard } from "./shared/guards/tribe-throttler.guard";
+import { CallerThrottlerGuard } from "./shared/guards/caller-throttler.guard";
 
 @Module({
   imports: [
-    // ── 1. Configuration — loaded first, all other modules depend on it ──────
     ConfigModule,
-
-    // ── 2. Rate limiting ─────────────────────────────────────────────────────
-    // Counters are per instance: with N instances a client can reach N times the limit.
-    // ALLOWED_ORIGINS / rate-limit window / max are driven by env vars.
+    // Per-instance request rate limits in front of everything else. Budgets and quotas per
+    // environment are enforced by the control plane in Postgres.
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule, SharedModule],
       inject: [ConfigService, MemoryThrottlerStorage],
       useFactory: (config: ConfigService, storage: MemoryThrottlerStorage) => ({
-        throttlers: [
-          { ttl: config.rateLimit.windowMs, limit: config.rateLimit.max },
-        ],
+        throttlers: [{ ttl: config.rateLimit.windowMs, limit: config.rateLimit.max }],
         storage,
       }),
     }),
-
-    // ── 3. Shared utilities — @Global, available everywhere without re-import ─
-    SharedModule, // LoggerService, AllExceptionsFilter, interceptors, middleware
-
-    // ── 4. Observability & Bounded Contexts ──────────────────────────────────
-    MetricsModule, // Prometheus counters / histograms / gauges
-    AuditModule, // Audit event ledger (apic_audit)
-    AnalyticsModule, // Protected JSON analytics for the management console
-    GovernanceModule, // Complete governance bounded context (quotas, entitlements, approvals, policy, dev portal)
-    ForecastingModule, // Quota pressure projections
-    OperationsModule, // Drift, dependencies, evidence, emergency, scorecards
-    CatalogModule, // API marketplace product projection
-    ComplianceModule, // Audit-ready export packets
-    CapabilitiesModule, // Runtime capability snapshot for management and operators
-    PaymentsModule, // Provider-neutral payments facade backed by private apps/payments
-    ProjectOverviewModule,
-    ControlPlaneModule, // Control plane v2: organization projects, applications, explicit grants, credentials
-    PublishedApisModule, // /api/v1/apis/:apiId/* for control-plane published APIs
-    EventDestinationsModule, // Per-environment event destinations for applications
-    MigrationModule, // Legacy tribe/project/service migration: inventory, backfill, cutover, rollback
-
-    // ── 5. Infrastructure services ────────────────────────────────────────────
-    AuthModule, // JWT providers + Vault + TokenStore — guards every proxy
-
-    // ── 6. Service registry ───────────────────────────────────────────────────
-    // The registry is the source of truth for which services exist and where
-    // they live. Each instance loads it from Postgres and refreshes it periodically.
-    // Tribes register via POST /api/v1/registry/register — no static config.
-    RegistryModule,
-
-    // ── 7. Gateway routing — the three centralized proxy namespaces ───────────
-    //
-    // TRIBE-TO-TRIBE  →  /api/v1/tribes/:serviceId/*
-    //   All inter-tribe calls pass through here.
-    //   The gateway owns registry lookup, identity, and scope checks. Generic
-    //   tribe-service clients are not currently part of packages/sdk.
-    //   JwtAuthGuard + scope checks enforced on every request.
-    TribesModule,
-
-    // SHARED PLATFORM SERVICES  →  /api/v1/shared/:serviceId/*
-    //   Platform-owned shared services (email, SMS, payments, notifications).
-    //   Registered with serviceType:'shared'.
-    //   SDK: typed email, SMS, OTP, geo, and Google Auth operations.
+    SharedModule,
+    MetricsModule,
+    AuditModule,
+    ApprovalsModule,
+    ControlPlaneModule,
+    EventDestinationsModule,
     SharedServicesModule,
-
-    // LEGACY EXTERNAL PROXY  →  /api/v1/external/:apiName/*
-    //   Kept as a guarded namespace, but no providers are configured by default.
-    //   New provider-backed integrations should be shared services plus SDK
-    //   wrappers, or governed Kafka routes for event publishing.
-    ExternalModule,
-
-    // ── 8. Health ─────────────────────────────────────────────────────────────
-    // /api/v1/health/live  — liveness probe (NGINX + k8s readiness gate)
-    // /api/v1/health/ready — readiness probe (checks Kafka, registry, breakers)
+    PaymentsModule,
+    PublishedApisModule,
+    DiagnosticsModule,
     HealthModule,
   ],
-  providers: [
-    // TribeThrottlerGuard enforces per-tribe rate limits on every route.
-    // Counters are kept in memory per instance (MemoryThrottlerStorage).
-    { provide: APP_GUARD, useClass: TribeThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: CallerThrottlerGuard }],
 })
 export class AppModule implements NestModule {
-  // Express-level middleware runs BEFORE NestJS guards / interceptors / pipes.
-  // SecurityMiddleware strips sensitive response headers and enforces payload limits.
-  // MorganMiddleware logs incoming HTTP requests to the Winston stream.
+  // Express middleware runs before Nest guards, interceptors and pipes.
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(
-        ResponseListenerBudgetMiddleware,
-        RequestDiagnosticsMiddleware,
-        SecurityMiddleware,
-        MorganMiddleware,
-      )
+      .apply(ResponseListenerBudgetMiddleware, RequestDiagnosticsMiddleware, SecurityMiddleware, MorganMiddleware)
       .forRoutes("{*splat}");
   }
 }

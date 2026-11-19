@@ -1,5 +1,5 @@
-import { WhoAmIController } from "./whoami.controller";
 import { Module } from "@nestjs/common";
+import { WhoAmIController } from "./whoami.controller";
 import { DatabaseModule } from "@database/database.module";
 import { AuthModule } from "@auth/auth.module";
 import { ControlPlaneAdminController } from "./control-plane-admin.controller";
@@ -13,10 +13,8 @@ import { QuotaService } from "./quota.service";
 import { LiveEnvironmentService } from "./live-environment.service";
 import { CapabilityConfigurationService } from "./capability-configuration.service";
 import { PublishedApiService } from "./published-api.service";
-import { LegacyBridgeService } from "./migration/legacy-bridge.service";
 import { WorkloadTokenVerifier } from "./workload-identity";
 import { WorkloadBindingService } from "./workload-binding.service";
-import { RegistryModule } from "@registry/registry.module";
 import { ApprovalsModule } from "@approvals/approvals.module";
 
 /**
@@ -26,7 +24,7 @@ import { ApprovalsModule } from "@approvals/approvals.module";
  * ApplicationAccessService is the public entry point for the request path.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule, ApprovalsModule, RegistryModule],
+  imports: [DatabaseModule, AuthModule, ApprovalsModule],
   controllers: [ControlPlaneAdminController, WhoAmIController],
   providers: [
     ControlPlaneAdminService,
@@ -39,10 +37,9 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     LiveEnvironmentService,
     CapabilityConfigurationService,
     PublishedApiService,
-    LegacyBridgeService,
     WorkloadTokenVerifier,
     WorkloadBindingService,
   ],
-  exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, LegacyBridgeService, AuthModule],
+  exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, AuthModule],
 })
 export class ControlPlaneModule {}

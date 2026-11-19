@@ -2,7 +2,7 @@ import { Controller, HttpCode, Post, RawBodyRequest, Req } from '@nestjs/common'
 import type { Request } from 'express';
 import { BadGatewayError, NotFoundError, ServiceUnavailableError, UnauthorizedError, ValidationError } from '@shared/errors';
 import { ConfigService } from '@config/config.service';
-import { RegistryService } from '@registry/registry.service';
+import { SharedServiceRoutingService } from './shared-service-routing.service';
 import { getCloudRunAuthorizationHeader } from '@shared/proxy/cloud-run-auth';
 import { verifyResendSignature, verifyTwilioSignature, twilioProviderEventId } from './delivery-webhook-signatures';
 
@@ -10,7 +10,7 @@ type EventPayload = { providerEventId: string; messageId: string; status: string
 
 @Controller('webhooks')
 export class DeliveryWebhookController {
-  constructor(private readonly registry: RegistryService, private readonly config: ConfigService) {}
+  constructor(private readonly routing: SharedServiceRoutingService, private readonly config: ConfigService) {}
 
   @Post('resend')
   @HttpCode(200)
@@ -70,9 +70,13 @@ export class DeliveryWebhookController {
   }
 
   private async forward(serviceId: 'email' | 'sms', provider: 'resend' | 'twilio', event: EventPayload) {
-    const upstream = this.registry.get(serviceId)?.environments
-      .find((environment) => environment.environment === 'live')?.baseUrl?.replace(/\/+$/, '');
-    if (!upstream) throw new NotFoundError(`${serviceId} runtime is not configured`);
+    // Delivery events are provider callbacks; the runtime serves both environments.
+    let upstream: string;
+    try {
+      upstream = this.routing.resolve(serviceId, 'live').targetUrl.replace(/\/+$/, '');
+    } catch {
+      throw new NotFoundError(`${serviceId} runtime is not configured`);
+    }
     const authorization = await getCloudRunAuthorizationHeader(upstream);
     let response: globalThis.Response;
     try {

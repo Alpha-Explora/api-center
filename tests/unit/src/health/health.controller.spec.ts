@@ -1,103 +1,43 @@
 import { HealthCheckService } from "@nestjs/terminus";
 import { HealthController } from "../../../../apps/gateway/src/domains/runtime-ops/health/health.controller";
-import { RegistryService } from "../../../../apps/gateway/src/domains/catalog-registry/registry/registry.service";
-import { ExternalService } from "../../../../apps/gateway/src/domains/gateway-proxy/external/external.service";
-import { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
-import { GatewayTrafficService } from "../../../../apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service";
-import { ConfigService } from "../../../../apps/gateway/src/config/config.service";
-import { GovernanceReadinessService } from "../../../../apps/gateway/src/domains/runtime-ops/health/governance-readiness.service";
+import type { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 
 type IndicatorFn = () => Promise<Record<string, unknown>>;
 
-function createHealthCheckServiceMock(): HealthCheckService {
-  return {
-    check: jest.fn(async (indicators: IndicatorFn[]) => {
-      const results = await Promise.all(
-        indicators.map((indicator) => indicator()),
-      );
-      const info = Object.assign({}, ...results);
-
-      return {
-        status: "ok",
-        info,
-        error: {},
-        details: info,
-      };
-    }),
-  } as unknown as HealthCheckService;
-}
+// Runs the indicators the way Terminus does and merges their results.
+const health = {
+  check: jest.fn(async (indicators: IndicatorFn[]) => Object.assign({}, ...(await Promise.all(indicators.map((indicator) => indicator()))))),
+} as unknown as HealthCheckService;
 
 describe("HealthController", () => {
-  let controller: HealthController;
-  let externalService: ExternalService;
-  let registry: RegistryService;
-
-  beforeEach(() => {
-    const health = createHealthCheckServiceMock();
-    registry = {
-      count: jest.fn().mockReturnValue(2),
-    } as unknown as RegistryService;
-    externalService = {
-      getAllBreakerStats: jest.fn().mockReturnValue([]),
-    } as unknown as ExternalService;
-    const gatewayTraffic = {
-      recordReadinessFailure: jest.fn().mockResolvedValue(undefined),
-    } as unknown as GatewayTrafficService;
-    const auditEvents = {
-      record: jest.fn().mockResolvedValue(undefined),
-    } as unknown as AuditEventsService;
-    const governanceReadiness = new GovernanceReadinessService();
-    const config = {} as ConfigService;
-
-    controller = new HealthController(
-      health,
-      registry,
-      externalService,
-      gatewayTraffic,
-      auditEvents,
-      governanceReadiness,
-      config,
-    );
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
   });
 
-  it("should expose process liveness as up", async () => {
-    const result = await controller.liveness();
-
-    expect((result as any).info.process.status).toBe("up");
+  it("reports the process for liveness without touching the database", async () => {
+    const prisma = { $queryRawUnsafe: jest.fn() } as unknown as PrismaService;
+    process.env.DATABASE_URL = "postgres://example";
+    const result = (await new HealthController(health, prisma).liveness()) as unknown as Record<string, { status: string }>;
+    expect(result.process.status).toBe("up");
+    expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
   });
 
-  it("does not depend on a cache server for readiness", async () => {
-    const result = await controller.readiness();
-
-    expect((result as any).info.redis).toBeUndefined();
-    expect((result as any).info.registry.status).toBe("up");
+  it("reports the database and the running release for readiness", async () => {
+    process.env.DATABASE_URL = "postgres://example";
+    process.env.K_REVISION = "apicenter-gateway-00042";
+    process.env.APICENTER_RELEASE_SHA = "abc123";
+    const prisma = { $queryRawUnsafe: jest.fn().mockResolvedValue([{ "?column?": 1 }]) } as unknown as PrismaService;
+    const result = (await new HealthController(health, prisma).readiness()) as unknown as Record<string, Record<string, unknown>>;
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith("SELECT 1");
+    expect(result.database).toEqual({ status: "up" });
+    expect(result.release).toEqual({ status: "up", imageTag: "apicenter-gateway-00042", sha: "abc123" });
   });
 
-  it("should report circuit breakers as down when at least one breaker is open", async () => {
-    (externalService.getAllBreakerStats as jest.Mock).mockReturnValue([
-      { name: "geo", state: "OPEN", failureCount: 3 },
-    ]);
-
-    const result = await controller.readiness();
-
-    expect((result as any).info.circuitBreakers.status).toBe("down");
+  it("marks the database down when it does not answer", async () => {
+    process.env.DATABASE_URL = "postgres://example";
+    const prisma = { $queryRawUnsafe: jest.fn().mockRejectedValue(new Error("connection refused")) } as unknown as PrismaService;
+    const result = (await new HealthController(health, prisma).readiness()) as unknown as Record<string, Record<string, unknown>>;
+    expect(result.database).toEqual({ status: "down" });
   });
-
-  it("should include the registered services count in readiness output", async () => {
-    const result = await controller.readiness();
-
-    expect((result as any).info.registry.registeredServices).toBe(2);
-  });
-
-  it("should include governance readiness in readiness output", async () => {
-    const result = await controller.readiness();
-
-    expect((result as any).info.governance).toMatchObject({
-      status: "up",
-      quotaEnforcer: "up",
-      policyEngine: "up",
-      approvals: "up",
-    });
-  });
-
 });

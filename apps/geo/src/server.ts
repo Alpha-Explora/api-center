@@ -1,11 +1,9 @@
-import path from 'node:path';
 import { Request, Response } from 'express';
 import {
   createSharedServiceApp,
   createRuntimeContextGate,
   fail,
   ok,
-  registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { GeocodeService } from './features/geocode/geocode.service';
 import { ReverseGeocodeService } from './features/reverse-geocode/reverse-geocode.service';
@@ -99,18 +97,9 @@ app.post('/geofence/check', (req: Request, res: Response) => {
   return ok(res, data);
 });
 
-export async function registerWithGateway() {
-  return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
-    baseUrl: process.env.SERVICE_BASE_URL,
-    serviceLabel: 'geo-gateway',
-  });
-}
-
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`[geo-gateway] listening on port ${port}`);
-    registerWithGateway();
   });
 }
 

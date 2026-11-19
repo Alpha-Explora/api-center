@@ -3,9 +3,9 @@
 // signed-in member's Google ID token so their roles apply; a platform caller without a user
 // token acts as the platform.
 
-import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
-import { AppError, ValidationError } from "@shared/errors";
+import { AppError, ForbiddenError, ValidationError } from "@shared/errors";
 import { ControlPlaneAdminService, type EnvironmentScope } from "./control-plane-admin.service";
 import { ConsoleAccessService } from "./console-access.service";
 import { OrganizationPeopleService } from "./organization-people.service";
@@ -117,6 +117,13 @@ export class ControlPlaneAdminController {
     private readonly apis: PublishedApiService,
     private readonly workloads: WorkloadBindingService,
   ) {}
+
+  /** Which organizations an email belongs to. Only the console's server asks, at sign-in. */
+  @Get("memberships")
+  async memberships(@Query("email") rawEmail: string, @Req() req: ConsoleRequest) {
+    if (actorOf(req).kind !== "platform") throw new ForbiddenError("Membership lookup is for the console's server");
+    return { success: true, data: await this.people.membershipsOf(parse(schemas.email, rawEmail, "email")) };
+  }
 
   @Get("capabilities")
   capabilities() {

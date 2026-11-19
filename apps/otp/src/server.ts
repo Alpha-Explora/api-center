@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Request, Response } from 'express';
 import {
   createFailureResponse,
@@ -10,7 +9,6 @@ import {
   callerIdempotencyScope,
   createSuccessResponse,
   type SharedServiceCaller,
-  registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { GenerateOtpService } from './features/generate-otp/generate-otp.service';
 import { VerifyOtpService } from './features/verify-otp/verify-otp.service';
@@ -87,7 +85,7 @@ app.post('/generate', async (req: Request, res: Response) => {
     namespace: 'otp',
     route: 'POST /generate',
     clientKey,
-    ...callerIdempotencyScope(caller, req),
+    ...callerIdempotencyScope(caller),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
@@ -186,7 +184,7 @@ app.post('/verify', async (req: Request, res: Response) => {
     namespace: 'otp',
     route: 'POST /verify',
     clientKey,
-    ...callerIdempotencyScope(caller, req),
+    ...callerIdempotencyScope(caller),
   });
   if (!storageKey) {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
@@ -271,18 +269,9 @@ app.get('/status/:otpId', async (req: Request, res: Response) => {
   return ok(res, result);
 });
 
-export async function registerWithGateway() {
-  return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
-    baseUrl: process.env.SERVICE_BASE_URL,
-    serviceLabel: 'otp-gateway',
-  });
-}
-
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`[otp-gateway] listening on port ${port}`);
-    registerWithGateway();
   });
 }
 

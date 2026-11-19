@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, reviewers, operators, agents]
-last_verified: "2026-11-14"
+last_verified: "2026-11-19"
 verification: repository
 sources: [contracts/public, apps/docs/content/guides.json, packages/contracts/src/index.ts, docs/superpowers/plans/README.md]
 ---
@@ -15,11 +15,11 @@ This register distinguishes documentation coverage from implementation and runti
 | Capability | Repository implementation and authority | Documentation coverage | Runtime evidence |
 | --- | --- | --- | --- |
 | Payments | Gateway facade and private payments runtime; [current ownership](../payments-platform-current.md) | Public OpenAPI, payment guides, SDK and contract checks | Live-provider, settlement, IAM, and database behavior require separate environment verification |
-| Payment events | Pub/Sub delivery and outbox; [event operations](../integrations/payment-event-outbox-operations.md) | AsyncAPI and event/consumer guides | Historical records exist; delivery and replay need current consumer/provider evidence |
+| Payment events | Pub/Sub delivery, outbox, and signed webhooks; [event operations](../integrations/payment-event-outbox-operations.md) | AsyncAPI (contract 2.0) and event/webhook guides | Historical records exist; delivery and replay need current consumer/provider evidence |
 | Email, SMS, OTP | Independent runtimes and shared-service proxy | Authored integration guides, TypeScript contracts, and all supported shared HTTP operations in public OpenAPI | Provider delivery, approved senders, and production storage need current verification |
 | Geo and Google Auth | Independent `geo`/`gauth` runtimes | Authored guides and supported shared HTTP operations in public OpenAPI | Provider credentials, OAuth configuration, and live calls remain environment-specific |
-| Operability | Durable revision-bound verification, safe credential lifecycle, request diagnostics, and payment event replay | [Operator procedure](../operations/operability-and-release-verification.md) | Disposable database and repository checks; deployment and provider acceptance pending |
-| Registry and governance | Gateway domains and management console | Internal developer/runbook guidance and selected public guides | Placement, scopes, and quota enforcement need focused tests and environment evidence |
+| Request diagnostics | Redacted per-request records and the console's Requests page | [Control plane operations](../operations/control-plane-operations.md) | Repository checks; deployment acceptance pending |
+| Control plane | Organizations, projects, applications, grants, keys, budgets and live approval | Access and tenancy guides, control-plane runbook | Serbizio's test environment runs on it; live activation awaits approval |
 | Documentation governance | Canonical internal bundle, guide registry, contract-derived reference | Link/metadata/source audits, contract fidelity tests, and static-export checks | The workflow produces verified artifacts; public hosting is not verified here |
 
 ## Status vocabulary
@@ -28,6 +28,6 @@ Use **implemented** when code exists with the stated focused verification; **par
 
 ## Remaining work
 
-- Complete deployment and provider acceptance for the [go-live and release verification workflow](../operations/operability-and-release-verification.md). Durable evidence, credentials, diagnostics, and replay controls are implemented locally; production permissions and consumer acknowledgement remain environment-specific.
+- Replace the removed release verifier with an application-key smoke check run after each deploy.
 - Reconcile pending provider/deployment checks in the [working-document register](../superpowers/plans/README.md).
 - Attach fresh deployment and provider evidence when updating historical operational records. A docs-only PR must not manufacture these results.

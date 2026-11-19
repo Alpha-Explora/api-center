@@ -71,23 +71,15 @@ export function createCircuitBreaker(options: { provider: string; failureThresho
 export function withProviderTimeout<T>(promise: Promise<T>, options: { timeoutMs: number; provider: string; operation: string }): Promise<T>;
 export function recordProviderMetric(metric: { serviceId: string; provider: string; operation: string; status: string; latencyMs: number }): void;
 
-export function registerWithGateway(options: {
-  manifestPath: string;
-  baseUrl?: string;
-  serviceLabel?: string;
-}): Promise<unknown>;
-
-export function shouldRegisterWithGateway(): boolean;
-
 export interface SharedServiceCaller {
-  /** Legacy: the caller's tribe. Application callers: their organization ID. */
+  /** The organization that owns the caller's records. */
   tribeId: string;
   projectId: string;
-  /** Legacy: the calling service. Application callers: the application ID. */
+  /** The application ID. */
   serviceId: string;
   environment: 'test' | 'live';
-  /** `application` when identity came from a verified signed runtime context. */
-  model?: 'legacy' | 'application';
+  /** `application` for a gateway-signed call; `local` for a direct call outside production. */
+  model: 'application' | 'local';
   organizationId?: string;
   environmentId?: string;
   applicationId?: string;
@@ -100,9 +92,8 @@ export class SharedServiceCallerError extends Error {}
 export const RUNTIME_CONTEXT_HEADER: 'X-APICenter-Context';
 
 /**
- * Reads the gateway-authenticated caller. A signed `X-APICenter-Context` is verified against
- * `runtimeAudience` and is then the only source of identity; an invalid one is rejected.
- * Without it, legacy identity headers apply and production rejects any missing header.
+ * Reads the gateway-authenticated caller from the signed `X-APICenter-Context`, verified against
+ * `runtimeAudience`. Production requires it; outside production a call without one is `local`.
  */
 export function readSharedServiceCaller(
   req: { get(name: string): string | undefined },
@@ -122,14 +113,16 @@ export function readRuntimeApplicationContext(
   options?: { runtimeAudience?: string; contextKeys?: Map<string, unknown>; now?: number },
 ): RuntimeContextClaims | undefined;
 
-/** Identity fields for createScopedIdempotencyKey, from the verified context or legacy headers. */
+/** Identity fields for createScopedIdempotencyKey, from the caller. */
 export function callerIdempotencyScope(
   caller: SharedServiceCaller,
-  req: { get(name: string): string | undefined },
 ): { sourceServiceId?: string; tribeId?: string; environment?: string };
 
 /** Express middleware: a present signed context must verify for this runtime or the request gets 403. */
-export function createRuntimeContextGate(runtimeAudience: string): (req: any, res: any, next: () => void) => void;
+export function createRuntimeContextGate(
+  runtimeAudience: string,
+  options?: { production?: boolean },
+): (req: any, res: any, next: () => void) => void;
 
 export interface RuntimeContextClaims {
   requestId: string;

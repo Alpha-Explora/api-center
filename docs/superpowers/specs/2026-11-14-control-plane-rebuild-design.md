@@ -6,11 +6,11 @@ owner: platform-maintainers
 audience: [engineers, maintainers, agents]
 last_verified: "2026-11-14"
 verification: repository
-sources: [prisma/schema.prisma, apps/gateway/src/domains/catalog-registry/registry, apps/gateway/src/domains/auth-security/auth, apps/gateway/src/domains/governance, apps/gateway/src/domains/payments, packages/sdk/package.json, docs/operations/operability-and-release-verification.md]
+sources: [prisma/schema.prisma, apps/gateway/src/domains/control-plane, apps/gateway/src/domains/payments, packages/sdk/package.json]
 ---
 # APICenter control plane rebuild
 
-Design status: approved by the user on 2026-11-14. The user selected a control plane rebuild with gradual migration, retaining the existing capability runtimes. Slice 1 is implemented locally and tracked in [the slice 1 plan](../plans/2026-11-14-control-plane-slice-1.md); later slices, deployment and migration are not implemented.
+Design status: approved by the user on 2026-11-14. The user selected a control plane rebuild with gradual migration, retaining the existing capability runtimes. Slice 1 is implemented locally and tracked in the slice 1 plan; later slices, deployment and migration are not implemented.
 
 ## Intent and success
 

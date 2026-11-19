@@ -3,14 +3,26 @@ import { Test } from '@nestjs/testing';
 import { AddressInfo } from 'node:net';
 import { Server } from 'node:http';
 import { PaymentsController } from '../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
-import { PaymentApiKeyService } from '../../apps/gateway/src/domains/payments/features/payment-facade/payment-api-key.service';
-import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
 import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/features/payment-limits/payment-limits.service';
 import { ApplicationAccessService } from '../../apps/gateway/src/domains/control-plane/application-access.service';
-import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard';
-import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry/registry/registry.service';
-import { TENANCY_DIRECTORY } from '../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types';
+
+const KEY = 'ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
+// The control plane accepts KEY for the integration application, organization and project.
+const applications = {
+  authorizeAction: jest.fn(async ({ bearer, action }: { bearer: string; action: string }) => {
+    if (bearer !== KEY) throw Object.assign(new Error('Invalid application key'), { status: 401 });
+    return {
+      identity: { organizationId: 'org-integration', projectId: 'project-integration', environmentId: 'env_1', environmentKind: 'test', applicationId: 'app-integration', credentialId: 'crd_1' },
+      resourceOwner: { groupId: 'org-integration', projectId: 'project-integration' },
+      requestKey: 'req:1',
+      capability: 'payments',
+      action,
+      signedContext: 'unused',
+    };
+  }),
+  recordOutcome: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('payment gateway to runtime integration', () => {
   const envKeys = [
@@ -46,29 +58,10 @@ describe('payment gateway to runtime integration', () => {
     const module = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
-        PaymentAuthGuard,
         PaymentIdempotencyService,
         // Without DATABASE_ENABLED the real limits service applies plan defaults in memory.
         { provide: PaymentLimitsService, useFactory: () => new PaymentLimitsService({} as never) },
-        {
-          provide: PaymentApiKeyService,
-          useValue: {
-            resolve: jest.fn(async (key: string) => key === 'apic_integration_valid'
-              ? {
-                ownerTribeId: 'tribe-integration',
-                projectId: 'project-integration',
-                consumerServiceId: 'service-integration',
-                environment: 'test',
-                scopes: ['payments:read', 'payments:write'],
-              }
-              : null),
-          },
-        },
-        // Legacy keys resolve their own principal; control-plane bearers are not used here.
-        { provide: ApplicationAccessService, useValue: { authorizeAction: jest.fn(), recordOutcome: jest.fn() } },
-        { provide: JwtAuthGuard, useValue: { canActivate: jest.fn().mockReturnValue(false) } },
-        { provide: RegistryService, useValue: { get: jest.fn(), canAccess: jest.fn() } },
-        { provide: TENANCY_DIRECTORY, useValue: { resolveServicePlacement: jest.fn(), resolveProject: jest.fn() } },
+        { provide: ApplicationAccessService, useValue: applications },
       ],
     }).compile();
 
@@ -93,7 +86,7 @@ describe('payment gateway to runtime integration', () => {
     const request = {
       method: 'POST',
       headers: {
-        Authorization: 'Bearer apic_integration_valid',
+        Authorization: `Bearer ${KEY}`,
         'Idempotency-Key': 'integration-checkout-key-123',
         'Content-Type': 'application/json',
       },
@@ -116,7 +109,7 @@ describe('payment gateway to runtime integration', () => {
     expect(await replay.json()).toEqual(payload);
 
     const found = await fetch(`${gatewayUrl}/api/v1/payments/checkouts/by-reference/integration-order-1`, {
-      headers: { Authorization: 'Bearer apic_integration_valid' },
+      headers: { Authorization: `Bearer ${KEY}` },
     });
     expect(found.status).toBe(200);
     expect(await found.json()).toMatchObject({ data: payload.data });

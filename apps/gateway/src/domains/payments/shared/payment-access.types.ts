@@ -1,5 +1,11 @@
-export interface PaymentAccessDirectory {
-  hasActiveReadWriteKey(serviceId: string, projectId: string, environment: "test" | "live"): Promise<boolean | null>;
-}
-
-export const PAYMENT_ACCESS_DIRECTORY = Symbol("PAYMENT_ACCESS_DIRECTORY");
+/**
+ * The application a payment call acts for, from its key's control-plane grants. Payment
+ * resources are owned by the organization (`ownerTribeId` internally) and project.
+ */
+export type PaymentPrincipal = {
+  ownerTribeId: string;
+  projectId: string;
+  /** The application ID. */
+  consumerServiceId: string;
+  environment: "test" | "live";
+};

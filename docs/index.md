@@ -26,12 +26,9 @@ This is the canonical internal reading map. Consumer and Management guides are p
 
 ## Operations
 
-- [Control plane operations: deploy, configure, migrate](operations/control-plane-operations.md)
-- [Go-live, credential recovery, and release verification](operations/operability-and-release-verification.md)
+- [Control plane operations: deploy, configure, go live](operations/control-plane-operations.md)
 
 - [Documentation entry-point compatibility](README.md)
-- [Cloud review recorded on 2026-10-11](operations/cloud-live-status-2026-10-11.md)
-- [Cloud Run deployment verified on 2026-10-12](operations/cloud-live-status-2026-10-12.md)
 
 - [APICenter Full-Plan IAM Access](operations/apicenter-full-plan-iam-access.md)
 - [History write load test](operations/history-load-test.md)
@@ -47,14 +44,6 @@ This is the canonical internal reading map. Consumer and Management guides are p
 - [Payment event outbox operations](integrations/payment-event-outbox-operations.md)
 - [Payment reconciliation](integrations/payment-reconciliation.md)
 
-## Developer policy
-
-- [Tribe API Quotas](developer/tribe-api-quotas.md)
-- [Tribe Governance Scorecard Rubric](developer/tribe-governance-scorecard-rubric.md)
-
-## Research
-
-
 ## Decisions, plans, and history
 
 - [Architecture decisions](adr/index.md)
@@ -69,4 +58,4 @@ This is the canonical internal reading map. Consumer and Management guides are p
 - [Public payment event AsyncAPI](../contracts/public/apicenter.asyncapi.yaml)
 - [Published SDK](../packages/sdk/README.md)
 
-Root internal documents are not automatically published. The public OpenAPI covers payments, identity bootstrap, and supported shared-service HTTP operations. See the maintenance rules for ownership, retirement, and the automated checks.
+Root internal documents are not automatically published. The public OpenAPI covers payments, the supported shared-service HTTP operations and `/whoami`; every operation authenticates with an application key. See the maintenance rules for ownership, retirement, and the automated checks.

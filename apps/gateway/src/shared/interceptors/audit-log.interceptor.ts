@@ -45,21 +45,14 @@ export class AuditLogInterceptor implements NestInterceptor {
   private publishAudit(request: Request, response: Response, start: number) {
     const authReq = request as AuthenticatedRequest;
 
-    // Extract the target service from tribe proxy URLs  /api/v1/tribes/:targetServiceId/*
-    const pathParts = request.originalUrl.split("/");
-    const tribesIdx = pathParts.indexOf("tribes");
-    const targetServiceId =
-      tribesIdx >= 0 ? pathParts[tribesIdx + 1] : undefined;
-
     this.logger.info("Audit log", {
-      tribeId: authReq.tribeId || "anonymous",
       method: request.method,
       path: request.originalUrl,
       statusCode: response.statusCode,
       durationMs: Date.now() - start,
       ip: request.ip || "unknown",
       correlationId: authReq.correlationId,
-      ...(targetServiceId && { targetServiceId }),
+      ...(authReq.caller && { applicationId: authReq.caller.applicationId, environment: authReq.caller.environmentKind }),
     });
   }
 }

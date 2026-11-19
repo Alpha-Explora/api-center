@@ -2,6 +2,7 @@
 
 ## 2026-11-19
 
+- Removed the legacy model from the internal docs: deleted the tribe quota and scorecard guides, the dated cloud status and domain rollout records, the finished shared-services, cleanup, secret-manager, domain-layout, review-remediation and control-plane slice plans, and the operability design with its plans and runbook (its verification runs and service credentials are gone). Rewrote the architecture page, capability register, working-document register and control plane operations (no migration section; console sign-in and the removal recorded). Consumer guides and the OpenAPI now name only application keys.
 - Rewrote getting started, authentication, access and tenancy, and SDK integration for SDK 3.0 and application keys; added `packages/sdk/UPGRADING.md`. Removed the guides for service registration, token exchange, registry health and Pub/Sub push delivery, and the payment runbook's AlphaCI smoke harness.
 - Added the consumer guide for payment event webhooks (endpoint setup, signature verification, retries, deduplication and secret rotation), pointed the consumer runbook at it, and recorded the webhook delivery service's deployment requirements in control plane operations.
 

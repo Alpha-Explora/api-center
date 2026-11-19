@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Request, Response } from 'express';
 import {
   createMemoryRateLimitStore,
@@ -6,7 +5,6 @@ import {
   readRuntimeApplicationContext,
   fail,
   ok,
-  registerWithGateway as registerSharedServiceWithGateway,
 } from '@apicenter/runtime';
 import { AuthorizeService } from './features/authorize/authorize.service';
 import { TokenExchangeService } from './features/token-exchange/token-exchange.service';
@@ -161,18 +159,9 @@ app.post('/oauth/logout', async (req: Request, res: Response) => {
 
 app.post('/verify-token', createVerifyTokenRouteHandler(verifyTokenService));
 
-export async function registerWithGateway() {
-  return registerSharedServiceWithGateway({
-    manifestPath: path.resolve(__dirname, '../service-manifest.json'),
-    baseUrl: process.env.SERVICE_BASE_URL,
-    serviceLabel: 'gauth',
-  });
-}
-
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`[gauth-gateway] listening on port ${port}`);
-    registerWithGateway();
   });
 }
 

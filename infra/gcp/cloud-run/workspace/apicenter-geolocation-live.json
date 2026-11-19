@@ -59,10 +59,6 @@
               {
                 "value": "apicenter-alpha-20260623",
                 "name": "GCP_PROJECT_ID"
-              },
-              {
-                "value": "false",
-                "name": "REGISTER_WITH_GATEWAY"
               }
             ],
             "resources": {

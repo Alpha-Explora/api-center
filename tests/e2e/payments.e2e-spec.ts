@@ -1,17 +1,30 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import axios from 'axios';
-import { PaymentsController, PaymentApiKeyService } from '../../apps/gateway/src/domains/payments';
-import { PaymentAuthGuard } from '../../apps/gateway/src/domains/payments/shared/payment-auth.guard';
+import { PaymentsController } from '../../apps/gateway/src/domains/payments';
 import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/features/payment-limits/payment-limits.service';
-import { JwtAuthGuard } from '../../apps/gateway/src/domains/auth-security';
-import { RegistryService } from '../../apps/gateway/src/domains/catalog-registry/registry/registry.service';
-import { TENANCY_DIRECTORY } from '../../apps/gateway/src/domains/catalog-registry/registry/tenancy.types';
 import { ApplicationAccessService } from '../../apps/gateway/src/domains/control-plane/application-access.service';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
+
+const KEY = 'ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
+// The control plane accepts KEY and resolves it to its application, organization and project.
+const applications = {
+  authorizeAction: jest.fn(async ({ bearer, action }: { bearer: string; action: string }) => {
+    if (bearer !== KEY) throw Object.assign(new Error('Invalid application key'), { status: 401, response: { code: 'INVALID_CREDENTIAL' } });
+    return {
+      identity: { organizationId: 'tribe-alpha', projectId: 'project-alpha', environmentId: 'env_1', environmentKind: 'test', applicationId: 'service-alpha', credentialId: 'crd_1' },
+      resourceOwner: { groupId: 'tribe-alpha', projectId: 'project-alpha' },
+      requestKey: 'req:1',
+      capability: 'payments',
+      action,
+      signedContext: 'unused',
+    };
+  }),
+  recordOutcome: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('Payments facade (e2e)', () => {
   let app: INestApplication;
@@ -28,27 +41,9 @@ describe('Payments facade (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
-        PaymentAuthGuard,
         PaymentIdempotencyService,
         { provide: PaymentLimitsService, useValue: { enforce: jest.fn().mockResolvedValue(undefined) } },
-        {
-          provide: PaymentApiKeyService,
-          useValue: {
-            resolve: jest.fn(async (key: string) => key === 'apic_test_valid'
-              ? {
-                ownerTribeId: 'tribe-alpha',
-                projectId: 'project-alpha',
-                consumerServiceId: 'service-alpha',
-                environment: 'test',
-                scopes: ['payments:read', 'payments:write'],
-              }
-              : null),
-          },
-        },
-        { provide: ApplicationAccessService, useValue: { authorizeAction: jest.fn(), recordOutcome: jest.fn() } },
-        { provide: JwtAuthGuard, useValue: { canActivate: jest.fn().mockReturnValue(false) } },
-        { provide: RegistryService, useValue: { get: jest.fn(), canAccess: jest.fn() } },
-        { provide: TENANCY_DIRECTORY, useValue: { resolveServicePlacement: jest.fn(), resolveProject: jest.fn() } },
+        { provide: ApplicationAccessService, useValue: applications },
       ],
     }).compile();
 
@@ -59,7 +54,7 @@ describe('Payments facade (e2e)', () => {
   });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    mockedAxios.request.mockReset();
     const mockResponse = {
       status: 201,
       headers: { 'content-type': 'application/json' },
@@ -92,7 +87,7 @@ describe('Payments facade (e2e)', () => {
     const response = await fetch(`${await app.getUrl()}/api/v1/payments/checkouts`, {
       method: 'POST',
       headers: {
-        Authorization: 'Bearer apic_test_valid',
+        Authorization: `Bearer ${KEY}`,
         'Idempotency-Key': 'e2e-idempotency-123456',
         'X-Tribe-ID': 'attacker-tribe',
         'X-APICenter-Environment': 'live',
@@ -120,7 +115,7 @@ describe('Payments facade (e2e)', () => {
     const options = {
       method: 'POST',
       headers: {
-        Authorization: 'Bearer apic_test_valid',
+        Authorization: `Bearer ${KEY}`,
         'Idempotency-Key': 'e2e-replay-key-123456',
         'Content-Type': 'application/json',
       },
@@ -141,12 +136,11 @@ describe('Payments facade (e2e)', () => {
     expect(await second.json()).toEqual(await first.clone().json());
   });
 
-  it('rejects missing or invalid API keys before proxying', async () => {
-    const response = await fetch(`${await app.getUrl()}/api/v1/payments/capabilities`, {
-      headers: { Authorization: 'Bearer apic_test_invalid' },
-    });
-
-    expect(response.status).toBe(401);
+  it('rejects calls without an application key before proxying', async () => {
+    for (const headers of [{}, { Authorization: 'Bearer apic_test_legacy_payment_key' }] as Array<Record<string, string>>) {
+      const response = await fetch(`${await app.getUrl()}/api/v1/payments/capabilities`, { headers });
+      expect(response.status).toBe(401);
+    }
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 });

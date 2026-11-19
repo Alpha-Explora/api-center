@@ -7,25 +7,12 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   ActivityIcon,
-  BellIcon,
-  BarChart3Icon,
-  BookOpenIcon,
-  CheckCircleIcon,
   CircleIcon,
-  ClipboardCheckIcon,
-  DatabaseZapIcon,
-  FileJsonIcon,
-  FlaskConicalIcon,
-  GaugeIcon,
-  ListChecksIcon,
-  HomeIcon,
+  FolderKanbanIcon,
   MenuIcon,
-  NetworkIcon,
-  RocketIcon,
   SearchIcon,
   SettingsIcon,
-  ShieldCheckIcon,
-  StoreIcon,
+  UsersIcon,
 } from "lucide-react";
 import { EnvironmentBanner } from "@/components/environment-banner";
 import { Button } from "@/components/ui/button";
@@ -45,7 +32,6 @@ import {
   getNavSearchResults,
   getVisibleNavGroups,
 } from "@/lib/app-navigation";
-import { isDataPipelineEnabled } from "@/lib/feature-flags";
 import { queryKeys } from "@/lib/query-keys";
 import type { ManagementEnvironment } from "@/lib/management-environment";
 import { MANAGEMENT_SIGN_OUT_EVENT } from "@/components/management-auth-gate";
@@ -56,32 +42,9 @@ type NavIcon = React.ComponentType<{
 }>;
 
 const navIconByHref: Record<string, NavIcon> = {
-  "/control-plane/projects": FileJsonIcon,
-  "/control-plane/people": ShieldCheckIcon,
-  "/control-plane/migration": RocketIcon,
-  "/dashboard": HomeIcon,
-  "/lifecycle": ListChecksIcon,
-  "/alerts": BellIcon,
-  "/readiness": CheckCircleIcon,
-  "/tribes": NetworkIcon,
-  "/api-catalog": FileJsonIcon,
-  "/registration-requests": ClipboardCheckIcon,
-  "/dependencies": NetworkIcon,
-  "/marketplace": StoreIcon,
-  "/developer-portal": BookOpenIcon,
-  "/shared-services": NetworkIcon,
-  "/quotas": GaugeIcon,
-  "/reliability": ActivityIcon,
-  "/data-pipeline": DatabaseZapIcon,
-  "/cost": BarChart3Icon,
-  "/plans": ListChecksIcon,
-  "/compliance": ClipboardCheckIcon,
-  "/audit": ListChecksIcon,
-  "/operational-trust": ShieldCheckIcon,
-  "/promotions": RocketIcon,
-  "/docs/consumer-runbook": BookOpenIcon,
-  "/manifest-tools": FileJsonIcon,
-  "/smoke-tests": FlaskConicalIcon,
+  "/control-plane/projects": FolderKanbanIcon,
+  "/control-plane/people": UsersIcon,
+  "/requests": ActivityIcon,
   "/settings": SettingsIcon,
 };
 
@@ -206,7 +169,7 @@ export function AppShell({
                   </SheetContent>
                 </Sheet>
                 <Link
-                  href="/dashboard"
+                  href="/control-plane/projects"
                   className="flex min-w-0 items-center gap-2 truncate font-semibold"
                 >
                   <Image
@@ -221,9 +184,9 @@ export function AppShell({
                 </Link>
               </div>
               <nav className="flex min-w-0 max-w-[44vw] gap-2 overflow-hidden text-xs text-muted-foreground min-[420px]:max-w-[60vw]">
-                {platformAdmin ? <Link href="/readiness">Readiness</Link> : null}
-                <Link className="hidden sm:inline" href="/tribes">
-                  Registry
+                <Link href="/control-plane/projects">Projects</Link>
+                <Link className="hidden sm:inline" href="/requests">
+                  Requests
                 </Link>
                 {platformAdmin ? <Link className="hidden sm:inline" href="/settings">
                   Settings
@@ -247,10 +210,9 @@ export function AppShell({
 function WorkflowSearch({ platformAdmin }: { platformAdmin: boolean }) {
   const [query, setQuery] = React.useState("");
   const [focused, setFocused] = React.useState(false);
-  const dataPipelineEnabled = isDataPipelineEnabled();
   const results = React.useMemo(
-    () => getNavSearchResults(navGroups, query, dataPipelineEnabled, platformAdmin).slice(0, 6),
-    [dataPipelineEnabled, platformAdmin, query],
+    () => getNavSearchResults(navGroups, query, platformAdmin).slice(0, 6),
+    [platformAdmin, query],
   );
   const showResults = focused && query.trim().length > 0;
 
@@ -338,16 +300,12 @@ function SidebarContent({
   platformAdmin: boolean;
   onNavigate?: () => void;
 }) {
-  const visibleNavGroups = getVisibleNavGroups(
-    navGroups,
-    isDataPipelineEnabled(),
-    platformAdmin,
-  );
+  const visibleNavGroups = getVisibleNavGroups(navGroups, platformAdmin);
 
   return (
     <>
       <Link
-        href="/dashboard"
+        href="/control-plane/projects"
         className="flex items-center gap-3 px-1"
         onClick={onNavigate}
       >
@@ -389,15 +347,6 @@ function SidebarContent({
 }
 
 function isNavActive(pathname: string, href: string) {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  if (href === "/tribes") {
-    return pathname === "/tribes" || pathname.startsWith("/tribes/");
-  }
-  if (href === "/shared-services") {
-    return (
-      pathname === "/shared-services" || pathname === "/shared-services/setup"
-    );
-  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

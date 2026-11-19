@@ -1,15 +1,15 @@
 ---
 title: "Consumer integration runbook"
-description: "Prepare an APICenter service integration and handle requests, events, retries, and incidents."
+description: "Prepare an APICenter integration and handle requests, events, retries, and incidents."
 ---
 
-Use this checklist when a backend service starts using APICenter. The [Management guides](/guides/management/access-and-tenancy) explain access and registry setup; the [SDK guide](/guides/sdk-usage) covers installation and API methods.
+Use this checklist when a backend starts using APICenter. The [Management guides](/guides/management/access-and-tenancy) explain organizations, projects and applications; the [SDK guide](/guides/sdk-usage) covers installation and API methods.
 
 ## Before integration
 
-- Confirm the service is registered under the correct organization, tribe, and project.
-- Ask an operator to issue separate test and live service credentials and grant only the scopes the service needs.
-- Store `APICENTER_SERVICE_SECRET` and any payment credential in the backend secret manager. Never send them to a browser or commit them.
+- Create an application for the backend in the right organization and project, and grant it only the actions it needs.
+- Issue an `ak_test_` key for the test environment, and an `ak_live_` key once the live environment is approved.
+- Store the key as `APICENTER_API_KEY` in the backend secret manager. Never send it to a browser or commit it.
 - Add the package's GitHub Packages configuration and a CI token with package read access.
 - If payment lifecycle events are part of the integration, add a [webhook destination](/guides/events/webhooks) for the backend's HTTPS endpoint in each environment and store its signing secret.
 - Make event processing idempotent by `eventId` and monotonic by `aggregateVersion`.
@@ -40,6 +40,6 @@ Verify each delivery's signature with the endpoint's signing secret (`verifyWebh
 
 Retry a transient API failure with the same idempotency key and body. Do not issue a new key just because the first response timed out; the original operation may have completed.
 
-For an event delivery failure, ask the APICenter operator to inspect the subscription and dead-letter flow. After correcting the consumer, replay the event and retain its original `eventId` and aggregate version. If a payment cutover rollback is announced, continue serving the consumer's existing local state and pause new payment commands until the operator confirms the path forward. Do not call PayMongo directly.
+For an event delivery failure, ask the APICenter operator to inspect the webhook destination's deliveries. After correcting the consumer, replay the event and retain its original `eventId` and aggregate version. If a payment cutover rollback is announced, continue serving the consumer's existing local state and pause new payment commands until the operator confirms the path forward. Do not call PayMongo directly.
 
-When escalating, include the environment, APICenter resource reference, event ID, and correlation ID. Never include service secrets, payment keys, or provider credentials. Operator procedures remain in the internal `docs/` collection.
+When escalating, include the environment, APICenter resource reference, event ID, and correlation ID. Never include API keys, webhook signing secrets, or provider credentials. Operator procedures remain in the internal `docs/` collection.

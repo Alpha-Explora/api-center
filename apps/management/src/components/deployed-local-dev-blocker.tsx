@@ -35,10 +35,6 @@ export function DeployedLocalDevBlocker({
             label="Public base URL"
             value={deployment.publicBaseUrl || "not configured"}
           />
-          <Diagnostic
-            label="Topic prefix"
-            value={deployment.kafkaTopicPrefix || "not configured"}
-          />
         </div>
 
         <div className="mt-5 rounded-lg border bg-muted/40 p-4">

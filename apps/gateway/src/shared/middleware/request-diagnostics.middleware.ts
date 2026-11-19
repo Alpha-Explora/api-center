@@ -47,7 +47,7 @@ export class RequestDiagnosticsMiddleware implements NestMiddleware {
     response.setHeader("X-Request-ID", requestId);
     const start = Date.now();
     response.once("finish", () => {
-      const principal = request.paymentPrincipal;
+      const caller = request.caller;
       const error = failure.safeParse(response.locals.requestDiagnostic);
       const route =
         typeof request.route?.path === "string"
@@ -57,14 +57,9 @@ export class RequestDiagnosticsMiddleware implements NestMiddleware {
         .record({
           requestId,
           correlationId,
-          serviceId:
-            principal?.consumerServiceId ?? request.sourceServiceId ?? null,
-          projectId: principal?.projectId ?? request.projectId ?? null,
-          environment:
-            principal?.environment ??
-            request.user?.environment ??
-            request.diagnosticEnvironment ??
-            null,
+          serviceId: caller?.applicationId ?? null,
+          projectId: caller?.projectId ?? null,
+          environment: caller?.environmentKind ?? request.diagnosticEnvironment ?? null,
           route: route.slice(0, 300),
           method: request.method,
           statusCode: response.statusCode,

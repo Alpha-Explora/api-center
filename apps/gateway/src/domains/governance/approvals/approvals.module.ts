@@ -1,13 +1,10 @@
-import { Global, Module, forwardRef } from "@nestjs/common";
-import { AuthModule } from "@auth/auth.module";
+import { Global, Module } from "@nestjs/common";
 import { DatabaseModule } from "@database/database.module";
-import { ApprovalRequestController } from "./approval-request.controller";
 import { ApprovalRequestService } from "./approval-request.service";
 
 @Global()
 @Module({
-  imports: [forwardRef(() => AuthModule), DatabaseModule],
-  controllers: [ApprovalRequestController],
+  imports: [DatabaseModule],
   providers: [ApprovalRequestService],
   exports: [ApprovalRequestService],
 })

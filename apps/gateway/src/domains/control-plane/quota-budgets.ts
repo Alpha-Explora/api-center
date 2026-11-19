@@ -1,7 +1,7 @@
 // Which request budgets apply to one application request. Pure; the reservation itself is atomic
 // in PostgreSQL (QuotaService). Composition is conjunctive: every budget returned must have room.
 
-import { PLAN_DEFINITIONS } from "@entitlements/tribe-plan-definitions";
+import { PLAN_DEFINITIONS } from "./plan-definitions";
 import type { EnvironmentKind } from "./control-plane.types";
 
 export const DAY_SECONDS = 86_400;
