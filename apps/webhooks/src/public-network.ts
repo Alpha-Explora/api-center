@@ -21,10 +21,28 @@ export function isPrivateAddress(address: string): boolean {
       a >= 224
     );
   }
-  const value = address.toLowerCase();
+  if (isIP(address) !== 6) return true;
+  // WHATWG URL and DNS give the compressed form; normalise anything else to it first.
+  const value = new URL(`http://[${address}]/`).hostname.slice(1, -1);
   if (value === "::" || value === "::1") return true;
-  if (value.startsWith("::ffff:")) return isPrivateAddress(value.slice(7));
+  const embedded = embeddedIPv4(value);
+  if (embedded) return isPrivateAddress(embedded);
   return /^(fc|fd|fe8|fe9|fea|feb|ff)/.test(value) || value.startsWith("64:ff9b:") || value.startsWith("2001:db8:");
+}
+
+/**
+ * The IPv4 address an IPv6 address reaches when it embeds one: mapped (::ffff:a.b.c.d, which URL and DNS
+ * write as ::ffff:a00:1), translated (::ffff:0:…) and the deprecated compatible form (::a.b.c.d).
+ */
+function embeddedIPv4(value: string): string | undefined {
+  const match = /^::(?:ffff:(?:0:)?)?(.+)$/.exec(value);
+  if (!match) return undefined;
+  if (isIP(match[1]) === 4) return match[1];
+  const hex = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(match[1]);
+  if (!hex) return undefined;
+  const high = Number.parseInt(hex[1], 16);
+  const low = Number.parseInt(hex[2], 16);
+  return [high >> 8, high & 255, low >> 8, low & 255].join(".");
 }
 
 type LookupCallback = (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void;

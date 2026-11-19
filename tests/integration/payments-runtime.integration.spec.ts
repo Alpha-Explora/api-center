@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { AddressInfo } from 'node:net';
 import { Server } from 'node:http';
 import { PaymentsController } from '../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
+import { PaymentReturnLinks } from '../../apps/gateway/src/domains/payments/features/payment-return/payment-return-links';
 import { PaymentIdempotencyService } from '../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
 import { PaymentLimitsService } from '../../apps/gateway/src/domains/payments/features/payment-limits/payment-limits.service';
 import { ApplicationAccessService } from '../../apps/gateway/src/domains/control-plane/application-access.service';
@@ -62,6 +63,7 @@ describe('payment gateway to runtime integration', () => {
         // Without DATABASE_ENABLED the real limits service applies plan defaults in memory.
         { provide: PaymentLimitsService, useFactory: () => new PaymentLimitsService({} as never) },
         { provide: ApplicationAccessService, useValue: applications },
+        PaymentReturnLinks,
       ],
     }).compile();
 

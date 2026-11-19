@@ -143,6 +143,7 @@ describe("webhook network guard", () => {
       "8.8.8.8", "1.1.1.1", "10.1.2.3", "127.0.0.1", "100.64.0.1", "169.254.169.254", "172.16.0.1", "172.32.0.1",
       "192.168.1.1", "192.0.0.8", "198.18.0.1", "224.0.0.1", "0.0.0.0", "::1", "::", "fd00::1", "fe80::1",
       "::ffff:10.0.0.1", "::ffff:8.8.8.8", "64:ff9b::1", "2001:db8::1", "2606:4700::1111",
+      "::ffff:a00:1", "::ffff:a9fe:a9fe", "::ffff:808:808", "::a00:1", "0:0:0:0:0:ffff:7f00:1",
     ];
     for (const address of samples) expect([address, deliveryIsPrivate(address)]).toEqual([address, gatewayIsPrivate(address)]);
   });
