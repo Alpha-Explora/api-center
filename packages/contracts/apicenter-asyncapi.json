@@ -2,8 +2,8 @@
   "asyncapi": "3.1.0",
   "info": {
     "title": "APICenter Payment Events",
-    "version": "1.0.0",
-    "description": "Normalized payment lifecycle events delivered through Google Pub/Sub."
+    "version": "2.0.0",
+    "description": "Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the application that created the resource, and delivers it to that application's webhook as a signed HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature)."
   },
   "defaultContentType": "application/json",
   "servers": {
@@ -21,14 +21,19 @@
   "channels": {
     "apicenter.payment-events.{environment}": {
       "address": "apicenter.payment-events.{environment}",
-      "description": "Filtered payment events for registered consumer services.",
+      "description": "Payment events, filtered per recipient application and delivered to its webhook.",
       "x-apicenter-consumer-filter": {
         "attribute": "consumerServiceId",
-        "source": "control_plane.consumer_services"
+        "source": "control_plane.applications"
       },
-      "x-apicenter-push-delivery": {
-        "authentication": "oidc",
-        "audience": "Cloud Run event endpoint",
+      "x-apicenter-webhook-delivery": {
+        "signature": "standard-webhooks-v1",
+        "headers": [
+          "webhook-id",
+          "webhook-timestamp",
+          "webhook-signature"
+        ],
+        "successStatus": "2xx",
         "deadLetterTopic": "apicenter.payment-events.{environment}.dead-letter",
         "maxDeliveryAttempts": 20
       },
@@ -42,26 +47,8 @@
         }
       },
       "messages": {
-        "PaymentCheckoutCreated": {
-          "$ref": "#/components/messages/PaymentCheckoutCreated"
-        },
         "PaymentCheckoutPaid": {
           "$ref": "#/components/messages/PaymentCheckoutPaid"
-        },
-        "PaymentCheckoutFailed": {
-          "$ref": "#/components/messages/PaymentCheckoutFailed"
-        },
-        "PaymentRefunded": {
-          "$ref": "#/components/messages/PaymentRefunded"
-        },
-        "PaymentSubscriptionActive": {
-          "$ref": "#/components/messages/PaymentSubscriptionActive"
-        },
-        "PaymentSubscriptionPastDue": {
-          "$ref": "#/components/messages/PaymentSubscriptionPastDue"
-        },
-        "PaymentSubscriptionCancelled": {
-          "$ref": "#/components/messages/PaymentSubscriptionCancelled"
         }
       }
     }
@@ -81,116 +68,31 @@
   },
   "components": {
     "messages": {
-      "PaymentCheckoutCreated": {
-        "name": "payment.checkout.created",
-        "title": "Checkout created",
-        "payload": {
-          "$ref": "#/components/schemas/PaymentEvent"
-        }
-      },
       "PaymentCheckoutPaid": {
         "name": "payment.checkout.paid",
         "title": "Checkout paid",
         "payload": {
-          "type": "object",
-          "required": [
-            "eventId",
-            "contractVersion",
-            "eventType",
-            "ownerTribeId",
-            "consumerServiceId",
-            "referenceId",
-            "aggregateType",
-            "aggregateId",
-            "aggregateVersion",
-            "occurredAt",
-            "data"
-          ],
-          "properties": {
-            "eventId": {
-              "type": "string"
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/PaymentEvent"
             },
-            "contractVersion": {
-              "type": "string",
-              "enum": [
-                "1.0",
-                "1.1"
-              ]
-            },
-            "eventType": {
-              "type": "string",
-              "const": "payment.checkout.paid"
-            },
-            "ownerTribeId": {
-              "type": "string",
-              "description": "Deprecated: same value as ownerGroupId. Removed in contract 2.0."
-            },
-            "ownerGroupId": {
-              "type": "string",
-              "description": "Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project)."
-            },
-            "ownerProjectId": {
-              "type": "string",
-              "description": "Contract 1.1: owning project of the resource."
-            },
-            "consumerServiceId": {
-              "type": "string"
-            },
-            "referenceId": {
-              "type": "string"
-            },
-            "aggregateType": {
-              "type": "string",
-              "const": "checkout"
-            },
-            "aggregateId": {
-              "type": "string"
-            },
-            "aggregateVersion": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "occurredAt": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "correlationId": {
-              "type": "string"
-            },
-            "data": {
-              "$ref": "#/components/schemas/CheckoutSnapshot"
+            {
+              "type": "object",
+              "properties": {
+                "eventType": {
+                  "type": "string",
+                  "const": "payment.checkout.paid"
+                },
+                "aggregateType": {
+                  "type": "string",
+                  "const": "checkout"
+                },
+                "data": {
+                  "$ref": "#/components/schemas/CheckoutPaid"
+                }
+              }
             }
-          }
-        }
-      },
-      "PaymentCheckoutFailed": {
-        "name": "payment.checkout.failed",
-        "payload": {
-          "$ref": "#/components/schemas/PaymentEvent"
-        }
-      },
-      "PaymentRefunded": {
-        "name": "payment.refunded",
-        "payload": {
-          "$ref": "#/components/schemas/PaymentEvent"
-        }
-      },
-      "PaymentSubscriptionActive": {
-        "name": "subscription.active",
-        "payload": {
-          "$ref": "#/components/schemas/PaymentEvent"
-        }
-      },
-      "PaymentSubscriptionPastDue": {
-        "name": "subscription.past_due",
-        "payload": {
-          "$ref": "#/components/schemas/PaymentEvent"
-        }
-      },
-      "PaymentSubscriptionCancelled": {
-        "name": "subscription.cancelled",
-        "payload": {
-          "$ref": "#/components/schemas/PaymentEvent"
+          ]
         }
       }
     },
@@ -201,8 +103,10 @@
           "eventId",
           "contractVersion",
           "eventType",
-          "ownerTribeId",
-          "consumerServiceId",
+          "environment",
+          "organizationId",
+          "projectId",
+          "applicationId",
           "referenceId",
           "aggregateType",
           "aggregateId",
@@ -212,35 +116,36 @@
         ],
         "properties": {
           "eventId": {
-            "type": "string"
+            "type": "string",
+            "description": "Stable across retries; deduplicate by it."
           },
           "contractVersion": {
             "type": "string",
-            "enum": [
-              "1.0",
-              "1.1"
-            ]
+            "const": "2.0"
           },
           "eventType": {
             "type": "string"
           },
-          "ownerTribeId": {
+          "environment": {
             "type": "string",
-            "description": "Deprecated: same value as ownerGroupId. Removed in contract 2.0."
+            "enum": [
+              "test",
+              "live"
+            ]
           },
-          "ownerGroupId": {
-            "type": "string",
-            "description": "Contract 1.1: owner group of the resource (organization, or legacy tribe for a migrated project)."
-          },
-          "ownerProjectId": {
-            "type": "string",
-            "description": "Contract 1.1: owning project of the resource."
-          },
-          "consumerServiceId": {
+          "organizationId": {
             "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string",
+            "description": "The application whose call created the resource."
           },
           "referenceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The reference the application gave the resource."
           },
           "aggregateType": {
             "type": "string",
@@ -257,7 +162,8 @@
           },
           "aggregateVersion": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "Apply an event only when it is newer than the stored version."
           },
           "occurredAt": {
             "type": "string",
@@ -272,53 +178,35 @@
           }
         }
       },
-      "CheckoutSnapshot": {
+      "CheckoutPaid": {
         "type": "object",
         "required": [
-          "checkoutId",
-          "referenceId",
           "status",
+          "checkoutId",
+          "paymentId",
           "amount",
-          "aggregateVersion"
+          "currency"
         ],
         "properties": {
+          "status": {
+            "type": "string",
+            "const": "paid"
+          },
           "checkoutId": {
             "type": "string"
           },
-          "referenceId": {
+          "paymentId": {
             "type": "string"
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "created",
-              "pending",
-              "paid",
-              "failed",
-              "cancelled",
-              "expired"
-            ]
-          },
           "amount": {
-            "type": "object",
-            "required": [
-              "amountMinor",
-              "currency"
-            ],
-            "properties": {
-              "amountMinor": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "currency": {
-                "type": "string",
-                "const": "PHP"
-              }
-            }
-          },
-          "aggregateVersion": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "Minor units (centavos for PHP)."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
           }
         }
       }

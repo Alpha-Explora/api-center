@@ -13,18 +13,18 @@ const NOW = Date.parse("2026-11-19T02:00:00Z");
 
 const event = {
   eventId: "evt_7f3c1a",
-  contractVersion: "1.1",
+  contractVersion: "2.0",
   eventType: "payment.checkout.paid",
-  ownerTribeId: "org-1",
-  ownerGroupId: "org-1",
-  ownerProjectId: "prj_serbizio",
-  consumerServiceId: "app_serbizio",
+  environment: "test",
+  organizationId: "org-1",
+  projectId: "prj_serbizio",
+  applicationId: "app_serbizio",
   referenceId: "ORDER-1",
   aggregateType: "checkout",
   aggregateId: "chk_1",
   aggregateVersion: 2,
   occurredAt: "2026-11-19T01:59:58.000Z",
-  data: { status: "paid", aggregateVersion: 2 },
+  data: { status: "paid", checkoutId: "chk_1", paymentId: "pay_1", amount: 39900, currency: "PHP" },
 };
 
 function push(body: unknown = event, deliveryAttempt = 1): PushEnvelope {
@@ -58,27 +58,20 @@ describe("webhook delivery", () => {
     const [call] = calls;
     expect(call.url).toBe(config.url);
     expect(call.headers).toMatchObject({ "webhook-id": "evt_7f3c1a", "webhook-timestamp": String(NOW / 1000), "apicenter-delivery-attempt": "3" });
-    const verified = verifyWebhook(call.body, call.headers, secret, { now: () => NOW });
-    expect(verified).toMatchObject({ eventId: "evt_7f3c1a", owner: { groupId: "org-1", projectId: "prj_serbizio" } });
+    const verified = await verifyWebhook(call.body, call.headers, secret, { now: () => NOW });
+    expect(verified).toMatchObject({ eventId: "evt_7f3c1a", organizationId: "org-1", projectId: "prj_serbizio", applicationId: "app_serbizio" });
   });
 
   it("is rejected by the SDK when the body, secret or timestamp is wrong", async () => {
     const { send, calls } = capture();
     await deliver(DESTINATION, push(), { store: store(config), send, now: () => NOW });
     const { headers, body } = calls[0];
-    const code = (run: () => unknown) => {
-      try {
-        run();
-      } catch (error) {
-        return (error as ApiCenterWebhookError).code;
-      }
-      return "accepted";
-    };
-    expect(code(() => verifyWebhook(body.replace("ORDER-1", "ORDER-2"), headers, secret, { now: () => NOW }))).toBe("WEBHOOK_SIGNATURE_INVALID");
-    expect(code(() => verifyWebhook(body, headers, newSigningSecret(), { now: () => NOW }))).toBe("WEBHOOK_SIGNATURE_INVALID");
-    expect(code(() => verifyWebhook(body, headers, secret, { now: () => NOW + 301_000 }))).toBe("WEBHOOK_TIMESTAMP_OUT_OF_RANGE");
-    expect(code(() => verifyWebhook(body, { "webhook-id": "x" }, secret))).toBe("WEBHOOK_HEADERS_MISSING");
-    expect(code(() => verifyWebhook(body, headers, "not-a-secret", { now: () => NOW }))).toBe("WEBHOOK_SECRET_INVALID");
+    const code = (pending: Promise<unknown>) => pending.then(() => "accepted", (error: unknown) => (error as ApiCenterWebhookError).code);
+    expect(await code(verifyWebhook(body.replace("ORDER-1", "ORDER-2"), headers, secret, { now: () => NOW }))).toBe("WEBHOOK_SIGNATURE_INVALID");
+    expect(await code(verifyWebhook(body, headers, newSigningSecret(), { now: () => NOW }))).toBe("WEBHOOK_SIGNATURE_INVALID");
+    expect(await code(verifyWebhook(body, headers, secret, { now: () => NOW + 301_000 }))).toBe("WEBHOOK_TIMESTAMP_OUT_OF_RANGE");
+    expect(await code(verifyWebhook(body, { "webhook-id": "x" }, secret))).toBe("WEBHOOK_HEADERS_MISSING");
+    expect(await code(verifyWebhook(body, headers, "not-a-secret", { now: () => NOW }))).toBe("WEBHOOK_SECRET_INVALID");
   });
 
   it("signs with the new and the rotated-out secret until the old one expires", async () => {
@@ -90,13 +83,13 @@ describe("webhook delivery", () => {
     const during = capture();
     await deliver(DESTINATION, push(), { store: store(rotating), send: during.send, now: () => NOW });
     expect(during.calls[0].headers["webhook-signature"].split(" ")).toHaveLength(2);
-    expect(() => verifyWebhook(during.calls[0].body, during.calls[0].headers, secret, { now: () => NOW })).not.toThrow();
-    expect(() => verifyWebhook(during.calls[0].body, during.calls[0].headers, next, { now: () => NOW })).not.toThrow();
+    await expect(verifyWebhook(during.calls[0].body, during.calls[0].headers, secret, { now: () => NOW })).resolves.toBeDefined();
+    await expect(verifyWebhook(during.calls[0].body, during.calls[0].headers, next, { now: () => NOW })).resolves.toBeDefined();
 
     const after = capture();
     await deliver(DESTINATION, push(), { store: store(rotating), send: after.send, now: () => NOW + 2000 });
     expect(after.calls[0].headers["webhook-signature"].split(" ")).toHaveLength(1);
-    expect(() => verifyWebhook(after.calls[0].body, after.calls[0].headers, secret, { now: () => NOW + 2000 })).toThrow(ApiCenterWebhookError);
+    await expect(verifyWebhook(after.calls[0].body, after.calls[0].headers, secret, { now: () => NOW + 2000 })).rejects.toBeInstanceOf(ApiCenterWebhookError);
   });
 
   it("acknowledges only a 2xx, so Pub/Sub retries rejections and network failures", async () => {

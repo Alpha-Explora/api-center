@@ -1,83 +1,72 @@
 ---
 title: "Getting started"
-description: "Get APICenter access, register a service, and call a shared API with the server-side SDK."
+description: "Get an application key and call APICenter from your backend with the server-side SDK."
 ---
 
-APICenter gives teams in an organization a governed way to use shared APIs such as email, SMS, OTP, geocoding, Google sign-in, and payments. A service calls APICenter from its backend with the `@alpha-explora/apicenter-sdk` package.
+APICenter gives your backend email, SMS, one-time codes, geocoding, Google sign-in and payments through one API and one key. Your backend calls it with the `@alpha-explora/apicenter-sdk` package.
 
-## 1. Get access and register your service
+## 1. Get a project and a key
 
-Ask an organization administrator to confirm your Management access and help place the service in the registry. The registry hierarchy is:
+In the APICenter console, or through your APICenter operator:
 
-```text
-Organization → Tribe → Project → Service
-```
-
-Organizations define Management access. The Registry page displays tribes, projects, and services. If you need an organization or membership, ask an APICenter administrator; the console does not create organizations or manage memberships.
-
-Follow [Access and tenancy](/guides/management/access-and-tenancy) and [Register a service](/guides/management/register-service). Registration defines the service ID, project placement, runtime URL, environment, exposed routes, required scopes, and shared-service dependencies.
+1. Create a **project** for your product. Each project has a **test** environment, and a **live** environment once it is approved.
+2. Enable the capabilities you need (for example email and payments) in the environment.
+3. Add an **application** for your backend, and **grant** it the actions it calls, such as `email:send` or `payments:checkout:write`.
+4. Issue an **application key** for the environment. It is shown once: `ak_test_…` for test, `ak_live_…` for live.
 
 ## 2. Install the SDK
 
 The package is hosted in restricted GitHub Packages. Your GitHub account or automation identity needs permission to read the APICenter packages.
 
-Add this to the consumer repository's `.npmrc`:
+Add this to your repository's `.npmrc`:
 
 ```ini
 @alpha-explora:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
 ```
 
-Set `NODE_AUTH_TOKEN` from a secret store to a GitHub token with package read access. Do not commit the token. Install the released SDK:
+Set `NODE_AUTH_TOKEN` from a secret store to a GitHub token with package read access, then install:
 
 ```bash
-npm install @alpha-explora/apicenter-sdk@2.2.0
+npm install @alpha-explora/apicenter-sdk@3.0.0
 ```
 
-See [SDK integration](/guides/sdk-usage) for payments, other namespaces, and error handling.
+The SDK runs on Node 20+, Deno, Bun and edge runtimes.
 
-## 3. Configure server-only credentials
+## 3. Configure the key
 
-Ask an operator for an application key for each environment you use. Keep it in your backend's environment or secret manager. Never put it in browser code, a mobile app, a checked-in `.env` file, or a `NEXT_PUBLIC_` variable.
+Keep the key in your backend's environment or secret manager. Never put it in browser code, a mobile app, a checked-in `.env` file, or a `NEXT_PUBLIC_` variable.
 
 ```ini
 APICENTER_API_KEY=ak_test_...
 ```
 
-This is the only setting the SDK needs. The key's prefix (`ak_test_` or `ak_live_`) selects the environment, and the key identifies your application, so there is no service ID or environment to configure. Payments use the same key when your application holds payment grants. Set `APICENTER_URL` only to call a gateway other than `https://api.apicenter.itsandbox.site`.
+This is the only setting the SDK needs. The key's prefix selects the environment, and the key identifies your application. Use the `ak_live_…` key in production once your live environment is active.
 
-Services registered before application keys can keep their service credentials (`APICENTER_SERVICE_ID`, `APICENTER_ENVIRONMENT`, `APICENTER_SERVICE_SECRET`) and pass them as `auth`; they are deprecated.
-
-## 4. Make a shared-service request
-
-This example sends email from a Node.js backend. Create and persist an idempotency key for the business operation, then reuse that same key if you retry it.
+## 4. Make a request
 
 ```ts
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-// Reads APICENTER_API_KEY; the key's prefix selects test or live.
 const api = new ApiCenter();
 
-await api.email.send(
-  {
-    to: 'person@example.com',
-    subject: 'Your order is ready',
-    text: 'Your order is ready for pickup.',
-  },
-  { idempotencyKey: order.emailRequestKey },
-);
+await api.email.send({
+  to: 'person@example.com',
+  subject: 'Your order is ready',
+  text: 'Your order is ready for pickup.',
+});
 ```
 
-APICenter checks the service's registered placement and scopes. If a call is denied, check that the service has the required scope and that the requested shared service is listed as a dependency in its registry entry.
+The SDK retries network errors and server failures with the same idempotency key, so a retry never sends twice. For writes tied to a business operation, such as one checkout per order, store your own key with the operation and pass it as `{ idempotencyKey }`. Call `await api.whoami()` at startup to confirm the key's project, environment and grants.
+
+A request for an action your application was not granted fails with a `PermissionError` (`ACTION_NOT_GRANTED`); ask for the grant rather than working around it.
+
+## 5. Receive payment events
+
+If you take payments, add a [webhook](/guides/events/webhooks) for an HTTPS route on your backend in each environment, and mark an order paid when `payment.checkout.paid` arrives.
 
 ## Next steps
 
-- [Authentication and scopes](/guides/authentication)
 - [SDK integration](/guides/sdk-usage)
-- [Management access and tenancy](/guides/management/access-and-tenancy)
-- [Register a service](/guides/management/register-service)
+- [Payment event webhooks](/guides/events/webhooks)
 - [Consumer runbook](/guides/consumer-runbook)
-
-## Check project setup
-
-The Management project overview shows setup checks for the selected service and test/live environment. The SDK exposes `client.setup.status()` for an authenticated service caller. Checks distinguish active registration, current payment access, Google sign-in configuration, and dependencies. A configured credential does not prove the caller possesses it; payment-event delivery remains unknown until verified separately.

@@ -1,29 +1,41 @@
 {
   "name": "@alpha-explora/apicenter-sdk",
-  "version": "2.2.0",
-  "description": "TypeScript SDK for the APICenter public API.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "version": "3.0.0",
+  "description": "Server-side TypeScript SDK for APICenter: one application key, typed errors, retries and signed webhooks.",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/cjs/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
+  "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "UPGRADING.md"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build": "npm run clean && tsc --project tsconfig.json",
+    "build": "npm run clean && tsc --project tsconfig.json && tsc --project tsconfig.esm.json && node scripts/mark-module-types.cjs",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "test": "jest --config jest.config.cjs --runInBand",
     "test:consumer": "tsc --noEmit --project tests/consumer/tsconfig.json && node tests/consumer/runtime-smoke.cjs",
     "lint": "npm run typecheck"
   },
   "dependencies": {
-    "@alpha-explora/apicenter-contracts": "0.2.0",
+    "@alpha-explora/apicenter-contracts": "1.0.0",
     "zod": "^4.4.3"
   },
   "publishConfig": {

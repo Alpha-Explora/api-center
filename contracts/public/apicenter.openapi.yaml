@@ -857,10 +857,10 @@ paths:
               text: A test notification.
   /api/v1/shared/email/status/{messageId}:
     get:
-      operationId: email.getStatus
+      operationId: email.get
       tags:
         - EMAIL
-      summary: email.getStatus
+      summary: email.get
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: email:send. "
@@ -1043,10 +1043,10 @@ paths:
               message: Integration verification
   /api/v1/shared/sms/status/{messageId}:
     get:
-      operationId: sms.getStatus
+      operationId: sms.get
       tags:
         - SMS
-      summary: sms.getStatus
+      summary: sms.get
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: sms:send, sms:status. "
@@ -1134,10 +1134,10 @@ paths:
                 $ref: "#/components/schemas/SharedError"
   /api/v1/shared/otp/generate:
     post:
-      operationId: otp.generate
+      operationId: otp.send
       tags:
         - OTP
-      summary: otp.generate
+      summary: otp.send
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
@@ -1326,10 +1326,10 @@ paths:
               code: "123456"
   /api/v1/shared/otp/status/{otpId}:
     get:
-      operationId: otp.getStatus
+      operationId: otp.get
       tags:
         - OTP
-      summary: otp.getStatus
+      summary: otp.get
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: otp:generate, otp:verify. "
@@ -1417,10 +1417,10 @@ paths:
                 $ref: "#/components/schemas/SharedError"
   /api/v1/shared/geo/geocode:
     post:
-      operationId: geo.geocodeAddress
+      operationId: geo.geocode
       tags:
         - GEO
-      summary: geo.geocodeAddress
+      summary: geo.geocode
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. "
@@ -1602,10 +1602,10 @@ paths:
               longitude: 120.9842
   /api/v1/shared/geo/geofence/check:
     post:
-      operationId: geo.checkFence
+      operationId: geo.checkGeofence
       tags:
         - GEO
-      summary: geo.checkFence
+      summary: geo.checkGeofence
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: geo:read, geo:write. "
@@ -1695,10 +1695,10 @@ paths:
               longitude: 120.9842
   /api/v1/shared/gauth/oauth/authorize:
     post:
-      operationId: googleAuth.getAuthorizationUrl
+      operationId: auth.google.getAuthorizationUrl
       tags:
         - Google Auth
-      summary: googleAuth.getAuthorizationUrl
+      summary: auth.google.getAuthorizationUrl
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. Returns a JSON authorization URL, not an HTTP redirect. Navigate the browser to this URL; Google redirects to the registered consumer callback. Signed state expires after ten minutes."
@@ -1786,10 +1786,10 @@ paths:
               redirectUri: https://app.example.test/auth/callback
   /api/v1/shared/gauth/oauth/token:
     post:
-      operationId: googleAuth.exchangeCode
+      operationId: auth.google.exchangeCode
       tags:
         - Google Auth
-      summary: googleAuth.exchangeCode
+      summary: auth.google.exchangeCode
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. "
@@ -1878,10 +1878,10 @@ paths:
               state: <signed-state>
   /api/v1/shared/gauth/oauth/token/refresh:
     post:
-      operationId: googleAuth.refreshToken
+      operationId: auth.google.refreshToken
       tags:
         - Google Auth
-      summary: googleAuth.refreshToken
+      summary: auth.google.refreshToken
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. "
@@ -1969,10 +1969,10 @@ paths:
               refreshToken: <google-refresh-token>
   /api/v1/shared/gauth/oauth/logout:
     post:
-      operationId: googleAuth.logout
+      operationId: auth.google.logout
       tags:
         - Google Auth
-      summary: googleAuth.logout
+      summary: auth.google.logout
       security:
         - ServiceBearerAuth: []
       description: "Uses the registered service and environment. Default shared runtime authorization requires all listed scopes: auth:google:login. "

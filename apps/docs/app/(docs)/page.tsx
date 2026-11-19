@@ -50,7 +50,7 @@ export default function HomePage() {
         <section id="events" className="fd-section">
           <h2 className="fd-section-title">AsyncAPI Events</h2>
           <p className="fd-param-desc" style={{ marginBottom: "14px" }}>
-            Payment lifecycle events delivered to your Cloud Run endpoint via Google Pub/Sub with OIDC authentication.
+            Payment lifecycle events delivered to your backend as signed HTTPS webhooks, retried until you answer 2xx.
           </p>
           <div className="fd-card-grid">
             <a href="/reference/events" className="fd-card">
@@ -72,15 +72,11 @@ export default function HomePage() {
             </a>
             <a href="/guides/sdk-usage" className="fd-card">
               <span className="fd-card-title">SDK integration</span>
-              <span className="fd-card-desc">Install the TypeScript client and configure server credentials</span>
+              <span className="fd-card-desc">Install the TypeScript client and configure one application key</span>
             </a>
             <a href="/guides/management/access-and-tenancy" className="fd-card">
               <span className="fd-card-title">Management access and tenancy</span>
-              <span className="fd-card-desc">Understand organization membership and the registry hierarchy</span>
-            </a>
-            <a href="/guides/management/register-service" className="fd-card">
-              <span className="fd-card-title">Register a service</span>
-              <span className="fd-card-desc">Create its tribe, project, registry entry, and environment credentials</span>
+              <span className="fd-card-desc">Organizations, projects, environments, applications and roles</span>
             </a>
             <a href="/guides/management/google-sign-in" className="fd-card">
               <span className="fd-card-title">Configure Google sign-in</span>

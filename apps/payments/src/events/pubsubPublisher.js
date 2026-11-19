@@ -33,33 +33,37 @@ function publicResourceId(aggregateType, value) {
   const kinds = { checkout: 'chk', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv' };
   return value ? toPublicId(kinds[aggregateType] || 'res', value) : value;
 }
+/**
+ * The public payment event (contract 2.0) for an outbox row. Internally a resource's owner is stored
+ * as owner_tribe_id (the organization) and consumer_service_id (the application that created it).
+ */
 function toCanonicalPaymentEvent(event) {
   const payload = event?.payload || {};
-  const consumerServiceId = event.consumerServiceId || payload.consumerServiceId;
+  const applicationId = event.consumerServiceId || payload.consumerServiceId;
+  const organizationId = payload.ownerTribeId || event.ownerTribeId;
+  const projectId = payload.ownerProjectId || event.ownerProjectId;
   const referenceId = payload.referenceId;
-  const ownerTribeId = payload.ownerTribeId;
   if (!event.providerEventId) throw new Error('Payment event providerEventId is required');
   if (!event.eventType) throw new Error('Payment event eventType is required');
   if (!['test', 'live'].includes(event.environment)) throw new Error('Payment event environment must be test or live');
   if (!event.aggregateType || !event.aggregateId) throw new Error('Payment event aggregate identity is required');
-  if (!ownerTribeId) throw new Error('Payment event ownerTribeId is required');
-  if (!consumerServiceId) throw new Error('Payment event consumerServiceId is required');
+  if (!organizationId) throw new Error('Payment event organization is required');
+  if (!projectId) throw new Error('Payment event project is required');
+  if (!applicationId) throw new Error('Payment event application is required');
   if (!referenceId) throw new Error('Payment event referenceId is required');
 
   const aggregateVersion = Number(event.aggregateVersion || 1);
   if (!Number.isInteger(aggregateVersion) || aggregateVersion < 1) throw new Error('Payment event aggregateVersion must be a positive integer');
   if (event.eventType === 'payment.checkout.paid' && !payload.amount) throw new Error('Paid checkout event amount is required');
 
-  const ownerProjectId = payload.ownerProjectId || event.ownerProjectId;
   return {
     eventId: publicEventId(event.providerEventId),
-    contractVersion: '1.1',
+    contractVersion: '2.0',
     eventType: event.eventType,
-    // ownerTribeId stays for contract 1.0 consumers; ownerGroupId carries the same owner group.
-    ownerTribeId,
-    ownerGroupId: ownerTribeId,
-    ...(ownerProjectId ? { ownerProjectId } : {}),
-    consumerServiceId,
+    environment: event.environment,
+    organizationId,
+    projectId,
+    applicationId,
     referenceId,
     aggregateType: event.aggregateType,
     aggregateId: publicResourceId(event.aggregateType, event.aggregateId),
@@ -67,9 +71,7 @@ function toCanonicalPaymentEvent(event) {
     occurredAt: payload.occurredAt || (event.createdAt ? new Date(event.createdAt).toISOString() : new Date().toISOString()),
     ...(payload.correlationId ? { correlationId: publicEventId(payload.correlationId) } : {}),
     data: omitUndefined({
-      environment: event.environment,
       status: payload.status,
-      referenceId,
       checkoutId: publicResourceId('checkout', payload.checkoutId),
       subscriptionId: publicResourceId('subscription', payload.subscriptionId),
       invoiceId: publicResourceId('invoice', payload.invoiceId),
@@ -77,8 +79,6 @@ function toCanonicalPaymentEvent(event) {
       refundId: publicResourceId('refund', payload.refundId),
       amount: payload.amount,
       currency: payload.currency,
-      aggregateVersion,
-      updated: payload.updated,
     }),
   };
 }
@@ -94,14 +94,15 @@ async function publishPaymentEvent(event, { topic: providedTopic } = {}) {
       eventId: canonicalEvent.eventId,
       eventType: canonicalEvent.eventType,
       contractVersion: canonicalEvent.contractVersion,
+      environment: canonicalEvent.environment,
       aggregateType: canonicalEvent.aggregateType,
       aggregateId: canonicalEvent.aggregateId,
       aggregateVersion: String(canonicalEvent.aggregateVersion),
-      environment: event.environment,
-      ownerTribeId: canonicalEvent.ownerTribeId,
-      ownerGroupId: canonicalEvent.ownerGroupId,
-      ...(canonicalEvent.ownerProjectId ? { ownerProjectId: canonicalEvent.ownerProjectId } : {}),
-      consumerServiceId: canonicalEvent.consumerServiceId,
+      organizationId: canonicalEvent.organizationId,
+      projectId: canonicalEvent.projectId,
+      applicationId: canonicalEvent.applicationId,
+      // Each destination's Pub/Sub subscription filters on this attribute.
+      consumerServiceId: canonicalEvent.applicationId,
       referenceId: canonicalEvent.referenceId,
     },
   });

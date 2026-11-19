@@ -151,7 +151,7 @@
       }
     },
     {
-      "operationId": "email.getStatus",
+      "operationId": "email.get",
       "serviceId": "email",
       "method": "GET",
       "path": "/api/v1/shared/email/status/{messageId}",
@@ -178,7 +178,7 @@
       }
     },
     {
-      "operationId": "sms.getStatus",
+      "operationId": "sms.get",
       "serviceId": "sms",
       "method": "GET",
       "path": "/api/v1/shared/sms/status/{messageId}",
@@ -189,7 +189,7 @@
       ]
     },
     {
-      "operationId": "otp.generate",
+      "operationId": "otp.send",
       "serviceId": "otp",
       "method": "POST",
       "path": "/api/v1/shared/otp/generate",
@@ -223,7 +223,7 @@
       }
     },
     {
-      "operationId": "otp.getStatus",
+      "operationId": "otp.get",
       "serviceId": "otp",
       "method": "GET",
       "path": "/api/v1/shared/otp/status/{otpId}",
@@ -234,7 +234,7 @@
       ]
     },
     {
-      "operationId": "geo.geocodeAddress",
+      "operationId": "geo.geocode",
       "serviceId": "geo",
       "method": "POST",
       "path": "/api/v1/shared/geo/geocode",
@@ -258,7 +258,7 @@
       ]
     },
     {
-      "operationId": "geo.checkFence",
+      "operationId": "geo.checkGeofence",
       "serviceId": "geo",
       "method": "POST",
       "path": "/api/v1/shared/geo/geofence/check",
@@ -270,7 +270,7 @@
       ]
     },
     {
-      "operationId": "googleAuth.getAuthorizationUrl",
+      "operationId": "auth.google.getAuthorizationUrl",
       "serviceId": "gauth",
       "method": "POST",
       "path": "/api/v1/shared/gauth/oauth/authorize",
@@ -281,7 +281,7 @@
       ]
     },
     {
-      "operationId": "googleAuth.exchangeCode",
+      "operationId": "auth.google.exchangeCode",
       "serviceId": "gauth",
       "method": "POST",
       "path": "/api/v1/shared/gauth/oauth/token",
@@ -292,7 +292,7 @@
       ]
     },
     {
-      "operationId": "googleAuth.refreshToken",
+      "operationId": "auth.google.refreshToken",
       "serviceId": "gauth",
       "method": "POST",
       "path": "/api/v1/shared/gauth/oauth/token/refresh",
@@ -303,7 +303,7 @@
       ]
     },
     {
-      "operationId": "googleAuth.logout",
+      "operationId": "auth.google.logout",
       "serviceId": "gauth",
       "method": "POST",
       "path": "/api/v1/shared/gauth/oauth/logout",

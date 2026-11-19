@@ -20,10 +20,6 @@
     "section": "Management"
   },
   {
-    "slug": "management/register-service",
-    "section": "Management"
-  },
-  {
     "slug": "management/google-sign-in",
     "section": "Management"
   },
@@ -79,15 +75,7 @@
     "section": "Messaging and verification"
   },
   {
-    "slug": "identity-gateway/auth-tokens",
-    "section": "Identity and platform"
-  },
-  {
     "slug": "identity-gateway/gauth",
-    "section": "Identity and platform"
-  },
-  {
-    "slug": "identity-gateway/registry-health",
     "section": "Identity and platform"
   },
   {
@@ -100,10 +88,6 @@
   },
   {
     "slug": "events/webhooks",
-    "section": "Integration and events"
-  },
-  {
-    "slug": "events/pubsub-delivery",
     "section": "Integration and events"
   },
   {

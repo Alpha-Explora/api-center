@@ -1449,11 +1449,11 @@
     },
     "/api/v1/shared/email/status/{messageId}": {
       "get": {
-        "operationId": "email.getStatus",
+        "operationId": "email.get",
         "tags": [
           "EMAIL"
         ],
-        "summary": "email.getStatus",
+        "summary": "email.get",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -1752,11 +1752,11 @@
     },
     "/api/v1/shared/sms/status/{messageId}": {
       "get": {
-        "operationId": "sms.getStatus",
+        "operationId": "sms.get",
         "tags": [
           "SMS"
         ],
-        "summary": "sms.getStatus",
+        "summary": "sms.get",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -1899,11 +1899,11 @@
     },
     "/api/v1/shared/otp/generate": {
       "post": {
-        "operationId": "otp.generate",
+        "operationId": "otp.send",
         "tags": [
           "OTP"
         ],
-        "summary": "otp.generate",
+        "summary": "otp.send",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -2213,11 +2213,11 @@
     },
     "/api/v1/shared/otp/status/{otpId}": {
       "get": {
-        "operationId": "otp.getStatus",
+        "operationId": "otp.get",
         "tags": [
           "OTP"
         ],
-        "summary": "otp.getStatus",
+        "summary": "otp.get",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -2360,11 +2360,11 @@
     },
     "/api/v1/shared/geo/geocode": {
       "post": {
-        "operationId": "geo.geocodeAddress",
+        "operationId": "geo.geocode",
         "tags": [
           "GEO"
         ],
-        "summary": "geo.geocodeAddress",
+        "summary": "geo.geocode",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -2659,11 +2659,11 @@
     },
     "/api/v1/shared/geo/geofence/check": {
       "post": {
-        "operationId": "geo.checkFence",
+        "operationId": "geo.checkGeofence",
         "tags": [
           "GEO"
         ],
-        "summary": "geo.checkFence",
+        "summary": "geo.checkGeofence",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -2809,11 +2809,11 @@
     },
     "/api/v1/shared/gauth/oauth/authorize": {
       "post": {
-        "operationId": "googleAuth.getAuthorizationUrl",
+        "operationId": "auth.google.getAuthorizationUrl",
         "tags": [
           "Google Auth"
         ],
-        "summary": "googleAuth.getAuthorizationUrl",
+        "summary": "auth.google.getAuthorizationUrl",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -2957,11 +2957,11 @@
     },
     "/api/v1/shared/gauth/oauth/token": {
       "post": {
-        "operationId": "googleAuth.exchangeCode",
+        "operationId": "auth.google.exchangeCode",
         "tags": [
           "Google Auth"
         ],
-        "summary": "googleAuth.exchangeCode",
+        "summary": "auth.google.exchangeCode",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -3106,11 +3106,11 @@
     },
     "/api/v1/shared/gauth/oauth/token/refresh": {
       "post": {
-        "operationId": "googleAuth.refreshToken",
+        "operationId": "auth.google.refreshToken",
         "tags": [
           "Google Auth"
         ],
-        "summary": "googleAuth.refreshToken",
+        "summary": "auth.google.refreshToken",
         "security": [
           {
             "ServiceBearerAuth": []
@@ -3254,11 +3254,11 @@
     },
     "/api/v1/shared/gauth/oauth/logout": {
       "post": {
-        "operationId": "googleAuth.logout",
+        "operationId": "auth.google.logout",
         "tags": [
           "Google Auth"
         ],
-        "summary": "googleAuth.logout",
+        "summary": "auth.google.logout",
         "security": [
           {
             "ServiceBearerAuth": []

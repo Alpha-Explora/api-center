@@ -30,7 +30,7 @@ import { verifyWebhook, ApiCenterWebhookError } from '@alpha-explora/apicenter-s
 app.post('/apicenter/events', express.raw({ type: 'application/json' }), async (req, res) => {
   let event;
   try {
-    event = verifyWebhook(req.body, req.headers, process.env.APICENTER_WEBHOOK_SECRET!);
+    event = await verifyWebhook(req.body, req.headers, process.env.APICENTER_WEBHOOK_SECRET!);
   } catch (error) {
     if (error instanceof ApiCenterWebhookError) return res.status(400).end();
     throw error;

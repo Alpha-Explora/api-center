@@ -1,41 +1,22 @@
 import type { OtpGenerateRequest, OtpGenerateResponse, OtpStatusResponse, OtpVerifyRequest, OtpVerifyResponse } from '@alpha-explora/apicenter-contracts';
-import type { IdempotencyOptions, RequestOptions } from '../types';
-import { ApiCenterTransport } from '../internal/transport';
+import type { ApiCenterTransport } from '../internal/transport.js';
+import type { RequestOptions, WriteOptions } from '../types.js';
 
 export class OtpClient {
   constructor(private readonly transport: ApiCenterTransport) {}
 
-  /** @sdk-operation otp.generate POST /api/v1/shared/otp/generate */
-  generate(input: OtpGenerateRequest, options: IdempotencyOptions): Promise<OtpGenerateResponse> {
-    return this.transport.request({
-      path: '/api/v1/shared/otp/generate',
-      method: 'POST',
-      credential: 'service',
-      body: input,
-      idempotencyKey: options.idempotencyKey,
-      options,
-    });
+  /** Sends a one-time code by email or SMS. @sdk-operation otp.send POST /api/v1/shared/otp/generate */
+  send(input: OtpGenerateRequest, options?: WriteOptions): Promise<OtpGenerateResponse> {
+    return this.transport.request({ path: '/api/v1/shared/otp/generate', method: 'POST', body: input, write: true, idempotencyKey: options?.idempotencyKey, options });
   }
 
   /** @sdk-operation otp.verify POST /api/v1/shared/otp/verify */
-  verify(input: OtpVerifyRequest, options: IdempotencyOptions): Promise<OtpVerifyResponse> {
-    return this.transport.request({
-      path: '/api/v1/shared/otp/verify',
-      method: 'POST',
-      credential: 'service',
-      body: input,
-      idempotencyKey: options.idempotencyKey,
-      options,
-    });
+  verify(input: OtpVerifyRequest, options?: WriteOptions): Promise<OtpVerifyResponse> {
+    return this.transport.request({ path: '/api/v1/shared/otp/verify', method: 'POST', body: input, write: true, idempotencyKey: options?.idempotencyKey, options });
   }
 
-  /** @sdk-operation otp.getStatus GET /api/v1/shared/otp/status/{otpId} */
-  getStatus(otpId: string, options?: RequestOptions): Promise<OtpStatusResponse> {
-    return this.transport.request({
-      path: `/api/v1/shared/otp/status/${encodeURIComponent(otpId)}`,
-      method: 'GET',
-      credential: 'service',
-      options,
-    });
+  /** @sdk-operation otp.get GET /api/v1/shared/otp/status/{otpId} */
+  get(otpId: string, options?: RequestOptions): Promise<OtpStatusResponse> {
+    return this.transport.request({ path: `/api/v1/shared/otp/status/${encodeURIComponent(otpId)}`, method: 'GET', options });
   }
 }

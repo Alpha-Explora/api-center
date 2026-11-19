@@ -1,88 +1,52 @@
-import { ApiCenterError } from './errors';
-import { ServiceTokenProvider, type IssuedServiceToken, type ServiceCredentials, type TokenEndpointRequest } from './auth/service-token-provider';
-import type { AccessTokenProvider, ApiCenterAuth, RequestOptions } from '../types';
+// One HTTPS call to APICenter: the application key, a per-attempt timeout, retries for failures
+// that are safe to repeat, an idempotency key on every write (reused across those retries), and
+// typed errors. Uses only fetch and Web APIs, so it runs on Node, Deno, Bun and edge runtimes.
+import { ApiCenterError, ConnectionError, errorFor } from './errors.js';
+import type { RequestHooks, RequestOptions } from '../types.js';
 
-export type ApiCredential = 'service' | 'payment' | 'none';
 export type HttpMethod = 'GET' | 'POST' | 'PATCH';
 
-export interface ApiRequest<TBody = unknown> {
+export interface ApiRequest {
   path: string;
   method: HttpMethod;
-  credential: ApiCredential;
-  body?: TBody;
-  options?: RequestOptions;
+  body?: unknown;
+  query?: Record<string, string | number | boolean | undefined>;
+  /** A write carries an Idempotency-Key, generated unless the caller supplied one. */
+  write?: boolean;
   idempotencyKey?: string;
+  options?: RequestOptions;
 }
 
-export interface ApiCenterTransportOptions {
+export interface TransportOptions {
+  apiKey: string;
   baseUrl: string;
-  auth?: ApiCenterAuth;
-  paymentApiKey?: string;
-  fetchImpl?: typeof fetch;
+  fetch?: typeof fetch;
   timeoutMs?: number;
+  maxRetries?: number;
+  hooks?: RequestHooks;
+  sdkVersion: string;
 }
 
-const protectedHeaders = new Set([
-  'authorization',
-  'idempotency-key',
-  'x-tribe-id',
-  'x-apicenter-tribe-id',
-  'x-apicenter-owner-tribe-id',
-  'x-apicenter-project-id',
-  'x-apicenter-consumer-service-id',
-  'x-apicenter-source-service-id',
-  'x-apicenter-environment',
-  'x-apicenter-context',
-]);
+export const APPLICATION_KEY = /^ak_(test|live)_[a-z0-9]{16}_[A-Za-z0-9_-]{43}$/;
+/** The API version this SDK was built against; sent on every request. */
+export const API_VERSION = '2026-11-19';
 
-const APPLICATION_KEY = /^ak_(test|live)_[a-z0-9]{16}_[A-Za-z0-9_-]{43}$/;
+const MANAGED_HEADERS = new Set(['authorization', 'idempotency-key', 'apicenter-version', 'apicenter-sdk', 'x-apicenter-context']);
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const MAX_RETRY_AFTER_SECONDS = 20;
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === 'object'
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
 }
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
-function abortReason(signal: AbortSignal): unknown {
-  return signal.reason ?? new DOMException('The operation was aborted', 'AbortError');
-}
-
-function waitForSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortReason(signal));
-
-  return new Promise<T>((resolve, reject) => {
-    const cleanup = () => signal.removeEventListener('abort', onAbort);
-    const onAbort = () => {
-      cleanup();
-      reject(abortReason(signal));
-    };
-
-    signal.addEventListener('abort', onAbort, { once: true });
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-
-    operation.then(
-      (value) => {
-        cleanup();
-        resolve(value);
-      },
-      (error: unknown) => {
-        cleanup();
-        reject(error);
-      },
-    );
-  });
-}
-
 function redactSensitiveText(value: string): string {
   return value
-    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/\bak_(test|live)_[A-Za-z0-9_-]+/g, 'ak_$1_[REDACTED]')
     .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*\b/g, '[REDACTED]')
     .replace(
       /\b(access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|password|secret|authorization)\b\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;}\]]+)/gi,
@@ -94,14 +58,9 @@ function sanitizeErrorDetails(value: unknown, depth = 0): unknown {
   if (typeof value === 'string') return redactSensitiveText(value);
   if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
   if (depth >= 6) return '[truncated]';
-
-  if (Array.isArray(value)) {
-    return value.slice(0, 100).map((item) => sanitizeErrorDetails(item, depth + 1));
-  }
-
+  if (Array.isArray(value)) return value.slice(0, 100).map((item) => sanitizeErrorDetails(item, depth + 1));
   const record = objectValue(value);
   if (!record) return undefined;
-
   const sensitiveKey = /authorization|access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|password|secret|credential|cookie/i;
   return Object.fromEntries(
     Object.entries(record)
@@ -111,186 +70,170 @@ function sanitizeErrorDetails(value: unknown, depth = 0): unknown {
   );
 }
 
+function retryAfterSeconds(response: Response): number | undefined {
+  const raw = response.headers.get('retry-after');
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds);
+  const date = Date.parse(raw);
+  return Number.isNaN(date) ? undefined : Math.max(0, (date - Date.now()) / 1000);
+}
+
+function abortError(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException('The operation was aborted', 'AbortError');
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(abortError(signal));
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError(signal!));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 export class ApiCenterTransport {
+  readonly environment: 'test' | 'live';
+  private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
-  private readonly paymentApiKey?: string;
-  private readonly applicationKey?: string;
-  private readonly accessTokenProvider?: AccessTokenProvider;
-  private readonly serviceTokenProvider?: ServiceTokenProvider;
+  private readonly maxRetries: number;
+  private readonly hooks: RequestHooks;
+  private readonly sdkVersion: string;
 
-  constructor(options: ApiCenterTransportOptions) {
-    if (!options.baseUrl.trim()) throw new TypeError('baseUrl is required');
-    if (!options.auth && !options.paymentApiKey?.trim()) {
-      throw new TypeError('Set APICENTER_API_KEY, or pass auth or a paymentApiKey');
-    }
+  constructor(options: TransportOptions) {
+    const apiKey = options.apiKey.trim();
+    const match = APPLICATION_KEY.exec(apiKey);
+    if (!match) throw new TypeError('apiKey must be an APICenter application key (ak_test_… or ak_live_…)');
+    this.apiKey = apiKey;
+    this.environment = match[1] as 'test' | 'live';
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.timeoutMs = options.timeoutMs ?? 15_000;
-    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) {
-      throw new TypeError('timeoutMs must be a positive number');
-    }
-    this.paymentApiKey = options.paymentApiKey?.trim() || undefined;
-
-    if (options.auth && 'apiKey' in options.auth) {
-      const apiKey = options.auth.apiKey?.trim() ?? '';
-      if (!APPLICATION_KEY.test(apiKey)) throw new TypeError('apiKey must be an APICenter application key (ak_test_… or ak_live_…)');
-      this.applicationKey = apiKey;
-    } else if (options.auth && 'getAccessToken' in options.auth) {
-      this.accessTokenProvider = options.auth;
-    } else if (options.auth) {
-      const credentials = options.auth as ServiceCredentials;
-      const tokenRequest: TokenEndpointRequest = (path, body) =>
-        this.request<IssuedServiceToken>({ path, method: 'POST', credential: 'none', body });
-      this.serviceTokenProvider = new ServiceTokenProvider(credentials, tokenRequest);
-    }
+    this.maxRetries = options.maxRetries ?? 2;
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new TypeError('timeoutMs must be a positive number');
+    if (!Number.isInteger(this.maxRetries) || this.maxRetries < 0 || this.maxRetries > 10) throw new TypeError('maxRetries must be an integer from 0 to 10');
+    this.hooks = options.hooks ?? {};
+    this.sdkVersion = options.sdkVersion;
   }
 
   async request<T>(request: ApiRequest): Promise<T> {
-    if (request.options?.signal?.aborted) {
-      throw request.options.signal.reason ?? new DOMException('The operation was aborted', 'AbortError');
-    }
+    const signal = request.options?.signal;
+    if (signal?.aborted) throw abortError(signal);
+
     const headers = new Headers({ Accept: 'application/json' });
     for (const [name, value] of Object.entries(request.options?.headers ?? {})) {
-      if (protectedHeaders.has(name.toLowerCase())) {
-        throw new TypeError(`The ${name} header is managed by the APICenter SDK`);
-      }
+      if (MANAGED_HEADERS.has(name.toLowerCase())) throw new TypeError(`The ${name} header is managed by the APICenter SDK`);
       headers.set(name, value);
     }
+    headers.set('Authorization', `Bearer ${this.apiKey}`);
+    headers.set('APICenter-Version', API_VERSION);
+    headers.set('APICenter-SDK', `apicenter-sdk-js/${this.sdkVersion}`);
+    if (request.body !== undefined) headers.set('Content-Type', 'application/json');
 
-    if (request.idempotencyKey !== undefined) {
-      const key = request.idempotencyKey.trim();
-      if (key.length < 16 || key.length > 255) {
-        throw new TypeError('idempotencyKey must be between 16 and 255 characters');
-      }
+    let idempotencyKey: string | undefined;
+    if (request.write) {
+      const key = (request.idempotencyKey ?? `sdk_${globalThis.crypto.randomUUID()}`).trim();
+      if (key.length < 16 || key.length > 255) throw new TypeError('idempotencyKey must be between 16 and 255 characters');
       headers.set('Idempotency-Key', key);
+      idempotencyKey = key;
     }
 
-    const timeoutController = new AbortController();
-    const timeout = setTimeout(
-      () => timeoutController.abort(new Error('APICenter request timed out')),
-      this.timeoutMs,
-    );
-    const signal = request.options?.signal
-      ? AbortSignal.any([request.options.signal, timeoutController.signal])
-      : timeoutController.signal;
-    let requestStarted = false;
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(request.query ?? {})) if (value !== undefined) query.set(key, String(value));
+    const url = `${this.baseUrl}${request.path}${query.size ? `?${query}` : ''}`;
+    const body = request.body === undefined ? undefined : JSON.stringify(request.body);
+    const timeoutMs = request.options?.timeoutMs ?? this.timeoutMs;
 
+    for (let attempt = 1; ; attempt += 1) {
+      this.hooks.onRequest?.({ method: request.method, url, attempt, idempotencyKey });
+      const started = Date.now();
+      let error: ApiCenterError;
+      try {
+        const response = await this.send(url, request.method, headers, body, timeoutMs, signal);
+        const text = await response.text();
+        const result = this.decode<T>(response, text);
+        this.hooks.onResponse?.({ method: request.method, url, attempt, status: response.status, durationMs: Date.now() - started, requestId: this.requestId(response) });
+        return result;
+      } catch (caught) {
+        if (signal?.aborted) throw abortError(signal);
+        if (!(caught instanceof ApiCenterError)) throw caught;
+        error = caught;
+        this.hooks.onResponse?.({ method: request.method, url, attempt, status: error.status, durationMs: Date.now() - started, requestId: error.requestId, error });
+      }
+      const delay = this.retryDelay(error, attempt);
+      if (delay === undefined) throw error;
+      await sleep(delay, signal);
+    }
+  }
+
+  /** Milliseconds to wait before retrying, or undefined when the failure should be returned. */
+  private retryDelay(error: ApiCenterError, attempt: number): number | undefined {
+    if (attempt > this.maxRetries) return undefined;
+    const retryable = error instanceof ConnectionError || RETRYABLE_STATUS.has(error.status);
+    if (!retryable || error.code === 'QUOTA_EXCEEDED') return undefined;
+    if (error.retryAfterSeconds !== undefined) {
+      return error.retryAfterSeconds <= MAX_RETRY_AFTER_SECONDS ? error.retryAfterSeconds * 1000 : undefined;
+    }
+    const base = Math.min(8000, 500 * 2 ** (attempt - 1));
+    return base / 2 + Math.random() * (base / 2);
+  }
+
+  private async send(url: string, method: HttpMethod, headers: Headers, body: string | undefined, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     try {
-      const token = await waitForSignal(
-        this.resolveCredential(request.credential, signal),
-        signal,
-      );
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      if (request.body !== undefined) headers.set('Content-Type', 'application/json');
-
-      requestStarted = true;
-      const response = await this.fetchImpl(`${this.baseUrl}${request.path}`, {
-        method: request.method,
-        headers,
-        signal,
-        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
-      });
-      const text = await response.text();
-      return this.decodeResponse<T>(response, text);
-    } catch (error) {
-      if (request.options?.signal?.aborted) throw abortReason(request.options.signal);
-      if (timeoutController.signal.aborted) {
-        throw new ApiCenterError(`APICenter request timed out after ${this.timeoutMs}ms`, {
-          status: 0,
-          code: 'REQUEST_TIMEOUT',
-          cause: error,
-        });
+      return await this.fetchImpl(url, { method, headers, signal: combined, ...(body === undefined ? {} : { body }) });
+    } catch (cause) {
+      if (signal?.aborted) throw abortError(signal);
+      if (timeout.aborted) {
+        throw new ConnectionError(`APICenter did not answer within ${timeoutMs} ms`, { status: 0, code: 'REQUEST_TIMEOUT', cause });
       }
-      if (error instanceof ApiCenterError) throw error;
-      if (!requestStarted) throw error;
-      throw new ApiCenterError('Could not reach APICenter', {
-        status: 0,
-        code: 'NETWORK_ERROR',
-        cause: error,
-      });
-    } finally {
-      clearTimeout(timeout);
+      throw new ConnectionError('Could not reach APICenter', { status: 0, code: 'NETWORK_ERROR', cause });
     }
   }
 
-  private async resolveCredential(
-    credential: ApiCredential,
-    signal: AbortSignal,
-  ): Promise<string | undefined> {
-    if (credential === 'none') return undefined;
-    if (credential === 'payment' && this.paymentApiKey) return this.paymentApiKey;
-    if (this.applicationKey) return this.applicationKey;
-    if (this.accessTokenProvider) {
-      const token = await this.accessTokenProvider.getAccessToken({ signal });
-      if (typeof token !== 'string' || !token.trim()) {
-        throw new TypeError('getAccessToken must return a non-empty access token');
-      }
-      return token;
-    }
-    if (this.serviceTokenProvider) return this.serviceTokenProvider.getAccessToken();
-    throw new TypeError(
-      credential === 'payment'
-        ? 'Payments require paymentApiKey or service auth with payment scopes'
-        : 'This operation requires service auth',
-    );
-  }
-
-  private decodeResponse<T>(response: Response, text: string): T {
+  private decode<T>(response: Response, text: string): T {
     if (!text.trim() && response.status === 204) return undefined as T;
-
+    const requestId = this.requestId(response);
     let payload: unknown;
     try {
       payload = JSON.parse(text) as unknown;
     } catch {
-      throw new ApiCenterError(
-        text.trim()
-          ? `APICenter returned invalid JSON (${response.status})`
-          : `APICenter returned an empty response (${response.status})`,
-        {
-          status: response.status,
-          code: text.trim() ? 'INVALID_JSON' : 'EMPTY_RESPONSE',
-          correlationId: this.responseCorrelationId(response),
-        },
-      );
+      throw errorFor(text.trim() ? `APICenter returned invalid JSON (${response.status})` : `APICenter returned an empty response (${response.status})`, {
+        status: response.status,
+        code: text.trim() ? 'INVALID_JSON' : 'EMPTY_RESPONSE',
+        requestId,
+        retryAfterSeconds: retryAfterSeconds(response),
+      });
     }
-
     const envelope = objectValue(payload);
     const apiError = objectValue(envelope?.error);
     const meta = objectValue(envelope?.meta);
-    const correlationId =
-      stringValue(meta?.correlationId) ?? this.responseCorrelationId(response);
-    const isSuccessStatus = response.ok || response.status === 202;
-
-    if (
-      isSuccessStatus &&
-      envelope?.success === true &&
-      Object.prototype.hasOwnProperty.call(envelope, 'data')
-    ) {
+    const id = stringValue(meta?.correlationId) ?? requestId;
+    if ((response.ok || response.status === 202) && envelope?.success === true && Object.prototype.hasOwnProperty.call(envelope, 'data')) {
       return envelope.data as T;
     }
-
     const message = response.status >= 500
       ? `APICenter returned an error (${response.status})`
-      : redactSensitiveText(
-        stringValue(apiError?.message) ??
-        stringValue(envelope?.message) ??
-        `APICenter request failed (${response.status})`,
-      );
-    throw new ApiCenterError(message, {
+      : redactSensitiveText(stringValue(apiError?.message) ?? stringValue(envelope?.message) ?? `APICenter request failed (${response.status})`);
+    throw errorFor(message, {
       status: response.status,
       code: stringValue(apiError?.code) ?? stringValue(envelope?.code),
       details: response.status >= 500 ? undefined : sanitizeErrorDetails(apiError?.details),
-      correlationId,
+      requestId: id,
+      retryAfterSeconds: retryAfterSeconds(response),
     });
   }
 
-  private responseCorrelationId(response: Response): string | undefined {
-    return (
-      response.headers.get('x-apicenter-correlation-id') ??
-      response.headers.get('x-correlation-id') ??
-      undefined
-    );
+  private requestId(response: Response): string | undefined {
+    return response.headers.get('x-apicenter-correlation-id') ?? response.headers.get('x-correlation-id') ?? undefined;
   }
 }

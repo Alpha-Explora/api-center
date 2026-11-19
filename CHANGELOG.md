@@ -4,10 +4,15 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ## Unreleased
 
+### Breaking
+
+- SDK 3.0.0, for application keys only. `new ApiCenter()` reads `APICENTER_API_KEY`; `baseUrl`, `APICENTER_URL`, service credentials, access-token providers, `paymentApiKey` and `setup.status()` are removed. Writes generate an idempotency key when none is given and retry network errors, timeouts, 408, 429 and 5xx with the same key, respecting `Retry-After`. Failures are typed (`AuthenticationError`, `PermissionError`, `ValidationError`, `NotFoundError`, `IdempotencyError`, `RateLimitError`, `QuotaExceededError`, `ServerError`, `ConnectionError`) and carry `requestId`. Methods are renamed for consistency (`email.get`, `sms.get`, `otp.send`, `otp.get`, `geo.geocode`, `geo.checkGeofence`, `auth.google.*`). New: `whoami()`, `payments.records.listAll()`, `isPending()`, request hooks, per-call timeouts, `createWebhookHandler()`, and typed webhook events. Webhook and published-API verification use WebCrypto (now async), so the SDK runs on Node 20+, Deno, Bun and edge runtimes. Ships ES modules and CommonJS. See `packages/sdk/UPGRADING.md`.
+- Payment event contract 2.0 and contracts 1.0.0: events carry `environment`, `organizationId`, `projectId` and `applicationId`; `ownerTribeId`, `ownerGroupId`, `consumerServiceId` and the duplicated `data` fields are gone, and a paid checkout's `data` is `{ status, checkoutId, paymentId, amount, currency }` with `amount` in minor units. The AsyncAPI contract now lists only the event that is published (`payment.checkout.paid`) and describes signed webhook delivery.
+- Removed the sandbox tribe examples, the AlphaCI payment smoke harness, and the consumer guides for service registration, token exchange, registry health and Pub/Sub push delivery.
+
 ### Changed
 
 - Remove Redis. Runtime idempotency and per-recipient send limits for email, SMS and OTP, the gateway's refresh tokens and payment idempotency now live in PostgreSQL (migration `20261118000100`: `<runtime schema>.idempotency_keys` and `rate_limit_windows`, `apic_identity.refresh_tokens`, `apic_governance.payment_idempotency_keys`), purged by the retention job. Gateway rate limits, tribe quotas, traffic and usage dashboards count per instance in memory; dashboard metadata now reports `memory-window`. Readiness no longer reports Redis. Deployments drop every `*_REDIS_URL` setting.
-- SDK 2.2.0: `new ApiCenter()` needs only `APICENTER_API_KEY`, and `verifyWebhook` verifies signed webhook deliveries. `baseUrl` defaults to `APICENTER_URL`, then `https://api.apicenter.itsandbox.site`; explicit options always win.
 
 ### Fixed
 

@@ -19,7 +19,7 @@ After a definitive response, APICenter replays the response for the same key and
 
 If the provider outcome is uncertain, keep using the original key. APICenter allows retries with that key for up to 23 hours from the first attempt, leaving a safety margin before PayMongo's provider idempotency key expires. After that window, APICenter returns HTTP `409` with `PAYMENT_OUTCOME_UNKNOWN`. Reconcile the payment with APICenter or PayMongo before starting a new operation with a different key.
 
-For payments, `referenceId` must be unique within `(ownerTribeId, consumerServiceId, environment)`.
+For payments, `referenceId` must be unique within your application and environment.
 
 ## Email, SMS, and OTP
 

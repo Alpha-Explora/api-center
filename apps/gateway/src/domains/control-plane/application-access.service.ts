@@ -97,6 +97,41 @@ export class ApplicationAccessService {
    * Authorizes a catalogued action directly, for facades that map their own routes to actions
    * (payments). An action not catalogued for the capability is denied.
    */
+  /**
+   * Who an application key belongs to and what it may do, for the SDK's startup check. Uses the
+   * same credential checks as a call, without a target, and counts toward no budget.
+   */
+  async whoami(bearer: string, now = new Date()) {
+    const parsed = parseApplicationCredential(bearer);
+    const organizationId = parsed ? await credentialOrganization(this.prisma, parsed.lookupPrefix) : undefined;
+    if (!parsed || !organizationId) throw new UnauthorizedError("Invalid application credential");
+    const found = await withTenant(this.prisma, { organizationId }, async (db) => {
+      const credential = await db.cpCredential.findUnique({ where: { lookupPrefix: parsed.lookupPrefix } });
+      if (!credential || !credentialMatches(bearer, credential.verifierSha256)) return undefined;
+      const scope = { organizationId, projectId: credential.projectId, environmentId: credential.environmentId };
+      const [application, grants] = await Promise.all([
+        db.cpApplication.findFirst({ where: { id: credential.applicationId, ...scope }, select: { id: true, slug: true, name: true, status: true } }),
+        db.cpApplicationGrant.findMany({ where: { applicationId: credential.applicationId, ...scope, status: "active" }, select: { targetKind: true, targetId: true, action: true } }),
+      ]);
+      return application ? { credential, application, grants } : undefined;
+    });
+    if (!found) throw new UnauthorizedError("Invalid application credential");
+    const { credential, application, grants } = found;
+    if (credential.status !== "active") throw new AppError(denialMessage("CREDENTIAL_REVOKED"), 401, "CREDENTIAL_REVOKED");
+    if (credential.expiresAt <= now) throw new AppError(denialMessage("CREDENTIAL_EXPIRED"), 401, "CREDENTIAL_EXPIRED");
+    if (credential.environmentKind !== parsed.environmentKind) {
+      throw new AppError(denialMessage("CREDENTIAL_ENVIRONMENT_MISMATCH"), 401, "CREDENTIAL_ENVIRONMENT_MISMATCH");
+    }
+    return {
+      application: { id: application.id, slug: application.slug, name: application.name },
+      project: { id: credential.projectId },
+      organizationId,
+      environment: credential.environmentKind as EnvironmentKind,
+      // Published-API grants are named after the API, so they cannot be mistaken for capability actions.
+      grants: grants.map((grant) => (grant.targetKind === "api" ? `api:${grant.targetId}:${grant.action}` : grant.action)).sort(),
+    };
+  }
+
   async authorizeAction(
     request: Omit<CapabilityRequest, "method" | "relativePath"> & { action: string },
     now = new Date(),

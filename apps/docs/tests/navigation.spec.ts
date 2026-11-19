@@ -21,7 +21,7 @@ test("static docs publish the contract-backed navigation and references", () => 
 
   const events = page("reference/events");
   assert.match(events, /payment\.checkout\.paid/);
-  assert.match(events, /payment\.checkout\.created/);
+  assert.match(events, /webhook-signature/);
 
   const paymentLimits = page("guides/payments/limits");
   assert.match(paymentLimits, /AMOUNT_LIMIT_EXCEEDED/);

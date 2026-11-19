@@ -1,49 +1,41 @@
 ---
-title: "Authentication and scopes"
-description: "Configure server-side service credentials and understand APICenter authorization."
+title: "Authentication and grants"
+description: "Application keys, environments, and the grants that decide what an application may call."
 ---
 
-APICenter authenticates backend services with service-specific credentials. The service is registered in one project, and its allowed scopes and dependencies are managed in the Registry.
+APICenter authenticates your backend with an **application key** and authorizes each call against the application's **grants**.
 
-## Use the SDK for service authentication
+## Application keys
 
-The recommended TypeScript client obtains and refreshes the APICenter bearer token. Configure the service ID, environment, and secret as server-only values:
+A key belongs to one application in one environment of one project. Its prefix names the environment: `ak_test_…` or `ak_live_…`. Send it as a bearer token; the SDK does this from `APICENTER_API_KEY`:
 
 ```ts
 import { ApiCenter } from '@alpha-explora/apicenter-sdk';
 
-const api = new ApiCenter({
-  baseUrl: process.env.APICENTER_URL!,
-  auth: {
-    serviceId: process.env.APICENTER_SERVICE_ID!,
-    environment: process.env.APICENTER_ENVIRONMENT as 'test' | 'live',
-    secret: process.env.APICENTER_SERVICE_SECRET!,
-  },
-});
+const api = new ApiCenter();
 ```
 
-Do not send the service secret to a browser or include it in mobile client code. Store distinct test and live credentials in the backend's secret manager. See [SDK integration](/guides/sdk-usage) for installation and request examples.
+For a call without the SDK, send `Authorization: Bearer ak_test_…` to `https://api.apicenter.itsandbox.site/api/v1/...`, and an `Idempotency-Key` header on every write.
 
-For an integration that cannot use the TypeScript SDK, the service can request a bearer token directly with `POST /api/v1/auth/token`. See the [token API reference](/guides/identity-gateway/auth-tokens). The SDK performs this exchange and token rotation for you.
+Keys are shown once when issued, can carry an expiry, and can be revoked at any time; a revoked key fails with `CREDENTIAL_REVOKED`. Keep keys in a server-side secret store, one per application and environment. Never put one in browser or mobile code.
 
-## Authorization
+## Grants
 
-APICenter resolves the service's project and tribe from its registry placement. Callers cannot select a different project by changing token claims or request fields. The gateway checks the registered service, environment, required scopes, and shared-service dependencies before proxying a request.
+Nothing is allowed by default. An application may call an action only when its environment has the capability enabled and the application holds a grant for the action:
 
-| API area | Example scope | Credential |
-| :--- | :--- | :--- |
-| Email | `email:send` | Service token |
-| SMS | `sms:send` | Service token |
-| OTP | `otp:generate`, `otp:verify` | Service token |
-| Geo | `geo:read` | Service token |
-| Payments | Operation-specific, such as `payments:checkout:write` or `payments:intents:read` | Payment API key when provisioned, or an authorized service token; see the endpoint guide |
+| Capability | Example actions |
+| :--- | :--- |
+| Email | `email:send`, `email:read` |
+| SMS | `sms:send`, `sms:read` |
+| OTP | `otp:generate`, `otp:verify`, `otp:read` |
+| Geo | `geo:geocode`, `geo:reverse-geocode`, `geo:geofence` |
+| Google sign-in | `gauth:authorize`, `gauth:token`, `gauth:logout` |
+| Payments | `payments:checkout:write`, `payments:checkout:read`, `payments:refunds:write`, … |
 
-Request only the scopes the service needs. If a request returns an authorization error, ask an operator to review the service registration and its project-level policy.
+A call without the grant fails with `ACTION_NOT_GRANTED` (a `PermissionError` in the SDK); a disabled capability fails with `CAPABILITY_NOT_ENABLED`. `await api.whoami()` lists the key's grants.
 
-## Payment credentials
+Live environments are activated after an approval by a person other than the one who requested it, and their keys are issued separately from test.
 
-The SDK uses the payment credential issued for the service and environment. A payment API key can be supplied when the platform provisions one; otherwise the service token must have the scope required by the operation. The exact payment scope depends on the resource and method. Do not reuse a credential across environments or services.
+## Human access to the console
 
-## Human access to Management
-
-Management sign-in is separate from service authentication. A user signs in with an authorized Google account and needs membership in the organization. Ask an organization administrator to add your email if sign-in reports that you do not have APICenter access. See [Access and tenancy](/guides/management/access-and-tenancy).
+Console sign-in is separate from application keys. A person signs in with an authorized Google account and needs a role in the organization or project (owner, admin, developer or viewer). Ask an organization administrator to add you. See [Access and tenancy](/guides/management/access-and-tenancy).

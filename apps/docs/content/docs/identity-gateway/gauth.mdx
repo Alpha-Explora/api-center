@@ -16,7 +16,7 @@ The gateway uses the calling service's registered project and environment to sel
 The server-side SDK calls `POST /api/v1/shared/gauth/oauth/authorize` and returns a typed response. Redirect the user's browser to the returned URL and keep the returned state in that user's server-side session.
 
 ```ts
-const authorization = await api.googleAuth.getAuthorizationUrl({
+const authorization = await api.auth.google.getAuthorizationUrl({
   scopes: ['openid', 'email', 'profile'],
   accessType: 'offline',
 });
@@ -30,7 +30,7 @@ const authorization = await api.googleAuth.getAuthorizationUrl({
 After Google redirects to an allowed URL, exchange the code with the saved state. The optional `codeVerifier` supports PKCE when the flow uses a code challenge.
 
 ```ts
-const tokens = await api.googleAuth.exchangeCode({
+const tokens = await api.auth.google.exchangeCode({
   code: callback.code,
   state: authorization.state,
   // codeVerifier: session.codeVerifier,
@@ -46,11 +46,11 @@ if (!storedTokens.refreshToken) {
   throw new Error('No refresh token is available for this account.');
 }
 
-const refreshed = await api.googleAuth.refreshToken({
+const refreshed = await api.auth.google.refreshToken({
   refreshToken: storedTokens.refreshToken,
 });
 
-await api.googleAuth.logout({ token: refreshed.accessToken });
+await api.auth.google.logout({ token: refreshed.accessToken });
 ```
 
 ## Verify an OIDC ID token

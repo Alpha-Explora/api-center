@@ -65,7 +65,7 @@ describe("shared-service consumer HTTP contract", () => {
       const expectedStatus = [
         "email.send",
         "sms.send",
-        "otp.generate",
+        "otp.send",
       ].includes(item.operationId)
         ? "201"
         : "200";
