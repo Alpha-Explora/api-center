@@ -2,10 +2,6 @@
 // organization, or for the whole platform. Pure query building and redaction.
 
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
-import { ValidationError } from "@shared/errors";
-import type { AuditScope } from "../console-access.policy";
-import type { Cursor } from "./cursor";
 
 export const auditLogQuery = z
   .object({
@@ -30,24 +26,6 @@ export const auditLogQuery = z
 export const platformAuditLogQuery = auditLogQuery.extend({ organizationId: z.string().uuid().optional() }).strict();
 
 export type AuditLogQuery = z.infer<typeof auditLogQuery>;
-
-export function auditLogWhere(
-  query: AuditLogQuery & { organizationId?: string },
-  scope: AuditScope,
-  cursor: Cursor | undefined,
-): Prisma.AuditEventWhereInput {
-  if (query.from && query.to && Date.parse(query.from) >= Date.parse(query.to)) throw new ValidationError("from must be before to");
-  const conditions: Prisma.AuditEventWhereInput[] = [];
-  if (query.organizationId) conditions.push({ organizationId: query.organizationId });
-  if (scope.kind === "projects") conditions.push({ projectId: { in: scope.projectIds } });
-  if (query.projectId) conditions.push({ projectId: query.projectId });
-  if (query.actor) conditions.push({ actorId: query.actor });
-  if (query.action) conditions.push({ OR: [{ action: query.action }, { action: { startsWith: `${query.action}.` } }] });
-  if (query.from) conditions.push({ createdAt: { gte: new Date(query.from) } });
-  if (query.to) conditions.push({ createdAt: { lte: new Date(query.to) } });
-  if (cursor) conditions.push({ OR: [{ createdAt: { lt: cursor.at } }, { createdAt: cursor.at, id: { lt: cursor.id } }] });
-  return { AND: conditions };
-}
 
 const SECRET_KEY = /secret|password|passphrase|token|signing|private|authorization|cookie|api_?key|credential(?!id)|plaintext/i;
 const SECRET_VALUE = [/^whsec_/, /^ak_(test|live)_[a-z0-9]{16}_[A-Za-z0-9_-]{43}$/, /^Bearer\s/i, /^-----BEGIN [A-Z ]*PRIVATE KEY-----/];

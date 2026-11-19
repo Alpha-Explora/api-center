@@ -87,4 +87,44 @@ export class RequestDiagnosticsStore {
       query.offset,
     );
   }
+
+  /** One project environment's requests, newest first, keyset-paginated. Never bodies or query strings. */
+  async listForProject(filter: {
+    projectId: string;
+    environment: "test" | "live";
+    applicationId?: string;
+    statusRange: [number, number];
+    from: Date;
+    to: Date;
+    before?: { at: Date; id: string };
+    take: number;
+  }) {
+    return this.prisma.$queryRaw<ProjectRequestRow[]>`
+      SELECT request_id::text AS "requestId", created_at AS "occurredAt", service_id AS "applicationId", method, route,
+             status_code AS "statusCode", duration_ms AS "durationMs", failure_stage AS "failureStage",
+             error_code AS "errorCode", correlation_id AS "correlationId"
+      FROM apic_runtime.request_diagnostics
+      WHERE project_id = ${filter.projectId}
+        AND environment = ${filter.environment}
+        AND (${filter.applicationId ?? null}::text IS NULL OR service_id = ${filter.applicationId ?? null})
+        AND status_code BETWEEN ${filter.statusRange[0]} AND ${filter.statusRange[1]}
+        AND created_at >= ${filter.from} AND created_at <= ${filter.to}
+        AND (${filter.before?.at ?? null}::timestamptz IS NULL
+             OR (created_at, request_id) < (${filter.before?.at ?? null}::timestamptz, ${filter.before?.id ?? null}::uuid))
+      ORDER BY created_at DESC, request_id DESC
+      LIMIT ${filter.take}`;
+  }
+}
+
+export interface ProjectRequestRow {
+  requestId: string;
+  occurredAt: Date;
+  applicationId: string | null;
+  method: string;
+  route: string;
+  statusCode: number;
+  durationMs: number;
+  failureStage: string | null;
+  errorCode: string | null;
+  correlationId: string;
 }

@@ -1,4 +1,5 @@
 import { Injectable, Optional } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
 import { LoggerService } from "@shared/logger.service";
@@ -56,6 +57,53 @@ export interface AuditEventFilter {
 export interface AuditEventListResult {
   data: AuditEventRecord[];
   sourceMetadata: ManagementSourceMetadata;
+}
+
+/** One page of an organization's (or the platform's) audit events, newest first. */
+export interface AuditEventPageFilter {
+  organizationId?: string;
+  /** Only these projects' events; a project admin's view. */
+  projectIds?: string[];
+  projectId?: string;
+  actor?: string;
+  /** An action, or an action prefix such as `control_plane.credential`. */
+  action?: string;
+  from?: Date;
+  to?: Date;
+  /** Keyset cursor: events strictly older than this one. */
+  before?: { at: Date; id: string };
+  take: number;
+}
+
+export interface AuditEventPageRow {
+  id: string;
+  createdAt: Date;
+  organizationId: string | null;
+  projectId: string | null;
+  environment: string;
+  actorId: string | null;
+  actorType: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  outcome: string;
+  correlationId: string | null;
+  metadata: unknown;
+}
+
+export function auditEventPageWhere(filter: Omit<AuditEventPageFilter, "take">): Prisma.AuditEventWhereInput {
+  const conditions: Prisma.AuditEventWhereInput[] = [];
+  if (filter.organizationId) conditions.push({ organizationId: filter.organizationId });
+  if (filter.projectIds) conditions.push({ projectId: { in: filter.projectIds } });
+  if (filter.projectId) conditions.push({ projectId: filter.projectId });
+  if (filter.actor) conditions.push({ actorId: filter.actor });
+  if (filter.action) conditions.push({ OR: [{ action: filter.action }, { action: { startsWith: `${filter.action}.` } }] });
+  if (filter.from) conditions.push({ createdAt: { gte: filter.from } });
+  if (filter.to) conditions.push({ createdAt: { lte: filter.to } });
+  if (filter.before) {
+    conditions.push({ OR: [{ createdAt: { lt: filter.before.at } }, { createdAt: filter.before.at, id: { lt: filter.before.id } }] });
+  }
+  return { AND: conditions };
 }
 
 const MAX_EVENTS = 500;
@@ -156,6 +204,17 @@ export class AuditEventsService {
         .slice(0, limit),
       sourceMetadata,
     };
+  }
+
+  /** Reads durable events only; the in-memory cache has no organization attribution to filter on. */
+  async listPage(filter: AuditEventPageFilter): Promise<AuditEventPageRow[]> {
+    if (!this.prisma) throw new Error("Audit events need the APICenter database");
+    const { take, ...where } = filter;
+    return this.prisma.auditEvent.findMany({
+      where: auditEventPageWhere(where),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take,
+    });
   }
 
   private async readEventsWithSource(

@@ -1,45 +1,45 @@
 // Read models for the console: the request log, usage over time, quota meters and the audit log.
 //
-// request_diagnostics and audit_events have no row-level security, so every read here is bounded by
-// an explicit project or organization filter, and a project is confirmed to belong to the
-// organization (through the tenant-scoped cp_projects) before its rows are read.
+// The request log and audit events live in other contexts (runtime operations, audit) and have no
+// row-level security, so every read is bounded by an explicit project or organization filter, and a
+// project is confirmed to belong to the organization (through the tenant-scoped cp_projects) first.
 
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
-import { NotFoundError } from "@shared/errors";
+import { NotFoundError, ValidationError } from "@shared/errors";
+import { RequestDiagnosticsStore } from "@shared/request-diagnostics.store";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { testDefaultDailyRequests, windowStart } from "../quota-budgets";
 import { requireControlPlaneDatabase, withTenant, type TenantDb } from "../tenant-transaction";
 import type { AuditScope } from "../console-access.policy";
 import type { EnvironmentScope } from "../control-plane-admin.service";
 import { decodeCursor, pageOf } from "./cursor";
-import { requestLogWindow, statusRange, toRequestLogEntry, type RequestLogQuery, type RequestLogRow } from "./request-log";
+import { requestLogWindow, statusRange, toRequestLogEntry, type RequestLogQuery } from "./request-log";
 import { buildUsageSeries, usageWindow, type UsageRange, type UsageRow } from "./usage-series";
 import { buildQuotaMeters, quotaMeterWindows, sharedCeilingMeters, type MeterPolicy } from "./quota-meters";
-import { auditLogWhere, toAuditLogEntry, type AuditLogQuery } from "./audit-log";
+import { toAuditLogEntry, type AuditLogQuery } from "./audit-log";
 
 @Injectable()
 export class ObservabilityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly diagnostics: RequestDiagnosticsStore,
+    private readonly audit: AuditEventsService,
+  ) {}
 
   async requestLog(scope: EnvironmentScope, query: RequestLogQuery, now = new Date()) {
     await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) => requireEnvironment(db, scope));
     const { from, to } = requestLogWindow(query, now);
-    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const [minStatus, maxStatus] = statusRange(query.status);
-    const rows = await this.prisma.$queryRaw<RequestLogRow[]>`
-      SELECT request_id::text AS "requestId", created_at AS "occurredAt", service_id AS "applicationId", method, route,
-             status_code AS "statusCode", duration_ms AS "durationMs", failure_stage AS "failureStage",
-             error_code AS "errorCode", correlation_id AS "correlationId"
-      FROM apic_runtime.request_diagnostics
-      WHERE project_id = ${scope.projectId}
-        AND environment = ${scope.environmentKind}
-        AND (${query.applicationId ?? null}::text IS NULL OR service_id = ${query.applicationId ?? null})
-        AND status_code BETWEEN ${minStatus} AND ${maxStatus}
-        AND created_at >= ${from} AND created_at <= ${to}
-        AND (${cursor?.at ?? null}::timestamptz IS NULL
-             OR (created_at, request_id) < (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
-      ORDER BY created_at DESC, request_id DESC
-      LIMIT ${query.limit + 1}`;
+    const rows = await this.diagnostics.listForProject({
+      projectId: scope.projectId,
+      environment: scope.environmentKind,
+      applicationId: query.applicationId,
+      statusRange: statusRange(query.status),
+      from,
+      to,
+      before: query.cursor ? decodeCursor(query.cursor) : undefined,
+      take: query.limit + 1,
+    });
     const page = pageOf(rows, query.limit, (row) => ({ at: row.occurredAt, id: row.requestId }));
     return { from: from.toISOString(), to: to.toISOString(), items: page.items.map(toRequestLogEntry), nextCursor: page.nextCursor };
   }
@@ -106,16 +106,22 @@ export class ObservabilityService {
     });
   }
 
-  /** Audit events for one organization (or every organization when `organizationId` is undefined and the caller is the platform). */
+  /** Audit events for one organization, or every organization when `organizationId` is undefined (platform callers). */
   async auditLog(organizationId: string | undefined, scope: AuditScope, query: AuditLogQuery) {
     requireControlPlaneDatabase();
+    if (query.from && query.to && Date.parse(query.from) >= Date.parse(query.to)) throw new ValidationError("from must be before to");
     if (organizationId && query.projectId) {
       await withTenant(this.prisma, { organizationId }, (db) => requireProject(db, organizationId, query.projectId!));
     }
-    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const rows = await this.prisma.auditEvent.findMany({
-      where: auditLogWhere({ ...query, organizationId }, scope, cursor),
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    const rows = await this.audit.listPage({
+      organizationId,
+      projectIds: scope.kind === "projects" ? scope.projectIds : undefined,
+      projectId: query.projectId,
+      actor: query.actor,
+      action: query.action,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+      before: query.cursor ? decodeCursor(query.cursor) : undefined,
       take: query.limit + 1,
     });
     const page = pageOf(rows, query.limit, (row) => ({ at: row.createdAt, id: row.id }));

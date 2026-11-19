@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import type { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
-import type { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
+import { AuditEventsService, auditEventPageWhere } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { ControlPlaneAdminService } from "../../../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
 import { ApplicationAccessService } from "../../../../apps/gateway/src/domains/control-plane/application-access.service";
 import { RuntimeContextSigner } from "../../../../apps/gateway/src/domains/control-plane/runtime-context.signer";
@@ -14,7 +14,7 @@ import { decodeCursor, encodeCursor, pageOf } from "../../../../apps/gateway/src
 import { requestLogQuery, requestLogWindow, statusRange, toRequestLogEntry } from "../../../../apps/gateway/src/domains/control-plane/observability/request-log";
 import { buildUsageSeries, usageWindow } from "../../../../apps/gateway/src/domains/control-plane/observability/usage-series";
 import { buildQuotaMeters } from "../../../../apps/gateway/src/domains/control-plane/observability/quota-meters";
-import { auditLogWhere, redactAuditDetails, toAuditLogEntry } from "../../../../apps/gateway/src/domains/control-plane/observability/audit-log";
+import { redactAuditDetails, toAuditLogEntry } from "../../../../apps/gateway/src/domains/control-plane/observability/audit-log";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
 
 const ORG = "6f1c1d1e-0000-4000-8000-0000000000e1";
@@ -179,7 +179,7 @@ describe("quota meters and usage from the request path", () => {
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
     admin = new ControlPlaneAdminService(db, audit);
     quotas = new QuotaService(db, audit);
-    observability = new ObservabilityService(db);
+    observability = new ObservabilityService(db, {} as never, audit);
   });
 
   it("counts reserved requests against the same budget keys the meters read", async () => {
@@ -236,11 +236,13 @@ describe("audit log", () => {
 
   it("builds a bounded, keyset-paginated filter", () => {
     const cursor = { at: NOW, id: "5b0c6e9e-4b1f-4f7e-9a51-0c1d2e3f4a5b" };
-    const where = auditLogWhere(
-      { organizationId: ORG, actor: "a@example.test", action: "control_plane.credential", limit: 50 },
-      { kind: "projects", projectIds: ["prj_a"] },
-      cursor,
-    );
+    const where = auditEventPageWhere({
+      organizationId: ORG,
+      projectIds: ["prj_a"],
+      actor: "a@example.test",
+      action: "control_plane.credential",
+      before: cursor,
+    });
     expect(where).toEqual({
       AND: [
         { organizationId: ORG },
@@ -250,7 +252,6 @@ describe("audit log", () => {
         { OR: [{ createdAt: { lt: NOW } }, { createdAt: NOW, id: { lt: cursor.id } }] },
       ],
     });
-    expect(() => auditLogWhere({ from: "2026-11-20T00:00:00Z", to: "2026-11-19T00:00:00Z", limit: 50 }, { kind: "organization" }, undefined)).toThrow();
   });
 
   it("redacts secret fields and values at any depth", () => {
@@ -319,7 +320,8 @@ describe("audit log", () => {
       prisma.cpProjectRoleAssignment.rows.push({ id: "pra_1", organizationId: ORG, projectId: PROJECT, memberEmail: "dev@example.test", teamId: null, role: "admin" });
       auditFindMany = jest.fn().mockResolvedValue([]);
       const db = Object.assign(prisma, { auditEvent: { findMany: auditFindMany } }) as unknown as PrismaService;
-      controller = new ObservabilityController(new ObservabilityService(db), new ConsoleAccessService(db));
+      const audit = new AuditEventsService({ warn: jest.fn() } as never, db);
+      controller = new ObservabilityController(new ObservabilityService(db, {} as never, audit), new ConsoleAccessService(db));
     });
 
     it("limits a project admin to their projects", async () => {
@@ -331,6 +333,12 @@ describe("audit log", () => {
     it("refuses members who administer nothing, and non-members", async () => {
       await expect(controller.organizationAudit(ORG, {}, req(member("viewer@example.test")))).rejects.toMatchObject({ status: 403 });
       await expect(controller.organizationAudit(ORG, {}, req(member("stranger@example.test")))).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("refuses an empty time range", async () => {
+      await expect(
+        controller.organizationAudit(ORG, { from: "2026-11-20T00:00:00Z", to: "2026-11-19T00:00:00Z" }, req(member("owner@example.test"))),
+      ).rejects.toMatchObject({ status: 400 });
     });
 
     it("lets owners filter by any project of the organization, not another organization's", async () => {
@@ -354,9 +362,7 @@ describe("audit writes", () => {
     process.env.DATABASE_ENABLED = "true";
     const create = jest.fn().mockResolvedValue(undefined);
     const logger = { warn: jest.fn() };
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { AuditEventsService: Service } = require("../../../../apps/gateway/src/domains/compliance/audit/audit-events.service");
-    const service = new Service(logger, { auditEvent: { create } });
+    const service = new AuditEventsService(logger as never, { auditEvent: { create } } as never);
     await service.record({ type: "control_plane.member.set", actor: "owner@example.test", organizationId: ORG, severity: "info", message: "m" });
     await service.record({ type: "control_plane.grant.created", actor: "a@example.test", organizationId: ORG, projectId: "prj_x", environment: "live", severity: "info", message: "m" });
     expect(create.mock.calls.map(([{ data }]) => [data.organizationId, data.projectId, data.environment])).toEqual([
