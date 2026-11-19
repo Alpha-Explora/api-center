@@ -103,6 +103,15 @@
                 "name": "EMAIL_ADMIN_TOKEN"
               },
               {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-webhooks-admin-token",
+                    "key": "latest"
+                  }
+                },
+                "name": "WEBHOOKS_ADMIN_TOKEN"
+              },
+              {
                 "name": "SHARED_SERVICE_ROUTE_OTP_TEST",
                 "value": "https://apicenter-one-time-password-live-565306324295.asia-southeast1.run.app"
               },
