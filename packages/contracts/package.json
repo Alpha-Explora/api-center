@@ -1,6 +1,6 @@
 {
   "name": "@alpha-explora/apicenter-contracts",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "APICenter public HTTP and event contract workspace",
   "files": [
     "dist"
