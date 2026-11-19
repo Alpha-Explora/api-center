@@ -136,6 +136,26 @@ describe("resolveManagementSessionFromGoogleClaims", () => {
     });
   });
 
+  it("offers a platform admin every organization, without duplicating memberships", async () => {
+    const session = await resolveManagementSessionFromGoogleClaims(
+      claims,
+      lookupReturning({
+        platformAdmin: true,
+        memberships: [{ organizationId: ACME, organizationSlug: "acme", organizationName: "Acme", role: "admin" }],
+        organizations: [
+          { organizationId: ACME, organizationSlug: "acme", organizationName: "Acme" },
+          { organizationId: BETA, organizationSlug: "beta", organizationName: "Beta" },
+        ],
+      }),
+    );
+
+    expect(session.organizationIds).toEqual([ACME]);
+    expect(session.organizations).toEqual([
+      { id: ACME, slug: "acme", name: "Acme" },
+      { id: BETA, slug: "beta", name: "Beta" },
+    ]);
+  });
+
   it("fails closed with a clear error when the gateway lookup fails", async () => {
     const lookup = vi.fn(async () => {
       throw new Error("API Center returned 503: unavailable");

@@ -43,16 +43,32 @@ export class OrganizationPeopleService {
       include: { organization: { select: { slug: true, name: true } } },
       orderBy: { organizationId: "asc" },
     });
+    const platformAdmin = this.config?.platformAdminEmails.includes(email) ?? false;
     return {
       email,
-      platformAdmin: this.config?.platformAdminEmails.includes(email) ?? false,
+      platformAdmin,
       memberships: rows.map((row) => ({
         organizationId: row.organizationId,
         organizationSlug: row.organization.slug,
         organizationName: row.organization.name,
         role: normalizeOrganizationRole(row.role) ?? "viewer",
       })),
+      // Platform operators act in every organization, so the console offers all of them.
+      ...(platformAdmin ? { organizations: await this.activeOrganizations() } : {}),
     };
+  }
+
+  private async activeOrganizations() {
+    const organizations = await this.prisma.organization.findMany({
+      where: { status: "active" },
+      select: { id: true, slug: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    return organizations.map((organization) => ({
+      organizationId: organization.id,
+      organizationSlug: organization.slug,
+      organizationName: organization.name,
+    }));
   }
 
   async listMembers(organizationId: string) {

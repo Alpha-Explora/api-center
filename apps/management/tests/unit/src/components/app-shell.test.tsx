@@ -20,12 +20,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const environment = { key: "local", label: "LOCAL", description: "Local/private management session", isLive: false } as const;
 
 function renderShell() {
   return renderWithQueryClient(
     <TooltipProvider>
-      <AppShell environment={environment} authMode="local-dev">
+      <AppShell authMode="local-dev">
         <h1>Page content</h1>
       </AppShell>
     </TooltipProvider>,

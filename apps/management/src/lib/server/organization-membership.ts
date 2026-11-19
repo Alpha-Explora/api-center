@@ -31,6 +31,10 @@ const membershipLookupResponseSchema = z.object({
           .transform((role) => LEGACY_CONSOLE_ROLE[role]),
       }),
     ),
+    /** Every active organization, sent only for platform operators. */
+    organizations: z
+      .array(z.object({ organizationId: z.string(), organizationSlug: z.string(), organizationName: z.string() }))
+      .optional(),
   }),
 });
 

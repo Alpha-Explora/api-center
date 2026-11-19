@@ -12,7 +12,9 @@ export type ManagementSession = {
   organizationIds: string[];
   /** Role attached to each membership; global role is only the highest role for UI hints. */
   organizationRoles: Record<string, ManagementRole>;
-  /** Display details for each membership, in the order the gateway returned them. */
+  /**
+   * Organizations the console offers: each membership, plus every active organization for platform operators.
+   */
   organizations: { id: string; slug: string; name: string }[];
   /** True for PLATFORM_ADMIN_EMAILS operators, who act as admin in every organization. */
   platformAdmin: boolean;
@@ -30,6 +32,8 @@ export type MembershipLookup = {
   email: string;
   platformAdmin: boolean;
   memberships: OrganizationMembership[];
+  /** Every active organization; the gateway sends it only for platform operators. */
+  organizations?: Omit<OrganizationMembership, "role">[];
 };
 
 export type MembershipLookupFn = (email: string) => Promise<MembershipLookup>;
@@ -178,6 +182,14 @@ export function sessionFromMembershipLookup(
     slug: organizationSlug,
     name: organizationName,
   }));
+  if (lookup.platformAdmin) {
+    // Platform operators can act in any organization, so the console lists them all.
+    for (const { organizationId, organizationSlug, organizationName } of lookup.organizations ?? []) {
+      if (!organizations.some((entry) => entry.id === organizationId)) {
+        organizations.push({ id: organizationId, slug: organizationSlug, name: organizationName });
+      }
+    }
+  }
 
   if (lookup.platformAdmin) {
     return { ...identity, role: "admin", source: "google", platformAdmin: true, organizationIds, organizationRoles, organizations };

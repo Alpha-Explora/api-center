@@ -10,18 +10,15 @@ import { controlPlane } from "@/features/control-plane/data/control-plane-reposi
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
 import { useOrganization } from "@/features/control-plane/view-models/use-organization";
 import { organizationNav, parseConsolePath, projectHref, projectPages, projectSections } from "@/lib/app-navigation";
-import type { ManagementEnvironment } from "@/lib/management-environment";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
 import { Sidebar } from "./sidebar";
 
 export function AppShell({
   children,
-  environment,
   authMode,
 }: {
   children: ReactNode;
-  environment: ManagementEnvironment;
   authMode: "local-dev" | "google";
 }) {
   const pathname = usePathname();
@@ -64,7 +61,7 @@ export function AppShell({
                   Live environment
                 </span>
               ) : null}
-              <ConsoleModeBadge environment={environment} authMode={authMode} />
+              <ConsoleModeBadge authMode={authMode} />
             </div>
           </header>
           <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8">
@@ -77,18 +74,15 @@ export function AppShell({
   );
 }
 
-/** Which console deployment this is; quiet unless it is local development. */
-function ConsoleModeBadge({ environment, authMode }: { environment: ManagementEnvironment; authMode: "local-dev" | "google" }) {
-  if (authMode === "local-dev") {
-    return (
-      <span title="Local development sign-in. Never deploy this mode." className="inline-flex h-6 items-center rounded-sm bg-warning-soft px-2 text-xs font-medium text-warning">
-        Local dev
-      </span>
-    );
-  }
+/**
+ * Flags local-development sign-in. A deployed console manages both test and live environments, so it shows no
+ * deployment badge (the live marker covers live pages); Settings names the deployment.
+ */
+function ConsoleModeBadge({ authMode }: { authMode: "local-dev" | "google" }) {
+  if (authMode !== "local-dev") return null;
   return (
-    <span title={environment.description} className="hidden h-6 items-center rounded-sm border px-2 font-mono text-[11px] text-muted-foreground sm:inline-flex">
-      {environment.label}
+    <span title="Local development sign-in. Never deploy this mode." className="inline-flex h-6 items-center rounded-sm bg-warning-soft px-2 text-xs font-medium text-warning">
+      Local dev
     </span>
   );
 }
