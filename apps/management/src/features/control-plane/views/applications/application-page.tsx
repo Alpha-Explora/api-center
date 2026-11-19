@@ -14,11 +14,13 @@ import { PageSkeleton, RequireEnvironment, useProjectEnvironment } from "../../v
 import { cpKeys } from "../../view-models/query-keys";
 import { AccessTab } from "./access-tab";
 import { KeysTab } from "./keys-tab";
+import { WebhookTab } from "./webhook-tab";
 
 /** The application's tabs, in order. Each feature that attaches something to an application adds one here. */
 const TABS: { id: string; label: string; render: (application: Application) => ReactNode }[] = [
   { id: "access", label: "Access", render: (application) => <AccessTab application={application} /> },
   { id: "keys", label: "Keys", render: (application) => <KeysTab application={application} /> },
+  { id: "webhook", label: "Webhook", render: (application) => <WebhookTab application={application} /> },
 ];
 
 export function ApplicationPage({ applicationId }: { applicationId: string }) {

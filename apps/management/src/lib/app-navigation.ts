@@ -59,7 +59,14 @@ export const projectSections: { id: string; path: string; label: string; descrip
     path: "/capabilities",
     label: "Capabilities",
     description: "Shared services enabled in this environment.",
-    keywords: ["email", "sms", "otp", "payments", "geo", "google", "enable"],
+    keywords: ["email", "sms", "otp", "payments", "geo", "google", "enable", "sender", "oauth", "redirect", "configure"],
+  },
+  {
+    id: "webhooks",
+    path: "/webhooks",
+    label: "Webhooks",
+    description: "Payment event destinations and signing secrets.",
+    keywords: ["events", "destinations", "signing secret", "rotate", "pubsub", "callback", "payment"],
   },
 ];
 

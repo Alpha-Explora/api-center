@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -9,12 +10,16 @@ import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
+import { GuardedButton } from "@/components/patterns/guarded-button";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { controlPlane } from "../../data/control-plane-repository";
 import { environmentWriteReason } from "../../model/access";
+import { isConfigurable, type ConfigurableCapability } from "../../model/capability-configuration";
 import type { Capability } from "../../model/control-plane";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { EmailSenderSheet } from "./email-sender-sheet";
+import { GoogleSignInSheet } from "./google-sign-in-sheet";
 
 export function CapabilitiesPage() {
   return (
@@ -29,6 +34,7 @@ function CapabilitiesList() {
   const client = useQueryClient();
   const catalog = useQuery({ queryKey: cpKeys.catalog, queryFn: controlPlane.capabilities, staleTime: 5 * 60_000 });
   const [pending, setPending] = useState<{ capability: Capability; on: boolean } | null>(null);
+  const [configuring, setConfiguring] = useState<ConfigurableCapability | null>(null);
   const toggle = useMutation({
     mutationFn: (input: { capability: string; on: boolean }) => controlPlane.setCapability(organizationId, project.id, kind, input.capability, input.on),
     onSuccess: (_, input) => {
@@ -53,7 +59,7 @@ function CapabilitiesList() {
     <>
       <PageHeader
         title="Capabilities"
-        description="Shared services this environment may use. Enabling one grants no application access; grant actions per application."
+        description="Shared services this environment may use. Enabling one grants no application access; grant actions per application. Email and Google sign-in also have settings."
       />
       {catalog.error ? <ErrorPanel title="The capability catalogue could not be loaded" error={catalog.error} /> : null}
       <Panel flush>
@@ -77,9 +83,12 @@ function CapabilitiesList() {
                       {capability.actions.length} action{capability.actions.length === 1 ? "" : "s"}: {capability.actions.map((action) => action.action).join(", ")}
                     </p>
                   </div>
-                  <StatusBadge tone={on ? "success" : "neutral"} className="hidden sm:inline-flex">
-                    {on ? "Enabled" : "Off"}
-                  </StatusBadge>
+                  {isConfigurable(capability.id) ? (
+                    <ConfigureButton id={capability.id} name={capability.name} onOpen={setConfiguring} />
+                  ) : null}
+                  <span className="hidden w-[4.5rem] justify-end sm:flex">
+                    <StatusBadge tone={on ? "success" : "neutral"}>{on ? "Enabled" : "Off"}</StatusBadge>
+                  </span>
                   {canWrite ? (
                     <Switch
                       aria-label={`${on ? "Disable" : "Enable"} ${capability.name}`}
@@ -115,6 +124,28 @@ function CapabilitiesList() {
         busy={toggle.isPending}
         onConfirm={() => pending && toggle.mutate({ capability: pending.capability.id, on: pending.on })}
       />
+      <EmailSenderSheet open={configuring === "email"} onOpenChange={(next) => !next && setConfiguring(null)} />
+      <GoogleSignInSheet open={configuring === "gauth"} onOpenChange={(next) => !next && setConfiguring(null)} />
     </>
+  );
+}
+
+/**
+ * Email settings are write-only, so the sheet is useful only to people who may change them. Google sign-in
+ * settings can be read by anyone with access to the environment.
+ */
+function ConfigureButton({ id, name, onOpen }: { id: ConfigurableCapability; name: string; onOpen: (id: ConfigurableCapability) => void }) {
+  const { kind, canWrite } = useProjectEnvironment();
+  if (id === "email") {
+    return (
+      <GuardedButton size="sm" variant="outline" allowed={canWrite} reason={environmentWriteReason(kind)} onClick={() => onOpen(id)} aria-label={`Configure ${name}`}>
+        Configure
+      </GuardedButton>
+    );
+  }
+  return (
+    <Button size="sm" variant="outline" onClick={() => onOpen(id)} aria-label={`${canWrite ? "Configure" : "View"} ${name}`}>
+      {canWrite ? "Configure" : "View settings"}
+    </Button>
   );
 }
