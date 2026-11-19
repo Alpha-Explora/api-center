@@ -14,6 +14,7 @@ import {
   SearchIcon,
   SettingsIcon,
   UsersIcon,
+  WebhookIcon,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -52,6 +53,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   overview: LayoutDashboardIcon,
   applications: AppWindowIcon,
   capabilities: BlocksIcon,
+  webhooks: WebhookIcon,
 };
 
 export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "google"; onNavigate?: () => void }) {
