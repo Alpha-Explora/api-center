@@ -89,26 +89,27 @@ describe.each(cases)("$service runtime", ({ service, endpoint, action, body, ide
 });
 
 describe("runtime helpers", () => {
-  it("scopes idempotency by the verified application, ignoring legacy headers", () => {
-    const req = { get: (name: string) => ({ "X-Tribe-Id": "forged", "X-APICenter-Source-Service-Id": "forged" })[name] };
+  it("scopes idempotency by the verified application", () => {
     expect(
-      callerIdempotencyScope({ model: "application", tribeId: "org", projectId: "prj", serviceId: "app_x", environment: "test" }, req),
+      callerIdempotencyScope({ model: "application", tribeId: "org", projectId: "prj", serviceId: "app_x", environment: "test" }),
     ).toEqual({ sourceServiceId: "app_x", tribeId: "org", environment: "test" });
-    expect(callerIdempotencyScope({ tribeId: "t", projectId: "p", serviceId: "s", environment: "test" }, req)).toEqual({
-      sourceServiceId: "forged",
-      tribeId: "forged",
-      environment: undefined,
-    });
   });
 
-  it("lets requests without a context through the gate and rejects invalid ones", () => {
-    const gate = createRuntimeContextGate("apicenter-runtime:geo");
-    const next = jest.fn();
+  it("requires a valid context in production and lets local calls through elsewhere", () => {
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    gate({ get: () => undefined }, res, next);
-    expect(next).toHaveBeenCalledTimes(1);
-    gate({ get: (name: string) => (name === "X-APICenter-Context" ? "garbage" : undefined) }, res, next);
-    expect(next).toHaveBeenCalledTimes(1);
+    const unsigned = { get: () => undefined };
+    const garbage = { get: (name: string) => (name === "X-APICenter-Context" ? "garbage" : undefined) };
+
+    const local = jest.fn();
+    const localGate = createRuntimeContextGate("apicenter-runtime:geo", { production: false });
+    localGate(unsigned, res, local);
+    expect(local).toHaveBeenCalledTimes(1);
+    localGate(garbage, res, local);
+    expect(local).toHaveBeenCalledTimes(1);
+
+    const live = jest.fn();
+    createRuntimeContextGate("apicenter-runtime:geo", { production: true })(unsigned, res, live);
+    expect(live).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
   });
 });

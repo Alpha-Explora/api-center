@@ -72,16 +72,16 @@ describe("AppShell", () => {
     const searchInput = screen.getByLabelText("Find command or workflow");
     fireEvent.focus(searchInput);
     fireEvent.change(searchInput, {
-      target: { value: "rate limit" },
+      target: { value: "api key" },
     });
 
     expect(
       screen
-        .getAllByRole("link", { name: /Quotas/ })
+        .getAllByRole("link", { name: /Projects/ })
         .some(
           (link) =>
-            link.getAttribute("href") === "/quotas" &&
-            link.textContent?.includes("Set and review quota policy"),
+            link.getAttribute("href") === "/control-plane/projects" &&
+            link.textContent?.includes("applications, grants and keys"),
         ),
     ).toBe(true);
   });

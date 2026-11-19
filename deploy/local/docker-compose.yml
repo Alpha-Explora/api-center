@@ -12,11 +12,6 @@ x-api-center-common: &api-center-common
     - ../../.env
   environment:
     GATEWAY_ROLE: apicenter-gateway
-    VAULT_ADDR:     http://vault:8200
-    VAULT_TOKEN:    root
-    VAULT_DEV_MODE: "true"
-    JWT_PRIVATE_KEY: "${JWT_PRIVATE_KEY}"
-    JWT_PUBLIC_KEY: "${JWT_PUBLIC_KEY}"
     RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-100}"
     SHARED_SERVICE_ROUTE_EMAIL_TEST: http://email-service:4012
     SHARED_SERVICE_ROUTE_EMAIL_LIVE: http://email-service:4012
@@ -28,9 +23,6 @@ x-api-center-common: &api-center-common
     SHARED_SERVICE_ROUTE_GAUTH_LIVE: http://gauth-service:4013
     SHARED_SERVICE_ROUTE_GEO_TEST: http://geo-service:4015
     SHARED_SERVICE_ROUTE_GEO_LIVE: http://geo-service:4015
-  depends_on:
-    vault:
-      condition: service_healthy
   healthcheck:
     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider",
            "http://localhost:3000/api/v1/health/live"]
@@ -143,27 +135,6 @@ services:
   api-center-3:
     <<: *api-center-common
     container_name: api-center-3
-
-  vault:
-    image: hashicorp/vault:1.15
-    container_name: vault
-    ports:
-      - "8200:8200"
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID:  root
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-      VAULT_LOG_LEVEL: warn
-    cap_add:
-      - IPC_LOCK
-    command: vault server -dev
-    healthcheck:
-      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
-      interval: 10s
-      timeout:  5s
-      retries:  3
-      start_period: 5s
-    networks:
-      - api-center-network
 
   prometheus:
     image: prom/prometheus:v2.51.0

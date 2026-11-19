@@ -6,7 +6,6 @@ const { ProviderGuardError, createCircuitBreaker, withProviderTimeout } = requir
 const { createMemoryRateLimitStore } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
 const { sendTwilioSms, sendResendEmail } = require('./delivery');
-const { registerWithGateway, shouldRegisterWithGateway } = require('./registerWithGateway');
 const {
   SharedServiceCallerError,
   readSharedServiceCaller,
@@ -45,7 +44,5 @@ module.exports = {
   fail,
   ok,
   recordProviderMetric,
-  registerWithGateway,
-  shouldRegisterWithGateway,
   withProviderTimeout,
 };

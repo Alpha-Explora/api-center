@@ -52,7 +52,6 @@ Set `TRIBE_SECRET_GCP_PREFIX=api-center-service-secret-` on the gateway. The var
 - [Hostname and service mapping](../../infra/gcp/domains/apicenter-hostnames.json)
 - [URL map](../../infra/gcp/domains/apicenter-url-map.json)
 - [Gateway browser origins](../../infra/gcp/domains/gateway-browser-origins.json)
-- [Dated rollout, previous revisions, DNS values and remaining checks](apicenter-domain-rollout-2026-10-12.md)
 - [Runtime infrastructure ownership](../deployment-cloud-run.md#ownership-and-iac-boundary)
 
 The dated record identifies the deployed revisions and precise verification scope. Successful HTTPS and administrative access do not prove consumer SDK grants, interactive user sign-in, SMS/email delivery, payment processing, or signed provider callbacks. Complete those checks with an agreed credential and request scope before claiming that integration is verified.

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getReadiness, setManagementSessionToken } from "../../../../src/lib/api-center-client";
+import { getManagementSession, setManagementSessionToken } from "../../../../src/lib/api-center-client";
 
 describe("api-center-client management auth", () => {
   afterEach(() => {
@@ -8,38 +8,26 @@ describe("api-center-client management auth", () => {
   });
 
   it("attaches the Google session token to local API requests", async () => {
+    const session = {
+      userId: "u_1",
+      email: "person@example.test",
+      role: "admin",
+      source: "google",
+      organizationIds: ["org_1"],
+      organizationRoles: { org_1: "admin" },
+      platformAdmin: false,
+    };
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          checkedAt: "2026-05-18T00:00:00.000Z",
-          ok: true,
-          managementEnvironment: "test",
-          apiCenterBaseUrl: "https://api.apicenter.itsandbox.site",
-          publicApiCenterBaseUrl: "https://api.apicenter.itsandbox.site",
-          kafkaTopicPrefix: "test",
-          googleCloudProject: "api-center-496422",
-          secretManagerAuth: {
-            ok: true,
-            detail: "configured",
-          },
-          missingEnv: [],
-          checks: [],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
+      new Response(JSON.stringify({ success: true, data: session }), { status: 200, headers: { "content-type": "application/json" } }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
     setManagementSessionToken("session-token");
-    await getReadiness();
+    await expect(getManagementSession()).resolves.toEqual(session);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/local/readiness",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          authorization: "Bearer session-token",
-        }),
-      }),
+      "/api/local/session",
+      expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer session-token" }) }),
     );
   });
 });

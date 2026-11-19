@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
-import { PaymentPrincipal } from "../features/payment-facade/payment-api-key.service";
+import type { PaymentPrincipal } from "./payment-access.types";
 
 type StoredResponse = {
   status: number;

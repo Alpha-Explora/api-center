@@ -13,7 +13,7 @@ export default function SignupPage() {
   return (
     <ManagementAuthGate
       googleClientId={googleClientId}
-      authenticatedRedirectHref="/dashboard"
+      authenticatedRedirectHref="/control-plane/projects"
     >
       <div />
     </ManagementAuthGate>

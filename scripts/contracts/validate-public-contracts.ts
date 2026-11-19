@@ -14,11 +14,10 @@ const openApi = readYaml('contracts/public/apicenter.openapi.yaml');
 const asyncApi = readYaml('contracts/public/apicenter.asyncapi.yaml');
 assert(openApi.openapi === '3.2.0', 'OpenAPI must use version 3.2.0');
 assert(asyncApi.asyncapi === '3.1.0', 'AsyncAPI must use version 3.1.0');
-assert(openApi.security?.some((scheme: RecordValue) => scheme.ApiKeyAuth), 'OpenAPI must accept payment API-key auth');
-assert(openApi.security?.some((scheme: RecordValue) => scheme.ServiceBearerAuth), 'OpenAPI must accept service bearer auth');
-assert(openApi.components?.securitySchemes?.ServiceBearerAuth?.scheme === 'bearer'
-  && openApi.components.securitySchemes.ServiceBearerAuth.bearerFormat === 'JWT',
-'OpenAPI must define JWT service bearer auth');
+assert(openApi.security?.length === 1 && openApi.security[0].ApplicationKey, 'OpenAPI must authenticate with the application key only');
+assert(openApi.components?.securitySchemes?.ApplicationKey?.scheme === 'bearer'
+  && Object.keys(openApi.components.securitySchemes).length === 1,
+'OpenAPI must define exactly one bearer scheme, ApplicationKey');
 const idempotencyParameter = openApi.components?.parameters?.IdempotencyKey;
 assert(idempotencyParameter?.name === 'Idempotency-Key' && idempotencyParameter?.in === 'header'
   && idempotencyParameter?.required === true, 'Idempotency-Key header parameter is missing or invalid');
@@ -60,7 +59,7 @@ for (const [operation, operationId] of Object.entries(requiredOperations)) {
   assert(operationDefinition.operationId === operationId, `${operation} must use operationId ${operationId}`);
 }
 for (const [route, pathItem] of Object.entries<RecordValue>(openApi.paths ?? {})) {
-  assert(route.startsWith('/api/v1/payments/') || route.startsWith('/api/v1/shared/') || route.startsWith('/api/v1/auth/'), `${route} is outside the public consumer namespace`);
+  assert(route.startsWith('/api/v1/payments/') || route.startsWith('/api/v1/shared/') || route === '/api/v1/whoami', `${route} is outside the public consumer namespace`);
   for (const [method, operation] of Object.entries<RecordValue>(pathItem)) {
     if (!['post', 'put', 'patch', 'delete'].includes(method) || !route.startsWith('/api/v1/payments/')) continue;
     assert((operation.parameters ?? []).some((parameter: RecordValue) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `${method.toUpperCase()} ${route} must declare Idempotency-Key`);

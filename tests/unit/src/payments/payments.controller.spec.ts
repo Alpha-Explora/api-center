@@ -5,6 +5,23 @@ import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/
 const paymentLimits = { enforce: jest.fn().mockResolvedValue(undefined) } as any;
 const applications = { authorizeAction: jest.fn(), recordOutcome: jest.fn().mockResolvedValue(undefined) } as any;
 const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits, applications);
+const KEY = 'ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
+// What authorizeAction returns for the test application: its organization and project own the records.
+const authorized = (action = 'payments:checkout:write') => ({
+  identity: {
+    organizationId: 'tribe-alpha',
+    projectId: 'project-alpha',
+    environmentId: 'env_aaaaaaaaaaaaaaaaaaaaaaaa',
+    environmentKind: 'test',
+    applicationId: 'service-alpha',
+    credentialId: 'crd_aaaaaaaaaaaaaaaaaaaaaaaa',
+  },
+  resourceOwner: { groupId: 'tribe-alpha', projectId: 'project-alpha' },
+  requestKey: 'req:1',
+  capability: 'payments',
+  action,
+  signedContext: 'unused',
+});
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -18,20 +35,11 @@ function request(path: string, method: string, body?: Record<string, unknown>) {
     method,
     originalUrl: `/api/v1/payments${path}`,
     headers: {
-      authorization: 'Bearer apic_test_key',
+      authorization: `Bearer ${KEY}`,
       'idempotency-key': 'idempotency-key-123456',
     },
     get(name: string) { return this.headers[name.toLowerCase()]; },
     body,
-    paymentPrincipal: {
-      ownerTribeId: 'tribe-alpha',
-      projectId: 'project-alpha',
-      consumerServiceId: 'service-alpha',
-      environment: 'test' as const,
-      scopes: ['payments:read', 'payments:write'],
-    },
-    tribeId: 'client-supplied-tribe',
-    user: { environment: 'live' as const },
   } as any;
 }
 
@@ -39,6 +47,7 @@ function response() {
   const state: { status?: number; headers: Record<string, string>; body?: unknown } = { headers: {} };
   const res = {
     locals: {},
+    on: jest.fn(),
     setHeader: jest.fn((name: string, value: string) => { state.headers[name] = value; }),
     status: jest.fn((status: number) => { state.status = status; return res; }),
     json: jest.fn((body: unknown) => { state.body = body; return res; }),
@@ -67,6 +76,7 @@ describe('PaymentsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    applications.authorizeAction.mockResolvedValue(authorized());
     mockedCloudRunAuthorization.mockResolvedValue(undefined);
     mockedAxios.request.mockResolvedValue({
       status: 200,
@@ -148,7 +158,8 @@ describe('PaymentsController', () => {
     await controller.proxy(request('/checkouts', 'POST', body), res);
 
     const config = mockedAxios.request.mock.calls[0][0] as any;
-    expect(config.headers['x-tribe-id']).toBe('tribe-alpha');
+    expect(config.headers['x-apicenter-owner-tribe-id']).toBe('tribe-alpha');
+    expect(config.headers).not.toHaveProperty('x-tribe-id');
     expect(config.headers['x-apicenter-project-id']).toBe('project-alpha');
     expect(config.headers['x-apicenter-environment']).toBe('test');
     expect(config.data).not.toHaveProperty('tribeId');
@@ -244,17 +255,18 @@ describe('PaymentsController', () => {
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
-  it('rejects unlisted routes and a read-only key on a mutation', async () => {
+  it('rejects unlisted routes and calls without an application key', async () => {
     const controller = createController();
     await expect(controller.proxy(request('/admin', 'GET'), response().res))
       .rejects.toMatchObject({ response: { code: 'PAYMENT_OPERATION_NOT_FOUND' } });
-    const readOnly = request('/checkouts', 'POST', {
-      referenceId: 'order-1', amount: { amountMinor: 100, currency: 'PHP' },
-      successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel',
-    });
-    readOnly.paymentPrincipal.scopes = ['payments:read'];
-    await expect(controller.proxy(readOnly, response().res))
-      .rejects.toMatchObject({ response: { code: 'INSUFFICIENT_SCOPE' } });
+    for (const authorization of [undefined, 'Bearer apic_test_legacy_payment_key']) {
+      const req = request('/checkouts/chk_1', 'GET');
+      req.headers.authorization = authorization;
+      const { res, state } = response();
+      await controller.proxy(req, res);
+      expect(state.status).toBe(401);
+    }
+    expect(applications.authorizeAction).not.toHaveBeenCalled();
     expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
@@ -283,21 +295,11 @@ describe('PaymentsController', () => {
   });
 
   it('authorizes an application credential per operation and scopes the runtime call to its resolved owner', async () => {
-    const bearer = 'ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
+    const bearer = KEY;
     applications.authorizeAction.mockResolvedValue({
-      identity: {
-        organizationId: 'org-1',
-        projectId: 'prj_aaaaaaaaaaaaaaaaaaaaaaaa',
-        environmentId: 'env_aaaaaaaaaaaaaaaaaaaaaaaa',
-        environmentKind: 'test',
-        applicationId: 'app_aaaaaaaaaaaaaaaaaaaaaaaa',
-        credentialId: 'crd_aaaaaaaaaaaaaaaaaaaaaaaa',
-      },
-      resourceOwner: { groupId: 'legacy-tribe', projectId: 'legacy-project' },
-      requestKey: 'req:1',
-      capability: 'payments',
-      action: 'payments:checkout:write',
-      signedContext: 'unused',
+      ...authorized(),
+      identity: { ...authorized().identity, applicationId: 'app_aaaaaaaaaaaaaaaaaaaaaaaa' },
+      resourceOwner: { groupId: 'org_1', projectId: 'prj_1' },
     });
     const req = request('/checkouts', 'POST', {
       referenceId: 'order-123',
@@ -305,10 +307,7 @@ describe('PaymentsController', () => {
       successUrl: 'https://app.test/success',
       cancelUrl: 'https://app.test/cancel',
     });
-    delete req.paymentPrincipal;
-    req.headers.authorization = `Bearer ${bearer}`;
     const { res } = response();
-    res.on = jest.fn();
 
     await createController().proxy(req, res);
 
@@ -316,8 +315,8 @@ describe('PaymentsController', () => {
       expect.objectContaining({ bearer, capability: 'payments', action: 'payments:checkout:write', idempotencyKey: 'idempotency-key-123456' }),
     );
     const headers = mockedAxios.request.mock.calls[0][0].headers as Record<string, string>;
-    expect(headers['x-apicenter-owner-tribe-id']).toBe('legacy-tribe');
-    expect(headers['x-apicenter-project-id']).toBe('legacy-project');
+    expect(headers['x-apicenter-owner-tribe-id']).toBe('org_1');
+    expect(headers['x-apicenter-project-id']).toBe('prj_1');
     expect(headers['x-apicenter-consumer-service-id']).toBe('app_aaaaaaaaaaaaaaaaaaaaaaaa');
     expect(headers.authorization).toBe('Bearer unit-test-runtime-token');
     expect(JSON.stringify(mockedAxios.request.mock.calls[0][0])).not.toContain(bearer);
@@ -326,8 +325,6 @@ describe('PaymentsController', () => {
   it('never reaches the payment runtime when the application lacks the grant', async () => {
     applications.authorizeAction.mockRejectedValue(Object.assign(new Error('The application has not been granted this action'), { status: 403 }));
     const req = request('/checkouts/chk_1', 'GET');
-    delete req.paymentPrincipal;
-    req.headers.authorization = 'Bearer ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
     const { res } = response();
     await expect(createController().proxy(req, res)).rejects.toThrow('not been granted');
     expect(applications.authorizeAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'payments:checkout:read' }));

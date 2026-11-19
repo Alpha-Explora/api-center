@@ -1,133 +1,60 @@
-// =============================================================================
-// src/health/health.controller.ts — Health Check Controller
-// =============================================================================
-// NestJS Terminus-based health checks replacing the Express healthRouter.
-//
-// ENDPOINTS:
-//  GET /api/v1/health/live  — Liveness probe  (always 200 if process is up)
-//  GET /api/v1/health/ready — Readiness probe  (checks Kafka connectivity)
-// =============================================================================
-
-import { Controller, Get } from "@nestjs/common";
-import {
-  HealthCheck,
-  HealthCheckService,
-  HealthCheckResult,
-  HealthIndicatorResult,
-} from "@nestjs/terminus";
-import { AuditEventsService } from "@audit/audit-events.service";
-import { GatewayTrafficService } from "@analytics/gateway-traffic.service";
-import { ConfigService } from "@config/config.service";
-import { RegistryService } from "@registry/registry.service";
-import { ExternalService } from "@external/external.service";
-import { GovernanceReadinessService } from "./governance-readiness.service";
+// Liveness (the process is up) and readiness (the database answers). Readiness also reports the
+// running release, so a deploy can be checked from outside.
+import { Controller, Get, Optional } from "@nestjs/common";
+import { HealthCheck, HealthCheckService, HealthCheckResult, HealthIndicatorResult } from "@nestjs/terminus";
+import { PrismaService } from "@database/prisma.service";
 
 @Controller("health")
 export class HealthController {
+  private readonly databaseEnabled = process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL);
+
   constructor(
     private readonly health: HealthCheckService,
-    private readonly registry: RegistryService,
-    private readonly externalService: ExternalService,
-    private readonly gatewayTraffic: GatewayTrafficService,
-    private readonly auditEvents: AuditEventsService,
-    private readonly governanceReadiness: GovernanceReadinessService,
-    private readonly config: ConfigService,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
 
-  /**
-   * GET /api/v1/health/live — Liveness probe
-   */
+  /** GET /api/v1/health/live */
   @Get("live")
   @HealthCheck()
   liveness(): Promise<HealthCheckResult> {
     return this.health.check([() => this.processCheck()]);
   }
 
-  /**
-   * GET /api/v1/health/ready — Readiness probe
-   */
+  /** GET /api/v1/health/ready */
   @Get("ready")
   @HealthCheck()
   readiness(): Promise<HealthCheckResult> {
-    return this.health.check([
-      () => this.processCheck(),
-      () => this.registryCheck(),
-      () => this.circuitBreakerCheck(),
-      () => this.governanceCheck(),
-    ]);
+    return this.health.check([() => this.processCheck(), () => this.databaseCheck(), () => this.releaseCheck()]);
   }
 
-  // ─── Custom indicators ─────────────────────────────────────────────────────
   private async processCheck(): Promise<HealthIndicatorResult> {
-    const uptime = process.uptime();
-    const memoryUsage = process.memoryUsage();
-
+    const memory = process.memoryUsage();
     return {
       process: {
         status: "up",
-        uptime: Math.floor(uptime),
-        memory: {
-          rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
-          heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-          heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
-        },
-        pid: process.pid,
+        uptime: Math.floor(process.uptime()),
+        memory: { rss: `${Math.round(memory.rss / 1024 / 1024)}MB`, heapUsed: `${Math.round(memory.heapUsed / 1024 / 1024)}MB` },
       },
     };
   }
 
-  private async registryCheck(): Promise<HealthIndicatorResult> {
+  private async databaseCheck(): Promise<HealthIndicatorResult> {
+    if (!this.databaseEnabled || !this.prisma) return { database: { status: "up", mode: "disabled" } };
+    try {
+      await this.prisma.$queryRawUnsafe("SELECT 1");
+      return { database: { status: "up" } };
+    } catch {
+      return { database: { status: "down" } };
+    }
+  }
+
+  private async releaseCheck(): Promise<HealthIndicatorResult> {
     return {
-      registry: {
+      release: {
         status: "up",
-        registeredServices: this.registry.count(),
+        imageTag: process.env.K_REVISION ?? process.env.APICENTER_IMAGE_TAG ?? "local",
+        sha: process.env.APICENTER_RELEASE_SHA ?? "local",
       },
     };
-  }
-
-  private async circuitBreakerCheck(): Promise<HealthIndicatorResult> {
-    const stats = this.externalService.getAllBreakerStats();
-    const openBreakers = stats.filter((s) => s.state === "OPEN");
-    if (openBreakers.length > 0) this.recordReadinessFailure("circuitBreakers");
-
-    return {
-      circuitBreakers: {
-        status: openBreakers.length > 0 ? "down" : "up",
-        total: stats.length,
-        open: openBreakers.length,
-        breakers: stats.map((s) => ({
-          name: s.name,
-          state: s.state,
-          failureCount: s.failureCount,
-        })),
-      },
-    };
-  }
-
-  private async governanceCheck(): Promise<HealthIndicatorResult> {
-    const snapshot = this.governanceReadiness.snapshot({
-      quotaEnforcer: true,
-      policyEngine: true,
-      approvals: true,
-      sdkContractVersion: process.env.APICENTER_SDK_CONTRACT_VERSION ?? "local",
-      imageTag:
-        process.env.K_REVISION ?? process.env.APICENTER_IMAGE_TAG ?? "local",
-    });
-
-    if (snapshot.status !== "up") this.recordReadinessFailure("governance");
-
-    return { governance: snapshot };
-  }
-
-  private recordReadinessFailure(check: string): void {
-    this.gatewayTraffic.recordReadinessFailure(check).catch(() => undefined);
-    this.auditEvents
-      .record({
-        type: "readiness.failed",
-        severity: "warning",
-        message: `Readiness check failed: ${check}`,
-        payload: { check },
-      })
-      .catch(() => undefined);
   }
 }

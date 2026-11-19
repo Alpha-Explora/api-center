@@ -19,7 +19,7 @@ describe("PublicLandingPage", () => {
     for (const link of screen.getAllByRole("link", {
       name: "Open the console",
     })) {
-      expect(link.getAttribute("href")).toBe("/dashboard");
+      expect(link.getAttribute("href")).toBe("/control-plane/projects");
     }
     for (const link of screen.getAllByRole("link", { name: "Read the docs" })) {
       expect(link.getAttribute("href")).toBe(

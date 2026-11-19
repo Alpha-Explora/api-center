@@ -4,139 +4,26 @@ import {
   commandCenterNavGroups,
   getNavSearchResults,
   getVisibleNavGroups,
-  type AppNavGroup,
 } from "../../../../src/lib/app-navigation";
 
-const groups: AppNavGroup[] = [
-  {
-    label: "Operate",
-    items: [
-      {
-        href: "/",
-        label: "Dashboard",
-        description: "Review command center health.",
-      },
-      {
-        href: "/data-pipeline",
-        label: "Data pipeline",
-        description: "Review data pipeline health.",
-      },
-    ],
-  },
-  {
-    label: "Registry",
-    items: [
-      {
-        href: "/tribes",
-        label: "Services",
-        description: "Review registered services.",
-      },
-    ],
-  },
-];
-
 describe("app navigation", () => {
-  it("exposes the approved command-center information architecture", () => {
-    expect(
-      commandCenterNavGroups.map((group) => ({
-        label: group.label,
-        items: group.items.map((item) => item.label),
-      })),
-    ).toEqual([
-      {
-        label: "Workspace",
-        items: ["Projects", "People", "Migration"],
-      },
-      {
-        label: "Command",
-        items: ["Overview", "Lifecycle", "Issues", "Readiness"],
-      },
-      {
-        label: "Services",
-        items: [
-          "Registry",
-          "API catalog",
-          "Requests",
-          "Dependencies",
-          "Marketplace",
-          "Developer portal",
-          "Shared services",
-        ],
-      },
-      {
-        label: "Operations",
-        items: ["Quotas", "Reliability", "Pipeline", "Cost", "Plans"],
-      },
-      {
-        label: "Governance",
-        items: ["Compliance", "Audit", "Operational Trust", "Promotions"],
-      },
-      {
-        label: "Tools",
-        items: ["SDK runbook", "Manifest tools", "Smoke tests", "Settings"],
-      },
+  it("lists the console's pages", () => {
+    expect(commandCenterNavGroups.map((group) => [group.label, group.items.map((item) => item.href)])).toEqual([
+      ["Workspace", ["/control-plane/projects", "/control-plane/people"]],
+      ["Operations", ["/requests", "/settings"]],
     ]);
   });
 
-  it("hides the data pipeline item when the feature is disabled", () => {
-    const visible = getVisibleNavGroups(groups, false);
-
-    expect(visible[0].items.map((item) => item.href)).toEqual(["/"]);
+  it("hides settings from organization members", () => {
+    const hrefs = getVisibleNavGroups(commandCenterNavGroups, false).flatMap((group) => group.items.map((item) => item.href));
+    expect(hrefs).not.toContain("/settings");
+    expect(hrefs).toContain("/requests");
   });
 
-  it("keeps the data pipeline item when the feature is enabled", () => {
-    const visible = getVisibleNavGroups(groups, true);
-
-    expect(visible[0].items.map((item) => item.href)).toEqual([
-      "/",
-      "/data-pipeline",
-    ]);
-  });
-
-  it("finds workflows by label and group", () => {
-    expect(
-      getNavSearchResults(commandCenterNavGroups, "governance").map(
-        (item) => item.href,
-      ),
-    ).toEqual(["/compliance", "/audit", "/operational-trust", "/promotions"]);
-    expect(
-      getNavSearchResults(commandCenterNavGroups, "quota").map(
-        (item) => item.href,
-      ),
-    ).toEqual(["/quotas"]);
-  });
-
-  it("finds workflows by task aliases and explains the route purpose", () => {
-    const rateLimitResults = getNavSearchResults(
-      commandCenterNavGroups,
-      "rate limit",
-    );
-    expect(rateLimitResults.map((item) => item.href)).toContain("/quotas");
-    expect(rateLimitResults[0].description).toContain("quota");
-
-    expect(
-      getNavSearchResults(commandCenterNavGroups, "approval").map(
-        (item) => item.href,
-      ),
-    ).toEqual(["/registration-requests", "/promotions"]);
-
-    expect(
-      getNavSearchResults(commandCenterNavGroups, "sdk setup").map(
-        (item) => item.href,
-      ),
-    ).toContain("/docs/consumer-runbook");
-  });
-
-  it("keeps hidden feature routes out of workflow search", () => {
-    expect(
-      getNavSearchResults(commandCenterNavGroups, "pipeline", false).map(
-        (item) => item.href,
-      ),
-    ).toEqual([]);
-    expect(
-      getNavSearchResults(commandCenterNavGroups, "pipeline", true).map(
-        (item) => item.href,
-      ),
-    ).toEqual(["/data-pipeline"]);
+  it("finds pages by label, group and task words", () => {
+    expect(getNavSearchResults(commandCenterNavGroups, "people").map((item) => item.href)).toEqual(["/control-plane/people"]);
+    expect(getNavSearchResults(commandCenterNavGroups, "api key").map((item) => item.href)).toEqual(["/control-plane/projects"]);
+    expect(getNavSearchResults(commandCenterNavGroups, "errors").map((item) => item.href)).toEqual(["/requests"]);
+    expect(getNavSearchResults(commandCenterNavGroups, "configuration", false)).toEqual([]);
   });
 });

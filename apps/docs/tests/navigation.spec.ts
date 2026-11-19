@@ -61,9 +61,9 @@ test("native MDX publishes links and tables without exposing metadata", () => {
   assert.doesNotMatch(auth, /Fumadocs Solar Preset Guide/);
 });
 
-test("payment reference publishes API-key authentication and declared statuses", () => {
+test("payment reference publishes application-key authentication and declared statuses", () => {
   const checkout = page("reference/api/createCheckout");
-  assert.match(checkout, /PAYMENT_API_KEY/);
+  assert.match(checkout, /APICENTER_API_KEY/);
   assert.match(checkout, /Checkout created/);
   assert.match(checkout, /Provider outcome is pending confirmation/);
   assert.match(checkout, />201<|>201<!--/);

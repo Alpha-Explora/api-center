@@ -64,6 +64,7 @@ export class PublishedApiForwarder {
       if (typeof retryAfter === "number") res.setHeader("Retry-After", String(retryAfter));
       throw error;
     }
+    req.caller = call.identity;
     await this.checkUpstream(call.upstreamUrl);
     const status = await forwardSigned({
       req,

@@ -48,8 +48,7 @@ function collectManifestDriftViolations() {
 
 function runContractChecks() {
   const sharedController = assertFileExists('apps/gateway/src/domains/gateway-proxy/shared-services/shared-services.controller.ts');
-  const externalPolicy = assertFileExists('apps/gateway/src/domains/gateway-proxy/external/guards/external-policy.guard.ts');
-  if (!sharedController || !externalPolicy) return;
+  if (!sharedController) return;
 
   const checks = [
     [readText('apps/gateway/src/domains/gateway-proxy/shared-services/shared-services.controller.ts'), /@Controller\(["']shared["']\)/, "Shared services controller is missing @Controller('shared')."],

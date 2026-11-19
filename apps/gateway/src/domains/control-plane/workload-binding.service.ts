@@ -8,7 +8,6 @@ import { PrismaService } from "@database/prisma.service";
 import { AuditEventsService } from "@audit/audit-events.service";
 import { ConflictError, NotFoundError, ValidationError } from "@shared/errors";
 import { withTenant } from "./tenant-transaction";
-import { assertControlPlaneAuthority } from "./migration/authority";
 import { GOOGLE_ISSUER, workloadAudiences } from "./workload-identity";
 import type { EnvironmentScope } from "./control-plane-admin.service";
 
@@ -44,7 +43,6 @@ export class WorkloadBindingService {
         where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
       });
       if (!environment) throw new NotFoundError(`Project '${scope.projectId}' has no ${scope.environmentKind} environment`);
-      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       const application = await db.cpApplication.findFirst({ where: { id: applicationId, organizationId: scope.organizationId, environmentId: environment.id } });
       if (!application) throw new NotFoundError(`Application '${applicationId}' was not found in this environment`);
       try {

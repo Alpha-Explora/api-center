@@ -11,10 +11,8 @@ describe('DeliveryWebhookController', () => {
   const resendSecret = `whsec_${Buffer.from('resend-test-secret').toString('base64')}`;
   const twilioAuthToken = 'twilio-test-token';
   const callbackUrl = 'https://api-center.example.test/api/v1/webhooks/twilio';
-  const registry = {
-    get: jest.fn((serviceId: string) => ({
-      environments: [{ environment: 'live', baseUrl: `https://${serviceId}.example.test` }],
-    })),
+  const routing = {
+    resolve: jest.fn((serviceId: string, environment: string) => ({ sharedServiceId: serviceId, environment, targetUrl: `https://${serviceId}.example.test/` })),
   };
   const config = {
     deliveryWebhooks: { resendWebhookSecret: resendSecret, twilioAuthToken, twilioStatusCallbackUrl: callbackUrl },
@@ -25,7 +23,7 @@ describe('DeliveryWebhookController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new DeliveryWebhookController(registry as any, config as any);
+    controller = new DeliveryWebhookController(routing as any, config as any);
     fetchMock = jest.fn().mockResolvedValue({ ok: true, text: async () => '{"received":true}' });
     global.fetch = fetchMock as unknown as typeof fetch;
   });

@@ -19,7 +19,7 @@ describe("createMembershipLookup", () => {
     vi.stubGlobal("fetch", fetchMock);
     await lookupOrganizationMemberships(email);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/v1/admin/memberships?email=route-check%40example.test",
+      "http://localhost:3000/api/v1/admin/control-plane/memberships?email=route-check%40example.test",
       expect.any(Object),
     );
   });

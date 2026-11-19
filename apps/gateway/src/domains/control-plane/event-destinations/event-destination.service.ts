@@ -15,7 +15,6 @@ import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstream-guard";
 import { newResourceId } from "../application-credential";
 import { withTenant } from "../tenant-transaction";
-import { assertControlPlaneAuthority } from "../migration/authority";
 import type { EnvironmentScope } from "../control-plane-admin.service";
 import { newSigningSecret, WEBHOOK_CONFIG_STORE, type WebhookConfigStore } from "./webhook-config-store";
 
@@ -158,7 +157,6 @@ export class EventDestinationService {
         where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
       });
       if (!environment) throw new NotFoundError(`Project '${scope.projectId}' has no ${scope.environmentKind} environment`);
-      await assertControlPlaneAuthority(db, scope.projectId, scope.environmentKind);
       const application = await db.cpApplication.findFirst({
         where: { id: recipientApplicationId, organizationId: scope.organizationId, environmentId: environment.id },
       });

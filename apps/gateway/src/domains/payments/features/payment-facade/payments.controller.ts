@@ -1,13 +1,11 @@
 import {
   All,
   Controller,
-  ForbiddenException,
   HttpStatus,
   Logger,
   ServiceUnavailableException,
   Req,
   Res,
-  UseGuards,
 } from "@nestjs/common";
 import axios, { AxiosRequestConfig } from "axios";
 import { randomUUID } from "node:crypto";
@@ -16,9 +14,9 @@ import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types
 import { z } from "zod";
 import { Request, Response } from "express";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
-import { PaymentAuthGuard } from "../../shared/payment-auth.guard";
 import { PaymentIdempotencyService } from "../../shared/payment-idempotency.service";
 import { AuthenticatedRequest } from "../../../../types";
+import type { PaymentPrincipal } from "../../shared/payment-access.types";
 import {
   paymentRequestBody,
   paymentResponseBody,
@@ -42,7 +40,6 @@ const internalToken = (environment: "test" | "live") =>
     : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST) ||
   process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
 @Controller("payments")
-@UseGuards(PaymentAuthGuard)
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
 
@@ -64,45 +61,36 @@ export class PaymentsController {
 
     const authorization = req.headers.authorization;
     const bearer = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : undefined;
-    if (!authReq.paymentPrincipal && bearer && isControlPlaneBearer(bearer)) {
-      // A control-plane application needs an explicit grant for this operation's action. Its
-      // records are scoped to the resolved owner: the project, or a migrated project's legacy owner.
-      const call = await this.applications.authorizeAction({
-        bearer,
-        capability: "payments",
-        action: operation.scope,
-        requestId: authReq.correlationId || randomUUID(),
-        ...(req.get("Idempotency-Key")?.trim() ? { idempotencyKey: req.get("Idempotency-Key")!.trim() } : {}),
-      });
-      authReq.paymentPrincipal = {
-        ownerTribeId: call.resourceOwner.groupId,
-        projectId: call.resourceOwner.projectId,
-        consumerServiceId: call.identity.applicationId,
-        environment: call.identity.environmentKind,
-        scopes: [operation.scope],
-        keyId: call.identity.credentialId,
-      };
-      res.on("finish", () => {
-        void this.applications.recordOutcome(call, res.statusCode);
-      });
-    }
-
-    const principal = authReq.paymentPrincipal;
-    if (!principal) {
+    if (!bearer || !isControlPlaneBearer(bearer)) {
       res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid payment API key or Bearer token is required",
-        },
+        error: { code: "UNAUTHORIZED", message: "An application key is required" },
       });
       return;
     }
+    // The key needs a grant for this operation's action. Records belong to its organization and
+    // project.
+    const call = await this.applications.authorizeAction({
+      bearer,
+      capability: "payments",
+      action: operation.scope,
+      requestId: authReq.correlationId || randomUUID(),
+      ...(req.get("Idempotency-Key")?.trim() ? { idempotencyKey: req.get("Idempotency-Key")!.trim() } : {}),
+    });
+    const principal = {
+      ownerTribeId: call.resourceOwner.groupId,
+      projectId: call.resourceOwner.projectId,
+      consumerServiceId: call.identity.applicationId,
+      environment: call.identity.environmentKind,
+    };
+    authReq.caller = call.identity;
+    res.on("finish", () => {
+      void this.applications.recordOutcome(call, res.statusCode);
+    });
 
     const env = principal.environment;
     const token = internalToken(env);
 
-    this.enforceScope(principal.scopes, operation.scope);
     if (operation.resource === "capabilities") {
       res
         .status(200)
@@ -179,7 +167,6 @@ export class PaymentsController {
       "x-apicenter-consumer-service-id": principal.consumerServiceId,
       "x-apicenter-owner-tribe-id": principal.ownerTribeId,
       "x-apicenter-project-id": principal.projectId,
-      "x-tribe-id": principal.ownerTribeId,
     };
     headers.authorization = `Bearer ${token}`;
     // The payments runtime reads its internal token from Authorization. Cloud Run
@@ -341,7 +328,7 @@ export class PaymentsController {
   }
 
   private async preserveUnknownOutcome(input: {
-    principal: NonNullable<AuthenticatedRequest["paymentPrincipal"]>;
+    principal: PaymentPrincipal;
     method: string;
     path: string;
     key?: string;
@@ -354,28 +341,6 @@ export class PaymentsController {
       this.logger.error(
         "Unable to update the payment idempotency outcome marker",
       );
-    }
-  }
-
-  private enforceScope(scopes: string[], required: string): void {
-    if (scopes.includes("*") || scopes.includes("payments:*")) return;
-    const direction = required.endsWith(":read") ? "read" : "write";
-
-    const hasScope = scopes.some((scope) => {
-      if (scope === required) return true;
-      if (scope === `payments:${direction}`) return true;
-      if (scope.endsWith(":*")) {
-        const prefix = scope.slice(0, -2);
-        return required.startsWith(`${prefix}:`);
-      }
-      return false;
-    });
-
-    if (!hasScope) {
-      throw new ForbiddenException({
-        code: "INSUFFICIENT_SCOPE",
-        message: `Scope '${required}' is required`,
-      });
     }
   }
 }

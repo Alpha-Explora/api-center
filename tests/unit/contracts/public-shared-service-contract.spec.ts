@@ -49,7 +49,7 @@ describe("shared-service consumer HTTP contract", () => {
           JSON.parse(read(`apps/${item.serviceId}/service-manifest.json`)),
         );
       expect(documented.operationId).toBe(item.operationId);
-      expect(documented.security).toEqual([{ ServiceBearerAuth: [] }]);
+      expect(documented.security).toEqual([{ ApplicationKey: [] }]);
       expect(documented["x-required-scopes"].sort()).toEqual(
         manifest.requiredScopes.sort(),
       );
@@ -73,16 +73,9 @@ describe("shared-service consumer HTTP contract", () => {
     },
   );
 
-  it("keeps identity bootstrap unauthenticated and excludes private control-plane routes", () => {
-    for (const route of ["/api/v1/auth/token", "/api/v1/auth/token/refresh"]) {
-      const value = z
-        .object({ security: z.array(z.unknown()) })
-        .parse(contract.paths[route]?.post);
-      expect(value.security).toEqual([]);
-    }
-    expect(contract.paths["/api/v1/auth/token/revoke"]?.post).toMatchObject({
-      responses: { "204": expect.any(Object) },
-    });
+  it("authenticates every route with the application key and excludes private routes", () => {
+    expect(Object.keys(contract.paths).some((route) => route.startsWith("/api/v1/auth/"))).toBe(false);
+    expect(contract.paths["/api/v1/whoami"]?.get).toMatchObject({ operationId: "whoami" });
     expect(
       Object.keys(contract.paths).every(
         (route) => !/\/admin\/|\/webhooks\/|\/verify-token$/.test(route),

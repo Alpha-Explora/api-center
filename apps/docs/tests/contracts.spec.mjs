@@ -31,20 +31,20 @@ test("published endpoint details describe only contract operations, parameters, 
     assert.deepEqual(rendered.successResponses.map(({ code, description }) => ({ code, description })),
       Object.entries(operation.responses).filter(([code]) => /^2\d\d$/.test(code))
         .map(([code, value]) => ({ code: Number(code), description: resolve(value).description })));
-    if (path.startsWith('/api/v1/payments/')) assert.match(rendered.authentication, /payment API key/i);
-    else if ((operation.security ?? contract.security).length) assert.equal(rendered.credentialKind, 'service');
-    else assert.equal(rendered.credentialKind, 'none');
+    if ((operation.security ?? contract.security).length) {
+      assert.equal(rendered.credentialKind, 'application');
+      assert.match(rendered.authentication, /application key/i);
+    } else assert.equal(rendered.credentialKind, 'none');
   }
 });
 
-test("HTTP snippets use server-side payment credentials and explicit body placeholders", () => {
+test("HTTP snippets use the server-side application key and explicit body placeholders", () => {
   const operations = getDetailedOperations();
   for (const operation of operations) {
     const ts = buildSnippet(operation, "TypeScript");
     assert.ok(ts.includes(operation.serverUrl + operation.path));
     assert.ok(buildSnippet({...operation, serverUrl: "https://contract-server.example"}, "cURL").includes("https://contract-server.example" + operation.path));
-    if (operation.credentialKind === 'payment') assert.match(ts, /APICENTER_PAYMENT_API_KEY/);
-    else if (operation.credentialKind === 'service') { assert.match(ts, /APICENTER_ACCESS_TOKEN/); assert.doesNotMatch(ts, /APICENTER_PAYMENT_API_KEY/); }
+    if (operation.credentialKind === 'application') assert.match(ts, /APICENTER_API_KEY/);
     else assert.doesNotMatch(ts, /Authorization:/);
     if (operation.successResponses.every(({code}) => code === 204)) assert.doesNotMatch(ts, /response.json/);
     assert.doesNotMatch(ts, /@apicenter\/sdk|client\./);

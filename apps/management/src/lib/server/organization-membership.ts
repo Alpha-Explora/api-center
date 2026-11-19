@@ -83,7 +83,7 @@ function pruneCache(cache: Map<string, CacheEntry>, current: number) {
 
 async function fetchMembershipsFromGateway(email: string): Promise<MembershipLookup> {
   const body = await apiCenterAdminJson<unknown>(
-    `/api/v1/admin/memberships?email=${encodeURIComponent(email)}`,
+    `/api/v1/admin/control-plane/memberships?email=${encodeURIComponent(email)}`,
   );
   const parsed = membershipLookupResponseSchema.safeParse(body);
   if (!parsed.success) {

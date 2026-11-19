@@ -23,9 +23,6 @@ async function request(service: string, endpoint: string, init?: RequestInit): P
   });
   try {
     const headers = new Headers(init?.headers);
-    headers.set('X-APICenter-Source-Service-Id', 'runtime-test-client');
-    headers.set('X-APICenter-Environment', 'test');
-    headers.set('X-Tribe-Id', 'runtime-test-tribe');
     const response = await fetch(`http://127.0.0.1:${server.address().port}${endpoint}`, { ...init, headers });
     const responseText = await response.text();
     let body: any = responseText;

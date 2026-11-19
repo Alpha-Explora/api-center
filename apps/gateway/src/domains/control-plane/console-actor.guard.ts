@@ -1,7 +1,7 @@
 // Identifies who is acting in the console.
 //
-// 1. The calling server must authenticate as the platform (ScopedAdminGuard: platform secret or a
-//    platform:admin JWT). The management console is such a server.
+// 1. The calling server must authenticate as the platform (ScopedAdminGuard: the platform secret).
+//    The management console is such a server.
 // 2. When it forwards the signed-in member's Google ID token in X-APICenter-User-Token, the gateway
 //    verifies it here and acts as that member, enforcing their roles. Without a user token the
 //    caller acts as the platform itself (operator scripts and break-glass access).
@@ -77,7 +77,7 @@ export class ConsoleActorGuard implements CanActivate {
         platformAdmin: this.config.platformAdminEmails.includes(user.email),
       };
     } else {
-      request.consoleActor = { kind: "platform", id: request.user?.sub ?? "platform" };
+      request.consoleActor = { kind: "platform", id: "platform" };
     }
     return true;
   }

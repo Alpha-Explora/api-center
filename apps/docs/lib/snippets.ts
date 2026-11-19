@@ -7,7 +7,7 @@ export function buildSnippet(op: DetailedOperation, tab: SnippetTab): string {
   const requiresBody = op.requestProperties.length > 0;
   const body = op.sampleRequest ? JSON.stringify(op.sampleRequest, null, 2) : requiresBody ? "{} /* Fill the documented request fields. */" : null;
   const pathNote = op.pathParameters.length ? "// Replace the path placeholders with your resource identifiers.\n" : "";
-  const variable = op.credentialKind === "payment" ? "APICENTER_PAYMENT_API_KEY" : op.credentialKind === "service" ? "APICENTER_ACCESS_TOKEN" : null;
+  const variable = op.credentialKind === "application" ? "APICENTER_API_KEY" : null;
   if (tab === "cURL") {
     const lines = [`curl -X ${op.method} "${url}"`];
     if (variable) lines.push(`  -H "Authorization: Bearer $${variable}"`);

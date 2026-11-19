@@ -36,7 +36,7 @@ export type DetailedOperation = {
   sampleRequest: Record<string, unknown> | null;
   sampleResponse: Record<string, unknown> | null;
   authentication: string;
-  credentialKind: "payment" | "service" | "none";
+  credentialKind: "application" | "none";
   successResponses: { code: number; description: string; properties: PropertyField[] }[];
   errorResponses: { code: number; description: string }[];
 };
@@ -276,11 +276,11 @@ export function getDetailedOperations(): DetailedOperation[] {
       const security = Array.isArray(op.security) ? op.security : Array.isArray(document.security) ? document.security : [];
       const schemes = asRecord(asRecord(document.components).securitySchemes);
       const securityNames = security.flatMap((requirement) => Object.keys(asRecord(requirement)));
-      const credentialKind = securityNames.includes("ApiKeyAuth") ? "payment" : securityNames.includes("ServiceBearerAuth") ? "service" : "none";
+      const credentialKind = securityNames.includes("ApplicationKey") ? "application" : "none";
       const authentication = security.length === 0 ? "No authentication required by this contract." : security.map((requirement) =>
         Object.keys(asRecord(requirement)).map((name) => {
           const scheme = asRecord(schemes[name]);
-          return scheme.bearerFormat === "APICenterApiKey" ? "Authorization: Bearer <PAYMENT_API_KEY>. Use the consumer's payment API key." : String(scheme.description ?? name);
+          return scheme.bearerFormat === "ApplicationKey" ? "Authorization: Bearer <APICENTER_API_KEY>. Use your application key (ak_test_… or ak_live_…)." : String(scheme.description ?? name);
         }).join(" and "),
       ).join(" or ");
 

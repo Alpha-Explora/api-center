@@ -5,7 +5,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
-import { PLAN_DEFINITIONS } from "@entitlements/tribe-plan-definitions";
+import { PLAN_DEFINITIONS } from "@domains/control-plane/plan-definitions";
 
 export type PaymentEnvironment = "test" | "live";
 

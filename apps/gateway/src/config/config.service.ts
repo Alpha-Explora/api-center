@@ -1,16 +1,11 @@
 // =============================================================================
-// src/config/config.service.ts — Centralized application configuration
+// Gateway configuration, read once from the environment. Fatal problems stop startup.
 // =============================================================================
 
 import { Injectable, OnApplicationBootstrap } from "@nestjs/common";
 import dotenv from "dotenv";
 
 dotenv.config();
-
-const DEFAULT_REGISTRY_BOOTSTRAP_MANIFESTS = [
-  "examples/logistics-manifest.json",
-  "examples/demand-manifest.json",
-];
 
 @Injectable()
 export class ConfigService implements OnApplicationBootstrap {
@@ -22,84 +17,18 @@ export class ConfigService implements OnApplicationBootstrap {
     credentials: true,
   };
 
-  // AUTH_PROVIDER=descope   → DescopeProvider  (production)
-  // AUTH_PROVIDER=dev-jwt   → DevJwtProvider   (local dev / CI) [default]
-  // AUTH_PROVIDER=internal-jwt uses API Center signed M2M JWTs.
-  // AUTH_PROVIDER=composite issues internal JWTs and validates internal + Descope tokens.
-  readonly authProvider: string = process.env.AUTH_PROVIDER || "dev-jwt";
-
-  private readonly descopeBaseUrl =
-    process.env.DESCOPE_BASE_URL || "https://api.descope.com";
-  private readonly descopeProjectId = process.env.DESCOPE_PROJECT_ID || "";
-
-  readonly descope = {
-    baseUrl: this.descopeBaseUrl,
-    projectId: this.descopeProjectId,
-    jwksUri:
-      process.env.DESCOPE_JWKS_URI ||
-      (this.descopeProjectId
-        ? `${this.descopeBaseUrl}/${this.descopeProjectId}/.well-known/jwks.json`
-        : ""),
-    tokenEndpoint:
-      process.env.DESCOPE_TOKEN_ENDPOINT ||
-      `${this.descopeBaseUrl}/oauth2/v1/token`,
-    issuer: process.env.DESCOPE_ISSUER || "",
-    audience: process.env.DESCOPE_AUDIENCE || "",
-    refreshClientId: process.env.DESCOPE_REFRESH_CLIENT_ID || "api-center",
-    defaultClientSecret: process.env.DESCOPE_DEFAULT_CLIENT_SECRET || "",
-  };
-
-  readonly devJwt = {
-    issuer: process.env.DEV_JWT_ISSUER || "api-center-dev",
-    tokenTtlSeconds: parseInt(process.env.DEV_JWT_TTL_SECONDS || "3600", 10),
-    refreshTtlMultiplier: parseInt(
-      process.env.DEV_JWT_REFRESH_TTL_MULTIPLIER || "24",
-      10,
-    ),
-  };
-
-  readonly internalJwt = {
-    issuer: process.env.INTERNAL_JWT_ISSUER || "api-center",
-    audience: process.env.INTERNAL_JWT_AUDIENCE || "api-center",
-    accessTtlSeconds: parseInt(
-      process.env.INTERNAL_JWT_ACCESS_TTL_SECONDS || "3600",
-      10,
-    ),
-    refreshTtlSeconds: parseInt(
-      process.env.INTERNAL_JWT_REFRESH_TTL_SECONDS || "86400",
-      10,
-    ),
-    privateKey: process.env.JWT_PRIVATE_KEY || "",
-    publicKey: process.env.JWT_PUBLIC_KEY || "",
-  };
-
-  // HashiCorp Vault — KV v2 secret loading + Transit signing
-  readonly vault = {
-    addr: process.env.VAULT_ADDR || "http://localhost:8200",
-    token: process.env.VAULT_TOKEN || "",
-    roleId: process.env.VAULT_ROLE_ID || "",
-    secretId: process.env.VAULT_SECRET_ID || "",
-    secretPath: process.env.VAULT_SECRET_PATH || "secret/api-center",
-    transitKey: process.env.VAULT_TRANSIT_KEY || "",
-    devMode: process.env.VAULT_DEV_MODE === "true",
-  };
-
   readonly paymentWebhooks = {
     paymongoTestSecret: process.env.PAYMONGO_TEST_WEBHOOK_SECRET || "",
     paymongoLiveSecret: process.env.PAYMONGO_LIVE_WEBHOOK_SECRET || "",
-    paymongoSecret:
-      process.env.PAYMONGO_WEBHOOK_SECRET ||
-      process.env.PAYMONGO_LIVE_WEBHOOK_SECRET ||
-      process.env.PAYMONGO_TEST_WEBHOOK_SECRET ||
-      "",
   };
 
   readonly deliveryWebhooks = {
-    resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || '',
-    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
-    twilioStatusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || '',
+    resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || "",
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
+    twilioStatusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || "",
   };
 
+  /** The credential the management console and operator scripts use for admin routes. */
   get platformAdminSecret(): string {
     return process.env.PLATFORM_ADMIN_SECRET || "";
   }
@@ -112,225 +41,47 @@ export class ConfigService implements OnApplicationBootstrap {
       .filter(Boolean);
   }
 
-  /** Refresh token lifetime in the token store. */
-  readonly tokenStore = {
-    tokenTtlSeconds: parseInt(process.env.REFRESH_TOKEN_TTL_SECONDS || "3600", 10),
-  };
-
   readonly database = {
-    enabled:
-      process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL),
-    provider: process.env.DATABASE_PROVIDER || "",
+    enabled: process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL),
     url: process.env.DATABASE_URL || "",
   };
-
-  readonly registryBootstrap = {
-    enabled: process.env.REGISTRY_BOOTSTRAP_ENABLED === "true",
-    allowInProduction:
-      process.env.REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION === "true",
-    manifestPaths: this.parseRegistryBootstrapManifestPaths(),
-    /** Tribes and projects seeded before manifests; missing file means no tenancy seed. */
-    tenancySeedPath:
-      process.env.REGISTRY_BOOTSTRAP_TENANCY?.trim() || "examples/tenancy-seed.json",
-  };
-  readonly environmentContract = {
-    mode: "enforce",
-  } as const;
 
   readonly rateLimit = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10),
   };
 
-  readonly health = {
-    checkTimeoutMs: parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS || "5000", 10),
-  };
-
-  readonly external = {
-    timeout: 10000,
-  };
-
-  readonly tracing = {
-    otlpTracesEndpoint:
-      process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
-      process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-      process.env.JAEGER_ENDPOINT ||
-      "http://localhost:4318/v1/traces",
-    serviceName: process.env.OTEL_SERVICE_NAME || "api-center",
-  };
-
-  readonly allowedOrigins: string | string[] = this.cors.origin;
-
   get isProduction(): boolean {
     return this.nodeEnv === "production";
   }
 
   onApplicationBootstrap() {
-    const warnings: string[] = [];
     const errors: string[] = [];
 
-    if (!this.platformAdminSecret && this.isProduction) {
+    if (this.isProduction && !this.platformAdminSecret) {
       errors.push("PLATFORM_ADMIN_SECRET must be set in production");
     }
-
-    const validProviders = ["descope", "dev-jwt", "internal-jwt", "composite"];
-    if (!validProviders.includes(this.authProvider)) {
-      errors.push(
-        `AUTH_PROVIDER must be one of: ${validProviders.join(", ")} (got '${this.authProvider}')`,
-      );
+    if (this.isProduction && [this.cors.origin].flat().includes("*")) {
+      errors.push("ALLOWED_ORIGINS must list explicit origins in production; wildcard (*) is not allowed");
     }
-
-    if (this.authProvider === "descope") {
-      const isLocalhost = (() => {
-        try {
-          return new URL(this.descope.baseUrl).hostname === "localhost";
-        } catch {
-          return false;
-        }
-      })();
-
-      if (!this.descope.jwksUri)
-        errors.push(
-          "DESCOPE_JWKS_URI (or DESCOPE_PROJECT_ID) must be set for AUTH_PROVIDER=descope",
-        );
-      if (!this.descope.tokenEndpoint)
-        errors.push(
-          "DESCOPE_TOKEN_ENDPOINT must be set for AUTH_PROVIDER=descope",
-        );
-      if (isLocalhost && this.isProduction)
-        errors.push("DESCOPE_BASE_URL must be set to a production Descope URL");
-      if (!this.descope.issuer && this.isProduction)
-        errors.push(
-          "DESCOPE_ISSUER must be set in production for token issuer validation",
-        );
-      if (!this.descope.audience && this.isProduction)
-        errors.push(
-          "DESCOPE_AUDIENCE must be set in production for token audience validation",
-        );
-      if (!this.descope.defaultClientSecret && this.isProduction) {
-        warnings.push(
-          "DESCOPE_DEFAULT_CLIENT_SECRET is not set — ensure DESCOPE_CLIENT_SECRET_<SERVICE_ID> is configured for each service",
-        );
-      }
-    }
-
-    if (this.authProvider === "dev-jwt" && this.isProduction) {
-      errors.push(
-        "AUTH_PROVIDER=dev-jwt must NOT be used in production. Use AUTH_PROVIDER=composite or internal-jwt",
-      );
-    }
-
-    if (
-      ["internal-jwt", "composite"].includes(this.authProvider) &&
-      this.isProduction &&
-      (!this.internalJwt.privateKey || !this.internalJwt.publicKey)
-    ) {
-      errors.push(
-        "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must be set for production internal JWT auth",
-      );
-    }
-
-    if (this.isProduction) {
-      const configuredOrigins = Array.isArray(this.cors.origin)
-        ? this.cors.origin
-        : [this.cors.origin];
-      if (configuredOrigins.includes("*")) {
-        errors.push(
-          "ALLOWED_ORIGINS must list explicit origins in production; wildcard (*) is not allowed",
-        );
-      }
-    }
-
-    if (
-      this.registryBootstrap.enabled &&
-      this.registryBootstrap.manifestPaths.length === 0
-    ) {
-      errors.push(
-        "REGISTRY_BOOTSTRAP_MANIFESTS must include at least one manifest path when REGISTRY_BOOTSTRAP_ENABLED=true",
-      );
-    }
-
-    if (
-      this.registryBootstrap.enabled &&
-      this.isProduction &&
-      !this.registryBootstrap.allowInProduction
-    ) {
-      errors.push(
-        "REGISTRY_BOOTSTRAP_ENABLED=true is blocked in production unless REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true",
-      );
-    }
-
-    if (
-      this.registryBootstrap.enabled &&
-      !this.isProduction &&
-      this.registryBootstrap.allowInProduction
-    ) {
-      warnings.push(
-        "REGISTRY_BOOTSTRAP_ALLOW_IN_PRODUCTION=true is set in non-production; this override is unnecessary",
-      );
-    }
-
     if (this.database.enabled && !this.database.url) {
       errors.push("DATABASE_URL is required when DATABASE_ENABLED=true");
     }
-
     if (this.isProduction && !this.database.url) {
       errors.push("DATABASE_URL is required in production");
     }
 
-    if (
-      !Number.isFinite(this.health.checkTimeoutMs) ||
-      this.health.checkTimeoutMs < 100
-    ) {
-      errors.push(
-        "HEALTH_CHECK_TIMEOUT_MS must be a number greater than or equal to 100",
-      );
-    }
-
-    if (this.vault.devMode && this.isProduction) {
-      errors.push("VAULT_DEV_MODE=true must NOT be used in production");
-    }
-
-    if (this.isProduction && !this.vault.token && !this.vault.roleId) {
-      warnings.push(
-        "No Vault credentials configured — secrets read from process.env only. Set VAULT_ROLE_ID+VAULT_SECRET_ID for production.",
-      );
-    }
-
-    for (const w of warnings) console.warn(`[ConfigService] WARNING: ${w}`);
-
     if (errors.length > 0) {
-      const msg = `[ConfigService] Fatal configuration errors:\n${errors.map((e) => `  - ${e}`).join("\n")}`;
-      console.error(msg);
-      throw new Error(msg);
+      const message = `[ConfigService] Fatal configuration errors:\n${errors.map((e) => `  - ${e}`).join("\n")}`;
+      console.error(message);
+      throw new Error(message);
     }
   }
 
   private parseAllowedOrigins(): string | string[] {
-    const rawOrigins = process.env.ALLOWED_ORIGINS;
-    if (!rawOrigins || rawOrigins.trim() === "*") {
-      return "*";
-    }
-
-    const parsedOrigins = rawOrigins
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean);
-
-    return parsedOrigins.length > 0 ? parsedOrigins : "*";
-  }
-
-  private parseRegistryBootstrapManifestPaths(): string[] {
-    const rawManifestPaths = process.env.REGISTRY_BOOTSTRAP_MANIFESTS;
-    if (!rawManifestPaths || rawManifestPaths.trim().length === 0) {
-      return [...DEFAULT_REGISTRY_BOOTSTRAP_MANIFESTS];
-    }
-
-    const parsed = rawManifestPaths
-      .split(",")
-      .map((manifestPath) => manifestPath.trim())
-      .filter(Boolean);
-
-    return [...new Set(parsed)];
+    const raw = process.env.ALLOWED_ORIGINS;
+    if (!raw || raw.trim() === "*") return "*";
+    const origins = raw.split(",").map((origin) => origin.trim()).filter(Boolean);
+    return origins.length > 0 ? origins : "*";
   }
 }

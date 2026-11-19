@@ -40,9 +40,14 @@ describe("request diagnostic HTTP boundary", () => {
     });
     app.post("/token", (req, res) => {
       const authenticated = req as AuthenticatedRequest;
-      authenticated.sourceServiceId = "consumer-a";
-      authenticated.projectId = "project-a";
-      authenticated.diagnosticEnvironment = "test";
+      authenticated.caller = {
+        organizationId: "org-a",
+        projectId: "project-a",
+        environmentId: "env-a",
+        environmentKind: "test",
+        applicationId: "consumer-a",
+        credentialId: "crd-a",
+      };
       res.locals.paymentResourceId = "chk_fixture";
       res.status(201).json({ accessToken: "secret-response-token" });
     });
@@ -91,7 +96,7 @@ describe("request diagnostic HTTP boundary", () => {
     expect(JSON.stringify(record)).not.toMatch(/private-|forged-service/);
   });
 
-  it("records trusted token placement and returns a safe generated correlation ID", async () => {
+  it("records the authorized application and returns a safe generated correlation ID", async () => {
     const response = await fetch(base + "/token", {
       method: "POST",
       headers: { "x-correlation-id": "invalid correlation" },

@@ -25,13 +25,13 @@ describe("AuditLogInterceptor", () => {
     interceptor = new AuditLogInterceptor(mockLogger);
   });
 
-  it("should log successful responses with tribe route target", async () => {
+  it("logs a successful call with its application", async () => {
     const request = {
       method: "GET",
-      originalUrl: "/api/v1/tribes/billing-service/invoices",
+      originalUrl: "/api/v1/shared/email/status/msg_1",
       ip: "127.0.0.1",
-      tribeId: "caller-service",
       correlationId: "corr-1",
+      caller: { applicationId: "app_1", environmentKind: "test" },
     };
     const response = {
       statusCode: 200,
@@ -46,12 +46,12 @@ describe("AuditLogInterceptor", () => {
     expect(mockLogger.info).toHaveBeenCalledWith(
       "Audit log",
       expect.objectContaining({
-        tribeId: "caller-service",
         method: "GET",
-        path: "/api/v1/tribes/billing-service/invoices",
+        path: "/api/v1/shared/email/status/msg_1",
         statusCode: 200,
-        targetServiceId: "billing-service",
         correlationId: "corr-1",
+        applicationId: "app_1",
+        environment: "test",
       }),
     );
   });
@@ -61,7 +61,6 @@ describe("AuditLogInterceptor", () => {
       method: "POST",
       originalUrl: "/api/v1/shared/geo/reverse-geocode",
       ip: "127.0.0.1",
-      tribeId: "caller-service",
       correlationId: "corr-2",
     };
     const response = {
@@ -84,7 +83,6 @@ describe("AuditLogInterceptor", () => {
       method: "GET",
       originalUrl: "/api/v1/health/ready",
       ip: "127.0.0.1",
-      tribeId: "health-check",
       correlationId: "corr-3",
     };
     const response = {

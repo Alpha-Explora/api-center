@@ -59,6 +59,7 @@ export class ApplicationCapabilityProxy {
       if (typeof retryAfter === "number") res.setHeader("Retry-After", String(retryAfter));
       throw error;
     }
+    req.caller = call.identity;
     const route = this.routing.resolve(capability, call.identity.environmentKind);
     const status = await forwardSigned({
       req,

@@ -25,16 +25,8 @@ const FORBIDDEN_IMPORT_PATTERNS = [
 
 const SDK_RUNTIME_LEAK_PATTERNS = [
   {
-    description: 'SDK code must not import runtime auth internals',
-    regex: /from\s+['"][^'"]*src\/domains\/auth-security\/auth\//,
-  },
-  {
-    description: 'SDK code must not import runtime registry internals',
-    regex: /from\s+['"][^'"]*src\/domains\/catalog-registry\/registry\//,
-  },
-  {
-    description: 'SDK code must not import runtime proxy internals',
-    regex: /from\s+['"][^'"]*src\/shared\/proxy-handler/,
+    description: 'SDK code must not import gateway internals',
+    regex: /from\s+['"][^'"]*apps\/gateway\/src\//,
   },
   {
     description: 'SDK code must not import runtime config internals',
@@ -44,54 +36,29 @@ const SDK_RUNTIME_LEAK_PATTERNS = [
 
 const BOUNDED_CONTEXTS = [
   {
-    name: 'catalog_registry',
-    paths: [
-      'apps/gateway/src/registry',
-      'apps/gateway/src/catalog',
-      'apps/gateway/src/domains/catalog-registry',
-      // Control plane v2 owns its apic_catalog.cp_* tables alongside the legacy catalog.
-      'apps/gateway/src/domains/control-plane',
-    ],
+    // Organizations, projects, environments, applications, grants and keys (apic_catalog.cp_*).
+    name: 'control_plane',
+    paths: ['apps/gateway/src/domains/control-plane'],
     schemas: ['apic_catalog'],
   },
   {
     name: 'governance',
-    paths: [
-      'apps/gateway/src/approvals',
-      'apps/gateway/src/quotas',
-      'apps/gateway/src/entitlements',
-      'apps/gateway/src/developer-portal',
-      'apps/gateway/src/policy',
-      'apps/gateway/src/domains/governance',
-      'apps/gateway/src/domains/payments',
-    ],
+    paths: ['apps/gateway/src/domains/governance', 'apps/gateway/src/domains/payments'],
     schemas: ['apic_governance'],
   },
   {
     name: 'runtime_operations',
-    paths: [
-      'apps/gateway/src/analytics',
-      'apps/gateway/src/health',
-      'apps/gateway/src/forecasting',
-      'apps/gateway/src/operations',
-      'apps/gateway/src/domains/runtime-ops',
-    ],
+    paths: ['apps/gateway/src/domains/runtime-ops'],
     schemas: ['apic_runtime'],
   },
   {
     name: 'audit_evidence',
-    paths: [
-      'apps/gateway/src/compliance',
-      'apps/gateway/src/domains/compliance',
-    ],
+    paths: ['apps/gateway/src/domains/compliance'],
     schemas: ['apic_audit'],
   },
   {
-    name: 'gateway_control_plane',
-    paths: [
-      'apps/gateway/src/gateway-control-plane',
-      'apps/gateway/src/domains/gateway-proxy',
-    ],
+    name: 'gateway_proxy',
+    paths: ['apps/gateway/src/domains/gateway-proxy'],
     schemas: ['apic_gateway'],
   },
   {
@@ -101,11 +68,7 @@ const BOUNDED_CONTEXTS = [
   },
   {
     name: 'auth_identity',
-    paths: [
-      'apps/gateway/src/auth',
-      'apps/gateway/src/secrets',
-      'apps/gateway/src/domains/auth-security',
-    ],
+    paths: ['apps/gateway/src/domains/auth-security'],
     schemas: ['apic_identity'],
   },
   {
@@ -152,42 +115,15 @@ const IMPORT_SPECIFIER_PATTERN =
 const APIC_SCHEMA_PATTERN = /\b(apic_[a-z0-9_]+|shared_core)\./g;
 const RAW_SCHEMA_ACCESS_PATTERN = /\b(select\s+.*from|from|join|update|insert\s+into|delete\s+from|\$queryRaw|\$executeRaw)\b/i;
 const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
-  'apps/gateway/src/domains/auth-security/auth/auth.service.ts',
-  'apps/gateway/src/domains/auth-security/auth/guards/jwt-auth.guard.ts',
-  'apps/gateway/src/domains/auth-security/auth/guards/platform-admin.guard.ts',
   'apps/gateway/src/domains/auth-security/auth/guards/scoped-admin.guard.ts',
-  'apps/gateway/src/domains/auth-security/auth/guards/platform-admin-or-service.guard.ts',
-  'apps/gateway/src/domains/auth-security/auth/token-store.service.ts',
-  'apps/gateway/src/domains/auth-security/auth/vault.service.ts',
-  // Stateless pricing calculator that governance uses for chargeback estimates.
-  'apps/gateway/src/domains/runtime-ops/costs/tribe-cost.service.ts',
-  // The route-to-scope lookup the registry uses to describe a service's external routes.
-  'apps/gateway/src/domains/gateway-proxy/external/guards/external-policy.guard.ts',
-  // Health reports on external services, so it asks the proxy for their status.
-  'apps/gateway/src/domains/gateway-proxy/external/external.service.ts',
-  'apps/gateway/src/domains/catalog-registry/registry/registry.service.ts',
   'apps/gateway/src/domains/governance/approvals/approval-request.service.ts',
   'apps/gateway/src/domains/compliance/audit/audit-events.service.ts',
-  'apps/gateway/src/domains/runtime-ops/analytics/gateway-traffic.service.ts',
-  'apps/gateway/src/domains/runtime-ops/analytics/shared-service-usage.service.ts',
-  'apps/gateway/src/domains/governance/entitlements/tribe-plan.service.ts',
-  'apps/gateway/src/domains/runtime-ops/forecasting/quota-forecast.service.ts',
-  'apps/gateway/src/domains/runtime-ops/operations/emergency-control.service.ts',
-  'apps/gateway/src/domains/runtime-ops/operations/promotion-evidence-bundle.service.ts',
-  'apps/gateway/src/domains/governance/policy/policy-engine.service.ts',
-  'apps/gateway/src/domains/governance/quotas/tribe-quota-enforcer.service.ts',
-  'apps/gateway/src/domains/governance/quotas/tribe-quota-policy.service.ts',
-  'apps/gateway/src/domains/auth-security/secrets/tribe-secret-rotation.service.ts',
-  // Code-owned plan catalogue; the control plane prices project environments with it.
-  'apps/gateway/src/domains/governance/entitlements/tribe-plan-definitions.ts',
+  // Code-owned plan catalogue; payment limits read an environment's plan from it.
+  'apps/gateway/src/domains/control-plane/plan-definitions.ts',
   // Control plane event destinations reuse the payment event subscription provisioner.
   'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service.ts',
   'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service.ts',
-  // Read-only payment consumer listing for the control plane migration inventory.
-  'apps/gateway/src/domains/payments/features/consumer-management/payment-consumer-management.service.ts',
-  // Control plane v2 entry points for the request path and legacy migration bridge.
-  'apps/gateway/src/domains/control-plane/migration/legacy-bridge.service.ts',
-  'apps/gateway/src/domains/control-plane/migration/authority.ts',
+  // The request path: authenticates application keys and checks grants, quotas and budgets.
   'apps/gateway/src/domains/control-plane/application-access.service.ts',
 ]);
 

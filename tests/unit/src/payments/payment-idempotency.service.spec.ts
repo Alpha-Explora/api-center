@@ -1,5 +1,5 @@
 import { PaymentIdempotencyService } from "../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service";
-import { PaymentPrincipal } from "../../../../apps/gateway/src/domains/payments/features/payment-facade/payment-api-key.service";
+import type { PaymentPrincipal } from "../../../../apps/gateway/src/domains/payments/shared/payment-access.types";
 
 describe("PaymentIdempotencyService", () => {
   const principal: PaymentPrincipal = {
@@ -7,7 +7,6 @@ describe("PaymentIdempotencyService", () => {
     projectId: "alphaci-core",
     consumerServiceId: "alphaci-backend",
     environment: "test",
-    scopes: ["payments:write"],
   };
 
   it("requires a key for mutations and replays the original response", async () => {

@@ -17,14 +17,12 @@ describe('public payment contracts', () => {
 
   it('exposes versioned HTTP and event contracts', () => {
     expect(openApi.openapi).toBe('3.2.0');
-    expect(openApi.security).toEqual(expect.arrayContaining([
-      { ApiKeyAuth: [] },
-      { ServiceBearerAuth: [] },
-    ]));
-    expect(openApi.components.securitySchemes.ServiceBearerAuth).toMatchObject({
+    expect(openApi.security).toEqual([{ ApplicationKey: [] }]);
+    expect(Object.keys(openApi.components.securitySchemes)).toEqual(['ApplicationKey']);
+    expect(openApi.components.securitySchemes.ApplicationKey).toMatchObject({
       type: 'http',
       scheme: 'bearer',
-      bearerFormat: 'JWT',
+      bearerFormat: 'ApplicationKey',
     });
     expect(openApi.components.parameters.IdempotencyKey).toMatchObject({
       name: 'Idempotency-Key',
