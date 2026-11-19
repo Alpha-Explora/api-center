@@ -7,7 +7,7 @@ GAuth provides Google OAuth authorization, code exchange, token refresh, logout,
 
 ## Configure a project first
 
-An APICenter operator configures GAuth for each project and environment in **Management → Shared services → Google sign-in**. Add the allowed application redirect URLs there and select the APICenter Google client or configure your own. Do not write directly to GAuth database tables.
+An APICenter operator configures GAuth for each project and environment in Management, under the project's **Capabilities → Google sign-in → Configure**. Add the allowed application redirect URLs there and select the APICenter Google client or configure your own. Do not write directly to GAuth database tables.
 
 The gateway uses the calling service's registered project and environment to select the configuration. A project without settings for that environment cannot start the OAuth flow. See [Configure Google sign-in](/guides/management/google-sign-in) for the Management steps.
 

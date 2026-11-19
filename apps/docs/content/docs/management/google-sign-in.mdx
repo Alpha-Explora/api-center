@@ -7,14 +7,14 @@ Configure Google sign-in from Management. Do not create or edit GAuth database r
 
 ## Configure a project
 
-1. Open **Shared services → Google sign-in**.
-2. Select the project and environment (`test` or `live`). Settings are separate for each environment.
-3. Enter every application redirect URL that APICenter should accept, one URL per line.
-4. Choose the APICenter Google client, or select **Use your own Google client** and enter its client ID and client secret.
-5. If using your own client, configure its Google OAuth client in Google Cloud with the callback URL supplied by the APICenter platform administrator. The application redirect URLs entered here are the destinations APICenter allows for this project and environment.
-6. Select **Save settings**. The client secret is write-only; leave the field blank to keep the current secret.
+1. Open the project in Management and choose **Test** or **Live** in the sidebar. Settings are separate for each environment, and changing live needs the project admin role.
+2. Open **Capabilities** and select **Configure** next to Google sign-in. The sheet shows whether sign-in is set up, its redirect URIs, and which client it uses.
+3. Enter every application redirect URI that APICenter should accept, one per line (up to 10). Use `https`; test may also use `http://localhost`.
+4. Choose **Shared APICenter client**, or **Your own OAuth client** and enter its client ID and client secret.
+5. If using your own client, configure it in Google Cloud with the callback URL supplied by the APICenter platform administrator. The redirect URIs entered here are the destinations APICenter allows for this project and environment.
+6. Select **Save**. Saving in live asks you to confirm first. The client secret is write-only: it is never shown again, and leaving the field empty keeps the stored secret.
 
-Removing a registration disables Google sign-in for that project and environment. Confirm the project and environment before removing it. Live setting changes are subject to Management's live-change confirmation rules.
+Switching back to the shared client deletes your stored client secret. **Remove** disables Google sign-in for that project and environment; the console names both before you confirm.
 
 ## Use GAuth from a backend
 

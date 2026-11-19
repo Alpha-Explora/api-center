@@ -19,7 +19,7 @@ APICenter is a Turborepo monorepo with independently deployed runtimes. This map
 | `apps/email`, `apps/sms`, `apps/otp` | Delivery, verification, status, and durable service state | Authenticated shared-service gateway routes; provider credentials stay in runtime secrets |
 | `apps/geo`, `apps/gauth` | Location and Google authentication integration | Independent shared-service runtimes |
 | `apps/webhooks` | Signed HTTPS delivery of payment events to an application's webhook destination | Pushed by Pub/Sub; refuses private addresses; signing secrets in Secret Manager |
-| `apps/management` | Console for projects, applications, keys, people and request diagnostics | Calls the control-plane admin API as the signed-in member; owns no business state |
+| `apps/management` | Console for projects and their test/live environments: applications, grants, keys, capability settings, webhooks, published APIs, quotas, workload identities, project roles, people, going live, and request diagnostics | Calls the control-plane admin API as the signed-in member; owns no business state |
 | `apps/docs` | Curated consumer and Management guides | Registered MDX guides and public OpenAPI/AsyncAPI contracts; no root `docs/` ingestion |
 | `packages/contracts` | Shared TypeScript contracts and pinned public contract artifacts | Gateway, runtimes, and SDK share these contracts |
 | `packages/runtime` | Common runtime bootstrap and infrastructure helpers | Reused by independent service apps |

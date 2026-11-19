@@ -8,7 +8,7 @@ APICenter can POST your application's payment events, such as `payment.checkout.
 ## Set up an endpoint
 
 1. Add an HTTPS route to your backend, for example `POST /apicenter/events`. It must be publicly reachable; private and internal addresses are refused.
-2. Ask your APICenter operator, or use the console, to add a webhook destination for your application in each environment (test and live), giving that URL.
+2. In Management, open the project's **Webhooks** section in each environment (test and live) and add a webhook for your application with that URL, or ask your APICenter operator to. Payments must be enabled in the environment, and each application has one active destination.
 3. Store the signing secret (`whsec_…`) shown when the destination is created. It is shown once. Keep it in your backend's secret store, never in a browser or mobile app.
 
 ## Verify every delivery

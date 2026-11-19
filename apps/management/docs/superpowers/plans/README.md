@@ -1,12 +1,10 @@
 # APICenter Management Plan Index
 
-Only the active external-IAM plan remains here. Completed, historical, and
-superseded implementation plans were removed; the app, tests, and operator
-runbooks are the source of truth for implemented behavior.
+No Management plans or specs are active. Completed and superseded ones were removed; git history keeps them.
 
-| Status | Plan | Source of truth |
-| --- | --- | --- |
-| active | `2026-05-14-tribe-deprovisioning-lifecycle.md` | Management deprovisioning flow and required cloud IAM evidence. |
+- The console overhaul (2026-11-19) is described by the [README](../../../README.md) (routes),
+  [DESIGN.md](../../../DESIGN.md) (design system and patterns) and the
+  [runbook](../../operations/apicenter-management-runbook.md) (procedures and known gateway gaps).
+- The tribe deprovisioning plan targeted the tribe registry, which was removed with the legacy access model.
 
-For current payment consumer provisioning, use the Management README and the
-APICenter payment platform docs.
+Add a new plan here with its status and source of truth when work starts.

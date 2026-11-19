@@ -27,4 +27,23 @@ Organization → Project → Environment (test, live) → Application → Grants
 
 Project roles (admin, developer, viewer), assigned directly or through a team, give access to individual projects. Live changes need a project admin, and activating a live environment needs an approval from a person other than the requester.
 
+## Where things are in the console
+
+Switch organizations from the top of the sidebar. Inside a project, the **Test / Live** switch selects the environment; live is marked in red. Press <kbd>⌘K</kbd> or <kbd>Ctrl+K</kbd> to jump to any page or project.
+
+| Page | What you manage there |
+| :--- | :--- |
+| **People** | Members, their organization roles, and teams |
+| **API catalog** | Every active API that projects in the organization publish |
+| **Quotas** | Shared request ceilings across several projects (owners and admins) |
+| Project **Overview** | Environment status, plan, the last 24 hours of usage, and going live |
+| Project **Applications** | Applications, their capability and API access, keys, workload identities and webhook |
+| Project **Capabilities** | Capabilities enabled in the environment, and email sender and Google sign-in settings |
+| Project **APIs** | APIs the project publishes, and access requests from other projects |
+| Project **Webhooks** | Payment event destinations and signing secrets |
+| Project **Quotas** | Request limits for the environment |
+| Project **Settings** | Project roles for members and teams, and suspending or resuming an environment |
+
+Actions your role does not allow stay visible but disabled, with the reason.
+
 The console does not create organizations. An APICenter administrator provisions the organization and its first owner.
