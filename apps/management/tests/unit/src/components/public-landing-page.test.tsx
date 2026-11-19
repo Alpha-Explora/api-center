@@ -28,7 +28,7 @@ describe("PublicLandingPage", () => {
     }
     expect(
       screen.getByRole("img", {
-        name: /illustrative apicenter console preview/i,
+        name: /apicenter console showing the actions granted to an application/i,
       }),
     ).toBeTruthy();
     for (const name of [
@@ -36,7 +36,7 @@ describe("PublicLandingPage", () => {
       "Email",
       "SMS",
       "OTP",
-      "Geocoding",
+      "Geolocation",
       "Google sign-in",
     ]) {
       expect(screen.getByRole("heading", { level: 3, name })).toBeTruthy();
@@ -46,7 +46,7 @@ describe("PublicLandingPage", () => {
     }
     expect(
       screen.queryByText(
-        /Linkify|Trusted by the best|No credit card required|\/month/i,
+        /Linkify|Trusted by the best|No credit card required|\/month|illustrative/i,
       ),
     ).toBeNull();
   });

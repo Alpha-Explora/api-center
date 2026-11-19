@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandMark } from "@/components/brand-mark";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ManagementAuthGate } from "@/components/management-auth-gate";
@@ -50,12 +51,17 @@ export function Providers({
 
 function MissingGoogleConfig() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
-      <section className="w-full max-w-lg rounded-lg border bg-card p-5 shadow-sm">
-        <h1 className="text-lg font-semibold">Google auth is not configured</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Set NEXT_PUBLIC_GOOGLE_CLIENT_ID before deploying with MANAGEMENT_AUTH_MODE=google.
+    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12 text-foreground">
+      <section role="alert" className="w-full max-w-[380px] rounded-lg border bg-card p-6 shadow-xs sm:p-8">
+        <BrandMark size={32} />
+        <h1 className="mt-5 text-xl font-semibold tracking-tight">Google sign-in is not configured</h1>
+        <p className="mt-1.5 text-[13px] text-muted-foreground">
+          This console uses Google sign-in, but it has no Google client ID. Set it and redeploy.
         </p>
+        <pre className="mt-5 overflow-x-auto rounded-md border bg-muted/50 px-3 py-2.5 font-mono text-xs leading-5">
+          MANAGEMENT_AUTH_MODE=google{"\n"}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID=&lt;client-id&gt;
+        </pre>
       </section>
     </main>
   );

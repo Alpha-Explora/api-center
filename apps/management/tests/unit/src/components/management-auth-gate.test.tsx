@@ -38,7 +38,7 @@ describe("ManagementAuthGate", () => {
     cleanup();
   });
 
-  it("shows the sign-in surface and APICenter showcase before Google authentication", () => {
+  it("shows the Google sign-in card before Google authentication", () => {
     render(
       <ManagementAuthGate googleClientId="">
         <div>Management app</div>
@@ -57,14 +57,10 @@ describe("ManagementAuthGate", () => {
     expect(screen.queryByLabelText(/email|password|first name/i)).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getAllByTestId("google-logo")[0]).toBeTruthy();
-    expect(screen.getByTestId("auth-showcase-panel")).toBeTruthy();
-    expect(screen.getByTestId("auth-product-surface")).toBeTruthy();
-    expect(screen.getByTestId("auth-architecture-visual")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("Management app")).toBeNull();
     expect(screen.queryByText(/already have an account/i)).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Terms of Service" }).getAttribute("href"),
-    ).toBe("/#terms");
+    expect(screen.getByRole("link", { name: "APICenter home" }).getAttribute("href")).toBe("/");
   });
 
   it("shows the Google setup message and pressed feedback when no client ID is configured", () => {
@@ -80,6 +76,7 @@ describe("ManagementAuthGate", () => {
     fireEvent.click(googleButton);
 
     expect(googleButton.getAttribute("data-pressed")).toBe("true");
+    expect(screen.getByRole("alert").textContent).toContain("Google client ID missing");
     expect(
       screen.getByText(
         "Google sign-in is not connected yet. Add your Google client ID, then try again.",
@@ -134,11 +131,48 @@ describe("ManagementAuthGate", () => {
     });
 
     expect(screen.getByText(NON_MEMBER_MESSAGE)).toBeTruthy();
+    expect(screen.getByText("No access to APICenter")).toBeTruthy();
     expect(setManagementSessionTokenMock).toHaveBeenCalledWith("denied-token");
     expect(setManagementSessionTokenMock).toHaveBeenLastCalledWith(undefined);
     expect(
       window.sessionStorage.getItem("apicenter.management.googleCredential"),
     ).toBeNull();
     expect(screen.queryByText("Management app")).toBeNull();
+  });
+
+  it("tells a failed access lookup apart from a denied account", async () => {
+    let credentialCallback:
+      | ((response: { credential?: string }) => void)
+      | undefined;
+    getManagementSessionMock.mockRejectedValue(new Error("Membership lookup failed (503)"));
+    window.google = {
+      accounts: {
+        id: {
+          initialize: ({ callback }) => {
+            credentialCallback = callback;
+          },
+          renderButton: vi.fn(),
+          disableAutoSelect: vi.fn(),
+        },
+      },
+    };
+
+    render(
+      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
+        <div>Management app</div>
+      </ManagementAuthGate>,
+    );
+
+    await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
+    await act(async () => {
+      await credentialCallback?.({ credential: "google-token" });
+    });
+
+    expect(screen.getByText("We could not confirm your access")).toBeTruthy();
+    expect(screen.getByText("Membership lookup failed (503)")).toBeTruthy();
+    expect(setManagementSessionTokenMock).toHaveBeenLastCalledWith(undefined);
+    expect(
+      window.sessionStorage.getItem("apicenter.management.googleCredential"),
+    ).toBeNull();
   });
 });

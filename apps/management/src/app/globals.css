@@ -59,8 +59,7 @@
 
 /*
  * Console tokens: neutral grays, color only for status and for marking the live environment.
- * See DESIGN.md. The legacy brand variables below the console tokens serve the public landing
- * page until it is redesigned.
+ * See DESIGN.md. The public landing page and sign-in use the same tokens.
  */
 :root {
   --font-sans-stack: var(--font-geist-sans), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -109,19 +108,6 @@
   --info-soft: oklch(0.97 0.02 255);
   --live: oklch(0.58 0.21 27);
 
-  /* Legacy landing-page palette. */
-  --brand-green: #00d4a4;
-  --brand-green-deep: #006d57;
-  --brand-green-soft: #e8fff8;
-  --surface-code: #071b1b;
-  --hero-dark-from: #062b2d;
-  --hero-dark-mid: #084244;
-  --hero-dark-to: #00a884;
-  --hero-sky-from: #ddfbff;
-  --hero-sky-to: #fff7e8;
-  --tag-blue: #3772cf;
-  --warn: #f5a524;
-  --orange: #ff7847;
 }
 
 .dark {
@@ -221,115 +207,5 @@
       var(--muted-foreground) 28%,
       transparent
     );
-  }
-}
-
-@keyframes landing-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes landing-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-@keyframes landing-ambient {
-  0%,
-  100% {
-    opacity: 0.72;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1.08);
-  }
-}
-
-@keyframes landing-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1.02);
-  }
-  50% {
-    transform: translate3d(18px, -8px, 0) scale(1.05);
-  }
-}
-
-@keyframes landing-badge-spark {
-  from {
-    transform: translateX(-62%) rotate(0deg);
-  }
-  to {
-    transform: translateX(-62%) rotate(360deg);
-  }
-}
-
-@keyframes landing-dashboard-glow {
-  0%,
-  100% {
-    opacity: 0.62;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.94;
-    transform: translateX(-50%) scale(1.08);
-  }
-}
-
-.landing-reveal {
-  animation: landing-reveal 720ms ease both;
-}
-
-.landing-float {
-  animation: landing-reveal 720ms ease both, landing-float 8s ease-in-out infinite;
-}
-
-.landing-ambient {
-  animation: landing-ambient 12s ease-in-out infinite;
-}
-
-.landing-drift {
-  animation: landing-drift 18s ease-in-out infinite;
-}
-
-.landing-badge-spark::before {
-  position: absolute;
-  inset: -140% auto auto 50%;
-  width: 280%;
-  aspect-ratio: 1;
-  content: "";
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent 312deg,
-    rgba(255, 255, 255, 0.92) 360deg
-  );
-  animation: landing-badge-spark 4.8s linear infinite;
-}
-
-.landing-dashboard-glow {
-  animation: landing-dashboard-glow 9s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .landing-reveal,
-  .landing-float,
-  .landing-ambient,
-  .landing-drift,
-  .landing-badge-spark::before,
-  .landing-dashboard-glow {
-    animation: none;
   }
 }
