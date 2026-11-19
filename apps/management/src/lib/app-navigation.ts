@@ -29,6 +29,13 @@ export const organizationNav: NavItem[] = [
     keywords: ["members", "roles", "teams", "owner", "admin", "developer", "viewer", "invite"],
   },
   {
+    id: "apis",
+    href: "/apis",
+    label: "API catalog",
+    description: "Every active API that projects in the organization publish.",
+    keywords: ["published", "operations", "actions", "access", "catalogue"],
+  },
+  {
     id: "quotas",
     href: "/quotas",
     label: "Quotas",
@@ -70,6 +77,13 @@ export const projectSections: { id: string; path: string; label: string; descrip
     label: "Capabilities",
     description: "Shared services enabled in this environment.",
     keywords: ["email", "sms", "otp", "payments", "geo", "google", "enable", "sender", "oauth", "redirect", "configure"],
+  },
+  {
+    id: "apis",
+    path: "/apis",
+    label: "APIs",
+    description: "Published APIs, their operations and incoming access requests.",
+    keywords: ["publish", "operations", "upstream", "access requests", "approve"],
   },
   {
     id: "webhooks",

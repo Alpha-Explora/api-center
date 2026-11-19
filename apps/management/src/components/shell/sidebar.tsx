@@ -17,6 +17,7 @@ import {
   Settings2Icon,
   SettingsIcon,
   UsersIcon,
+  WaypointsIcon,
   WebhookIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ import { UserMenu } from "./user-menu";
 const ORGANIZATION_ICONS: Record<string, LucideIcon> = {
   projects: FolderIcon,
   people: UsersIcon,
+  apis: WaypointsIcon,
   quotas: GaugeIcon,
   requests: ActivityIcon,
   settings: SettingsIcon,
@@ -59,6 +61,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   overview: LayoutDashboardIcon,
   applications: AppWindowIcon,
   capabilities: BlocksIcon,
+  apis: WaypointsIcon,
   webhooks: WebhookIcon,
   quotas: GaugeIcon,
   settings: Settings2Icon,
