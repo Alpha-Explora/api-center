@@ -606,7 +606,7 @@ async function main(): Promise<void> {
 
     const sharedTableRows = await queryRows(
       client,
-      "select table_schema || '.' || table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema in ('shared_sms', 'shared_otp', 'shared_email')",
+      "select table_schema || '.' || table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema in ('shared_sms', 'shared_otp', 'shared_email', 'shared_webhooks')",
     );
     const sharedNames = new Set(sharedTableRows.map((row) => String(row.name)));
     addFailure(
