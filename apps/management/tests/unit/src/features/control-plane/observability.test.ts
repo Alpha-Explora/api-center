@@ -99,6 +99,7 @@ describe("audit log", () => {
     expect(auditActionLabel("control_plane.live.activation_approved")).toBe("Live activation approved");
     expect(auditActionLabel("control_plane.project_role.set")).toBe("Project role set");
     expect(auditActionLabel("legacy.thing")).toBe("Legacy thing");
+    expect(auditActionLabel("control_plane.capability_config.put")).toBe("Capability settings updated");
   });
 
   it("omits the time filter for all time and normalizes the actor", () => {

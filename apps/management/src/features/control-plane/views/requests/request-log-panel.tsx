@@ -147,7 +147,7 @@ export function RequestLogPanel({ applicationId }: { applicationId?: string }) {
             <TableBody>
               {entries.map((entry) => (
                 <TableRow key={entry.requestId} className="cursor-pointer" onClick={() => setSelected(entry)}>
-                  <TableCell className="max-w-56 sm:max-w-80">
+                  <TableCell className="max-w-36 sm:max-w-80">
                     <button
                       type="button"
                       className="block w-full truncate text-left font-mono text-xs hover:underline focus-visible:underline focus-visible:outline-none"

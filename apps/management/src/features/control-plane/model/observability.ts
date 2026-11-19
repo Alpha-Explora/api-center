@@ -267,14 +267,18 @@ export function auditSearch(filters: AuditFilters, now: number, cursor?: string,
 
 /** "control_plane.credential.revoked" → "Key revoked"; "control_plane.api_access.granted" → "API access granted". */
 export function auditActionLabel(action: string): string {
+  if (action === "control_plane.member.set") return "Member role set";
   const parts = action.split(".");
   const [type, ...rest] = parts[0] === "control_plane" ? parts.slice(1) : parts;
   if (!type) return action;
   const noun = AUDIT_NOUNS[type] ?? type.replaceAll("_", " ");
-  const verb = rest.join(" ").replaceAll("_", " ");
+  const verb = rest.map((word) => AUDIT_VERBS[word] ?? word.replaceAll("_", " ")).join(" ");
   const text = verb ? `${noun} ${verb}` : noun;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** HTTP-method verbs some writers record. */
+const AUDIT_VERBS: Record<string, string> = { put: "updated", delete: "removed" };
 
 const AUDIT_NOUNS: Record<string, string> = {
   api: "API",

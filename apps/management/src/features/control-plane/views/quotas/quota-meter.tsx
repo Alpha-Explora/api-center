@@ -11,6 +11,11 @@ const FILL = {
   neutral: "bg-muted-foreground",
 } as const;
 
+/** "resets in 2 hours"; a window ending within a minute reads "resets in under a minute". */
+function resetsIn(windowEnd: string) {
+  return Date.parse(windowEnd) - Date.now() < 60_000 ? "resets in under a minute" : `resets ${formatRelative(windowEnd)}`;
+}
+
 /** A thin progress bar for a request budget's current window, with the count and when it resets. */
 export function QuotaMeterBar({ meter, compact = false, className }: { meter: QuotaMeter | undefined; compact?: boolean; className?: string }) {
   if (!meter) return <span className={cn("text-xs text-muted-foreground", className)}>No usage reported</span>;
@@ -34,11 +39,11 @@ export function QuotaMeterBar({ meter, compact = false, className }: { meter: Qu
       >
         <div className={cn("h-full rounded-full transition-[width]", FILL[level?.tone ?? "neutral"])} style={{ width: `${level?.percent ?? 0}%` }} />
       </div>
-      <div className="flex items-baseline justify-between gap-2 text-xs">
-        <span className={cn("tabular-nums", level?.tone === "danger" ? "text-danger" : level?.tone === "warning" ? "text-warning" : "text-foreground")}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs">
+        <span className={cn("whitespace-nowrap tabular-nums", level?.tone === "danger" ? "text-danger" : level?.tone === "warning" ? "text-warning" : "text-foreground")}>
           {label}
         </span>
-        {compact ? null : <span className="whitespace-nowrap text-muted-foreground">resets {formatRelative(meter.windowEnd)}</span>}
+        {compact ? null : <span className="whitespace-nowrap text-muted-foreground">{resetsIn(meter.windowEnd)}</span>}
       </div>
     </div>
   );

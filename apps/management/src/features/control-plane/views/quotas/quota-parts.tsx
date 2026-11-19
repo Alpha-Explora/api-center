@@ -146,6 +146,7 @@ export function QuotaPolicyTable({
                 {policy.capability ? <span className="font-mono">{policy.capability}</span> : "All requests"}
                 <span className="sm:hidden"> · {policy.mode === "observe" ? "Observe" : "Enforce"}</span>
               </div>
+              {usage ? <div className="mt-2 sm:hidden">{usage(policy)}</div> : null}
             </TableCell>
             <TableCell className="hidden sm:table-cell">
               <StatusBadge tone={policy.mode === "observe" ? "warning" : "info"}>{policy.mode === "observe" ? "Observe" : "Enforce"}</StatusBadge>

@@ -76,7 +76,7 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
       />
       {organizationWide ? null : (
         <Notice>
-          You administer {projectOptions.length === 1 ? "one project" : `${projectOptions.length} projects`}, so you see their events. Member and team changes
+          You administer {projectOptions.length === 1 ? "one project, so you see its events" : `${projectOptions.length} projects, so you see their events`}. Member and team changes
           are visible to organization owners and admins.
         </Notice>
       )}
