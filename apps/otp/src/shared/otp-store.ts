@@ -2,6 +2,7 @@ import type { SharedServiceCaller } from '@apicenter/runtime';
 import { sameProject } from '@apicenter/runtime';
 import type { OtpRepositoryInterface } from './otp-repository.interface';
 import { PostgresOtpStore } from './postgres-otp-store';
+import type { OtpProjectSettings } from './project-settings';
 
 export interface OtpRecord {
   otpId: string;
@@ -11,6 +12,8 @@ export interface OtpRecord {
   expiresAt: number;
   status: 'pending' | 'used' | 'expired';
   attemptCount: number;
+  /** Failed verifications allowed before the challenge expires; null for no cap. */
+  maxAttempts?: number | null;
 }
 
 interface OwnedOtpRecord {
@@ -21,6 +24,7 @@ interface OwnedOtpRecord {
 export class MemoryOtpStore implements OtpRepositoryInterface {
   private static instance: MemoryOtpStore;
   private readonly store = new Map<string, OwnedOtpRecord>();
+  private readonly projectSettings = new Map<string, OtpProjectSettings>();
 
   public static getInstance(): MemoryOtpStore {
     if (!MemoryOtpStore.instance) {
@@ -56,17 +60,35 @@ export class MemoryOtpStore implements OtpRepositoryInterface {
     if (!entry) return 'OTP_NOT_FOUND';
     const record = entry.record;
     if (record.status === 'used') return 'OTP_ALREADY_USED';
+    if (record.status === 'expired' && attemptsExhausted(record)) return 'OTP_ATTEMPTS_EXCEEDED';
     if (record.status === 'expired' || Date.now() > record.expiresAt) return 'OTP_EXPIRED';
     record.attemptCount += 1;
-    if (record.codeHash !== codeHash) return 'OTP_INVALID';
+    if (record.codeHash !== codeHash) {
+      if (attemptsExhausted(record)) record.status = 'expired';
+      return 'OTP_INVALID';
+    }
     record.status = 'used';
     return 'VERIFIED';
+  }
+
+  async getProjectSettings(projectId: string, environment: OtpProjectSettings['environment']): Promise<OtpProjectSettings | null> {
+    const settings = this.projectSettings.get(`${projectId}:${environment}`);
+    return settings ? { ...settings } : null;
+  }
+
+  async setProjectSettings(settings: OtpProjectSettings): Promise<OtpProjectSettings> {
+    this.projectSettings.set(`${settings.projectId}:${settings.environment}`, { ...settings });
+    return { ...settings };
   }
 
   private ownedEntry(otpId: string, owner: SharedServiceCaller): OwnedOtpRecord | undefined {
     const entry = this.store.get(otpId);
     return entry && sameProject(entry.owner, owner) ? entry : undefined;
   }
+}
+
+function attemptsExhausted(record: OtpRecord): boolean {
+  return record.maxAttempts != null && record.attemptCount >= record.maxAttempts;
 }
 
 /** Uses Postgres when DATABASE_URL is set. Production refuses to start without it. */
