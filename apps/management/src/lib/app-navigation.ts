@@ -1,103 +1,114 @@
-export type AppNavItem = {
+export type EnvironmentKind = "test" | "live";
+
+export type NavItem = {
+  id: string;
   href: string;
   label: string;
   description: string;
   keywords?: string[];
+  /** Only platform operators see it. */
+  platformOnly?: boolean;
 };
 
-export type AppNavGroup<TItem extends AppNavItem = AppNavItem> = {
-  label: string;
-  items: TItem[];
-};
-
-export type AppNavSearchResult<TItem extends AppNavItem = AppNavItem> = TItem & {
-  groupLabel: string;
-};
-
-export const commandCenterNavGroups: AppNavGroup[] = [
+/** Pages that act on the whole organization. */
+export const organizationNav: NavItem[] = [
   {
-    label: "Workspace",
-    items: [
-      {
-        href: "/control-plane/projects",
-        label: "Projects",
-        description: "Projects, environments, capabilities, applications, grants and keys.",
-        keywords: ["project", "application", "api key", "credential", "grant", "capability", "live", "webhook"],
-      },
-      {
-        href: "/control-plane/people",
-        label: "People",
-        description: "Organization members, roles and teams.",
-        keywords: ["members", "roles", "teams", "owner", "admin", "developer", "viewer"],
-      },
-    ],
+    id: "projects",
+    href: "/projects",
+    label: "Projects",
+    description: "Every project in the organization and its environments.",
+    keywords: ["project", "environment", "create"],
   },
   {
-    label: "Operations",
-    items: [
-      {
-        href: "/requests",
-        label: "Requests",
-        description: "Recent gateway requests, their status and where they failed.",
-        keywords: ["diagnostics", "errors", "logs", "status", "audit"],
-      },
-      {
-        href: "/settings",
-        label: "Settings",
-        description: "The gateway this console uses and how it is configured.",
-        keywords: ["configuration", "environment", "session"],
-      },
-    ],
+    id: "people",
+    href: "/people",
+    label: "People",
+    description: "Members, their organization roles, and teams.",
+    keywords: ["members", "roles", "teams", "owner", "admin", "developer", "viewer", "invite"],
+  },
+  {
+    id: "requests",
+    href: "/requests",
+    label: "Requests",
+    description: "Look up a gateway request by correlation ID.",
+    keywords: ["diagnostics", "errors", "logs", "correlation", "status"],
+    platformOnly: true,
+  },
+  {
+    id: "settings",
+    href: "/settings",
+    label: "Settings",
+    description: "The gateway this console uses and how it is configured.",
+    keywords: ["configuration", "session", "gateway"],
+    platformOnly: true,
   },
 ];
 
-/** Hides the platform-operator pages from organization members. */
-export function getVisibleNavGroups<TItem extends AppNavItem>(
-  groups: AppNavGroup<TItem>[],
-  platformAdmin = true,
-) {
-  const platformOnlyHrefs = new Set(["/settings"]);
-  return groups.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => platformAdmin || !platformOnlyHrefs.has(item.href)),
-  }));
+/** Sections of one project environment. `path` is relative to /projects/:projectId/:env. */
+export const projectSections: { id: string; path: string; label: string; description: string; keywords?: string[] }[] = [
+  { id: "overview", path: "", label: "Overview", description: "Status, plan, usage and going live.", keywords: ["plan", "usage", "go live", "readiness"] },
+  {
+    id: "applications",
+    path: "/applications",
+    label: "Applications",
+    description: "Applications, their grants and API keys.",
+    keywords: ["app", "keys", "credentials", "grants", "api key"],
+  },
+  {
+    id: "capabilities",
+    path: "/capabilities",
+    label: "Capabilities",
+    description: "Shared services enabled in this environment.",
+    keywords: ["email", "sms", "otp", "payments", "geo", "google", "enable"],
+  },
+];
+
+export function visibleOrganizationNav(platformAdmin: boolean) {
+  return organizationNav.filter((item) => platformAdmin || !item.platformOnly);
 }
 
-export function getNavSearchResults<TItem extends AppNavItem>(
-  groups: AppNavGroup<TItem>[],
-  query: string,
-  platformAdmin = true,
-): AppNavSearchResult<TItem>[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return [];
-
-  const terms = normalizedQuery.split(/\s+/);
-  const items = getVisibleNavGroups(groups, platformAdmin)
-    .flatMap((group) =>
-      group.items.map((item) => ({
-        ...item,
-        groupLabel: group.label,
-      })),
-    );
-  const directMatches = items.filter((item) =>
-    terms.every((term) =>
-      normalizeSearchText(item.label, item.groupLabel, item.href).includes(term),
-    ),
-  );
-  if (directMatches.length > 0) return directMatches;
-
-  return items.filter((item) => {
-    const searchable = normalizeSearchText(
-      item.label,
-      item.groupLabel,
-      item.href,
-      item.description,
-      ...(item.keywords ?? []),
-    );
-    return terms.every((term) => searchable.includes(term));
-  });
+export function projectHref(projectId: string, environment: EnvironmentKind, sectionPath = "") {
+  return `/projects/${encodeURIComponent(projectId)}/${environment}${sectionPath}`;
 }
 
-function normalizeSearchText(...parts: string[]) {
-  return parts.join(" ").toLowerCase().replace(/[-/]/g, " ");
+export type ConsoleLocation =
+  | { kind: "organization"; sectionId: string | undefined }
+  | { kind: "project"; projectId: string; environment: EnvironmentKind | undefined; sectionId: string | undefined; rest: string };
+
+/** Where a pathname sits in the console: an organization page, or a project environment and its section. */
+export function parseConsolePath(pathname: string): ConsoleLocation {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] === "projects" && segments[1]) {
+    const environment = segments[2] === "test" || segments[2] === "live" ? segments[2] : undefined;
+    const rest = environment ? `/${segments.slice(3).join("/")}`.replace(/\/$/, "") : "";
+    const section = environment ? projectSections.find((entry) => entry.path && (rest === entry.path || rest.startsWith(`${entry.path}/`))) : undefined;
+    return {
+      kind: "project",
+      projectId: decodeURIComponent(segments[1]),
+      environment,
+      sectionId: environment ? (section?.id ?? (rest === "" ? "overview" : undefined)) : undefined,
+      rest,
+    };
+  }
+  const item = organizationNav.find((entry) => pathname === entry.href || pathname.startsWith(`${entry.href}/`));
+  return { kind: "organization", sectionId: item?.id };
+}
+
+/**
+ * The same section in the other environment. Object pages (an application, an API) are environment-specific,
+ * so switching lands on their section's list instead.
+ */
+export function switchEnvironmentPath(pathname: string, environment: EnvironmentKind): string | undefined {
+  const location = parseConsolePath(pathname);
+  if (location.kind !== "project") return undefined;
+  const section = projectSections.find((entry) => entry.id === location.sectionId);
+  return projectHref(location.projectId, environment, section?.path ?? "");
+}
+
+/** Case-insensitive search over labels, descriptions and keywords; every word must match. */
+export function matchesQuery(query: string, ...parts: (string | undefined)[]) {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return true;
+  const haystack = parts.filter(Boolean).join(" ").toLowerCase().replace(/[-/]/g, " ");
+  return terms.every((term) => haystack.includes(term));
 }

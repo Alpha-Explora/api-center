@@ -14,6 +14,7 @@ const managementSessionSchema = z.object({
   source: z.enum(["local-dev", "google"]),
   organizationIds: z.array(z.string()),
   organizationRoles: z.record(z.string(), consoleRole),
+  organizations: z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() })).default([]),
   platformAdmin: z.boolean(),
 });
 

@@ -19,17 +19,10 @@ const records = z.object({
     }),
   ),
 });
-export async function loadRequests(
-  serviceId: string | undefined,
-  environment: "test" | "live",
-  correlationId: string,
-) {
-  const query = new URLSearchParams({ environment });
-  if (correlationId.trim()) query.set("correlationId", correlationId.trim());
-  const result = await request<unknown>(
-    serviceId
-      ? `/api/local/services/${encodeURIComponent(serviceId)}/requests?${query}`
-      : `/api/local/request-diagnostics?${query}`,
-  );
+
+/** Unattributed requests with this correlation ID in the last 24 hours (platform operators only). */
+export async function loadRequests(correlationId: string) {
+  const query = new URLSearchParams({ correlationId: correlationId.trim() });
+  const result = await request<unknown>(`/api/local/request-diagnostics?${query}`);
   return records.parse(result).data;
 }

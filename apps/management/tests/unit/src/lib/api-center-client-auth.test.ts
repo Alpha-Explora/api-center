@@ -15,6 +15,7 @@ describe("api-center-client management auth", () => {
       source: "google",
       organizationIds: ["org_1"],
       organizationRoles: { org_1: "admin" },
+      organizations: [{ id: "org_1", slug: "acme", name: "Acme" }],
       platformAdmin: false,
     };
     const fetchMock = vi.fn().mockResolvedValue(

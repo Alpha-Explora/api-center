@@ -89,6 +89,10 @@ describe("resolveManagementSessionFromGoogleClaims", () => {
       platformAdmin: false,
       organizationIds: [ACME, BETA],
       organizationRoles: { [ACME]: "observer", [BETA]: "operator" },
+      organizations: [
+        { id: ACME, slug: "acme", name: "Acme" },
+        { id: BETA, slug: "beta", name: "Beta" },
+      ],
     });
   });
 

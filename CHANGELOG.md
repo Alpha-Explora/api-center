@@ -25,6 +25,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Changed
 
+- The management console is redesigned: a neutral, dense look with light and dark themes; an organization switcher, ⌘K search, and per-project Test/Live switching with live marked in red. Projects live at `/projects/:projectId/:env` with Overview (status, plan, last-24-hour usage by application and action, going live), Applications (an application page with Access and Keys tabs: grant several actions at once, choose a key's expiry, revoke with a reason) and Capabilities (switches; turning one off or changing live asks first). People shows members with roles and teams. Actions a person's role does not allow are disabled with the reason instead of failing. Requests and Settings are shown to platform operators only. Old `/control-plane/*` links redirect.
 - Remove Redis. Runtime idempotency and per-recipient send limits for email, SMS and OTP, the gateway's refresh tokens and payment idempotency now live in PostgreSQL (migration `20261118000100`: `<runtime schema>.idempotency_keys` and `rate_limit_windows`, `apic_identity.refresh_tokens`, `apic_governance.payment_idempotency_keys`), purged by the retention job. Gateway rate limits, tribe quotas, traffic and usage dashboards count per instance in memory; dashboard metadata now reports `memory-window`. Readiness no longer reports Redis. Deployments drop every `*_REDIS_URL` setting.
 
 ### Fixed

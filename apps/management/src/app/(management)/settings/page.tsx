@@ -1,104 +1,47 @@
-import type { ReactNode } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ManagementSessionCard } from "@/components/management-session-card";
-import { PageHeading } from "@/components/page-heading";
+import type { Metadata } from "next";
+import { PageHeader } from "@/components/patterns/page-header";
+import { Notice } from "@/components/patterns/notices";
+import { DescriptionList, Panel } from "@/components/patterns/panel";
 import { PlatformAdminOnly } from "@/components/platform-admin-only";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { SessionPanel } from "@/components/session-panel";
+import { StatusBadge } from "@/components/patterns/status-badge";
 import { getManagementEnvironment } from "@/lib/management-environment";
+
+export const metadata: Metadata = { title: "Settings" };
 
 export default function SettingsPage() {
   const managementEnvironment = getManagementEnvironment();
-  const apiCenterBaseUrl =
-    process.env.API_CENTER_BASE_URL ?? "https://api.apicenter.itsandbox.site";
-  const publicApiCenterBaseUrl =
-    process.env.NEXT_PUBLIC_API_CENTER_BASE_URL ??
-    "https://api.apicenter.itsandbox.site";
+  const apiCenterBaseUrl = process.env.API_CENTER_BASE_URL ?? "https://api.apicenter.itsandbox.site";
+  const publicApiCenterBaseUrl = process.env.NEXT_PUBLIC_API_CENTER_BASE_URL ?? "https://api.apicenter.itsandbox.site";
   const googleCloudProject =
-    process.env.GOOGLE_CLOUD_PROJECT ??
-    process.env.GCP_PROJECT_ID ??
-    process.env.API_CENTER_GCP_PROJECT_ID ??
-    process.env.GCLOUD_PROJECT ??
-    "";
+    process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCP_PROJECT_ID ?? process.env.API_CENTER_GCP_PROJECT_ID ?? process.env.GCLOUD_PROJECT ?? "";
   const hasPlatformSecret = Boolean(process.env.API_CENTER_PLATFORM_ADMIN_SECRET);
 
   return (
     <PlatformAdminOnly>
-    <div className="flex max-w-4xl flex-col gap-6">
-      <PageHeading
-        title="Settings"
-        description="The gateway this console talks to and how it is configured."
-      />
-
-      <ManagementSessionCard />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>API Center endpoint</CardTitle>
-          <CardDescription>
-            The console server calls the gateway admin routes at this address.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-          <SettingDetail label="Environment">
-            <Badge
-              variant={
-                managementEnvironment.isLive ? "destructive" : "secondary"
-              }
-            >
-              {managementEnvironment.label}
-            </Badge>
-          </SettingDetail>
-          <SettingDetail label="Platform secret">
-            {hasPlatformSecret ? "configured" : "missing"}
-          </SettingDetail>
-          <SettingDetail label="Server API Center URL">
-            {apiCenterBaseUrl}
-          </SettingDetail>
-          <SettingDetail label="Browser API Center URL">
-            {publicApiCenterBaseUrl}
-          </SettingDetail>
-          <SettingDetail label="GCP project">
-            {googleCloudProject || "not configured"}
-          </SettingDetail>
-        </CardContent>
-      </Card>
-
-
-      <Alert>
-        <AlertTitle>Secrets policy</AlertTitle>
-        <AlertDescription>
-          Do not put platform admin secrets, Google OAuth client secrets,
-          PayMongo keys, Resend keys, or database URLs in
-          browser-exposed variables. The platform admin secret belongs only as a
-          server environment variable named `API_CENTER_PLATFORM_ADMIN_SECRET`.
-        </AlertDescription>
-      </Alert>
-
-    </div>
+      <PageHeader title="Settings" description="The gateway this console talks to and how this deployment is configured." />
+      <SessionPanel />
+      <Panel title="Gateway" description="The console server calls the gateway's admin routes at this address.">
+        <DescriptionList
+          items={[
+            {
+              label: "Console deployment",
+              value: <StatusBadge tone={managementEnvironment.isLive ? "danger" : "neutral"}>{managementEnvironment.label}</StatusBadge>,
+            },
+            {
+              label: "Platform credential",
+              value: <StatusBadge tone={hasPlatformSecret ? "success" : "danger"}>{hasPlatformSecret ? "Configured" : "Missing"}</StatusBadge>,
+            },
+            { label: "Server gateway URL", value: <span className="font-mono text-xs">{apiCenterBaseUrl}</span> },
+            { label: "Browser gateway URL", value: <span className="font-mono text-xs">{publicApiCenterBaseUrl}</span> },
+            { label: "Google Cloud project", value: <span className="font-mono text-xs">{googleCloudProject || "Not configured"}</span> },
+          ]}
+        />
+      </Panel>
+      <Notice title="Keep secrets server-side">
+        Never put the platform credential, OAuth client secrets, PayMongo or Resend keys, or database URLs in <code className="font-mono">NEXT_PUBLIC_</code>{" "}
+        variables. The platform credential belongs only in the server variable <code className="font-mono">API_CENTER_PLATFORM_ADMIN_SECRET</code>.
+      </Notice>
     </PlatformAdminOnly>
-  );
-}
-
-function SettingDetail({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-lg border bg-card p-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="break-all font-mono text-[13px] font-medium leading-5">
-        {children}
-      </span>
-    </div>
   );
 }

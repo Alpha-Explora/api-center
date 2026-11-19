@@ -1,16 +1,12 @@
 import { z } from "zod";
-import { request } from "@/lib/api-center/client-core";
 import {
   applicationSchema,
-  assignmentSchema,
   capabilitySchema,
   credentialSchema,
   grantSchema,
-  inventorySchema,
   issuedCredentialSchema,
   meSchema,
   memberSchema,
-  mismatchSchema,
   planSchema,
   projectSchema,
   projectSummarySchema,
@@ -21,22 +17,7 @@ import {
   type EnvironmentKind,
 } from "../model/control-plane";
 
-const BASE = "/api/local/control-plane";
-
-async function call<T>(schema: z.ZodType<T>, path: string, init?: RequestInit): Promise<T> {
-  const response = await request<{ data: unknown }>(`${BASE}/${path}`, init);
-  return schema.parse(response.data);
-}
-
-function send(method: "POST" | "PUT" | "DELETE", body?: unknown): RequestInit {
-  return { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) };
-}
-
-const org = (organizationId: string) => `organizations/${encodeURIComponent(organizationId)}`;
-const env = (organizationId: string, projectId: string, kind: EnvironmentKind) =>
-  `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/${kind}`;
-const app = (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string) =>
-  `${env(organizationId, projectId, kind)}/applications/${encodeURIComponent(applicationId)}`;
+import { app, call, env, org, send } from "./http";
 
 export const controlPlane = {
   me: (organizationId: string) => call(meSchema, `${org(organizationId)}/me`),
@@ -66,8 +47,13 @@ export const controlPlane = {
   credentials: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string) =>
     call(z.array(credentialSchema), `${app(organizationId, projectId, kind, applicationId)}/credentials`),
   /** The operation ID makes a retried click safe: the gateway never issues twice for it. */
-  issueCredential: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string, operationId: string) =>
-    call(issuedCredentialSchema, `${app(organizationId, projectId, kind, applicationId)}/credentials`, send("POST", { operationId })),
+  issueCredential: (
+    organizationId: string,
+    projectId: string,
+    kind: EnvironmentKind,
+    applicationId: string,
+    input: { operationId: string; expiresInDays?: number },
+  ) => call(issuedCredentialSchema, `${app(organizationId, projectId, kind, applicationId)}/credentials`, send("POST", input)),
   revokeCredential: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string, credentialId: string, reason: string) =>
     call(credentialSchema, `${app(organizationId, projectId, kind, applicationId)}/credentials/${encodeURIComponent(credentialId)}/revoke`, send("POST", { reason })),
 
@@ -102,13 +88,4 @@ export const controlPlane = {
   createTeam: (organizationId: string, input: { slug: string; name: string }) => call(teamSchema, `${org(organizationId)}/teams`, send("POST", input)),
   addTeamMember: (organizationId: string, teamId: string, email: string) =>
     call(z.unknown(), `${org(organizationId)}/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(email)}`, send("PUT")),
-
-  inventory: (organizationId: string) => call(inventorySchema, `${org(organizationId)}/migration/inventory`),
-  backfill: (organizationId: string, revision: string) => call(z.unknown(), `${org(organizationId)}/migration/backfill`, send("POST", { revision })),
-  assignments: (organizationId: string) => call(z.array(assignmentSchema), `${org(organizationId)}/migration/assignments`),
-  mismatches: (organizationId: string) => call(z.array(mismatchSchema), `${org(organizationId)}/migration/shadow-mismatches`),
-  cutover: (organizationId: string, projectId: string, kind: EnvironmentKind, expectedFence: number) =>
-    call(assignmentSchema, `${org(organizationId)}/migration/projects/${encodeURIComponent(projectId)}/environments/${kind}/cutover`, send("POST", { expectedFence })),
-  rollback: (organizationId: string, projectId: string, kind: EnvironmentKind, expectedFence: number) =>
-    call(assignmentSchema, `${org(organizationId)}/migration/projects/${encodeURIComponent(projectId)}/environments/${kind}/rollback`, send("POST", { expectedFence })),
 };

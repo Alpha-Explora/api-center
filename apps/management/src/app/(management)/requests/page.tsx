@@ -1,14 +1,15 @@
-import { PageHeading } from "@/components/page-heading";
+import type { Metadata } from "next";
+import { PageHeader } from "@/components/patterns/page-header";
+import { PlatformAdminOnly } from "@/components/platform-admin-only";
 import { RequestDiagnosticsPanel } from "@/features/operations/diagnostics/views/request-diagnostics-panel";
+
+export const metadata: Metadata = { title: "Requests" };
 
 export default function RequestsPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeading
-        title="Requests"
-        description="Recent requests through the gateway: the application, route, status and where a failure happened."
-      />
+    <PlatformAdminOnly>
+      <PageHeader title="Requests" description="Look up a gateway request by its correlation ID to see its status and where it failed." />
       <RequestDiagnosticsPanel />
-    </div>
+    </PlatformAdminOnly>
   );
 }

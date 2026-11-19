@@ -22,13 +22,34 @@ export async function localApiRequest<T>(
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(formatRequestError(response.status, body));
+    throw new ApiError(formatRequestError(response.status, body), response.status, errorCode(body));
   }
 
   return response.json() as Promise<T>;
 }
 
 export const request = localApiRequest;
+
+/** A failed console or gateway call: the readable message plus the HTTP status and gateway error code. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+function errorCode(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { error?: { code?: unknown } };
+    return typeof parsed.error?.code === "string" ? parsed.error.code : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function withQuery(path: string, params: URLSearchParams) {
   const query = params.toString();
