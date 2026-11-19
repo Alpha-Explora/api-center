@@ -26,6 +26,8 @@ import { ObservabilityController } from "./observability/observability.controlle
 import { ObservabilityService } from "./observability/observability.service";
 import { EnvironmentInventoryController } from "./environment-inventory.controller";
 import { EnvironmentInventoryService } from "./environment-inventory.service";
+import { QuotaPoliciesController } from "./quota-policies.controller";
+import { ConsumerAccessController } from "./consumer-access.controller";
 
 /**
  * Control plane v2: organization-owned projects, environment-bound applications, explicit
@@ -43,6 +45,8 @@ import { EnvironmentInventoryService } from "./environment-inventory.service";
     WhoAmIController,
     ObservabilityController,
     EnvironmentInventoryController,
+    QuotaPoliciesController,
+    ConsumerAccessController,
   ],
   providers: [
     ControlPlaneAdminService,

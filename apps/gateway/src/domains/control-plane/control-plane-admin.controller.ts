@@ -78,7 +78,10 @@ const schemas = {
     .min(1)
     .max(200),
   apiGrant: z.object({ apiId: z.string().regex(/^api_[a-z0-9]{24}$/), action: z.string().min(3).max(64), actor: onBehalfOf.optional() }).strict(),
-  apiDecision: z.object({ approve: z.boolean(), actor: onBehalfOf.optional() }).strict(),
+  apiDecision: z
+    .object({ approve: z.boolean(), reason: z.string().trim().min(1).max(500).optional(), actor: onBehalfOf.optional() })
+    .strict()
+    .refine((value) => !(value.approve && value.reason), "reason is only for a rejection"),
   setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
@@ -526,7 +529,7 @@ export class ControlPlaneAdminController {
     const actor = actorOf(req);
     const apiProjectId = await this.apis.accessRequestApiProject(org, requestId);
     await this.access.require(actor, org, "project.manage", { projectId: apiProjectId });
-    return { success: true, data: await this.apis.decide(org, requestId, input.approve, actorLabel(actor, input.actor)) };
+    return { success: true, data: await this.apis.decide(org, requestId, input.approve, actorLabel(actor, input.actor), input.reason) };
   }
 
   // ── Workload identity ────────────────────────────────────────────────────

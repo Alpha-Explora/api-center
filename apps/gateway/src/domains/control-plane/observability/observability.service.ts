@@ -72,6 +72,7 @@ export class ObservabilityService {
         where: {
           organizationId: scope.organizationId,
           environmentKind: scope.environmentKind,
+          status: { not: "deleted" },
           OR: [{ scope: "project", projectId: scope.projectId }, { scope: "shared", id: { in: covering.map((row) => row.policyId) } }],
         },
       });
@@ -95,7 +96,7 @@ export class ObservabilityService {
   /** Current-window usage of every shared ceiling in the organization. */
   async sharedCeilingMeters(organizationId: string, now = new Date()) {
     return withTenant(this.prisma, { organizationId }, async (db) => {
-      const policies = (await db.cpQuotaPolicy.findMany({ where: { organizationId, scope: "shared" } })) as MeterPolicy[];
+      const policies = (await db.cpQuotaPolicy.findMany({ where: { organizationId, scope: "shared", status: { not: "deleted" } } })) as MeterPolicy[];
       const earliest = policies.reduce((min, policy) => Math.min(min, windowStart(now, policy.windowSeconds).getTime()), now.getTime());
       const counters = policies.length
         ? await db.cpQuotaCounter.findMany({
