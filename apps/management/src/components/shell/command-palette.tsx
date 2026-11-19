@@ -7,8 +7,8 @@ import { useTheme } from "next-themes";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { controlPlane } from "@/features/control-plane/data/control-plane-repository";
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
-import { useOrganization } from "@/features/control-plane/view-models/use-organization";
-import { matchesQuery, parseConsolePath, projectHref, projectSections, visibleOrganizationNav } from "@/lib/app-navigation";
+import { useAccess, useOrganization } from "@/features/control-plane/view-models/use-organization";
+import { matchesQuery, parseConsolePath, projectHref, projectPageHref, projectPages, projectSections, visibleOrganizationNav } from "@/lib/app-navigation";
 import { cn } from "@/lib/utils";
 
 export const OPEN_COMMAND_PALETTE_EVENT = "apicenter:open-command-palette";
@@ -25,6 +25,7 @@ export function CommandPalette() {
   const pathname = usePathname();
   const { setTheme, resolvedTheme } = useTheme();
   const { organizationId, platformAdmin } = useOrganization();
+  const { access } = useAccess(organizationId);
   const projects = useQuery({
     queryKey: cpKeys.projects(organizationId ?? "none"),
     queryFn: () => controlPlane.listProjects(organizationId as string),
@@ -66,8 +67,18 @@ export function CommandPalette() {
           });
         }
       }
+      for (const page of projectPages) {
+        list.push({
+          id: `page-${page.id}`,
+          group: "This project",
+          label: page.label,
+          keywords: `${page.description} ${page.keywords?.join(" ") ?? ""}`,
+          icon: ArrowRightIcon,
+          run: go(projectPageHref(location.projectId, page.path)),
+        });
+      }
     }
-    for (const item of visibleOrganizationNav(platformAdmin)) {
+    for (const item of visibleOrganizationNav(platformAdmin, access.canManageQuotas)) {
       list.push({ id: `nav-${item.id}`, group: "Pages", label: item.label, keywords: `${item.description} ${item.keywords?.join(" ") ?? ""}`, icon: ArrowRightIcon, run: go(item.href) });
     }
     for (const project of projects.data ?? []) {
@@ -82,7 +93,7 @@ export function CommandPalette() {
       run: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
     });
     return list;
-  }, [pathname, platformAdmin, projects.data, resolvedTheme, router, setTheme]);
+  }, [access.canManageQuotas, pathname, platformAdmin, projects.data, resolvedTheme, router, setTheme]);
 
   const results = commands.filter((command) => matchesQuery(query, command.label, command.group, command.hint, command.keywords));
   const groups = [...new Set(results.map((command) => command.group))];

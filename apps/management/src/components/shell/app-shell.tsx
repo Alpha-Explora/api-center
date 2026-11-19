@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { controlPlane } from "@/features/control-plane/data/control-plane-repository";
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
 import { useOrganization } from "@/features/control-plane/view-models/use-organization";
-import { organizationNav, parseConsolePath, projectHref, projectSections } from "@/lib/app-navigation";
+import { organizationNav, parseConsolePath, projectHref, projectPages, projectSections } from "@/lib/app-navigation";
 import type { ManagementEnvironment } from "@/lib/management-environment";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
@@ -111,7 +111,9 @@ function Breadcrumbs() {
     const item = organizationNav.find((entry) => entry.id === location.sectionId);
     if (item) crumbs.push({ label: item.label });
   } else {
-    crumbs.push({ label: project.data?.name ?? "Project", href: location.environment ? projectHref(location.projectId, location.environment) : undefined });
+    crumbs.push({ label: project.data?.name ?? "Project", href: projectHref(location.projectId, location.environment ?? "test") });
+    const page = location.environment ? undefined : projectPages.find((entry) => entry.id === location.sectionId);
+    if (page) crumbs.push({ label: page.label });
     const section = projectSections.find((entry) => entry.id === location.sectionId);
     if (section && section.id !== "overview" && location.environment) {
       const isList = location.rest === section.path;
