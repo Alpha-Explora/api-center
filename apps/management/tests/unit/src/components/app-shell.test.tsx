@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/shell/app-shell";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { renderWithQueryClient } from "@tests/support/render-with-query-client";
 
 const apiClient = vi.hoisted(() => ({
@@ -8,19 +9,41 @@ const apiClient = vi.hoisted(() => ({
 }));
 
 const navigation = vi.hoisted(() => ({
-  pathname: "/promotions",
+  pathname: "/projects",
+  push: vi.fn(),
 }));
 
 vi.mock("@/lib/api-center-client", () => apiClient);
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
+  useRouter: () => ({ push: navigation.push, replace: navigation.push }),
+  useSearchParams: () => new URLSearchParams(),
 }));
+
+const environment = { key: "local", label: "LOCAL", description: "Local/private management session", isLive: false } as const;
+
+function renderShell() {
+  return renderWithQueryClient(
+    <TooltipProvider>
+      <AppShell environment={environment} authMode="local-dev">
+        <h1>Page content</h1>
+      </AppShell>
+    </TooltipProvider>,
+  );
+}
 
 describe("AppShell", () => {
   beforeEach(() => {
+    navigation.pathname = "/projects";
     apiClient.getManagementSession.mockResolvedValue({
+      userId: "u",
       role: "admin",
       email: "platform@example.com",
+      source: "local-dev",
+      organizationIds: [],
+      organizationRoles: {},
+      organizations: [],
+      platformAdmin: false,
     });
   });
 
@@ -30,59 +53,27 @@ describe("AppShell", () => {
   });
 
   it("provides a skip link to the main content region", () => {
-    renderWithQueryClient(
-      <AppShell
-        environment={{
-          key: "local",
-          label: "LOCAL",
-          description: "Local/private management session",
-          isLive: false,
-        }}
-        authMode="local-dev"
-      >
-        <h1>Promotion controls</h1>
-      </AppShell>,
-    );
-
-    const skipLink = screen.getByRole("link", {
-      name: "Skip to main content",
-    });
+    renderShell();
+    const skipLink = screen.getByRole("link", { name: "Skip to main content" });
     const main = screen.getByRole("main");
-
     expect(skipLink.getAttribute("href")).toBe("#main-content");
     expect(main.getAttribute("id")).toBe("main-content");
     expect(main.getAttribute("tabindex")).toBe("-1");
   });
 
-  it("surfaces task-oriented workflow search results", () => {
-    renderWithQueryClient(
-      <AppShell
-        environment={{
-          key: "local",
-          label: "LOCAL",
-          description: "Local/private management session",
-          isLive: false,
-        }}
-        authMode="local-dev"
-      >
-        <h1>Promotion controls</h1>
-      </AppShell>,
-    );
+  it("opens the command palette with Ctrl+K and runs a matching page", async () => {
+    renderShell();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByLabelText("Search pages, projects and actions");
+    fireEvent.change(input, { target: { value: "teams" } });
+    expect(screen.getByRole("option", { name: /People/ })).toBeTruthy();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(navigation.push).toHaveBeenCalledWith("/people");
+  });
 
-    const searchInput = screen.getByLabelText("Find command or workflow");
-    fireEvent.focus(searchInput);
-    fireEvent.change(searchInput, {
-      target: { value: "api key" },
-    });
-
-    expect(
-      screen
-        .getAllByRole("link", { name: /Projects/ })
-        .some(
-          (link) =>
-            link.getAttribute("href") === "/control-plane/projects" &&
-            link.textContent?.includes("applications, grants and keys"),
-        ),
-    ).toBe(true);
+  it("marks the live environment in the chrome", () => {
+    navigation.pathname = "/projects/prj_abc/live/applications";
+    renderShell();
+    expect(screen.getAllByText("Live environment").length).toBeGreaterThan(0);
   });
 });

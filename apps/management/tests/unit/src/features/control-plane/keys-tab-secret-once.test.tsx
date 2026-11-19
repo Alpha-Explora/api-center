@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { SecretOnce } from "@/features/control-plane/views/project-view";
+import { SecretOnce } from "@/features/control-plane/views/applications/keys-tab";
 
 describe("SecretOnce", () => {
   afterEach(cleanup);

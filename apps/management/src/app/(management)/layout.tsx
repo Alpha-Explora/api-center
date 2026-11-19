@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/shell/app-shell";
 import { DeployedLocalDevBlocker } from "@/components/deployed-local-dev-blocker";
 import { Providers } from "@/app/providers";
 import { getManagementEnvironment } from "@/lib/management-environment";
@@ -18,10 +18,7 @@ export default function ManagementLayout({
   }
 
   return (
-    <Providers
-      authMode={managementAuthMode}
-      googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-    >
+    <Providers authMode={managementAuthMode} googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}>
       <AppShell environment={managementEnvironment} authMode={managementAuthMode}>
         {children}
       </AppShell>

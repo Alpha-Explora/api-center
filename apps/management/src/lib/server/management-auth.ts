@@ -12,6 +12,8 @@ export type ManagementSession = {
   organizationIds: string[];
   /** Role attached to each membership; global role is only the highest role for UI hints. */
   organizationRoles: Record<string, ManagementRole>;
+  /** Display details for each membership, in the order the gateway returned them. */
+  organizations: { id: string; slug: string; name: string }[];
   /** True for PLATFORM_ADMIN_EMAILS operators, who act as admin in every organization. */
   platformAdmin: boolean;
 };
@@ -128,6 +130,7 @@ export function createLocalDevSession(): ManagementSession {
     source: "local-dev",
     organizationIds: [],
     organizationRoles: {},
+    organizations: [],
     platformAdmin: true,
   };
 }
@@ -169,9 +172,14 @@ export function sessionFromMembershipLookup(
   const organizationRoles = Object.fromEntries(
     lookup.memberships.map(({ organizationId, role }) => [organizationId, role]),
   );
+  const organizations = lookup.memberships.map(({ organizationId, organizationSlug, organizationName }) => ({
+    id: organizationId,
+    slug: organizationSlug,
+    name: organizationName,
+  }));
 
   if (lookup.platformAdmin) {
-    return { ...identity, role: "admin", source: "google", platformAdmin: true, organizationIds, organizationRoles };
+    return { ...identity, role: "admin", source: "google", platformAdmin: true, organizationIds, organizationRoles, organizations };
   }
 
   const role = highestRole(lookup.memberships.map((membership) => membership.role));
@@ -179,7 +187,7 @@ export function sessionFromMembershipLookup(
     throw new Error(NO_ORGANIZATION_ACCESS_MESSAGE);
   }
 
-  return { ...identity, role, source: "google", platformAdmin: false, organizationIds, organizationRoles };
+  return { ...identity, role, source: "google", platformAdmin: false, organizationIds, organizationRoles, organizations };
 }
 
 function highestRole(roles: ManagementRole[]): ManagementRole | undefined {

@@ -132,7 +132,7 @@ const workflows = [
       "Operational audit records",
     ],
     button: "Open the console",
-    href: "/control-plane/projects",
+    href: "/projects",
   },
   {
     name: "Service owners",
@@ -229,7 +229,7 @@ export function PublicLandingPage() {
             </p>
             <div className="z-10 flex flex-wrap items-center justify-center gap-4">
               <Link
-                href="/control-plane/projects"
+                href="/projects"
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   "h-11 rounded-[8px] bg-white px-5 text-sm font-semibold text-black hover:bg-violet-100",
@@ -483,7 +483,7 @@ function Navbar() {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href="/control-plane/projects"
+            href="/projects"
             className="hidden text-sm font-medium text-white/58 transition-colors hover:text-white sm:inline-flex"
           >
             Sign in
