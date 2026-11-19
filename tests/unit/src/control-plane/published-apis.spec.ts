@@ -20,7 +20,7 @@ const { publicKey, privateKey } = generateKeyPairSync("ed25519");
 const keys = loadRuntimeContextKeys(JSON.stringify([{ ...publicKey.export({ format: "jwk" }), kid: "k" }]));
 
 describe("upstream guard", () => {
-  it.each(["10.0.0.5", "127.0.0.1", "169.254.169.254", "172.20.1.1", "192.168.1.1", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1"])(
+  it.each(["10.0.0.5", "127.0.0.1", "169.254.169.254", "172.20.1.1", "192.168.1.1", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1", "::ffff:a00:1", "::ffff:a9fe:a9fe", "::ffff:0:a00:1", "::a00:1", "0:0:0:0:0:ffff:7f00:1"])(
     "treats %s as private",
     (address) => expect(isPrivateAddress(address)).toBe(true),
   );
@@ -28,6 +28,7 @@ describe("upstream guard", () => {
   it("accepts public addresses", () => {
     expect(isPrivateAddress("34.120.0.10")).toBe(false);
     expect(isPrivateAddress("2600:1900::1")).toBe(false);
+    expect(isPrivateAddress("::ffff:808:808")).toBe(false);
   });
 
   it.each([
@@ -38,6 +39,16 @@ describe("upstream guard", () => {
     ["https://10.1.2.3/orders", "publicly routable"],
   ])("rejects %s", async (url, message) => {
     await expect(assertPublicUpstream(url, { resolve: async () => ["34.120.0.10"] })).rejects.toThrow(message);
+  });
+
+  it("rejects IPv4-mapped IPv6 literals for internal addresses, as URL rewrites them", async () => {
+    for (const url of ["https://[::ffff:10.0.0.1]/", "https://[::ffff:169.254.169.254]/latest", "https://[::ffff:127.0.0.1]:8443"]) {
+      await expect(assertPublicUpstream(url)).rejects.toThrow("publicly routable");
+    }
+  });
+
+  it("rejects a name that resolves to an IPv4-mapped private address", async () => {
+    await expect(assertPublicUpstream("https://mapped.example.com", { resolve: async () => ["::ffff:a9fe:a9fe"] })).rejects.toThrow("publicly routable");
   });
 
   it("rejects a public name that resolves to a private address", async () => {
