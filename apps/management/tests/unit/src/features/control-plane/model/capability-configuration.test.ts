@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  UNCONFIGURABLE_REASONS,
   emailSenderBody,
+  emailSenderFormFrom,
   emailSenderFormSchema,
   gauthBody,
   gauthFormFrom,
@@ -36,13 +38,21 @@ const form = (patch: Partial<GauthForm> = {}): GauthForm => ({
 });
 
 describe("configurable capabilities", () => {
-  it("offers configuration only for email and Google sign-in", () => {
-    expect(["email", "gauth", "payments", "sms", "otp", "geo"].filter(isConfigurable)).toEqual(["email", "gauth"]);
+  it("offers configuration for email, SMS, OTP and Google sign-in, and explains why geo has none", () => {
+    expect(["email", "gauth", "payments", "sms", "otp", "geo"].filter(isConfigurable)).toEqual(["email", "gauth", "sms", "otp"]);
+    expect(UNCONFIGURABLE_REASONS.geo).toMatch(/quotas/);
   });
 });
 
 describe("email sender", () => {
-  it("sends an empty daily limit as unlimited and trims the address", () => {
+  it("starts the form from the saved sender, with an empty limit meaning the platform default", () => {
+    const defaults = { fromAddress: "no-reply@apicenter.test", dailyLimit: 500 };
+    expect(emailSenderFormFrom({ configured: true, fromAddress: "hi@example.com", dailyLimit: 25, defaults })).toEqual({ fromAddress: "hi@example.com", dailyLimit: "25" });
+    expect(emailSenderFormFrom({ configured: false, fromAddress: null, dailyLimit: null, defaults })).toEqual({ fromAddress: "", dailyLimit: "" });
+    expect(emailSenderFormFrom(undefined)).toEqual({ fromAddress: "", dailyLimit: "" });
+  });
+
+  it("sends an empty daily limit as null (the platform default) and trims the address", () => {
     expect(emailSenderBody({ fromAddress: "  no-reply@example.com ", dailyLimit: "" })).toEqual({ fromAddress: "no-reply@example.com", dailyLimit: null });
     expect(emailSenderBody({ fromAddress: "no-reply@example.com", dailyLimit: " 500 " })).toEqual({ fromAddress: "no-reply@example.com", dailyLimit: 500 });
   });
