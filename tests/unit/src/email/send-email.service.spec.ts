@@ -24,6 +24,7 @@ describe("SendEmailService provider payload", () => {
     projectId: "project-a",
     serviceId: "service-a",
     environment: "test",
+    model: "application",
   };
 
   beforeEach(() => {

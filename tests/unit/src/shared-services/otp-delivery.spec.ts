@@ -3,9 +3,9 @@ import { GenerateOtpService } from '../../../../apps/otp/src/features/generate-o
 import { VerifyOtpService } from '../../../../apps/otp/src/features/verify-otp/verify-otp.service';
 import { MemoryOtpStore } from '../../../../apps/otp/src/shared/otp-store';
 
-const owner: SharedServiceCaller = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'test' };
+const owner: SharedServiceCaller = { tribeId: 'tribe-a', projectId: 'project-a', serviceId: 'service-a', environment: 'test', model: 'application' };
 const sibling: SharedServiceCaller = { ...owner, serviceId: 'service-b' };
-const otherProject: SharedServiceCaller = { tribeId: 'tribe-b', projectId: 'project-b', serviceId: 'service-a', environment: 'test' };
+const otherProject: SharedServiceCaller = { tribeId: 'tribe-b', projectId: 'project-b', serviceId: 'service-a', environment: 'test', model: 'application' };
 
 describe('OTP generation and consumption', () => {
   const originalMode = process.env.OTP_DELIVERY_MODE;
