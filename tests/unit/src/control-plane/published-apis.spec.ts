@@ -167,10 +167,19 @@ describe("published APIs", () => {
   it("stops serving a disabled API", async () => {
     const { owner, api } = await publishOrders();
     await apis.requestAccess(owner.scope, owner.app.id, api.id, "orders:read", actor);
-    await apis.update(ORG, api.id, { status: "disabled" }, actor);
+    await apis.update(owner.scope, api.id, { status: "disabled" }, actor);
     await expect(
       access.authorizeApi({ bearer: owner.secret, apiId: api.id, method: "GET", relativePath: "/orders/1", requestId: randomUUID() }),
     ).rejects.toMatchObject({ code: "API_NOT_AVAILABLE" });
+  });
+
+  it("changes an API only through its own environment", async () => {
+    const { owner, api } = await publishOrders();
+    const live = { ...owner.scope, environmentKind: "live" as const };
+    const other = await projectWithApp(ORG, "other");
+    await expect(apis.update(live, api.id, { status: "disabled" }, actor)).rejects.toMatchObject({ status: 404 });
+    await expect(apis.update(other.scope, api.id, { status: "disabled" }, actor)).rejects.toMatchObject({ status: 404 });
+    expect((await apis.get(ORG, api.id)).status).toBe("active");
   });
 
   it("rejects private upstreams outside local development", async () => {

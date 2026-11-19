@@ -482,8 +482,7 @@ export class ControlPlaneAdminController {
     );
     const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
     const apiId = parse(schemas.resourceId("api"), params.apiId, "apiId");
-    if ((await this.apis.apiProjectId(scope.organizationId, apiId)) !== scope.projectId) throw new ValidationError("API belongs to another project");
-    return { success: true, data: await this.apis.update(scope.organizationId, apiId, input, actorLabel(actor, input.actor)) };
+    return { success: true, data: await this.apis.update(scope, apiId, input, actorLabel(actor, input.actor)) };
   }
 
   @Get("organizations/:organizationId/apis")
