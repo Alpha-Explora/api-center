@@ -50,9 +50,9 @@ export class PaymentPubSubProvisioningService {
 
   async provision(input: unknown): Promise<PaymentEventProvisioningResult> {
     const delivery = this.parse(input);
-    const projectId = process.env.APICENTER_GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
+    const projectId = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
     if (!projectId) {
-      throw new ServiceUnavailableException("APICENTER_GCP_PROJECT_ID is required for Pub/Sub provisioning");
+      throw new ServiceUnavailableException("GCP_PROJECT_ID is required for Pub/Sub provisioning");
     }
 
     const topicName = this.topicName(delivery.environment);
@@ -134,7 +134,10 @@ export class PaymentPubSubProvisioningService {
       await subscription.create(metadata as never);
     } catch (error) {
       if (!this.alreadyExists(error)) throw error;
-      await subscription.setMetadata(metadata as never);
+      // Pub/Sub refuses to change a filter. The name carries the consumer ID, so it is already right.
+      const mutable = { ...metadata };
+      delete mutable.filter;
+      await subscription.setMetadata(mutable as never);
     }
   }
 

@@ -1,15 +1,48 @@
 import { PaymentPubSubProvisioningService } from "../../../../apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service";
 
 describe("PaymentPubSubProvisioningService", () => {
-  const originalProject = process.env.APICENTER_GCP_PROJECT_ID;
+  const originalProject = process.env.GCP_PROJECT_ID;
 
   afterEach(() => {
-    if (originalProject === undefined) delete process.env.APICENTER_GCP_PROJECT_ID;
-    else process.env.APICENTER_GCP_PROJECT_ID = originalProject;
+    if (originalProject === undefined) delete process.env.GCP_PROJECT_ID;
+    else process.env.GCP_PROJECT_ID = originalProject;
+  });
+
+  it("updates an existing subscription without touching its immutable filter", async () => {
+    process.env.GCP_PROJECT_ID = "apicenter-test";
+    const exists = Object.assign(new Error("exists"), { code: 6 });
+    const existing = { create: jest.fn().mockRejectedValue(exists), setMetadata: jest.fn().mockResolvedValue(undefined) };
+    const topic = (name: string) => ({
+      name,
+      create: jest.fn().mockRejectedValue(exists),
+      setMetadata: jest.fn().mockResolvedValue(undefined),
+      subscription: jest.fn(() => existing),
+    });
+    const service = new PaymentPubSubProvisioningService();
+    (service as unknown as { pubsub: { topic: typeof topic } }).pubsub = { topic };
+
+    await service.provision({
+      ownerTribeId: "org",
+      consumerServiceId: "app_aaaaaaaaaaaaaaaaaaaaaaaa",
+      environment: "test",
+      pushEndpoint: "https://apicenter-webhooks-live-1.asia-southeast1.run.app/deliveries/dst_bbbbbbbbbbbbbbbbbbbbbbbb",
+      deliveryServiceAccountEmail: "push@apicenter-test.iam.gserviceaccount.com",
+    });
+
+    const updates = existing.setMetadata.mock.calls.map(([metadata]) => metadata);
+    expect(updates.length).toBeGreaterThan(0);
+    for (const metadata of updates) expect(metadata).not.toHaveProperty("filter");
+    expect(updates).toContainEqual(
+      expect.objectContaining({
+        pushConfig: expect.objectContaining({
+          pushEndpoint: "https://apicenter-webhooks-live-1.asia-southeast1.run.app/deliveries/dst_bbbbbbbbbbbbbbbbbbbbbbbb",
+        }),
+      }),
+    );
   });
 
   it("provisions an environment-scoped filtered OIDC subscription", async () => {
-    process.env.APICENTER_GCP_PROJECT_ID = "apicenter-test";
+    process.env.GCP_PROJECT_ID = "apicenter-test";
     const subscriptions = new Map<string, { create: jest.Mock; setMetadata: jest.Mock }>();
     const topics = new Map<string, { name: string; create: jest.Mock; setMetadata: jest.Mock; subscription: jest.Mock }>();
     const topic = (name: string) => {
