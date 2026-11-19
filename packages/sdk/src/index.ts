@@ -16,7 +16,13 @@ export {
 export { API_VERSION } from './internal/transport.js';
 export { isPending } from './services/payments.js';
 export { parsePaymentEvent, PaymentEventSchema } from './payment/events.js';
-export type { CheckoutPaidEvent, PaymentEvent, UnrecognizedPaymentEvent } from './payment/events.js';
+export type {
+  CheckoutPaidEvent,
+  IntentFailedEvent,
+  IntentPaidEvent,
+  PaymentEvent,
+  UnrecognizedPaymentEvent,
+} from './payment/events.js';
 export { ApiCenterContextError, createContextVerifier } from './publisher/verify-context.js';
 export type { ApiCenterCallerContext, ContextVerifierOptions } from './publisher/verify-context.js';
 export { ApiCenterWebhookError, createWebhookHandler, verifyWebhook } from './webhooks/verify-webhook.js';

@@ -63,6 +63,26 @@ curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/checkouts \
 
 ---
 
+## Choose the payment methods
+
+By default the checkout page offers card, GCash and Maya. To show fewer, send `paymentMethods`. A customer who already picked GCash in your app then sees only GCash:
+
+```json
+{
+  "referenceId": "BOOKING-1042",
+  "amount": { "amountMinor": 39900, "currency": "PHP" },
+  "successUrl": "myapp://bookings/1042/paid",
+  "cancelUrl": "myapp://bookings/1042",
+  "paymentMethods": ["gcash"]
+}
+```
+
+Each method must be enabled for your environment; `GET /api/v1/payments/capabilities` lists them, and anything else returns `400 PAYMENT_METHOD_UNAVAILABLE`. To skip the checkout page altogether and open GCash or Maya directly, use a [wallet payment intent](/guides/payments/intents).
+
+`successUrl` and `cancelUrl` can be HTTPS links or your app's own links. APICenter sends the customer to an app link through an HTTPS page it hosts.
+
+---
+
 ## Fetch Checkout Status
 
 - **Endpoint**: `GET /api/v1/payments/checkouts/{checkoutId}`

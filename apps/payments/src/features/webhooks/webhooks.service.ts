@@ -83,7 +83,7 @@ export class WebhooksService {
       linkEvent = true;
       source = await this.owners.findWebhookSource('payment_link', toPublicId('pl', resourceData.id), environment);
       linkPaymentId = linkObjectPaymentId(resourceData);
-    } else if (eventType === 'payment.paid' && resourceData.id?.startsWith('pay_')) {
+    } else if ((eventType === 'payment.paid' || eventType === 'payment.failed') && resourceData.id?.startsWith('pay_')) {
       const intentId = resourceData.attributes?.payment_intent_id;
       if (typeof intentId === 'string' && intentId.startsWith('pi_')) {
         source = await this.owners.findWebhookSource('intent', intentId, environment);
@@ -91,6 +91,10 @@ export class WebhooksService {
       }
     }
     if (!source) return { event: 'ignored', data: { eventType, updated: false } };
+    if (eventType === 'payment.failed') {
+      return this.processIntentFailure({ providerEventId, environment, source, payment: resourceData, payload,
+        rawBody: options.rawBody });
+    }
 
     if (linkEvent) {
       const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
@@ -114,7 +118,7 @@ export class WebhooksService {
 
     const queued = eventType === 'checkout_session.payment.paid'
       ? this.checkoutPaidEvent(source, paid[0], payload)
-      : { receiptStatus: 'processed' as const };
+      : this.intentEvent('payment.intent.paid', source, paid[0], payload);
     const applied = await this.owners.applyVerifiedWebhook({
       providerEventId,
       environment,
@@ -199,6 +203,73 @@ export class WebhooksService {
     });
     return { event: applied.duplicate ? 'duplicate' : 'processed',
       data: { eventType, updated: applied.duplicate ? 0 : updates.length } };
+  }
+
+  /** A failed attempt on an intent. One that has already succeeded keeps its status. */
+  private async processIntentFailure(input: { providerEventId: string; environment: 'test' | 'live';
+    source: OwnerRecord; payment: any; payload: any; rawBody: Buffer }) {
+    const { providerEventId, environment, source, payment, payload, rawBody } = input;
+    if (source.status === 'succeeded' || source.snapshot.status === 'succeeded') {
+      return { event: 'ignored', data: { eventType: 'payment.failed', updated: false } };
+    }
+    const attributes = payment.attributes || {};
+    const lastPaymentError = {
+      ...(typeof attributes.failed_code === 'string' ? { code: attributes.failed_code } : {}),
+      ...(typeof attributes.failed_message === 'string' ? { message: attributes.failed_message } : {}),
+    };
+    const applied = await this.owners.applyVerifiedWebhook({
+      providerEventId,
+      environment,
+      eventType: 'payment.failed',
+      payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
+      updates: [{ ...source, status: 'failed', snapshot: { ...source.snapshot, status: 'failed', lastPaymentError } }],
+      ...this.intentEvent('payment.intent.failed', source, payment, payload),
+    });
+    return { event: applied.duplicate ? 'duplicate' : 'processed',
+      data: { eventType: 'payment.failed', updated: applied.duplicate ? 0 : 1, queued: applied.queued } };
+  }
+
+  /** The event consumers receive when a payment on an intent succeeds or fails. */
+  private intentEvent(eventType: 'payment.intent.paid' | 'payment.intent.failed', source: OwnerRecord, payment: any,
+    payload: any): Pick<VerifiedWebhook, 'outbox' | 'receiptStatus' | 'receiptNote'> {
+    const attributes = payment?.attributes || {};
+    const amount = Number(attributes.amount);
+    if (!source.referenceId) {
+      return { receiptStatus: 'needs_reconciliation',
+        receiptNote: 'Payment intent owner has no merchant reference ID; no event was queued.' };
+    }
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return { receiptStatus: 'needs_reconciliation',
+        receiptNote: 'Payment intent amount is missing or invalid; no event was queued.' };
+    }
+    const failed = eventType === 'payment.intent.failed';
+    const createdAt = Number(payload.data.attributes?.created_at);
+    return {
+      receiptStatus: 'processed',
+      outbox: {
+        eventType,
+        aggregateType: 'intent',
+        aggregateId: source.resourceId,
+        ownerTribeId: source.tribeId,
+        ownerProjectId: source.projectId,
+        consumerServiceId: source.consumerServiceId,
+        referenceId: source.referenceId,
+        payload: {
+          ownerTribeId: source.tribeId,
+          ownerProjectId: source.projectId,
+          consumerServiceId: source.consumerServiceId,
+          referenceId: source.referenceId,
+          occurredAt: new Date(Number.isFinite(createdAt) && createdAt > 0 ? createdAt * 1000 : Date.now()).toISOString(),
+          paymentIntentId: source.resourceId,
+          paymentId: payment.id,
+          status: failed ? 'failed' : 'succeeded',
+          amount,
+          currency: String(attributes.currency || 'PHP').toUpperCase(),
+          ...(failed && typeof attributes.failed_code === 'string' ? { failureCode: attributes.failed_code } : {}),
+          ...(failed && typeof attributes.failed_message === 'string' ? { failureMessage: attributes.failed_message } : {}),
+        },
+      },
+    };
   }
 
   /**

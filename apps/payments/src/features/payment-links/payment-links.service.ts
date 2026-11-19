@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { PayMongoError } from '../../shared/payment-errors';
-import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
+import { isMockMode, paymongoRequest, stepIdempotencyKey } from '../../shared/paymongo-client';
 import { toProviderId, toPublicId } from '../../shared/payment-ids';
 
 type PayMongoCall = typeof paymongoRequest;
@@ -42,10 +42,6 @@ function linkMetadata(metadata: unknown, referenceId: string): Record<string, st
     throw new PayMongoError('metadata values must be strings', 400, 'INVALID_METADATA');
   }
   return { ...Object.fromEntries(entries) as Record<string, string>, apicenter_reference_id: referenceId };
-}
-
-function stepIdempotencyKey(key: string | undefined, step: string): string | undefined {
-  return key ? crypto.createHash('sha256').update(`${key}:${step}`).digest('hex') : undefined;
 }
 
 export class PaymentLinksService {

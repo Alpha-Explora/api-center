@@ -1,19 +1,58 @@
 ---
 title: "Payment Intents API"
-description: "Create, retrieve, confirm, and cancel payment intents through the public payment API."
+description: "Open GCash or Maya directly, or create, confirm and cancel payment intents through the public payment API."
 ---
 
-Payment intents expose a provider-neutral way to create, attach a client-created payment method, and track a payment. Payment-method tokenization stays client-side; do not send card numbers or other sensitive payment data to your backend. The short-lived `clientKey` returned for an intent is scoped to that intent and is not a secret API key.
+A payment intent tracks one payment. The quickest way to use one is to have APICenter open the customer's wallet: one call returns a link that goes straight to GCash or Maya, without PayMongo's checkout page in between. You can also create a plain intent and confirm it with a payment method you create yourself.
 
 For a Node.js backend, use `api.payments.intents.create(...)` or `api.payments.intents.createQrPh(...)` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
 
-For a Node.js backend, use `api.payments.intents.create(...)` or `api.payments.intents.createQrPh(...)` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
-
-## Create a payment intent
+## Open GCash or Maya directly
 
 - **Endpoint**: `POST /api/v1/payments/intents`
-- **Required scope**: `payments:intents:write` or a broader payment write scope
+- **Required scope**: `payments:intents:write`
 - **Required header**: `Idempotency-Key`
+
+Send `paymentMethod` (`gcash` or `paymaya`) and `returnUrl` together. `billing` is optional.
+
+```bash
+curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/intents \
+  -H "Authorization: Bearer $APICENTER_API_KEY" \
+  -H "Idempotency-Key: booking-1042-attempt-1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referenceId": "BOOKING-1042",
+    "amount": { "amountMinor": 39900, "currency": "PHP" },
+    "paymentMethod": "gcash",
+    "returnUrl": "myapp://bookings/1042/payment",
+    "billing": { "name": "Juan Dela Cruz", "email": "juan@example.com" }
+  }'
+```
+
+```ts
+const { data: intent } = await api.payments.intents.create({
+  referenceId: 'BOOKING-1042',
+  amount: { amountMinor: 39900, currency: 'PHP' },
+  paymentMethod: 'gcash',
+  returnUrl: 'myapp://bookings/1042/payment',
+}, { idempotencyKey: 'booking-1042-attempt-1' });
+
+openBrowser(intent.nextAction!.redirectUrl); // goes straight to GCash
+```
+
+The response has `status: "requires_action"` and `nextAction.redirectUrl`. Open that link; on a phone it opens the GCash or Maya app. Afterwards the wallet sends the customer to `returnUrl`, whether they paid or not.
+
+**Return links.** `returnUrl` can be an HTTPS link or your app's own link, such as `myapp://bookings/1042/payment`. Wallets only return customers to HTTPS pages, so APICenter gives the wallet an HTTPS page of its own that forwards to your app link. Links such as `javascript:` or `data:` are rejected.
+
+**Confirming payment.** Reaching `returnUrl` does not mean the customer paid. Confirm with `GET /api/v1/payments/intents/{paymentIntentId}` (status `succeeded` or `failed`) or with the [`payment.intent.paid` and `payment.intent.failed` events](/guides/events/webhooks).
+
+**Retrying.** A failed or abandoned attempt can't be reused. To let the customer try again, create a new intent with a new `Idempotency-Key`. Sending the same key returns the first intent again.
+
+**Availability.** `GET /api/v1/payments/capabilities` lists the methods enabled for your environment. If `gcash` or `paymaya` is not listed, hide that option; asking for it returns `400 PAYMENT_METHOD_UNAVAILABLE`.
+
+**Testing.** In the test environment, the redirect opens PayMongo's test wallet page, where you choose whether the payment succeeds or fails.
+
+## Create a payment intent you confirm yourself
 
 ```bash
 curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/intents \
@@ -29,7 +68,7 @@ curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/intents \
   }'
 ```
 
-A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`. It also includes `clientKey` when PayMongo returns one; pass that key back when attaching a payment method.
+A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`. It also includes `clientKey` when PayMongo returns one; pass that key back when attaching a payment method. Payment-method tokenization stays client-side; do not send card numbers or other sensitive payment data to your backend. The short-lived `clientKey` is scoped to that intent and is not a secret API key.
 
 ## Retrieve, confirm, or cancel
 
@@ -47,4 +86,6 @@ Confirm and cancel require their own `Idempotency-Key` values. Confirmation acce
 }
 ```
 
-For the SDK, pass the same fields as the second argument to `api.payments.intents.confirm(paymentIntentId, input, options)`. When customer authentication is needed, the response includes `nextAction.redirectUrl`; send the customer there. The intent's `GET` response also returns the current `nextAction` if the original confirmation response was lost. A return to `returnUrl` is not proof of payment; retrieve the intent or verify the payment webhook before fulfilling an order.
+For the SDK, pass the same fields as the second argument to `api.payments.intents.confirm(paymentIntentId, input, options)`. When customer authentication is needed, the response includes `nextAction.redirectUrl`; send the customer there. The intent's `GET` response also returns the current `nextAction` if the original confirmation response was lost.
+
+When an attempt fails, the intent's status is `failed` and `lastPaymentError` gives PayMongo's reason. A return to `returnUrl` is not proof of payment; retrieve the intent or verify the payment webhook before fulfilling an order.

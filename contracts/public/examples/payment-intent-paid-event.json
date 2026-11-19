@@ -1,0 +1,21 @@
+{
+  "eventId": "evt_intent_paid_01",
+  "contractVersion": "2.0",
+  "eventType": "payment.intent.paid",
+  "environment": "test",
+  "organizationId": "9cb3f8a4-0a56-4c61-a087-6abd02a9e1f0",
+  "projectId": "prj_exampleexampleexample01",
+  "applicationId": "app_exampleexampleexample01",
+  "referenceId": "BOOKING-20261119-0001",
+  "aggregateType": "payment_intent",
+  "aggregateId": "pi_example_01",
+  "aggregateVersion": 2,
+  "occurredAt": "2026-11-19T10:02:00.000Z",
+  "data": {
+    "status": "succeeded",
+    "paymentIntentId": "pi_example_01",
+    "paymentId": "pay_example_01",
+    "amount": 39900,
+    "currency": "PHP"
+  }
+}

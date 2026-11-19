@@ -52,6 +52,17 @@ describe('payment Pub/Sub publisher contract', () => {
     });
   });
 
+  it('publishes an intent event as a payment_intent with its failure reason', () => {
+    const failed = { ...row, eventType: 'payment.intent.failed', aggregateType: 'intent', aggregateId: 'pi_abc',
+      payload: { ...row.payload, checkoutId: undefined, paymentIntentId: 'pi_abc', status: 'failed',
+        failureCode: 'payment_cancelled', failureMessage: 'Cancelled in GCash' } };
+    expect(toCanonicalPaymentEvent(failed)).toMatchObject({
+      eventType: 'payment.intent.failed', aggregateType: 'payment_intent', aggregateId: 'pi_abc',
+      data: { status: 'failed', paymentIntentId: 'pi_abc', paymentId: 'pay_v1_cGF5XzEyMw', amount: 39900,
+        currency: 'PHP', failureCode: 'payment_cancelled', failureMessage: 'Cancelled in GCash' },
+    });
+  });
+
   it('fails closed when the owner or application is missing', () => {
     const { consumerServiceId: _application, ...withoutApplication } = row;
     expect(() => toCanonicalPaymentEvent({ ...withoutApplication, payload: { ...row.payload, consumerServiceId: undefined } })).toThrow('application is required');

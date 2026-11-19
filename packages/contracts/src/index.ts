@@ -403,11 +403,20 @@ export interface Money {
   currency: 'PHP';
 }
 
+/** A way to pay. GET /payments/capabilities lists the ones enabled for your environment. */
+export type PaymentMethod = 'card' | 'gcash' | 'paymaya' | 'qrph';
+
+/** A wallet a payment intent can open directly. */
+export type WalletPaymentMethod = 'gcash' | 'paymaya';
+
 export interface CreateCheckoutInput {
   referenceId: string;
   amount: Money;
+  /** An HTTPS link, or your app's own link such as `myapp://booking/123`. See {@link CreateWalletPaymentIntentInput.returnUrl}. */
   successUrl: string;
   cancelUrl: string;
+  /** Limits the checkout page to these methods. Leave it out to offer card, GCash and Maya. */
+  paymentMethods?: PaymentMethod[];
   metadata?: Record<string, string>;
 }
 
@@ -425,6 +434,25 @@ export interface CreatePaymentIntentInput {
   amount: Money;
 }
 
+/** Customer details a wallet payment can carry. */
+export interface PaymentBilling {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+/** A payment intent that opens one wallet directly. Send the customer to its `nextAction.redirectUrl`. */
+export interface CreateWalletPaymentIntentInput extends CreatePaymentIntentInput {
+  paymentMethod: WalletPaymentMethod;
+  /**
+   * Where the wallet sends the customer afterwards, paid or not. An HTTPS link, or your app's own link
+   * such as `myapp://booking/123`; APICenter forwards to an app link from an HTTPS page it hosts.
+   */
+  returnUrl: string;
+  description?: string;
+  billing?: PaymentBilling;
+}
+
 export interface CreateQrPhPaymentIntentInput extends CreatePaymentIntentInput {
   description?: string;
   expirySeconds?: number;
@@ -438,6 +466,15 @@ export interface PaymentIntent {
   aggregateVersion?: number;
   clientKey?: string;
   nextAction?: PaymentIntentNextAction;
+  /** Set on a wallet payment intent. */
+  paymentMethod?: WalletPaymentMethod;
+  /** Why the last payment attempt failed, when status is `failed`. */
+  lastPaymentError?: PaymentError;
+}
+
+export interface PaymentError {
+  code?: string;
+  message?: string;
 }
 
 /** A provider action the customer must complete to advance a payment intent. */
@@ -560,7 +597,8 @@ export type PaymentResource<T> = T | PendingResource;
 
 export interface PaymentCapabilities {
   currency: 'PHP';
-  paymentMethods: string[];
+  /** The methods enabled for your environment. Hide any method that is not listed. */
+  paymentMethods: PaymentMethod[];
   resources: string[];
 }
 

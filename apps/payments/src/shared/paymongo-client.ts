@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { PayMongoError } from './payment-errors';
 
 const baseUrl = process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1';
@@ -23,6 +24,11 @@ export function isMockMode(): boolean {
 export function providerMode(): string {
   if (isMockMode()) return 'mock';
   return process.env.PAYMENT_PROVIDER_MODE === 'test' ? 'test' : 'live';
+}
+
+/** One request of a multi-step provider flow, keyed so a retry of the whole flow repeats each step exactly once. */
+export function stepIdempotencyKey(key: string | undefined, step: string): string | undefined {
+  return key ? createHash('sha256').update(`${key}:${step}`).digest('hex') : undefined;
 }
 
 export function getAuthHeader(): string {

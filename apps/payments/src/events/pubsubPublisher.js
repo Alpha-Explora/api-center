@@ -29,8 +29,10 @@ function publicEventId(providerEventId) {
   if (value.startsWith('evt_')) return value;
   return `evt_${crypto.createHash('sha256').update(value).digest('hex').slice(0, 24)}`;
 }
+// Owner records call a payment intent "intent"; the public contract calls it "payment_intent".
+const PUBLIC_AGGREGATE_TYPES = { intent: 'payment_intent' };
 function publicResourceId(aggregateType, value) {
-  const kinds = { checkout: 'chk', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv' };
+  const kinds = { checkout: 'chk', intent: 'pi', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv' };
   return value ? toPublicId(kinds[aggregateType] || 'res', value) : value;
 }
 /**
@@ -54,7 +56,9 @@ function toCanonicalPaymentEvent(event) {
 
   const aggregateVersion = Number(event.aggregateVersion || 1);
   if (!Number.isInteger(aggregateVersion) || aggregateVersion < 1) throw new Error('Payment event aggregateVersion must be a positive integer');
-  if (event.eventType === 'payment.checkout.paid' && !payload.amount) throw new Error('Paid checkout event amount is required');
+  if (['payment.checkout.paid', 'payment.intent.paid', 'payment.intent.failed'].includes(event.eventType) && !payload.amount) {
+    throw new Error(`${event.eventType} event amount is required`);
+  }
 
   return {
     eventId: publicEventId(event.providerEventId),
@@ -65,7 +69,7 @@ function toCanonicalPaymentEvent(event) {
     projectId,
     applicationId,
     referenceId,
-    aggregateType: event.aggregateType,
+    aggregateType: PUBLIC_AGGREGATE_TYPES[event.aggregateType] || event.aggregateType,
     aggregateId: publicResourceId(event.aggregateType, event.aggregateId),
     aggregateVersion,
     occurredAt: payload.occurredAt || (event.createdAt ? new Date(event.createdAt).toISOString() : new Date().toISOString()),
@@ -73,12 +77,15 @@ function toCanonicalPaymentEvent(event) {
     data: omitUndefined({
       status: payload.status,
       checkoutId: publicResourceId('checkout', payload.checkoutId),
+      paymentIntentId: publicResourceId('intent', payload.paymentIntentId),
       subscriptionId: publicResourceId('subscription', payload.subscriptionId),
       invoiceId: publicResourceId('invoice', payload.invoiceId),
       paymentId: publicResourceId('payment', payload.paymentId),
       refundId: publicResourceId('refund', payload.refundId),
       amount: payload.amount,
       currency: payload.currency,
+      failureCode: payload.failureCode,
+      failureMessage: payload.failureMessage,
     }),
   };
 }

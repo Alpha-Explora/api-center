@@ -133,14 +133,56 @@ describe('verified payment ownership', () => {
       } finally { warn.mockRestore(); }
     });
 
-    it('queues no event for a payment-intent payment', async () => {
+    const intentPayment = (eventId: string, type: 'payment.paid' | 'payment.failed') => ({ data: { id: eventId,
+      attributes: { type, livemode: false, created_at: 1760000000, data: { id: 'pay_456', type: 'payment',
+        attributes: { payment_intent_id: 'pi_123', amount: 5000, currency: 'PHP',
+          ...(type === 'payment.paid' ? { status: 'paid' }
+            : { status: 'failed', failed_code: 'payment_cancelled', failed_message: 'Cancelled in GCash' }) } } } } });
+
+    async function ownersWithIntent() {
       const owners = new PaymentOwnerStore('');
-      await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_123', referenceId: 'ORDER-1', snapshot: {} });
-      const payload = { data: { id: 'evt_2', attributes: { type: 'payment.paid', livemode: false,
-        data: { id: 'pay_456', type: 'payment', attributes: { payment_intent_id: 'pi_123', status: 'paid', amount: 5000 } } } } };
+      await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_123', referenceId: 'BOOKING-1',
+        snapshot: { paymentIntentId: 'pi_123', status: 'awaiting_next_action' } });
+      return owners;
+    }
+
+    it('queues payment.intent.paid when a payment on an intent succeeds', async () => {
+      const owners = await ownersWithIntent();
+      const payload = intentPayment('evt_2', 'payment.paid');
       await expect(new WebhooksService(owners).processWebhook(payload, signed(payload)))
-        .resolves.toMatchObject({ data: { updated: 1, queued: false } });
-      expect(owners.queuedEvents()).toHaveLength(0);
+        .resolves.toMatchObject({ data: { updated: 1, queued: true } });
+      expect(owners.queuedEvents()).toEqual([expect.objectContaining({
+        eventType: 'payment.intent.paid', aggregateType: 'intent', aggregateId: 'pi_123', aggregateVersion: 2,
+        referenceId: 'BOOKING-1', consumerServiceId: 'service-a',
+        payload: expect.objectContaining({ paymentIntentId: 'pi_123', paymentId: 'pay_456', status: 'succeeded',
+          amount: 5000, currency: 'PHP' }),
+      })]);
+      await expect(owners.assertOwned('intent', 'pi_123', owner)).resolves.toMatchObject({ snapshot: { status: 'succeeded' } });
+    });
+
+    it('marks the intent failed and queues payment.intent.failed with the reason', async () => {
+      const owners = await ownersWithIntent();
+      const payload = intentPayment('evt_3', 'payment.failed');
+      await expect(new WebhooksService(owners).processWebhook(payload, signed(payload)))
+        .resolves.toMatchObject({ event: 'processed', data: { updated: 1, queued: true } });
+      expect(owners.queuedEvents()).toEqual([expect.objectContaining({
+        eventType: 'payment.intent.failed', aggregateId: 'pi_123',
+        payload: expect.objectContaining({ status: 'failed', failureCode: 'payment_cancelled',
+          failureMessage: 'Cancelled in GCash' }),
+      })]);
+      await expect(owners.assertOwned('intent', 'pi_123', owner)).resolves.toMatchObject({
+        snapshot: { status: 'failed', lastPaymentError: { code: 'payment_cancelled', message: 'Cancelled in GCash' } } });
+    });
+
+    it('keeps a succeeded intent succeeded when a failure for it arrives late', async () => {
+      const owners = await ownersWithIntent();
+      const webhooks = new WebhooksService(owners);
+      const paidEvent = intentPayment('evt_4', 'payment.paid');
+      await webhooks.processWebhook(paidEvent, signed(paidEvent));
+      const failedEvent = intentPayment('evt_5', 'payment.failed');
+      await expect(webhooks.processWebhook(failedEvent, signed(failedEvent))).resolves.toMatchObject({ event: 'ignored' });
+      expect(owners.queuedEvents().map((event) => event.eventType)).toEqual(['payment.intent.paid']);
+      await expect(owners.assertOwned('intent', 'pi_123', owner)).resolves.toMatchObject({ snapshot: { status: 'succeeded' } });
     });
 
     it('rejects a signed event that has no event ID', async () => {

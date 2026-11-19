@@ -10,11 +10,14 @@ import {
 } from "./features/pubsub-provisioning";
 import { PaymentIdempotencyService } from "./shared/payment-idempotency.service";
 import { PaymentLimitsService } from "./features/payment-limits";
+import { PaymentReturnController } from "./features/payment-return/payment-return.controller";
+import { PaymentReturnLinks } from "./features/payment-return/payment-return-links";
 
-/** The payments facade for application keys, and payment event subscription provisioning. */
+/** The payments facade for application keys, payment return pages, and payment event subscription provisioning. */
 @Module({
   imports: [AuthModule, DatabaseModule, ControlPlaneModule],
-  controllers: [PaymentsController, PaymentPubSubProvisioningController],
-  providers: [PaymentIdempotencyService, PaymentPubSubIamProvisioningService, PaymentPubSubProvisioningService, PaymentLimitsService],
+  controllers: [PaymentsController, PaymentReturnController, PaymentPubSubProvisioningController],
+  providers: [PaymentIdempotencyService, PaymentPubSubIamProvisioningService, PaymentPubSubProvisioningService,
+    PaymentLimitsService, PaymentReturnLinks],
 })
 export class PaymentsModule {}

@@ -15,6 +15,14 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 - The public OpenAPI has one security scheme, `ApplicationKey`, drops `/api/v1/auth/*`, and adds `/api/v1/whoami`. Reference snippets use `APICENTER_API_KEY`.
 - Removed the release verifier and its workflow, the post-deploy and tribe smoke scripts, the legacy-routing guard, and the local Vault container.
 
+### Added
+
+- Open GCash or Maya directly: `POST /api/v1/payments/intents` (`payments.intents.create`) with `paymentMethod` (`gcash` or `paymaya`) and `returnUrl` creates the intent, the wallet payment method and the attachment in one call and returns `nextAction.redirectUrl`, which goes straight to the wallet. An optional `billing` carries the customer's name, email and phone.
+- Checkouts accept `paymentMethods` to limit the checkout page, for example to `["gcash"]`.
+- Payment return links can be the app's own links (`myapp://…`) for checkouts and intents. The gateway hands the provider a signed HTTPS page, `/api/v1/payment-return/<token>`, that forwards to the app link and to nothing else. `javascript:`, `data:` and similar links are rejected.
+- Events `payment.intent.paid` and `payment.intent.failed` (AsyncAPI 2.1.0, contract 2.0, `aggregateType: "payment_intent"`), delivered like `payment.checkout.paid` and typed in the SDK. A failed attempt sets the intent's status to `failed` with `lastPaymentError`; a failure that arrives after the intent succeeded is ignored.
+- `GET /api/v1/payments/capabilities` lists the methods enabled for the environment (`APICENTER_PAYMENT_METHODS_TEST` / `_LIVE`, default all four). Asking a checkout or intent for any other method returns `400 PAYMENT_METHOD_UNAVAILABLE`.
+
 ### Changed
 
 - Remove Redis. Runtime idempotency and per-recipient send limits for email, SMS and OTP, the gateway's refresh tokens and payment idempotency now live in PostgreSQL (migration `20261118000100`: `<runtime schema>.idempotency_keys` and `rate_limit_windows`, `apic_identity.refresh_tokens`, `apic_governance.payment_idempotency_keys`), purged by the retention job. Gateway rate limits, tribe quotas, traffic and usage dashboards count per instance in memory; dashboard metadata now reports `memory-window`. Readiness no longer reports Redis. Deployments drop every `*_REDIS_URL` setting.

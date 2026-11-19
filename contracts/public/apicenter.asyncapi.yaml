@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: APICenter Payment Events
-  version: 2.0.0
+  version: 2.1.0
   description: >-
     Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the
     application that created the resource, and delivers it to that application's webhook as a signed
@@ -36,6 +36,10 @@ channels:
     messages:
       PaymentCheckoutPaid:
         $ref: '#/components/messages/PaymentCheckoutPaid'
+      PaymentIntentPaid:
+        $ref: '#/components/messages/PaymentIntentPaid'
+      PaymentIntentFailed:
+        $ref: '#/components/messages/PaymentIntentFailed'
 operations:
   receivePaymentEvent:
     action: receive
@@ -43,6 +47,8 @@ operations:
       $ref: '#/channels/apicenter.payment-events.{environment}'
     messages:
       - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentCheckoutPaid'
+      - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentIntentPaid'
+      - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentIntentFailed'
 components:
   messages:
     PaymentCheckoutPaid:
@@ -56,6 +62,29 @@ components:
               eventType: { type: string, const: payment.checkout.paid }
               aggregateType: { type: string, const: checkout }
               data: { $ref: '#/components/schemas/CheckoutPaid' }
+    PaymentIntentPaid:
+      name: payment.intent.paid
+      title: Payment intent paid
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/PaymentEvent'
+          - type: object
+            properties:
+              eventType: { type: string, const: payment.intent.paid }
+              aggregateType: { type: string, const: payment_intent }
+              data: { $ref: '#/components/schemas/IntentPaid' }
+    PaymentIntentFailed:
+      name: payment.intent.failed
+      title: Payment intent failed
+      description: The customer's attempt did not go through. Create a new intent, with a new idempotency key, to let them retry.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/PaymentEvent'
+          - type: object
+            properties:
+              eventType: { type: string, const: payment.intent.failed }
+              aggregateType: { type: string, const: payment_intent }
+              data: { $ref: '#/components/schemas/IntentFailed' }
   schemas:
     PaymentEvent:
       type: object
@@ -84,3 +113,23 @@ components:
         paymentId: { type: string }
         amount: { type: integer, minimum: 1, description: 'Minor units (centavos for PHP).' }
         currency: { type: string, minLength: 3, maxLength: 3 }
+    IntentPaid:
+      type: object
+      required: [status, paymentIntentId, paymentId, amount, currency]
+      properties:
+        status: { type: string, const: succeeded }
+        paymentIntentId: { type: string }
+        paymentId: { type: string }
+        amount: { type: integer, minimum: 1, description: 'Minor units (centavos for PHP).' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+    IntentFailed:
+      type: object
+      required: [status, paymentIntentId, paymentId, amount, currency]
+      properties:
+        status: { type: string, const: failed }
+        paymentIntentId: { type: string }
+        paymentId: { type: string }
+        amount: { type: integer, minimum: 1, description: 'Minor units (centavos for PHP).' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        failureCode: { type: string }
+        failureMessage: { type: string }

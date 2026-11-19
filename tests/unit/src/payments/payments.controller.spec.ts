@@ -2,9 +2,11 @@ import axios from 'axios';
 import { getCloudRunAuthorizationHeader } from '../../../../apps/gateway/src/shared/proxy/cloud-run-auth';
 import { PaymentsController } from '../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller';
 import { PaymentIdempotencyService } from '../../../../apps/gateway/src/domains/payments/shared/payment-idempotency.service';
+import { PaymentReturnLinks } from '../../../../apps/gateway/src/domains/payments/features/payment-return/payment-return-links';
 const paymentLimits = { enforce: jest.fn().mockResolvedValue(undefined) } as any;
 const applications = { authorizeAction: jest.fn(), recordOutcome: jest.fn().mockResolvedValue(undefined) } as any;
-const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits, applications);
+const returnLinks = new PaymentReturnLinks({});
+const createController = () => new PaymentsController(new PaymentIdempotencyService(), paymentLimits, applications, returnLinks);
 const KEY = 'ak_test_aaaaaaaaaaaaaaaa_' + 'b'.repeat(43);
 // What authorizeAction returns for the test application: its organization and project own the records.
 const authorized = (action = 'payments:checkout:write') => ({
@@ -124,7 +126,7 @@ describe('PaymentsController', () => {
     ['GET', '/invoices/inv_123', undefined],
   ])('maps %s %s to the private payments runtime', async (method, path, body) => {
     const idempotency = new PaymentIdempotencyService();
-    const controller = new PaymentsController(idempotency, paymentLimits, applications);
+    const controller = new PaymentsController(idempotency, paymentLimits, applications, returnLinks);
     const { res, state } = response();
 
     await controller.proxy(request(path, method, body), res);
