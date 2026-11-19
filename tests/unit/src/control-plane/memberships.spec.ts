@@ -9,7 +9,11 @@ describe("console sign-in memberships", () => {
     { organizationId: "org-2", email: "dev@example.test", role: "operator", organization: { slug: "beta", name: "Beta" } },
   ];
   const findMany = jest.fn().mockResolvedValue(rows);
-  const prisma = { organizationMember: { findMany } } as unknown as PrismaService;
+  const organizations = jest.fn().mockResolvedValue([
+    { id: "org-1", slug: "alpha", name: "Alpha" },
+    { id: "org-3", slug: "gamma", name: "Gamma" },
+  ]);
+  const prisma = { organizationMember: { findMany }, organization: { findMany: organizations } } as unknown as PrismaService;
   const config = { platformAdminEmails: ["ops@example.test"] } as ConfigService;
   const people = new OrganizationPeopleService(prisma, {} as AuditEventsService, config);
 
@@ -25,8 +29,23 @@ describe("console sign-in memberships", () => {
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { email: "dev@example.test" } }));
   });
 
-  it("marks platform operators", async () => {
+  it("marks platform operators and lists every active organization for them", async () => {
     findMany.mockResolvedValueOnce([]);
-    await expect(people.membershipsOf("ops@example.test")).resolves.toMatchObject({ platformAdmin: true, memberships: [] });
+    await expect(people.membershipsOf("ops@example.test")).resolves.toMatchObject({
+      platformAdmin: true,
+      memberships: [],
+      organizations: [
+        { organizationId: "org-1", organizationSlug: "alpha", organizationName: "Alpha" },
+        { organizationId: "org-3", organizationSlug: "gamma", organizationName: "Gamma" },
+      ],
+    });
+    expect(organizations).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "active" } }));
+  });
+
+  it("does not list other organizations to members", async () => {
+    organizations.mockClear();
+    const result = await people.membershipsOf("dev@example.test");
+    expect(result).not.toHaveProperty("organizations");
+    expect(organizations).not.toHaveBeenCalled();
   });
 });

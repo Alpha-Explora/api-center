@@ -42,10 +42,13 @@ export function useOrganization() {
   const chosen = useSyncExternalStore(subscribe, readStored, () => undefined);
   const memberships = session.data?.organizationIds ?? [];
   const platformAdmin = session.data?.platformAdmin ?? false;
-  const organizationId = chosen && (memberships.includes(chosen) || platformAdmin) ? chosen : memberships[0];
-  const names = new Map((session.data?.organizations ?? []).map((entry) => [entry.id, entry]));
-  const organizations: OrganizationOption[] = memberships.map((id) => ({ id, name: names.get(id)?.name ?? unnamed(id), slug: names.get(id)?.slug }));
-  if (organizationId && !memberships.includes(organizationId)) organizations.push({ id: organizationId, name: unnamed(organizationId) });
+  const known = session.data?.organizations ?? [];
+  // Members default to their first membership; platform operators to the first organization they can see.
+  const fallback = memberships[0] ?? (platformAdmin ? known[0]?.id : undefined);
+  const organizationId = chosen && (memberships.includes(chosen) || platformAdmin) ? chosen : fallback;
+  const organizations: OrganizationOption[] = known.map((entry) => ({ id: entry.id, name: entry.name, slug: entry.slug }));
+  for (const id of memberships) if (!organizations.some((entry) => entry.id === id)) organizations.push({ id, name: unnamed(id) });
+  if (organizationId && !organizations.some((entry) => entry.id === organizationId)) organizations.push({ id: organizationId, name: unnamed(organizationId) });
 
   const setOrganizationId = useCallback((value: string) => {
     try {

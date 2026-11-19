@@ -1,15 +1,17 @@
+import { connection } from "next/server";
 import { AppShell } from "@/components/shell/app-shell";
 import { DeployedLocalDevBlocker } from "@/components/deployed-local-dev-blocker";
 import { Providers } from "@/app/providers";
-import { getManagementEnvironment } from "@/lib/management-environment";
 import { getDeploymentConfigCheck } from "@/lib/server/deployment-config";
 
-export default function ManagementLayout({
+export default async function ManagementLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const managementEnvironment = getManagementEnvironment();
+  // Read the deployment's settings per request; prerendering would bake in the build machine's values,
+  // including whether local-dev sign-in must be blocked.
+  await connection();
   const deployment = getDeploymentConfigCheck();
   const managementAuthMode = deployment.authMode;
 
@@ -19,9 +21,7 @@ export default function ManagementLayout({
 
   return (
     <Providers authMode={managementAuthMode} googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}>
-      <AppShell environment={managementEnvironment} authMode={managementAuthMode}>
-        {children}
-      </AppShell>
+      <AppShell authMode={managementAuthMode}>{children}</AppShell>
     </Providers>
   );
 }
