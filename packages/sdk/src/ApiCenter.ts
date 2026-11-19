@@ -9,7 +9,7 @@ import type { ApiCenterOptions, RequestOptions } from './types.js';
 
 /** The hosted APICenter gateway. The key's prefix selects test or live; there is one address. */
 const API_BASE_URL = 'https://api.apicenter.itsandbox.site';
-export const SDK_VERSION = '3.0.0';
+export const SDK_VERSION = '3.1.0';
 
 /** Who the API key belongs to and what it may do. */
 export interface WhoAmI {

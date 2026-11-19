@@ -1,6 +1,6 @@
 {
   "name": "@alpha-explora/apicenter-sdk",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Server-side TypeScript SDK for APICenter: one application key, typed errors, retries and signed webhooks.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -35,7 +35,7 @@
     "lint": "npm run typecheck"
   },
   "dependencies": {
-    "@alpha-explora/apicenter-contracts": "1.0.0",
+    "@alpha-explora/apicenter-contracts": "1.1.0",
     "zod": "^4.4.3"
   },
   "publishConfig": {

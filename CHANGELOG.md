@@ -17,6 +17,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- SDK 3.1.0 and contracts 1.1.0 carry the payment additions below: wallet intents, checkout `paymentMethods`, app return links and the `payment.intent.paid` / `payment.intent.failed` event types.
 - Open GCash or Maya directly: `POST /api/v1/payments/intents` (`payments.intents.create`) with `paymentMethod` (`gcash` or `paymaya`) and `returnUrl` creates the intent, the wallet payment method and the attachment in one call and returns `nextAction.redirectUrl`, which goes straight to the wallet. An optional `billing` carries the customer's name, email and phone.
 - Checkouts accept `paymentMethods` to limit the checkout page, for example to `["gcash"]`.
 - Payment return links can be the app's own links (`myapp://…`) for checkouts and intents. The gateway hands the provider a signed HTTPS page, `/api/v1/payment-return/<token>`, that forwards to the app link and to nothing else. `javascript:`, `data:` and similar links are rejected.
