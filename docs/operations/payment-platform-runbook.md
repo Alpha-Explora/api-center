@@ -82,24 +82,11 @@ npm run sdk:build
 npm run test:integration
 ```
 
-For a test or live endpoint, provide the SDK and harness configuration:
+For a test or live endpoint, create one checkout with an application key (`ak_test_…` first), pay it with PayMongo's test card, and confirm:
 
-```bash
-$env:APICENTER_URL='https://api-center.itsandbox.site'
-$env:APICENTER_PAYMENT_API_KEY='stored-consumer-key'
-$env:APICENTER_OWNER_TRIBE_ID='tribe-alpha'
-$env:APICENTER_CONSUMER_SERVICE_ID='alphaci-backend'
-$env:PAYMENT_SMOKE_EVENT_INJECTOR_URL='https://alphaci-events.example/internal/smoke'
-$env:PAYMENT_SMOKE_PUBSUB_OBSERVER_URL='https://ops.example/pubsub/events'
-$env:PAYMENT_SMOKE_PROJECTION_URL='https://ops.example/alphaci/projection'
-$env:PAYMENT_SMOKE_ENTITLEMENT_URL='https://ops.example/alphaci/entitlement'
-npx ts-node scripts/smoke/payment-platform-smoke.ts
-```
-
-The smoke must show the same checkout ID on the second request, one canonical
-`payment.checkout.paid` event, an active AlphaCI entitlement, a stable
-projection after a stale duplicate, and no `providerData`, PayMongo IDs, or
-secret fields in the canonical event.
+- a retry with the same idempotency key returns the same checkout ID;
+- the PayMongo webhook is answered 200 and stored, and one `payment.checkout.paid` event (contract 2.0) is published;
+- the application's webhook destination receives it, signed, with no `providerData`, PayMongo IDs or secret fields.
 
 ## 5. Reconciliation And Import
 

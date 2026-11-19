@@ -10,14 +10,12 @@ Plans record execution scope and pending checks. Use [current architecture](../.
 | [Secret Manager cleanup](2026-05-22-secret-manager-migration-cleanup.md) | Historical GKE-era reference; do not execute its commands against the current platform without a fresh inventory | Current Cloud Run manifests, platform setup, current operator inventory |
 | [Control plane rebuild](2026-11-14-control-plane-rebuild.md) | Slices 2–13 execution record; progress list tracks each committed slice. Deployment, cutover and legacy deletion are operator gates | Approved rebuild design, `apps/gateway/src/domains/control-plane` |
 | [Control plane rebuild, slice 1](2026-11-14-control-plane-slice-1.md) | Implemented locally with unit, boundary and type checks. Migration replay against a database and staging acceptance (signing keys, one test email) remain pending | Approved control plane rebuild design, `apps/gateway/src/domains/control-plane`, `supabase/migrations/20261114000100_control_plane_foundation.sql` |
-| [APICenter SDK overhaul](2026-10-12-apicenter-sdk-overhaul.md) | Implementation and local validation complete; publication is handled as a separately authorized release | Approved SDK redesign specification, gateway routes, service manifests, and contracts |
 
 ## Working specifications
 
 - [Control plane rebuild](../specs/2026-11-14-control-plane-rebuild-design.md), approved. Covers organization-owned projects, environment-bound applications, explicit grants, credential unification and gradual migration. Slice 1 is implemented locally; no migration, live provisioning or cutover is claimed.
 - [APICenter operability improvements](../specs/2026-11-13-apicenter-operability-design.md), approved; local implementation verified, external acceptance pending in [readiness and provisioning](2026-11-13-readiness-and-live-provisioning.md), [go-live and credentials](2026-11-13-go-live-and-credentials.md), [diagnostics and event recovery](2026-11-13-request-diagnostics-and-event-recovery.md), [shared-service contracts](2026-11-13-shared-service-http-contracts.md), and [release verification](2026-11-13-release-verification.md). Runtime acceptance remains pending.
 - [APICenter domain layout and consumer access](../specs/2026-10-12-apicenter-domain-layout-design.md), native execution approved; remaining acceptance checks are in the dated domain rollout record.
-- [APICenter SDK redesign](../specs/2026-10-12-apicenter-sdk-overhaul-design.md)
 - [Shared-services design](../specs/2026-07-28-apicenter-shared-services-design.md)
 - [Review remediation design](../specs/2026-10-01-apicenter-review-remediation-design.md)
 

@@ -144,61 +144,6 @@ services:
     <<: *api-center-common
     container_name: api-center-3
 
-  logistics-service:
-    build:
-      context: ../../examples/sandbox
-      dockerfile: logistics-service/Dockerfile
-    container_name: logistics-service
-    environment:
-      PORT: "4000"
-      JWKS_URL: http://nginx/api/v1/auth/.well-known/jwks.json
-      JWT_ISSUER: api-center-dev
-    expose:
-      - "4000"
-    depends_on:
-      nginx:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      api-center-network:
-        aliases:
-          - logistics-service.local
-
-  demand-service:
-    build:
-      context: ../..
-      dockerfile: examples/sandbox/demand-service/Dockerfile
-    container_name: demand-service
-    environment:
-      PORT: "4100"
-      APICENTER_URL: http://nginx
-      APICENTER_SERVICE_ID: demand-service
-      APICENTER_ENVIRONMENT: test
-      APICENTER_SERVICE_SECRET: "${DEMAND_TRIBE_SECRET:-sandbox-change-me}"
-      DEMAND_TRIBE_ID: demand-service
-    ports:
-      - "4100:4100"
-    depends_on:
-      nginx:
-        condition: service_healthy
-      logistics-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4100/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      api-center-network:
-        aliases:
-          - demand-service.local
-
   vault:
     image: hashicorp/vault:1.15
     container_name: vault
