@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
+import { NativeSelect } from "@/components/patterns/form";
 import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
@@ -26,6 +27,7 @@ import { eventDestinationsKey, useEventDestinations, usePaymentsEnabled } from "
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { CreateDestinationSheet } from "./create-destination-sheet";
+import { WebhookDeliveriesPanel } from "./webhook-deliveries-panel";
 import { WebhookSecretDialog, type IssuedSigningSecret } from "./webhook-secret-dialog";
 
 export function WebhooksPage() {
@@ -82,6 +84,9 @@ function Webhooks() {
   });
 
   const rows = sortDestinations(destinations.data ?? []);
+  const webhooks = rows.filter((destination) => destination.transport === "webhook");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = webhooks.find((destination) => destination.id === selectedId) ?? webhooks[0];
   const hasApplications = (applications.data ?? []).some((application) => application.status === "active");
 
   return (
@@ -184,6 +189,26 @@ function Webhooks() {
           </Table>
         )}
       </Panel>
+
+      {selected ? (
+        <WebhookDeliveriesPanel
+          key={selected.id}
+          destination={selected}
+          title={webhooks.length > 1 ? "Deliveries" : `Deliveries · ${nameOf(selected)}`}
+          selector={
+            webhooks.length > 1 ? (
+              <NativeSelect aria-label="Webhook" className="w-full sm:w-56" value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>
+                {webhooks.map((destination) => (
+                  <option key={destination.id} value={destination.id}>
+                    {nameOf(destination)}
+                    {destination.status === "active" ? "" : ` (${destination.status})`}
+                  </option>
+                ))}
+              </NativeSelect>
+            ) : null
+          }
+        />
+      ) : null}
 
       <CreateDestinationSheet
         open={creating}

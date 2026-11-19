@@ -18,6 +18,9 @@ import { formatDateTime, formatRelative } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { environmentWriteReason } from "../../model/access";
 import type { Application, Credential, IssuedCredential } from "../../model/control-plane";
+import { EXPIRY_WARNING_DAYS, expiryState, keysNeedingReplacement } from "../../model/environment-inventory";
+import { environmentCredentialsKey } from "../../view-models/environment-inventory";
+import { ExpiryBadge } from "./expiry-badge";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 
@@ -46,13 +49,17 @@ export function KeysTab({ application }: { application: Application }) {
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
   const [issued, setIssued] = useState<IssuedCredential | null>(null);
   const [revoking, setRevoking] = useState<Credential | null>(null);
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: key });
+    void client.invalidateQueries({ queryKey: environmentCredentialsKey(organizationId, project.id, kind) });
+  };
   const issue = useMutation({
     mutationFn: () => controlPlane.issueCredential(organizationId, project.id, kind, application.id, { operationId, expiresInDays }),
     onSuccess: (credential) => {
       setIssuing(false);
       setIssued(credential);
       setOperationId(crypto.randomUUID());
-      void client.invalidateQueries({ queryKey: key });
+      refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -61,16 +68,31 @@ export function KeysTab({ application }: { application: Application }) {
     onSuccess: () => {
       toast.success("Key revoked");
       setRevoking(null);
-      void client.invalidateQueries({ queryKey: key });
+      refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
   const rows = credentials.data ?? [];
   const activeCount = rows.filter((row) => row.status === "active").length;
+  const needsReplacement = keysNeedingReplacement(rows);
+  const expiredCount = needsReplacement.filter((row) => expiryState(row) === "expired").length;
 
   return (
     <>
       {application.status !== "active" ? <Notice tone="warning" title="This application is not active">Keys cannot be issued for it.</Notice> : null}
+      {needsReplacement.length > 0 && application.status === "active" ? (
+        <Notice
+          tone="warning"
+          title={replacementTitle(needsReplacement.length, expiredCount)}
+          action={
+            <GuardedButton size="sm" variant="outline" allowed={canWrite} reason={environmentWriteReason(kind)} onClick={() => setIssuing(true)}>
+              Issue a replacement
+            </GuardedButton>
+          }
+        >
+          Requests with an expired key are refused. Issue a new key, deploy it as APICENTER_API_KEY, then revoke the old one.
+        </Notice>
+      ) : null}
       <Panel
         title={`${kind === "live" ? "Live" : "Test"} keys`}
         description={`Keys start with ak_${kind}_. Issue a new key before revoking the old one to rotate without downtime.`}
@@ -104,7 +126,10 @@ export function KeysTab({ application }: { application: Application }) {
                 <TableRow key={credential.id}>
                   <TableCell className="font-mono text-xs">{credential.lookupPrefix}…</TableCell>
                   <TableCell>
-                    <StatusBadge status={credential.status} />
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                      {expiryState(credential) === "expired" ? null : <StatusBadge status={credential.status} />}
+                      <ExpiryBadge credential={credential} />
+                    </span>
                     {credential.revokedReason ? <span className="ml-2 text-xs text-muted-foreground">{credential.revokedReason}</span> : null}
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">{credential.lastUsedAt ? formatRelative(credential.lastUsedAt) : "Never"}</TableCell>
@@ -177,4 +202,11 @@ export function KeysTab({ application }: { application: Application }) {
       />
     </>
   );
+}
+
+function replacementTitle(total: number, expired: number): string {
+  const expiring = total - expired;
+  if (expired === 0) return `${expiring === 1 ? "A key expires" : `${expiring} keys expire`} within ${EXPIRY_WARNING_DAYS} days`;
+  if (expiring === 0) return expired === 1 ? "A key has expired" : `${expired} keys have expired`;
+  return `${expired} expired and ${expiring} expiring within ${EXPIRY_WARNING_DAYS} days`;
 }

@@ -14,6 +14,7 @@ import type { Application } from "../../model/control-plane";
 import { TRANSPORT_LABELS, destinationEndpoint, liveDestinationFor } from "../../model/event-destinations";
 import { useEventDestinations } from "../../view-models/event-destinations";
 import { useProjectEnvironment } from "../../view-models/project-environment";
+import { WebhookDeliveriesPanel } from "../webhooks/webhook-deliveries-panel";
 
 /** The application's payment event destination, if it has one. Changes happen on the Webhooks page. */
 export function WebhookTab({ application }: { application: Application }) {
@@ -33,49 +34,52 @@ export function WebhookTab({ application }: { application: Application }) {
   const disabledCount = destinations.data.filter((entry) => entry.recipientApplicationId === application.id && entry.status === "disabled").length;
 
   return (
-    <Panel
-      title="Webhook"
-      description="Where this application receives payment events. Add, rotate and disable destinations on the Webhooks page."
-      actions={manage}
-    >
-      {destination ? (
-        <DescriptionList
-          items={[
-            {
-              label: "Status",
-              value: (
-                <span className="flex flex-col items-start gap-1">
-                  <StatusBadge status={destination.status} />
-                  {destination.status === "failed" && destination.lastError ? <span className="text-xs text-danger">{destination.lastError}</span> : null}
-                </span>
-              ),
-            },
-            { label: "Transport", value: TRANSPORT_LABELS[destination.transport] },
-            { label: "Endpoint", value: <span className="font-mono text-xs break-all">{destinationEndpoint(destination)}</span> },
-            ...(destination.transport === "webhook"
-              ? [
-                  {
-                    label: "Secret rotated",
-                    value: destination.secretRotatedAt ? (
-                      <span title={formatDateTime(destination.secretRotatedAt)}>{formatRelative(destination.secretRotatedAt)}</span>
-                    ) : (
-                      "Never"
-                    ),
-                  },
-                ]
-              : []),
-            { label: "Created", value: <span title={formatDateTime(destination.createdAt)}>{formatRelative(destination.createdAt)}</span> },
-            { label: "ID", value: <IdText value={destination.id} /> },
-          ]}
-        />
-      ) : (
-        <EmptyState
-          icon={<WebhookIcon />}
-          title="No webhook"
-          description={`This application receives no payment events.${disabledCount ? ` It has ${disabledCount} disabled destination${disabledCount === 1 ? "" : "s"}.` : ""}`}
-          className="py-6"
-        />
-      )}
-    </Panel>
+    <div className="flex flex-col gap-6">
+      <Panel
+        title="Webhook"
+        description="Where this application receives payment events. Add, rotate and disable destinations on the Webhooks page."
+        actions={manage}
+      >
+        {destination ? (
+          <DescriptionList
+            items={[
+              {
+                label: "Status",
+                value: (
+                  <span className="flex flex-col items-start gap-1">
+                    <StatusBadge status={destination.status} />
+                    {destination.status === "failed" && destination.lastError ? <span className="text-xs text-danger">{destination.lastError}</span> : null}
+                  </span>
+                ),
+              },
+              { label: "Transport", value: TRANSPORT_LABELS[destination.transport] },
+              { label: "Endpoint", value: <span className="font-mono text-xs break-all">{destinationEndpoint(destination)}</span> },
+              ...(destination.transport === "webhook"
+                ? [
+                    {
+                      label: "Secret rotated",
+                      value: destination.secretRotatedAt ? (
+                        <span title={formatDateTime(destination.secretRotatedAt)}>{formatRelative(destination.secretRotatedAt)}</span>
+                      ) : (
+                        "Never"
+                      ),
+                    },
+                  ]
+                : []),
+              { label: "Created", value: <span title={formatDateTime(destination.createdAt)}>{formatRelative(destination.createdAt)}</span> },
+              { label: "ID", value: <IdText value={destination.id} /> },
+            ]}
+          />
+        ) : (
+          <EmptyState
+            icon={<WebhookIcon />}
+            title="No webhook"
+            description={`This application receives no payment events.${disabledCount ? ` It has ${disabledCount} disabled destination${disabledCount === 1 ? "" : "s"}.` : ""}`}
+            className="py-6"
+          />
+        )}
+      </Panel>
+      {destination?.transport === "webhook" ? <WebhookDeliveriesPanel key={destination.id} destination={destination} /> : null}
+    </div>
   );
 }

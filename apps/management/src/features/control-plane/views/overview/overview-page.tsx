@@ -18,6 +18,8 @@ import { observabilityKeys } from "../../view-models/observability";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { ActivityPanel } from "./activity-panel";
+import { ExpiringKeysPanel } from "./expiring-keys-panel";
+import { GettingStartedPanel } from "./getting-started-panel";
 import { GoLivePanel } from "./go-live-panel";
 import { UsagePanel } from "./usage-panel";
 
@@ -62,6 +64,8 @@ export function OverviewPage() {
         </div>
       ) : null}
 
+      {environment ? <GettingStartedPanel /> : null}
+
       {environment ? (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
           <div className="flex min-w-0 flex-col gap-6">
@@ -69,6 +73,7 @@ export function OverviewPage() {
             <ActivityPanel />
           </div>
           <div className="flex flex-col gap-6">
+            <ExpiringKeysPanel />
             <PlanPanel />
             <CapabilitiesSummary />
           </div>
