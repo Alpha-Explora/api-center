@@ -104,7 +104,8 @@ function resolveManagementAuthMode(env: EnvLike): ManagementAuthMode {
 }
 
 function isDeployedOrLive(env: EnvLike, environment: ManagementEnvironment) {
-  if (environment === "live" || env.VERCEL === "1" || env.RENDER === "true") {
+  // Cloud Run always sets K_SERVICE; local-dev sign-in must never run there.
+  if (environment === "live" || Boolean(env.K_SERVICE?.trim())) {
     return true;
   }
 

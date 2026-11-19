@@ -53,8 +53,9 @@ export function getDeploymentAuthMode(env: EnvLike = process.env): DeploymentAut
   return env.MANAGEMENT_AUTH_MODE === "google" ? "google" : "local-dev";
 }
 
+/** Deployed means Cloud Run (which always sets K_SERVICE) or any non-local public base URL. */
 export function isDeployedRuntime(env: EnvLike = process.env) {
-  if (env.VERCEL === "1" || trim(env.VERCEL_URL)) return true;
+  if (trim(env.K_SERVICE)) return true;
   const publicBaseUrl = trim(env.MANAGEMENT_PUBLIC_BASE_URL);
   if (!publicBaseUrl || publicBaseUrl.includes("<")) return false;
   try {

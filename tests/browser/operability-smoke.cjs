@@ -119,8 +119,7 @@ async function main() {
         API_CENTER_PLATFORM_ADMIN_SECRET: "fixture-only",
         APICENTER_PLATFORM_SECRET: "fixture-only",
         API_CENTER_CLOUD_RUN_AUTH_ENABLED: "false",
-        VERCEL: "",
-        RENDER: "",
+        K_SERVICE: "",
       },
     },
   );

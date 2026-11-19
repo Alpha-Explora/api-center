@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-20
+
+- Corrected the Management runbook and infra notes: the console is deployed to Cloud Run (`apicenter-management-test`) from the workspace image build, not Vercel.
+
 ## 2026-11-19
 
 - Documented the redesigned Management console. The Management guides describe where things are in the console and the Capabilities → Google sign-in steps; the GAuth, webhook and PayMongo-migration guides point at the new console pages. The Management runbook is rewritten for the control-plane console (onboarding, going live, routine operations, known gateway gaps), the architecture map and capability register list the console's scope and its mock-gateway-only verification, and the console README and DESIGN.md cover its routes and design system. Removed the completed and superseded Management specs (command center, lifecycle spine, landing page, console overhaul) and the tribe deprovisioning plan, whose target was removed with the legacy model.
