@@ -5,6 +5,7 @@ import type { EmailRecord } from './email-store';
 export interface EmailRepositoryInterface {
   save(record: EmailRecord, owner: SharedServiceCaller): Promise<EmailRecord>;
   findById(messageId: string, owner: SharedServiceCaller): Promise<EmailRecord | null>;
+  getProjectSender(projectId: string, environment: ProjectEmailSender['environment']): Promise<ProjectEmailSender | null>;
   setProjectSender(sender: ProjectEmailSender): Promise<ProjectEmailSender>;
   /**
    * Reserves a 'pending' message under the project lock, then calls `send` after the lock is released.

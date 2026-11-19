@@ -9,7 +9,7 @@ import {
   createSuccessResponse,
   type SharedServiceCaller,
 } from '@apicenter/runtime';
-import { SendEmailService } from './features/send-email/send-email.service';
+import { SendEmailService, defaultDailyLimit } from './features/send-email/send-email.service';
 import { EmailRecipients, EmailSubject } from './features/send-email/send-email.model';
 import { GetEmailStatusService } from './features/get-email-status/get-email-status.service';
 import { createEmailStore } from './shared/email-store';
@@ -48,6 +48,7 @@ const getEmailStatusService = new GetEmailStatusService(emailStore);
 const projectSenderAdminHandler = createProjectSenderAdminHandler({
   store: emailStore,
   expectedToken: process.env.EMAIL_ADMIN_TOKEN,
+  defaults: { fromAddress: process.env.EMAIL_FROM_ADDRESS || null, dailyLimit: defaultDailyLimit },
 });
 
 const sharedState = { databaseUrl: process.env.DATABASE_URL, schema: 'shared_email' };
@@ -192,6 +193,7 @@ app.post('/send', async (req: Request, res: Response) => {
   return res.status(response.status).json(response.body);
 });
 
+app.get('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
 app.put('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
 app.post('/admin/platform-messages', platformMessageAdminHandler);
 

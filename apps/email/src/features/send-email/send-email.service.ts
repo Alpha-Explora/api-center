@@ -10,7 +10,7 @@ const configuredDailyLimit = Number(process.env.EMAIL_DAILY_LIMIT_DEFAULT ?? 500
 if (!Number.isSafeInteger(configuredDailyLimit) || configuredDailyLimit < 1) {
   throw new Error("EMAIL_DAILY_LIMIT_DEFAULT must be a positive integer");
 }
-const defaultDailyLimit = configuredDailyLimit;
+export const defaultDailyLimit = configuredDailyLimit;
 const nodeEnv = process.env.NODE_ENV || "development";
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 

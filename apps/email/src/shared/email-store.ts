@@ -51,6 +51,11 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
     return { ...entry.record };
   }
 
+  async getProjectSender(projectId: string, environment: ProjectEmailSender['environment']): Promise<ProjectEmailSender | null> {
+    const sender = this.projectSenders.get(`${projectId}:${environment}`);
+    return sender ? { ...sender } : null;
+  }
+
   async setProjectSender(sender: ProjectEmailSender): Promise<ProjectEmailSender> {
     const key = `${sender.projectId}:${sender.environment}`;
     return this.withProjectLock(key, () => {
