@@ -1,0 +1,52 @@
+# Fast checks on every pull request: generated Prisma client, typecheck, lint, boundaries and
+# unit tests (gateway and console). About five minutes. The full CI (`ci.yml`, with the Docker
+# build) stays manual: gh workflow run ci.yml --ref <branch>
+
+name: PR checks
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck, lint and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Boundaries
+        run: npm run check:boundaries && npm run check:monorepo && npm run check:environment-naming
+
+      - name: Gateway unit tests
+        run: npm test -- --ci
+
+      - name: Console unit tests
+        run: npm run test --workspace @apicenter/management
