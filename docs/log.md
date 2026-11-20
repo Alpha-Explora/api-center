@@ -2,6 +2,7 @@
 
 ## 2026-11-20
 
+- The hosted-access runbook documents the image build, including the `_RELEASE_SHA` substitution that sets the release commit each image reports.
 - The hosted-access runbook records where each service runs after the move to `australia-southeast1`, the load balancer endpoint groups, and how to move a backend between regions without an outage. The gateway manifest's runtime routes and the hostname map name the Sydney services.
 - The email, SMS and OTP guides describe test-environment delivery to registered test recipients; the Management access guide lists the new setting; control plane operations adds migration `20261120001070` and the deploy order (runtimes before the gateway).
 - Control plane operations lists migration `20261120001060` and the new rules for operator suspensions, activation requests, approval expiry and serialized people changes.

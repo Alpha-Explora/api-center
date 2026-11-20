@@ -6,7 +6,8 @@
     "diskSizeGb": 100
   },
   "substitutions": {
-    "_GOOGLE_CLIENT_ID": ""
+    "_GOOGLE_CLIENT_ID": "",
+    "_RELEASE_SHA": "unknown"
   },
   "steps": [
     {
@@ -36,6 +37,8 @@
         "APP=gateway",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-${BUILD_ID}",
         "."
@@ -57,6 +60,8 @@
         "APP=payments",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:build-${BUILD_ID}",
         "."
@@ -78,6 +83,8 @@
         "APP=email",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:build-${BUILD_ID}",
         "."
@@ -99,6 +106,8 @@
         "APP=sms",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-${BUILD_ID}",
         "."
@@ -120,6 +129,8 @@
         "APP=otp",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:build-${BUILD_ID}",
         "."
@@ -141,6 +152,8 @@
         "APP=gauth",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-${BUILD_ID}",
         "."
@@ -162,6 +175,8 @@
         "APP=geo",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-${BUILD_ID}",
         "."
@@ -183,6 +198,8 @@
         "APP=webhooks",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-webhooks:build-${BUILD_ID}",
         "."
@@ -204,6 +221,8 @@
         "APP=management",
         "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
+        "--build-arg",
+        "APICENTER_RELEASE_SHA=${_RELEASE_SHA}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:build-${BUILD_ID}",
         "."
