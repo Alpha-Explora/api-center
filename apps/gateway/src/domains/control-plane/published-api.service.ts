@@ -240,26 +240,24 @@ export class PublishedApiService {
       if (!request) throw new NotFoundError(`Access request '${requestId}' was not found`);
       if (request.status !== "pending") throw new AppError(`Access request is already ${request.status}`, 409, "ACCESS_REQUEST_DECIDED");
       if (request.requestedBy === actor) throw new AppError("An access request cannot be decided by its requester", 403, "SELF_APPROVAL");
-      let grantId: string | null = null;
+      // Claim the decision first. A concurrent decision waits on this row and then finds it no
+      // longer pending, so an approval and a rejection can never both land.
+      const claimed = await db.cpApiAccessRequest.updateMany({
+        where: { id: requestId, organizationId, status: "pending" },
+        data: { status: approve ? "approved" : "rejected", decidedBy: actor, decidedAt: new Date(), rejectionReason: approve ? null : (reason ?? null) },
+      });
+      if (claimed.count === 0) throw new AppError("Access request was decided by someone else", 409, "ACCESS_REQUEST_DECIDED");
       if (approve) {
         const application = await db.cpApplication.findFirst({
           where: { id: request.consumerApplicationId, organizationId, environmentId: request.consumerEnvironmentId },
         });
         if (!application) throw new NotFoundError("The requesting application no longer exists");
-        grantId = (await createApiGrant(db, application, request.apiId, request.action, actor)).id;
+        const grant = await createApiGrant(db, application, request.apiId, request.action, actor);
+        await db.cpApiAccessRequest.update({ where: { id: requestId }, data: { grantId: grant.id } });
       }
       const api = await db.cpPublishedApi.findFirst({ where: { id: request.apiId, organizationId }, select: { projectId: true } });
-      const updated = await db.cpApiAccessRequest.update({
-        where: { id: requestId },
-        data: {
-          status: approve ? "approved" : "rejected",
-          decidedBy: actor,
-          decidedAt: new Date(),
-          grantId,
-          rejectionReason: approve ? null : (reason ?? null),
-        },
-      });
-      return { request: updated, apiProjectId: api?.projectId };
+      const updated = await db.cpApiAccessRequest.findFirst({ where: { id: requestId, organizationId } });
+      return { request: updated!, apiProjectId: api?.projectId };
     });
     const { request, apiProjectId } = decided;
     await this.recordAudit({ organizationId, projectId: apiProjectId }, `control_plane.api_access.${request.status}`, actor, request.apiId, "", {
