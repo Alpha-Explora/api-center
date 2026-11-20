@@ -2,7 +2,7 @@ import { generateKeyPairSync, randomUUID } from "node:crypto";
 import type { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 import type { AuditEventsService } from "../../../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { ControlPlaneAdminService } from "../../../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
-import { ApplicationAccessService } from "../../../../apps/gateway/src/domains/control-plane/application-access.service";
+import { ApplicationAccessService, usageRequestKey } from "../../../../apps/gateway/src/domains/control-plane/application-access.service";
 import { RuntimeContextSigner } from "../../../../apps/gateway/src/domains/control-plane/runtime-context.signer";
 import { QuotaService } from "../../../../apps/gateway/src/domains/control-plane/quota.service";
 import { composeBudgets, windowStart } from "../../../../apps/gateway/src/domains/control-plane/quota-budgets";
@@ -86,8 +86,8 @@ describe("request budgets on the application path", () => {
     const app = await admin.createApplication(scope, { slug: "api", name: "API" }, actor);
     await admin.grant(scope, app.id, { capability: "email", action: "email:send" }, actor);
     const { secret } = await admin.issueCredential(scope, app.id, { operationId: randomUUID() }, actor);
-    const send = (idempotencyKey?: string) =>
-      access.authorize({ bearer: secret, capability: "email", method: "POST", relativePath: "/send", requestId: randomUUID(), idempotencyKey });
+    const send = (idempotencyKey?: string, requestId: string = randomUUID()) =>
+      access.authorize({ bearer: secret, capability: "email", method: "POST", relativePath: "/send", requestId, idempotencyKey });
     return { project, scope, app, send };
   }
 
@@ -105,6 +105,13 @@ describe("request budgets on the application path", () => {
     await send("same-operation-key-0001");
     await expect(send()).resolves.toBeDefined();
     expect(prisma.cpUsageRecord.rows).toHaveLength(2);
+  });
+
+  it("counts every request that reuses a caller-chosen correlation ID", async () => {
+    const { send } = await setup();
+    await send(undefined, "constant-correlation-id");
+    await send(undefined, "constant-correlation-id");
+    await expect(send(undefined, "constant-correlation-id")).rejects.toMatchObject({ status: 429, code: "QUOTA_EXCEEDED" });
   });
 
   it("lets an assigned plan replace the test default", async () => {
@@ -137,5 +144,27 @@ describe("request budgets on the application path", () => {
     await access.recordOutcome(call, 201);
     const summary = await quotas.usageSummary(scope, new Date(Date.now() - 60_000));
     expect(summary.byApplicationAction).toEqual([expect.objectContaining({ action: "email:send", completed: 1 })]);
+  });
+});
+
+describe("usageRequestKey", () => {
+  const base = { applicationId: "app_1", action: "email:send", now: new Date("2026-11-20T10:00:00Z") };
+
+  it("gives every request without an idempotency key its own key", () => {
+    expect(usageRequestKey({ ...base, usageTarget: "email", method: "POST" })).not.toBe(usageRequestKey({ ...base, usageTarget: "email", method: "POST" }));
+  });
+
+  it("shares one key for POST retries to a replaying runtime within a UTC day", () => {
+    const first = usageRequestKey({ ...base, usageTarget: "email", method: "POST", idempotencyKey: "op-1" });
+    expect(usageRequestKey({ ...base, usageTarget: "email", method: "post", idempotencyKey: "op-1", now: new Date("2026-11-20T23:59:59Z") })).toBe(first);
+    expect(usageRequestKey({ ...base, usageTarget: "email", method: "POST", idempotencyKey: "op-1", now: new Date("2026-11-21T00:00:00Z") })).not.toBe(first);
+  });
+
+  it("counts every call when the target does not replay stored responses", () => {
+    const key = (usageTarget: string, method?: string) => usageRequestKey({ ...base, usageTarget, method, idempotencyKey: "op-1" });
+    expect(key("geo", "POST")).not.toBe(key("geo", "POST"));
+    expect(key("api:api_1", "POST")).not.toBe(key("api:api_1", "POST"));
+    expect(key("email", "GET")).not.toBe(key("email", "GET"));
+    expect(key("payments")).not.toBe(key("payments"));
   });
 });

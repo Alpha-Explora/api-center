@@ -111,6 +111,21 @@ describe("workload identity on the request path", () => {
     ]);
   });
 
+  it("lists and revokes a binding only through its own project and environment", async () => {
+    const { scope, app } = await setup();
+    const binding = await bindings.bind(scope, app.id, { subject: SA, audience: AUDIENCE }, actor);
+    const other = await admin.createProject(ORG, { slug: "other", name: "Other" }, actor);
+    const otherScope = { organizationId: ORG, projectId: other.id, environmentKind: "test" as const };
+    const liveScope = { ...scope, environmentKind: "live" as const };
+
+    await expect(bindings.revoke(otherScope, app.id, binding.id, actor)).rejects.toMatchObject({ status: 404 });
+    await expect(bindings.revoke(liveScope, app.id, binding.id, actor)).rejects.toMatchObject({ status: 404 });
+    expect(await bindings.list(otherScope, app.id)).toEqual([]);
+    await expect(bindings.list(liveScope, app.id)).rejects.toMatchObject({ status: 404 });
+    expect((await bindings.list(scope, app.id)).map((row) => row.id)).toEqual([binding.id]);
+    await expect(send()).resolves.toBeDefined();
+  });
+
   it("binds only exact numeric subjects and configured audiences", async () => {
     const { scope, app } = await setup();
     await expect(bindings.bind(scope, app.id, { subject: "*@example.iam.gserviceaccount.com", audience: AUDIENCE }, actor)).rejects.toMatchObject({ status: 400 });
