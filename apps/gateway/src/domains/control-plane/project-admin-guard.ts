@@ -34,7 +34,9 @@ export type AdministratorChange =
   /** A person leaves the organization. */
   | { kind: "member"; email: string }
   /** A person leaves a team. */
-  | { kind: "teamMember"; teamId: string; email: string };
+  | { kind: "teamMember"; teamId: string; email: string }
+  /** A team is deleted, with its members and project roles. */
+  | { kind: "team"; teamId: string };
 
 type Member = { email: string; role: string };
 type Assignment = { id: string; projectId: string; memberEmail: string | null; teamId: string | null };
@@ -59,8 +61,16 @@ export async function assertProjectsKeepAdministrator(db: TenantDb, organization
   const before = administratorsOf(members, assignments, teamMembers);
   const after = administratorsOf(
     membersAfter,
-    change.kind === "assignment" ? assignments.filter((assignment) => assignment.id !== change.assignmentId) : assignments,
-    change.kind === "teamMember" ? teamMembers.filter((row) => !(row.teamId === change.teamId && row.email === change.email)) : teamMembers,
+    change.kind === "assignment"
+      ? assignments.filter((assignment) => assignment.id !== change.assignmentId)
+      : change.kind === "team"
+        ? assignments.filter((assignment) => assignment.teamId !== change.teamId)
+        : assignments,
+    change.kind === "teamMember"
+      ? teamMembers.filter((row) => !(row.teamId === change.teamId && row.email === change.email))
+      : change.kind === "team"
+        ? teamMembers.filter((row) => row.teamId !== change.teamId)
+        : teamMembers,
   );
 
   // Organization owners and admins administer every project, so losing the last one affects them all.
