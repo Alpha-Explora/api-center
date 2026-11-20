@@ -25,11 +25,19 @@ type SendEmail = (
   owner: SharedServiceCaller,
 ) => Promise<{ messageId: string; status: string; provider: string }>;
 
+/** Counts one send to a recipient against the same per-recipient window `/send` uses. */
+export type ConsumeRecipientLimit = (recipient: string) => Promise<{ allowed: boolean; resetAt: number }>;
+
 /**
  * POST /admin/platform-messages: one plain message to one recipient, from the gateway, guarded by
- * EMAIL_ADMIN_TOKEN. The gateway uses it to send organization invites.
+ * EMAIL_ADMIN_TOKEN. The gateway uses it to send organization invites. The per-recipient rate limit
+ * applies here too, so no caller can flood one inbox through the platform sender.
  */
-export function createPlatformMessageAdminHandler(deps: { sendEmail: SendEmail; expectedToken: string | undefined }) {
+export function createPlatformMessageAdminHandler(deps: {
+  sendEmail: SendEmail;
+  consumeRecipientLimit: ConsumeRecipientLimit;
+  expectedToken: string | undefined;
+}) {
   return async (req: Request, res: Response): Promise<void> => {
     if (!tokenMatches(req.header('X-APICenter-Email-Admin-Token') || undefined, deps.expectedToken)) {
       res.status(401).json({ error: 'UNAUTHORIZED', message: 'Email admin token is invalid.' });
@@ -49,6 +57,16 @@ export function createPlatformMessageAdminHandler(deps: { sendEmail: SendEmail; 
       html === null || (html !== undefined && html.length > 50_000)
     ) {
       res.status(400).json({ error: 'INVALID_PLATFORM_MESSAGE', message: 'Provide to, subject and text (and optionally html).' });
+      return;
+    }
+    try {
+      const limit = await deps.consumeRecipientLimit(to.toLowerCase());
+      if (!limit.allowed) {
+        res.status(429).json({ error: 'RATE_LIMITED', message: 'Email send limit exceeded for recipient.', resetAt: new Date(limit.resetAt).toISOString() });
+        return;
+      }
+    } catch {
+      res.status(503).json({ error: 'RATE_LIMIT_UNAVAILABLE', message: 'Email rate-limit storage is unavailable' });
       return;
     }
     try {

@@ -49,16 +49,18 @@ const projectSenderAdminHandler = createProjectSenderAdminHandler({
   store: emailStore,
   expectedToken: process.env.EMAIL_ADMIN_TOKEN,
 });
-const platformMessageAdminHandler = createPlatformMessageAdminHandler({
-  sendEmail: (input, owner) => sendEmailService.execute(input, owner),
-  expectedToken: process.env.EMAIL_ADMIN_TOKEN,
-});
 
 const sharedState = { databaseUrl: process.env.DATABASE_URL, schema: 'shared_email' };
 const idempotencyStore = createSharedIdempotencyStore(sharedState);
 const rateLimitStore = createSharedRateLimitStore(sharedState);
 const sendLimit = Number(process.env.EMAIL_SEND_LIMIT_PER_RECIPIENT || 20);
 const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
+const platformMessageAdminHandler = createPlatformMessageAdminHandler({
+  sendEmail: (input, owner) => sendEmailService.execute(input, owner),
+  consumeRecipientLimit: (recipient) =>
+    rateLimitStore.consume(`email:send:${recipient}`, { limit: sendLimit, windowMs: sendWindowMs }),
+  expectedToken: process.env.EMAIL_ADMIN_TOKEN,
+});
 const idempotencyTtlMs = Number(process.env.EMAIL_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 
 app.post('/send', async (req: Request, res: Response) => {
