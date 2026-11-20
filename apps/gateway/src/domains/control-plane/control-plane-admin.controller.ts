@@ -60,7 +60,7 @@ const schemas = {
     })
     .strict(),
   policyStatus: z.object({ status: z.enum(["active", "disabled"]), actor: onBehalfOf.optional() }).strict(),
-  activateLive: z.object({ approvalRequestId: z.string().min(1).max(100), actor: onBehalfOf.optional() }).strict(),
+  activateLive: z.object({ approvalRequestId: z.string().uuid(), actor: onBehalfOf.optional() }).strict(),
   activationRequest: z.object({ reason: z.string().trim().min(1).max(500), actor: onBehalfOf.optional() }).strict(),
   activationDecision: z.object({ reason: z.string().trim().min(1).max(500).optional() }).strict(),
   environmentStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
@@ -398,6 +398,7 @@ export class ControlPlaneAdminController {
   async decideActivation(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const { organizationId, projectId } = projectScope(params);
     const decision = parse(z.enum(["approve", "reject"]), params.decision, "decision");
+    const approvalRequestId = parse(z.string().uuid(), params.approvalRequestId, "approvalRequestId");
     const input = parse(schemas.activationDecision, body, "body");
     const actor = actorOf(req);
     // A decision needs a named person: the shared platform credential cannot approve its own requests.
@@ -409,7 +410,7 @@ export class ControlPlaneAdminController {
     const data = await this.live.decideActivation(
       organizationId,
       projectId,
-      params.approvalRequestId,
+      approvalRequestId,
       decision === "approve" ? { approve: true, by: actor.email } : { approve: false, by: actor.email, reason: input.reason! },
     );
     return { success: true, data };

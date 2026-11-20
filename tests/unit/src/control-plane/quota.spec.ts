@@ -140,10 +140,11 @@ describe("request budgets on the application path", () => {
 
   it("records request outcomes for usage reporting", async () => {
     const { scope, send } = await setup();
-    const call = await send();
-    await access.recordOutcome(call, 201);
+    await access.recordOutcome(await send(), 201);
+    await access.recordOutcome(await send(), 503);
     const summary = await quotas.usageSummary(scope, new Date(Date.now() - 60_000));
-    expect(summary.byApplicationAction).toEqual([expect.objectContaining({ action: "email:send", completed: 1 })]);
+    expect(summary.requests).toBe(2);
+    expect(summary.byApplicationAction).toEqual([expect.objectContaining({ action: "email:send", admitted: 0, completed: 1, failed: 1 })]);
   });
 });
 

@@ -8,6 +8,7 @@ import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service
 import { ConfigService } from "@config/config.service";
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
+import { consoleAccessCacheFor } from "./console-access-cache";
 import { withTenant, type TenantDb } from "./tenant-transaction";
 import { assertProjectsKeepAdministrator } from "./project-admin-guard";
 
@@ -228,8 +229,13 @@ export class OrganizationPeopleService {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  private tenant<T>(organizationId: string, work: (db: TenantDb) => Promise<T>): Promise<T> {
-    return withTenant(this.prisma, { organizationId }, work);
+  /** Every people change can change someone's console access, so cached access is dropped after each. */
+  private async tenant<T>(organizationId: string, work: (db: TenantDb) => Promise<T>): Promise<T> {
+    try {
+      return await withTenant(this.prisma, { organizationId }, work);
+    } finally {
+      consoleAccessCacheFor(this.prisma).invalidateOrganization(organizationId);
+    }
   }
 
   private async uniqueOrConflict<T>(message: string, work: () => Promise<T>): Promise<T> {

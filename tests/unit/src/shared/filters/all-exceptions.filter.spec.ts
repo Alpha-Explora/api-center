@@ -168,3 +168,42 @@ describe("AllExceptionsFilter", () => {
     );
   });
 });
+
+describe("AllExceptionsFilter database failures", () => {
+  const logger = { warn: jest.fn(), error: jest.fn() } as unknown as LoggerService;
+  const filter = new AllExceptionsFilter(logger, { isProduction: true } as ConfigService);
+
+  function prismaError(code: string, message = "database error") {
+    return Object.assign(new Error(message), { name: "PrismaClientKnownRequestError", code });
+  }
+
+  function send(exception: unknown) {
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const setHeader = jest.fn();
+    filter.catch(exception, createHost({ correlationId: "corr-db" }, { status, setHeader }));
+    return { status: status.mock.calls[0]?.[0], body: json.mock.calls[0]?.[0], setHeader };
+  }
+
+  it("answers 503 with Retry-After when no transaction slot frees up in time", () => {
+    const { status, body, setHeader } = send(prismaError("P2028", "Transaction API error: Unable to start a transaction in the given time."));
+    expect(status).toBe(503);
+    expect(body.error).toEqual({ code: "DATABASE_BUSY", message: "APICenter is busy. Retry shortly." });
+    expect(setHeader).toHaveBeenCalledWith("Retry-After", "2");
+  });
+
+  it("answers 503 when the database cannot be reached", () => {
+    expect(send(prismaError("P1001")).status).toBe(503);
+    expect(send(Object.assign(new Error("Can't reach database"), { name: "PrismaClientInitializationError" })).body.error.code).toBe("DATABASE_UNAVAILABLE");
+  });
+
+  it("answers 409 for a duplicate and 404 for a vanished record", () => {
+    expect(send(prismaError("P2002"))).toMatchObject({ status: 409, body: { error: { code: "CONFLICT" } } });
+    expect(send(prismaError("P2025"))).toMatchObject({ status: 404, body: { error: { code: "NOT_FOUND" } } });
+  });
+
+  it("still answers 500 for other errors, including unrelated ones that carry a code", () => {
+    expect(send(prismaError("P2010")).status).toBe(500);
+    expect(send(Object.assign(new Error("boom"), { code: "P2028" })).status).toBe(500);
+  });
+});

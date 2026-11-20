@@ -26,6 +26,7 @@ import { AppError } from "../errors";
 import { LoggerService } from "../logger.service";
 import { ConfigService } from "../../config/config.service";
 import { AuthenticatedRequest } from "../../types";
+import { mapDatabaseError } from "./database-errors";
 
 @Injectable()
 @Catch()
@@ -88,6 +89,25 @@ export class AllExceptionsFilter implements ExceptionFilter {
           code: "HTTP_ERROR",
           message: exception.message,
         },
+        meta: { timestamp: new Date().toISOString(), correlationId },
+      });
+      return;
+    }
+
+    // --- Database failures with a meaningful status (busy pool, duplicates) ---
+    const database = mapDatabaseError(exception);
+    if (database) {
+      const err = exception as Error;
+      if (database.status >= 500) {
+        this.logger.error(`Database unavailable (${database.code}): ${err?.message}`, err?.stack, "ExceptionFilter");
+      } else {
+        this.logger.warn(`HTTP ${database.status} ${database.code}: ${err?.message}`, "ExceptionFilter");
+      }
+      response.locals.requestDiagnostic = { code: database.code };
+      if (database.retryAfterSeconds) response.setHeader("Retry-After", String(database.retryAfterSeconds));
+      response.status(database.status).json({
+        success: false,
+        error: { code: database.code, message: database.message },
         meta: { timestamp: new Date().toISOString(), correlationId },
       });
       return;
