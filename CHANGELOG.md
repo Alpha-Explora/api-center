@@ -6,6 +6,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Breaking
 
+- SMS: without a pinned sender, a request's `senderId` must be APICenter's default sender; any other value returns `403 SENDER_NOT_APPROVED`. Messages go out on APICenter's provider account, so a free-form sender ID let a project send as any brand. Ask an operator to pin your sender ID.
 - SDK 3.0.0, for application keys only. `new ApiCenter()` reads `APICENTER_API_KEY`; `baseUrl`, `APICENTER_URL`, service credentials, access-token providers, `paymentApiKey` and `setup.status()` are removed. Writes generate an idempotency key when none is given and retry network errors, timeouts, 408, 429 and 5xx with the same key, respecting `Retry-After`. Failures are typed (`AuthenticationError`, `PermissionError`, `ValidationError`, `NotFoundError`, `IdempotencyError`, `RateLimitError`, `QuotaExceededError`, `ServerError`, `ConnectionError`) and carry `requestId`. Methods are renamed for consistency (`email.get`, `sms.get`, `otp.send`, `otp.get`, `geo.geocode`, `geo.checkGeofence`, `auth.google.*`). New: `whoami()`, `payments.records.listAll()`, `isPending()`, request hooks, per-call timeouts, `createWebhookHandler()`, and typed webhook events. Webhook and published-API verification use WebCrypto (now async), so the SDK runs on Node 20+, Deno, Bun and edge runtimes. Ships ES modules and CommonJS. See `packages/sdk/UPGRADING.md`.
 - Payment event contract 2.0 and contracts 1.0.0: events carry `environment`, `organizationId`, `projectId` and `applicationId`; `ownerTribeId`, `ownerGroupId`, `consumerServiceId` and the duplicated `data` fields are gone, and a paid checkout's `data` is `{ status, checkoutId, paymentId, amount, currency }` with `amount` in minor units. The AsyncAPI contract now lists only the event that is published (`payment.checkout.paid`) and describes signed webhook delivery.
 - Removed the sandbox tribe examples, the AlphaCI payment smoke harness, and the consumer guides for service registration, token exchange, registry health and Pub/Sub push delivery.
@@ -40,6 +41,10 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- OTP: a code accepts five wrong attempts unless the project sets a different limit (1 to 10). Before, a project without OTP settings had no limit beyond the per-minute verify rate limit.
+- SMS, OTP and email per-recipient rate limits use the normalised recipient and are kept per project and environment, so spacing or punctuation no longer resets a limit and one project cannot exhaust another's limit for a number.
+- Payments: the gateway sends the signed runtime context, and the payments runtime scopes records by it once it has the context public keys, refusing requests without it in production. Before, the runtime token plus unsigned headers could name any project.
+- Google sign-in runtime: production requires the signed runtime context instead of falling back to project headers.
 - Organization-level audit events (members, teams, API access decisions) are stored. They were written with environment `unknown`, which the table's check refused, so they stayed in memory only; they now use `none`.
 - Project-scoped console routes check that the project belongs to the organization in the path and answer 404 otherwise. Before, an organization owner or admin counted as admin of any project ID.
 - Removing a member, a team member or a project admin assignment is refused with `409 LAST_PROJECT_ADMIN` when it would leave a project with no administrator and the organization has no owner or admin left.
