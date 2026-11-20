@@ -67,7 +67,7 @@ export class WorkloadBindingService {
         throw error;
       }
     });
-    await this.recordAudit("control_plane.workload.bound", actor, binding.id, scope.environmentKind, { applicationId, subject: input.subject });
+    await this.recordAudit(scope, "control_plane.workload.bound", actor, binding.id, { applicationId, subject: input.subject });
     return binding;
   }
 
@@ -84,11 +84,23 @@ export class WorkloadBindingService {
       if (found.status === "revoked") return found;
       return db.cpWorkloadBinding.update({ where: { id }, data: { status: "revoked", revokedAt: new Date(), revokedBy: actor } });
     });
-    await this.recordAudit("control_plane.workload.revoked", actor, id, scope.environmentKind, { applicationId });
+    await this.recordAudit(scope, "control_plane.workload.revoked", actor, id, { applicationId });
     return binding;
   }
 
-  private async recordAudit(type: string, actor: string, resourceId: string, environment: string, payload: Record<string, unknown>) {
-    await this.audit.record({ type, actionFamily: "secret", actor, resourceType: "cp_workload_binding", resourceId, environment, severity: "info", message: type.replaceAll(".", " "), payload });
+  private async recordAudit(scope: EnvironmentScope, type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {
+    await this.audit.record({
+      type,
+      actionFamily: "secret",
+      actor,
+      organizationId: scope.organizationId,
+      projectId: scope.projectId,
+      resourceType: "cp_workload_binding",
+      resourceId,
+      environment: scope.environmentKind,
+      severity: "info",
+      message: type.replaceAll(".", " "),
+      payload,
+    });
   }
 }

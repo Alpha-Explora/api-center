@@ -70,13 +70,13 @@ export class OrganizationAdminService {
         return created;
       }),
     );
-    await this.recordAudit("control_plane.organization.created", actor, organization.id, {
+    await this.recordAudit(organization.id, "control_plane.organization.created", actor, organization.id, {
       slug: organization.slug,
       name: organization.name,
       ownerEmail: input.ownerEmail ?? null,
     });
     if (input.ownerEmail) {
-      await this.recordAudit("control_plane.member.set", actor, `${organization.id}:${input.ownerEmail}`, { role: "owner", previousRole: null });
+      await this.recordAudit(organization.id, "control_plane.member.set", actor, `${organization.id}:${input.ownerEmail}`, { role: "owner", previousRole: null });
     }
     return view(organization);
   }
@@ -93,7 +93,7 @@ export class OrganizationAdminService {
         return { before: current, after: updated };
       }),
     );
-    await this.recordAudit("control_plane.organization.renamed", actor, organizationId, {
+    await this.recordAudit(organizationId, "control_plane.organization.renamed", actor, organizationId, {
       before: { name: before.name, slug: before.slug },
       after: { name: after.name, slug: after.slug },
     });
@@ -112,6 +112,7 @@ export class OrganizationAdminService {
     });
     if (previous !== status) {
       await this.recordAudit(
+        organizationId,
         status === "suspended" ? "control_plane.organization.suspended" : "control_plane.organization.reactivated",
         actor,
         organizationId,
@@ -133,11 +134,19 @@ export class OrganizationAdminService {
     }
   }
 
-  private async recordAudit(type: string, actor: string, resourceId: string, payload: Record<string, unknown>, severity: "info" | "warning" = "info") {
+  private async recordAudit(
+    organizationId: string,
+    type: string,
+    actor: string,
+    resourceId: string,
+    payload: Record<string, unknown>,
+    severity: "info" | "warning" = "info",
+  ) {
     await this.audit.record({
       type,
       actionFamily: "registration",
       actor,
+      organizationId,
       resourceType: type.split(".")[1],
       resourceId,
       severity,

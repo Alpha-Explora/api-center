@@ -82,7 +82,7 @@ describe("MemberInviteService", () => {
     expect(url).toBe("http://email.internal/admin/platform-messages");
     expect(init.headers).toMatchObject({ "X-APICenter-Email-Admin-Token": "email-admin" });
     expect(JSON.parse(init.body)).toMatchObject({ to: "jun@serbizio.ph", subject: "You have been added to Serbizio on APICenter" });
-    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ type: "control_plane.member.invite_sent", resourceId: `${ORG}:jun@serbizio.ph` }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ type: "control_plane.member.invite_sent", organizationId: ORG, resourceId: `${ORG}:jun@serbizio.ph` }));
   });
 
   it("reports, records and carries on when email is not configured", async () => {
