@@ -42,7 +42,7 @@ test.after(async () => {
 
 test.beforeEach(async () => {
   if (!client) return;
-  await client.query('truncate shared_sms.sms_messages, shared_sms.sms_delivery_events, shared_otp.otp_challenges, shared_email.email_messages, shared_email.project_senders, shared_email.email_delivery_events');
+  await client.query('truncate shared_sms.sms_messages, shared_sms.sms_delivery_events, shared_otp.otp_challenges, shared_email.email_messages, shared_email.project_senders, shared_email.email_delivery_events, shared_sms.project_senders, shared_otp.project_settings');
 });
 
 function smsRecord(messageId) {
