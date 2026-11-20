@@ -51,6 +51,16 @@ The load balancer has one serverless network endpoint group per backend: `apicen
 
 To move a backend between regions, attach the new region's endpoint group next to the old one and wait until it serves; changes took several minutes to reach the load balancer's proxies. Traffic always goes to the nearest healthy region, and the capacity scaler does not steer serverless backends, so the switch is detaching the old group. Make that change as a single `backend-services export`/`import`, and keep the two-region file to re-import if requests fail. A backend accepts only one serverless endpoint group per region.
 
+## Building and deploying images
+
+Build every image from a clean checkout of the commit you are releasing:
+
+```bash
+gcloud builds submit --region asia-southeast1   --config infra/gcp/cloud-build/apicenter-workspace-images.json   --substitutions=_GOOGLE_CLIENT_ID=<console OAuth client ID>,_RELEASE_SHA=$(git rev-parse HEAD)
+```
+
+`_RELEASE_SHA` is baked into each image as `APICENTER_RELEASE_SHA`, which `/api/v1/health/ready` reports. Do not set that variable on a Cloud Run service; it would override the image's value and go stale. Deploy each service with `gcloud run services update <service> --region <region> --image <image>:build-<id> --revision-suffix <tag>`, then route traffic with `update-traffic --to-revisions <service>-<tag>=100`, because traffic is often pinned to a named revision. Deploy runtimes before the gateway when a release changes what the gateway signs.
+
 ## Gateway credential and database settings
 
 Set `TRIBE_SECRET_GCP_PREFIX=api-center-service-secret-` on the gateway. The variable retains its historical name, but the value must match Management's per-service secret naming. An explicit Cloud Run value takes precedence over the older prefix in the gateway's bootstrap secret bundle. Each payload names its service and environment and stores credential hashes only.
