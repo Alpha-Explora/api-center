@@ -65,12 +65,7 @@ export class MemberInviteService {
     const since = Date.now() - INVITE_COOLDOWN_MS;
     for (const [entry, sentAt] of this.recentlySent) if (sentAt < since) this.recentlySent.delete(entry);
     if (this.recentlySent.has(key)) return true;
-    if (process.env.DATABASE_ENABLED !== "true") return false;
-    const previous = await this.prisma.auditEvent.findFirst({
-      where: { action: INVITE_SENT, resourceType: "member", resourceId: key, createdAt: { gte: new Date(since) } },
-      select: { id: true },
-    });
-    return Boolean(previous);
+    return this.audit.hasEventSince({ action: INVITE_SENT, resourceType: "member", resourceId: key, since: new Date(since) });
   }
 
   /** Undefined when the runtime accepted the message for delivery; otherwise why it was not sent. */

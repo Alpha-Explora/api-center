@@ -14,7 +14,7 @@ const ENV_KEYS = ["EMAIL_ADMIN_TOKEN", "SHARED_SERVICE_ROUTE_EMAIL_LIVE", "MANAG
 const saved: Partial<Record<(typeof ENV_KEYS)[number], string>> = {};
 
 let prisma: FakeControlPlanePrisma;
-let audit: { record: jest.Mock };
+let audit: { record: jest.Mock; hasEventSince: jest.Mock };
 let invites: MemberInviteService;
 let fetchMock: jest.Mock;
 
@@ -41,7 +41,19 @@ beforeEach(() => {
   prisma = createFakeControlPlanePrisma();
   prisma.organization.rows.push({ id: ORG, name: "Serbizio", slug: "serbizio", status: "active" });
   prisma.organizationMember.rows.push({ organizationId: ORG, email: "owner@example.test", role: "owner", status: "active", subject: null });
-  audit = { record: jest.fn().mockResolvedValue(undefined) };
+  audit = {
+    record: jest.fn().mockResolvedValue(undefined),
+    // Answers from the fake audit table, as AuditEventsService.hasEventSince does from the real one.
+    hasEventSince: jest.fn(async (query: { action: string; resourceType: string; resourceId: string; since: Date }) =>
+      prisma.auditEvent.rows.some(
+        (row) =>
+          row.action === query.action &&
+          row.resourceType === query.resourceType &&
+          row.resourceId === query.resourceId &&
+          (row.createdAt as Date) >= query.since,
+      ),
+    ),
+  };
   invites = new MemberInviteService(prisma as unknown as PrismaService, audit as unknown as AuditEventsService);
   fetchMock = jest.fn().mockResolvedValue(respond(201, { success: true, data: { messageId: "msg_1", status: "queued", provider: "resend" } }));
   invites.useFetch(fetchMock);
