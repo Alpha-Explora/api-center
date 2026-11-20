@@ -1,20 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon } from "lucide-react";
-import { toast } from "sonner";
 import { buttonVariants } from "@/components/ui/button";
 import { IdText } from "@/components/patterns/copy-button";
-import { NativeSelect } from "@/components/patterns/form";
 import { PageHeader } from "@/components/patterns/page-header";
 import { DescriptionList, Panel } from "@/components/patterns/panel";
-import { StatusBadge } from "@/components/patterns/status-badge";
+import { StatusBadge, statusLabel } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
-import { PROJECT_ADMIN_REASON } from "../../model/access";
-import { observabilityKeys } from "../../view-models/observability";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { ActivityPanel } from "./activity-panel";
@@ -43,7 +39,7 @@ export function OverviewPage() {
             <IdText value={project.id} />
           </>
         }
-        actions={environment ? <StatusBadge status={environment.status}>{`${kind === "live" ? "Live" : "Test"} · ${environment.status}`}</StatusBadge> : null}
+        actions={environment ? <StatusBadge status={environment.status}>{`${kind === "live" ? "Live" : "Test"} · ${statusLabel(environment.status)}`}</StatusBadge> : null}
       />
 
       {kind === "live" ? <GoLivePanel /> : null}
@@ -83,48 +79,29 @@ export function OverviewPage() {
   );
 }
 
+/** The environment's plan at a glance; it is changed on Quotas, beside the allowance it sets. */
 function PlanPanel() {
-  const { organizationId, project, kind, canManage } = useProjectEnvironment();
-  const client = useQueryClient();
+  const { organizationId, project, kind } = useProjectEnvironment();
   const plans = useQuery({ queryKey: cpKeys.plans, queryFn: controlPlane.plans, staleTime: 5 * 60_000 });
   const plan = useQuery({ queryKey: cpKeys.plan(organizationId, project.id, kind), queryFn: () => controlPlane.plan(organizationId, project.id, kind) });
-  const assign = useMutation({
-    mutationFn: (planKey: string) => controlPlane.assignPlan(organizationId, project.id, kind, planKey),
-    onSuccess: () => {
-      toast.success("Plan updated");
-      void client.invalidateQueries({ queryKey: cpKeys.plan(organizationId, project.id, kind) });
-      void client.invalidateQueries({ queryKey: cpKeys.liveReadiness(organizationId, project.id) });
-      void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const options = (plans.data ?? []).filter((entry) => kind === "test" || entry.liveAllowed);
   const current = (plans.data ?? []).find((entry) => entry.planKey === plan.data?.planKey);
 
   return (
-    <Panel title="Plan" description={kind === "test" ? "Without a plan, test has a bounded daily default." : "Live requests need a live-capable plan."}>
-      <div className="flex flex-col gap-3">
-        <NativeSelect
-          aria-label="Plan"
-          value={plan.data?.planKey ?? ""}
-          disabled={!canManage || assign.isPending}
-          title={canManage ? undefined : PROJECT_ADMIN_REASON}
-          onChange={(event) => event.target.value && assign.mutate(event.target.value)}
-        >
-          <option value="">{kind === "test" ? "Test default" : "No plan"}</option>
-          {options.map((entry) => (
-            <option key={entry.planKey} value={entry.planKey}>
-              {entry.displayName}
-            </option>
-          ))}
-        </NativeSelect>
-        <DescriptionList
-          items={[
-            { label: "Daily requests", value: current ? (current.requestsPerDay === null ? "Unlimited" : formatNumber(current.requestsPerDay)) : kind === "test" ? "Default" : "None" },
-            { label: "Live allowed", value: current ? (current.liveAllowed ? "Yes" : "No") : "—" },
-          ]}
-        />
-      </div>
+    <Panel
+      title="Plan"
+      actions={
+        <Link href={projectHref(project.id, kind, "/quotas")} className="text-xs text-muted-foreground hover:text-foreground">
+          Change plan
+        </Link>
+      }
+    >
+      <DescriptionList
+        items={[
+          { label: "Plan", value: current?.displayName ?? (kind === "test" ? "Test default" : <span className="text-warning">None, so live requests are refused</span>) },
+          { label: "Daily requests", value: current ? (current.requestsPerDay === null ? "Unlimited" : formatNumber(current.requestsPerDay)) : kind === "test" ? "Default" : "None" },
+          ...(kind === "live" ? [] : [{ label: "Live allowed", value: current ? (current.liveAllowed ? "Yes" : "No") : "No" }]),
+        ]}
+      />
     </Panel>
   );
 }

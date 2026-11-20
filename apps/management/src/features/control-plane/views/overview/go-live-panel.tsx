@@ -89,6 +89,8 @@ function ProvisioningPanel() {
   });
   const [reason, setReason] = useState("");
   const [rejecting, setRejecting] = useState<ActivationRequest | null>(null);
+  // The approved request to activate, once the person confirms.
+  const [activating, setActivating] = useState<ActivationRequest | null>(null);
   const requestsKey = cpKeys.activationRequests(organizationId, project.id);
   // Show the server's answer at once: a refetch can fail while the gateway is busy, and the old
   // "Waiting for approval" with live buttons would invite a second click.
@@ -137,6 +139,7 @@ function ProvisioningPanel() {
   const activate = useMutation({
     mutationFn: (approvalRequestId: string) => controlPlane.activateLive(organizationId, project.id, approvalRequestId),
     onSuccess: () => {
+      setActivating(null);
       toast.success("Live is active");
       // The environment's status changes, so everything about the project is refreshed.
       void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
@@ -157,9 +160,37 @@ function ProvisioningPanel() {
   const open = (requests.data ?? []).filter((entry) => entry.status === "pending" || entry.status === "approved");
   const history = (requests.data ?? []).filter((entry) => entry.status !== "pending" && entry.status !== "approved");
   const me = session?.email?.toLowerCase();
+  const approved = open.find((entry) => entry.status === "approved");
+  const pending = open.find((entry) => entry.status === "pending");
+  const readyToActivate = Boolean(approved && data?.ready);
+  const passed = (data?.checks ?? []).filter((check) => check.passed).length;
+  const total = data?.checks.length ?? 0;
 
   return (
-    <Panel title="Going live" description="Live is provisioning. It serves no requests until it is activated.">
+    <Panel
+      title={readyToActivate ? "Ready to go live" : "Going live"}
+      description={
+        readyToActivate && approved
+          ? `Every readiness check passes and ${approved.approvedBy ?? "another admin"} approved it. Activating starts serving live traffic.`
+          : "Live is provisioning. It serves no requests until it is activated."
+      }
+      actions={
+        readyToActivate && approved ? (
+          <GuardedButton allowed={canManage} reason={PROJECT_ADMIN_REASON} disabled={activate.isPending} onClick={() => setActivating(approved)}>
+            <RocketIcon data-icon="inline-start" /> Activate live
+          </GuardedButton>
+        ) : null
+      }
+    >
+      <ol className="mb-5 grid gap-2 text-[13px] sm:grid-cols-3" aria-label="Going live progress">
+        <ProgressStep done={Boolean(data?.ready)} label="Readiness" detail={data ? `${passed} of ${total} checks pass` : "Checking…"} />
+        <ProgressStep
+          done={Boolean(approved)}
+          label="Approval"
+          detail={approved ? `Approved by ${approved.approvedBy ?? "another admin"}` : pending ? "Waiting for another admin" : "Not requested yet"}
+        />
+        <ProgressStep done={false} label="Activate" detail={readyToActivate ? "Ready" : "After readiness and approval"} />
+      </ol>
       {readiness.error ? <ErrorPanel title="Readiness is unavailable" error={readiness.error} /> : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
@@ -208,13 +239,13 @@ function ProvisioningPanel() {
                         Reject
                       </GuardedButton>
                     </>
-                  ) : (
+                  ) : readyToActivate ? null : (
                     <GuardedButton
                       size="sm"
                       allowed={canManage && Boolean(data?.ready)}
                       reason={notReadyReason}
                       disabled={activate.isPending}
-                      onClick={() => activate.mutate(entry.id)}
+                      onClick={() => setActivating(entry)}
                     >
                       <RocketIcon data-icon="inline-start" /> Activate live
                     </GuardedButton>
@@ -271,6 +302,15 @@ function ProvisioningPanel() {
       </div>
 
       <ConfirmDialog
+        open={activating !== null}
+        onOpenChange={(next) => !next && setActivating(null)}
+        title={`Activate live for ${project.name}`}
+        description="Live applications' keys and workload identities start working at once, against real providers. You can suspend live later from project settings."
+        confirmLabel="Activate live"
+        busy={activate.isPending}
+        onConfirm={() => activating && activate.mutate(activating.id)}
+      />
+      <ConfirmDialog
         open={rejecting !== null}
         onOpenChange={(next) => !next && setRejecting(null)}
         title="Reject activation"
@@ -282,5 +322,17 @@ function ProvisioningPanel() {
         onConfirm={(rejection) => rejecting && decide.mutate({ id: rejecting.id, decision: "reject", reason: rejection })}
       />
     </Panel>
+  );
+}
+
+function ProgressStep({ done, label, detail }: { done: boolean; label: string; detail: string }) {
+  return (
+    <li className={cn("flex items-start gap-2 rounded-md border px-3 py-2", done && "border-success/30 bg-success-soft")}>
+      {done ? <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-success" /> : <CircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />}
+      <span className="min-w-0">
+        <span className="block font-medium">{label}</span>
+        <span className="block text-xs text-muted-foreground">{detail}</span>
+      </span>
+    </li>
   );
 }

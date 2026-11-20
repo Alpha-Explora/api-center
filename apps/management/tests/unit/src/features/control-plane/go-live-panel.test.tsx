@@ -18,7 +18,7 @@ vi.mock("@/features/control-plane/data/control-plane-repository", () => ({ contr
 vi.mock("@/features/control-plane/view-models/project-environment", () => ({
   useProjectEnvironment: () => ({
     organizationId: "org_1",
-    project: { id: "prj_1" },
+    project: { id: "prj_1", name: "Serbizio" },
     environment: { kind: "live", status: "provisioning" },
     canManage: true,
   }),
@@ -65,6 +65,28 @@ describe("GoLivePanel", () => {
     await waitFor(() => expect(screen.getByText("Approved")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.getByRole("button", { name: /Activate live/ })).toBeTruthy();
+  });
+
+  it("puts Activate live up front once it is ready, and confirms before activating", async () => {
+    const checks = [
+      { key: "plan", passed: true, detail: "Standard plan" },
+      { key: "grant", passed: true, detail: "1 action granted in live" },
+    ];
+    repository.liveReadiness.mockResolvedValue({ environmentId: "env_l", status: "provisioning", ready: true, checks });
+    repository.activationRequests.mockResolvedValue([{ ...pending, status: "approved", approvedBy: "approver@example.test" }]);
+    repository.activateLive.mockResolvedValue({});
+
+    renderPanel();
+
+    expect(await screen.findByText("Ready to go live")).toBeTruthy();
+    expect(screen.getByText("2 of 2 checks pass")).toBeTruthy();
+    expect(screen.getByText("Approved by approver@example.test")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Activate live/ }));
+    expect(repository.activateLive).not.toHaveBeenCalled();
+    expect(await screen.findByText("Activate live for Serbizio")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Activate live" }).at(-1) as HTMLElement);
+    await waitFor(() => expect(repository.activateLive).toHaveBeenCalledWith("org_1", "prj_1", pending.id));
   });
 
   it("does not offer a new activation request while existing requests are unknown", async () => {
