@@ -102,6 +102,39 @@ describe("project role changes keep an administrator", () => {
     await expect(people.removeProjectRole(ORG, PROJECT, only.id, actor)).resolves.toMatchObject({ removed: true });
   });
 
+  it("refuses to remove the last admin from the organization, and allows it once someone else administers", async () => {
+    await assign({ memberEmail: "dev@example.test" }, "admin");
+    await expect(people.removeMember(ORG, "dev@example.test", actor)).rejects.toMatchObject({ status: 409, code: "LAST_PROJECT_ADMIN" });
+    expect(prisma.organizationMember.rows.map((row) => row.email)).toContain("dev@example.test");
+
+    await assign({ memberEmail: "dev2@example.test" }, "admin");
+    await expect(people.removeMember(ORG, "dev@example.test", actor)).resolves.toMatchObject({ removed: true });
+  });
+
+  it("refuses to remove the last person from the only admin team", async () => {
+    prisma.cpTeam.rows.push({ id: "tm_ops", organizationId: ORG, slug: "ops", name: "Ops" });
+    prisma.cpTeamMember.rows.push({ organizationId: ORG, teamId: "tm_ops", email: "dev@example.test" });
+    await assign({ teamId: "tm_ops" }, "admin");
+    await expect(people.removeTeamMember(ORG, "tm_ops", "dev@example.test", actor)).rejects.toMatchObject({ code: "LAST_PROJECT_ADMIN" });
+    // Leaving the organization removes the team's last active person too.
+    await expect(people.removeMember(ORG, "dev@example.test", actor)).rejects.toMatchObject({ code: "LAST_PROJECT_ADMIN" });
+
+    prisma.cpTeamMember.rows.push({ organizationId: ORG, teamId: "tm_ops", email: "dev2@example.test" });
+    await expect(people.removeTeamMember(ORG, "tm_ops", "dev@example.test", actor)).resolves.toMatchObject({ removed: true });
+  });
+
+  it("refuses to remove the organization's only admin while projects rely on them", async () => {
+    prisma.organizationMember.rows.push({ organizationId: ORG, email: "boss@example.test", role: "admin", status: "active", subject: null });
+    await expect(people.removeMember(ORG, "boss@example.test", actor)).rejects.toMatchObject({ code: "LAST_PROJECT_ADMIN" });
+
+    await assign({ memberEmail: "dev@example.test" }, "admin");
+    await expect(people.removeMember(ORG, "boss@example.test", actor)).resolves.toMatchObject({ removed: true });
+  });
+
+  it("lets people without admin rights leave, and leaves projects that already had no administrator alone", async () => {
+    await expect(people.removeMember(ORG, "dev2@example.test", actor)).resolves.toMatchObject({ removed: true });
+  });
+
   it("does not count an owner whose membership is not active", async () => {
     prisma.organizationMember.rows.push({ organizationId: ORG, email: "invited@example.test", role: "owner", status: "invited", subject: null });
     const only = await assign({ memberEmail: "dev@example.test" }, "admin");
