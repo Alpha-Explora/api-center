@@ -18,6 +18,11 @@ Several tables only ever grow: audit events, quota evaluations, usage rollups an
 | `apic_runtime.quota_evaluations` | `created_at` | 180 days |
 | `apic_runtime.usage_rollups` | `window_end` | 400 days |
 | `apic_runtime.pipeline_feedback_actions` | `created_at` | 365 days |
+| `apic_catalog.cp_usage_records` | `created_at` | 90 days |
+| `apic_catalog.cp_quota_counters` | `window_start` | 62 days |
+| `apic_catalog.cp_credential_operations` | `created_at` | 30 days |
+
+The script also purges the runtimes' delivery events, webhook delivery history, idempotency keys and rate-limit windows, each by its own table comment; `MANAGED_TABLES` in the script is the full list. A listed table that no longer exists is reported as `absent` and does not fail the run. Control-plane tables use row-level security, so each has a policy that lets `api_center_retention` read and delete every row (migration `20261120001080`).
 
 To change a window, change the table comment in a migration. The verifier (`--require-retention-policy`) fails when a managed table has no policy.
 
@@ -55,13 +60,13 @@ The job runs from its own small image, `docker/Dockerfile.history-purge`, which 
 3. Deploy the job and run it once by hand:
 
    ```powershell
-   gcloud run jobs replace infra/gcp/cloud-run/history-purge.yaml --region asia-southeast1
-   gcloud run jobs execute apicenter-history-purge --region asia-southeast1 --wait
+   gcloud run jobs replace infra/gcp/cloud-run/history-purge.yaml --region australia-southeast1
+   gcloud run jobs execute apicenter-history-purge --region australia-southeast1 --wait
    ```
 
-4. Read the `apicenter_history_purge` log line. When the counts look right, remove the `--dry-run` argument from the manifest, run `replace` again, and add a Cloud Scheduler job that posts to `https://run.googleapis.com/v2/projects/PROJECT_ID/locations/REGION/jobs/apicenter-history-purge:run` once a day with an OAuth token from a service account that holds `roles/run.invoker` on the job.
+4. Read the `apicenter_history_purge` log line. When the counts look right, remove the `--dry-run` argument from the manifest, run `replace` again, and add a Cloud Scheduler job that posts to `https://run.googleapis.com/v2/projects/PROJECT_ID/locations/australia-southeast1/jobs/apicenter-history-purge:run` once a day with an OAuth token from a service account that holds `roles/run.invoker` on the job.
 
-The names in the manifest (project, service account, secret, image repository) follow the existing payment dispatcher manifests. Change them if your environment uses others.
+The job runs in `australia-southeast1`, beside the database. The names in the manifest (project, service account, secret, image repository) follow the existing payment dispatcher manifests. Change them if your environment uses others.
 
 ## Indexes
 
