@@ -68,7 +68,15 @@ jobs:
       - name: Publish contracts to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish --workspace @alpha-explora/apicenter-contracts --registry=https://npm.pkg.github.com
+        # An SDK release often ships with unchanged contracts. Publishing a version that already
+        # exists fails, which would stop the SDK from publishing, so an existing version is skipped.
+        run: |
+          VERSION=$(node -p "require('./packages/contracts/package.json').version")
+          if npm view "@alpha-explora/apicenter-contracts@$VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "@alpha-explora/apicenter-contracts@$VERSION is already published; skipping"
+          else
+            npm publish --workspace @alpha-explora/apicenter-contracts --registry=https://npm.pkg.github.com
+          fi
 
       - name: Publish SDK to GitHub Packages
         env:
