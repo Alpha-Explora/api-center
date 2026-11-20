@@ -105,7 +105,19 @@ function verifyRuntimeContext(token, { audience, keys, now = Date.now(), maxLife
     ownerProjectId: typeof claims.own_prj === 'string' && claims.own_prj ? claims.own_prj : requireString(claims, 'prj'),
     // A test send to a recipient the project has not registered: record it, deliver nothing.
     suppressDelivery: claims.env_kind === 'test' && claims.dlv === 'suppress',
+    ...(displayName(claims.prj_name) ? { projectName: displayName(claims.prj_name) } : {}),
   };
+}
+
+/**
+ * The project's name as people should read it in a message: one line, no control characters, at most
+ * 80 characters. Undefined when the claim is missing or empty, so callers fall back to their own name.
+ */
+function displayName(value) {
+  if (typeof value !== 'string') return undefined;
+  // eslint-disable-next-line no-control-regex
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim();
+  return cleaned || undefined;
 }
 
 module.exports = { RuntimeContextError, loadRuntimeContextKeys, verifyRuntimeContext, RUNTIME_CONTEXT_TYPE: CONTEXT_TYPE, RUNTIME_CONTEXT_ISSUER: ISSUER };

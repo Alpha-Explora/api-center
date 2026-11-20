@@ -94,6 +94,8 @@ type GoogleAccounts = {
     initialize: (config: {
       client_id: string;
       callback: (response: GoogleCredentialResponse) => void;
+      /** Offers this account first, e.g. the invited email from an invite link. */
+      login_hint?: string;
     }) => void;
     renderButton: (
       parent: HTMLElement,
@@ -223,9 +225,11 @@ export function ManagementAuthGate({
     }
 
     container.innerHTML = "";
+    const loginHint = new URLSearchParams(window.location.search).get("login_hint")?.trim();
     window.google.accounts.id.initialize({
       client_id: googleClientId,
       callback: handleCredential,
+      ...(loginHint ? { login_hint: loginHint } : {}),
     });
     // Google renders a fixed-width button, so size it to the card once it is laid out.
     const measured = Math.round(container.getBoundingClientRect().width);

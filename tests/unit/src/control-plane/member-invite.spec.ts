@@ -6,7 +6,7 @@ import { ControlPlaneAdminController } from "../../../../apps/gateway/src/domain
 import { ConsoleAccessService } from "../../../../apps/gateway/src/domains/control-plane/console-access.service";
 import { OrganizationPeopleService } from "../../../../apps/gateway/src/domains/control-plane/organization-people.service";
 import { MemberInviteService } from "../../../../apps/gateway/src/domains/control-plane/member-invite.service";
-import { consoleUrlFrom, inviteMessage, DEFAULT_CONSOLE_URL } from "../../../../apps/gateway/src/domains/control-plane/member-invite";
+import { consoleUrlFrom, inviteLink, inviteMessage, DEFAULT_CONSOLE_URL } from "../../../../apps/gateway/src/domains/control-plane/member-invite";
 import { consoleAccessCacheFor } from "../../../../apps/gateway/src/domains/control-plane/console-access-cache";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
 
@@ -61,19 +61,56 @@ beforeEach(() => {
 });
 
 describe("invite message", () => {
-  it("names the organization, the role, the email to sign in with and the console URL", () => {
-    const message = inviteMessage({ organizationName: "Serbizio", email: "jun@serbizio.ph", role: "admin", consoleUrl: "https://console.test", invitedBy: "maria@serbizio.ph" });
-    expect(message.subject).toBe("You have been added to Serbizio on APICenter");
-    expect(message.text).toContain("maria@serbizio.ph added you to Serbizio on APICenter as an admin.");
-    expect(message.text).toContain("jun@serbizio.ph");
-    expect(message.text).toContain("https://console.test");
+  it("names who invited, the organization, the role and what it allows, and the account to sign in with", () => {
+    const message = inviteMessage({
+      organizationName: "Alpha Explora",
+      email: "jun@serbizio.ph",
+      role: "developer",
+      consoleUrl: "https://console.test",
+      invitedBy: "maria@serbizio.ph",
+      invitedByName: "Maria Santos",
+      expiresAt: new Date("2026-11-27T18:52:51Z"),
+      projects: [{ name: "Serbizio", role: "admin" }],
+    });
+    expect(message.subject).toBe("Maria Santos invited you to Alpha Explora on APICenter");
+    expect(message.text).toContain("Maria Santos (maria@serbizio.ph) invited you to join Alpha Explora on APICenter as a developer.");
+    expect(message.text).toContain("You'll have admin access to Serbizio.");
+    expect(message.text).toContain("As a developer you can create projects");
+    expect(message.text).toContain("Sign in with Google as jun@serbizio.ph.");
+    expect(message.text).toContain("This invite expires on 27 November 2026. If it does, ask Maria Santos to send it again.");
+    expect(message.text).toContain(`Accept the invite: ${inviteLink("https://console.test", "jun@serbizio.ph")}`);
+    expect(message.html).toContain('href="https://console.test/signup?login_hint=jun%40serbizio.ph"');
+    expect(message.html).toContain(">Accept invite</a>");
+  });
+
+  it("lists several projects in one sentence", () => {
+    const message = inviteMessage({
+      organizationName: "Alpha Explora",
+      email: "a@b.test",
+      role: "viewer",
+      consoleUrl: "https://c.test",
+      projects: [
+        { name: "Serbizio", role: "admin" },
+        { name: "AlphaCI", role: "developer" },
+        { name: "Smoke", role: "viewer" },
+      ],
+    });
+    expect(message.text).toContain("You'll have admin access to Serbizio, developer access to AlphaCI and viewer access to Smoke.");
   });
 
   it("does not name a platform caller as the inviter and escapes HTML", () => {
-    const message = inviteMessage({ organizationName: "<b>Acme</b>", email: "a@b.test", role: "viewer", consoleUrl: "https://c.test", invitedBy: "platform:ops" });
-    expect(message.text.startsWith("You have been added to <b>Acme</b>")).toBe(true);
+    const message = inviteMessage({ organizationName: "<b>Acme</b>", email: "a@b.test", role: "viewer", consoleUrl: "https://c.test", invitedBy: "platform:ops", invitedByName: "Ops" });
+    expect(message.subject).toBe("You're invited to <b>Acme</b> on APICenter");
+    expect(message.text.startsWith("You've been invited to join <b>Acme</b>")).toBe(true);
+    expect(message.text).not.toContain("Ops");
     expect(message.html).toContain("&lt;b&gt;Acme&lt;/b&gt;");
     expect(message.html).not.toContain("<b>Acme</b>");
+  });
+
+  it("keeps a Google name to one line in the subject", () => {
+    const message = inviteMessage({ organizationName: "Acme", email: "a@b.test", role: "viewer", consoleUrl: "https://c.test", invitedBy: "m@b.test", invitedByName: "Maria\r\nBcc: x@y.test" });
+    expect(message.subject).toBe("Maria Bcc: x@y.test invited you to Acme on APICenter");
+    expect(message.subject).not.toMatch(/[\r\n]/);
   });
 
   it("uses MANAGEMENT_CONSOLE_URL only when it is an absolute http(s) URL", () => {
@@ -94,8 +131,32 @@ describe("MemberInviteService", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("http://email.internal/admin/platform-messages");
     expect(init.headers).toMatchObject({ "X-APICenter-Email-Admin-Token": "email-admin" });
-    expect(JSON.parse(init.body)).toMatchObject({ to: "jun@serbizio.ph", subject: "You have been added to Serbizio on APICenter" });
+    expect(JSON.parse(init.body)).toMatchObject({
+      to: "jun@serbizio.ph",
+      subject: "owner@example.test invited you to Serbizio on APICenter",
+      fromName: "APICenter",
+      replyTo: "owner@example.test",
+    });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ type: "control_plane.member.invite_sent", organizationId: ORG, resourceId: `${ORG}:jun@serbizio.ph` }));
+  });
+
+  it("says when the invite expires and which projects the member gets, as stored now", async () => {
+    const expiresAt = new Date("2026-11-27T18:52:51Z");
+    prisma.organizationMember.rows.push({ organizationId: ORG, email: "jun@serbizio.ph", role: "developer", status: "invited", inviteExpiresAt: expiresAt, subject: null });
+    prisma.cpProject.rows.push({ id: "prj_serbizioserbizioserbiz", organizationId: ORG, slug: "serbizio", name: "Serbizio", status: "active" });
+    prisma.cpProjectRoleAssignment.rows.push({ id: "pra_1", organizationId: ORG, projectId: "prj_serbizioserbizioserbiz", memberEmail: "jun@serbizio.ph", teamId: null, role: "admin" });
+
+    await invites.invite({ ...input, invitedByName: "Owner Person" });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.subject).toBe("Owner Person invited you to Serbizio on APICenter");
+    expect(body.text).toContain("You'll have admin access to Serbizio.");
+    expect(body.text).toContain("This invite expires on 27 November 2026.");
+  });
+
+  it("sends no reply-to for a platform caller", async () => {
+    await invites.invite({ ...input, invitedBy: "platform:ops" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("replyTo");
   });
 
   it("reports, records and carries on when email is not configured", async () => {
@@ -173,6 +234,11 @@ describe("adding a member", () => {
     const changed = await controller.setMember({ organizationId: ORG, email: "jun@serbizio.ph" }, { role: "viewer" }, req);
     expect(changed.data).toMatchObject({ previousRole: "developer", invite: null });
     expect(invite).toHaveBeenCalledTimes(1);
+
+    // The inviter's Google name goes into the email when the guard read one.
+    const named = { consoleActor: { ...owner, name: "Owner Person" } } as ConsoleRequest;
+    await controller.setMember({ organizationId: ORG, email: "ana@serbizio.ph" }, { role: "viewer" }, named);
+    expect(invite).toHaveBeenLastCalledWith(expect.objectContaining({ email: "ana@serbizio.ph", invitedByName: "Owner Person" }));
   });
 
   it("lets an invite be accepted once, before it expires, and renews an expired one", async () => {

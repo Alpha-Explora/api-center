@@ -34,6 +34,8 @@ export class RuntimeContextSigner {
     requestId: string;
     /** "suppress": a test send to an unregistered recipient, which the runtime records but does not deliver. */
     delivery?: "suppress";
+    /** The project's display name, for messages a runtime writes on the project's behalf (OTP emails). */
+    projectName?: string;
     now?: Date;
   }): string {
     if (!this.signingKey) {
@@ -56,6 +58,7 @@ export class RuntimeContextSigner {
       own_grp: input.resourceOwner?.groupId ?? input.identity.organizationId,
       own_prj: input.resourceOwner?.projectId ?? input.identity.projectId,
       ...(input.delivery ? { dlv: input.delivery } : {}),
+      ...(input.projectName ? { prj_name: input.projectName } : {}),
     };
     const signingInput = `${encode(header)}.${encode(payload)}`;
     const signature = sign(null, Buffer.from(signingInput, "utf8"), this.signingKey.key);

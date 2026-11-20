@@ -19,8 +19,9 @@ import { PrismaService } from "@database/prisma.service";
 import { AuditEventsService } from "@audit/audit-events.service";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { resolveSharedServiceRoute } from "@shared/proxy/shared-service-route";
-import { consoleUrlFrom, INVITE_COOLDOWN_MS, inviteMessage, type InviteFailure, type InviteOutcome } from "./member-invite";
+import { consoleUrlFrom, INVITE_COOLDOWN_MS, INVITE_SENDER_NAME, inviteMessage, type InviteFailure, type InviteOutcome } from "./member-invite";
 import type { FetchLike } from "./capability-configuration.service";
+import { withTenant } from "./tenant-transaction";
 
 const INVITE_TIMEOUT_MS = 8_000;
 const INVITE_SENT = "control_plane.member.invite_sent";
@@ -41,15 +42,20 @@ export class MemberInviteService {
     this.fetchImpl = fetchImpl;
   }
 
-  async invite(input: { organizationId: string; email: string; role: string; invitedBy: string }): Promise<InviteOutcome> {
+  /**
+   * Emails the invite. The member's expiry and project roles are read as they are now, so the email
+   * says what they get however it was granted. `invitedByName` is the inviter's Google account name.
+   */
+  async invite(input: { organizationId: string; email: string; role: string; invitedBy: string; invitedByName?: string }): Promise<InviteOutcome> {
     const consoleUrl = consoleUrlFrom(process.env.MANAGEMENT_CONSOLE_URL);
     let text = "";
     let outcome: InviteOutcome;
     try {
-      const organization = await this.prisma.organization.findUnique({ where: { id: input.organizationId }, select: { name: true } });
-      const message = inviteMessage({ ...input, organizationName: organization?.name ?? "an organization", consoleUrl });
+      const { organizationName, expiresAt, projects } = await this.details(input.organizationId, input.email);
+      const message = inviteMessage({ ...input, organizationName, consoleUrl, expiresAt, projects });
       text = message.text;
-      const failure = (await this.sentRecently(input)) ? recentlyInvited : await this.deliver(input.email, message);
+      const replyTo = /^[^\s@:]+@[^\s@]+$/.test(input.invitedBy) ? input.invitedBy : undefined;
+      const failure = (await this.sentRecently(input)) ? recentlyInvited : await this.deliver(input.email, message, replyTo);
       outcome = failure ? { status: "not_sent", ...failure, consoleUrl, text } : { status: "sent", consoleUrl, text };
     } catch {
       // Raw error text can carry database or network detail; the console and audit log get a code.
@@ -58,6 +64,25 @@ export class MemberInviteService {
     if (outcome.status === "sent") this.recentlySent.set(inviteKey(input), Date.now());
     await this.record(input, outcome);
     return outcome;
+  }
+
+  private async details(organizationId: string, email: string) {
+    return withTenant(this.prisma, { organizationId }, async (db) => {
+      const [organization, member, assignments] = await Promise.all([
+        db.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+        db.organizationMember.findUnique({ where: { organization_members_pkey: { organizationId, email } }, select: { inviteExpiresAt: true } }),
+        db.cpProjectRoleAssignment.findMany({ where: { organizationId, memberEmail: email }, select: { projectId: true, role: true } }),
+      ]);
+      const names = assignments.length
+        ? await db.cpProject.findMany({ where: { organizationId, id: { in: assignments.map((row) => row.projectId) } }, select: { id: true, name: true } })
+        : [];
+      const nameOf = new Map(names.map((project) => [project.id, project.name]));
+      return {
+        organizationName: organization?.name ?? "an organization",
+        expiresAt: member?.inviteExpiresAt ?? undefined,
+        projects: assignments.flatMap((row) => (nameOf.has(row.projectId) ? [{ name: nameOf.get(row.projectId) as string, role: row.role }] : [])),
+      };
+    });
   }
 
   private async sentRecently(input: { organizationId: string; email: string }): Promise<boolean> {
@@ -69,7 +94,7 @@ export class MemberInviteService {
   }
 
   /** Undefined when the runtime accepted the message for delivery; otherwise why it was not sent. */
-  private async deliver(to: string, message: { subject: string; text: string; html: string }): Promise<{ reason: InviteFailure; detail: string } | undefined> {
+  private async deliver(to: string, message: { subject: string; text: string; html: string }, replyTo: string | undefined): Promise<{ reason: InviteFailure; detail: string } | undefined> {
     const token = process.env.EMAIL_ADMIN_TOKEN?.trim();
     let upstream: string;
     try {
@@ -87,7 +112,7 @@ export class MemberInviteService {
       response = await this.fetchImpl(`${upstream}/admin/platform-messages`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ to, ...message }),
+        body: JSON.stringify({ to, ...message, fromName: INVITE_SENDER_NAME, ...(replyTo ? { replyTo } : {}) }),
         signal: AbortSignal.timeout(INVITE_TIMEOUT_MS),
       });
     } catch {

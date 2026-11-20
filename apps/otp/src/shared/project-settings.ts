@@ -3,9 +3,9 @@
 // always apply. A null field means the platform default.
 //
 // The template is sent through APICenter's own Twilio and Resend senders, so it is held to one line
-// of body text around the code: no links, web addresses or phone numbers, and the email subject
-// stays APICenter's own ("Your APICenter verification code"). Changing it needs a project admin at
-// the gateway.
+// of body text around the code: no links, web addresses or phone numbers. {{project}} is the
+// project's name, which also names the email's sender and subject. Changing the template needs a
+// project admin at the gateway.
 
 export interface OtpProjectSettings {
   projectId: string;
@@ -26,7 +26,10 @@ export const OTP_BOUNDS = {
   messageTemplateMaxLength: 300,
 } as const;
 
-export const DEFAULT_OTP_MESSAGE_TEMPLATE = 'Your APICenter verification code is {{code}}';
+export const DEFAULT_OTP_MESSAGE_TEMPLATE = 'Your {{project}} verification code is {{code}}';
+
+/** The name messages carry when the gateway did not send the project's name. */
+export const FALLBACK_PROJECT_NAME = 'APICenter';
 
 // Spaces only inside the braces: the table's check finds {{code}} after removing spaces, not newlines.
 const PLACEHOLDER = /\{\{[ ]*([A-Za-z]+)[ ]*\}\}/g;
@@ -34,7 +37,7 @@ const PLACEHOLDER = /\{\{[ ]*([A-Za-z]+)[ ]*\}\}/g;
 const LINK = /\b[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/i;
 /** Seven or more digits, allowing one space, dot, dash or bracket between them. */
 const PHONE = /\+?\d(?:[\s().-]?\d){6,}/;
-const KNOWN_PLACEHOLDERS = new Set(['code', 'minutes']);
+const KNOWN_PLACEHOLDERS = new Set(['code', 'minutes', 'project']);
 
 export const EMPTY_OTP_SETTINGS: OtpSettingsValues = { codeLength: null, expirySeconds: null, maxAttempts: null, messageTemplate: null };
 
@@ -85,7 +88,7 @@ export function otpTemplateProblem(template: string): string | null {
   if (/[\u0000-\u001f\u007f]/.test(template)) return 'messageTemplate must be one line without control characters.';
   const names = [...template.matchAll(PLACEHOLDER)].map((match) => match[1]);
   const unknown = names.find((name) => !KNOWN_PLACEHOLDERS.has(name));
-  if (unknown) return `messageTemplate may use only {{code}} and {{minutes}}; found {{${unknown}}}.`;
+  if (unknown) return `messageTemplate may use only {{code}}, {{minutes}} and {{project}}; found {{${unknown}}}.`;
   if (!names.includes('code')) return 'messageTemplate must include {{code}}.';
   const text = template.replace(PLACEHOLDER, ' ');
   if (LINK.test(text)) return 'messageTemplate must not contain links or web addresses.';
@@ -114,7 +117,22 @@ export function resolveOtpPolicy(request: { digits?: unknown; ttlSeconds?: unkno
   };
 }
 
-export function renderOtpMessage(template: string, code: string, ttlSeconds: number): string {
-  const minutes = String(Math.max(1, Math.round(ttlSeconds / 60)));
-  return template.replace(PLACEHOLDER, (_match, name: string) => (name === 'code' ? code : minutes));
+export function renderOtpMessage(template: string, code: string, ttlSeconds: number, projectName = FALLBACK_PROJECT_NAME): string {
+  const minutes = String(expiryMinutes(ttlSeconds));
+  return template.replace(PLACEHOLDER, (_match, name: string) => (name === 'code' ? code : name === 'project' ? projectName : minutes));
+}
+
+/**
+ * The project name a message may carry. A name with a link, web or email address, or phone number
+ * falls back to APICenter's: messages leave from APICenter's own senders, which the template rules
+ * keep free of those, and a project name must not reopen that.
+ */
+export function messageProjectName(name: string | undefined): string {
+  if (!name) return FALLBACK_PROJECT_NAME;
+  return LINK.test(name) || PHONE.test(name) ? FALLBACK_PROJECT_NAME : name;
+}
+
+/** The expiry as whole minutes, at least one. */
+export function expiryMinutes(ttlSeconds: number): number {
+  return Math.max(1, Math.round(ttlSeconds / 60));
 }

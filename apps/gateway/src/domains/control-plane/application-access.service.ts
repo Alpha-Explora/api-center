@@ -258,6 +258,7 @@ export class ApplicationAccessService {
         action: decision.action,
         requestId: request.requestId,
         ...(deliverySuppressed ? { delivery: "suppress" as const } : {}),
+        projectName: loaded.project.name,
         now,
       }),
     };
@@ -415,7 +416,7 @@ interface LoadedDecision {
   credential: { id?: string; status: string; expiresAt: Date; environmentKind: string; lastUsedAt: Date | null; applicationId: string; organizationId: string; projectId: string; environmentId: string };
   scope: { organizationId: string; projectId: string; environmentId: string };
   organization: { status: string };
-  project: { status: string };
+  project: { status: string; name: string };
   environment: { kind: string; status: string };
   application: { id: string; status: string };
   grants: { targetKind: string; targetId: string; action: string; status: string }[];

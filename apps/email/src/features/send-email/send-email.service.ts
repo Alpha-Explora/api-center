@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import type { EmailSendRequest, EmailSendResponse } from "@alpha-explora/apicenter-contracts";
-import type { SharedServiceCaller } from "@apicenter/runtime";
+import { formatSender, type SharedServiceCaller } from "@apicenter/runtime";
 import { EmailRecipients, EmailSubject } from "./send-email.model";
 import { createEmailStore } from "../../shared/email-store";
 
@@ -17,9 +17,11 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 export class SendEmailService {
   constructor(private readonly store = createEmailStore()) {}
 
+  /** `options` presents platform messages: a sender name in front of the address, and a reply-to. */
   async execute(
     input: EmailSendRequest,
     owner: SharedServiceCaller,
+    options: { fromName?: string; replyTo?: string } = {},
   ): Promise<EmailSendResponse & { provider: string; recipient: string[] }> {
     const recipientsVo = new EmailRecipients(input.to);
     const subjectVo = new EmailSubject(input.subject);
@@ -53,9 +55,10 @@ export class SendEmailService {
                 ? { text: input.text }
                 : { html: "<p>(no content)</p>" };
         const payload = {
-          from: approvedFrom,
+          from: formatSender(approvedFrom, options.fromName),
           to: recipients,
           subject: subjectVo.getValue(),
+          ...(options.replyTo ? { replyTo: options.replyTo } : {}),
           ...content,
         };
         const { data, error } = await resend.emails.send(payload);

@@ -182,7 +182,10 @@ export class ControlPlaneAdminController {
     });
     // A new member is emailed an invite. Sending never fails the change, which is already saved.
     const { invite: shouldInvite, ...saved } = member;
-    const invite = !shouldInvite || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
+    const invite =
+      !shouldInvite || !this.invites
+        ? null
+        : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label, ...inviterName(actor) });
     return { success: true, data: { ...saved, invite } };
   }
 
@@ -195,7 +198,9 @@ export class ControlPlaneAdminController {
     const access = await this.access.require(actor, org, "organization.members.manage");
     const label = actorLabel(actor);
     const renewed = await this.people.resendInvite(org, memberEmail, label, { mayManageOwners: canPerform(actor, access, "organization.owners.manage") });
-    const invite = this.invites ? await this.invites.invite({ organizationId: org, email: memberEmail, role: renewed.role, invitedBy: label }) : null;
+    const invite = this.invites
+      ? await this.invites.invite({ organizationId: org, email: memberEmail, role: renewed.role, invitedBy: label, ...inviterName(actor) })
+      : null;
     return { success: true, data: { ...renewed, invite } };
   }
 
@@ -758,4 +763,9 @@ function scopeFrom(params: Record<string, string>): EnvironmentScope {
 
 function applicationIdFrom(params: Record<string, string>): string {
   return parse(schemas.resourceId("app"), params.applicationId, "applicationId");
+}
+
+/** The inviting person's Google name, for the invite email. */
+function inviterName(actor: ConsoleActor): { invitedByName?: string } {
+  return actor.kind === "member" && actor.name ? { invitedByName: actor.name } : {};
 }

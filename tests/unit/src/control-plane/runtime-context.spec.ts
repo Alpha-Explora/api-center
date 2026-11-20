@@ -97,6 +97,33 @@ describe("runtime context", () => {
   });
 });
 
+describe("the project name claim", () => {
+  const verify = (token: string) => verifyRuntimeContext(token, { audience: "apicenter-runtime:otp", keys, now: issuedAt.getTime() });
+  const signNamed = (projectName?: string) =>
+    signer.sign({ identity, capability: "otp", action: "otp:generate", requestId: "req-2", projectName, now: issuedAt });
+
+  it("carries the project's name to the runtime and its caller", () => {
+    expect(verify(signNamed("Serbizio")).projectName).toBe("Serbizio");
+    const caller = readSharedServiceCaller(requestWith({ "X-APICenter-Context": signNamed("Serbizio") }), {
+      production: true,
+      runtimeAudience: "apicenter-runtime:otp",
+      contextKeys: keys,
+      now: issuedAt.getTime(),
+    });
+    expect(caller.projectName).toBe("Serbizio");
+  });
+
+  it("reduces the name to one line of at most 80 characters", () => {
+    expect(verify(signNamed("Serbizio\r\nBcc: someone")).projectName).toBe("Serbizio Bcc: someone");
+    expect(verify(signNamed("x".repeat(200))).projectName).toHaveLength(80);
+  });
+
+  it("leaves it out when the gateway sent none", () => {
+    expect(verify(signNamed()).projectName).toBeUndefined();
+    expect(verify(signNamed("  \t ")).projectName).toBeUndefined();
+  });
+});
+
 describe("readSharedServiceCaller with a signed context", () => {
   const options = { production: true, runtimeAudience: "apicenter-runtime:email", contextKeys: keys, now: issuedAt.getTime() };
 

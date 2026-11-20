@@ -36,8 +36,8 @@ export function otpTemplateProblem(template: string): string | null {
   if (template.length > OTP_BOUNDS.messageTemplateMaxLength) return `Use at most ${OTP_BOUNDS.messageTemplateMaxLength} characters.`;
   if (/[\u0000-\u001f\u007f]/.test(template)) return "Keep the message to one line, without tabs or other control characters.";
   const names = [...template.matchAll(PLACEHOLDER)].map((match) => match[1]);
-  const unknown = names.find((name) => name !== "code" && name !== "minutes");
-  if (unknown) return `Only {{code}} and {{minutes}} can be used; {{${unknown}}} is not known.`;
+  const unknown = names.find((name) => name !== "code" && name !== "minutes" && name !== "project");
+  if (unknown) return `Only {{code}}, {{minutes}} and {{project}} can be used; {{${unknown}}} is not known.`;
   if (!names.includes("code")) return "Include {{code}} where the code goes.";
   const text = template.replace(PLACEHOLDER, " ");
   if (LINK.test(text)) return "Remove links and web or email addresses; the message is sent from APICenter's own senders.";
@@ -89,11 +89,12 @@ export function otpSettingsFormFrom(current: OtpSettings | undefined): OtpSettin
 }
 
 /** The message a recipient would get with this template, using a sample code of the effective length. */
-export function otpMessagePreview(template: string, codeLength: number, expirySeconds: number): string {
+export function otpMessagePreview(template: string, codeLength: number, expirySeconds: number, projectName = "APICenter"): string {
   const code = "123456789012".slice(0, codeLength);
   const minutes = String(Math.max(1, Math.round(expirySeconds / 60)));
+  const values: Record<string, string> = { code, minutes, project: projectName };
   // Unknown placeholders stay as typed, so the preview shows what the validation complains about.
-  return template.replace(PLACEHOLDER, (match, name: string) => (name === "code" ? code : name === "minutes" ? minutes : match));
+  return template.replace(PLACEHOLDER, (match, name: string) => values[name] ?? match);
 }
 
 /** The values the preview uses: each valid field as typed, otherwise the platform default. */

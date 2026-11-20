@@ -20,18 +20,23 @@ export const PLATFORM_EMAIL_OWNER: SharedServiceCaller = Object.freeze({
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** How a platform message is presented: the sender's name, and where replies go. */
+export type PlatformMessageOptions = { fromName?: string; replyTo?: string };
+
 type SendEmail = (
   input: EmailSendRequest,
   owner: SharedServiceCaller,
+  options?: PlatformMessageOptions,
 ) => Promise<{ messageId: string; status: string; provider: string }>;
 
 /** Counts one send to a recipient against the same per-recipient window `/send` uses. */
 export type ConsumeRecipientLimit = (recipient: string) => Promise<{ allowed: boolean; resetAt: number }>;
 
 /**
- * POST /admin/platform-messages: one plain message to one recipient, from the gateway, guarded by
- * EMAIL_ADMIN_TOKEN. The gateway uses it to send organization invites. The per-recipient rate limit
- * applies here too, so no caller can flood one inbox through the platform sender.
+ * POST /admin/platform-messages: one message to one recipient, from the gateway, guarded by
+ * EMAIL_ADMIN_TOKEN. The gateway uses it to send organization invites. `fromName` is shown in front
+ * of the platform address and `replyTo` takes replies (the person who invited). The per-recipient
+ * rate limit applies here too, so no caller can flood one inbox through the platform sender.
  */
 export function createPlatformMessageAdminHandler(deps: {
   sendEmail: SendEmail;
@@ -49,14 +54,18 @@ export function createPlatformMessageAdminHandler(deps: {
     const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
     const text = typeof body.text === 'string' ? body.text : '';
     const html = body.html === undefined ? undefined : typeof body.html === 'string' ? body.html : null;
+    const fromName = body.fromName === undefined ? undefined : typeof body.fromName === 'string' ? body.fromName.trim() : null;
+    const replyTo = body.replyTo === undefined ? undefined : typeof body.replyTo === 'string' ? body.replyTo.trim() : null;
     if (
-      keys.some((key) => !['to', 'subject', 'text', 'html'].includes(key)) ||
+      keys.some((key) => !['to', 'subject', 'text', 'html', 'fromName', 'replyTo'].includes(key)) ||
+      fromName === null || (fromName !== undefined && (!fromName || fromName.length > 80)) ||
+      replyTo === null || (replyTo !== undefined && (!EMAIL.test(replyTo) || replyTo.length > 320)) ||
       !EMAIL.test(to) || to.length > 320 ||
       !subject || subject.length > 200 || /[\r\n]/.test(subject) ||
       !text.trim() || text.length > 20_000 ||
       html === null || (html !== undefined && html.length > 50_000)
     ) {
-      res.status(400).json({ error: 'INVALID_PLATFORM_MESSAGE', message: 'Provide to, subject and text (and optionally html).' });
+      res.status(400).json({ error: 'INVALID_PLATFORM_MESSAGE', message: 'Provide to, subject and text (and optionally html, fromName and replyTo).' });
       return;
     }
     try {
@@ -70,7 +79,10 @@ export function createPlatformMessageAdminHandler(deps: {
       return;
     }
     try {
-      const sent = await deps.sendEmail({ to, subject, text, ...(html !== undefined ? { html } : {}) }, PLATFORM_EMAIL_OWNER);
+      const sent = await deps.sendEmail({ to, subject, text, ...(html !== undefined ? { html } : {}) }, PLATFORM_EMAIL_OWNER, {
+        ...(fromName ? { fromName } : {}),
+        ...(replyTo ? { replyTo } : {}),
+      });
       res.status(201).json({ success: true, data: { messageId: sent.messageId, status: sent.status, provider: sent.provider } });
     } catch (error) {
       if (error instanceof DailyLimitReachedError) {

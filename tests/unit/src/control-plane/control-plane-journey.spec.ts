@@ -74,6 +74,8 @@ describe("control plane: test onboarding without API publication", () => {
 
     const claims = verifyRuntimeContext(call.signedContext, { audience: "apicenter-runtime:email", keys: runtimeKeys });
     expect(claims).toMatchObject({ organizationId: ORG, projectId: scope.projectId, applicationId: application.id, action: "email:send" });
+    // Runtimes name the project in messages they send for it, such as OTP emails.
+    expect(claims.projectName).toBe("Serbizio");
   });
 
   it("denies an action the application was not granted, even with the capability enabled", async () => {

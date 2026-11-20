@@ -15,7 +15,7 @@ describe('platform message admin handler', () => {
   it('sends one message under the platform owner with the admin token', async () => {
     const sendEmail = jest.fn().mockResolvedValue({ messageId: 'msg_1', status: 'queued', provider: 'resend' });
     const res = await call(createPlatformMessageAdminHandler({ sendEmail, consumeRecipientLimit: allow, expectedToken: 'secret' }), 'secret', message);
-    expect(sendEmail).toHaveBeenCalledWith(message, PLATFORM_EMAIL_OWNER);
+    expect(sendEmail).toHaveBeenCalledWith(message, PLATFORM_EMAIL_OWNER, {});
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ success: true, data: { messageId: 'msg_1', status: 'queued', provider: 'resend' } });
   });
@@ -31,6 +31,14 @@ describe('platform message admin handler', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
+  it('passes the sender name and reply-to through for presentation', async () => {
+    const sendEmail = jest.fn().mockResolvedValue({ messageId: 'msg_1', status: 'queued', provider: 'resend' });
+    const handler = createPlatformMessageAdminHandler({ sendEmail, consumeRecipientLimit: allow, expectedToken: 'secret' });
+    const res = await call(handler, 'secret', { ...message, fromName: 'APICenter', replyTo: 'maria@serbizio.ph' });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(sendEmail).toHaveBeenCalledWith(message, PLATFORM_EMAIL_OWNER, { fromName: 'APICenter', replyTo: 'maria@serbizio.ph' });
+  });
+
   it('accepts one recipient, a single-line subject and text, and nothing else', async () => {
     const sendEmail = jest.fn();
     const handler = createPlatformMessageAdminHandler({ sendEmail, consumeRecipientLimit: allow, expectedToken: 'secret' });
@@ -41,6 +49,10 @@ describe('platform message admin handler', () => {
       { ...message, text: '   ' },
       { ...message, from: 'spoof@example.test' },
       { ...message, html: 42 },
+      { ...message, fromName: '' },
+      { ...message, fromName: 'x'.repeat(81) },
+      { ...message, replyTo: 'not-an-email' },
+      { ...message, replyTo: ['a@b.test'] },
     ]) {
       const res = await call(handler, 'secret', body);
       expect(res.status).toHaveBeenCalledWith(400);
