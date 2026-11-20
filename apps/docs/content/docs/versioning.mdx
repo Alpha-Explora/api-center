@@ -1,0 +1,26 @@
+---
+title: "Versions and changes"
+description: "What can change in the v1 API without notice, and how breaking changes reach you."
+---
+
+The HTTP API is versioned in its path: every route starts with `/api/v1`. The [OpenAPI contract](/reference/api) describes v1, and the payment events have their own contract version in the [events reference](/reference/events).
+
+## Changes v1 can make at any time
+
+Write your integration so that these do not break it:
+
+- New routes, new optional request fields and new query parameters.
+- New fields in responses and events. Ignore fields you do not know.
+- New error codes. Handle an unknown `code` by its HTTP status (see [errors and retries](/guides/errors)).
+- New event types. Acknowledge an event you do not handle. The SDK delivers unknown types as `eventType: 'unrecognized'`.
+- New values in fields that are documented as open sets, such as payment methods and statuses.
+
+## Breaking changes
+
+A change that can break a correct integration ships as a new major version of the SDK, `@alpha-explora/apicenter-sdk`. It is listed under **Breaking** in the changelog, with upgrade notes in the SDK's `UPGRADING.md`. Examples are removing or renaming a route, field or event, making an optional field required, or narrowing what a request may contain.
+
+The SDK follows semantic versioning: minor versions add features, and patch versions fix bugs.
+
+## The `APICenter-Version` header
+
+The SDK sends `APICenter-Version` with the API revision it was built against. APICenter records it for diagnostics and does not change behaviour by it. Calls made without the SDK do not need to send it.

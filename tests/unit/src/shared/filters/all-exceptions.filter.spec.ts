@@ -2,7 +2,7 @@ import { ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
 import { AllExceptionsFilter } from "../../../../../apps/gateway/src/shared/filters/all-exceptions.filter";
 import { LoggerService } from "../../../../../apps/gateway/src/shared/logger.service";
 import { ConfigService } from "../../../../../apps/gateway/src/config/config.service";
-import { QuotaExceededError, UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
+import { UnauthorizedError } from "../../../../../apps/gateway/src/shared/errors";
 
 function createHost(
   request: Record<string, unknown>,
@@ -93,16 +93,10 @@ describe("AllExceptionsFilter", () => {
     const request = { correlationId: "corr-quota" };
 
     filter.catch(
-      new QuotaExceededError("Tribe API quota exceeded", {
-        ownerTribeId: "campus-one",
-        retryAfterSeconds: 60,
-        quota: {
-          scope: "shared",
-          targetServiceId: "payment-service",
-          maxRequests: 100,
-          windowSeconds: 60,
-        },
-      }),
+      new HttpException(
+        { message: "Quota used up", code: "QUOTA_EXCEEDED", detail: { retryAfterSeconds: 60, budget: "plan:env_l" } },
+        HttpStatus.TOO_MANY_REQUESTS,
+      ),
       createHost(request, response),
     );
 
@@ -110,12 +104,9 @@ describe("AllExceptionsFilter", () => {
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({
-          code: "TRIBE_API_QUOTA_EXCEEDED",
-          message: "Tribe API quota exceeded",
-          detail: expect.objectContaining({
-            ownerTribeId: "campus-one",
-            retryAfterSeconds: 60,
-          }),
+          code: "QUOTA_EXCEEDED",
+          message: "Quota used up",
+          detail: expect.objectContaining({ retryAfterSeconds: 60 }),
         }),
       }),
     );
@@ -205,5 +196,27 @@ describe("AllExceptionsFilter database failures", () => {
   it("still answers 500 for other errors, including unrelated ones that carry a code", () => {
     expect(send(prismaError("P2010")).status).toBe(500);
     expect(send(Object.assign(new Error("boom"), { code: "P2028" })).status).toBe(500);
+  });
+});
+
+describe("AllExceptionsFilter codes for Nest's own exceptions", () => {
+  const logger = { warn: jest.fn(), error: jest.fn() } as unknown as LoggerService;
+  const filter = new AllExceptionsFilter(logger, { isProduction: true } as ConfigService);
+
+  function codeOf(exception: unknown) {
+    const json = jest.fn();
+    filter.catch(exception, createHost({}, { status: jest.fn().mockReturnValue({ json }), setHeader: jest.fn() }));
+    return json.mock.calls[0][0].error.code;
+  }
+
+  it("uses an UPPER_SNAKE_CASE code instead of the reason phrase", () => {
+    expect(codeOf(new HttpException({ statusCode: 404, message: "Cannot GET /x", error: "Not Found" }, 404))).toBe("NOT_FOUND");
+    expect(codeOf(new HttpException({ statusCode: 400, message: ["a must be a string"], error: "Bad Request" }, 400))).toBe("VALIDATION_ERROR");
+    expect(codeOf(new HttpException("ThrottlerException: Too Many Requests", 429))).toBe("RATE_LIMITED");
+    expect(codeOf(new HttpException("I'm a teapot", 418))).toBe("HTTP_418");
+  });
+
+  it("keeps a code the exception names itself", () => {
+    expect(codeOf(new HttpException({ message: "Quota used up", code: "QUOTA_EXCEEDED" }, 429))).toBe("QUOTA_EXCEEDED");
   });
 });

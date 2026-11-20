@@ -32,7 +32,6 @@ export const APPLICATION_KEY = /^ak_(test|live)_[a-z0-9]{16}_[A-Za-z0-9_-]{43}$/
 export const API_VERSION = '2026-11-19';
 
 const MANAGED_HEADERS = new Set(['authorization', 'idempotency-key', 'apicenter-version', 'apicenter-sdk', 'x-apicenter-context']);
-const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 const MAX_RETRY_AFTER_SECONDS = 20;
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
@@ -177,8 +176,7 @@ export class ApiCenterTransport {
   /** Milliseconds to wait before retrying, or undefined when the failure should be returned. */
   private retryDelay(error: ApiCenterError, attempt: number): number | undefined {
     if (attempt > this.maxRetries) return undefined;
-    const retryable = error instanceof ConnectionError || RETRYABLE_STATUS.has(error.status);
-    if (!retryable || error.code === 'QUOTA_EXCEEDED') return undefined;
+    if (!error.retryable) return undefined;
     if (error.retryAfterSeconds !== undefined) {
       return error.retryAfterSeconds <= MAX_RETRY_AFTER_SECONDS ? error.retryAfterSeconds * 1000 : undefined;
     }

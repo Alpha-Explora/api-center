@@ -12,6 +12,9 @@ export interface ApiCenterErrorOptions {
   cause?: unknown;
 }
 
+/** Statuses that may succeed when the same request is sent again. */
+export const RETRYABLE_STATUS: ReadonlySet<number> = new Set([408, 429, 500, 502, 503, 504]);
+
 export class ApiCenterError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -27,6 +30,16 @@ export class ApiCenterError extends Error {
     this.details = options.details;
     this.requestId = options.requestId;
     this.retryAfterSeconds = options.retryAfterSeconds;
+  }
+
+  /**
+   * Whether sending the same request again may succeed: a connection failure, a timeout, rate
+   * limiting or a server error. A used-up quota (QUOTA_EXCEEDED) is not, until its window resets.
+   * Writes are safe to retry only with the same idempotency key, which the SDK does for you.
+   */
+  get retryable(): boolean {
+    if (this instanceof ConnectionError) return true;
+    return RETRYABLE_STATUS.has(this.status) && this.code !== 'QUOTA_EXCEEDED';
   }
 }
 

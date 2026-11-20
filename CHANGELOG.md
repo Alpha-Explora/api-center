@@ -17,6 +17,9 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Public guides "Errors and retries" (the error response, which failures to retry, and the common codes) and "Versions and changes" (what v1 may add at any time, and how breaking changes ship).
+- SDK 3.2.0: `error.retryable` says whether the same request may succeed if sent again. The SDK's own retries use the same rule.
+- The OpenAPI documents 401, 403, 429 (with `Retry-After`), 500, 502 and 503 (with `Retry-After`) on every payments operation.
 - SDK 3.1.0 and contracts 1.1.0 carry the payment additions below: wallet intents, checkout `paymentMethods`, app return links and the `payment.intent.paid` / `payment.intent.failed` event types.
 - Open GCash or Maya directly: `POST /api/v1/payments/intents` (`payments.intents.create`) with `paymentMethod` (`gcash` or `paymaya`) and `returnUrl` creates the intent, the wallet payment method and the attachment in one call and returns `nextAction.redirectUrl`, which goes straight to the wallet. An optional `billing` carries the customer's name, email and phone.
 - Checkouts accept `paymentMethods` to limit the checkout page, for example to `["gcash"]`.
@@ -49,6 +52,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 - Projects: a member who creates a project becomes its admin in the same transaction, so a failure can no longer leave a project its creator cannot see.
 - Live activation: a request is accepted only when readiness passes and no request is open; a request is decided by ID, so older requests can still be decided; an approval expires after seven days; listing requests no longer recomputes readiness.
 - Environments: an environment an APICenter operator suspended can only be resumed by an operator, and a suspended test environment issues no keys (migration `20261120001060`).
+- Gateway: errors raised by the framework itself carry `UPPER_SNAKE_CASE` codes like every other error (`NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`, `METHOD_NOT_ALLOWED`) instead of reason phrases such as `"Not Found"` or the generic `HTTP_ERROR`. The unused `RATE_LIMIT_EXCEEDED` code is now `RATE_LIMITED`, as the runtimes already use.
+- The idempotency guide no longer says the SDK never retries writes; it retries them with the same key.
 - Gateway: a busy or unreachable database answers `503 DATABASE_BUSY` or `503 DATABASE_UNAVAILABLE` with `Retry-After`, instead of `500 INTERNAL_ERROR`. A duplicate record answers 409 and a vanished one 404. Console transactions wait up to 8 seconds for a connection instead of 2, so a briefly full pool queues requests instead of failing them.
 - Gateway: console access checks are cached for 10 seconds per instance, and a project's organization until restart, so a console page checks roles once instead of once per request. Changes to members, teams and project roles drop the cache on the instance that made them; on other instances a removed role keeps working for at most 10 seconds.
 - Gateway: the 24-hour usage summary is counted in the database instead of loading every request record.
