@@ -127,18 +127,24 @@ export function ManagementAuthGate({
 
   // Does this browser already have a session? A transient failure is shown with Try again rather than
   // reading as signed out.
-  const checkSession = useCallback(async () => {
+  const settleSession = useCallback((sessionError?: unknown) => {
+    if (sessionError === undefined) {
+      setStatus("signedIn");
+      return;
+    }
+    setStatus("signedOut");
+    if (sessionError instanceof ApiError && sessionError.status === 401) return;
+    setError(accessError(sessionError));
+  }, []);
+
+  const retrySession = useCallback(() => {
     setStatus("checking");
     setError(undefined);
-    try {
-      await getManagementSession();
-      setStatus("signedIn");
-    } catch (sessionError) {
-      setStatus("signedOut");
-      if (sessionError instanceof ApiError && sessionError.status === 401) return;
-      setError(accessError(sessionError));
-    }
-  }, []);
+    getManagementSession().then(
+      () => settleSession(),
+      (sessionError: unknown) => settleSession(sessionError ?? new Error("Session check failed")),
+    );
+  }, [settleSession]);
 
   useEffect(() => {
     try {
@@ -146,8 +152,15 @@ export function ManagementAuthGate({
     } catch {
       // Storage may be unavailable; nothing to clean up then.
     }
-    void checkSession();
-  }, [checkSession]);
+    let active = true;
+    getManagementSession().then(
+      () => active && settleSession(),
+      (sessionError: unknown) => active && settleSession(sessionError ?? new Error("Session check failed")),
+    );
+    return () => {
+      active = false;
+    };
+  }, [settleSession]);
 
   // Exchanges the Google ID token for the console session, which also confirms the account has
   // APICenter access, so a denied account sees why instead of landing on an empty console.
@@ -331,7 +344,7 @@ export function ManagementAuthGate({
                     variant="outline"
                     type="button"
                     disabled={checking}
-                    onClick={() => void (pendingCredential ? checkAccess(pendingCredential) : checkSession())}
+                    onClick={() => (pendingCredential ? void checkAccess(pendingCredential) : retrySession())}
                   >
                     Try again
                   </Button>
