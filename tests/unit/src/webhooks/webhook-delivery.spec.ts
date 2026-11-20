@@ -4,7 +4,7 @@ import type { DestinationConfig, DestinationStore } from "../../../../apps/webho
 import { isPrivateAddress as deliveryIsPrivate, publicOnlyLookup } from "../../../../apps/webhooks/src/public-network";
 import { createHttpsSender, type Sender } from "../../../../apps/webhooks/src/send";
 import { ADMIN_TOKEN_HEADER, createWebhookApp } from "../../../../apps/webhooks/src/server";
-import { attemptFor, createMemoryDeliveryLog } from "../../../../apps/webhooks/src/delivery-log";
+import { attemptFor, createDeliveryLog, createMemoryDeliveryLog } from "../../../../apps/webhooks/src/delivery-log";
 import { isPrivateAddress as gatewayIsPrivate } from "../../../../apps/gateway/src/shared/proxy/upstream-guard";
 import { newSigningSecret } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-config-store";
 import { buildTestEvent } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-test-event";
@@ -28,6 +28,15 @@ const event = {
   occurredAt: "2026-11-19T01:59:58.000Z",
   data: { status: "paid", checkoutId: "chk_1", paymentId: "pay_1", amount: 39900, currency: "PHP" },
 };
+
+/** Waits for work the server does after it has answered. */
+async function until(condition: () => boolean, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("condition not met in time");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 function push(body: unknown = event, deliveryAttempt = 1): PushEnvelope {
   return { message: { data: Buffer.from(JSON.stringify(body)).toString("base64"), messageId: "m1" }, deliveryAttempt, subscription: "s" };
@@ -214,7 +223,46 @@ describe("webhook delivery history", () => {
     try {
       const response = await fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push()) });
       expect(response.status).toBe(204);
+      await until(() => errors.mock.calls.length > 0);
       expect(JSON.parse(String(errors.mock.calls[0][0]))).toMatchObject({ type: "apicenter_webhook_history_error", message: "database down" });
+    } finally {
+      quiet.mockRestore();
+      errors.mockRestore();
+      await close();
+    }
+  });
+
+  it("answers Pub/Sub before the history write finishes, so a hung database cannot cause a redelivery", async () => {
+    let finishWrite: () => void = () => undefined;
+    const record = jest.fn(() => new Promise<void>((resolve) => (finishWrite = resolve)));
+    const app = createWebhookApp({ store: store(config), send: async () => ({ status: 204, responseSnippet: "" }), log: { record, list: async () => [] } });
+    const quiet = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const { base, close } = await serve(app);
+    try {
+      const response = await fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push()) });
+      expect(response.status).toBe(204);
+      await until(() => record.mock.calls.length > 0);
+      finishWrite();
+    } finally {
+      quiet.mockRestore();
+      await close();
+    }
+  });
+
+  it("delivers without a history database in production, and lists nothing with 503", async () => {
+    const warn = jest.fn();
+    const log = createDeliveryLog({ NODE_ENV: "production" }, warn);
+    expect(JSON.parse(warn.mock.calls[0][0])).toMatchObject({ type: "apicenter_webhook_history_disabled" });
+    const app = createWebhookApp({ store: store(config), send: async () => ({ status: 204, responseSnippet: "" }), log, adminToken: TOKEN });
+    const quiet = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const { base, close } = await serve(app);
+    try {
+      const delivered = await fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push()) });
+      expect(delivered.status).toBe(204);
+      const listed = await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries`, { headers: { [ADMIN_TOKEN_HEADER]: TOKEN } });
+      expect(listed.status).toBe(503);
+      expect(await listed.json()).toMatchObject({ error: "HISTORY_UNAVAILABLE" });
     } finally {
       quiet.mockRestore();
       errors.mockRestore();

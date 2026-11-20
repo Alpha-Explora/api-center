@@ -2,6 +2,9 @@
 // POST /deliveries/:destinationId (Cloud Run admits only the push service account and the gateway), and
 // this service signs it and POSTs it to the consumer's URL. A non-2xx answer here makes Pub/Sub retry.
 // Every attempt is recorded in the delivery history, which the gateway reads through the admin route.
+// Pub/Sub is answered first and the history written afterwards, without waiting: a slow or hung
+// database must never delay the acknowledgement, or Pub/Sub would redeliver an event the consumer
+// already received.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createSharedServiceApp } from "@apicenter/runtime";
 import type { Request, Response } from "express";
@@ -24,13 +27,16 @@ export function createWebhookApp(deps: { store: DestinationStore; send: Sender; 
       const outcome = await deliver(destinationId, (req.body ?? {}) as PushEnvelope, { ...deps, now });
       const latencyMs = now() - started;
       console.log(JSON.stringify({ type: "apicenter_webhook_delivery", destinationId, attempt, latencyMs, ...outcome }));
+      res.status(outcome.ack ? 204 : outcome.reason === "unknown_destination" ? 404 : 503).end();
       const record = attemptFor(destinationId, outcome, { attempt, latencyMs, at: new Date(started) });
       if (record) {
-        await deps.log.record(record).catch((error: Error) => {
-          console.error(JSON.stringify({ type: "apicenter_webhook_history_error", destinationId, message: error.message }));
-        });
+        void Promise.resolve()
+          .then(() => deps.log.record(record))
+          .catch((error: Error) => {
+            console.error(JSON.stringify({ type: "apicenter_webhook_history_error", destinationId, message: error.message }));
+          });
       }
-      return res.status(outcome.ack ? 204 : outcome.reason === "unknown_destination" ? 404 : 503).end();
+      return;
     } catch (error) {
       console.error(JSON.stringify({ type: "apicenter_webhook_delivery_error", destinationId, message: (error as Error).message }));
       return res.status(503).end();

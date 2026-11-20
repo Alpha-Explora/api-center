@@ -81,9 +81,14 @@ type Row = {
 };
 
 export function createPostgresDeliveryLog(connectionString: string): DeliveryLog {
+  // Bounded, so a hung database fails history writes and reads quickly instead of piling them up.
   const pool = new Pool({
     connectionString,
     max: 4,
+    connectionTimeoutMillis: 2_000,
+    statement_timeout: 5_000,
+    query_timeout: 5_000,
+    idleTimeoutMillis: 30_000,
     ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
   });
   pool.on("error", () => undefined);
@@ -130,9 +135,27 @@ export function createPostgresDeliveryLog(connectionString: string): DeliveryLog
   };
 }
 
-/** Postgres when DATABASE_URL is set. Production refuses to start without it; elsewhere history is kept in memory. */
-export function createDeliveryLog(env: NodeJS.ProcessEnv = process.env): DeliveryLog {
+/** No history: records nothing, and listing fails so the admin route answers 503. */
+export function createUnavailableDeliveryLog(): DeliveryLog {
+  return {
+    async record() {
+      // Delivery never depends on history.
+    },
+    async list() {
+      throw new Error("Delivery history is not configured (DATABASE_URL is not set)");
+    },
+  };
+}
+
+/**
+ * Postgres when DATABASE_URL is set. Without it, production still delivers but keeps no history
+ * (listing answers 503) and says so at startup; elsewhere history is kept in memory.
+ */
+export function createDeliveryLog(env: NodeJS.ProcessEnv = process.env, warn: (message: string) => void = console.warn): DeliveryLog {
   if (env.DATABASE_URL) return createPostgresDeliveryLog(env.DATABASE_URL);
-  if (env.NODE_ENV === "production") throw new Error("DATABASE_URL is required for the webhook delivery history in production");
+  if (env.NODE_ENV === "production") {
+    warn(JSON.stringify({ type: "apicenter_webhook_history_disabled", message: "DATABASE_URL is not set; delivering without delivery history" }));
+    return createUnavailableDeliveryLog();
+  }
   return createMemoryDeliveryLog();
 }
