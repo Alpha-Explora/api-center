@@ -88,7 +88,6 @@ function LoadProject({
     queryKey: cpKeys.project(organizationId ?? "none", projectId),
     queryFn: () => controlPlane.project(organizationId as string, projectId),
     enabled: Boolean(organizationId),
-    retry: false,
   });
 
   if (!loading && !organizationId) {

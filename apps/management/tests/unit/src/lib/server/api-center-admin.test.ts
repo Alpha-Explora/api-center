@@ -109,7 +109,12 @@ describe("api center admin proxy", () => {
     const body = await response.json();
 
     expect(response.status).toBe(504);
-    expect(body.error).toBe("TLS handshake failed");
+    expect(response.headers.get("retry-after")).toBe("2");
+    // People read a plain sentence; the raw reason stays in the source metadata.
+    expect(body.error).toEqual({
+      code: "GATEWAY_TIMEOUT",
+      message: "APICenter did not answer in time. It may be starting up; try again in a few seconds.",
+    });
     expect(body.meta.sourceMetadata[0]).toMatchObject({
       sourceType: "unavailable",
       sourceName: "gateway-traffic-api-center",

@@ -46,7 +46,6 @@ export function RequestLogPanel({ applicationId }: { applicationId?: string }) {
   const applications = useQuery({
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
   });
   const names = new Map((applications.data ?? []).map((application) => [application.id, application.name]));
   const [selected, setSelected] = useState<RequestLogEntry | null>(null);

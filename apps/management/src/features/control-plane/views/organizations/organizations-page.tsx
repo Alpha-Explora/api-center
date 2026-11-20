@@ -55,7 +55,7 @@ function Organizations() {
   const [suspending, setSuspending] = useState<OrganizationSummary | null>(null);
   const [filter, setFilter] = useState("");
   const client = useQueryClient();
-  const organizations = useQuery({ queryKey: cpKeys.organizations, queryFn: organizationsAdmin.list, retry: false });
+  const organizations = useQuery({ queryKey: cpKeys.organizations, queryFn: organizationsAdmin.list });
   const visible = (organizations.data ?? []).filter((entry) => matchesQuery(filter, entry.name, entry.slug, entry.id));
   const refresh = () => {
     void client.invalidateQueries({ queryKey: cpKeys.organizations });

@@ -15,7 +15,6 @@ export function useApprovals() {
     queryKey: scope ? cpKeys.approvals(scope) : cpKeys.approvalsRoot,
     queryFn: () => (scope === "platform" ? approvals.all() : approvals.forOrganization((scope as { organizationId: string }).organizationId)),
     enabled: Boolean(session) && scope !== undefined,
-    retry: false,
     staleTime: 30_000,
     refetchInterval: 120_000,
   });

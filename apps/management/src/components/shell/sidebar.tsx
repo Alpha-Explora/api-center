@@ -238,7 +238,6 @@ function ProjectNav({
     queryKey: cpKeys.project(organizationId ?? "none", projectId),
     queryFn: () => controlPlane.project(organizationId as string, projectId),
     enabled: Boolean(organizationId),
-    retry: false,
   });
   const credentials = useEnvironmentCredentials({
     organizationId,
@@ -251,7 +250,6 @@ function ProjectNav({
     queryKey: cpKeys.projects(organizationId ?? "none"),
     queryFn: () => controlPlane.listProjects(organizationId as string),
     enabled: Boolean(organizationId),
-    retry: false,
   });
 
   return (

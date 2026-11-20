@@ -32,9 +32,9 @@ export function ApiAccessPanel({ application }: { application: Application }) {
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
   const key = grantsKey(organizationId, project.id, kind, application.id);
-  const grants = useQuery({ queryKey: key, queryFn: () => controlPlane.grants(organizationId, project.id, kind, application.id), retry: false });
-  const catalog = useQuery({ queryKey: apiKeys.catalog(organizationId), queryFn: () => publishedApis.catalog(organizationId), retry: false });
-  const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), retry: false, staleTime: 60_000 });
+  const grants = useQuery({ queryKey: key, queryFn: () => controlPlane.grants(organizationId, project.id, kind, application.id) });
+  const catalog = useQuery({ queryKey: apiKeys.catalog(organizationId), queryFn: () => publishedApis.catalog(organizationId) });
+  const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), staleTime: 60_000 });
   const [requesting, setRequesting] = useState(false);
   const [revoking, setRevoking] = useState<Grant | null>(null);
   const revoke = useMutation({
