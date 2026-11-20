@@ -35,6 +35,16 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
     return record;
   }
 
+  async getProjectSender(projectId: string, environment: ProjectEmailSender['environment']): Promise<ProjectEmailSender | null> {
+    const result = await this.pool.query(
+      `SELECT project_id, environment, from_address, daily_limit
+         FROM shared_email.project_senders
+        WHERE project_id = $1 AND environment = $2`,
+      [projectId, environment],
+    );
+    return result.rows.length === 0 ? null : mapProjectSender(result.rows[0]);
+  }
+
   async setProjectSender(sender: ProjectEmailSender): Promise<ProjectEmailSender> {
     const client = await this.pool.connect();
     try {

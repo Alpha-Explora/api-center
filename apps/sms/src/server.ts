@@ -14,6 +14,8 @@ import { SmsMessagePayload, SmsRecipient } from './features/send-sms/send-sms.mo
 import { GetSmsStatusService } from './features/get-sms-status/get-sms-status.service';
 import { SmsProviderError } from './shared/twilio-sms-provider';
 import { createSmsRepository } from './shared/sms-store';
+import { resolveSmsSender, SmsSenderNotApprovedError } from './shared/project-sender';
+import { createSmsSenderAdminHandler } from './shared/project-sender-admin';
 
 const port = Number(process.env.PORT || 4011);
 const { app, ok, fail } = createSharedServiceApp({
@@ -88,8 +90,17 @@ app.post('/send', async (req: Request, res: Response) => {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
   }
 
+  let senderId: string | undefined;
+  try {
+    const projectSender = await smsStore.getProjectSender(caller.projectId, caller.environment);
+    senderId = resolveSmsSender(body.senderId, projectSender?.senderId);
+  } catch (error) {
+    if (error instanceof SmsSenderNotApprovedError) return fail(res, 403, error.code, error.message);
+    return fail(res, 503, 'PROJECT_SENDER_UNAVAILABLE', 'Project SMS sender settings are unavailable');
+  }
+
   const senderConfigured = process.env.TWILIO_MESSAGING_SERVICE_SID
-    || process.env.TWILIO_FROM_NUMBER || body.senderId;
+    || process.env.TWILIO_FROM_NUMBER || senderId;
   if (nodeEnv === 'production' && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !senderConfigured)) {
     return fail(res, 503, 'SMS_PROVIDER_UNAVAILABLE', 'Twilio credentials and sender configuration are required in production');
   }
@@ -140,7 +151,7 @@ app.post('/send', async (req: Request, res: Response) => {
 
   let data;
   try {
-    data = await sendSmsService.execute(body, caller);
+    data = await sendSmsService.execute({ ...body, senderId }, caller);
   } catch (error: any) {
     try {
       await idempotencyStore.markUnknown(storageKey, body);
@@ -164,6 +175,15 @@ app.post('/send', async (req: Request, res: Response) => {
   }
   return res.status(response.status).json(response.body);
 });
+
+const smsSenderAdminHandler = createSmsSenderAdminHandler({
+  store: smsStore,
+  expectedToken: process.env.SMS_ADMIN_TOKEN,
+  platformSenderConfigured: Boolean(process.env.TWILIO_MESSAGING_SERVICE_SID || process.env.TWILIO_FROM_NUMBER),
+});
+app.get('/admin/projects/:projectId/sms-sender/:environment', smsSenderAdminHandler);
+app.put('/admin/projects/:projectId/sms-sender/:environment', smsSenderAdminHandler);
+app.delete('/admin/projects/:projectId/sms-sender/:environment', smsSenderAdminHandler);
 
 app.post('/webhooks/twilio', async (req: Request, res: Response) => {
   const event = req.body || {};

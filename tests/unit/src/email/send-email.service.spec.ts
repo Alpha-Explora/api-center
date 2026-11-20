@@ -53,6 +53,7 @@ describe("SendEmailService provider payload", () => {
     const store = {
       save: jest.fn(async (record) => record),
       findById: jest.fn(async () => null),
+      getProjectSender: jest.fn(),
       setProjectSender: jest.fn(),
       applyDeliveryEvent: jest.fn(),
       sendWithinDailyLimit: jest.fn(async (

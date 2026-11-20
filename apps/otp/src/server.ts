@@ -14,6 +14,8 @@ import { GenerateOtpService } from './features/generate-otp/generate-otp.service
 import { VerifyOtpService } from './features/verify-otp/verify-otp.service';
 import { GetOtpStatusService } from './features/get-otp-status/get-otp-status.service';
 import { OtpTarget } from './features/generate-otp/generate-otp.model';
+import { createOtpRepository } from './shared/otp-store';
+import { createOtpSettingsAdminHandler } from './shared/project-settings-admin';
 
 const port = Number(process.env.PORT || 4014);
 const nodeEnv = process.env.NODE_ENV || 'development';
@@ -268,6 +270,14 @@ app.get('/status/:otpId', async (req: Request, res: Response) => {
 
   return ok(res, result);
 });
+
+const otpSettingsAdminHandler = createOtpSettingsAdminHandler({
+  store: createOtpRepository(),
+  expectedToken: process.env.OTP_ADMIN_TOKEN,
+});
+app.get('/admin/projects/:projectId/otp-settings/:environment', otpSettingsAdminHandler);
+app.put('/admin/projects/:projectId/otp-settings/:environment', otpSettingsAdminHandler);
+app.delete('/admin/projects/:projectId/otp-settings/:environment', otpSettingsAdminHandler);
 
 if (require.main === module) {
   app.listen(port, () => {

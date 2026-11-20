@@ -75,6 +75,16 @@ spec:
                 secretKeyRef:
                   name: apicenter-email-admin-token
                   key: latest
+            - name: SMS_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-sms-admin-token
+                  key: latest
+            - name: OTP_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-otp-admin-token
+                  key: latest
             - name: RESEND_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:

@@ -30,6 +30,15 @@
             ],
             "env": [
               {
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "apicenter-sms-admin-token",
+                    "key": "latest"
+                  }
+                },
+                "name": "SMS_ADMIN_TOKEN"
+              },
+              {
                 "name": "SMS_SEND_LIMIT_WINDOW_MS",
                 "value": "60000"
               },

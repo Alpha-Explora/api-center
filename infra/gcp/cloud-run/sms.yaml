@@ -22,6 +22,11 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: SMS_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-sms-admin-token
+                  key: latest
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

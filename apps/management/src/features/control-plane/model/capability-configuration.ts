@@ -3,22 +3,42 @@ import type { EnvironmentKind } from "./control-plane";
 
 /**
  * Capabilities whose runtime holds per-environment settings. The gateway passes bodies through
- * unvalidated, so the console validates them. Payments, SMS, OTP and geo have no configuration.
+ * unvalidated, so the console validates them. Payments and geo have no per-project settings.
  */
-export const CONFIGURABLE_CAPABILITIES = ["email", "gauth"] as const;
+export const CONFIGURABLE_CAPABILITIES = ["email", "sms", "otp", "gauth"] as const;
 export type ConfigurableCapability = (typeof CONFIGURABLE_CAPABILITIES)[number];
 
 export function isConfigurable(capability: string): capability is ConfigurableCapability {
   return (CONFIGURABLE_CAPABILITIES as readonly string[]).includes(capability);
 }
 
-// ── Email sender (PUT only; the runtime cannot return the current value) ──────────────────────
+/** Why a capability has nothing to configure, shown on its row instead of a Configure button. */
+export const UNCONFIGURABLE_REASONS: Record<string, string> = {
+  geo: "Nothing to configure: region and language are set per request, and quotas cap lookup volume.",
+};
 
+// ── Email sender (GET, PUT) ───────────────────────────────────────────────────────────────────
+
+/** What a PUT returns. */
 export const emailSenderSchema = z.object({
   fromAddress: z.string(),
   dailyLimit: z.number().nullable(),
 });
 export type EmailSender = z.infer<typeof emailSenderSchema>;
+
+/** What a GET returns: the saved sender, if any, and what an unconfigured environment uses. */
+export const emailSenderSettingsSchema = z.object({
+  configured: z.boolean(),
+  fromAddress: z.string().nullable(),
+  dailyLimit: z.number().nullable(),
+  defaults: z.object({ fromAddress: z.string().nullable(), dailyLimit: z.number() }).nullable(),
+});
+export type EmailSenderSettings = z.infer<typeof emailSenderSettingsSchema>;
+
+/** The form's starting values from the saved sender. */
+export function emailSenderFormFrom(current: EmailSenderSettings | undefined): EmailSenderForm {
+  return { fromAddress: current?.fromAddress ?? "", dailyLimit: current?.dailyLimit == null ? "" : String(current.dailyLimit) };
+}
 
 export type EmailSenderForm = { fromAddress: string; dailyLimit: string };
 export type EmailSenderBody = { fromAddress: string; dailyLimit: number | null };
@@ -33,11 +53,11 @@ export const emailSenderFormSchema = z.object({
   dailyLimit: z
     .string()
     .trim()
-    .refine((value) => value === "" || /^\d+$/.test(value), "Enter a whole number, or leave it empty for no limit.")
+    .refine((value) => value === "" || /^\d+$/.test(value), "Enter a whole number, or leave it empty for the platform default.")
     .refine((value) => value === "" || (Number.isSafeInteger(Number(value)) && Number(value) >= 1), "The limit must be at least 1."),
 });
 
-/** The PUT body for a valid form; an empty daily limit means unlimited (`null`). */
+/** The PUT body for a valid form; an empty daily limit (`null`) means the platform's default limit. */
 export function emailSenderBody(form: EmailSenderForm): EmailSenderBody {
   const parsed = emailSenderFormSchema.parse(form);
   return { fromAddress: parsed.fromAddress, dailyLimit: parsed.dailyLimit === "" ? null : Number(parsed.dailyLimit) };

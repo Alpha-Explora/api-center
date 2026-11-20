@@ -3,6 +3,7 @@ import { sameProject } from '@apicenter/runtime';
 import { PostgresSmsStore } from './postgres-sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
 import type { SmsDeliveryEvent } from './sms-repository.interface';
+import type { ProjectSmsSender } from './project-sender';
 
 export interface SmsRecord {
   messageId: string;
@@ -22,6 +23,7 @@ export class MemorySmsStore implements SmsRepositoryInterface {
   private static instance: MemorySmsStore;
   private readonly store = new Map<string, OwnedSmsRecord>();
   private readonly deliveryEventIds = new Set<string>();
+  private readonly projectSenders = new Map<string, ProjectSmsSender>();
 
   public static getInstance(): MemorySmsStore {
     if (!MemorySmsStore.instance) {
@@ -52,6 +54,16 @@ export class MemorySmsStore implements SmsRepositoryInterface {
     this.deliveryEventIds.add(event.providerEventId);
     this.store.set(event.messageId, { ...entry, record: { ...entry.record, status: event.status } });
     return { duplicate: false };
+  }
+
+  async getProjectSender(projectId: string, environment: ProjectSmsSender['environment']): Promise<ProjectSmsSender | null> {
+    const sender = this.projectSenders.get(`${projectId}:${environment}`);
+    return sender ? { ...sender } : null;
+  }
+
+  async setProjectSender(sender: ProjectSmsSender): Promise<ProjectSmsSender> {
+    this.projectSenders.set(`${sender.projectId}:${sender.environment}`, { ...sender });
+    return { ...sender };
   }
 }
 

@@ -3,6 +3,7 @@ import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { SmsRecord } from './sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
 import type { SmsDeliveryEvent } from './sms-repository.interface';
+import type { ProjectSmsSender } from './project-sender';
 
 export class PostgresSmsStore implements SmsRepositoryInterface {
   private readonly pool: Pool;
@@ -80,4 +81,34 @@ export class PostgresSmsStore implements SmsRepositoryInterface {
       client.release();
     }
   }
+
+  async getProjectSender(projectId: string, environment: ProjectSmsSender['environment']): Promise<ProjectSmsSender | null> {
+    const result = await this.pool.query(
+      `SELECT project_id, environment, sender_id
+         FROM shared_sms.project_senders
+        WHERE project_id = $1 AND environment = $2`,
+      [projectId, environment],
+    );
+    return result.rows.length === 0 ? null : mapProjectSender(result.rows[0]);
+  }
+
+  async setProjectSender(sender: ProjectSmsSender): Promise<ProjectSmsSender> {
+    const result = await this.pool.query(
+      `INSERT INTO shared_sms.project_senders (project_id, environment, sender_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (project_id, environment) DO UPDATE
+         SET sender_id = EXCLUDED.sender_id, updated_at = now()
+       RETURNING project_id, environment, sender_id`,
+      [sender.projectId, sender.environment, sender.senderId],
+    );
+    return mapProjectSender(result.rows[0]);
+  }
+}
+
+function mapProjectSender(row: Record<string, unknown>): ProjectSmsSender {
+  return {
+    projectId: String(row.project_id),
+    environment: row.environment as ProjectSmsSender['environment'],
+    senderId: row.sender_id === null ? null : String(row.sender_id),
+  };
 }

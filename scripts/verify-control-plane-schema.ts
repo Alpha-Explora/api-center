@@ -290,6 +290,8 @@ const requiredSharedTables = [
   "shared_otp.otp_challenges",
   "shared_email.email_messages",
   "shared_email.project_senders",
+  "shared_sms.project_senders",
+  "shared_otp.project_settings",
   "shared_email.email_delivery_events",
   "shared_sms.sms_delivery_events",
   "shared_webhooks.webhook_deliveries",

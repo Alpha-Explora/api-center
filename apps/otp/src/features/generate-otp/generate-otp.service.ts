@@ -5,6 +5,7 @@ import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
 import { sendResendEmail, sendTwilioSms, type SharedServiceCaller } from '@apicenter/runtime';
 import { hashOtpCode } from '../../shared/otp-hash';
+import { renderOtpMessage, resolveOtpPolicy } from '../../shared/project-settings';
 
 export class GenerateOtpService {
   constructor(private readonly store: OtpRepositoryInterface = createOtpRepository()) {}
@@ -13,13 +14,13 @@ export class GenerateOtpService {
     const rawTarget = input.recipient || input.target;
     const targetVo = new OtpTarget(rawTarget!, input.channel);
 
-    const resolvedLength = Math.max(4, Math.min(10, Number(input.digits) || 6));
-    const resolvedExpiry = Math.max(60, Math.min(3600, Number(input.ttlSeconds) || 300));
-    
-    const max = Math.pow(10, resolvedLength);
-    const code = String(crypto.randomInt(0, max)).padStart(resolvedLength, '0');
+    const settings = await this.store.getProjectSettings(owner.projectId, owner.environment);
+    const policy = resolveOtpPolicy(input, settings);
+
+    const code = String(crypto.randomInt(0, Math.pow(10, policy.digits))).padStart(policy.digits, '0');
     const otpId = `otp_${crypto.randomUUID().replace(/-/g, '')}`;
-    const expiresAt = Date.now() + resolvedExpiry * 1000;
+    const expiresAt = Date.now() + policy.ttlSeconds * 1000;
+    const message = renderOtpMessage(policy.template, code, policy.ttlSeconds);
 
     await this.store.save({
       otpId,
@@ -29,17 +30,18 @@ export class GenerateOtpService {
       expiresAt,
       status: 'pending',
       attemptCount: 0,
+      maxAttempts: policy.maxAttempts,
     }, owner);
 
     const mock = process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production';
     try {
       if (!mock && targetVo.getChannel() === 'sms') {
-        await sendTwilioSms({ to: targetVo.getTarget(), message: `Your APICenter verification code is ${code}` });
+        await sendTwilioSms({ to: targetVo.getTarget(), message });
       } else if (!mock) {
         await sendResendEmail({
           to: targetVo.getTarget(),
           subject: 'Your APICenter verification code',
-          text: `Your APICenter verification code is ${code}`,
+          text: message,
         });
       }
     } catch (error) {

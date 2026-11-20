@@ -16,7 +16,7 @@ import { PublishedApiService } from "./published-api.service";
 import { WorkloadBindingService } from "./workload-binding.service";
 import { MemberInviteService } from "./member-invite.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
-import { effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
+import { canPerform, effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
 const slug = z.string().regex(/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/, "must be lowercase letters, digits and hyphens");
 const name = z.string().trim().min(1).max(128);
@@ -445,6 +445,7 @@ export class ControlPlaneAdminController {
   @Put(`${ENV}/capabilities/:capability/configuration`)
   async writeConfiguration(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    if (params.capability === "otp") await this.requireOtpTemplateEditor(scope, actor, body);
     return { success: true, data: await this.configuration.configure(scope, params.capability, "PUT", body, actorLabel(actor)) };
   }
 
@@ -631,12 +632,33 @@ export class ControlPlaneAdminController {
     };
   }
 
+  /**
+   * The OTP message template is text APICenter sends through its own SMS and email senders, so
+   * changing it follows the live write rule in both environments: a project admin. Clearing it (back
+   * to the platform's text) or saving the current template unchanged keeps the environment's rule, so
+   * a developer can still change code length, expiry and attempts in test.
+   */
+  private async requireOtpTemplateEditor(scope: EnvironmentScope, actor: ConsoleActor, body: unknown) {
+    const requested = otpTemplateOf(body);
+    if (requested === null) return;
+    const access = await this.access.accessFor(actor, scope.organizationId);
+    if (canPerform(actor, access, "environment.write", { projectId: scope.projectId, environmentKind: "live" })) return;
+    const current = await this.configuration.configure(scope, "otp", "GET", undefined, actorLabel(actor));
+    if (otpTemplateOf(current) === requested) return;
+    throw new ForbiddenError("Changing the OTP message template needs a project admin");
+  }
+
   private async authorizeEnvironment(params: Record<string, string>, req: ConsoleRequest, action: "environment.read" | "environment.write") {
     const scope = scopeFrom(params);
     const actor = actorOf(req);
     await this.access.require(actor, scope.organizationId, action, { projectId: scope.projectId, environmentKind: scope.environmentKind });
     return { scope, actor };
   }
+}
+
+function otpTemplateOf(value: unknown): string | null {
+  const template = value && typeof value === "object" ? (value as { messageTemplate?: unknown }).messageTemplate : undefined;
+  return typeof template === "string" && template.trim() ? template.trim() : null;
 }
 
 function actorOf(req: ConsoleRequest): ConsoleActor {
