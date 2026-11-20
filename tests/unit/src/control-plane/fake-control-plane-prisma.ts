@@ -196,13 +196,40 @@ export function createFakeControlPlanePrisma() {
       },
     },
     advisoryLocks: [] as string[],
+    /** Per lock key, the promise that settles when its last waiter's transaction ends. */
+    heldAdvisoryLocks: new Map<string, Promise<void>>(),
+    /**
+     * Each transaction gets its own handle so a pg_advisory_xact_lock taken inside it is held,
+     * as in PostgreSQL, until the transaction ends; another transaction asking for the same key waits.
+     */
     async $transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
-      return work(prisma);
+      const releases: Array<() => void> = [];
+      const tx: unknown = Object.create(prisma, { transactionReleases: { value: releases } });
+      try {
+        return await work(tx);
+      } finally {
+        for (const release of releases) release();
+      }
     },
     tenantSettings: [] as string[],
-    async $executeRaw(strings: TemplateStringsArray, ...values: unknown[]) {
+    async $executeRaw(this: { transactionReleases?: Array<() => void> }, strings: TemplateStringsArray, ...values: unknown[]) {
       const sql = strings.join("?");
-      if (sql.includes("pg_advisory_xact_lock")) prisma.advisoryLocks.push(String(values[0]));
+      if (sql.includes("pg_advisory_xact_lock")) {
+        const key = String(values[0]);
+        prisma.advisoryLocks.push(key);
+        const previous = prisma.heldAdvisoryLocks.get(key) ?? Promise.resolve();
+        let release!: () => void;
+        const mine = new Promise<void>((resolve) => (release = resolve));
+        const held = previous.then(() => mine);
+        prisma.heldAdvisoryLocks.set(key, held);
+        await previous;
+        const unlock = () => {
+          release();
+          if (prisma.heldAdvisoryLocks.get(key) === held) prisma.heldAdvisoryLocks.delete(key);
+        };
+        if (this?.transactionReleases) this.transactionReleases.push(unlock);
+        else unlock();
+      }
       if (sql.includes("apicenter.organization_id")) prisma.tenantSettings.push(String(values[0]) || String(values[1]));
       return 1;
     },

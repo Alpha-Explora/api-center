@@ -14,7 +14,7 @@ import { PaymentPubSubProvisioningService } from "@payments/features/pubsub-prov
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstream-guard";
 import { newResourceId } from "../application-credential";
-import { withTenant } from "../tenant-transaction";
+import { withTenant, type TenantDb, type TenantTransactionOptions } from "../tenant-transaction";
 import type { EnvironmentScope } from "../control-plane-admin.service";
 import { newSigningSecret, WEBHOOK_CONFIG_STORE, type WebhookConfigStore, type WebhookDestinationConfig } from "./webhook-config-store";
 import { normalizeEventTypes } from "./event-types";
@@ -37,6 +37,10 @@ export interface WebhookInput {
 export const ROTATION_OVERLAP_MS = 24 * 60 * 60 * 1000;
 
 type Delivery = { pushEndpoint: string; oidcAudience?: string; deliveryServiceAccountEmail: string };
+type DestinationRow = NonNullable<Awaited<ReturnType<TenantDb["cpEventDestination"]["findFirst"]>>>;
+
+/** Room for a Secret Manager read and write while a destination's lock is held. */
+const WEBHOOK_CONFIG_TRANSACTION: TenantTransactionOptions = { timeoutMs: 30_000, maxWaitMs: 10_000 };
 
 @Injectable()
 export class EventDestinationService {
@@ -100,21 +104,20 @@ export class EventDestinationService {
    * consumer can deploy the new secret before the old one stops; returns the new secret once.
    */
   async rotateSecret(scope: EnvironmentScope, destinationId: string, actor: string) {
-    const destination = await this.find(scope, destinationId);
-    if (destination.transport !== "webhook") throw new AppError("Only webhook destinations have a signing secret", 409, "NOT_A_WEBHOOK");
-    if (destination.status === "disabled") throw new ConflictError("This destination is disabled");
-    const config = await this.webhooks.read(destinationId);
-    if (!config) throw new AppError("This webhook's configuration is missing; create the destination again", 409, "WEBHOOK_CONFIG_MISSING");
     const signingSecret = newSigningSecret();
     const expiresAt = new Date(Date.now() + ROTATION_OVERLAP_MS).toISOString();
-    const current = config.secrets.find((secret) => !secret.expiresAt);
-    await this.webhooks.write(destinationId, {
-      ...config,
-      secrets: [{ value: signingSecret }, ...(current ? [{ value: current.value, expiresAt }] : [])],
+    const { updated, current } = await this.withConfigLock(scope, destinationId, async (db, destination) => {
+      if (destination.transport !== "webhook") throw new AppError("Only webhook destinations have a signing secret", 409, "NOT_A_WEBHOOK");
+      if (destination.status === "disabled") throw new ConflictError("This destination is disabled");
+      const config = await this.readWebhookConfig(destinationId);
+      const current = config.secrets.find((secret) => !secret.expiresAt);
+      await this.webhooks.write(destinationId, {
+        ...config,
+        secrets: [{ value: signingSecret }, ...(current ? [{ value: current.value, expiresAt }] : [])],
+      });
+      const updated = await db.cpEventDestination.update({ where: { id: destinationId }, data: { secretRotatedAt: new Date() } });
+      return { updated, current };
     });
-    const updated = await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
-      db.cpEventDestination.update({ where: { id: destinationId }, data: { secretRotatedAt: new Date() } }),
-    );
     await this.recordAudit(scope, actor, destinationId, "secret_rotated", "info", "Webhook signing secret rotated", { previousSecretExpiresAt: expiresAt });
     return { ...updated, signingSecret, previousSecretExpiresAt: current ? expiresAt : null };
   }
@@ -126,23 +129,22 @@ export class EventDestinationService {
    */
   async setEventTypes(scope: EnvironmentScope, destinationId: string, requested: string[], actor: string) {
     const eventTypes = normalizeEventTypes(requested);
-    const destination = await this.find(scope, destinationId);
-    if (destination.transport !== "webhook") {
-      throw new AppError(
-        "Only webhook destinations can filter event types; a Pub/Sub push endpoint can filter on the eventType attribute",
-        409,
-        "EVENT_FILTER_UNSUPPORTED",
-      );
-    }
-    if (destination.status === "disabled") throw new ConflictError("This destination is disabled");
-    const config = await this.webhooks.read(destinationId);
-    if (!config) throw new AppError("This webhook's configuration is missing; create the destination again", 409, "WEBHOOK_CONFIG_MISSING");
-    await this.webhooks.write(destinationId, withEventTypes(config, eventTypes));
-    const updated = await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
-      db.cpEventDestination.update({ where: { id: destinationId }, data: { eventTypes } }),
-    );
+    const { updated, before } = await this.withConfigLock(scope, destinationId, async (db, destination) => {
+      if (destination.transport !== "webhook") {
+        throw new AppError(
+          "Only webhook destinations can filter event types; a Pub/Sub push endpoint can filter on the eventType attribute",
+          409,
+          "EVENT_FILTER_UNSUPPORTED",
+        );
+      }
+      if (destination.status === "disabled") throw new ConflictError("This destination is disabled");
+      const config = await this.readWebhookConfig(destinationId);
+      await this.webhooks.write(destinationId, withEventTypes(config, eventTypes));
+      const updated = await db.cpEventDestination.update({ where: { id: destinationId }, data: { eventTypes } });
+      return { updated, before: destination.eventTypes ?? [] };
+    });
     await this.recordAudit(scope, actor, destinationId, "event_types_changed", "info", "Webhook event types changed", {
-      before: destination.eventTypes ?? [],
+      before,
       after: eventTypes,
     });
     return updated;
@@ -164,14 +166,13 @@ export class EventDestinationService {
    * in-flight event is dropped silently.
    */
   async disable(scope: EnvironmentScope, destinationId: string, actor: string) {
-    const found = await this.find(scope, destinationId);
-    if (found.transport === "webhook") {
-      const config = await this.webhooks.read(destinationId);
-      if (config) await this.webhooks.write(destinationId, { ...config, disabled: true });
-    }
-    const destination = await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
-      db.cpEventDestination.update({ where: { id: destinationId }, data: { status: "disabled" } }),
-    );
+    const destination = await this.withConfigLock(scope, destinationId, async (db, found) => {
+      if (found.transport === "webhook") {
+        const config = await this.webhooks.read(destinationId);
+        if (config) await this.webhooks.write(destinationId, { ...config, disabled: true });
+      }
+      return db.cpEventDestination.update({ where: { id: destinationId }, data: { status: "disabled" } });
+    });
     await this.recordAudit(scope, actor, destinationId, "disabled", "warning", "Payment event destination disabled; delete its Pub/Sub subscription after draining", {
       subscriptionName: destination.subscriptionName,
     });
@@ -265,19 +266,38 @@ export class EventDestinationService {
     return destination;
   }
 
-  /** The destination in this exact environment; a test path never reaches a live destination. */
-  private async find(scope: EnvironmentScope, destinationId: string) {
-    const found = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
-      const environment = await db.cpEnvironment.findFirst({
-        where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
-      });
-      if (!environment) return null;
-      return db.cpEventDestination.findFirst({
-        where: { id: destinationId, organizationId: scope.organizationId, projectId: scope.projectId, environmentId: environment.id },
-      });
-    });
-    if (!found) throw new NotFoundError(`Event destination '${destinationId}' was not found`);
-    return found;
+  /**
+   * Runs a change to a destination under a transaction lock on it. Each webhook change reads the
+   * whole Secret Manager config and writes it back, so without the lock a concurrent rotation,
+   * filter edit or disable could overwrite another's version and drop a newly issued signing
+   * secret. The destination is read under the lock, so `work` sees the previous change's status.
+   */
+  private withConfigLock<T>(scope: EnvironmentScope, destinationId: string, work: (db: TenantDb, destination: DestinationRow) => Promise<T>) {
+    return withTenant(
+      this.prisma,
+      { organizationId: scope.organizationId },
+      async (db) => {
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cp_event_destination:${destinationId}`}, 0))`;
+        // The destination in this exact environment; a test path never reaches a live destination.
+        const environment = await db.cpEnvironment.findFirst({
+          where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
+        });
+        const destination = environment
+          ? await db.cpEventDestination.findFirst({
+              where: { id: destinationId, organizationId: scope.organizationId, projectId: scope.projectId, environmentId: environment.id },
+            })
+          : null;
+        if (!destination) throw new NotFoundError(`Event destination '${destinationId}' was not found`);
+        return work(db, destination);
+      },
+      WEBHOOK_CONFIG_TRANSACTION,
+    );
+  }
+
+  private async readWebhookConfig(destinationId: string): Promise<WebhookDestinationConfig> {
+    const config = await this.webhooks.read(destinationId);
+    if (!config) throw new AppError("This webhook's configuration is missing; create the destination again", 409, "WEBHOOK_CONFIG_MISSING");
+    return config;
   }
 
   private recordAudit(

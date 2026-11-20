@@ -12,6 +12,7 @@ import { createMemoryWebhookConfigStore } from "../../../../apps/gateway/src/dom
 import type { ConsoleActor } from "../../../../apps/gateway/src/domains/control-plane/console-access.policy";
 import type { ConsoleRequest } from "../../../../apps/gateway/src/domains/control-plane/console-actor.guard";
 import { deliver } from "../../../../apps/webhooks/src/delivery";
+import { attemptFor } from "../../../../apps/webhooks/src/delivery-log";
 import { deliversEventType } from "../../../../apps/webhooks/src/event-filter";
 import type { DestinationConfig } from "../../../../apps/webhooks/src/destination-store";
 import asyncApi from "../../../../packages/contracts/apicenter-asyncapi.json";
@@ -110,6 +111,30 @@ describe("webhook event-type filters in the gateway", () => {
     expect(event?.payload).toEqual({ before: [], after: ["payment.checkout.paid", "payment.intent.paid"] });
   });
 
+  it("serializes concurrent config changes so a rotated secret is never overwritten", async () => {
+    const { scope, app } = await setup();
+    const created = await destinations.createWebhook(scope, { recipientApplicationId: app.id, url: URL }, actor);
+    // Secret Manager round trips take time: without the lock both changes read the same config
+    // and the later write drops the earlier one's change.
+    const read = configs.read.bind(configs);
+    configs.read = async (id) => {
+      const config = await read(id);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return config;
+    };
+
+    const [rotated] = await Promise.all([
+      destinations.rotateSecret(scope, created.id, actor),
+      destinations.setEventTypes(scope, created.id, ["payment.intent.paid"], actor),
+      destinations.disable(scope, created.id, actor),
+    ]);
+
+    const config = await configs.read(created.id);
+    expect(config?.secrets.map((secret) => secret.value)).toEqual([rotated.signingSecret, created.signingSecret]);
+    expect(config).toMatchObject({ eventTypes: ["payment.intent.paid"], disabled: true });
+    expect(prisma.advisoryLocks.filter((key) => key === `cp_event_destination:${created.id}`)).toHaveLength(3);
+  });
+
   it("refuses to filter a Pub/Sub push destination or a disabled webhook", async () => {
     const { scope, app } = await setup();
     const push = await destinations.create(
@@ -163,7 +188,9 @@ describe("event-type filters in the delivery service", () => {
 
   it("delivers only chosen types and acknowledges the rest without calling the endpoint", async () => {
     const { sent, run } = harness({ url: URL, secrets: [{ value: "whsec_x" }], eventTypes: ["payment.intent.failed"] });
-    await expect(run("payment.intent.paid")).resolves.toEqual({ ack: true, reason: "filtered", eventId: "evt_payment.intent.paid" });
+    const filtered = await run("payment.intent.paid");
+    expect(filtered).toEqual({ ack: true, reason: "filtered", eventId: "evt_payment.intent.paid", eventType: "payment.intent.paid" });
+    expect(attemptFor("dst_x", filtered, { attempt: 1, latencyMs: 0, at: new Date() })).toBeNull();
     await expect(run("payment.intent.failed")).resolves.toMatchObject({ ack: true, reason: "delivered" });
     expect(sent).toEqual(["payment.intent.failed"]);
   });
