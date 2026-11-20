@@ -83,6 +83,7 @@ const schemas = {
     .strict()
     .refine((value) => !(value.approve && value.reason), "reason is only for a rejection"),
   setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
+  memberStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
     .object({
@@ -174,9 +175,38 @@ export class ControlPlaneAdminController {
     const member = await this.people.setMember(org, memberEmail, input.role, label, {
       mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
     });
-    // A new member is sent an invite. Sending never fails the change, which is already saved.
-    const invite = member.previousRole || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
-    return { success: true, data: { ...member, invite } };
+    // A new member is emailed an invite. Sending never fails the change, which is already saved.
+    const { invite: shouldInvite, ...saved } = member;
+    const invite = !shouldInvite || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
+    return { success: true, data: { ...saved, invite } };
+  }
+
+  /** Renews an unaccepted invite for another 7 days and emails it again. */
+  @Post("organizations/:organizationId/members/:email/invite")
+  async resendInvite(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const memberEmail = parse(schemas.email, params.email, "email");
+    const actor = actorOf(req);
+    const access = await this.access.require(actor, org, "organization.members.manage");
+    const label = actorLabel(actor);
+    const renewed = await this.people.resendInvite(org, memberEmail, label, { mayManageOwners: canPerform(actor, access, "organization.owners.manage") });
+    const invite = this.invites ? await this.invites.invite({ organizationId: org, email: memberEmail, role: renewed.role, invitedBy: label }) : null;
+    return { success: true, data: { ...renewed, invite } };
+  }
+
+  @Put("organizations/:organizationId/members/:email/status")
+  async setMemberStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const memberEmail = parse(schemas.email, params.email, "email");
+    const input = parse(schemas.memberStatus, body, "body");
+    const actor = actorOf(req);
+    const access = await this.access.require(actor, org, "organization.members.manage");
+    return {
+      success: true,
+      data: await this.people.setMemberStatus(org, memberEmail, input.status, actorLabel(actor, input.actor), {
+        mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
+      }),
+    };
   }
 
   @Delete("organizations/:organizationId/members/:email")
