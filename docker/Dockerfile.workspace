@@ -17,7 +17,9 @@ RUN MANAGEMENT_AUTH_MODE=google npm run build --workspace @apicenter/${APP} \
 
 FROM node:24-bookworm-slim AS node-runtime
 ARG APP
-ENV APICENTER_APP=${APP} NODE_ENV=production PORT=8080
+# The commit the image was built from; /api/v1/health/ready reports it.
+ARG APICENTER_RELEASE_SHA=unknown
+ENV APICENTER_APP=${APP} NODE_ENV=production PORT=8080 APICENTER_RELEASE_SHA=${APICENTER_RELEASE_SHA}
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
