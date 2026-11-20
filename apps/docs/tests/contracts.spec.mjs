@@ -41,7 +41,7 @@ test("published endpoint details describe only contract operations, parameters, 
 test("HTTP snippets use the server-side application key and explicit body placeholders", () => {
   const operations = getDetailedOperations();
   for (const operation of operations) {
-    const ts = buildSnippet(operation, "TypeScript");
+    const ts = buildSnippet(operation, "fetch");
     assert.ok(ts.includes(operation.serverUrl + operation.path));
     assert.ok(buildSnippet({...operation, serverUrl: "https://contract-server.example"}, "cURL").includes("https://contract-server.example" + operation.path));
     if (operation.credentialKind === 'application') assert.match(ts, /APICENTER_API_KEY/);

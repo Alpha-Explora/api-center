@@ -8,7 +8,7 @@ export default function EventReferencePage() {
   const events = getEvents();
   const versions = getContractVersion();
   return (
-    <DocsPage
+    <DocsPage tableOfContent={{ style: "clerk" }}
       toc={[]}
       breadcrumb={{ enabled: false }}
       footer={{ enabled: false }}

@@ -1,15 +1,15 @@
 ---
-title: "OTP Verification Shared Service API"
-description: "Generate, verify, and check 6-digit One-Time Passwords over SMS and Email via @alpha-explora/apicenter-contracts."
+title: "One-time codes"
+description: "Generate and verify one-time codes by SMS or email, sent in your project's name."
 ---
 
-The OTP Shared Service manages the generation, anti-brute-force rate-limiting, and verification of one-time passcodes over SMS and Email.
+Send a one-time code by SMS or email and verify what the person types back. APICenter generates the code, sends it in your project's name, limits wrong attempts and expires it.
 
 For a Node.js backend, use `api.otp.send(...)` and `api.otp.verify(...)` from the [APICenter SDK](/guides/sdk-usage). The SDK sends an idempotency key with both writes; pass your own to tie a retry to the same sign-in attempt.
 
 ---
 
-## Service Specifications
+## At a glance
 
 - **Base Route**: `/api/v1/shared/otp`
 - **Required Header**: `Authorization: Bearer <application key>` (`ak_test_…` or `ak_live_…`; see [Authentication](/guides/authentication))

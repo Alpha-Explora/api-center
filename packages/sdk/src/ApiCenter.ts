@@ -54,7 +54,10 @@ export class ApiCenter {
     this.payments = new PaymentsNamespace(this.transport);
   }
 
-  /** The application, project and environment of the API key, and its grants. Useful as a startup check. */
+  /**
+   * The application, project and environment of the API key, and its grants. Useful as a startup check.
+   * @sdk-operation whoami GET /api/v1/whoami
+   */
   whoami(options?: RequestOptions): Promise<WhoAmI> {
     return this.transport.request({ path: '/api/v1/whoami', method: 'GET', options });
   }

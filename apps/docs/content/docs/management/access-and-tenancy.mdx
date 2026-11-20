@@ -1,9 +1,9 @@
 ---
-title: "Management access and tenancy"
-description: "Organizations, projects, environments, applications, and the roles that decide who can manage them."
+title: "Access, roles and the console"
+description: "Organizations, projects and applications, who can change them, and where each thing is in the console."
 ---
 
-APICenter Management uses your role to decide what you can see and change. Sign in with the Google account your organization added. If Management says you do not have access, ask an organization administrator to add your email.
+The APICenter console uses your role to decide what you can see and change. Sign in with the Google account your organization invited; you stay signed in on that browser for 12 hours, in every tab. If the console says you do not have access, ask an organization owner or admin to invite your email.
 
 ## Resource hierarchy
 
@@ -33,19 +33,20 @@ Switch organizations from the top of the sidebar. Inside a project, the **Test /
 
 | Page | What you manage there |
 | :--- | :--- |
-| **People** | Members, their organization roles, and teams. A new member gets an invite email and must sign in within 7 days, or the invite expires; **Resend invite** renews it. Suspend a member to stop their access without removing their roles. If the invite email cannot be sent, copy the invite from the console. Deleting a team removes the project roles its members had through it |
+| **People** | Members, their organization roles, the projects each one works on, and teams. When you add someone you can give them project roles in the same step; their invite email says what they get, and they must sign in within 7 days or the invite expires (**Resend invite** renews it). Suspend a member to stop their access without removing their roles. If the invite email cannot be sent, copy the invite from the console. Deleting a team removes the project roles its members had through it |
 | **API catalog** | Every active API that projects in the organization publish |
 | **Quotas** | Shared request ceilings across several projects, how much of each is used, and editing or deleting them (owners and admins) |
-| **Approvals** | Live activations and API access requests waiting for a decision that you can make |
-| **Audit log** | Who changed what, filtered by project, person, action and time (owners, admins, and project admins for their projects) |
-| Project **Overview** | Environment status, plan, usage over the last 24 hours, 7 days or 30 days, the daily limit, recent activity, a getting-started checklist with an SDK snippet, keys about to expire, and going live |
-| Project **Applications** | Applications, their capability and API access (including the requests you sent and why any was rejected), keys, workload identities, webhook and recent requests. **Suspend** stops an application's keys and workload identities without deleting them |
-| Project **Capabilities** | Capabilities enabled in the environment; settings for the email sender, the SMS sender, OTP codes and message, and Google sign-in; whether payments are available to the organization |
+| **Approvals** | Live activations and API access requests waiting for a decision that you can make, and those decided in the last 30 days |
+| **Audit log** | Who changed what, by day, filtered by project, person, action and time; repeated changes are collapsed, and each entry shows what changed (owners, admins, and project admins for their projects) |
+| Project **Overview** | Environment status, plan, usage over the last 24 hours, 7 days or 30 days, the daily limit, recent activity, a getting-started guide that points at the next step, keys about to expire, and going live: readiness, approval and activation |
+| Project **Applications** | Applications with what each can call, its keys and when it was last used. On an application: its capability access grouped by capability, API access (including the requests you sent and why any was rejected), keys, workload identities, webhook and recent requests. **Suspend** stops an application's keys and workload identities without deleting them |
+| Project **Capabilities** | Capabilities enabled in the environment, which applications use each and its requests in the last 24 hours; settings for the email sender, the SMS sender, OTP codes and message, and Google sign-in; whether payments are available to the organization |
 | Project **APIs** | APIs the project publishes, and access requests from other projects, which you can reject with a reason |
 | Project **Webhooks** | Payment event destinations, the event types each webhook receives, delivery history, test events and signing secrets |
-| Project **Requests** | Recent requests in the environment, with filters, the failure stage and the correlation ID |
-| Project **Quotas** | Request limits for the environment and how much of each is used; edit, disable or delete them |
-| Project **Settings** | Project roles for members and teams, the test recipients test keys may deliver to, suspending or resuming an environment, and archiving the project (every request refused, nothing deleted) |
+| Project **Requests** | Recent requests in the environment and the action each was authorized for, with filters, the failure stage and the correlation ID |
+| Project **Quotas** | The environment's plan and daily allowance, its request limits and how much of each is used; edit, disable or delete them |
+| Project **Settings** | The project's name, project roles for members and teams, the test recipients test keys may deliver to, suspending or resuming an environment, and archiving the project (every request refused, nothing deleted) |
+| **Settings** | Your account, the console's theme and signing out; the organization's name, which owners can change |
 
 Actions your role does not allow stay visible but disabled, with the reason. Keys that expire within 14 days are flagged on the Keys tab, the overview and the sidebar.
 
