@@ -15,7 +15,14 @@ export type InviteFailure =
   /** The email runtime could not be reached or timed out. */
   | "EMAIL_UNAVAILABLE"
   /** The email runtime refused the message (rate or daily limit, an older runtime without the route). */
-  | "EMAIL_REJECTED";
+  | "EMAIL_REJECTED"
+  /** An invite to this email for this organization went out in the last 24 hours. */
+  | "RECENTLY_INVITED"
+  /** Something else went wrong while preparing the invite. */
+  | "INVITE_FAILED";
+
+/** How long after an invite to the same organization and email another one is skipped. */
+export const INVITE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 /** MANAGEMENT_CONSOLE_URL when it is an absolute http(s) URL, else the hosted console. */
 export function consoleUrlFrom(raw: string | undefined): string {

@@ -108,6 +108,34 @@ describe("MemberInviteService", () => {
     audit.record.mockRejectedValueOnce(new Error("audit down"));
     await expect(invites.invite(input)).resolves.toMatchObject({ status: "sent" });
   });
+
+  it("sends one invite per organization and email a day, so add-remove-add cannot spend the allowance", async () => {
+    expect(await invites.invite(input)).toMatchObject({ status: "sent" });
+    expect(await invites.invite(input)).toMatchObject({ status: "not_sent", reason: "RECENTLY_INVITED" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "control_plane.member.invite_not_sent", payload: expect.objectContaining({ reason: "RECENTLY_INVITED" }) }));
+    // Another organization, or another person, is a different invite.
+    prisma.organization.rows.push({ id: "6f1c1d1e-0000-4000-8000-0000000000d2", name: "Other", slug: "other", status: "active" });
+    expect(await invites.invite({ ...input, organizationId: "6f1c1d1e-0000-4000-8000-0000000000d2" })).toMatchObject({ status: "sent" });
+    expect(await invites.invite({ ...input, email: "ana@serbizio.ph" })).toMatchObject({ status: "sent" });
+  });
+
+  it("reads earlier invites from the audit log, so another gateway instance also skips them", async () => {
+    prisma.auditEvent.rows.push(
+      { id: "a1", action: "control_plane.member.invite_sent", resourceType: "member", resourceId: `${ORG}:jun@serbizio.ph`, createdAt: new Date(Date.now() - 60 * 60 * 1000) },
+      { id: "a2", action: "control_plane.member.invite_sent", resourceType: "member", resourceId: `${ORG}:old@serbizio.ph`, createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+    );
+    expect(await invites.invite(input)).toMatchObject({ status: "not_sent", reason: "RECENTLY_INVITED" });
+    expect(await invites.invite({ ...input, email: "old@serbizio.ph" })).toMatchObject({ status: "sent" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a fixed reason, not raw error text, when preparing the invite fails", async () => {
+    prisma.organization.findUnique = jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED 10.0.0.5:5432 password=hunter2"));
+    const outcome = await invites.invite(input);
+    expect(outcome).toMatchObject({ status: "not_sent", reason: "INVITE_FAILED", detail: "The invite could not be prepared" });
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain("hunter2");
+  });
 });
 
 describe("adding a member", () => {

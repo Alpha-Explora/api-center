@@ -157,6 +157,7 @@ const PrismaKnownError = Prisma.PrismaClientKnownRequestError as { prototype: ob
 export function createFakeControlPlanePrisma() {
   const prisma = {
     organization: new FakeDelegate((row) => String(row.id)),
+    auditEvent: new FakeDelegate((row) => String(row.id)),
     cpProject: new FakeDelegate((row) => String(row.id), [(row) => `${row.organizationId}/${row.slug}`]),
     cpEnvironment: new FakeDelegate((row) => String(row.id), [(row) => `${row.projectId}/${row.kind}`]),
     cpApplication: new FakeDelegate((row) => String(row.id), [(row) => `${row.environmentId}/${row.slug}`]),

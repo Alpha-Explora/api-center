@@ -42,6 +42,8 @@ const INVITE_FAILURES: Record<string, string> = {
   EMAIL_PROVIDER_NOT_CONFIGURED: "The email service has no provider configured.",
   EMAIL_UNAVAILABLE: "The email service could not be reached.",
   EMAIL_REJECTED: "The email service refused the message.",
+  RECENTLY_INVITED: "An invite to this email went out in the last 24 hours.",
+  INVITE_FAILED: "The invite could not be prepared.",
 };
 
 /** Why an invite was not sent, in a sentence. */
