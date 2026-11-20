@@ -17,8 +17,7 @@ COMMENT ON COLUMN apic_audit.audit_events.project_id IS 'Owning control-plane pr
 -- to be written as 'unknown', which this check rejected, so they never reached the table.
 ALTER TABLE apic_audit.audit_events DROP CONSTRAINT IF EXISTS audit_events_environment_check;
 ALTER TABLE apic_audit.audit_events
-  ADD CONSTRAINT audit_events_environment_check CHECK (environment IN ('test', 'live', 'none')) NOT VALID;
-ALTER TABLE apic_audit.audit_events VALIDATE CONSTRAINT audit_events_environment_check;
+  ADD CONSTRAINT audit_events_environment_check CHECK (environment IN ('test', 'live', 'none'));
 
 -- Best-effort backfill: events whose payload or resource names a control-plane project.
 UPDATE apic_audit.audit_events
@@ -47,9 +46,8 @@ CREATE INDEX IF NOT EXISTS audit_events_project_idx
   ON apic_audit.audit_events (organization_id, project_id, created_at DESC, id DESC)
   WHERE project_id IS NOT NULL;
 
--- The console's request log reads one project environment, newest first.
-CREATE INDEX IF NOT EXISTS request_diagnostics_project_idx
-  ON apic_runtime.request_diagnostics (project_id, environment, created_at DESC, request_id DESC)
-  WHERE project_id IS NOT NULL;
+-- The request log's index on apic_runtime.request_diagnostics is built concurrently in
+-- 20261120001021_request_diagnostics_project_index.sql, outside this transaction, because the
+-- gateway inserts into that table on every request.
 
 COMMIT;

@@ -171,6 +171,9 @@ const requiredIndexes = [
   "audit_events_env_resource_correlation_idx",
   "audit_events_source_env_created_idx",
   "audit_events_tribe_env_created_idx",
+  "audit_events_organization_idx",
+  "audit_events_project_idx",
+  "request_diagnostics_project_idx",
   "service_spec_versions_service_published_idx",
   "payment_limit_overrides_project_environment_key",
 ];
@@ -689,6 +692,29 @@ async function main(): Promise<void> {
         "environment",
         "status",
       ].filter((name) => !apiSubscriptionColumnNames.has(name)),
+    );
+
+    const auditEventColumns = await queryRows(
+      client,
+      "select column_name from information_schema.columns where table_schema = 'apic_audit' and table_name = 'audit_events'",
+    );
+    const auditEventColumnNames = new Set(auditEventColumns.map((row) => String(row.column_name)));
+    addFailure(
+      failures,
+      "Missing required audit_events columns",
+      ["organization_id", "project_id"].filter((name) => !auditEventColumnNames.has(name)),
+    );
+
+    // A concurrent index build that was interrupted leaves an index that exists but is never used.
+    const invalidIndexes = await queryRows(
+      client,
+      "select c.relname as name from pg_index i join pg_class c on c.oid = i.indexrelid join pg_namespace n on n.oid = c.relnamespace where not i.indisvalid and n.nspname = any($1::text[])",
+      [domainSchemas],
+    );
+    addFailure(
+      failures,
+      "Invalid indexes (drop and rebuild them)",
+      invalidIndexes.map((row) => String(row.name)),
     );
 
     if (hasFlag("--require-compat-views")) {
