@@ -21,6 +21,8 @@ which keeps its dark strokes legible on dark backgrounds.
 - Confirm anything destructive or hard to undo with the object's name (`ConfirmDialog`), and ask for a
   reason when the gateway records one.
 - Show a secret once, then require "I stored it" (`SecretDialog`).
+- Show words, not stored values: statuses read "Active" and "Invite expired" (`StatusBadge` does this), counts
+  use the right plural, and a detail page's breadcrumb ends in the object's name.
 
 ## Tokens
 
@@ -65,6 +67,9 @@ about 40px.
 | `ConfirmDialog` | Destructive or live-affecting actions; optional required reason. |
 | `SecretDialog` | One-time secrets (API keys, signing secrets). |
 | `IdText`, `CopyButton` | Monospace identifiers with copy. |
+| `RelativeTime` | Any timestamp: "16 minutes ago", with the exact time on hover. Never render `formatRelative` as text. |
+| `ActorLabel` | Who made a change. `platform:<who>` reads as the person or script "via platform". |
+| Button `quiet-destructive` | Row actions that take something away (Revoke, Remove, Delete, Suspend): neutral at rest, red on hover and focus. The confirmation that follows uses `destructive`. |
 | `FormRow`, `NativeSelect`, `Kbd` | Form rows, styled native selects, keyboard hints. |
 | `QuotaMeterBar` | How much of a quota is used: warns from 80%, turns `danger` when an enforced budget is full. |
 

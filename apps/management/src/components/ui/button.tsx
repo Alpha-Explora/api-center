@@ -17,9 +17,12 @@ const buttonVariants = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30",
-        /** Row actions that take something away: quiet until hovered, and red so they read as such. */
+        /**
+         * Row actions that take something away (Revoke, Remove, Delete, Suspend): neutral at rest, since color
+         * marks status, and red on hover and focus, when the person is about to act.
+         */
         "quiet-destructive":
-          "text-danger hover:bg-danger-soft hover:text-danger aria-expanded:bg-danger-soft focus-visible:ring-destructive/30",
+          "text-foreground hover:bg-danger-soft hover:text-danger focus-visible:bg-danger-soft focus-visible:text-danger aria-expanded:bg-danger-soft aria-expanded:text-danger focus-visible:ring-destructive/30",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
