@@ -87,7 +87,7 @@ function PlanPanel() {
   const { organizationId, project, kind, canManage } = useProjectEnvironment();
   const client = useQueryClient();
   const plans = useQuery({ queryKey: cpKeys.plans, queryFn: controlPlane.plans, staleTime: 5 * 60_000 });
-  const plan = useQuery({ queryKey: cpKeys.plan(organizationId, project.id, kind), queryFn: () => controlPlane.plan(organizationId, project.id, kind), retry: false });
+  const plan = useQuery({ queryKey: cpKeys.plan(organizationId, project.id, kind), queryFn: () => controlPlane.plan(organizationId, project.id, kind) });
   const assign = useMutation({
     mutationFn: (planKey: string) => controlPlane.assignPlan(organizationId, project.id, kind, planKey),
     onSuccess: () => {

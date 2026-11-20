@@ -30,7 +30,7 @@ export function AccessTab({ application }: { application: Application }) {
   const { organizationId, project, kind, environment, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
   const key = grantsKey(organizationId, project.id, kind, application.id);
-  const grants = useQuery({ queryKey: key, queryFn: () => controlPlane.grants(organizationId, project.id, kind, application.id), retry: false });
+  const grants = useQuery({ queryKey: key, queryFn: () => controlPlane.grants(organizationId, project.id, kind, application.id) });
   const catalog = useQuery({ queryKey: cpKeys.catalog, queryFn: controlPlane.capabilities, staleTime: 5 * 60_000 });
   const [granting, setGranting] = useState(false);
   const [revoking, setRevoking] = useState<Grant | null>(null);

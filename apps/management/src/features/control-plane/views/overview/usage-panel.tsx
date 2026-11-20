@@ -32,12 +32,10 @@ export function UsagePanel() {
   const usage = useQuery({
     queryKey: observabilityKeys.usageSeries(organizationId, project.id, kind, range),
     queryFn: () => observability.usageSeries(organizationId, project.id, kind, range),
-    retry: false,
   });
   const applications = useQuery({
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
   });
   const names = new Map((applications.data ?? []).map((application) => [application.id, application.name]));
   const data = usage.data;

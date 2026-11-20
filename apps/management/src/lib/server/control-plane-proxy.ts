@@ -1,5 +1,6 @@
 import { apiCenterAdminRequest } from "./api-center-admin";
 import { requireManagementSession } from "./require-management-session";
+import { sessionErrorResponse } from "./session-error-response";
 
 /** Path segments the console may address on the gateway's control-plane API. */
 const SEGMENT = /^[A-Za-z0-9_.@-]{1,320}$/;
@@ -37,8 +38,8 @@ export async function proxyControlPlane(
   const authorization = request.headers.get("authorization");
   try {
     await requireSession({ authorizationHeader: authorization });
-  } catch {
-    return Response.json({ success: false, error: "Management authentication required" }, { status: 401 });
+  } catch (error) {
+    return sessionErrorResponse(error);
   }
 
   const userToken = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length).trim() : "";

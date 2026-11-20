@@ -221,6 +221,17 @@ describe("console access through the control plane API", () => {
     });
   });
 
+  it("never lets two owners demote each other at once and leave no owner", async () => {
+    await controller.setMember({ organizationId: ORG, email: "admin@example.test" }, { role: "owner" }, req(member("owner@example.test")));
+    const results = await Promise.allSettled([
+      controller.setMember({ organizationId: ORG, email: "admin@example.test" }, { role: "admin" }, req(member("owner@example.test"))),
+      controller.setMember({ organizationId: ORG, email: "owner@example.test" }, { role: "admin" }, req(member("admin@example.test"))),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((result) => result.status === "rejected")).toMatchObject({ reason: { code: "LAST_OWNER" } });
+    expect(prisma.organizationMember.rows.filter((row) => row.organizationId === ORG && row.role === "owner")).toHaveLength(1);
+  });
+
   it("links the verified identity on first use and rejects a different identity for the same email afterwards", async () => {
     await controller.me(ORG, req(member("dev@example.test", "google-sub-1")));
     expect(prisma.organizationMember.rows.find((row) => row.email === "dev@example.test")?.subject).toBe("google-sub-1");

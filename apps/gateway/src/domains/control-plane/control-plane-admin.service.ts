@@ -12,6 +12,7 @@ import { isCatalogedAction, isKnownCapability, listCapabilities } from "./capabi
 import { generateApplicationCredential, newResourceId } from "./application-credential";
 import type { EnvironmentKind } from "./control-plane.types";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { consoleAccessCacheFor } from "./console-access-cache";
 import { assertMerchantBinding } from "./merchant-binding";
 
 const DEFAULT_CREDENTIAL_LIFETIME_DAYS = 90;
@@ -38,7 +39,11 @@ export class ControlPlaneAdminService {
   // ── Projects ─────────────────────────────────────────────────────────────
 
   /** Creates a project and its test environment. Live environments are provisioned separately. */
-  async createProject(organizationId: string, input: { slug: string; name: string }, actor: string) {
+  /**
+   * `creatorAdmin` names a member who becomes the project's admin in the same transaction, so a
+   * failure cannot leave a project its creator cannot see.
+   */
+  async createProject(organizationId: string, input: { slug: string; name: string }, actor: string, options: { creatorAdmin?: string } = {}) {
     const projectId = newResourceId("prj");
     const environmentId = newResourceId("env");
     const project = await this.uniqueOrConflict(`Project slug '${input.slug}' is already used`, () =>
@@ -54,9 +59,15 @@ export class ControlPlaneAdminService {
         await db.cpEnvironment.create({
           data: { id: environmentId, organizationId, projectId, kind: "test" },
         });
+        if (options.creatorAdmin) {
+          await db.cpProjectRoleAssignment.create({
+            data: { id: newResourceId("pra"), organizationId, projectId, memberEmail: options.creatorAdmin, role: "admin", createdBy: options.creatorAdmin },
+          });
+        }
         return created;
       }),
     );
+    if (options.creatorAdmin) consoleAccessCacheFor(this.prisma).invalidateOrganization(organizationId);
     await this.recordAudit({ organizationId, projectId: project.id }, "control_plane.project.created", actor, "cp_project", project.id, "test", {
       organizationId,
       slug: project.slug,
@@ -262,6 +273,9 @@ export class ControlPlaneAdminService {
 
     const outcome = await this.tenant(scope.organizationId, async (db) => {
       const environment = await this.resolveEnvironment(db, scope);
+      if (environment.status === "suspended") {
+        throw new AppError(`The ${environment.kind} environment is suspended; resume it before issuing keys`, 409, "ENVIRONMENT_SUSPENDED");
+      }
       if (environment.kind === "live" && environment.status !== "active") {
         throw new AppError("The live environment must be activated before live credentials can be issued", 409, "LIVE_ENVIRONMENT_NOT_ACTIVE");
       }

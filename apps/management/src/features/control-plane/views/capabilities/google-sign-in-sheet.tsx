@@ -65,7 +65,6 @@ export function GoogleSignInSheet({ open, onOpenChange }: { open: boolean; onOpe
         kind,
       }),
     enabled: open,
-    retry: false,
   });
 
   return (

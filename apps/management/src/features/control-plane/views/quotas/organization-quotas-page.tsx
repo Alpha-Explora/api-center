@@ -53,8 +53,8 @@ export function OrganizationQuotasPage() {
 function SharedCeilings({ organizationId }: { organizationId: string }) {
   const client = useQueryClient();
   const key = ["cp", organizationId, "quota-policies"];
-  const policies = useQuery({ queryKey: key, queryFn: () => quotas.organizationPolicies(organizationId), retry: false });
-  const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), retry: false });
+  const policies = useQuery({ queryKey: key, queryFn: () => quotas.organizationPolicies(organizationId) });
+  const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId) });
   const [creating, setCreating] = useState(false);
   const [changing, setChanging] = useState<QuotaPolicy | null>(null);
   const [editing, setEditing] = useState<QuotaPolicy | null>(null);
@@ -74,7 +74,6 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
   const usage = useQuery({
     queryKey: observabilityKeys.sharedQuotaUsage(organizationId),
     queryFn: () => observability.sharedQuotaUsage(organizationId),
-    retry: false,
     refetchInterval: 60_000,
   });
   const meters = new Map((usage.data?.meters ?? []).map((meter) => [meter.policyId, meter]));

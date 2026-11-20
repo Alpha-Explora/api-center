@@ -21,7 +21,6 @@ export function RequestDiagnosticsPanel() {
   const records = useQuery({
     queryKey: ["request-diagnostics", correlationId],
     queryFn: () => loadRequests(correlationId),
-    retry: false,
     enabled: Boolean(correlationId),
   });
 

@@ -33,7 +33,6 @@ export function useRequestLog(organizationId: string, projectId: string, kind: E
     queryFn: ({ pageParam }) => observability.requests(organizationId, projectId, kind, requestLogSearch(filters, now, pageParam)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    retry: false,
   });
 }
 
@@ -45,7 +44,6 @@ export function useAuditLog(organizationId: string | undefined, filters: AuditFi
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: Boolean(organizationId) && (options.enabled ?? true),
-    retry: false,
   });
 }
 
@@ -53,7 +51,6 @@ export function useQuotaUsage(organizationId: string, projectId: string, kind: E
   return useQuery({
     queryKey: observabilityKeys.quotaUsage(organizationId, projectId, kind),
     queryFn: () => observability.quotaUsage(organizationId, projectId, kind),
-    retry: false,
     refetchInterval: 60_000,
   });
 }

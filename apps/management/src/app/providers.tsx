@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ManagementAuthGate } from "@/components/management-auth-gate";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { retryDelay, shouldRetryQuery } from "@/lib/api-center/retry-policy";
 
 export function Providers({
   children,
@@ -22,7 +23,8 @@ export function Providers({
         defaultOptions: {
           queries: {
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: shouldRetryQuery,
+            retryDelay,
             staleTime: 30_000,
           },
         },
