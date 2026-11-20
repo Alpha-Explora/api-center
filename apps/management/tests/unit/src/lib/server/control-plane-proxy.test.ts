@@ -39,6 +39,14 @@ describe("proxyControlPlane", () => {
     expect(forward.mock.calls[0][0]).toBe(`/api/v1/admin/control-plane/organizations/${ORG}/members/dev%40example.com`);
   });
 
+  it("keeps a phone number intact when removing a test recipient", async () => {
+    const { forward, deps } = setup();
+    const request = new Request("http://console.test/x", { method: "DELETE", headers: { authorization: "Bearer t" } });
+    const segments = ["organizations", ORG, "projects", "prj_aaaaaaaaaaaaaaaaaaaaaaaa", "test-recipients", "+639171234567"];
+    expect((await proxyControlPlane(request, segments, deps)).status).toBe(200);
+    expect(forward.mock.calls[0][0]).toBe(`/api/v1/admin/control-plane/organizations/${ORG}/projects/prj_aaaaaaaaaaaaaaaaaaaaaaaa/test-recipients/%2B639171234567`);
+  });
+
   it("reaches the cross-organization approvals queue", async () => {
     const { forward, deps } = setup();
     const request = new Request("http://console.test/api/local/control-plane/approvals", { headers: { authorization: "Bearer t" } });

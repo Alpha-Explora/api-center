@@ -19,6 +19,7 @@ export const cpKeys = {
   usage: (organizationId: string, projectId: string, kind: EnvironmentKind) =>
     ["cp", organizationId, "project", projectId, kind, "usage"] as const,
   liveReadiness: (organizationId: string, projectId: string) => ["cp", organizationId, "project", projectId, "live", "readiness"] as const,
+  testRecipients: (organizationId: string, projectId: string) => ["cp", organizationId, "project", projectId, "test-recipients"] as const,
   activationRequests: (organizationId: string, projectId: string) =>
     ["cp", organizationId, "project", projectId, "live", "activation-requests"] as const,
   members: (organizationId: string) => ["cp", organizationId, "members"] as const,
