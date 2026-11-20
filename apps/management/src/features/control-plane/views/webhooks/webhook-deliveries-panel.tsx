@@ -42,7 +42,7 @@ export function WebhookDeliveriesPanel({
   const scope = { organizationId, projectId: project.id, kind };
   const [sent, setSent] = useState<SentTestEvent | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-  const deliveries = useWebhookDeliveries(scope, destination.id, sent !== null && !timedOut);
+  const deliveries = useWebhookDeliveries(scope, destination.id, sent && !timedOut ? sent.eventId : null);
   const progress = sent ? testEventProgress(sent.eventId, deliveries.data ?? []) : null;
   const settled = progress?.state === "delivered";
 

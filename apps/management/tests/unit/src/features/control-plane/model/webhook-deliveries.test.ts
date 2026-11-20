@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deliveryResponse, testEventProgress, webhookDeliverySchema, type WebhookDelivery } from "@/features/control-plane/model/webhook-deliveries";
+import {
+  deliveryResponse,
+  shouldPollForTestEvent,
+  testEventProgress,
+  webhookDeliverySchema,
+  type WebhookDelivery,
+} from "@/features/control-plane/model/webhook-deliveries";
 
 const attempt = (overrides: Partial<WebhookDelivery>): WebhookDelivery => ({
   destinationId: "dst_abcdefghijklmnopqrstuvwx",
@@ -24,6 +30,13 @@ describe("webhook deliveries", () => {
     expect(testEventProgress("evt_test", [failed])).toMatchObject({ state: "failing", delivery: failed });
     const retried = attempt({ attempt: 2, attemptedAt: "2026-11-20T00:00:11.000Z" });
     expect(testEventProgress("evt_test", [failed, retried])).toMatchObject({ state: "delivered", delivery: retried });
+  });
+
+  it("polls only while a followed test event is not yet delivered", () => {
+    expect(shouldPollForTestEvent(null, [])).toBe(false);
+    expect(shouldPollForTestEvent("evt_test", [])).toBe(true);
+    expect(shouldPollForTestEvent("evt_test", [attempt({ outcome: "rejected", statusCode: 500 })])).toBe(true);
+    expect(shouldPollForTestEvent("evt_test", [attempt({})])).toBe(false);
   });
 
   it("describes what the endpoint answered", () => {

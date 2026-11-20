@@ -61,5 +61,10 @@ export function testEventProgress(eventId: string, deliveries: WebhookDelivery[]
   return latest.outcome === "delivered" ? { state: "delivered", delivery: latest } : { state: "failing", delivery: latest };
 }
 
+/** Whether to keep polling while following a test event: until it is delivered. Nothing followed, nothing to poll. */
+export function shouldPollForTestEvent(eventId: string | null, deliveries: WebhookDelivery[]): boolean {
+  return eventId !== null && testEventProgress(eventId, deliveries).state !== "delivered";
+}
+
 /** How long the console keeps polling for a test event's first attempt before saying so. */
 export const TEST_EVENT_WAIT_MS = 60_000;
