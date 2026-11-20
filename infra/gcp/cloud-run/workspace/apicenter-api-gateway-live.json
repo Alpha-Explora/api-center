@@ -105,7 +105,7 @@
               {
                 "valueFrom": {
                   "secretKeyRef": {
-                    "name": "apicenter-webhooks-admin-token",
+                    "name": "apicenter-webhooks-runtime-admin-token",
                     "key": "latest"
                   }
                 },

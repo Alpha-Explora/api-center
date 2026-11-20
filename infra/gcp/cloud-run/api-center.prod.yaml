@@ -67,6 +67,11 @@ spec:
                 secretKeyRef:
                   name: apicenter-gauth-admin-token
                   key: latest
+            - name: WEBHOOKS_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: apicenter-webhooks-runtime-admin-token
+                  key: latest
             - name: EMAIL_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:

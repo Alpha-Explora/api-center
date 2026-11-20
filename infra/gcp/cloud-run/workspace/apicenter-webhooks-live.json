@@ -40,7 +40,7 @@
               {
                 "valueFrom": {
                   "secretKeyRef": {
-                    "name": "apicenter-webhooks-database-url",
+                    "name": "apicenter-webhooks-runtime-database-url",
                     "key": "latest"
                   }
                 },
@@ -49,7 +49,7 @@
               {
                 "valueFrom": {
                   "secretKeyRef": {
-                    "name": "apicenter-webhooks-admin-token",
+                    "name": "apicenter-webhooks-runtime-admin-token",
                     "key": "latest"
                   }
                 },
