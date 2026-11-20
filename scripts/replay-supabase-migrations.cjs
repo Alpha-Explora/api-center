@@ -26,6 +26,7 @@ const guardedSchemas = [
   'shared_otp',
   'shared_geo',
   'shared_gauth',
+  'shared_webhooks',
 ];
 // Roles that managed Supabase provides and that migrations grant to or revoke from.
 const requiredRoles = ['anon', 'authenticated', 'service_role', 'api_center_app'];

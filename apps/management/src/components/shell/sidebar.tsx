@@ -1,7 +1,7 @@
 "use client";
 import { BrandMark } from "@/components/brand-mark";
 import Link from "next/link";
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/patterns/form";
 import { controlPlane } from "@/features/control-plane/data/control-plane-repository";
+import { EXPIRY_WARNING_DAYS, keysNeedingReplacement } from "@/features/control-plane/model/environment-inventory";
+import { useEnvironmentCredentials } from "@/features/control-plane/view-models/environment-inventory";
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
 import { awaitingYou } from "@/features/control-plane/model/approvals";
 import { useApprovals } from "@/features/control-plane/view-models/approvals";
@@ -238,6 +240,13 @@ function ProjectNav({
     enabled: Boolean(organizationId),
     retry: false,
   });
+  const credentials = useEnvironmentCredentials({
+    organizationId,
+    projectId,
+    kind: environment,
+    enabled: Boolean(project.data?.environments.some((entry) => entry.kind === environment)),
+  });
+  const expiringKeys = keysNeedingReplacement(credentials.data ?? []).length;
   const projects = useQuery({
     queryKey: cpKeys.projects(organizationId ?? "none"),
     queryFn: () => controlPlane.listProjects(organizationId as string),
@@ -298,6 +307,17 @@ function ProjectNav({
               icon={SECTION_ICONS[section.id] ?? FolderIcon}
               active={current !== undefined && sectionId === section.id}
               onNavigate={onNavigate}
+              badge={
+                section.id === "applications" && expiringKeys > 0 ? (
+                  <span
+                    className="ml-auto rounded-sm bg-warning-soft px-1.5 text-[11px] leading-4 font-medium text-warning tabular-nums"
+                    title={`${expiringKeys} key${expiringKeys === 1 ? "" : "s"} expired or expiring within ${EXPIRY_WARNING_DAYS} days`}
+                    aria-label={`${expiringKeys} expiring key${expiringKeys === 1 ? "" : "s"}`}
+                  >
+                    {expiringKeys}
+                  </span>
+                ) : undefined
+              }
             />
           </li>
         ))}
@@ -356,8 +376,8 @@ function NavLink({
   href: string;
   label: string;
   icon: LucideIcon;
-  /** A count shown at the end of the row, such as pending approvals. */
-  badge?: number;
+  /** Shown at the end of the row: a number becomes a count pill (pending approvals); anything else renders as given. */
+  badge?: ReactNode;
   active: boolean;
   onNavigate?: () => void;
 }) {
@@ -373,13 +393,15 @@ function NavLink({
     >
       <Icon className={cn("size-4 shrink-0", active ? "text-foreground" : "text-muted-foreground")} />
       {label}
-      {badge ? (
+      {typeof badge === "number" ? (
         <span className="ml-auto inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium text-primary-foreground tabular-nums">
           <span className="sr-only">, </span>
           {badge > 99 ? "99+" : badge}
           <span className="sr-only"> pending</span>
         </span>
-      ) : null}
+      ) : (
+        badge
+      )}
     </Link>
   );
 }

@@ -30,6 +30,7 @@ const domainSchemas = [
   "shared_sms",
   "shared_otp",
   "shared_gauth",
+  "shared_webhooks",
 ];
 
 const requiredTables: QualifiedObject[] = [
@@ -291,6 +292,7 @@ const requiredSharedTables = [
   "shared_email.project_senders",
   "shared_email.email_delivery_events",
   "shared_sms.sms_delivery_events",
+  "shared_webhooks.webhook_deliveries",
   ...["shared_email", "shared_sms", "shared_otp"].flatMap((schema) => [
     schema + ".idempotency_keys",
     schema + ".rate_limit_windows",
@@ -334,6 +336,7 @@ const runtimeRoles: RuntimeRole[] = [
   { role: "sms_runtime", schema: "shared_sms", privileges: ["SELECT", "INSERT", "UPDATE"] },
   { role: "otp_runtime", schema: "shared_otp", privileges: ["SELECT", "INSERT", "UPDATE"] },
   { role: "gauth_runtime", schema: "shared_gauth", privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"] },
+  { role: "webhooks_runtime", schema: "shared_webhooks", privileges: ["SELECT", "INSERT"] },
 ];
 const tablePrivileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE"];
 const tablePrivilegeColumns: Record<string, string> = {
@@ -603,7 +606,7 @@ async function main(): Promise<void> {
 
     const sharedTableRows = await queryRows(
       client,
-      "select table_schema || '.' || table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema in ('shared_sms', 'shared_otp', 'shared_email')",
+      "select table_schema || '.' || table_name as name from information_schema.tables where table_type = 'BASE TABLE' and table_schema in ('shared_sms', 'shared_otp', 'shared_email', 'shared_webhooks')",
     );
     const sharedNames = new Set(sharedTableRows.map((row) => String(row.name)));
     addFailure(

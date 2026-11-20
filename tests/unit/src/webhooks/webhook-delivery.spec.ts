@@ -3,9 +3,11 @@ import { deliver, type PushEnvelope } from "../../../../apps/webhooks/src/delive
 import type { DestinationConfig, DestinationStore } from "../../../../apps/webhooks/src/destination-store";
 import { isPrivateAddress as deliveryIsPrivate, publicOnlyLookup } from "../../../../apps/webhooks/src/public-network";
 import { createHttpsSender, type Sender } from "../../../../apps/webhooks/src/send";
-import { createWebhookApp } from "../../../../apps/webhooks/src/server";
+import { ADMIN_TOKEN_HEADER, createWebhookApp } from "../../../../apps/webhooks/src/server";
+import { attemptFor, createDeliveryLog, createMemoryDeliveryLog } from "../../../../apps/webhooks/src/delivery-log";
 import { isPrivateAddress as gatewayIsPrivate } from "../../../../apps/gateway/src/shared/proxy/upstream-guard";
 import { newSigningSecret } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-config-store";
+import { buildTestEvent } from "../../../../apps/gateway/src/domains/control-plane/event-destinations/webhook-test-event";
 import { ApiCenterWebhookError, verifyWebhook } from "../../../../packages/sdk/src";
 
 const DESTINATION = "dst_abcdefghijklmnopqrstuvwx";
@@ -26,6 +28,15 @@ const event = {
   occurredAt: "2026-11-19T01:59:58.000Z",
   data: { status: "paid", checkoutId: "chk_1", paymentId: "pay_1", amount: 39900, currency: "PHP" },
 };
+
+/** Waits for work the server does after it has answered. */
+async function until(condition: () => boolean, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("condition not met in time");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 function push(body: unknown = event, deliveryAttempt = 1): PushEnvelope {
   return { message: { data: Buffer.from(JSON.stringify(body)).toString("base64"), messageId: "m1" }, deliveryAttempt, subscription: "s" };
@@ -54,12 +65,24 @@ describe("webhook delivery", () => {
     const { send, calls } = capture(204);
     const outcome = await deliver(DESTINATION, push(event, 3), { store: store(config), send, now: () => NOW });
 
-    expect(outcome).toEqual({ ack: true, reason: "delivered", eventId: "evt_7f3c1a", status: 204 });
+    expect(outcome).toEqual({ ack: true, reason: "delivered", eventId: "evt_7f3c1a", eventType: "payment.checkout.paid", status: 204 });
     const [call] = calls;
     expect(call.url).toBe(config.url);
     expect(call.headers).toMatchObject({ "webhook-id": "evt_7f3c1a", "webhook-timestamp": String(NOW / 1000), "apicenter-delivery-attempt": "3" });
     const verified = await verifyWebhook(call.body, call.headers, secret, { now: () => NOW });
     expect(verified).toMatchObject({ eventId: "evt_7f3c1a", organizationId: "org-1", projectId: "prj_serbizio", applicationId: "app_serbizio" });
+  });
+
+  it("signs a console test event so the SDK verifies it as an unrecognized webhook.test event", async () => {
+    const { event: testEvent } = buildTestEvent(
+      { destinationId: DESTINATION, environment: "test", organizationId: "org-1", projectId: "prj_serbizio", applicationId: "app_serbizio" },
+      new Date(NOW),
+    );
+    const { send, calls } = capture(204);
+    const outcome = await deliver(DESTINATION, push(testEvent), { store: store(config), send, now: () => NOW });
+    expect(outcome).toMatchObject({ ack: true, reason: "delivered", eventId: testEvent.eventId, eventType: "webhook.test" });
+    const verified = await verifyWebhook(calls[0].body, calls[0].headers, secret, { now: () => NOW });
+    expect(verified).toMatchObject({ eventType: "unrecognized", type: "webhook.test", eventId: testEvent.eventId, applicationId: "app_serbizio" });
   });
 
   it("is rejected by the SDK when the body, secret or timestamp is wrong", async () => {
@@ -115,6 +138,7 @@ describe("webhook delivery", () => {
     const app = createWebhookApp({
       store: store(config),
       send: async () => ({ status: outcomes.shift() ?? 500, responseSnippet: "" }),
+      log: createMemoryDeliveryLog(),
     });
     const server: Server = await new Promise((resolve) => {
       const started = app.listen(0, () => resolve(started));
@@ -134,6 +158,147 @@ describe("webhook delivery", () => {
       log.mockRestore();
       await new Promise((resolve) => server.close(resolve));
     }
+  });
+});
+
+describe("webhook delivery history", () => {
+  const secret = newSigningSecret();
+  const config: DestinationConfig = { url: "https://serbizio.example/apicenter/events", secrets: [{ value: secret }] };
+  const TOKEN = "admin-token-for-tests";
+
+  async function serve(app: ReturnType<typeof createWebhookApp>) {
+    const server: Server = await new Promise((resolve) => {
+      const started = app.listen(0, () => resolve(started));
+    });
+    const { port } = server.address() as { port: number };
+    return { base: `http://127.0.0.1:${port}`, close: () => new Promise((resolve) => server.close(resolve)) };
+  }
+
+  it("records each attempt with its status, latency and attempt number, and lists them newest first", async () => {
+    const statuses = [500, 204];
+    let clock = NOW;
+    const log = createMemoryDeliveryLog();
+    const app = createWebhookApp({
+      store: store(config),
+      send: async () => {
+        clock += 40;
+        return { status: statuses.shift() ?? 204, responseSnippet: "" };
+      },
+      log,
+      adminToken: TOKEN,
+      now: () => clock,
+    });
+    const quiet = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const { base, close } = await serve(app);
+    try {
+      const post = (attempt: number) => {
+        clock += 1000;
+        return fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push(event, attempt)) });
+      };
+      expect((await post(1)).status).toBe(503);
+      expect((await post(2)).status).toBe(204);
+
+      const listed = await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries?limit=10`, { headers: { [ADMIN_TOKEN_HEADER]: TOKEN } });
+      expect(listed.status).toBe(200);
+      const { deliveries } = (await listed.json()) as { deliveries: unknown[] };
+      expect(deliveries).toEqual([
+        expect.objectContaining({ eventId: "evt_7f3c1a", eventType: "payment.checkout.paid", attempt: 2, outcome: "delivered", statusCode: 204, latencyMs: 40, error: null }),
+        expect.objectContaining({ eventId: "evt_7f3c1a", attempt: 1, outcome: "rejected", statusCode: 500, latencyMs: 40 }),
+      ]);
+    } finally {
+      quiet.mockRestore();
+      await close();
+    }
+  });
+
+  it("keeps answering Pub/Sub when the history cannot be written", async () => {
+    const app = createWebhookApp({
+      store: store(config),
+      send: async () => ({ status: 204, responseSnippet: "" }),
+      log: { record: async () => Promise.reject(new Error("database down")), list: async () => [] },
+    });
+    const quiet = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const { base, close } = await serve(app);
+    try {
+      const response = await fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push()) });
+      expect(response.status).toBe(204);
+      await until(() => errors.mock.calls.length > 0);
+      expect(JSON.parse(String(errors.mock.calls[0][0]))).toMatchObject({ type: "apicenter_webhook_history_error", message: "database down" });
+    } finally {
+      quiet.mockRestore();
+      errors.mockRestore();
+      await close();
+    }
+  });
+
+  it("answers Pub/Sub before the history write finishes, so a hung database cannot cause a redelivery", async () => {
+    let finishWrite: () => void = () => undefined;
+    const record = jest.fn(() => new Promise<void>((resolve) => (finishWrite = resolve)));
+    const app = createWebhookApp({ store: store(config), send: async () => ({ status: 204, responseSnippet: "" }), log: { record, list: async () => [] } });
+    const quiet = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const { base, close } = await serve(app);
+    try {
+      const response = await fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push()) });
+      expect(response.status).toBe(204);
+      await until(() => record.mock.calls.length > 0);
+      finishWrite();
+    } finally {
+      quiet.mockRestore();
+      await close();
+    }
+  });
+
+  it("delivers without a history database in production, and lists nothing with 503", async () => {
+    const warn = jest.fn();
+    const log = createDeliveryLog({ NODE_ENV: "production" }, warn);
+    expect(JSON.parse(warn.mock.calls[0][0])).toMatchObject({ type: "apicenter_webhook_history_disabled" });
+    const app = createWebhookApp({ store: store(config), send: async () => ({ status: 204, responseSnippet: "" }), log, adminToken: TOKEN });
+    const quiet = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const { base, close } = await serve(app);
+    try {
+      const delivered = await fetch(`${base}/deliveries/${DESTINATION}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(push()) });
+      expect(delivered.status).toBe(204);
+      const listed = await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries`, { headers: { [ADMIN_TOKEN_HEADER]: TOKEN } });
+      expect(listed.status).toBe(503);
+      expect(await listed.json()).toMatchObject({ error: "HISTORY_UNAVAILABLE" });
+    } finally {
+      quiet.mockRestore();
+      errors.mockRestore();
+      await close();
+    }
+  });
+
+  it("lists history only with the admin token and a valid destination ID", async () => {
+    const app = createWebhookApp({ store: store(config), send: capture().send, log: createMemoryDeliveryLog(), adminToken: TOKEN });
+    const { base, close } = await serve(app);
+    try {
+      expect((await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries`)).status).toBe(401);
+      expect((await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries`, { headers: { [ADMIN_TOKEN_HEADER]: "wrong" } })).status).toBe(401);
+      expect((await fetch(`${base}/admin/destinations/dst_short/deliveries`, { headers: { [ADMIN_TOKEN_HEADER]: TOKEN } })).status).toBe(400);
+      const unconfigured = createWebhookApp({ store: store(config), send: capture().send, log: createMemoryDeliveryLog() });
+      const other = await serve(unconfigured);
+      try {
+        expect((await fetch(`${other.base}/admin/destinations/${DESTINATION}/deliveries`, { headers: { [ADMIN_TOKEN_HEADER]: "" } })).status).toBe(401);
+      } finally {
+        await other.close();
+      }
+    } finally {
+      await close();
+    }
+  });
+
+  it("records nothing for an unknown destination or a message without an event ID", () => {
+    const details = { attempt: 1, latencyMs: 3, at: new Date(NOW) };
+    expect(attemptFor(DESTINATION, { ack: false, reason: "unknown_destination" }, details)).toBeNull();
+    expect(attemptFor(DESTINATION, { ack: false, reason: "malformed_message" }, details)).toBeNull();
+    expect(attemptFor(DESTINATION, { ack: false, reason: "unreachable", eventId: "evt_1", error: "x".repeat(900) }, details)).toMatchObject({
+      outcome: "unreachable",
+      statusCode: null,
+      error: "x".repeat(500),
+    });
+    expect(attemptFor(DESTINATION, { ack: false, reason: "rejected", eventId: "evt_1", status: 0 }, details)).toMatchObject({ statusCode: null });
   });
 });
 

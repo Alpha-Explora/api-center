@@ -37,6 +37,13 @@ export type PaymentEventProvisioningResult = {
   iam: PaymentPubSubIamResult;
 };
 
+/** The payment events topic of an environment; the payments dispatcher publishes to the same name. */
+export function paymentEventTopicName(environment: "test" | "live"): string {
+  const configured =
+    environment === "live" ? process.env.APICENTER_PAYMENT_EVENTS_TOPIC_LIVE : process.env.APICENTER_PAYMENT_EVENTS_TOPIC_TEST;
+  return configured || `apicenter.payment-events.${environment}`;
+}
+
 const RETENTION_DURATION = { seconds: 2678400 };
 const MAX_DELIVERY_ATTEMPTS = 20;
 
@@ -147,11 +154,7 @@ export class PaymentPubSubProvisioningService {
   }
 
   private topicName(environment: "test" | "live"): string {
-    const configured =
-      environment === "live"
-        ? process.env.APICENTER_PAYMENT_EVENTS_TOPIC_LIVE
-        : process.env.APICENTER_PAYMENT_EVENTS_TOPIC_TEST;
-    return configured || `apicenter.payment-events.${environment}`;
+    return paymentEventTopicName(environment);
   }
 
   private parse(input: unknown): ConsumerDeliveryInput {

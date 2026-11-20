@@ -55,6 +55,14 @@ test('email and SMS runtime roles can record delivery events only in their own s
   await assert.rejects(asRole('sms_runtime', 'select 1 from shared_email.email_delivery_events'), /permission denied/);
 });
 
+test('webhooks_runtime appends delivery attempts in its own schema and cannot change them or read other schemas', { skip }, async () => {
+  await assert.doesNotReject(asRole('webhooks_runtime',
+    "insert into shared_webhooks.webhook_deliveries (destination_id, event_id, event_type, attempt, outcome, status_code, latency_ms) values ('dst_rolecheckrolecheckrolech', 'evt_role_check', 'webhook.test', 1, 'delivered', 204, 12)"));
+  await assert.doesNotReject(asRole('webhooks_runtime', 'select 1 from shared_webhooks.webhook_deliveries limit 1'));
+  await assert.rejects(asRole('webhooks_runtime', 'update shared_webhooks.webhook_deliveries set attempt = 2'), /permission denied/);
+  await assert.rejects(asRole('webhooks_runtime', 'select 1 from shared_email.email_delivery_events'), /permission denied/);
+});
+
 test('payments_runtime can read and write payment tables but cannot delete outbox rows or read SMS records', { skip }, async () => {
   await assert.doesNotReject(asRole('payments_runtime', 'select 1 from shared_payment.payment_event_outbox limit 1'));
   await assert.rejects(asRole('payments_runtime', 'delete from shared_payment.payment_event_outbox'), /permission denied/);
