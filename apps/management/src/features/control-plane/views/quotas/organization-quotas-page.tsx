@@ -26,6 +26,7 @@ import { observability } from "../../data/observability";
 import { observabilityKeys } from "../../view-models/observability";
 import { QuotaMeterBar } from "./quota-meter";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
+import { DeleteQuotaPolicyDialog, EditQuotaPolicySheet, QuotaPolicyMenu } from "./quota-policy-changes";
 
 const DESCRIPTION = "Shared ceilings: one request budget that several projects draw from together, for test or live.";
 
@@ -56,6 +57,10 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
   const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), retry: false });
   const [creating, setCreating] = useState(false);
   const [changing, setChanging] = useState<QuotaPolicy | null>(null);
+  const [editing, setEditing] = useState<QuotaPolicy | null>(null);
+  const [deleting, setDeleting] = useState<QuotaPolicy | null>(null);
+  // Project quota pages list the shared ceilings that cover them.
+  const refreshOrganization = () => void client.invalidateQueries({ queryKey: ["cp", organizationId] });
   const setStatus = useMutation({
     mutationFn: (policy: QuotaPolicy) => quotas.setStatus(organizationId, policy.id, policy.status === "active" ? "disabled" : "active"),
     onSuccess: (updated) => {
@@ -119,15 +124,21 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
                   },
                 }}
                 actions={(policy) => (
-                  <Button size="sm" variant="ghost" onClick={() => setChanging(policy)}>
-                    {policy.status === "active" ? "Disable" : "Enable"}
-                  </Button>
+                  <QuotaPolicyMenu
+                    policy={policy}
+                    onEdit={() => setEditing(policy)}
+                    onToggleStatus={() => setChanging(policy)}
+                    onDelete={() => setDeleting(policy)}
+                  />
                 )}
               />
             )}
           </Panel>
         );
       })}
+
+      <EditQuotaPolicySheet organizationId={organizationId} policy={editing} onOpenChange={(open) => !open && setEditing(null)} onSaved={refreshOrganization} />
+      <DeleteQuotaPolicyDialog organizationId={organizationId} policy={deleting} onOpenChange={(open) => !open && setDeleting(null)} onDeleted={refreshOrganization} />
 
       <CreateSharedCeilingSheet
         organizationId={organizationId}
@@ -214,7 +225,7 @@ function CreateSharedCeilingSheet({
         >
           <SheetHeader>
             <SheetTitle>New shared ceiling</SheetTitle>
-            <SheetDescription>One budget the chosen projects draw from together. It cannot be edited later, only disabled.</SheetDescription>
+            <SheetDescription>One budget the chosen projects draw from together. You can edit, disable or delete it later.</SheetDescription>
           </SheetHeader>
           <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-4">
             <div className="flex flex-col gap-1.5">

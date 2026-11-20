@@ -23,3 +23,14 @@ export function usePaymentsEnabled() {
   const { environment } = useProjectEnvironment();
   return Boolean(environment?.capabilities.some((entry) => entry.capability === "payments" && entry.status === "enabled"));
 }
+
+/** The event types a webhook can choose from; the catalogue changes only with a gateway release. */
+export function useEventTypeCatalogue() {
+  const { organizationId } = useProjectEnvironment();
+  return useQuery({
+    queryKey: ["cp", organizationId, "event-types"],
+    queryFn: () => eventDestinations.eventTypes(organizationId),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+}

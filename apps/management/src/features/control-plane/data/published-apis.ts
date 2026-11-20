@@ -7,6 +7,7 @@ import {
   publishedApiSchema,
   type OperationBody,
 } from "../model/published-apis";
+import { outgoingRequestSchema } from "../model/outgoing-requests";
 import { app, call, env, org, project, send } from "./http";
 
 export type PublishApiInput = { slug: string; name: string; upstreamUrl: string; operations: OperationBody[] };
@@ -27,8 +28,16 @@ export const publishedApis = {
   /** Requests from other projects for APIs this project owns, newest first. */
   accessRequests: (organizationId: string, projectId: string) =>
     call(z.array(accessRequestSchema), `${project(organizationId, projectId)}/api-access-requests`),
-  decide: (organizationId: string, requestId: string, approve: boolean) =>
-    call(accessRequestSchema, `${org(organizationId)}/api-access-requests/${encodeURIComponent(requestId)}/decision`, send("POST", { approve })),
+  /** `reason` is for a rejection only; the requesting project sees it. */
+  decide: (organizationId: string, requestId: string, approve: boolean, reason?: string) =>
+    call(
+      accessRequestSchema,
+      `${org(organizationId)}/api-access-requests/${encodeURIComponent(requestId)}/decision`,
+      send("POST", { approve, ...(!approve && reason ? { reason } : {}) }),
+    ),
+  /** Requests this project made for other projects' APIs, newest first. */
+  outgoingRequests: (organizationId: string, projectId: string) =>
+    call(z.array(outgoingRequestSchema), `${project(organizationId, projectId)}/api-access-requests/outgoing`),
 
   /** Same project: granted now. Another project: a pending request (repeating it returns the same request). */
   requestAccess: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string, input: { apiId: string; action: string }) =>

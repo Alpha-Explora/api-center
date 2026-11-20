@@ -11,7 +11,6 @@ import { fieldErrors } from "../../model/form-errors";
 import type { Application } from "../../model/control-plane";
 import { eventDestinations } from "../../data/event-destinations";
 import {
-  PAYMENT_EVENT_TYPES,
   createOutcome,
   liveDestinationFor,
   pushBody,
@@ -23,8 +22,10 @@ import {
   type PushForm,
   type WebhookForm,
 } from "../../model/event-destinations";
-import { eventDestinationsKey } from "../../view-models/event-destinations";
+import { ALL_EVENT_TYPES, eventTypesBody, type EventTypeSelection } from "../../model/event-types";
+import { eventDestinationsKey, useEventTypeCatalogue } from "../../view-models/event-destinations";
 import { useProjectEnvironment } from "../../view-models/project-environment";
+import { EventTypesPicker } from "./event-types-picker";
 
 type Transport = "webhook" | "pubsub-push";
 type Created = { transport: "webhook"; destination: CreatedWebhook } | { transport: "pubsub-push"; destination: EventDestination };
@@ -55,13 +56,15 @@ export function CreateDestinationSheet({
   const [transport, setTransport] = useState<Transport>("webhook");
   const [webhook, setWebhook] = useState<WebhookForm>(EMPTY_WEBHOOK);
   const [push, setPush] = useState<PushForm>(EMPTY_PUSH);
+  const [eventTypes, setEventTypes] = useState<EventTypeSelection>(ALL_EVENT_TYPES);
+  const catalogue = useEventTypeCatalogue();
   const [submitted, setSubmitted] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: async (): Promise<Created> =>
       transport === "webhook"
-        ? { transport, destination: await eventDestinations.createWebhook(scope, webhookBody(webhook)) }
+        ? { transport, destination: await eventDestinations.createWebhook(scope, webhookBody(webhook, chosenTypes.ok ? chosenTypes.eventTypes : [])) }
         : { transport, destination: await eventDestinations.createPush(scope, pushBody(push)) },
     onSettled: () => client.invalidateQueries({ queryKey: eventDestinationsKey(organizationId, project.id, kind) }),
     onSuccess: (created) => {
@@ -78,6 +81,7 @@ export function CreateDestinationSheet({
   });
 
   const parsed = transport === "webhook" ? webhookFormSchema.safeParse(webhook) : pushFormSchema.safeParse(push);
+  const chosenTypes = eventTypesBody(eventTypes);
   const errors = submitted ? fieldErrors(parsed.error) : {};
   const recipientId = transport === "webhook" ? webhook.recipientApplicationId : push.recipientApplicationId;
   const setRecipient = (value: string) =>
@@ -88,6 +92,7 @@ export function CreateDestinationSheet({
       setTransport("webhook");
       setWebhook(EMPTY_WEBHOOK);
       setPush(EMPTY_PUSH);
+      setEventTypes(ALL_EVENT_TYPES);
       setSubmitted(false);
       setFailure(null);
       create.reset();
@@ -117,15 +122,15 @@ export function CreateDestinationSheet({
             event.preventDefault();
             setSubmitted(true);
             setFailure(null);
-            if (parsed.success) create.mutate();
+            if (parsed.success && (transport !== "webhook" || chosenTypes.ok)) create.mutate();
           }}
         >
           <SheetHeader>
             <SheetTitle>{transport === "webhook" ? "Add webhook endpoint" : "Add Pub/Sub push destination"}</SheetTitle>
             <SheetDescription>
               {transport === "webhook"
-                ? `APICenter posts every payment event for the application to this URL, signed with a secret shown once. Today that is ${PAYMENT_EVENT_TYPES.join(", ")}.`
-                : "Pub/Sub pushes every payment event for the application to your endpoint, authenticated with an OIDC token for the service account."}
+                ? "APICenter posts the application's payment events to this URL, signed with a secret shown once. Choose all event types or only some."
+                : "Pub/Sub pushes every payment event for the application to your endpoint, authenticated with an OIDC token for the service account. Push destinations cannot filter event types; filter on the eventType attribute in your receiver."}
             </SheetDescription>
           </SheetHeader>
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
@@ -168,6 +173,17 @@ export function CreateDestinationSheet({
                   onChange={(event) => setWebhook({ ...webhook, url: event.target.value })}
                 />
               </FormRow>
+            ) : null}
+            {transport === "webhook" ? (
+              <EventTypesPicker
+                idPrefix="create-event-types"
+                catalogue={catalogue.data ?? []}
+                loading={catalogue.isLoading}
+                error={catalogue.error}
+                selection={eventTypes}
+                onChange={setEventTypes}
+                problem={submitted && !chosenTypes.ok ? chosenTypes.error : undefined}
+              />
             ) : (
               <>
                 <FormRow label="Push endpoint" htmlFor="destination-push" error={errors.pushEndpoint} hint="The https URL Pub/Sub delivers to.">

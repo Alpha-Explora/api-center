@@ -3,7 +3,7 @@ import { environmentKindSchema, type EnvironmentKind } from "./control-plane";
 
 /**
  * A request quota. Project policies limit one project's environment; shared ceilings are one budget that
- * every covered project draws from. Policies cannot be edited or deleted, only disabled.
+ * every covered project draws from. Edits apply in place; a deleted policy is gone from every list.
  */
 export const quotaPolicySchema = z.object({
   id: z.string(),

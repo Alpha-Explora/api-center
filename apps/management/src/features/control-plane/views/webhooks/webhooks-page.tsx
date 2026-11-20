@@ -22,13 +22,15 @@ import { controlPlane } from "../../data/control-plane-repository";
 import { eventDestinations } from "../../data/event-destinations";
 import { environmentWriteReason } from "../../model/access";
 import type { Application } from "../../model/control-plane";
-import { PAYMENT_EVENT_TYPES, TRANSPORT_LABELS, destinationEndpoint, sortDestinations, type EventDestination } from "../../model/event-destinations";
-import { eventDestinationsKey, useEventDestinations, usePaymentsEnabled } from "../../view-models/event-destinations";
+import { TRANSPORT_LABELS, destinationEndpoint, sortDestinations, type EventDestination } from "../../model/event-destinations";
+import { eventTypesSummary, type EventTypeDefinition } from "../../model/event-types";
+import { eventDestinationsKey, useEventDestinations, useEventTypeCatalogue, usePaymentsEnabled } from "../../view-models/event-destinations";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { CreateDestinationSheet } from "./create-destination-sheet";
 import { WebhookDeliveriesPanel } from "./webhook-deliveries-panel";
 import { WebhookSecretDialog, type IssuedSigningSecret } from "./webhook-secret-dialog";
+import { EventTypesSheet } from "./event-types-sheet";
 
 export function WebhooksPage() {
   return (
@@ -53,6 +55,8 @@ function Webhooks() {
   const [issued, setIssued] = useState<IssuedSigningSecret | null>(null);
   const [rotating, setRotating] = useState<EventDestination | null>(null);
   const [disabling, setDisabling] = useState<EventDestination | null>(null);
+  const [filtering, setFiltering] = useState<EventDestination | null>(null);
+  const catalogue = useEventTypeCatalogue();
   const refresh = () => client.invalidateQueries({ queryKey: eventDestinationsKey(organizationId, project.id, kind) });
 
   const appNames = new Map((applications.data ?? []).map((application) => [application.id, application.name]));
@@ -123,13 +127,8 @@ function Webhooks() {
       <Notice title="How delivery works">
         <ul className="list-disc space-y-0.5 pl-4">
           <li>
-            A destination receives every payment event for its application; there is no per-event filter. Today that is{" "}
-            {PAYMENT_EVENT_TYPES.map((type) => (
-              <code key={type} className="font-mono text-xs text-foreground">
-                {type}
-              </code>
-            ))}
-            .
+            A webhook receives every payment event for its application, or only the event types you choose. A Pub/Sub push destination always
+            receives every type.
           </li>
           <li>Each application can have one active destination. Disable it to replace it.</li>
           <li>Deliveries are signed with Standard Webhooks headers. Rotating a secret keeps the old one signing for 24 hours.</li>
@@ -181,6 +180,8 @@ function Webhooks() {
                   destination={destination}
                   application={(applications.data ?? []).find((application) => application.id === destination.recipientApplicationId)}
                   canWrite={canWrite}
+                  catalogue={catalogue.data ?? []}
+                  onEditEvents={() => setFiltering(destination)}
                   onRotate={() => setRotating(destination)}
                   onDisable={() => setDisabling(destination)}
                 />
@@ -218,6 +219,7 @@ function Webhooks() {
         onWebhookCreated={(destination) => setIssued({ signingSecret: destination.signingSecret, applicationName: nameOf(destination), rotated: false })}
       />
       <WebhookSecretDialog issued={issued} onClose={() => setIssued(null)} />
+      <EventTypesSheet destination={filtering} applicationName={nameOf(filtering)} onOpenChange={(open) => !open && setFiltering(null)} />
       <ConfirmDialog
         open={rotating !== null}
         onOpenChange={(next) => !next && setRotating(null)}
@@ -245,12 +247,16 @@ function DestinationRow({
   destination,
   application,
   canWrite,
+  catalogue,
+  onEditEvents,
   onRotate,
   onDisable,
 }: {
   destination: EventDestination;
   application: Application | undefined;
   canWrite: boolean;
+  catalogue: EventTypeDefinition[];
+  onEditEvents: () => void;
   onRotate: () => void;
   onDisable: () => void;
 }) {
@@ -258,6 +264,8 @@ function DestinationRow({
   const endpoint = destinationEndpoint(destination);
   const canRotate = destination.transport === "webhook" && destination.status !== "disabled" && destination.status !== "failed";
   const canDisable = destination.status !== "disabled";
+  const canFilter = destination.transport === "webhook" && destination.status !== "disabled";
+  const events = destination.transport === "webhook" ? eventTypesSummary(destination.eventTypes ?? [], catalogue) : "All event types";
 
   return (
     <TableRow className={destination.status === "disabled" ? "text-muted-foreground" : undefined}>
@@ -272,13 +280,17 @@ function DestinationRow({
         ) : (
           <span className="font-mono text-xs">{destination.recipientApplicationId}</span>
         )}
-        <span className="block text-xs text-muted-foreground sm:hidden">{TRANSPORT_LABELS[destination.transport]}</span>
+        <span className="block text-xs text-muted-foreground sm:hidden">
+          {TRANSPORT_LABELS[destination.transport]} · {events}
+        </span>
       </TableCell>
       <TableCell className="hidden max-w-xs sm:table-cell">
         <span className="block truncate font-mono text-xs" title={endpoint}>
           {endpoint}
         </span>
-        <span className="text-xs text-muted-foreground">{TRANSPORT_LABELS[destination.transport]}</span>
+        <span className="text-xs text-muted-foreground">
+          {TRANSPORT_LABELS[destination.transport]} · <span title={destination.eventTypes?.join(", ") || undefined}>{events}</span>
+        </span>
       </TableCell>
       <TableCell className="whitespace-normal">
         <StatusBadge status={destination.status} />
@@ -293,12 +305,13 @@ function DestinationRow({
         {formatRelative(destination.createdAt)}
       </TableCell>
       <TableCell className="text-right">
-        {canWrite && (canRotate || canDisable) ? (
+        {canWrite && (canRotate || canDisable || canFilter) ? (
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={`Actions for ${application?.name ?? destination.id}`} />}>
               <MoreHorizontalIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
+              {canFilter ? <DropdownMenuItem onClick={onEditEvents}>Edit events</DropdownMenuItem> : null}
               {canRotate ? <DropdownMenuItem onClick={onRotate}>Rotate secret</DropdownMenuItem> : null}
               {canDisable ? (
                 <DropdownMenuItem variant="destructive" onClick={onDisable}>

@@ -68,7 +68,10 @@ function RolesPanel() {
       setDemoting(null);
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    // A refusal for the last admin is shown in the open dialog instead; it explains what to do.
+    onError: (error: Error) => {
+      if (!(demoting && isLastAdminRefusal(error))) toast.error(error.message);
+    },
   });
   const remove = useMutation({
     mutationFn: (assignment: ProjectRoleAssignment) => projectSettings.removeRole(organizationId, project.id, assignment.id),
@@ -77,7 +80,9 @@ function RolesPanel() {
       setRemoving(null);
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (!isLastAdminRefusal(error)) toast.error(error.message);
+    },
   });
 
   function requestChange(assignment: ProjectRoleAssignment, role: ProjectRole) {
@@ -183,7 +188,11 @@ function RolesPanel() {
 
       <ConfirmDialog
         open={removing !== null}
-        onOpenChange={(next) => !next && setRemoving(null)}
+        onOpenChange={(next) => {
+          if (next) return;
+          setRemoving(null);
+          remove.reset();
+        }}
         title={`Remove ${removing ? nameOf(removing) : ""} from ${project.name}`}
         description={
           removing?.teamId
@@ -195,18 +204,26 @@ function RolesPanel() {
         busy={remove.isPending}
         onConfirm={() => removing && remove.mutate(removing)}
       >
-        {removing && removesLastExplicitAdmin(rows, removing) ? <LastAdminWarning /> : null}
+        {isLastAdminRefusal(remove.error) ? (
+          <LastAdminRefusal error={remove.error} />
+        ) : removing && removesLastExplicitAdmin(rows, removing) ? (
+          <LastAdminWarning />
+        ) : null}
       </ConfirmDialog>
 
       <ConfirmDialog
         open={demoting !== null}
-        onOpenChange={(next) => !next && setDemoting(null)}
+        onOpenChange={(next) => {
+          if (next) return;
+          setDemoting(null);
+          change.reset();
+        }}
         title={`Make ${demoting ? nameOf(demoting.assignment) : ""} ${demoting?.role ?? ""}`}
         confirmLabel={`Make ${demoting?.role ?? ""}`}
         busy={change.isPending}
         onConfirm={() => demoting && change.mutate(demoting)}
       >
-        <LastAdminWarning />
+        {isLastAdminRefusal(change.error) ? <LastAdminRefusal error={change.error} /> : <LastAdminWarning />}
       </ConfirmDialog>
     </>
   );
@@ -215,10 +232,19 @@ function RolesPanel() {
 function LastAdminWarning() {
   return (
     <Notice tone="warning" title="This is the last explicit project admin">
-      Afterwards only organization owners and admins can manage this project&apos;s roles, quotas, environment status and live. The gateway does not stop
-      this.
+      Afterwards only organization owners and admins can manage this project&apos;s roles, quotas, environment status and live. If the organization has
+      no active owner or admin, the gateway refuses the change.
     </Notice>
   );
+}
+
+/** The gateway keeps someone able to administer every project (409 LAST_PROJECT_ADMIN). */
+function isLastAdminRefusal(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "LAST_PROJECT_ADMIN";
+}
+
+function LastAdminRefusal({ error }: { error: ApiError }) {
+  return <ErrorPanel title="The gateway kept this admin" error={error} />;
 }
 
 function assigneeOf(assignment: ProjectRoleAssignment, role: ProjectRole): ProjectRoleInput {

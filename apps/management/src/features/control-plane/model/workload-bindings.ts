@@ -17,6 +17,12 @@ export const workloadBindingSchema = z.object({
 export type WorkloadBinding = z.infer<typeof workloadBindingSchema>;
 
 export type WorkloadBindingForm = { subject: string; audience: string; description: string };
+
+/** A select of the gateway's audiences when it lists any, else free text (unknown or empty list). */
+export function audienceInput(audiences: string[] | undefined): { kind: "select"; audiences: string[] } | { kind: "text" } {
+  const unique = [...new Set((audiences ?? []).map((audience) => audience.trim()).filter(Boolean))];
+  return unique.length ? { kind: "select", audiences: unique } : { kind: "text" };
+}
 export type WorkloadBindingBody = { subject: string; audience: string; description?: string };
 export type WorkloadBindingErrors = Partial<Record<keyof WorkloadBindingForm, string>>;
 

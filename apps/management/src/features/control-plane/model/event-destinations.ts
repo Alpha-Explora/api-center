@@ -2,7 +2,8 @@ import { z } from "zod";
 
 /**
  * Where an application receives payment events: a signed HTTPS webhook, or a Pub/Sub push endpoint.
- * There is no event-type filter; a destination receives every payment event for its application.
+ * A webhook can be limited to chosen event types (`eventTypes`, empty for all); a Pub/Sub push
+ * destination always receives every type.
  */
 export const destinationStatusSchema = z.enum(["provisioning", "active", "failed", "disabled"]);
 
@@ -19,6 +20,8 @@ export const eventDestinationSchema = z.object({
   subscriptionName: z.string().nullable(),
   webhookUrl: z.string().nullable(),
   secretRotatedAt: z.string().nullable(),
+  /** Event types delivered; empty or missing (gateways before the filter) delivers every type. */
+  eventTypes: z.array(z.string()).optional(),
   status: destinationStatusSchema,
   lastError: z.string().nullable(),
   createdBy: z.string(),
@@ -35,9 +38,6 @@ export const rotatedSecretSchema = eventDestinationSchema.extend({
   previousSecretExpiresAt: z.string().nullable(),
 });
 export type RotatedSecret = z.infer<typeof rotatedSecretSchema>;
-
-/** Today's only payment event; listed so the UI can say what an endpoint receives. */
-export const PAYMENT_EVENT_TYPES = ["payment.checkout.paid"] as const;
 
 /** Standard Webhooks headers every delivery carries. */
 export const WEBHOOK_HEADERS = ["webhook-id", "webhook-timestamp", "webhook-signature"] as const;
@@ -115,10 +115,11 @@ const recipient = z.string().regex(APPLICATION_ID, "Choose an application.");
 
 export const webhookFormSchema = z.object({ recipientApplicationId: recipient, url: publicHttpsUrl });
 export type WebhookForm = { recipientApplicationId: string; url: string };
-export type WebhookBody = z.infer<typeof webhookFormSchema>;
+export type WebhookBody = z.infer<typeof webhookFormSchema> & { eventTypes?: string[] };
 
-export function webhookBody(form: WebhookForm): WebhookBody {
-  return webhookFormSchema.parse(form);
+/** An empty `eventTypes` (every type) is left out of the body. */
+export function webhookBody(form: WebhookForm, eventTypes: string[] = []): WebhookBody {
+  return { ...webhookFormSchema.parse(form), ...(eventTypes.length ? { eventTypes } : {}) };
 }
 
 export const pushFormSchema = z.object({

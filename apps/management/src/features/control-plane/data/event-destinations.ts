@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { EnvironmentKind } from "../model/control-plane";
 import { createdWebhookSchema, eventDestinationSchema, rotatedSecretSchema, type PushBody, type WebhookBody } from "../model/event-destinations";
-import { call, env, send } from "./http";
+import { eventTypeSchema } from "../model/event-types";
+import { call, env, org, send } from "./http";
 
 type Scope = { organizationId: string; projectId: string; kind: EnvironmentKind };
 
@@ -17,4 +18,9 @@ export const eventDestinations = {
     call(rotatedSecretSchema, `${base(scope)}/${encodeURIComponent(destinationId)}/rotate-secret`, send("POST", {})),
   disable: (scope: Scope, destinationId: string) =>
     call(eventDestinationSchema, `${base(scope)}/${encodeURIComponent(destinationId)}/disable`, send("POST", {})),
+  /** Replaces a webhook's event-type filter; an empty list delivers every type. */
+  setEventTypes: (scope: Scope, destinationId: string, eventTypes: string[]) =>
+    call(eventDestinationSchema, `${base(scope)}/${encodeURIComponent(destinationId)}/event-types`, send("PUT", { eventTypes })),
+  /** The event types a webhook can choose from. */
+  eventTypes: (organizationId: string) => call(z.array(eventTypeSchema), `${org(organizationId)}/event-types`),
 };

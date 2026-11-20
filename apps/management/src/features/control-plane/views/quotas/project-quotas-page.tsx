@@ -22,6 +22,7 @@ import { baseMeter } from "../../model/observability";
 import { observabilityKeys, useQuotaUsage } from "../../view-models/observability";
 import { QuotaMeterBar } from "./quota-meter";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
+import { DeleteQuotaPolicyDialog, EditQuotaPolicySheet, QuotaPolicyMenu } from "./quota-policy-changes";
 
 export function ProjectQuotasPage() {
   return (
@@ -38,6 +39,12 @@ function ProjectQuotas() {
   const policies = useQuery({ queryKey: key, queryFn: () => quotas.projectPolicies(organizationId, project.id), retry: false });
   const [creating, setCreating] = useState(false);
   const [changing, setChanging] = useState<QuotaPolicy | null>(null);
+  const [editing, setEditing] = useState<QuotaPolicy | null>(null);
+  const [deleting, setDeleting] = useState<QuotaPolicy | null>(null);
+  const refreshPolicies = () => {
+    void client.invalidateQueries({ queryKey: key });
+    void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
+  };
   const setStatus = useMutation({
     mutationFn: (policy: QuotaPolicy) => quotas.setStatus(organizationId, policy.id, policy.status === "active" ? "disabled" : "active"),
     onSuccess: (updated) => {
@@ -102,9 +109,12 @@ function ProjectQuotas() {
             usage={usageCell}
             actions={(policy) =>
               canManage ? (
-                <Button size="sm" variant="ghost" onClick={() => setChanging(policy)}>
-                  {policy.status === "active" ? "Disable" : "Enable"}
-                </Button>
+                <QuotaPolicyMenu
+                  policy={policy}
+                  onEdit={() => setEditing(policy)}
+                  onToggleStatus={() => setChanging(policy)}
+                  onDelete={() => setDeleting(policy)}
+                />
               ) : null
             }
           />
@@ -154,6 +164,9 @@ function ProjectQuotas() {
           void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
         }}
       />
+
+      <EditQuotaPolicySheet organizationId={organizationId} policy={editing} onOpenChange={(open) => !open && setEditing(null)} onSaved={refreshPolicies} />
+      <DeleteQuotaPolicyDialog organizationId={organizationId} policy={deleting} onOpenChange={(open) => !open && setDeleting(null)} onDeleted={refreshPolicies} />
 
       <ConfirmDialog
         open={changing !== null}
@@ -220,7 +233,7 @@ function CreateProjectPolicySheet({ open, onOpenChange, onCreated }: { open: boo
           <SheetHeader>
             <SheetTitle>New {kind} quota policy</SheetTitle>
             <SheetDescription>
-              Limits every application in {project.name}&apos;s {kind} environment together. It cannot be edited later, only disabled.
+              Limits every application in {project.name}&apos;s {kind} environment together. You can edit, disable or delete it later.
             </SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 overflow-y-auto px-4">

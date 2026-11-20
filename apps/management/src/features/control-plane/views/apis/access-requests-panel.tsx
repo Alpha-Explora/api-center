@@ -5,6 +5,7 @@ import { InboxIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { IdText } from "@/components/patterns/copy-button";
 import { EmptyState } from "@/components/patterns/empty-state";
@@ -18,6 +19,7 @@ import { controlPlane } from "../../data/control-plane-repository";
 import { publishedApis } from "../../data/published-apis";
 import { PROJECT_ADMIN_REASON } from "../../model/access";
 import { actorLabelOf, sortAccessRequests, type AccessRequest, type PublishedApi } from "../../model/published-apis";
+import { MAX_REJECTION_REASON, rejectionReasonBody } from "../../model/outgoing-requests";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { apiKeys } from "../../view-models/published-apis";
 import { cpKeys } from "../../view-models/query-keys";
@@ -38,6 +40,7 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
   const me = useQuery({ queryKey: cpKeys.me(organizationId), queryFn: () => controlPlane.me(organizationId), retry: false, staleTime: 60_000 });
   const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), retry: false, staleTime: 60_000 });
   const [deciding, setDeciding] = useState<Decision | null>(null);
+  const [reason, setReason] = useState("");
 
   const apiNames = new Map(apis.map((api) => [api.id, api.name]));
   const mine = (requests.data ?? []).filter((request) => apiNames.has(request.apiId));
@@ -58,10 +61,11 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
   const projectNames = new Map((projects.data ?? []).map((entry) => [entry.id, entry.name]));
 
   const decide = useMutation({
-    mutationFn: ({ request, approve }: Decision) => publishedApis.decide(organizationId, request.id, approve),
+    mutationFn: ({ request, approve }: Decision) => publishedApis.decide(organizationId, request.id, approve, approve ? undefined : rejectionReasonBody(reason).reason),
     onSuccess: (request) => {
       toast.success(request.status === "approved" ? `Approved ${request.action}` : `Rejected ${request.action}`);
       setDeciding(null);
+      setReason("");
     },
     onError: (error: Error) => {
       if (error instanceof ApiError && error.code === "ACCESS_REQUEST_DECIDED") {
@@ -100,7 +104,7 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
     <>
       <Panel
         title={title}
-        description="Applications in other projects ask to call an action. Approving grants it at once. Rejecting records no reason; the gateway does not take one."
+        description="Applications in other projects ask to call an action. Approving grants it at once. A rejection can carry a reason, which the requesting project sees."
         flush
       >
         {requests.error ? (
@@ -188,8 +192,9 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
                       <TableRow key={request.id}>
                         <TableCell>{target(request)}</TableCell>
                         <TableCell className="hidden sm:table-cell">{consumer(request)}</TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-normal">
                           <StatusBadge status={request.status} />
+                          {request.rejectionReason ? <p className="mt-1 max-w-xs text-xs break-words text-muted-foreground">{request.rejectionReason}</p> : null}
                         </TableCell>
                         <TableCell className="hidden text-muted-foreground md:table-cell">{request.decidedBy ?? "—"}</TableCell>
                         <TableCell className="hidden text-right text-muted-foreground sm:table-cell" title={formatDateTime(request.decidedAt)}>
@@ -207,20 +212,38 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
 
       <ConfirmDialog
         open={deciding !== null}
-        onOpenChange={(next) => !next && setDeciding(null)}
+        onOpenChange={(next) => {
+          if (next) return;
+          setDeciding(null);
+          setReason("");
+        }}
         title={deciding ? `${deciding.approve ? "Approve" : "Reject"} ${deciding.request.action}` : ""}
         description={
           deciding
             ? deciding.approve
               ? `${applicationNames.get(deciding.request.consumerApplicationId) ?? deciding.request.consumerApplicationId} in ${projectNames.get(deciding.request.consumerProjectId) ?? deciding.request.consumerProjectId} can call ${deciding.request.action} on ${apiNames.get(deciding.request.apiId)} from its next request.`
-              : "The request is closed without a grant. The gateway records no reason, so tell the requester why yourself."
+              : `The request is closed without a grant. ${projectNames.get(deciding.request.consumerProjectId) ?? "The requesting project"} sees the reason you give.`
             : undefined
         }
         confirmLabel={deciding?.approve ? "Approve" : "Reject"}
         destructive={deciding?.approve === false}
         busy={decide.isPending}
         onConfirm={() => deciding && decide.mutate(deciding)}
-      />
+      >
+        {deciding && !deciding.approve ? (
+          <label className="flex flex-col gap-1.5 text-[13px]">
+            <span className="font-medium">Reason (optional)</span>
+            <Textarea
+              autoFocus
+              rows={3}
+              maxLength={MAX_REJECTION_REASON}
+              placeholder="For example: use the read-only orders API instead."
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+        ) : null}
+      </ConfirmDialog>
     </>
   );
 }
