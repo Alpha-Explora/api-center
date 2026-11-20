@@ -143,8 +143,8 @@ describe("MemberInviteService", () => {
   it("says when the invite expires and which projects the member gets, as stored now", async () => {
     const expiresAt = new Date("2026-11-27T18:52:51Z");
     prisma.organizationMember.rows.push({ organizationId: ORG, email: "jun@serbizio.ph", role: "developer", status: "invited", inviteExpiresAt: expiresAt, subject: null });
-    prisma.cpProject.rows.push({ id: "prj_serbizioserbizioserbiz", organizationId: ORG, slug: "serbizio", name: "Serbizio", status: "active" });
-    prisma.cpProjectRoleAssignment.rows.push({ id: "pra_1", organizationId: ORG, projectId: "prj_serbizioserbizioserbiz", memberEmail: "jun@serbizio.ph", teamId: null, role: "admin" });
+    prisma.cpProject.rows.push({ id: "prj_ssssssssssssssssssssssss", organizationId: ORG, slug: "serbizio", name: "Serbizio", status: "active" });
+    prisma.cpProjectRoleAssignment.rows.push({ id: "pra_1", organizationId: ORG, projectId: "prj_ssssssssssssssssssssssss", memberEmail: "jun@serbizio.ph", teamId: null, role: "admin" });
 
     await invites.invite({ ...input, invitedByName: "Owner Person" });
 
@@ -222,6 +222,44 @@ describe("adding a member", () => {
     const none = {} as never;
     return new ControlPlaneAdminController(none, new ConsoleAccessService(db), people, none, none, none, none, none, { invite } as unknown as MemberInviteService);
   }
+
+  it("gives project roles in the same step, before the invite goes out, and lists them", async () => {
+    prisma.cpProject.rows.push({ id: "prj_ssssssssssssssssssssssss", organizationId: ORG, slug: "serbizio", name: "Serbizio", status: "active" });
+    let assignedAtInvite: unknown[] = [];
+    const invite = jest.fn(async () => {
+      assignedAtInvite = prisma.cpProjectRoleAssignment.rows.map((row) => ({ ...row }));
+      return { status: "sent" };
+    });
+    const controller = controllerWith(invite);
+
+    await controller.setMember(
+      { organizationId: ORG, email: "jun@serbizio.ph" },
+      { role: "developer", projects: [{ projectId: "prj_ssssssssssssssssssssssss", role: "admin" }] },
+      req,
+    );
+
+    expect(assignedAtInvite).toEqual([expect.objectContaining({ projectId: "prj_ssssssssssssssssssssssss", memberEmail: "jun@serbizio.ph", role: "admin" })]);
+    const listed = await controller.listMembers(ORG, {}, req);
+    expect(listed.data.find((member) => member.email === "jun@serbizio.ph")).toMatchObject({
+      addedBy: "owner@example.test",
+      addedAt: expect.any(String),
+      projects: [{ projectId: "prj_ssssssssssssssssssssssss", name: "Serbizio", role: "admin" }],
+    });
+  });
+
+  it("refuses unknown or repeated projects before changing anything", async () => {
+    const invite = jest.fn();
+    const controller = controllerWith(invite);
+    const project = { projectId: "prj_ssssssssssssssssssssssss", role: "admin" };
+    await expect(
+      controller.setMember({ organizationId: ORG, email: "jun@serbizio.ph" }, { role: "developer", projects: [project, project] }, req),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      controller.setMember({ organizationId: ORG, email: "jun@serbizio.ph" }, { role: "developer", projects: [project] }, req),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(prisma.organizationMember.rows.some((row) => row.email === "jun@serbizio.ph")).toBe(false);
+    expect(invite).not.toHaveBeenCalled();
+  });
 
   it("invites a new member, and only a new one", async () => {
     const invite = jest.fn().mockResolvedValue({ status: "not_sent", reason: "EMAIL_NOT_CONFIGURED" });

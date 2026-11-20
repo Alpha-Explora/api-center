@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon, UsersIcon } from "lucide-react";
+import { PlusIcon, UsersIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +16,13 @@ import { ErrorPanel } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
+import { ActorLabel } from "@/components/patterns/actor-label";
+import { RelativeTime } from "@/components/patterns/relative-time";
 import { toSlug } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { lifecycle } from "../../data/lifecycle";
 import { members as memberRoutes } from "../../data/members";
-import { ORGANIZATION_ADMIN_REASON, type Access, type OrganizationRole } from "../../model/access";
+import { ORGANIZATION_ADMIN_REASON, type Access, type OrganizationRole, type ProjectRole } from "../../model/access";
 import type { Member, Team } from "../../model/control-plane";
 import type { MemberChange } from "../../model/organizations";
 import { cpKeys } from "../../view-models/query-keys";
@@ -114,8 +116,9 @@ export function PeoplePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
+                <TableHead>Member</TableHead>
                 <TableHead className="w-40">Role</TableHead>
+                <TableHead className="hidden lg:table-cell">Projects</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-0" />
               </TableRow>
@@ -126,9 +129,21 @@ export function PeoplePage() {
                 const self = member.email.toLowerCase() === session?.email?.toLowerCase();
                 return (
                   <TableRow key={member.email}>
-                    <TableCell>
-                      {member.email}
-                      {self ? <span className="ml-2 text-xs text-muted-foreground">you</span> : null}
+                    <TableCell className="max-w-72">
+                      <div className="truncate font-medium">
+                        {member.email}
+                        {self ? <span className="ml-2 text-xs font-normal text-muted-foreground">you</span> : null}
+                      </div>
+                      {member.addedAt ? (
+                        <div className="flex min-w-0 items-baseline gap-1 text-xs text-muted-foreground">
+                          Added <RelativeTime value={member.addedAt} />
+                          {member.addedBy ? (
+                            <>
+                              {" "}by <ActorLabel actor={member.addedBy} className="min-w-0" />
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       {editable ? (
@@ -147,6 +162,9 @@ export function PeoplePage() {
                       ) : (
                         <span className="capitalize">{member.role}</span>
                       )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <MemberProjects member={member} />
                     </TableCell>
                     <TableCell>
                       <MemberStatus member={member} now={members.loadedAt} />
@@ -182,7 +200,7 @@ export function PeoplePage() {
         <LoadMore list={members} />
       </Panel>
 
-      <TeamsPanel organizationId={organizationId} access={access} />
+      <TeamsPanel organizationId={organizationId} access={access} memberEmails={(members.items ?? []).map((member) => member.email)} />
 
       <AddMemberSheet organizationId={organizationId} access={access} open={adding} onOpenChange={setAdding} onAdded={refresh} />
       <ConfirmDialog
@@ -206,6 +224,25 @@ export function PeoplePage() {
         onConfirm={() => removing && remove.mutate(removing.email)}
       />
     </>
+  );
+}
+
+const PROJECT_ROLE_LABEL: Record<string, string> = { admin: "Admin", developer: "Developer", viewer: "Viewer" };
+
+/** What a member can work on: every project for owners and admins, otherwise their own project roles. */
+export function MemberProjects({ member }: { member: Member }) {
+  if (member.role === "owner" || member.role === "admin") return <span className="text-xs text-muted-foreground">Every project · Admin</span>;
+  const projects = member.projects ?? [];
+  if (projects.length === 0) return <span className="text-xs text-muted-foreground">No project roles</span>;
+  return (
+    <div className="flex max-w-80 flex-wrap gap-1">
+      {projects.map((project) => (
+        <span key={project.projectId} className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-xs">
+          {project.name}
+          <span className="ml-1 text-muted-foreground">· {PROJECT_ROLE_LABEL[project.role] ?? project.role}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -241,25 +278,39 @@ function AddMemberSheet({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrganizationRole>("developer");
+  // Project roles to give with the membership: project ID -> role.
+  const [projectRoles, setProjectRoles] = useState<Record<string, ProjectRole>>({});
   // A new member's invite outcome, shown in place of the form until the sheet closes.
   const [added, setAdded] = useState<MemberChange | null>(null);
   const normalized = email.trim().toLowerCase();
+  const reset = () => {
+    setAdded(null);
+    setEmail("");
+    setProjectRoles({});
+  };
   const close = (next: boolean) => {
-    if (!next) {
-      setAdded(null);
-      setEmail("");
-    }
+    if (!next) reset();
     onOpenChange(next);
   };
+  // Owners and admins already administer every project.
+  const everyProject = role === "owner" || role === "admin";
+  const projects = useQuery({
+    queryKey: cpKeys.projects(organizationId),
+    queryFn: () => controlPlane.listProjects(organizationId),
+    enabled: open && !everyProject,
+  });
+  const chosenProjects = everyProject
+    ? []
+    : Object.entries(projectRoles).map(([projectId, projectRole]) => ({ projectId, role: projectRole }));
   const add = useMutation({
-    mutationFn: () => memberRoutes.set(organizationId, normalized, role),
+    mutationFn: () => memberRoutes.set(organizationId, normalized, role, chosenProjects),
     onSuccess: (change) => {
       onAdded();
       if (change.invite) {
         setAdded(change);
         return;
       }
-      toast.success(`${change.email} is now ${change.role}`);
+      toast.success(`${change.email} is now ${change.role === "admin" || change.role === "owner" ? "an" : "a"} ${change.role}`);
       close(false);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -282,7 +333,7 @@ function AddMemberSheet({
               <InviteResult email={added.email} invite={added.invite} />
             </div>
             <SheetFooter className="mt-auto flex-row justify-end border-t">
-              <Button type="button" variant="outline" onClick={() => { setAdded(null); setEmail(""); }}>
+              <Button type="button" variant="outline" onClick={reset}>
                 Add another
               </Button>
               <Button type="button" onClick={() => close(false)}>
@@ -302,7 +353,7 @@ function AddMemberSheet({
             <SheetTitle>Add member</SheetTitle>
             <SheetDescription>They are emailed an invite and sign in with the Google account for this email within 7 days. Adding an existing member changes their role.</SheetDescription>
           </SheetHeader>
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
             <FormRow
               label="Email"
               htmlFor="member-email"
@@ -322,13 +373,54 @@ function AddMemberSheet({
                 </label>
               ))}
             </fieldset>
+            <fieldset className="flex flex-col gap-1.5">
+              <legend className="mb-1 text-[13px] font-medium">Project access</legend>
+              {everyProject ? (
+                <p className="text-xs text-muted-foreground">
+                  {role === "owner" ? "Owners" : "Admins"} administer every project, so no project roles are needed.
+                </p>
+              ) : projects.isPending ? (
+                <Skeleton className="h-16 w-full" />
+              ) : (projects.data ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">This organization has no projects yet.</p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Optional. The invite email lists what they get; you can change it later in each project&apos;s settings.</p>
+                  <ul className="divide-y rounded-md border">
+                    {(projects.data ?? []).map((project) => (
+                      <li key={project.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                        <span className="min-w-0 truncate text-[13px]">{project.name}</span>
+                        <NativeSelect
+                          aria-label={`Role on ${project.name}`}
+                          className="w-32"
+                          value={projectRoles[project.id] ?? ""}
+                          onChange={(event) =>
+                            setProjectRoles((current) => {
+                              const next = { ...current };
+                              if (event.target.value) next[project.id] = event.target.value as ProjectRole;
+                              else delete next[project.id];
+                              return next;
+                            })
+                          }
+                        >
+                          <option value="">No access</option>
+                          <option value="viewer">Viewer</option>
+                          <option value="developer">Developer</option>
+                          <option value="admin">Admin</option>
+                        </NativeSelect>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </fieldset>
           </div>
           <SheetFooter className="mt-auto flex-row justify-end border-t">
             <Button type="button" variant="outline" onClick={() => close(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={!valid || !routable || add.isPending}>
-              {add.isPending ? "Adding…" : "Add member"}
+              {add.isPending ? "Adding…" : chosenProjects.length ? `Add with ${chosenProjects.length} project${chosenProjects.length === 1 ? "" : "s"}` : "Add member"}
             </Button>
           </SheetFooter>
         </form>
@@ -338,9 +430,10 @@ function AddMemberSheet({
   );
 }
 
-function TeamsPanel({ organizationId, access }: { organizationId: string; access: Access }) {
+function TeamsPanel({ organizationId, access, memberEmails }: { organizationId: string; access: Access; memberEmails: string[] }) {
   const client = useQueryClient();
   const teams = useQuery({ queryKey: cpKeys.teams(organizationId), queryFn: () => controlPlane.teams(organizationId) });
+  const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const refresh = () => client.invalidateQueries({ queryKey: cpKeys.teams(organizationId) });
   const create = useMutation({
@@ -348,6 +441,7 @@ function TeamsPanel({ organizationId, access }: { organizationId: string; access
     onSuccess: (team) => {
       toast.success(`Created ${team.name}`);
       setName("");
+      setCreating(false);
       void refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -359,32 +453,57 @@ function TeamsPanel({ organizationId, access }: { organizationId: string; access
       description="Optional groups of members. Give a team a role on a project instead of assigning each person."
       flush
       actions={
-        access.canManageTeams ? (
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (name.trim()) create.mutate();
-            }}
-          >
-            <Input aria-label="New team name" placeholder="New team name" className="h-7 w-44" value={name} onChange={(event) => setName(event.target.value)} />
-            <Button size="sm" variant="outline" type="submit" disabled={!name.trim() || create.isPending}>
-              Create
-            </Button>
-          </form>
-        ) : null
+        <GuardedButton size="sm" variant="outline" allowed={access.canManageTeams} reason={ORGANIZATION_ADMIN_REASON} onClick={() => setCreating(true)}>
+          <PlusIcon data-icon="inline-start" /> New team
+        </GuardedButton>
       }
     >
+      {creating ? (
+        <form
+          className="flex flex-col gap-2 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim()) create.mutate();
+          }}
+        >
+          <Input aria-label="Team name" autoFocus placeholder="Team name, e.g. Payments squad" className="sm:max-w-xs" value={name} onChange={(event) => setName(event.target.value)} />
+          <div className="flex gap-2">
+            <Button size="sm" type="submit" disabled={!name.trim() || create.isPending}>
+              {create.isPending ? "Creating…" : "Create team"}
+            </Button>
+            <Button size="sm" variant="ghost" type="button" onClick={() => { setCreating(false); setName(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
       {teams.error ? (
         <div className="p-4">
           <ErrorPanel title="Teams could not be loaded" error={teams.error} />
         </div>
+      ) : teams.isPending ? (
+        <div className="p-3">
+          <Skeleton className="h-12 w-full" />
+        </div>
       ) : (teams.data ?? []).length === 0 ? (
-        <EmptyState icon={<UsersIcon />} title="No teams" />
+        creating ? null : (
+          <EmptyState
+            icon={<UsersIcon />}
+            title="No teams yet"
+            description="Teams are useful when several people share the same project roles, such as everyone working on one product."
+          />
+        )
       ) : (
         <ul className="divide-y">
           {(teams.data ?? []).map((team) => (
-            <TeamRow key={team.id} organizationId={organizationId} team={team} canManage={access.canManageTeams} onChanged={() => void refresh()} />
+            <TeamRow
+              key={team.id}
+              organizationId={organizationId}
+              team={team}
+              canManage={access.canManageTeams}
+              memberEmails={memberEmails}
+              onChanged={() => void refresh()}
+            />
           ))}
         </ul>
       )}
@@ -392,7 +511,19 @@ function TeamsPanel({ organizationId, access }: { organizationId: string; access
   );
 }
 
-function TeamRow({ organizationId, team, canManage, onChanged }: { organizationId: string; team: Team; canManage: boolean; onChanged: () => void }) {
+function TeamRow({
+  organizationId,
+  team,
+  canManage,
+  memberEmails,
+  onChanged,
+}: {
+  organizationId: string;
+  team: Team;
+  canManage: boolean;
+  memberEmails: string[];
+  onChanged: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [deleting, setDeleting] = useState(false);
   const remove = useMutation({
@@ -417,14 +548,53 @@ function TeamRow({ organizationId, team, canManage, onChanged }: { organizationI
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const leave = useMutation({
+    mutationFn: (member: string) => controlPlane.removeTeamMember(organizationId, team.id, member),
+    onSuccess: (_, member) => {
+      toast.success(`Removed ${member} from ${team.name}`);
+      onChanged();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const suggestions = memberEmails.filter((candidate) => !team.members.includes(candidate));
+  const listId = `team-${team.id}-members`;
   return (
-    <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium">
-          {team.name} <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">{team.slug}</span>
-        </p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{team.members.length ? team.members.join(", ") : "No members"}</p>
+    <li className="flex flex-col gap-3 px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium" title={team.slug}>
+            {team.name}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {team.members.length === 0 ? "No members" : `${team.members.length} member${team.members.length === 1 ? "" : "s"}`}
+          </p>
+        </div>
+        {canManage ? (
+          <Button size="sm" variant="quiet-destructive" type="button" onClick={() => setDeleting(true)}>
+            Delete
+          </Button>
+        ) : null}
       </div>
+      {team.members.length ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label={`Members of ${team.name}`}>
+          {team.members.map((member) => (
+            <li key={member} className="inline-flex h-6 items-center gap-1 rounded-sm bg-muted pr-0.5 pl-2 text-xs">
+              {member}
+              {canManage ? (
+                <button
+                  type="button"
+                  aria-label={`Remove ${member} from ${team.name}`}
+                  disabled={leave.isPending}
+                  onClick={() => leave.mutate(member)}
+                  className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+                >
+                  <XIcon className="size-3" />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {canManage ? (
         <form
           className="flex gap-2"
@@ -433,12 +603,21 @@ function TeamRow({ organizationId, team, canManage, onChanged }: { organizationI
             if (ROUTABLE_EMAIL.test(normalized) && normalized.includes("@")) add.mutate();
           }}
         >
-          <Input aria-label={`Add a member to ${team.name}`} placeholder="member email" className="h-7 w-52" value={email} onChange={(event) => setEmail(event.target.value)} />
-          <Button size="sm" variant="ghost" type="submit" disabled={!normalized.includes("@") || add.isPending}>
+          <Input
+            aria-label={`Add a member to ${team.name}`}
+            placeholder="Add a member by email"
+            list={listId}
+            className="h-7 max-w-xs"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <datalist id={listId}>
+            {suggestions.map((candidate) => (
+              <option key={candidate} value={candidate} />
+            ))}
+          </datalist>
+          <Button size="sm" variant="outline" type="submit" disabled={!normalized.includes("@") || add.isPending}>
             Add
-          </Button>
-          <Button size="sm" variant="quiet-destructive" type="button" onClick={() => setDeleting(true)}>
-            Delete
           </Button>
         </form>
       ) : null}

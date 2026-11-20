@@ -84,12 +84,28 @@ export class OrganizationPeopleService {
         take: page.limit + 1,
       });
       const { items: members, nextCursor } = pageFrom(rows, page.limit, (member) => [member.email]);
+      // Each member's own project roles (not those through teams), with the project's name.
+      const emails = members.map((member) => member.email);
+      const assignments = emails.length
+        ? await db.cpProjectRoleAssignment.findMany({ where: { organizationId, memberEmail: { in: emails } }, select: { memberEmail: true, projectId: true, role: true } })
+        : [];
+      const projectIds = [...new Set(assignments.map((row) => row.projectId))];
+      const projects = projectIds.length
+        ? await db.cpProject.findMany({ where: { organizationId, id: { in: projectIds } }, select: { id: true, name: true } })
+        : [];
+      const projectName = new Map(projects.map((project) => [project.id, project.name]));
       const items = members.map((member) => ({
         email: member.email,
         role: normalizeOrganizationRole(member.role) ?? "viewer",
         status: member.status === "invited" && !inviteIsPending(member) ? "invite_expired" : member.status,
         inviteExpiresAt: member.inviteExpiresAt?.toISOString() ?? null,
         identityLinked: Boolean(member.subject),
+        addedAt: member.createdAt?.toISOString() ?? null,
+        addedBy: member.createdBy ?? null,
+        projects: assignments
+          .filter((row) => row.memberEmail === member.email && projectName.has(row.projectId))
+          .map((row) => ({ projectId: row.projectId, name: projectName.get(row.projectId) as string, role: row.role }))
+          .sort((left, right) => left.name.localeCompare(right.name)),
       }));
       return { items, nextCursor };
     });
