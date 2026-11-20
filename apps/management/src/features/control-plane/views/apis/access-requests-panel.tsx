@@ -36,9 +36,9 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
   const { organizationId, project, kind, canManage } = useProjectEnvironment();
   const client = useQueryClient();
   const key = apiKeys.accessRequests(organizationId, project.id);
-  const requests = useQuery({ queryKey: key, queryFn: () => publishedApis.accessRequests(organizationId, project.id), retry: false });
-  const me = useQuery({ queryKey: cpKeys.me(organizationId), queryFn: () => controlPlane.me(organizationId), retry: false, staleTime: 60_000 });
-  const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), retry: false, staleTime: 60_000 });
+  const requests = useQuery({ queryKey: key, queryFn: () => publishedApis.accessRequests(organizationId, project.id) });
+  const me = useQuery({ queryKey: cpKeys.me(organizationId), queryFn: () => controlPlane.me(organizationId), staleTime: 60_000 });
+  const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), staleTime: 60_000 });
   const [deciding, setDeciding] = useState<Decision | null>(null);
   const [reason, setReason] = useState("");
 
@@ -53,7 +53,6 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
     queries: consumerProjects.map((projectId) => ({
       queryKey: cpKeys.applications(organizationId, projectId, kind),
       queryFn: () => controlPlane.applications(organizationId, projectId, kind),
-      retry: false,
       staleTime: 60_000,
     })),
   });

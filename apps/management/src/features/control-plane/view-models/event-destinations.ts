@@ -14,7 +14,6 @@ export function useEventDestinations() {
   return useQuery({
     queryKey: eventDestinationsKey(organizationId, project.id, kind),
     queryFn: () => eventDestinations.list({ organizationId, projectId: project.id, kind }),
-    retry: false,
   });
 }
 
@@ -31,6 +30,5 @@ export function useEventTypeCatalogue() {
     queryKey: ["cp", organizationId, "event-types"],
     queryFn: () => eventDestinations.eventTypes(organizationId),
     staleTime: 10 * 60_000,
-    retry: false,
   });
 }

@@ -29,7 +29,7 @@ export function WorkloadIdentitiesTab({ application }: { application: Applicatio
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
   const key = [...cpKeys.application(organizationId, project.id, kind, application.id), "workload-bindings"];
-  const bindings = useQuery({ queryKey: key, queryFn: () => workloadBindings.list(organizationId, project.id, kind, application.id), retry: false });
+  const bindings = useQuery({ queryKey: key, queryFn: () => workloadBindings.list(organizationId, project.id, kind, application.id) });
   const [binding, setBinding] = useState(false);
   const [revoking, setRevoking] = useState<WorkloadBinding | null>(null);
   const revoke = useMutation({
@@ -156,7 +156,6 @@ function BindSheet({
     queryFn: () => workloadBindings.audiences(organizationId),
     enabled: open,
     staleTime: 5 * 60_000,
-    retry: false,
   });
   const audienceChoice = audienceInput(audiences.data?.audiences);
   const bind = useMutation({

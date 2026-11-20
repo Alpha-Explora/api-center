@@ -32,7 +32,6 @@ export function EmailSenderSheet({ open, onOpenChange }: { open: boolean; onOpen
     queryKey: configurationKey(organizationId, project.id, kind, "email"),
     queryFn: () => capabilityConfiguration.emailSender({ organizationId, projectId: project.id, kind }),
     enabled: open,
-    retry: false,
   });
 
   return (

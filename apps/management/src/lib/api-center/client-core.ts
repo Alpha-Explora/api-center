@@ -1,28 +1,41 @@
 let managementSessionToken: string | undefined;
+let onSessionRejected: (() => void) | undefined;
 
 export function setManagementSessionToken(token: string | undefined) {
   managementSessionToken = token;
+}
+
+/** Called when the console server answers 401 to a signed-in request: the Google token expired or was revoked. */
+export function setSessionRejectedHandler(handler: (() => void) | undefined) {
+  onSessionRejected = handler;
 }
 
 export async function localApiRequest<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(resolveFetchUrl(path), {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(managementSessionToken
-        ? { authorization: `Bearer ${managementSessionToken}` }
-        : {}),
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(resolveFetchUrl(path), {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(managementSessionToken
+          ? { authorization: `Bearer ${managementSessionToken}` }
+          : {}),
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError("The console could not reach APICenter. Check your connection.", 0, "NETWORK_ERROR");
+  }
 
   if (!response.ok) {
     const body = await response.text();
-    throw new ApiError(formatRequestError(response.status, body), response.status, errorCode(body));
+    if (response.status === 401 && managementSessionToken && path.startsWith("/api/")) onSessionRejected?.();
+    throw new ApiError(formatRequestError(response.status, body), response.status, errorCode(body), retryAfter(response));
   }
 
   return response.json() as Promise<T>;
@@ -34,12 +47,20 @@ export const request = localApiRequest;
 export class ApiError extends Error {
   constructor(
     message: string,
+    /** 0 when the request never got a response. */
     readonly status: number,
     readonly code?: string,
+    /** From the response's Retry-After header, when it sent one in seconds. */
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+function retryAfter(response: Response): number | undefined {
+  const value = Number(response.headers.get("retry-after"));
+  return Number.isFinite(value) && value >= 0 && response.headers.has("retry-after") ? value : undefined;
 }
 
 function errorCode(body: string): string | undefined {
@@ -98,5 +119,6 @@ function formatRequestError(status: number, body: string) {
     // Fall through to the raw response preview.
   }
 
-  return `Request failed with HTTP ${status}: ${body}`;
+  // A non-JSON body is usually an HTML error page from a proxy; it means nothing to the reader.
+  return `Request failed with HTTP ${status}`;
 }

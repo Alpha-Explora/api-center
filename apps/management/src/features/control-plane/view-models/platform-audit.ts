@@ -14,6 +14,5 @@ export function usePlatformAuditLog(filters: AuditFilters, now: number, options:
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: options.enabled,
-    retry: false,
   });
 }

@@ -40,6 +40,10 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Console: a failure that may clear by itself (the gateway busy or starting, a timeout, rate limiting, the network) is retried up to three times with backoff, honouring `Retry-After`; answers such as 403 or 404 are not retried. Error panels for those failures say so in plain words and offer Try again, which refetches every failed query on the page; the gateway's error code moves under Details. HTML error pages from a proxy no longer appear in messages.
+- Console sign-in: the access check waits up to 15 seconds and asks once more before giving up, shows "Checking your access…" meanwhile, and on failure offers Try again without a new Google sign-in. A failed check answers 503 instead of 401, so open pages retry instead of saying you are signed out; an account without access answers 403.
+- Console: an expired Google sign-in (about an hour) signs you out with "Your session ended" instead of failing every panel, and an expired stored sign-in is not reused after a reload. Signing out or signing in as someone else clears everything the previous person loaded.
+- Console go-live: approving, rejecting or requesting activation shows the result at once, even if the refresh after it fails. Deciding a request someone already decided refreshes it instead of showing an error. "Request activation" appears only once existing requests have loaded, and when readiness cannot be checked the buttons say so instead of "Every readiness check must pass first".
 - API access requests: an approval and a rejection made at the same moment can no longer both land, which could leave a rejected request with an active grant.
 - People: changes to members, teams and project roles in one organization run one at a time, so two owners demoting each other at once can no longer leave the organization without an owner. Whether a change touches an owner is decided from the role at the moment of the change.
 - Projects: a member who creates a project becomes its admin in the same transaction, so a failure can no longer leave a project its creator cannot see.

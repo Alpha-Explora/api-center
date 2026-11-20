@@ -23,7 +23,6 @@ export function OutgoingRequestsPanel({ application, projectName }: { applicatio
   const requests = useQuery({
     queryKey: outgoingRequestsKey(organizationId, project.id),
     queryFn: () => publishedApis.outgoingRequests(organizationId, project.id),
-    retry: false,
   });
   const rows = outgoingForApplication(requests.data ?? [], application.id, kind);
 

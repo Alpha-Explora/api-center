@@ -96,7 +96,6 @@ function Breadcrumbs() {
     queryKey: cpKeys.project(organizationId ?? "none", projectId ?? "none"),
     queryFn: () => controlPlane.project(organizationId as string, projectId as string),
     enabled: Boolean(organizationId && projectId),
-    retry: false,
   });
 
   const crumbs: { label: string; href?: string }[] = [];

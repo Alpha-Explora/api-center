@@ -93,10 +93,13 @@ export async function apiCenterAdminRequest(
     return Response.json(
       {
         success: false,
-        error: reason,
+        error: {
+          code: "GATEWAY_TIMEOUT",
+          message: "APICenter did not answer in time. It may be starting up; try again in a few seconds.",
+        },
         meta: buildUnavailableSourceMeta(path, reason),
       },
-      { status: 504 },
+      { status: 504, headers: { "retry-after": "2" } },
     );
   }
 
@@ -123,24 +126,27 @@ function withFallbackSourceMetadata(
   const contentType =
     response.headers.get("content-type") ?? "application/json";
   const parsed = parseJsonObject(body);
+  const retryAfter = response.headers.get("retry-after");
+  const passthrough: Record<string, string> = retryAfter ? { "retry-after": retryAfter } : {};
   if (parsed && hasSourceMetadata(parsed)) {
     return new Response(body, {
       status: response.status,
-      headers: { "content-type": contentType },
+      headers: { "content-type": contentType, ...passthrough },
     });
   }
 
+  // A non-JSON body is usually a load balancer's HTML page; keep it out of what people read.
   const reason =
     parsed && typeof parsed.error === "string"
       ? parsed.error
-      : body || `API Center returned ${response.status}.`;
+      : `API Center returned ${response.status}.`;
 
   return Response.json(
     {
       ...(parsed ?? { success: false, error: reason }),
       meta: buildUnavailableSourceMeta(path, reason),
     },
-    { status: response.status },
+    { status: response.status, headers: passthrough },
   );
 }
 
@@ -162,7 +168,19 @@ function hasSourceMetadata(parsed: Record<string, unknown>) {
   return Array.isArray(sourceMetadata) && sourceMetadata.length > 0;
 }
 
-export async function apiCenterAdminJson<T>(path: string, init?: RequestInit) {
+/** A gateway call that failed: `status` is the gateway's, or 504 when it did not answer in time. */
+export class ApiCenterAdminError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiCenterAdminError";
+  }
+}
+
+export async function apiCenterAdminJson<T>(path: string, init?: RequestInit & { timeoutMs?: number }) {
+  const { timeoutMs = 8_000, ...fetchInit } = init ?? {};
   const apiCenterBaseUrl = getApiCenterBaseUrl();
   const platformSecret = getPlatformSecret();
 
@@ -172,21 +190,27 @@ export async function apiCenterAdminJson<T>(path: string, init?: RequestInit) {
     );
   }
 
-  const response = await fetchApiCenter(`${apiCenterBaseUrl}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      "x-platform-secret": platformSecret,
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
-  });
+  let response: Response;
+  try {
+    response = await fetchApiCenter(`${apiCenterBaseUrl}${path}`, {
+      ...fetchInit,
+      headers: {
+        "content-type": "application/json",
+        "x-platform-secret": platformSecret,
+        ...(fetchInit.headers ?? {}),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "request failed";
+    throw new ApiCenterAdminError(`API Center did not answer: ${reason}`, 504);
+  }
 
   const body = await response.text();
 
   if (!response.ok) {
-    throw new Error(`API Center returned ${response.status}: ${body}`);
+    throw new ApiCenterAdminError(`API Center returned ${response.status}: ${body.slice(0, 500)}`, response.status);
   }
 
   return JSON.parse(body) as T;

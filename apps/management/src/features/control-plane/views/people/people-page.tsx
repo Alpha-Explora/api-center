@@ -40,7 +40,7 @@ export function PeoplePage() {
   const { organizationId, session } = useOrganization();
   const { access } = useAccess(organizationId);
   const client = useQueryClient();
-  const members = useQuery({ queryKey: cpKeys.members(organizationId ?? "none"), queryFn: () => controlPlane.members(organizationId as string), enabled: Boolean(organizationId), retry: false });
+  const members = useQuery({ queryKey: cpKeys.members(organizationId ?? "none"), queryFn: () => controlPlane.members(organizationId as string), enabled: Boolean(organizationId) });
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
   const refresh = () => {
@@ -278,7 +278,7 @@ function AddMemberSheet({
 
 function TeamsPanel({ organizationId, access }: { organizationId: string; access: Access }) {
   const client = useQueryClient();
-  const teams = useQuery({ queryKey: cpKeys.teams(organizationId), queryFn: () => controlPlane.teams(organizationId), retry: false });
+  const teams = useQuery({ queryKey: cpKeys.teams(organizationId), queryFn: () => controlPlane.teams(organizationId) });
   const [name, setName] = useState("");
   const refresh = () => client.invalidateQueries({ queryKey: cpKeys.teams(organizationId) });
   const create = useMutation({
