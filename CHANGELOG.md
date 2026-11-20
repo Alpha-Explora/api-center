@@ -46,6 +46,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Members: a new member is invited and must sign in within 7 days. Before, the membership was active at once and never lapsed, so whoever first signed in with a mistyped or recycled address got access. An expired invite grants nothing until **Resend invite** renews it. Members can also be suspended and restored. Existing members are unaffected (migration `20261120001090`).
 - Console: a failure that may clear by itself (the gateway busy or starting, a timeout, rate limiting, the network) is retried up to three times with backoff, honouring `Retry-After`; answers such as 403 or 404 are not retried. Error panels for those failures say so in plain words and offer Try again, which refetches every failed query on the page; the gateway's error code moves under Details. HTML error pages from a proxy no longer appear in messages.
 - Console sign-in: the access check waits up to 15 seconds and asks once more before giving up, shows "Checking your access…" meanwhile, and on failure offers Try again without a new Google sign-in. A failed check answers 503 instead of 401, so open pages retry instead of saying you are signed out; an account without access answers 403.
 - Console: an expired Google sign-in (about an hour) signs you out with "Your session ended" instead of failing every panel, and an expired stored sign-in is not reused after a reload. Signing out or signing in as someone else clears everything the previous person loaded.

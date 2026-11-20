@@ -44,6 +44,7 @@ The console work merged in #201–#205 adds five migrations, four secrets and ne
    5. `20261120001050_control_plane_gaps`: quota policy edit and soft delete, the rejection reason and outgoing-request index on API access requests, `event_types` on event destinations, and the move of quota counters to `policy:<id>:<windowSeconds>` keys. Apply it before the gateway, which reads the new quota policy columns on every request.
    6. `20261120001060_environment_platform_suspension`: `suspended_by_platform` on `apic_catalog.cp_environments`. Apply it before the gateway, which reads the column whenever an environment's status changes.
    7. `20261120001070_test_recipients`: `apic_catalog.cp_test_recipients`, with row-level security. Apply it before the gateway, which reads it on every test-environment email, SMS and OTP send.
+   8. `20261120001090_member_invites`: `invite_expires_at` and the `invited` status on `apic_catalog.organization_members`. Apply it before the gateway, which reads it at every console sign-in.
 3. **Runtimes.** Redeploy email (the platform-message route for invites), SMS and OTP (the project settings and admin tokens), and webhooks (delivery history and event-type filters). The webhooks runtime starts without `DATABASE_URL` and keeps delivering; it logs `apicenter_webhook_history_disabled` and its history route answers 503 until the secret exists.
 4. **Gateway** with `SMS_ADMIN_TOKEN`, `OTP_ADMIN_TOKEN` and `WEBHOOKS_ADMIN_TOKEN`. `MANAGEMENT_CONSOLE_URL` is optional; invite links default to `https://apicenter.itsandbox.site`. Grant the gateway's service account `run.invoker` on the webhooks service, which it calls with a Cloud Run identity token for history, and confirm it can publish to `apicenter.payment-events.{test,live}` for test events.
 5. **Console.**
@@ -54,7 +55,9 @@ New control-plane routes, all under `/api/v1/admin/control-plane`:
 | --- | --- |
 | `GET`, `POST organizations`; `PUT organizations/:id`; `PUT organizations/:id/status` | Platform operators list, create, rename, suspend and reactivate organizations |
 | `GET approvals`; `GET organizations/:id/approvals` | Pending live activations and API access requests (all organizations for platform operators; at most 500 live activations) |
-| `PUT organizations/:id/members/:email` | Now also returns `previousRole` and the `invite` outcome |
+| `PUT organizations/:id/members/:email` | Now also returns `previousRole` and the `invite` outcome. A new member is `invited` for 7 days |
+| `POST organizations/:id/members/:email/invite` | Renews an unaccepted invite for 7 days and emails it again |
+| `PUT organizations/:id/members/:email/status` | Suspends (`suspended`) or restores (`active`) an accepted member |
 | `GET …/environments/:env/requests`, `…/usage/series`, `…/quota-usage`; `GET organizations/:id/quota-usage` | Request log, usage series and quota meters |
 | `GET organizations/:id/audit-events`; `GET audit-events` | Organization audit log; the platform-wide log for platform operators |
 | `GET …/environments/:env/credentials[?expiringWithinDays=N]`; `GET …/environments/:env/grants` | Environment key and grant inventory |
@@ -71,6 +74,7 @@ Behavior operators should know:
 
 - Suspending an organization refuses its application traffic (`ORGANIZATION_INACTIVE`) and new projects. Members can still sign in and change settings.
 - Invite outcomes are audited as `control_plane.member.invite_sent` or `control_plane.member.invite_not_sent` with a reason code. An invite to the same email and organization is sent at most once in 24 hours.
+- A new member is `invited` until their first verified sign-in, which accepts the invite and links their Google identity. An invite expires after 7 days; an expired invite grants nothing until it is renewed. Members who existed before migration `20261120001090` are `active`. Invited and suspended owners do not count as owners for the last-owner rule.
 - Project-scoped routes answer 404 when the project is not in the organization in the path.
 - An environment suspended by a platform operator stays suspended until an operator resumes it; a project admin gets `403 SUSPENDED_BY_PLATFORM`. A suspended environment, test or live, issues no keys (`409 ENVIRONMENT_SUSPENDED`).
 - A live activation request is accepted only from a provisioning environment that passes readiness and has no open request (`409 LIVE_NOT_READY`, `409 ACTIVATION_ALREADY_REQUESTED`). An approval can be used for seven days; after that, request approval again.
