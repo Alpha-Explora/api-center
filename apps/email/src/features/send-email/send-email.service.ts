@@ -38,11 +38,12 @@ export class SendEmailService {
         requestedFrom: input.from,
         defaultFrom: emailFrom || "no-reply@example.test",
         defaultDailyLimit,
-        provider: resend ? "resend" : "mock",
+        provider: owner.suppressDelivery ? "suppressed" : resend ? "resend" : "mock",
         recipients,
       },
       async (approvedFrom) => {
-        if (!resend) return undefined;
+        // A test send to an unregistered recipient is recorded but never reaches the provider.
+        if (!resend || owner.suppressDelivery) return undefined;
         const content =
           input.html !== undefined && input.text !== undefined
             ? { html: input.html, text: input.text }

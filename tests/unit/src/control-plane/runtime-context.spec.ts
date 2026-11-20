@@ -51,6 +51,7 @@ describe("runtime context", () => {
       action: "email:send",
       ownerGroupId: identity.organizationId,
       ownerProjectId: identity.projectId,
+      suppressDelivery: false,
     });
   });
 

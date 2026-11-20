@@ -91,6 +91,8 @@ export interface SharedServiceCaller {
   applicationId?: string;
   action?: string;
   requestId?: string;
+  /** Set by the gateway for a test send to an unregistered recipient: record it, deliver nothing. */
+  suppressDelivery?: boolean;
 }
 
 export class SharedServiceCallerError extends Error {}
@@ -141,6 +143,8 @@ export interface RuntimeContextClaims {
   /** The owner group records are scoped to (organization ID unless the project was migrated). */
   ownerGroupId: string;
   ownerProjectId: string;
+  /** A test send whose recipient the project has not registered: record it and deliver nothing. */
+  suppressDelivery: boolean;
 }
 
 /** Parses an Ed25519 public JWK array (APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS by default). */
