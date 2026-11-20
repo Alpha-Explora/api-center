@@ -2,6 +2,7 @@
 
 ## 2026-11-20
 
+- Control plane operations lists migration `20261120001060` and the new rules for operator suspensions, activation requests, approval expiry and serialized people changes.
 - Documented the round-2 console work (#201–#205). The console README, DESIGN.md and Management runbook cover the new pages (organizations, approvals, audit log, request log), actions and design patterns; the runbook's known gaps drop the closed ones and add the new limits. Control plane operations records the deploy: four secrets, migrations `20261120001020`–`20261120001050` in order (with `20261120001021` built concurrently, outside a transaction), runtimes before the gateway and console, and the new routes. The architecture map, capability register and shared-service database roles add the webhook delivery history store and the `webhooks_runtime` role; the roles page drops a stale claim that email and gauth do not query Postgres. Public guides cover webhook event-type filters and `webhook.test`, the pinned SMS sender (`403 SENDER_NOT_APPROVED`), OTP project settings and verification errors including `OTP_ATTEMPTS_EXCEEDED`, and the new Management pages. The public OpenAPI names these errors in the existing `sms.send` 403 and `otp.verify` 400 responses.
 - Corrected the Management runbook and infra notes: the console is deployed to Cloud Run (`apicenter-management-test`) from the workspace image build, not Vercel.
 

@@ -63,9 +63,23 @@ export class LiveEnvironmentService {
     });
   }
 
-  /** File the environment.activate_live request that a different person must approve. */
+  /**
+   * File the environment.activate_live request that a different person must approve. Only a
+   * provisioning environment that passes readiness can ask, and only when no request is open.
+   */
   async requestActivation(organizationId: string, projectId: string, requestedBy: string, reason: string) {
     const readiness = await this.readiness(organizationId, projectId);
+    if (readiness.status !== "provisioning") throw new ConflictError(`The live environment is already ${readiness.status}`);
+    const failing = readiness.checks.filter((check) => !check.passed);
+    if (failing.length) {
+      throw new AppError(`Live readiness checks fail: ${failing.map((check) => check.key).join(", ")}`, 409, "LIVE_NOT_READY");
+    }
+    const open = (await this.approvals.listForTarget("environment.activate_live", projectId)).find(
+      (entry) => entry.status === "pending" || (entry.status === "approved" && !ApprovalRequestService.isExpired(entry)),
+    );
+    if (open) {
+      throw new AppError(`Activation was already requested (${open.status}); decide or use that request`, 409, "ACTIVATION_ALREADY_REQUESTED");
+    }
     const request = await this.approvals.createRequest({
       actionType: "environment.activate_live",
       targetId: projectId,
@@ -82,7 +96,8 @@ export class LiveEnvironmentService {
 
   /** Activation requests for this project, newest first. */
   async listActivationRequests(organizationId: string, projectId: string) {
-    await this.readiness(organizationId, projectId);
+    // Only confirms the live environment exists; the readiness checks are not needed here.
+    await withTenant(this.prisma, { organizationId }, (db) => requireLive(db, organizationId, projectId));
     return this.approvals.listForTarget("environment.activate_live", projectId);
   }
 
@@ -96,7 +111,9 @@ export class LiveEnvironmentService {
     approvalRequestId: string,
     decision: { approve: true; by: string } | { approve: false; by: string; reason: string },
   ) {
-    const pending = (await this.listActivationRequests(organizationId, projectId)).find((request) => request.id === approvalRequestId);
+    await withTenant(this.prisma, { organizationId }, (db) => requireLive(db, organizationId, projectId));
+    // Looked up by ID, not among the newest few, so an older open request can still be decided.
+    const pending = await this.approvals.findForTarget(approvalRequestId, "environment.activate_live", projectId);
     if (!pending) throw new NotFoundError(`No live activation request '${approvalRequestId}' for project '${projectId}'`);
     const request = decision.approve
       ? await this.approvals.approveRequest(approvalRequestId, decision.by)
@@ -132,15 +149,31 @@ export class LiveEnvironmentService {
     return environment;
   }
 
-  /** Suspending blocks requests and issuance immediately; resuming restores an activated environment. */
-  async setStatus(organizationId: string, projectId: string, kind: "test" | "live", status: "active" | "suspended", actor: string) {
+  /**
+   * Suspending blocks requests and issuance immediately; resuming restores an activated environment.
+   * An environment an APICenter operator suspended can only be resumed by an operator.
+   */
+  async setStatus(
+    organizationId: string,
+    projectId: string,
+    kind: "test" | "live",
+    status: "active" | "suspended",
+    actor: string,
+    options: { platform: boolean } = { platform: false },
+  ) {
     const environment = await withTenant(this.prisma, { organizationId }, async (db) => {
       const found = await db.cpEnvironment.findFirst({ where: { organizationId, projectId, kind } });
       if (!found) throw new NotFoundError(`Project '${projectId}' has no ${kind} environment`);
       if (found.status === "provisioning") {
         throw new AppError("Activate the live environment before changing its status", 409, "LIVE_NOT_ACTIVATED");
       }
-      return db.cpEnvironment.update({ where: { id: found.id }, data: { status } });
+      if (found.suspendedByPlatform && !options.platform) {
+        throw new AppError("An APICenter operator suspended this environment; ask them to resume it", 403, "SUSPENDED_BY_PLATFORM");
+      }
+      return db.cpEnvironment.update({
+        where: { id: found.id },
+        data: { status, suspendedByPlatform: status === "suspended" && options.platform },
+      });
     });
     await this.recordAudit({ organizationId, projectId }, `control_plane.environment.${status}`, actor, environment.id, { projectId, kind }, kind);
     return environment;

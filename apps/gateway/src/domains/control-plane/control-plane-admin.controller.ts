@@ -167,11 +167,13 @@ export class ControlPlaneAdminController {
     const memberEmail = parse(schemas.email, params.email, "email");
     const input = parse(schemas.setMember, body, "body");
     const actor = actorOf(req);
-    const current = await this.people.memberRole(org, memberEmail);
-    const touchesOwner = input.role === "owner" || current === "owner";
-    await this.access.require(actor, org, touchesOwner ? "organization.owners.manage" : "organization.members.manage");
+    // Whether the change touches an owner is decided inside the people lock, from the role as it
+    // is when the change is made, not from an earlier read.
+    const access = await this.access.require(actor, org, "organization.members.manage");
     const label = actorLabel(actor, input.actor);
-    const member = await this.people.setMember(org, memberEmail, input.role, label);
+    const member = await this.people.setMember(org, memberEmail, input.role, label, {
+      mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
+    });
     // A new member is sent an invite. Sending never fails the change, which is already saved.
     const invite = member.previousRole || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
     return { success: true, data: { ...member, invite } };
@@ -182,9 +184,13 @@ export class ControlPlaneAdminController {
     const org = parse(schemas.organizationId, params.organizationId, "organizationId");
     const memberEmail = parse(schemas.email, params.email, "email");
     const actor = actorOf(req);
-    const current = await this.people.memberRole(org, memberEmail);
-    await this.access.require(actor, org, current === "owner" ? "organization.owners.manage" : "organization.members.manage");
-    return { success: true, data: await this.people.removeMember(org, memberEmail, actorLabel(actor)) };
+    const access = await this.access.require(actor, org, "organization.members.manage");
+    return {
+      success: true,
+      data: await this.people.removeMember(org, memberEmail, actorLabel(actor), {
+        mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
+      }),
+    };
   }
 
   @Get("organizations/:organizationId/teams")
@@ -229,10 +235,11 @@ export class ControlPlaneAdminController {
     const input = parse(schemas.createProject, body, "body");
     const actor = actorOf(req);
     const access = await this.access.require(actor, org, "project.create");
-    const project = await this.controlPlane.createProject(org, input, actorLabel(actor, input.actor));
-    if (actor.kind === "member" && !hasPlatformAccess(actor) && effectiveProjectRole(access, project.id) !== "admin") {
-      await this.people.grantCreatorProjectAdmin(org, project.id, actor.email);
-    }
+    // A new project has no project roles, so only an organization owner or admin already
+    // administers it. Anyone else who creates one becomes its admin, in the same transaction.
+    const organizationAdmin = access.organizationRole === "owner" || access.organizationRole === "admin";
+    const creatorAdmin = actor.kind === "member" && !hasPlatformAccess(actor) && !organizationAdmin ? actor.email : undefined;
+    const project = await this.controlPlane.createProject(org, input, actorLabel(actor, input.actor), { creatorAdmin });
     return { success: true, data: project };
   }
 
@@ -436,7 +443,9 @@ export class ControlPlaneAdminController {
     await this.access.require(actor, scope.organizationId, "project.manage", { projectId: scope.projectId });
     return {
       success: true,
-      data: await this.live.setStatus(scope.organizationId, scope.projectId, scope.environmentKind, input.status, actorLabel(actor, input.actor)),
+      data: await this.live.setStatus(scope.organizationId, scope.projectId, scope.environmentKind, input.status, actorLabel(actor, input.actor), {
+        platform: hasPlatformAccess(actor),
+      }),
     };
   }
 

@@ -544,6 +544,8 @@ model CpEnvironment {
   activatedAt    DateTime? @map("activated_at") @db.Timestamptz(6)
   activatedBy    String?   @map("activated_by")
   activationApprovalId String? @map("activation_approval_id")
+  /// Suspended by an APICenter operator: only an operator can resume it.
+  suspendedByPlatform Boolean @default(false) @map("suspended_by_platform")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

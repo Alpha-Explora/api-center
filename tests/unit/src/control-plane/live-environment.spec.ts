@@ -202,6 +202,50 @@ describe("live activation requests", () => {
       service.decideActivation(ORG, project.id, id, { approve: false, by: "owner@example.test", reason: "webhooks not verified" }),
     ).resolves.toMatchObject({ status: "rejected", rejectedBy: "owner@example.test", rejectionReason: "webhooks not verified" });
   });
+
+  it("takes an activation request only from a ready environment with no request open", async () => {
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+    const service = new LiveEnvironmentService(prisma as unknown as PrismaService, realApprovals(), audit);
+    const unready = await admin.createProject(ORG, { slug: "unready", name: "Unready" }, actor);
+    await service.provision(ORG, unready.id, actor);
+    await expect(service.requestActivation(ORG, unready.id, "dev@example.test", "launch")).rejects.toMatchObject({ code: "LIVE_NOT_READY" });
+
+    const project = await readyLive(service);
+    const first = String((await service.requestActivation(ORG, project.id, "dev@example.test", "launch")).id);
+    await expect(service.requestActivation(ORG, project.id, "dev@example.test", "again")).rejects.toMatchObject({ code: "ACTIVATION_ALREADY_REQUESTED" });
+
+    await service.decideActivation(ORG, project.id, first, { approve: false, by: "owner@example.test", reason: "not yet" });
+    await expect(service.requestActivation(ORG, project.id, "dev@example.test", "fixed")).resolves.toMatchObject({ status: "pending" });
+  });
+});
+
+describe("environment suspension by APICenter operators", () => {
+  async function activeTest() {
+    const project = await admin.createProject(ORG, { slug: "ops", name: "Ops" }, actor);
+    const scope = { organizationId: ORG, projectId: project.id, environmentKind: "test" as const };
+    const app = await admin.createApplication(scope, { slug: "api", name: "API" }, actor);
+    return { project, scope, app };
+  }
+
+  it("keeps an operator's suspension until an operator resumes it", async () => {
+    const { project } = await activeTest();
+    await live.setStatus(ORG, project.id, "test", "suspended", "platform", { platform: true });
+    await expect(live.setStatus(ORG, project.id, "test", "active", "admin@example.test")).rejects.toMatchObject({ status: 403, code: "SUSPENDED_BY_PLATFORM" });
+    await expect(live.setStatus(ORG, project.id, "test", "active", "platform", { platform: true })).resolves.toMatchObject({
+      status: "active",
+      suspendedByPlatform: false,
+    });
+
+    // A project's own suspension stays the project's to undo.
+    await live.setStatus(ORG, project.id, "test", "suspended", "admin@example.test");
+    await expect(live.setStatus(ORG, project.id, "test", "active", "admin@example.test")).resolves.toMatchObject({ status: "active" });
+  });
+
+  it("issues no keys in a suspended test environment", async () => {
+    const { project, scope, app } = await activeTest();
+    await live.setStatus(ORG, project.id, "test", "suspended", "admin@example.test");
+    await expect(admin.issueCredential(scope, app.id, { operationId: randomUUID() }, actor)).rejects.toMatchObject({ code: "ENVIRONMENT_SUSPENDED" });
+  });
 });
 
 describe("capability configuration", () => {
