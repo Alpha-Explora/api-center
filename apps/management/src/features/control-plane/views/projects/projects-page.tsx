@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FolderPlusIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { projectHref, matchesQuery } from "@/lib/app-navigation";
 import { SLUG_PATTERN, toSlug } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { cpKeys } from "../../view-models/query-keys";
+import { LoadMore, usePagedList } from "../../view-models/paged-list";
 import { useAccess, useOrganization } from "../../view-models/use-organization";
 
 export function ProjectsPage() {
@@ -30,13 +31,11 @@ export function ProjectsPage() {
   const searchParams = useSearchParams();
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");
-  const projects = useQuery({
-    queryKey: cpKeys.projects(organizationId ?? "none"),
-    queryFn: () => controlPlane.listProjects(organizationId as string),
+  const projects = usePagedList(cpKeys.projects(organizationId ?? "none"), (cursor) => controlPlane.projectsPage(organizationId as string, cursor), {
     enabled: Boolean(organizationId),
   });
   const choosing = platformAdmin && (!organizationId || searchParams.get("organization") === "choose");
-  const visible = (projects.data ?? []).filter((project) => matchesQuery(filter, project.name, project.slug, project.id));
+  const visible = (projects.items ?? []).filter((project) => matchesQuery(filter, project.name, project.slug, project.id));
 
   return (
     <>
@@ -72,7 +71,7 @@ export function ProjectsPage() {
               onChange={(event) => setFilter(event.target.value)}
             />
           </div>
-          {projects.isLoading ? (
+          {projects.isPending ? (
             <div className="flex flex-col gap-2 p-3">
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
@@ -127,6 +126,7 @@ export function ProjectsPage() {
               </TableBody>
             </Table>
           )}
+          <LoadMore list={projects} />
         </Panel>
       ) : null}
 

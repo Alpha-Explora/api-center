@@ -17,14 +17,16 @@ import {
   type EnvironmentKind,
 } from "../model/control-plane";
 
-import { app, call, env, org, send } from "./http";
+import { app, callPage, call, env, org, send } from "./http";
 
 export const controlPlane = {
   me: (organizationId: string) => call(meSchema, `${org(organizationId)}/me`),
   capabilities: () => call(z.array(capabilitySchema), "capabilities"),
   plans: () => call(z.array(planSchema), "plans"),
 
-  listProjects: (organizationId: string) => call(z.array(projectSummarySchema), `${org(organizationId)}/projects`),
+  /** The first 200 projects, for pickers and navigation. The Projects page pages through all of them. */
+  listProjects: (organizationId: string) => call(z.array(projectSummarySchema), `${org(organizationId)}/projects?limit=200`),
+  projectsPage: (organizationId: string, cursor?: string) => callPage(projectSummarySchema, `${org(organizationId)}/projects?limit=100`, cursor),
   createProject: (organizationId: string, input: { slug: string; name: string }) =>
     call(projectSchema, `${org(organizationId)}/projects`, send("POST", input)),
   project: (organizationId: string, projectId: string) => call(projectSchema, `${org(organizationId)}/projects/${encodeURIComponent(projectId)}`),
@@ -44,8 +46,8 @@ export const controlPlane = {
   revokeGrant: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string, grantId: string) =>
     call(grantSchema, `${app(organizationId, projectId, kind, applicationId)}/grants/${encodeURIComponent(grantId)}/revoke`, send("POST", {})),
 
-  credentials: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string) =>
-    call(z.array(credentialSchema), `${app(organizationId, projectId, kind, applicationId)}/credentials`),
+  credentials: (organizationId: string, projectId: string, kind: EnvironmentKind, applicationId: string, cursor?: string) =>
+    callPage(credentialSchema, `${app(organizationId, projectId, kind, applicationId)}/credentials?limit=100`, cursor),
   /** The operation ID makes a retried click safe: the gateway never issues twice for it. */
   issueCredential: (
     organizationId: string,
@@ -80,7 +82,9 @@ export const controlPlane = {
   activateLive: (organizationId: string, projectId: string, approvalRequestId: string) =>
     call(z.unknown(), `${org(organizationId)}/projects/${encodeURIComponent(projectId)}/environments/live/activate`, send("POST", { approvalRequestId })),
 
-  members: (organizationId: string) => call(z.array(memberSchema), `${org(organizationId)}/members`),
+  /** The first 200 members, for pickers. The People page pages through all of them. */
+  members: (organizationId: string) => call(z.array(memberSchema), `${org(organizationId)}/members?limit=200`),
+  membersPage: (organizationId: string, cursor?: string) => callPage(memberSchema, `${org(organizationId)}/members?limit=100`, cursor),
   setMember: (organizationId: string, email: string, role: string) =>
     call(z.unknown(), `${org(organizationId)}/members/${encodeURIComponent(email)}`, send("PUT", { role })),
   removeMember: (organizationId: string, email: string) => call(z.unknown(), `${org(organizationId)}/members/${encodeURIComponent(email)}`, send("DELETE")),

@@ -10,6 +10,7 @@ import { AppError, ConflictError, ForbiddenError, NotFoundError } from "@shared/
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
 import { consoleAccessCacheFor } from "./console-access-cache";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { pageFrom, type PageQuery } from "./list-page";
 import { assertProjectsKeepAdministrator } from "./project-admin-guard";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -74,24 +75,31 @@ export class OrganizationPeopleService {
     }));
   }
 
-  async listMembers(organizationId: string) {
+  /** A page of members, by email. */
+  async listMembers(organizationId: string, page: PageQuery) {
     return this.tenant(organizationId, async (db) => {
-      const members = await db.organizationMember.findMany({ where: { organizationId }, orderBy: { email: "asc" } });
-      return members.map((member) => ({
+      const rows = await db.organizationMember.findMany({
+        where: { organizationId, ...(page.after ? { email: { gt: page.after[0] } } : {}) },
+        orderBy: { email: "asc" },
+        take: page.limit + 1,
+      });
+      const { items: members, nextCursor } = pageFrom(rows, page.limit, (member) => [member.email]);
+      const items = members.map((member) => ({
         email: member.email,
         role: normalizeOrganizationRole(member.role) ?? "viewer",
         status: member.status === "invited" && !inviteIsPending(member) ? "invite_expired" : member.status,
         inviteExpiresAt: member.inviteExpiresAt?.toISOString() ?? null,
         identityLinked: Boolean(member.subject),
       }));
+      return { items, nextCursor };
     });
   }
 
-  /** `mayManageOwners`: whether the actor may make, change or remove an owner. Defaults to yes for internal callers. */
   /**
    * Adds a member, or changes a member's role. A new member is invited: they can sign in until the
    * invite expires, and their first verified sign-in accepts it. `invite` is true for a new member,
-   * whose invite email should go out; resendInvite renews an unaccepted one.
+   * whose invite email should go out; resendInvite renews an unaccepted one. `mayManageOwners`: whether
+   * the actor may make, change or remove an owner (internal callers default to yes).
    */
   async setMember(organizationId: string, email: string, role: OrganizationRole, actor: string, options: { mayManageOwners: boolean } = { mayManageOwners: true }) {
     const { previous, invite } = await this.mutate(organizationId, async (db) => {

@@ -40,10 +40,11 @@ export class OrganizationAdminService {
   async list(): Promise<OrganizationSummary[]> {
     return withTenant(this.prisma, "platform", async (db) => {
       const organizations = await db.organization.findMany({ orderBy: { name: "asc" } });
-      const projects = await db.cpProject.findMany({ select: { organizationId: true } });
-      const members = await db.organizationMember.findMany({ select: { organizationId: true } });
-      const projectCounts = countBy(projects.map((row) => row.organizationId));
-      const memberCounts = countBy(members.map((row) => row.organizationId));
+      // Counted in the database: loading every project and member row only to count them grows with the platform.
+      const projects = await db.cpProject.groupBy({ by: ["organizationId"], _count: { _all: true } });
+      const members = await db.organizationMember.groupBy({ by: ["organizationId"], _count: { _all: true } });
+      const projectCounts = new Map(projects.map((row) => [row.organizationId, row._count._all]));
+      const memberCounts = new Map(members.map((row) => [row.organizationId, row._count._all]));
       return organizations
         .map((organization) => ({
           id: organization.id,
@@ -158,12 +159,6 @@ export class OrganizationAdminService {
 
 function view(organization: { id: string; slug: string; name: string; status: string; createdAt: Date }) {
   return { id: organization.id, slug: organization.slug, name: organization.name, status: organization.status, createdAt: organization.createdAt };
-}
-
-function countBy(values: string[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return counts;
 }
 
 async function requireOrganization(db: TenantDb, organizationId: string) {

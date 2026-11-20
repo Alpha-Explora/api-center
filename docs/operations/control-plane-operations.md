@@ -75,6 +75,8 @@ The email runtime adds `POST /admin/platform-messages` (protected by `EMAIL_ADMI
 
 Behavior operators should know:
 
+- `GET …/projects`, `GET …/members` and `GET …/applications/:id/credentials` return one page: `limit` (1–200, default 100) and `cursor` select it, and `meta.nextCursor` (null at the end) continues it. `data` is still the array of items, so a caller that ignores `meta` gets the first page. Projects come oldest first and include only those the caller has a role on, unless they are an organization owner or admin.
+
 - Suspending an organization refuses its application traffic (`ORGANIZATION_INACTIVE`) and new projects. Members can still sign in and change settings.
 - Invite outcomes are audited as `control_plane.member.invite_sent` or `control_plane.member.invite_not_sent` with a reason code. An invite to the same email and organization is sent at most once in 24 hours.
 - A new member is `invited` until their first verified sign-in, which accepts the invite and links their Google identity. An invite expires after 7 days; an expired invite grants nothing until it is renewed. Members who existed before migration `20261120001090` are `active`. Invited and suspended owners do not count as owners for the last-owner rule.

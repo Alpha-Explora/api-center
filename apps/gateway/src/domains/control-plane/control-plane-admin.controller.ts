@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AppError, ForbiddenError, ValidationError } from "@shared/errors";
 import { ControlPlaneAdminService, type EnvironmentScope } from "./control-plane-admin.service";
 import { ConsoleAccessService } from "./console-access.service";
+import { parsePageQuery } from "./list-page";
 import { OrganizationPeopleService } from "./organization-people.service";
 import { QuotaService } from "./quota.service";
 import { LiveEnvironmentService } from "./live-environment.service";
@@ -16,7 +17,7 @@ import { PublishedApiService } from "./published-api.service";
 import { WorkloadBindingService } from "./workload-binding.service";
 import { MemberInviteService } from "./member-invite.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
-import { canPerform, effectiveProjectRole, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
+import { canPerform, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 
 const slug = z.string().regex(/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/, "must be lowercase letters, digits and hyphens");
 const name = z.string().trim().min(1).max(128);
@@ -158,10 +159,12 @@ export class ControlPlaneAdminController {
   }
 
   @Get("organizations/:organizationId/members")
-  async listMembers(@Param("organizationId") organizationId: string, @Req() req: ConsoleRequest) {
+  async listMembers(@Param("organizationId") organizationId: string, @Query() query: unknown, @Req() req: ConsoleRequest) {
     const org = parse(schemas.organizationId, organizationId, "organizationId");
+    const page = parsePageQuery(query, 1);
     await this.access.require(actorOf(req), org, "organization.read");
-    return { success: true, data: await this.people.listMembers(org) };
+    const { items, nextCursor } = await this.people.listMembers(org, page);
+    return { success: true, data: items, meta: { nextCursor } };
   }
 
   @Put("organizations/:organizationId/members/:email")
@@ -285,13 +288,15 @@ export class ControlPlaneAdminController {
   }
 
   @Get("organizations/:organizationId/projects")
-  async listProjects(@Param("organizationId") organizationId: string, @Req() req: ConsoleRequest) {
+  async listProjects(@Param("organizationId") organizationId: string, @Query() query: unknown, @Req() req: ConsoleRequest) {
     const org = parse(schemas.organizationId, organizationId, "organizationId");
+    const page = parsePageQuery(query, 2);
     const actor = actorOf(req);
     const access = await this.access.require(actor, org, "organization.read");
-    const projects = await this.controlPlane.listProjects(org);
-    const visible = hasPlatformAccess(actor) ? projects : projects.filter((project) => effectiveProjectRole(access, project.id));
-    return { success: true, data: visible };
+    // Organization owners and admins, and the platform, see every project; others see those they have a role on.
+    const everyProject = hasPlatformAccess(actor) || access.organizationRole === "owner" || access.organizationRole === "admin";
+    const { items, nextCursor } = await this.controlPlane.listProjects(org, page, everyProject ? undefined : [...access.projectRoles.keys()]);
+    return { success: true, data: items, meta: { nextCursor } };
   }
 
   @Get("organizations/:organizationId/projects/:projectId")
@@ -688,9 +693,11 @@ export class ControlPlaneAdminController {
   }
 
   @Get(`${APP}/credentials`)
-  async listCredentials(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+  async listCredentials(@Param() params: Record<string, string>, @Query() query: unknown, @Req() req: ConsoleRequest) {
+    const page = parsePageQuery(query, 2);
     const { scope } = await this.authorizeEnvironment(params, req, "environment.read");
-    return { success: true, data: await this.controlPlane.listCredentials(scope, applicationIdFrom(params)) };
+    const { items, nextCursor } = await this.controlPlane.listCredentials(scope, applicationIdFrom(params), page);
+    return { success: true, data: items, meta: { nextCursor } };
   }
 
   @Post(`${APP}/credentials/:credentialId/revoke`)

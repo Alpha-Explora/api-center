@@ -24,6 +24,7 @@ import { ORGANIZATION_ADMIN_REASON, type Access, type OrganizationRole } from ".
 import type { Member, Team } from "../../model/control-plane";
 import type { MemberChange } from "../../model/organizations";
 import { cpKeys } from "../../view-models/query-keys";
+import { LoadMore, usePagedList } from "../../view-models/paged-list";
 import { useAccess, useOrganization } from "../../view-models/use-organization";
 import { InviteResult } from "./invite-result";
 
@@ -41,7 +42,9 @@ export function PeoplePage() {
   const { organizationId, session } = useOrganization();
   const { access } = useAccess(organizationId);
   const client = useQueryClient();
-  const members = useQuery({ queryKey: cpKeys.members(organizationId ?? "none"), queryFn: () => controlPlane.members(organizationId as string), enabled: Boolean(organizationId) });
+  const members = usePagedList(cpKeys.members(organizationId ?? "none"), (cursor) => controlPlane.membersPage(organizationId as string, cursor), {
+    enabled: Boolean(organizationId),
+  });
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
   const [suspending, setSuspending] = useState<Member | null>(null);
@@ -104,7 +107,7 @@ export function PeoplePage() {
       />
       {members.error ? <ErrorPanel title="Members could not be loaded" error={members.error} /> : null}
       <Panel title="Members" description="A member's Google identity is linked on first sign-in; a different identity for the same email is refused." flush>
-        {members.isLoading ? (
+        {members.isPending && organizationId ? (
           <div className="flex flex-col gap-2 p-3">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
@@ -120,7 +123,7 @@ export function PeoplePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(members.data ?? []).map((member) => {
+              {(members.items ?? []).map((member) => {
                 const editable = canEditMember(access, member);
                 const self = member.email.toLowerCase() === session?.email?.toLowerCase();
                 return (
@@ -178,6 +181,7 @@ export function PeoplePage() {
             </TableBody>
           </Table>
         )}
+        <LoadMore list={members} />
       </Panel>
 
       <TeamsPanel organizationId={organizationId} access={access} />

@@ -2,6 +2,7 @@
 
 ## 2026-11-20
 
+- Control plane operations describes paging on the project, member and key lists.
 - The Management access guide and control plane operations describe invite expiry, resending invites, suspending members and migration `20261120001090`.
 - The Management access guide and control plane operations describe suspending applications, archiving projects and deleting teams.
 - The history retention runbook adds the control-plane usage, quota-counter and key-issue tables with their windows, and runs the purge job in `australia-southeast1`.

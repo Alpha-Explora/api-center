@@ -97,8 +97,8 @@ describe("console access through the control plane API", () => {
     const project = await createProject(member("dev@example.test"));
     expect(prisma.cpProjectRoleAssignment.rows).toMatchObject([{ projectId: project.id, memberEmail: "dev@example.test", role: "admin" }]);
 
-    const mine = await controller.listProjects(ORG, req(member("dev@example.test")));
-    const theirs = await controller.listProjects(ORG, req(member("dev2@example.test")));
+    const mine = await controller.listProjects(ORG, {}, req(member("dev@example.test")));
+    const theirs = await controller.listProjects(ORG, {}, req(member("dev2@example.test")));
     expect(mine.data.map((p) => p.id)).toEqual([project.id]);
     expect(theirs.data).toEqual([]);
     await expect(controller.getProject({ organizationId: ORG, projectId: project.id }, req(member("dev2@example.test")))).rejects.toMatchObject({
@@ -111,7 +111,7 @@ describe("console access through the control plane API", () => {
   });
 
   it("hides an organization from people who are not its members", async () => {
-    await expect(controller.listProjects(OTHER_ORG, req(member("dev@example.test")))).rejects.toMatchObject({ status: 404 });
+    await expect(controller.listProjects(OTHER_ORG, {}, req(member("dev@example.test")))).rejects.toMatchObject({ status: 404 });
   });
 
   it("grants project access through teams, at the team's role", async () => {
