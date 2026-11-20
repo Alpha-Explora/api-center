@@ -262,9 +262,9 @@ function DestinationRow({
 }) {
   const { project, kind } = useProjectEnvironment();
   const endpoint = destinationEndpoint(destination);
-  const canRotate = destination.transport === "webhook" && destination.status !== "disabled" && destination.status !== "failed";
+  // Rotating and filtering both rewrite the webhook's delivery config, which a failed webhook may not have.
+  const canEditConfig = destination.transport === "webhook" && destination.status !== "disabled" && destination.status !== "failed";
   const canDisable = destination.status !== "disabled";
-  const canFilter = destination.transport === "webhook" && destination.status !== "disabled";
   const events = destination.transport === "webhook" ? eventTypesSummary(destination.eventTypes ?? [], catalogue) : "All event types";
 
   return (
@@ -305,14 +305,14 @@ function DestinationRow({
         {formatRelative(destination.createdAt)}
       </TableCell>
       <TableCell className="text-right">
-        {canWrite && (canRotate || canDisable || canFilter) ? (
+        {canWrite && (canEditConfig || canDisable) ? (
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={`Actions for ${application?.name ?? destination.id}`} />}>
               <MoreHorizontalIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              {canFilter ? <DropdownMenuItem onClick={onEditEvents}>Edit events</DropdownMenuItem> : null}
-              {canRotate ? <DropdownMenuItem onClick={onRotate}>Rotate secret</DropdownMenuItem> : null}
+              {canEditConfig ? <DropdownMenuItem onClick={onEditEvents}>Edit events</DropdownMenuItem> : null}
+              {canEditConfig ? <DropdownMenuItem onClick={onRotate}>Rotate secret</DropdownMenuItem> : null}
               {canDisable ? (
                 <DropdownMenuItem variant="destructive" onClick={onDisable}>
                   Disable
