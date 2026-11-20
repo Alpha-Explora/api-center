@@ -1,6 +1,9 @@
 // What happened to a signed webhook's deliveries, and a way to trigger one on demand. History comes
 // from the webhooks runtime; a test event goes through the same Pub/Sub topic and filtered
 // subscription as real payment events, so the consumer receives a correctly signed request.
+//
+// Test events are limited to one per destination every TEST_EVENT_COOLDOWN_MS on each gateway
+// instance, so a held-down button cannot flood a consumer's endpoint or the topic.
 
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
@@ -11,14 +14,25 @@ import type { EnvironmentScope } from "../control-plane-admin.service";
 import { WEBHOOK_DELIVERY_HISTORY, type WebhookDeliveryHistory } from "./webhook-delivery-history";
 import { buildTestEvent, TEST_EVENT_TYPE, WEBHOOK_TEST_EVENT_PUBLISHER, type TestEventPublisher } from "./webhook-test-event";
 
+export const TEST_EVENT_COOLDOWN_MS = 10_000;
+
 @Injectable()
 export class WebhookDeliveriesService {
+  /** destinationId -> when its last test event was accepted on this instance. */
+  private readonly lastTestEvent = new Map<string, number>();
+  private now: () => number = Date.now;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditEventsService,
     @Inject(WEBHOOK_DELIVERY_HISTORY) private readonly history: WebhookDeliveryHistory,
     @Inject(WEBHOOK_TEST_EVENT_PUBLISHER) private readonly publisher: TestEventPublisher,
   ) {}
+
+  /** Test seam for the cooldown clock. */
+  useClock(now: () => number) {
+    this.now = now;
+  }
 
   /** The destination's most recent delivery attempts, newest first. */
   async list(scope: EnvironmentScope, destinationId: string, limit: number) {
@@ -32,6 +46,7 @@ export class WebhookDeliveriesService {
     if (destination.status !== "active") {
       throw new AppError(`This destination is ${destination.status}; only an active webhook can receive a test event`, 409, "DESTINATION_NOT_ACTIVE");
     }
+    this.claimTestEvent(destinationId);
     const sentAt = new Date();
     const message = buildTestEvent(
       {
@@ -47,6 +62,8 @@ export class WebhookDeliveriesService {
     try {
       messageId = await this.publisher.publish(scope.environmentKind, message);
     } catch (error) {
+      // Nothing was sent, so the caller may try again straight away.
+      this.lastTestEvent.delete(destinationId);
       if (error instanceof AppError) throw error;
       throw new BadGatewayError(`The test event could not be published: ${(error as Error).message}`.slice(0, 300));
     }
@@ -54,6 +71,8 @@ export class WebhookDeliveriesService {
       type: "control_plane.event_destination.test_event_sent",
       actionFamily: "runtime",
       actor,
+      organizationId: scope.organizationId,
+      projectId: scope.projectId,
       resourceType: "cp_event_destination",
       resourceId: destinationId,
       environment: scope.environmentKind,
@@ -62,6 +81,17 @@ export class WebhookDeliveriesService {
       payload: { eventId: message.event.eventId, messageId, recipientApplicationId: destination.recipientApplicationId },
     });
     return { destinationId, eventId: message.event.eventId, eventType: TEST_EVENT_TYPE, messageId, sentAt: sentAt.toISOString() };
+  }
+
+  private claimTestEvent(destinationId: string) {
+    const now = this.now();
+    for (const [id, at] of this.lastTestEvent) if (now - at >= TEST_EVENT_COOLDOWN_MS) this.lastTestEvent.delete(id);
+    const last = this.lastTestEvent.get(destinationId);
+    if (last !== undefined) {
+      const seconds = Math.ceil((TEST_EVENT_COOLDOWN_MS - (now - last)) / 1000);
+      throw new AppError(`A test event was just sent to this webhook; try again in ${seconds}s`, 429, "TEST_EVENT_COOLDOWN");
+    }
+    this.lastTestEvent.set(destinationId, now);
   }
 
   /** A webhook destination in this exact environment, with the resource owner its events carry. */

@@ -79,7 +79,36 @@ describe("webhook test events", () => {
       aggregateId: webhook.id,
       data: expect.objectContaining({ test: true }),
     });
-    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ type: "control_plane.event_destination.test_event_sent", resourceId: webhook.id }));
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "control_plane.event_destination.test_event_sent", resourceId: webhook.id, organizationId: ORG, projectId: scope.projectId }),
+    );
+  });
+
+  it("sends at most one test event per destination every 10 seconds", async () => {
+    const { scope, webhook } = await setup();
+    let clock = Date.parse("2026-11-20T10:00:00Z");
+    deliveries.useClock(() => clock);
+    await deliveries.sendTestEvent(scope, webhook.id, actor);
+    clock += 4_000;
+    await expect(deliveries.sendTestEvent(scope, webhook.id, actor)).rejects.toMatchObject({ status: 429, code: "TEST_EVENT_COOLDOWN" });
+    expect(published).toHaveLength(1);
+    // Another destination is not held up.
+    const other = await setup("other");
+    await deliveries.sendTestEvent(other.scope, other.webhook.id, actor);
+    clock += 6_000;
+    await deliveries.sendTestEvent(scope, webhook.id, actor);
+    expect(published).toHaveLength(3);
+  });
+
+  it("lets the caller retry at once when publishing failed", async () => {
+    const { scope, webhook } = await setup();
+    let fail = true;
+    const flaky = new WebhookDeliveriesService(prisma as unknown as PrismaService, audit as unknown as AuditEventsService, history, {
+      publish: async () => (fail ? Promise.reject(new Error("UNAVAILABLE")) : "msg-2"),
+    });
+    await expect(flaky.sendTestEvent(scope, webhook.id, actor)).rejects.toMatchObject({ status: 502 });
+    fail = false;
+    await expect(flaky.sendTestEvent(scope, webhook.id, actor)).resolves.toMatchObject({ messageId: "msg-2" });
   });
 
   it("carries the legacy resource owner, as real payment events of a migrated project do", async () => {
