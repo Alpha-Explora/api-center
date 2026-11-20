@@ -14,15 +14,15 @@ export async function localApiRequest<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  // The token this request is sent with. The current one may change before the response arrives.
+  const sentToken = managementSessionToken;
   let response: Response;
   try {
     response = await fetch(resolveFetchUrl(path), {
       ...init,
       headers: {
         "content-type": "application/json",
-        ...(managementSessionToken
-          ? { authorization: `Bearer ${managementSessionToken}` }
-          : {}),
+        ...(sentToken ? { authorization: `Bearer ${sentToken}` } : {}),
         ...(init?.headers ?? {}),
       },
       cache: "no-store",
@@ -34,7 +34,9 @@ export async function localApiRequest<T>(
 
   if (!response.ok) {
     const body = await response.text();
-    if (response.status === 401 && managementSessionToken && path.startsWith("/api/")) onSessionRejected?.();
+    // Only a rejection of the token still in use ends the session. A request sent before sign-in
+    // finished, or with a token since replaced, says nothing about the current one.
+    if (response.status === 401 && sentToken && sentToken === managementSessionToken && path.startsWith("/api/")) onSessionRejected?.();
     throw new ApiError(formatRequestError(response.status, body), response.status, errorCode(body), retryAfter(response));
   }
 
