@@ -15,6 +15,7 @@ import { ControlPlaneAdminController } from "../../../../apps/gateway/src/domain
 import { ObservabilityService } from "../../../../apps/gateway/src/domains/control-plane/observability/observability.service";
 import type { ConsoleRequest } from "../../../../apps/gateway/src/domains/control-plane/console-actor.guard";
 import type { ConsoleActor } from "../../../../apps/gateway/src/domains/control-plane/console-access.policy";
+import { consoleAccessCacheFor } from "../../../../apps/gateway/src/domains/control-plane/console-access-cache";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
 
 const ORG = "6f1c1d1e-0000-4000-8000-000000000501";
@@ -134,6 +135,8 @@ describe("quota policy edit and delete", () => {
     await prisma.cpProjectRoleAssignment.create({
       data: { id: "pra_dev_admin", organizationId: ORG, projectId: project.id, memberEmail: "dev@example.test", teamId: null, role: "admin" },
     });
+    // Written straight to the database, as another gateway instance would: it applies once cached access expires.
+    consoleAccessCacheFor(prisma).invalidateOrganization(ORG);
     await expect(controller().update(params(policy.id), { maxRequests: 1 }, req(member("dev@example.test")))).resolves.toBeDefined();
     await expect(controller().update(params(shared.id), { maxRequests: 1 }, req(member("dev@example.test")))).rejects.toMatchObject({ status: 403 });
     await expect(controller().update(params(shared.id), { maxRequests: 1 }, req(member("owner@example.test")))).resolves.toBeDefined();

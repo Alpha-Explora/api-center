@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
 import { AuditEventsService } from "@audit/audit-events.service";
 import { ConflictError, NotFoundError, ValidationError } from "@shared/errors";
-import { withTenant } from "./tenant-transaction";
+import { withTenant, type TenantDb } from "./tenant-transaction";
 import { GOOGLE_ISSUER, workloadAudiences } from "./workload-identity";
 import type { EnvironmentScope } from "./control-plane-admin.service";
 
@@ -39,11 +39,8 @@ export class WorkloadBindingService {
       throw new ValidationError("audience must be one of the gateway's workload audiences (CONTROL_PLANE_WORKLOAD_AUDIENCES)");
     }
     const binding = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
-      const environment = await db.cpEnvironment.findFirst({
-        where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
-      });
-      if (!environment) throw new NotFoundError(`Project '${scope.projectId}' has no ${scope.environmentKind} environment`);
-      const application = await db.cpApplication.findFirst({ where: { id: applicationId, organizationId: scope.organizationId, environmentId: environment.id } });
+      const environmentId = await this.environmentId(db, scope);
+      const application = await db.cpApplication.findFirst({ where: { id: applicationId, organizationId: scope.organizationId, environmentId } });
       if (!application) throw new NotFoundError(`Application '${applicationId}' was not found in this environment`);
       try {
         return await db.cpWorkloadBinding.create({
@@ -51,7 +48,7 @@ export class WorkloadBindingService {
             id: bindingId(),
             organizationId: scope.organizationId,
             projectId: scope.projectId,
-            environmentId: environment.id,
+            environmentId,
             applicationId,
             issuer: GOOGLE_ISSUER,
             subject: input.subject,
@@ -72,20 +69,37 @@ export class WorkloadBindingService {
   }
 
   async list(scope: EnvironmentScope, applicationId: string) {
-    return withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
-      db.cpWorkloadBinding.findMany({ where: { organizationId: scope.organizationId, projectId: scope.projectId, applicationId }, orderBy: { createdAt: "asc" } }),
-    );
+    return withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
+      const environmentId = await this.environmentId(db, scope);
+      return db.cpWorkloadBinding.findMany({
+        where: { organizationId: scope.organizationId, projectId: scope.projectId, environmentId, applicationId },
+        orderBy: { createdAt: "asc" },
+      });
+    });
   }
 
+  /** Only a binding in the project and environment the caller was authorized for can be revoked. */
   async revoke(scope: EnvironmentScope, applicationId: string, id: string, actor: string) {
     const binding = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
-      const found = await db.cpWorkloadBinding.findFirst({ where: { id, organizationId: scope.organizationId, applicationId } });
+      const environmentId = await this.environmentId(db, scope);
+      const found = await db.cpWorkloadBinding.findFirst({
+        where: { id, organizationId: scope.organizationId, projectId: scope.projectId, environmentId, applicationId },
+      });
       if (!found) throw new NotFoundError(`Workload binding '${id}' was not found`);
       if (found.status === "revoked") return found;
       return db.cpWorkloadBinding.update({ where: { id }, data: { status: "revoked", revokedAt: new Date(), revokedBy: actor } });
     });
     await this.recordAudit(scope, "control_plane.workload.revoked", actor, id, { applicationId });
     return binding;
+  }
+
+  private async environmentId(db: TenantDb, scope: EnvironmentScope): Promise<string> {
+    const environment = await db.cpEnvironment.findFirst({
+      where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
+      select: { id: true },
+    });
+    if (!environment) throw new NotFoundError(`Project '${scope.projectId}' has no ${scope.environmentKind} environment`);
+    return environment.id;
   }
 
   private async recordAudit(scope: EnvironmentScope, type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {

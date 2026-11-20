@@ -41,6 +41,20 @@ export type MembershipLookupFn = (email: string) => Promise<MembershipLookup>;
 export const NO_ORGANIZATION_ACCESS_MESSAGE =
   "This Google account does not have APICenter access. Ask an organization admin to add your email, then sign in again.";
 
+/** The membership lookup failed, so access is unknown rather than denied. Worth retrying. */
+export class AccessCheckUnavailableError extends Error {
+  readonly code = "ACCESS_CHECK_UNAVAILABLE";
+
+  constructor(
+    email: string,
+    /** Why the lookup failed, for server logs; not shown to people. */
+    readonly reason: string,
+  ) {
+    super(`Could not confirm APICenter access for ${email}. APICenter may be starting up or busy; try again in a few seconds.`);
+    this.name = "AccessCheckUnavailableError";
+  }
+}
+
 const ROLE_RANK: Record<ManagementRole, number> = {
   observer: 1,
   operator: 2,
@@ -154,9 +168,7 @@ export async function resolveManagementSessionFromGoogleClaims(
     lookup = await lookupMemberships(email);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "unknown error";
-    throw new Error(
-      `Could not confirm APICenter access for ${email}: ${reason}. Sign-in was not completed; try again shortly.`,
-    );
+    throw new AccessCheckUnavailableError(email, reason);
   }
 
   return sessionFromMembershipLookup(

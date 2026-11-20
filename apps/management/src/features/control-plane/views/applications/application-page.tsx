@@ -43,7 +43,6 @@ function ApplicationDetail({ applicationId }: { applicationId: string }) {
   const applications = useQuery({
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
   });
   const tab = TABS.some((entry) => entry.id === searchParams.get("tab")) ? (searchParams.get("tab") as string) : TABS[0].id;
 

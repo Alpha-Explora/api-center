@@ -6,8 +6,9 @@ import { randomBytes } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
 import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service";
 import { ConfigService } from "@config/config.service";
-import { AppError, ConflictError, NotFoundError } from "@shared/errors";
+import { AppError, ConflictError, ForbiddenError, NotFoundError } from "@shared/errors";
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
+import { consoleAccessCacheFor } from "./console-access-cache";
 import { withTenant, type TenantDb } from "./tenant-transaction";
 import { assertProjectsKeepAdministrator } from "./project-admin-guard";
 
@@ -84,15 +85,12 @@ export class OrganizationPeopleService {
     });
   }
 
-  /** The current role, normalized; undefined when the email is not a member. */
-  async memberRole(organizationId: string, email: string): Promise<OrganizationRole | undefined> {
-    return this.tenant(organizationId, (db) => roleOf(db, organizationId, email));
-  }
-
-  async setMember(organizationId: string, email: string, role: OrganizationRole, actor: string) {
-    const previous = await this.tenant(organizationId, async (db) => {
+  /** `mayManageOwners`: whether the actor may make, change or remove an owner. Defaults to yes for internal callers. */
+  async setMember(organizationId: string, email: string, role: OrganizationRole, actor: string, options: { mayManageOwners: boolean } = { mayManageOwners: true }) {
+    const previous = await this.mutate(organizationId, async (db) => {
       await requireOrganization(db, organizationId);
       const current = await roleOf(db, organizationId, email);
+      if ((role === "owner" || current === "owner") && !options.mayManageOwners) throw new ForbiddenError(OWNERS_ONLY);
       if (current === "owner" && role !== "owner") await assertNotLastOwner(db, organizationId);
       await db.organizationMember.upsert({
         where: { organization_members_pkey: { organizationId, email } },
@@ -105,10 +103,11 @@ export class OrganizationPeopleService {
     return { email, role, previousRole: previous ?? null };
   }
 
-  async removeMember(organizationId: string, email: string, actor: string) {
-    const previous = await this.tenant(organizationId, async (db) => {
+  async removeMember(organizationId: string, email: string, actor: string, options: { mayManageOwners: boolean } = { mayManageOwners: true }) {
+    const previous = await this.mutate(organizationId, async (db) => {
       const current = await roleOf(db, organizationId, email);
       if (!current) throw new NotFoundError(`'${email}' is not a member`);
+      if (current === "owner" && !options.mayManageOwners) throw new ForbiddenError(OWNERS_ONLY);
       if (current === "owner") await assertNotLastOwner(db, organizationId);
       await assertProjectsKeepAdministrator(db, organizationId, { kind: "member", email });
       await db.organizationMember.delete({ where: { organization_members_pkey: { organizationId, email } } });
@@ -143,7 +142,7 @@ export class OrganizationPeopleService {
   }
 
   async addTeamMember(organizationId: string, teamId: string, email: string, actor: string) {
-    await this.tenant(organizationId, async (db) => {
+    await this.mutate(organizationId, async (db) => {
       await requireTeam(db, organizationId, teamId);
       if (!(await roleOf(db, organizationId, email))) {
         throw new AppError(`'${email}' must be an organization member before joining a team`, 409, "NOT_A_MEMBER");
@@ -159,7 +158,7 @@ export class OrganizationPeopleService {
   }
 
   async removeTeamMember(organizationId: string, teamId: string, email: string, actor: string) {
-    await this.tenant(organizationId, async (db) => {
+    await this.mutate(organizationId, async (db) => {
       await requireTeam(db, organizationId, teamId);
       await assertProjectsKeepAdministrator(db, organizationId, { kind: "teamMember", teamId, email });
       await db.cpTeamMember.deleteMany({ where: { organizationId, teamId, email } });
@@ -184,7 +183,7 @@ export class OrganizationPeopleService {
     role: ProjectRole,
     actor: string,
   ) {
-    const assignment = await this.tenant(organizationId, async (db) => {
+    const assignment = await this.mutate(organizationId, async (db) => {
       await requireProject(db, organizationId, projectId);
       if ("memberEmail" in assignee) {
         if (!(await roleOf(db, organizationId, assignee.memberEmail))) {
@@ -207,7 +206,7 @@ export class OrganizationPeopleService {
   }
 
   async removeProjectRole(organizationId: string, projectId: string, assignmentId: string, actor: string) {
-    await this.tenant(organizationId, async (db) => {
+    await this.mutate(organizationId, async (db) => {
       const existing = await db.cpProjectRoleAssignment.findFirst({ where: { id: assignmentId, organizationId, projectId } });
       if (!existing) throw new NotFoundError(`Role assignment '${assignmentId}' was not found`);
       if (existing.role === "admin") await assertProjectsKeepAdministrator(db, organizationId, { kind: "assignment", assignmentId });
@@ -218,18 +217,27 @@ export class OrganizationPeopleService {
   }
 
   /** Makes the creator of a project its administrator. */
-  async grantCreatorProjectAdmin(organizationId: string, projectId: string, email: string) {
-    await this.tenant(organizationId, (db) =>
-      db.cpProjectRoleAssignment.create({
-        data: { id: prefixedId("pra"), organizationId, projectId, memberEmail: email, role: "admin", createdBy: email },
-      }),
-    );
-  }
-
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  private tenant<T>(organizationId: string, work: (db: TenantDb) => Promise<T>): Promise<T> {
-    return withTenant(this.prisma, { organizationId }, work);
+  /**
+   * A change to members, teams or project roles. Changes in one organization run one at a time:
+   * "is this the last owner?" and "does every project keep an administrator?" read other rows, and
+   * two concurrent demotions could otherwise both pass and leave none.
+   */
+  private mutate<T>(organizationId: string, work: (db: TenantDb) => Promise<T>): Promise<T> {
+    return this.tenant(organizationId, async (db) => {
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cp_people:${organizationId}`}, 0))`;
+      return work(db);
+    });
+  }
+
+  /** Every people change can change someone's console access, so cached access is dropped after each. */
+  private async tenant<T>(organizationId: string, work: (db: TenantDb) => Promise<T>): Promise<T> {
+    try {
+      return await withTenant(this.prisma, { organizationId }, work);
+    } finally {
+      consoleAccessCacheFor(this.prisma).invalidateOrganization(organizationId);
+    }
   }
 
   private async uniqueOrConflict<T>(message: string, work: () => Promise<T>): Promise<T> {
@@ -256,6 +264,8 @@ export class OrganizationPeopleService {
     });
   }
 }
+
+const OWNERS_ONLY = "Your role does not allow organization owners.manage";
 
 async function roleOf(db: TenantDb, organizationId: string, email: string): Promise<OrganizationRole | undefined> {
   const member = await db.organizationMember.findUnique({ where: { organization_members_pkey: { organizationId, email } } });

@@ -23,12 +23,10 @@ export function GettingStartedPanel() {
   const applications = useQuery({
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
   });
   const usage = useQuery({
     queryKey: cpKeys.usage(organizationId, project.id, kind),
     queryFn: () => controlPlane.usage(organizationId, project.id, kind),
-    retry: false,
   });
   const grants = useEnvironmentGrants(target);
   const credentials = useEnvironmentCredentials(target);

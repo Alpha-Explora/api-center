@@ -17,6 +17,9 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Public guides "Errors and retries" (the error response, which failures to retry, and the common codes) and "Versions and changes" (what v1 may add at any time, and how breaking changes ship).
+- SDK 3.2.0: `error.retryable` says whether the same request may succeed if sent again. The SDK's own retries use the same rule.
+- The OpenAPI documents 401, 403, 429 (with `Retry-After`), 500, 502 and 503 (with `Retry-After`) on every payments operation.
 - SDK 3.1.0 and contracts 1.1.0 carry the payment additions below: wallet intents, checkout `paymentMethods`, app return links and the `payment.intent.paid` / `payment.intent.failed` event types.
 - Open GCash or Maya directly: `POST /api/v1/payments/intents` (`payments.intents.create`) with `paymentMethod` (`gcash` or `paymaya`) and `returnUrl` creates the intent, the wallet payment method and the attachment in one call and returns `nextAction.redirectUrl`, which goes straight to the wallet. An optional `billing` carries the customer's name, email and phone.
 - Checkouts accept `paymentMethods` to limit the checkout page, for example to `["gcash"]`.
@@ -40,6 +43,27 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Console: a failure that may clear by itself (the gateway busy or starting, a timeout, rate limiting, the network) is retried up to three times with backoff, honouring `Retry-After`; answers such as 403 or 404 are not retried. Error panels for those failures say so in plain words and offer Try again, which refetches every failed query on the page; the gateway's error code moves under Details. HTML error pages from a proxy no longer appear in messages.
+- Console sign-in: the access check waits up to 15 seconds and asks once more before giving up, shows "Checking your access…" meanwhile, and on failure offers Try again without a new Google sign-in. A failed check answers 503 instead of 401, so open pages retry instead of saying you are signed out; an account without access answers 403.
+- Console: an expired Google sign-in (about an hour) signs you out with "Your session ended" instead of failing every panel, and an expired stored sign-in is not reused after a reload. Signing out or signing in as someone else clears everything the previous person loaded.
+- Console go-live: approving, rejecting or requesting activation shows the result at once, even if the refresh after it fails. Deciding a request someone already decided refreshes it instead of showing an error. "Request activation" appears only once existing requests have loaded, and when readiness cannot be checked the buttons say so instead of "Every readiness check must pass first".
+- API access requests: an approval and a rejection made at the same moment can no longer both land, which could leave a rejected request with an active grant.
+- People: changes to members, teams and project roles in one organization run one at a time, so two owners demoting each other at once can no longer leave the organization without an owner. Whether a change touches an owner is decided from the role at the moment of the change.
+- Projects: a member who creates a project becomes its admin in the same transaction, so a failure can no longer leave a project its creator cannot see.
+- Live activation: a request is accepted only when readiness passes and no request is open; a request is decided by ID, so older requests can still be decided; an approval expires after seven days; listing requests no longer recomputes readiness.
+- Environments: an environment an APICenter operator suspended can only be resumed by an operator, and a suspended test environment issues no keys (migration `20261120001060`).
+- Gateway: errors raised by the framework itself carry `UPPER_SNAKE_CASE` codes like every other error (`NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`, `METHOD_NOT_ALLOWED`) instead of reason phrases such as `"Not Found"` or the generic `HTTP_ERROR`. The unused `RATE_LIMIT_EXCEEDED` code is now `RATE_LIMITED`, as the runtimes already use.
+- The idempotency guide no longer says the SDK never retries writes; it retries them with the same key.
+- Gateway: a busy or unreachable database answers `503 DATABASE_BUSY` or `503 DATABASE_UNAVAILABLE` with `Retry-After`, instead of `500 INTERNAL_ERROR`. A duplicate record answers 409 and a vanished one 404. Console transactions wait up to 8 seconds for a connection instead of 2, so a briefly full pool queues requests instead of failing them.
+- Gateway: console access checks are cached for 10 seconds per instance, and a project's organization until restart, so a console page checks roles once instead of once per request. Changes to members, teams and project roles drop the cache on the instance that made them; on other instances a removed role keeps working for at most 10 seconds.
+- Gateway: the 24-hour usage summary is counted in the database instead of loading every request record.
+- Gateway: live activation decisions and activation reject a malformed approval request ID with 400 instead of 500.
+- Quota: every request counts under a usage key the gateway generates. Before, the caller's `X-Correlation-ID` was the key, so repeating one value made every request after the first free. An `Idempotency-Key` now makes retries count once only for `POST` to email, SMS, OTP and payments, whose runtimes replay the stored response, and only within one UTC day.
+- Published APIs no longer receive the gateway's Cloud Run identity token. A tenant chooses the upstream, and a `*.run.app` upstream would have received a token APICenter's private runtimes accept.
+- Workload bindings are listed and revoked only through their own project and environment. Before, a developer on one project could revoke another project's binding by ID.
+- The gateway's audit log and HTTP metrics record the status the client received. Failed requests were recorded as 200, and a client that disconnects is now recorded as 499.
+- Console: the dialog that shows a new key or signing secret once no longer closes on Escape; only "I stored it" closes it.
+- Gateway (operations): one instance stays warm and each instance may open four database connections instead of two. Sign-in no longer times out on a cold gateway, and console pages no longer fail with `INTERNAL_ERROR` when the pool is exhausted.
 - Organization-level audit events (members, teams, API access decisions) are stored. They were written with environment `unknown`, which the table's check refused, so they stayed in memory only; they now use `none`.
 - Project-scoped console routes check that the project belongs to the organization in the path and answer 404 otherwise. Before, an organization owner or admin counted as admin of any project ID.
 - Removing a member, a team member or a project admin assignment is refused with `409 LAST_PROJECT_ADMIN` when it would leave a project with no administrator and the organization has no owner or admin left.

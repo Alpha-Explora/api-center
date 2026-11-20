@@ -122,6 +122,8 @@ Every failure is an `ApiCenterError` with `status`, `code` and `requestId` (quot
 | `ServerError` | 5xx, after retries |
 | `ConnectionError` | APICenter could not be reached (`NETWORK_ERROR`) or did not answer in time (`REQUEST_TIMEOUT`) |
 
+`error.retryable` says whether sending the same request again may succeed: true for connection failures, 408, 429 and 5xx, false for a used-up quota (`QUOTA_EXCEEDED`) and every other 4xx. The SDK already retries these itself, reusing the idempotency key on writes; check `retryable` when you decide whether to retry later, for example from a job queue.
+
 ## Services
 
 | Namespace | Methods |

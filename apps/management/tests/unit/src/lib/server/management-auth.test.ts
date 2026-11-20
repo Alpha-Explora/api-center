@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  AccessCheckUnavailableError,
   getManagementAuthConfig,
   resolveManagementSessionFromGoogleClaims,
   type MembershipLookup,
@@ -161,9 +162,12 @@ describe("resolveManagementSessionFromGoogleClaims", () => {
       throw new Error("API Center returned 503: unavailable");
     });
 
-    await expect(resolveManagementSessionFromGoogleClaims(claims, lookup)).rejects.toThrow(
-      "Could not confirm APICenter access for dana@acme.example: API Center returned 503: unavailable. Sign-in was not completed",
-    );
+    const failure = resolveManagementSessionFromGoogleClaims(claims, lookup);
+    await expect(failure).rejects.toBeInstanceOf(AccessCheckUnavailableError);
+    await expect(failure).rejects.toMatchObject({
+      message: "Could not confirm APICenter access for dana@acme.example. APICenter may be starting up or busy; try again in a few seconds.",
+      reason: "API Center returned 503: unavailable",
+    });
   });
 
   it("rejects unverified Google emails before looking anything up", async () => {

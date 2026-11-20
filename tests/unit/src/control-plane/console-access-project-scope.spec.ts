@@ -98,14 +98,17 @@ describe("ConsoleAccessService.require with a project", () => {
     });
   });
 
-  it("checks the project in the same tenant transaction as the roles, and skips the database for platform organization actions", async () => {
+  it("checks the project in the same tenant transaction as the roles, then answers repeat checks from the cache", async () => {
     await access.require(member("owner@example.test"), ORG, "project.read", { projectId: OWN_PROJECT });
     expect(prisma.tenantSettings).toEqual([ORG]);
 
     await access.require({ kind: "platform", id: "platform" }, ORG, "organization.read");
+    await access.require({ kind: "platform", id: "platform" }, ORG, "project.read", { projectId: OWN_PROJECT });
+    await access.require(member("owner@example.test"), ORG, "project.manage", { projectId: OWN_PROJECT });
     expect(prisma.tenantSettings).toEqual([ORG]);
 
-    await access.require({ kind: "platform", id: "platform" }, ORG, "project.read", { projectId: OWN_PROJECT });
+    // A project not yet seen in this organization is looked up again.
+    await expect(access.require({ kind: "platform", id: "platform" }, ORG, "project.read", { projectId: FOREIGN_PROJECT })).rejects.toMatchObject({ status: 404 });
     expect(prisma.tenantSettings).toEqual([ORG, ORG]);
   });
 });

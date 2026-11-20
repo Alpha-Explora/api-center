@@ -12,6 +12,7 @@ import { ConsoleActorGuard, type ConsoleRequest } from "../../../../apps/gateway
 import { canPerform, type ConsoleActor, type MemberAccess } from "../../../../apps/gateway/src/domains/control-plane/console-access.policy";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
 
+const APPROVAL_ID = "3f2b8c1e-7a4d-4e6f-9b0a-1c2d3e4f5a6b";
 const ORG = "6f1c1d1e-0000-4000-8000-0000000000c1";
 const OTHER_ORG = "6f1c1d1e-0000-4000-8000-0000000000c2";
 const platform: ConsoleActor = { kind: "platform", id: "platform" };
@@ -191,7 +192,7 @@ describe("console access through the control plane API", () => {
       {} as never,
       {} as never,
     );
-    const params = (decision: string) => ({ organizationId: ORG, projectId: project.id, approvalRequestId: "apr_1", decision });
+    const params = (decision: string) => ({ organizationId: ORG, projectId: project.id, approvalRequestId: APPROVAL_ID, decision });
 
     await expect(withLive.decideActivation(params("approve"), {}, req(platform))).rejects.toMatchObject({ code: "APPROVER_NOT_A_PERSON" });
     // The project is invisible to someone without a role on it.
@@ -201,7 +202,10 @@ describe("console access through the control plane API", () => {
     expect(decideActivation).not.toHaveBeenCalled();
 
     await withLive.decideActivation(params("approve"), {}, req(member("owner@example.test")));
-    expect(decideActivation).toHaveBeenCalledWith(ORG, project.id, "apr_1", { approve: true, by: "owner@example.test" });
+    expect(decideActivation).toHaveBeenCalledWith(ORG, project.id, APPROVAL_ID, { approve: true, by: "owner@example.test" });
+    await expect(
+      withLive.decideActivation({ ...params("approve"), approvalRequestId: "apr_1" }, {}, req(member("owner@example.test"))),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it("protects owners: admins cannot change them and the last owner cannot leave", async () => {
@@ -215,6 +219,17 @@ describe("console access through the control plane API", () => {
     await expect(controller.removeMember({ organizationId: ORG, email: "owner@example.test" }, req(member("owner@example.test")))).resolves.toMatchObject({
       success: true,
     });
+  });
+
+  it("never lets two owners demote each other at once and leave no owner", async () => {
+    await controller.setMember({ organizationId: ORG, email: "admin@example.test" }, { role: "owner" }, req(member("owner@example.test")));
+    const results = await Promise.allSettled([
+      controller.setMember({ organizationId: ORG, email: "admin@example.test" }, { role: "admin" }, req(member("owner@example.test"))),
+      controller.setMember({ organizationId: ORG, email: "owner@example.test" }, { role: "admin" }, req(member("admin@example.test"))),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((result) => result.status === "rejected")).toMatchObject({ reason: { code: "LAST_OWNER" } });
+    expect(prisma.organizationMember.rows.filter((row) => row.organizationId === ORG && row.role === "owner")).toHaveLength(1);
   });
 
   it("links the verified identity on first use and rejects a different identity for the same email afterwards", async () => {

@@ -65,7 +65,6 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
   const projects = useQuery({
     queryKey: cpKeys.projects(organizationId),
     queryFn: () => controlPlane.listProjects(organizationId),
-    retry: false,
   });
   const names = new Map((projects.data ?? []).map((project) => [project.id, project.name]));
   const projectOptions = (projects.data ?? []).filter((project) => organizationWide || access.canManageProject(project.id));

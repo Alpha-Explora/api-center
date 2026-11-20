@@ -45,7 +45,7 @@ Consumer Google Auth redirects belong to the consumer application. Register that
 
 Set `TRIBE_SECRET_GCP_PREFIX=api-center-service-secret-` on the gateway. The variable retains its historical name, but the value must match Management's per-service secret naming. An explicit Cloud Run value takes precedence over the older prefix in the gateway's bootstrap secret bundle. Each payload names its service and environment and stores credential hashes only.
 
-`DATABASE_POOL_MAX` controls the gateway's PostgreSQL connection pool per instance. It defaults to two and must be a positive integer. The checked-in gateway manifest explicitly uses two. Include old and new revisions, maximum instance counts, local processes and other database clients when budgeting Supabase session-pooler capacity. Raising Cloud Run's instance limit without that calculation can prevent a new revision from starting.
+`DATABASE_POOL_MAX` controls the gateway's PostgreSQL connection pool per instance. It defaults to two and must be a positive integer. The checked-in gateway manifest uses four and keeps one instance warm (`minScale` 1), because the database is in Supabase `ap-southeast-2` while Cloud Run is in `asia-southeast1`: each query crosses regions, and two connections could not serve one console page load. At three instances that is twelve connections. Include old and new revisions, maximum instance counts, local processes and other database clients when budgeting Supabase session-pooler capacity. Raising Cloud Run's instance limit without that calculation can prevent a new revision from starting.
 
 ## Configuration and rollout evidence
 

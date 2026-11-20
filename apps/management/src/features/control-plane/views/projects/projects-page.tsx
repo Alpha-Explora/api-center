@@ -34,7 +34,6 @@ export function ProjectsPage() {
     queryKey: cpKeys.projects(organizationId ?? "none"),
     queryFn: () => controlPlane.listProjects(organizationId as string),
     enabled: Boolean(organizationId),
-    retry: false,
   });
   const choosing = platformAdmin && (!organizationId || searchParams.get("organization") === "choose");
   const visible = (projects.data ?? []).filter((project) => matchesQuery(filter, project.name, project.slug, project.id));

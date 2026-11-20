@@ -1,6 +1,6 @@
 {
   "name": "@alpha-explora/apicenter-sdk",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Server-side TypeScript SDK for APICenter: one application key, typed errors, retries and signed webhooks.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

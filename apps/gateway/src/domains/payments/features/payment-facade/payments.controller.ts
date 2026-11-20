@@ -77,6 +77,7 @@ export class PaymentsController {
       bearer,
       capability: "payments",
       action: operation.scope,
+      method: req.method,
       requestId: authReq.correlationId || randomUUID(),
       ...(req.get("Idempotency-Key")?.trim() ? { idempotencyKey: req.get("Idempotency-Key")!.trim() } : {}),
     });

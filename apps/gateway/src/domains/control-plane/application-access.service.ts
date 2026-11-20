@@ -4,6 +4,7 @@
 // every request (no cache), so revocation and grant removal take effect immediately.
 
 import { Injectable, Optional } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
 import { AppError, UnauthorizedError } from "@shared/errors";
 import { credentialOrganization, withTenant, type TenantDb } from "./tenant-transaction";
@@ -26,7 +27,7 @@ export interface CapabilityRequest {
   /** Path relative to the capability root, e.g. `/send`. */
   relativePath: string;
   requestId: string;
-  /** The caller's Idempotency-Key, when sent. Retries of one operation are counted once. */
+  /** The caller's Idempotency-Key, when sent. See usageRequestKey for when retries count once. */
   idempotencyKey?: string;
 }
 
@@ -133,7 +134,7 @@ export class ApplicationAccessService {
   }
 
   async authorizeAction(
-    request: Omit<CapabilityRequest, "method" | "relativePath"> & { action: string },
+    request: Omit<CapabilityRequest, "method" | "relativePath"> & { action: string; method?: string },
     now = new Date(),
   ): Promise<AuthorizedCapabilityCall> {
     const action = isCatalogedAction(request.capability, request.action) ? request.action : undefined;
@@ -161,7 +162,7 @@ export class ApplicationAccessService {
     request: { requestId: string; idempotencyKey?: string },
     now = new Date(),
   ): Promise<AuthorizedCapabilityCall & { upstreamUrl?: string }> {
-    return this.authorizeTarget({ ...request, principal: { kind: "mapped", ...principal } }, toAccessTarget(target), now);
+    return this.authorizeTarget({ ...request, method: target.method, principal: { kind: "mapped", ...principal } }, toAccessTarget(target), now);
   }
 
   /**
@@ -181,7 +182,7 @@ export class ApplicationAccessService {
   }
 
   private async authorizeTarget(
-    request: ({ bearer: string } | { principal: Principal }) & { requestId: string; idempotencyKey?: string },
+    request: ({ bearer: string } | { principal: Principal }) & { requestId: string; idempotencyKey?: string; method?: string },
     target: Target,
     now: Date,
   ): Promise<AuthorizedCapabilityCall & { upstreamUrl?: string }> {
@@ -210,9 +211,14 @@ export class ApplicationAccessService {
       applicationId: application.id,
       credentialId: credential.id ?? loaded.label ?? `legacy:${application.id}`,
     };
-    const requestKey = request.idempotencyKey
-      ? `idem:${application.id}:${decision.action}:${request.idempotencyKey}`
-      : `req:${request.requestId}`;
+    const requestKey = usageRequestKey({
+      applicationId: application.id,
+      usageTarget,
+      action: decision.action,
+      method: request.method,
+      idempotencyKey: request.idempotencyKey,
+      now,
+    });
     await this.quota.reserve(identity, usageTarget, decision.action, requestKey, now);
 
     // Records stay scoped to the legacy owner of a migrated project until they are reconciled.
@@ -420,4 +426,32 @@ function denialMessage(code: string): string {
     default:
       return "The application's organization, project, environment or application is not active";
   }
+}
+
+/** Runtimes that store each Idempotency-Key's response for at least a day and replay it on POST. */
+const REPLAYING_CAPABILITIES = new Set(["email", "sms", "otp", "payments"]);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The usage record key that decides whether a request counts toward quota. Every request counts
+ * under a key the gateway generates, so caller-chosen headers such as X-Correlation-ID cannot
+ * make later requests free. Only a POST retry with the same Idempotency-Key to a runtime that
+ * replays the stored response counts once, and only within one UTC day: the runtimes keep
+ * responses for seven days, so a retry inside the day is never executed twice.
+ */
+export function usageRequestKey(input: {
+  applicationId: string;
+  usageTarget: string;
+  action: string;
+  method?: string;
+  idempotencyKey?: string;
+  now: Date;
+}): string {
+  const replayed =
+    input.idempotencyKey &&
+    input.method?.toUpperCase() === "POST" &&
+    REPLAYING_CAPABILITIES.has(input.usageTarget);
+  if (!replayed) return `req:${randomUUID()}`;
+  const day = Math.floor(input.now.getTime() / DAY_MS);
+  return `idem:${input.applicationId}:${input.action}:${day}:${input.idempotencyKey}`;
 }
