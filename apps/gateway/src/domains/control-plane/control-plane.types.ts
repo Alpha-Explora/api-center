@@ -27,6 +27,8 @@ export interface AuthorizedCapabilityCall {
   requestKey: string;
   /** The owner runtimes scope this request's records to. */
   resourceOwner: ResourceOwner;
+  /** A test send to an unregistered recipient: the runtime records it and delivers nothing. */
+  deliverySuppressed?: boolean;
 }
 
 /** Runtimes scope records by owner group and project. Usually (organization, project). */

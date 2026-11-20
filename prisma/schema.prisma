@@ -947,6 +947,20 @@ model CpMigrationRun {
   @@schema("apic_catalog")
 }
 
+/// A phone number or email address a project's test environment may really deliver to.
+model CpTestRecipient {
+  organizationId String   @map("organization_id") @db.Uuid
+  projectId      String   @map("project_id")
+  /// Normalised: E.164 without separators, or a lower-case email address.
+  recipient      String
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([projectId, recipient])
+  @@map("cp_test_recipients")
+  @@schema("apic_catalog")
+}
+
 /// Binds one exact OIDC workload identity (issuer, subject, audience) to one application.
 model CpWorkloadBinding {
   id             String    @id

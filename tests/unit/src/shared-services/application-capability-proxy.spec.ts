@@ -90,6 +90,7 @@ describe("ApplicationCapabilityProxy", () => {
       relativePath: "/send",
       requestId: "corr-1",
       idempotencyKey: "idem-key-0000000001",
+      recipients: ["a@example.test"],
     });
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe("http://email.internal:4012/send");
