@@ -87,8 +87,8 @@ test('the retired record tables are gone and the owned record and sender tables 
   );
   assert.deepEqual(result.rows.map((row) => row.name), [
     'shared_email.email_delivery_events', 'shared_email.email_messages', 'shared_email.idempotency_keys', 'shared_email.project_senders', 'shared_email.rate_limit_windows',
-    'shared_otp.idempotency_keys', 'shared_otp.otp_challenges', 'shared_otp.rate_limit_windows',
-    'shared_sms.idempotency_keys', 'shared_sms.rate_limit_windows', 'shared_sms.sms_delivery_events', 'shared_sms.sms_messages',
+    'shared_otp.idempotency_keys', 'shared_otp.otp_challenges', 'shared_otp.project_settings', 'shared_otp.rate_limit_windows',
+    'shared_sms.idempotency_keys', 'shared_sms.project_senders', 'shared_sms.rate_limit_windows', 'shared_sms.sms_delivery_events', 'shared_sms.sms_messages',
   ]);
 });
 
