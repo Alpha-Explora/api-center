@@ -1,97 +1,41 @@
-# Contributing to API Center
+# Contributing to APICenter
 
-Thank you for contributing! Please follow these guidelines to keep the codebase clean and consistent.
+[AGENTS.md](AGENTS.md) is the reference for the workspace layout, commands and conventions. This page covers the pull request workflow.
 
----
+## Set up
 
-## Getting Started
-
-1. Fork the repository and clone your fork
-2. Create a new branch from `main`:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Copy the environment file:
-   ```bash
-   cp .env.example .env
-   ```
-
----
-
-## Development Workflow
-
-1. Make your changes in the `src/` directory
-2. Run the linter to check for issues:
-   ```bash
-   npm run lint
-   ```
-3. Run tests:
-   ```bash
-   npm test
-   ```
-4. Build to verify TypeScript compiles:
-   ```bash
-   npm run build
-   ```
-
----
-
-## Branch Naming
-
-| Type | Format | Example |
-|---|---|---|
-| Feature | `feature/description` | `feature/add-weather-api` |
-| Bug fix | `fix/description` | `fix/kafka-reconnect` |
-| Refactor | `refactor/description` | `refactor/tribe-registry` |
-| Docs | `docs/description` | `docs/update-readme` |
-
----
-
-## Commit Messages
-
-Use clear, concise commit messages:
-
-```
-feat: add weather shared-service integration
-fix: handle Kafka disconnect gracefully
-docs: update README with new tribe setup steps
-refactor: extract auth middleware into separate module
+```bash
+npm install
+npm run db:generate
 ```
 
----
+`npm run typecheck` and `npm test` regenerate the Prisma client first, so a changed `prisma/schema.prisma` never leaves you with a stale client.
 
-## Pull Requests
+## Before you open a pull request
 
-- Keep PRs focused on a single change
-- Provide a clear description of what changed and why
-- Ensure all tests pass and the build succeeds
-- Request a review from at least one team member
+```bash
+npm run typecheck
+npm run lint
+npm test                                        # gateway and runtime unit tests (Jest)
+npm run test --workspace @apicenter/management  # console unit tests (Vitest)
+npm run check:boundaries && npm run check:monorepo
+```
 
----
+For documentation or public contract changes, also run the checks listed under "Documentation workflow" in AGENTS.md.
 
-## Code Style
+## Checks on pull requests
 
-- Follow the existing TypeScript conventions in the codebase
-- Use the ESLint configuration provided (`.eslintrc.json`)
-- Add JSDoc comments to exported functions and classes
-- Keep files focused — one module per file
+- **PR checks** (`.github/workflows/pr-checks.yml`) run typecheck, lint, boundaries and both unit suites on every pull request that changes code, in about five minutes.
+- **Documentation** (`.github/workflows/documentation.yml`) runs on pull requests to `main` that change docs or public contracts.
+- **Full CI** (`.github/workflows/ci.yml`, including the Docker build) is manual: `gh workflow run ci.yml --ref <branch>`. Run it before merging changes to Dockerfiles, runtimes or deployment.
 
----
+## Branches and commits
 
-## Adding Platform Integrations
+Branch from `main` as `feat/…`, `fix/…`, `refactor/…` or `docs/…`. Keep commit messages short and imperative (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`), one logical change per commit.
 
-New provider-backed functionality should be added as a shared service in
-`api-shared-services`, then exposed through `/api/v1/shared/:serviceId/*` and
-typed SDK wrappers. Do not add provider credentials to tribe repositories.
+## Pull requests
 
----
-
-## Questions?
-
-Open an issue or reach out to the team if you're unsure about anything.
-
-
+- Keep each pull request to one change, and say what changed and why.
+- Record user-visible changes in [CHANGELOG.md](CHANGELOG.md) under Unreleased.
+- Update the maintained documentation the change affects (see [docs/index.md](docs/index.md)).
+- A new provider-backed capability belongs in a runtime under `apps/`, exposed through `/api/v1/shared/:capability/*` and the SDK. Provider credentials never go to consumer applications.

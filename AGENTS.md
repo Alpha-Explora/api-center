@@ -8,7 +8,7 @@ APICenter is organized as a Turborepo monorepo featuring a central NestJS TypeSc
 
 - `apps/gateway`: Central NestJS API Gateway control plane
 - `apps/payments`: Payment data plane runtime
-- `apps/email`, `apps/sms`, `apps/geo`, `apps/gauth`, `apps/otp`: Shared service runtimes
+- `apps/email`, `apps/sms`, `apps/geo`, `apps/gauth`, `apps/otp`, `apps/webhooks`: Shared service runtimes (`apps/webhooks` signs and delivers webhook events)
 - `apps/management`: Management console web application
 - `apps/docs`: Public developer documentation site
 - `packages/contracts`: Shared schema definitions and contracts
@@ -21,7 +21,10 @@ APICenter is organized as a Turborepo monorepo featuring a central NestJS TypeSc
 
 ```bash
 npm install
+npm run db:generate
 ```
+
+`npm run typecheck` and `npm test` regenerate the Prisma client first. Run `npm run db:generate` yourself after changing `prisma/schema.prisma` if you call a workspace's own scripts directly.
 
 ### Build
 
@@ -38,8 +41,11 @@ npm run dev
 ### Test
 
 ```bash
-npm run test
+npm run test                                    # gateway and runtimes (Jest)
+npm run test --workspace @apicenter/management  # console (Vitest)
 ```
+
+Pull requests run typecheck, lint, boundaries and both suites automatically (`.github/workflows/pr-checks.yml`). The full CI with the Docker build is manual: `gh workflow run ci.yml --ref <branch>`.
 
 ### Boundary & Monorepo Validation
 
@@ -65,7 +71,7 @@ npm run typecheck
 
 - Gateway Entry point: `apps/gateway/src/main.ts`
 - Gateway Root module: `apps/gateway/src/app.module.ts`
-- Gateway domain modules: Organized under `apps/gateway/src/domains/` (`auth-security`, `catalog-registry`, `compliance`, `gateway-proxy`, `governance`, `payments`, `runtime-ops`)
+- Gateway domain modules: Organized under `apps/gateway/src/domains/` (`auth-security`, `compliance`, `control-plane`, `gateway-proxy`, `governance`, `payments`, `runtime-ops`)
 - Boundary rules: Strictly enforced by `scripts/check-boundaries.js` and `scripts/check-monorepo-boundary.js`
 - Tests live under `tests/`: unit specs mirror source paths under `tests/unit/`, integration script tests live under `tests/integration/`, and e2e specs/config live under `tests/e2e/`
 

@@ -1,62 +1,59 @@
 # APICenter shared API platform
 
-APICenter provides shared APIs to backend services in an organization. Teams use Management to register services and assign project placement, scopes, and shared-service dependencies. A registered backend calls APICenter through the server-side `@alpha-explora/apicenter-sdk` or the REST API.
+APICenter gives an organization's backends shared APIs (email, SMS, OTP, geolocation, Google sign-in and payments) behind one application key. Teams manage access in the Management console; a backend calls APICenter through the server-side `@alpha-explora/apicenter-sdk` or the REST API.
 
-The management hierarchy is:
+The model is:
 
 ```text
-Organization → Tribe → Project → Service
+Organization → Project → Environment (test, live) → Application → keys and grants
 ```
 
-Organization membership scopes Management access. The Registry view displays tribes, projects, and services.
+People get access through organization membership, teams and project roles. Each environment has its own applications, keys (`ak_test_…`, `ak_live_…`), capability grants, quotas and webhooks; nothing is shared between test and live. Live serves traffic only after a readiness check and an activation approved by a second person.
 
 ## Workspace layout
 
-- `apps/gateway`: NestJS gateway, authentication, registry, authorization, routing, quotas, and audit
-- `apps/management`: organization-scoped console for registry and shared-service settings
-- `apps/docs`: consumer and management documentation with REST and event references
-- `apps/payments`, `apps/email`, `apps/sms`, `apps/otp`, `apps/geo`, `apps/gauth`: shared API runtimes
-- `packages/contracts`: shared request, response, and event contracts
-- `packages/sdk`: server-side TypeScript client
+- `apps/gateway`: NestJS gateway and control plane: application keys, grants, quotas, routing to runtimes, published APIs, console administration and audit
+- `apps/management`: the Management console (Next.js)
+- `apps/docs`: consumer and Management documentation with REST and event references
+- `apps/payments`, `apps/email`, `apps/sms`, `apps/otp`, `apps/geo`, `apps/gauth`, `apps/webhooks`: shared service runtimes
+- `packages/contracts`, `packages/runtime`, `packages/sdk`: shared contracts, the runtime library, and the published SDK
 
 ## Request flow
 
 ```text
-Registered backend
+Backend with an application key
   → @alpha-explora/apicenter-sdk or REST API
-  → APICenter gateway: authentication, scopes, routing, quotas, idempotency
-  → registered service or platform shared-service runtime
+  → APICenter gateway: key check, grant, quota, signed runtime context
+  → shared service runtime, or a project's published API
 ```
-
-Common API namespaces:
 
 | Path | Purpose |
 | :--- | :--- |
-| `/api/v1/tribes/:serviceId/*` | Calls to registered tribe services |
-| `/api/v1/shared/:serviceId/*` | Calls to platform shared services such as email, SMS, OTP, Geo, and GAuth |
-| `/api/v1/payments/*` | Provider-neutral payment resources |
-| `/api/v1/auth/*` | Service token issuance and public key discovery |
-| `/api/v1/health/live` and `/api/v1/health/ready` | Gateway liveness and readiness |
-
-Register services through **Management → Registry**. Services do not self-register at application startup.
+| `/api/v1/shared/:capability/*` | Shared services: email, SMS, OTP, geolocation, Google sign-in |
+| `/api/v1/payments/*` | Payments (checkouts, intents, links, refunds, subscriptions) |
+| `/api/v1/apis/:apiId/*` | APIs that projects publish to other projects in the organization |
+| `/api/v1/whoami` | Who an application key belongs to and what it may do |
+| `/api/v1/admin/control-plane/*` | Console administration (platform credential and signed-in members only) |
+| `/api/v1/health/live`, `/api/v1/health/ready` | Gateway liveness and readiness |
 
 ## Run the workspace
 
 ```bash
 npm install
+npm run db:generate   # also runs automatically before npm run typecheck and npm test
 npm run dev
 ```
 
-See [AGENTS.md](AGENTS.md) for workspace commands, package boundaries, and test locations. For a consumer integration, start at the [APICenter developer docs](apps/docs/content/docs/getting-started.mdx).
+See [AGENTS.md](AGENTS.md) for commands, package boundaries and test locations, and [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow. For a consumer integration, start at the [APICenter developer docs](apps/docs/content/docs/getting-started.mdx).
 
 ## SDK
 
-The SDK provides typed `email`, `sms`, `otp`, `geo`, `googleAuth`, and `payments` clients. See [SDK integration](apps/docs/content/docs/sdk-usage.mdx) for package access, server-only credentials, idempotency, and examples.
+The SDK provides typed `email`, `sms`, `otp`, `geo`, `auth.google` and `payments` clients, plus `whoami()` and webhook verification. See [SDK integration](apps/docs/content/docs/sdk-usage.mdx) and `packages/sdk/README.md`.
 
 ## Documentation ownership
 
 - Consumer and Management guides are published from [`apps/docs`](apps/docs).
-- Operator procedures, architecture decisions, and internal evidence remain in [`docs`](docs/index.md).
-- Follow [documentation maintenance rules](docs/constitution.md) when changing repository documentation.
+- Operator procedures, architecture decisions and internal evidence remain in [`docs`](docs/index.md).
+- Follow the [documentation maintenance rules](docs/constitution.md) when changing repository documentation.
 
 The repository is proprietary and confidential to AlphaExplora.
