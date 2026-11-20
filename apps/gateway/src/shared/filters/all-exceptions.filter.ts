@@ -26,6 +26,7 @@ import { AppError } from "../errors";
 import { LoggerService } from "../logger.service";
 import { ConfigService } from "../../config/config.service";
 import { AuthenticatedRequest } from "../../types";
+import { mapDatabaseError } from "./database-errors";
 
 @Injectable()
 @Catch()
@@ -56,11 +57,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? resp.message
           : [resp.message];
 
-        // AppError subclasses have a `code` property
+        // AppError subclasses have a `code` property. Nest's own exceptions carry only a reason
+        // phrase ("Not Found"), so they get the code their status stands for.
         const code =
           exception instanceof AppError
             ? exception.code
-            : (resp.code as string) || (resp.error as string) || "HTTP_ERROR";
+            : typeof resp.code === "string" && resp.code
+              ? resp.code
+              : codeForStatus(status);
         response.locals.requestDiagnostic = { code };
 
         this.logger.warn(
@@ -81,13 +85,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return;
       }
 
-      response.locals.requestDiagnostic = { code: "HTTP_ERROR" };
+      const code = codeForStatus(status);
+      response.locals.requestDiagnostic = { code };
       response.status(status).json({
         success: false,
         error: {
-          code: "HTTP_ERROR",
+          code,
           message: exception.message,
         },
+        meta: { timestamp: new Date().toISOString(), correlationId },
+      });
+      return;
+    }
+
+    // --- Database failures with a meaningful status (busy pool, duplicates) ---
+    const database = mapDatabaseError(exception);
+    if (database) {
+      const err = exception as Error;
+      if (database.status >= 500) {
+        this.logger.error(`Database unavailable (${database.code}): ${err?.message}`, err?.stack, "ExceptionFilter");
+      } else {
+        this.logger.warn(`HTTP ${database.status} ${database.code}: ${err?.message}`, "ExceptionFilter");
+      }
+      response.locals.requestDiagnostic = { code: database.code };
+      if (database.retryAfterSeconds) response.setHeader("Retry-After", String(database.retryAfterSeconds));
+      response.status(database.status).json({
+        success: false,
+        error: { code: database.code, message: database.message },
         meta: { timestamp: new Date().toISOString(), correlationId },
       });
       return;
@@ -114,4 +138,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
       meta: { timestamp: new Date().toISOString(), correlationId },
     });
   }
+}
+
+/** Codes for failures without a domain code. Every code is UPPER_SNAKE_CASE, like the domain codes. */
+const STATUS_CODES: Record<number, string> = {
+  400: "VALIDATION_ERROR",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  405: "METHOD_NOT_ALLOWED",
+  408: "REQUEST_TIMEOUT",
+  409: "CONFLICT",
+  413: "PAYLOAD_TOO_LARGE",
+  415: "UNSUPPORTED_MEDIA_TYPE",
+  422: "VALIDATION_ERROR",
+  429: "RATE_LIMITED",
+  500: "INTERNAL_ERROR",
+  502: "BAD_GATEWAY",
+  503: "SERVICE_UNAVAILABLE",
+  504: "GATEWAY_TIMEOUT",
+};
+
+export function codeForStatus(status: number): string {
+  return STATUS_CODES[status] ?? `HTTP_${status}`;
 }

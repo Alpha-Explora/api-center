@@ -39,7 +39,7 @@ export type OrganizationOption = { id: string; name: string; slug?: string };
  * it, else the first membership. Platform operators without memberships name one by ID.
  */
 export function useOrganization() {
-  const session = useQuery({ queryKey: cpKeys.session, queryFn: getManagementSession, retry: false, staleTime: 60_000 });
+  const session = useQuery({ queryKey: cpKeys.session, queryFn: getManagementSession, staleTime: 60_000 });
   const chosen = useSyncExternalStore(subscribe, readStored, () => undefined);
   const memberships = session.data?.organizationIds ?? [];
   const platformAdmin = session.data?.platformAdmin ?? false;
@@ -50,7 +50,6 @@ export function useOrganization() {
     queryKey: cpKeys.organizations,
     queryFn: organizationsAdmin.list,
     enabled: platformAdmin,
-    retry: false,
     staleTime: 60_000,
   });
   // Members default to their first membership; platform operators to the first organization they can see.
@@ -91,7 +90,6 @@ export function useAccess(organizationId: string | undefined) {
     queryKey: cpKeys.me(organizationId ?? "none"),
     queryFn: () => controlPlane.me(organizationId as string),
     enabled: Boolean(organizationId),
-    retry: false,
     staleTime: 60_000,
   });
   return { access: accessFrom(me.data), loading: me.isLoading, error: me.error };

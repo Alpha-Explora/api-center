@@ -30,7 +30,6 @@ export function CommandPalette() {
     queryKey: cpKeys.projects(organizationId ?? "none"),
     queryFn: () => controlPlane.listProjects(organizationId as string),
     enabled: Boolean(organizationId) && open,
-    retry: false,
   });
 
   useEffect(() => {

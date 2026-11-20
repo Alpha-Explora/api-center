@@ -72,3 +72,6 @@ apps/docs/.source/
 
 # Sanitized local release verification output
 /artifacts/release-verification.json
+
+# Supabase CLI branch state
+supabase/.branches/

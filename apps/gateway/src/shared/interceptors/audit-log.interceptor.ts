@@ -1,13 +1,4 @@
-// =============================================================================
-// src/shared/interceptors/audit-log.interceptor.ts — Request audit logging
-// =============================================================================
-// NestJS interceptor that publishes an audit log event to Kafka after
-// every response is sent.
-//
-// REPLACES: Express auditLogger middleware
-// NestJS ADVANTAGE: Interceptors can tap into the response observable,
-// making it easy to capture response metadata (status, duration).
-// =============================================================================
+// Logs one "Audit log" line per request, with the status the client received.
 
 import {
   Injectable,
@@ -15,11 +6,12 @@ import {
   ExecutionContext,
   CallHandler,
 } from "@nestjs/common";
-import { Observable, tap } from "rxjs";
+import { Observable } from "rxjs";
 import { Request, Response } from "express";
 import { LoggerService } from "../logger.service";
 import { AuthenticatedRequest } from "../../types";
 import { isHealthCheckPath } from "../health-path";
+import { onResponseDone } from "../response-done";
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
@@ -34,21 +26,17 @@ export class AuditLogInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    return next.handle().pipe(
-      tap({
-        next: () => this.publishAudit(request, response, start),
-        error: () => this.publishAudit(request, response, start),
-      }),
-    );
+    onResponseDone(response, (statusCode) => this.publishAudit(request, statusCode, start));
+    return next.handle();
   }
 
-  private publishAudit(request: Request, response: Response, start: number) {
+  private publishAudit(request: Request, statusCode: number, start: number) {
     const authReq = request as AuthenticatedRequest;
 
     this.logger.info("Audit log", {
       method: request.method,
       path: request.originalUrl,
-      statusCode: response.statusCode,
+      statusCode,
       durationMs: Date.now() - start,
       ip: request.ip || "unknown",
       correlationId: authReq.correlationId,

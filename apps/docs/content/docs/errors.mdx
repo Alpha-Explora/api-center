@@ -1,0 +1,60 @@
+---
+title: "Errors and retries"
+description: "The error response, which failures to retry, and the error codes APICenter returns."
+---
+
+Every failed call returns a JSON body with `success: false`, a machine-readable `code` and a readable `message`. Branch on `code` and the HTTP status; the message can change.
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ACTION_NOT_GRANTED",
+    "message": "The application has not been granted this action"
+  },
+  "meta": {
+    "timestamp": "2026-11-20T08:42:10.682Z",
+    "correlationId": "7f0c2a52-2c2d-4f53-9a4e-3d1c8f0e9b10"
+  }
+}
+```
+
+Codes are `UPPER_SNAKE_CASE`. A validation failure may add `details`, a list of the problems found. Quote `meta.correlationId`, which the `X-Correlation-ID` response header also carries, when you ask for support. The SDK exposes it as `error.requestId`.
+
+## When to retry
+
+| Status | Retry? |
+| :--- | :--- |
+| No response (network failure or timeout) | Yes |
+| `408` | Yes |
+| `429` | Yes, after `Retry-After` seconds. Not for `QUOTA_EXCEEDED`, which lasts until the quota window resets. |
+| `500`, `502`, `503`, `504` | Yes, with backoff. `503` usually carries `Retry-After`. |
+| Any other `4xx` | No. The same request gets the same answer; fix it first. |
+
+Retry a write with the **same** `Idempotency-Key` and the same body, so it cannot run twice (see [idempotency](/guides/idempotency)). Back off exponentially from about one second, add jitter, and give up after a few attempts.
+
+The SDK applies these rules itself: it retries network errors, timeouts, 408, 429 and 5xx with the same idempotency key, honouring `Retry-After`. `error.retryable` tells you whether a failure it returns is worth trying again later, for example from a job queue.
+
+## Common codes
+
+| Status and code | Meaning |
+| :--- | :--- |
+| `400 VALIDATION_ERROR` | The request body, query or path is invalid. `details` lists the problems. |
+| `401 UNAUTHORIZED` | No application key, or the key is not valid. |
+| `401 CREDENTIAL_REVOKED`, `401 CREDENTIAL_EXPIRED` | The key was revoked or has expired. Issue a new key in Management. |
+| `403 ACTION_NOT_GRANTED` | The application has no grant for this action. Grant it in Management (**Applications** → **Access**). |
+| `403 CAPABILITY_NOT_ENABLED` | The capability is off for this environment. Turn it on in **Capabilities**. |
+| `403 ACTION_NOT_CATALOGED` | The route is not available to application keys. |
+| `403 ENVIRONMENT_INACTIVE`, `403 PROJECT_INACTIVE`, `403 APPLICATION_INACTIVE`, `403 ORGANIZATION_INACTIVE` | Something the key belongs to is suspended, or live is not activated yet. |
+| `403 LIVE_PLAN_REQUIRED`, `403 PLAN_NOT_AVAILABLE` | Live traffic needs a live-capable plan. |
+| `404 NOT_FOUND` | The resource does not exist, or belongs to another project or environment. |
+| `409 CONFLICT` | The request conflicts with the resource's current state. |
+| `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` | The idempotency key was already used with a different body. Use a new key for a new operation. |
+| `409 IDEMPOTENCY_KEY_IN_PROGRESS` | A request with this key is still running. Retry shortly with the same key. |
+| `429 RATE_LIMITED` | Too many requests in a short time. Wait `Retry-After` seconds. |
+| `429 QUOTA_EXCEEDED` | The environment's request budget is used up until the window resets (`Retry-After`). Ask for a larger plan or quota. |
+| `500 INTERNAL_ERROR` | An unexpected failure in APICenter. Retry; if it persists, report the correlation ID. |
+| `502 BAD_GATEWAY`, `504 UPSTREAM_TIMEOUT` | The service behind APICenter failed or did not answer in time. |
+| `503 DATABASE_BUSY`, `503 DATABASE_UNAVAILABLE`, `503 SERVICE_UNAVAILABLE` | APICenter is busy or restarting. Retry after `Retry-After`. |
+
+Each service guide lists the codes specific to it, for example [SMS](/guides/messaging-verification/sms), [OTP](/guides/messaging-verification/otp) and [payment limits](/guides/payments/limits).

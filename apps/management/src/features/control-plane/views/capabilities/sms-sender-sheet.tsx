@@ -25,7 +25,6 @@ export function SmsSenderSheet({ open, onOpenChange }: { open: boolean; onOpenCh
     queryKey: configurationKey(organizationId, project.id, kind, "sms"),
     queryFn: () => capabilityConfiguration.smsSender({ organizationId, projectId: project.id, kind }),
     enabled: open,
-    retry: false,
   });
 
   return (

@@ -70,8 +70,20 @@ paths:
           $ref: "#/components/responses/Pending"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/checkouts/{checkoutId}:
     get:
       operationId: getCheckout
@@ -94,8 +106,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Checkout"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/checkouts/by-reference/{referenceId}:
     get:
       operationId: getCheckoutByReference
@@ -118,8 +142,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Checkout"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/checkouts/{checkoutId}/cancel:
     post:
       operationId: cancelCheckout
@@ -143,8 +179,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Checkout"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/intents:
     post:
       operationId: createPaymentIntent
@@ -173,8 +221,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/intents/{paymentIntentId}:
     get:
       operationId: getPaymentIntent
@@ -197,6 +257,18 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/intents/{paymentIntentId}/confirm:
     post:
       operationId: confirmPaymentIntent
@@ -226,8 +298,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/intents/{paymentIntentId}/cancel:
     post:
       operationId: cancelPaymentIntent
@@ -251,8 +335,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentIntent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/customers:
     post:
       operationId: createCustomer
@@ -281,8 +377,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Customer"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/customers/{customerId}:
     get:
       operationId: getCustomer
@@ -305,6 +413,18 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Customer"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/refunds:
     post:
       operationId: createRefund
@@ -333,8 +453,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Refund"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/refunds/{refundId}:
     get:
       operationId: getRefund
@@ -357,6 +489,18 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Refund"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/subscriptions:
     post:
       operationId: createSubscription
@@ -385,8 +529,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Subscription"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/subscriptions/{subscriptionId}:
     get:
       operationId: getSubscription
@@ -409,6 +565,18 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Subscription"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/subscriptions/{subscriptionId}/cancel:
     post:
       operationId: cancelSubscription
@@ -432,8 +600,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Subscription"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/subscriptions/{subscriptionId}/invoices:
     get:
       operationId: listSubscriptionInvoices
@@ -458,6 +638,18 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Invoice"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/invoices/{invoiceId}:
     get:
       operationId: getInvoice
@@ -480,6 +672,18 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Invoice"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/records:
     get:
       operationId: listPaymentRecords
@@ -516,6 +720,18 @@ paths:
                 properties:
                   success: { const: true }
                   data: { $ref: "#/components/schemas/PaymentRecordPage" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/capabilities:
     get:
       operationId: getPaymentCapabilities
@@ -536,6 +752,18 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentCapabilities"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/intents/qrph:
     post:
       operationId: createQrPhPaymentIntent
@@ -566,8 +794,20 @@ paths:
                     $ref: "#/components/schemas/QrPhPaymentIntent"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/payment-links:
     get:
       operationId: listPaymentLinks
@@ -590,6 +830,18 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/PaymentLink"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       operationId: createPaymentLink
       tags:
@@ -619,8 +871,20 @@ paths:
                     $ref: "#/components/schemas/PaymentLink"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/payment-links/{paymentLinkId}:
     get:
       operationId: getPaymentLink
@@ -641,8 +905,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentLink"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     patch:
       operationId: setPaymentLinkArchived
       tags:
@@ -675,10 +951,22 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/PaymentLink"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/plans:
     get:
       operationId: listPlans
@@ -701,6 +989,18 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Plan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       operationId: createPlan
       tags:
@@ -730,8 +1030,20 @@ paths:
                     $ref: "#/components/schemas/Plan"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/payments/plans/{planId}:
     get:
       operationId: getPlan
@@ -758,8 +1070,20 @@ paths:
                     const: true
                   data:
                     $ref: "#/components/schemas/Plan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/UpstreamFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/shared/email/send:
     post:
       operationId: email.send
@@ -2241,6 +2565,54 @@ components:
                 const: true
               data:
                 $ref: "#/components/schemas/PendingResource"
+    Unauthorized:
+      description: The application key is missing, malformed, revoked or expired (`UNAUTHORIZED`, `CREDENTIAL_REVOKED`, `CREDENTIAL_EXPIRED`). Do not retry.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: The application lacks a grant for this action, or the capability, environment, project or organization is not enabled (`ACTION_NOT_GRANTED`, `CAPABILITY_NOT_ENABLED`, `ENVIRONMENT_INACTIVE`, `LIVE_PLAN_REQUIRED`). Do not retry.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Too many requests (`RATE_LIMITED`, `PAYMENT_RATE_LIMIT_EXCEEDED`) or the environment's quota is used up (`QUOTA_EXCEEDED`). Retry after `Retry-After` seconds, except for `QUOTA_EXCEEDED`, which lasts until the quota window resets.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ServerError:
+      description: An unexpected failure in APICenter (`INTERNAL_ERROR`). Retry writes only with the same idempotency key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    UpstreamFailure:
+      description: The payment provider failed or did not answer in time (`BAD_GATEWAY`, `UPSTREAM_TIMEOUT`, `PAYMENT_UPSTREAM_UNREACHABLE`). Retry writes only with the same idempotency key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ServiceUnavailable:
+      description: APICenter is busy or restarting (`DATABASE_BUSY`, `DATABASE_UNAVAILABLE`, `SERVICE_UNAVAILABLE`). Retry after `Retry-After` seconds.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
     Money:
       type: object

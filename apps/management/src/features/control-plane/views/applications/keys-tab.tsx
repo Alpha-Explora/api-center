@@ -43,7 +43,7 @@ export function KeysTab({ application }: { application: Application }) {
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
   const key = [...cpKeys.application(organizationId, project.id, kind, application.id), "credentials"];
-  const credentials = useQuery({ queryKey: key, queryFn: () => controlPlane.credentials(organizationId, project.id, kind, application.id), retry: false });
+  const credentials = useQuery({ queryKey: key, queryFn: () => controlPlane.credentials(organizationId, project.id, kind, application.id) });
   const [issuing, setIssuing] = useState(false);
   const [expiresInDays, setExpiresInDays] = useState(90);
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());

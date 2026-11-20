@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ManagementAuthGate } from "@/components/management-auth-gate";
+import { ApiError } from "@/lib/api-center/client-core";
 
 const { getManagementSessionMock, setManagementSessionTokenMock } = vi.hoisted(
   () => ({
@@ -174,5 +175,57 @@ describe("ManagementAuthGate", () => {
     expect(
       window.sessionStorage.getItem("apicenter.management.googleCredential"),
     ).toBeNull();
+  });
+
+  it("offers Try again when APICenter is starting up, without a new Google sign-in", async () => {
+    let credentialCallback: ((response: { credential?: string }) => void) | undefined;
+    getManagementSessionMock
+      .mockRejectedValueOnce(new ApiError("Could not confirm APICenter access", 503, "ACCESS_CHECK_UNAVAILABLE"))
+      .mockResolvedValueOnce({ email: "dana@acme.example" });
+    window.google = {
+      accounts: {
+        id: {
+          initialize: ({ callback }) => {
+            credentialCallback = callback;
+          },
+          renderButton: vi.fn(),
+          disableAutoSelect: vi.fn(),
+        },
+      },
+    };
+
+    render(
+      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
+        <div>Management app</div>
+      </ManagementAuthGate>,
+    );
+
+    await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
+    await act(async () => {
+      await credentialCallback?.({ credential: "google-token" });
+    });
+    expect(screen.getByText("APICenter is starting up")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    });
+
+    await waitFor(() => expect(screen.getByText("Management app")).toBeTruthy());
+    expect(getManagementSessionMock).toHaveBeenCalledTimes(2);
+    expect(window.sessionStorage.getItem("apicenter.management.googleCredential")).toBe("google-token");
+  });
+
+  it("does not reuse a stored Google credential that has expired", () => {
+    const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 }));
+    window.sessionStorage.setItem("apicenter.management.googleCredential", `h.${payload}.s`);
+
+    render(
+      <ManagementAuthGate googleClientId="">
+        <div>Management app</div>
+      </ManagementAuthGate>,
+    );
+
+    expect(screen.queryByText("Management app")).toBeNull();
+    expect(window.sessionStorage.getItem("apicenter.management.googleCredential")).toBeNull();
   });
 });

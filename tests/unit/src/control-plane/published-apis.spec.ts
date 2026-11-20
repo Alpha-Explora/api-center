@@ -166,6 +166,25 @@ describe("published APIs", () => {
     await expect(apis.decide(ORG, requestId, true, actor)).rejects.toMatchObject({ code: "ACCESS_REQUEST_DECIDED" });
   });
 
+  it("lets only one of two concurrent decisions land, so a rejected request never leaves a grant", async () => {
+    const { api } = await publishOrders();
+    const consumer = await projectWithApp(ORG, "racer");
+    const outcome = await apis.requestAccess(consumer.scope, consumer.app.id, api.id, "orders:read", "dev@example.test");
+    const requestId = outcome.kind === "requested" ? outcome.request.id : "";
+
+    const results = await Promise.allSettled([
+      apis.decide(ORG, requestId, true, actor),
+      apis.decide(ORG, requestId, false, "owner@example.test", "not this quarter"),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((result) => result.status === "rejected")).toMatchObject({ reason: { code: "ACCESS_REQUEST_DECIDED" } });
+
+    const stored = prisma.cpApiAccessRequest.rows.find((row) => row.id === requestId)!;
+    const grants = prisma.cpApplicationGrant.rows.filter((row) => row.applicationId === consumer.app.id && row.targetId === api.id && row.status === "active");
+    expect(grants).toHaveLength(stored.status === "approved" ? 1 : 0);
+    expect(Boolean(stored.grantId)).toBe(stored.status === "approved");
+  });
+
   it("never lets another organization see or call the API", async () => {
     const { api } = await publishOrders();
     const outsider = await projectWithApp(OTHER_ORG, "outsider");
@@ -206,7 +225,7 @@ describe("published APIs", () => {
     await apis.requestAccess(owner.scope, owner.app.id, api.id, "orders:read", actor);
     const fetchImpl = jest.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
     const checkUpstream = jest.fn().mockResolvedValue(undefined);
-    const forwarder = new PublishedApiForwarder(access, { fetchImpl, cloudRunAuthorizer: async () => undefined, checkUpstream });
+    const forwarder = new PublishedApiForwarder(access, { fetchImpl, checkUpstream });
     const res = { status: jest.fn().mockReturnThis(), setHeader: jest.fn(), send: jest.fn() };
     const req = {
       method: "GET",

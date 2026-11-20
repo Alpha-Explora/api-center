@@ -15,16 +15,25 @@ import {
 } from "./console-access.policy";
 import type { EnvironmentKind } from "./control-plane.types";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { consoleAccessCacheFor, type ConsoleAccessCache } from "./console-access-cache";
 
 const NO_ACCESS: MemberAccess = { organizationRole: undefined, projectRoles: new Map() };
 
 @Injectable()
 export class ConsoleAccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly cache: ConsoleAccessCache;
+
+  constructor(private readonly prisma: PrismaService) {
+    this.cache = consoleAccessCacheFor(prisma);
+  }
 
   async accessFor(actor: ConsoleActor, organizationId: string): Promise<MemberAccess> {
     if (actor.kind !== "member") return NO_ACCESS;
-    return withTenant(this.prisma, { organizationId }, (db) => this.load(db, actor, organizationId));
+    const cached = this.cache.getAccess(organizationId, actor.email, actor.subject);
+    if (cached) return cached;
+    const access = await withTenant(this.prisma, { organizationId }, (db) => this.load(db, actor, organizationId));
+    this.cache.setAccess(organizationId, actor.email, actor.subject, access);
+    return access;
   }
 
   private async load(db: TenantDb, actor: Extract<ConsoleActor, { kind: "member" }>, organizationId: string): Promise<MemberAccess> {
@@ -85,14 +94,22 @@ export class ConsoleAccessService {
     throw new ForbiddenError(`Your role does not allow ${action.replace(".", " ")}`);
   }
 
-  /** The actor's roles and, when a project is named, whether it is this organization's: one transaction. */
+  /**
+   * The actor's roles and, when a project is named, whether it is this organization's. Answers from
+   * the cache when it can, otherwise in one transaction.
+   */
   private async loadForTarget(actor: ConsoleActor, organizationId: string, projectId: string | undefined) {
-    if (actor.kind !== "member" && !projectId) return { access: NO_ACCESS, projectInOrganization: true };
-    return withTenant(this.prisma, { organizationId }, async (db) => ({
-      access: actor.kind === "member" ? await this.load(db, actor, organizationId) : NO_ACCESS,
-      projectInOrganization: projectId
-        ? Boolean(await db.cpProject.findFirst({ where: { id: projectId, organizationId }, select: { id: true } }))
-        : true,
+    const cachedAccess = actor.kind === "member" ? this.cache.getAccess(organizationId, actor.email, actor.subject) : NO_ACCESS;
+    const projectKnown = !projectId || this.cache.projectBelongsTo(projectId, organizationId);
+    if (cachedAccess && projectKnown) return { access: cachedAccess, projectInOrganization: true };
+
+    const result = await withTenant(this.prisma, { organizationId }, async (db) => ({
+      access: cachedAccess ?? (actor.kind === "member" ? await this.load(db, actor, organizationId) : NO_ACCESS),
+      projectInOrganization:
+        projectKnown || Boolean(await db.cpProject.findFirst({ where: { id: projectId, organizationId }, select: { id: true } })),
     }));
+    if (actor.kind === "member" && !cachedAccess) this.cache.setAccess(organizationId, actor.email, actor.subject, result.access);
+    if (projectId && result.projectInOrganization) this.cache.rememberProject(projectId, organizationId);
+    return result;
   }
 }

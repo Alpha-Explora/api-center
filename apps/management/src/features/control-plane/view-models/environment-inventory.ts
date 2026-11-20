@@ -17,7 +17,6 @@ export function useEnvironmentCredentials({ organizationId, projectId, kind, ena
     queryKey: environmentCredentialsKey(organizationId ?? "none", projectId, kind),
     queryFn: () => environmentInventory.credentials({ organizationId: organizationId as string, projectId, kind }),
     enabled: enabled && Boolean(organizationId),
-    retry: false,
   });
 }
 
@@ -26,7 +25,6 @@ export function useEnvironmentGrants({ organizationId, projectId, kind, enabled 
     queryKey: environmentGrantsKey(organizationId ?? "none", projectId, kind),
     queryFn: () => environmentInventory.grants({ organizationId: organizationId as string, projectId, kind }),
     enabled: enabled && Boolean(organizationId),
-    retry: false,
     // Grants change on application pages; the checklist should not lag behind them.
     staleTime: 0,
   });

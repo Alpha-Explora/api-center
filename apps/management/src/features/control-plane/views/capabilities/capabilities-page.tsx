@@ -43,7 +43,6 @@ function CapabilitiesList() {
     queryFn: () => paymentsMerchant.binding(organizationId),
     enabled: offersPayments,
     staleTime: 5 * 60_000,
-    retry: false,
   });
   const [pending, setPending] = useState<{ capability: Capability; on: boolean } | null>(null);
   const [configuring, setConfiguring] = useState<ConfigurableCapability | null>(null);

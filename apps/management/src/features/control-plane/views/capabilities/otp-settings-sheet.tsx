@@ -35,7 +35,6 @@ export function OtpSettingsSheet({ open, onOpenChange }: { open: boolean; onOpen
     queryKey: configurationKey(organizationId, project.id, kind, "otp"),
     queryFn: () => capabilityConfiguration.otpSettings({ organizationId, projectId: project.id, kind }),
     enabled: open,
-    retry: false,
   });
 
   return (

@@ -78,7 +78,7 @@ describe('requests', () => {
     expect(calls[0].url).toBe('https://api.apicenter.itsandbox.site/api/v1/shared/geo/reverse-geocode');
     expect(calls[0].headers.get('authorization')).toBe(`Bearer ${KEY}`);
     expect(calls[0].headers.get('apicenter-version')).toBe('2026-11-19');
-    expect(calls[0].headers.get('apicenter-sdk')).toBe('apicenter-sdk-js/3.1.0');
+    expect(calls[0].headers.get('apicenter-sdk')).toBe('apicenter-sdk-js/3.2.0');
     expect(calls[0].headers.get('idempotency-key')).toBeNull();
   });
 
@@ -211,5 +211,20 @@ describe('errors', () => {
     const { api } = client([new TypeError('fetch failed')], { maxRetries: 0 });
     await expect(api.geo.geocode({ address: 'x' })).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
     await expect(client([new TypeError('x')], { maxRetries: 0 }).api.geo.geocode({ address: 'x' })).rejects.toBeInstanceOf(ConnectionError);
+  });
+});
+
+describe('ApiCenterError.retryable', () => {
+  const error = (status: number, code?: string) => new ApiCenterError('x', { status, code });
+
+  it('is true for failures the same request may get past', () => {
+    expect(new ConnectionError('offline', { status: 0, code: 'NETWORK_ERROR' }).retryable).toBe(true);
+    for (const status of [408, 429, 500, 502, 503, 504]) expect(error(status).retryable).toBe(true);
+    expect(new ServerError('busy', { status: 503, code: 'DATABASE_BUSY' }).retryable).toBe(true);
+  });
+
+  it('is false for answers, and for a used-up quota until its window resets', () => {
+    for (const status of [400, 401, 403, 404, 409, 422, 501]) expect(error(status).retryable).toBe(false);
+    expect(new QuotaExceededError('quota', { status: 429, code: 'QUOTA_EXCEEDED' }).retryable).toBe(false);
   });
 });

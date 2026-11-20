@@ -32,6 +32,12 @@ interface ApprovalPrisma {
   approvalRequest: ApprovalRequestDelegate;
 }
 
+/**
+ * How long an approval stays usable. An approval vouches for the state its approver saw; after a
+ * week the project, its readiness and the approver's own role may all have changed.
+ */
+export const APPROVAL_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class ApprovalRequestService {
   private readonly approvalPrisma: ApprovalPrisma;
@@ -72,6 +78,21 @@ export class ApprovalRequestService {
       orderBy: { createdAt: "desc" },
       take: 20,
     });
+  }
+
+  /** One request, only when it is for this action and target; otherwise undefined. */
+  async findForTarget(
+    approvalRequestId: string,
+    actionType: ApprovalRequest["actionType"],
+    targetId: string,
+  ): Promise<ApprovalRequest | undefined> {
+    const request = await this.approvalPrisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
+    return request && request.actionType === actionType && request.targetId === targetId ? request : undefined;
+  }
+
+  /** Whether an approved request can no longer be used. */
+  static isExpired(request: Pick<ApprovalRequest, "status" | "approvedAt">, now = Date.now()): boolean {
+    return request.status === "approved" && request.approvedAt != null && now - new Date(request.approvedAt).getTime() > APPROVAL_VALIDITY_MS;
   }
 
   /** Pending requests for one action, newest first, optionally only for these targets. */
@@ -168,6 +189,9 @@ export class ApprovalRequestService {
     }
     if (request.status !== "approved") {
       throw new ForbiddenError("Approval request is not approved");
+    }
+    if (ApprovalRequestService.isExpired(request)) {
+      throw new ConflictError("Approval request was approved more than 7 days ago; request approval again");
     }
     if (request.actionType !== input.actionType) {
       throw new ForbiddenError("Approval request action type does not match");

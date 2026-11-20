@@ -42,6 +42,7 @@ The console work merged in #201–#205 adds five migrations, four secrets and ne
    3. `20261120001030_webhook_delivery_attempts`: role `webhooks_runtime`, schema `shared_webhooks` and the append-only `webhook_deliveries` table (SELECT and INSERT; retention deletes rows after 30 days).
    4. `20261120001040_runtime_project_settings`: `shared_sms.project_senders`, `shared_otp.project_settings` and `shared_otp.otp_challenges.max_attempts`. The SMS and OTP runtimes read these tables, so apply it before redeploying them. Runtime roles have no DELETE, so a reset writes empty values.
    5. `20261120001050_control_plane_gaps`: quota policy edit and soft delete, the rejection reason and outgoing-request index on API access requests, `event_types` on event destinations, and the move of quota counters to `policy:<id>:<windowSeconds>` keys. Apply it before the gateway, which reads the new quota policy columns on every request.
+   6. `20261120001060_environment_platform_suspension`: `suspended_by_platform` on `apic_catalog.cp_environments`. Apply it before the gateway, which reads the column whenever an environment's status changes.
 3. **Runtimes.** Redeploy email (the platform-message route for invites), SMS and OTP (the project settings and admin tokens), and webhooks (delivery history and event-type filters). The webhooks runtime starts without `DATABASE_URL` and keeps delivering; it logs `apicenter_webhook_history_disabled` and its history route answers 503 until the secret exists.
 4. **Gateway** with `SMS_ADMIN_TOKEN`, `OTP_ADMIN_TOKEN` and `WEBHOOKS_ADMIN_TOKEN`. `MANAGEMENT_CONSOLE_URL` is optional; invite links default to `https://apicenter.itsandbox.site`. Grant the gateway's service account `run.invoker` on the webhooks service, which it calls with a Cloud Run identity token for history, and confirm it can publish to `apicenter.payment-events.{test,live}` for test events.
 5. **Console.**
@@ -70,6 +71,9 @@ Behavior operators should know:
 - Suspending an organization refuses its application traffic (`ORGANIZATION_INACTIVE`) and new projects. Members can still sign in and change settings.
 - Invite outcomes are audited as `control_plane.member.invite_sent` or `control_plane.member.invite_not_sent` with a reason code. An invite to the same email and organization is sent at most once in 24 hours.
 - Project-scoped routes answer 404 when the project is not in the organization in the path.
+- An environment suspended by a platform operator stays suspended until an operator resumes it; a project admin gets `403 SUSPENDED_BY_PLATFORM`. A suspended environment, test or live, issues no keys (`409 ENVIRONMENT_SUSPENDED`).
+- A live activation request is accepted only from a provisioning environment that passes readiness and has no open request (`409 LIVE_NOT_READY`, `409 ACTIVATION_ALREADY_REQUESTED`). An approval can be used for seven days; after that, request approval again.
+- Changes to members, teams and project roles in one organization are serialized, so concurrent demotions cannot leave an organization without an owner.
 - Removing a member, a team member or a project admin assignment answers `409 LAST_PROJECT_ADMIN` when a project would be left without an administrator and the organization has no owner or admin.
 - Changing the OTP message template needs a project admin in both environments.
 

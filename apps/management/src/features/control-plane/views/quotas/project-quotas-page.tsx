@@ -36,7 +36,7 @@ function ProjectQuotas() {
   const { organizationId, project, kind, access, canManage } = useProjectEnvironment();
   const client = useQueryClient();
   const key = [...cpKeys.project(organizationId, project.id), "quota-policies"];
-  const policies = useQuery({ queryKey: key, queryFn: () => quotas.projectPolicies(organizationId, project.id), retry: false });
+  const policies = useQuery({ queryKey: key, queryFn: () => quotas.projectPolicies(organizationId, project.id) });
   const [creating, setCreating] = useState(false);
   const [changing, setChanging] = useState<QuotaPolicy | null>(null);
   const [editing, setEditing] = useState<QuotaPolicy | null>(null);

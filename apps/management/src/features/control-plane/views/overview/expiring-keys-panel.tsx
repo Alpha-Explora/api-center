@@ -19,7 +19,6 @@ export function ExpiringKeysPanel() {
   const applications = useQuery({
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
   });
 
   if (credentials.error) {

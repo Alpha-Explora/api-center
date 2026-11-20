@@ -73,6 +73,17 @@ class FakeDelegate {
     return this.rows.filter((row) => this.matches(row, where)).map((row) => this.project(row, select));
   }
 
+  async groupBy({ by, where }: { by: string[]; where?: Row; _count?: unknown }) {
+    const groups = new Map<string, Row & { _count: { _all: number } }>();
+    for (const row of this.rows.filter((candidate) => this.matches(candidate, where))) {
+      const key = JSON.stringify(by.map((field) => row[field]));
+      const group = groups.get(key) ?? { ...Object.fromEntries(by.map((field) => [field, row[field]])), _count: { _all: 0 } };
+      group._count._all += 1;
+      groups.set(key, group);
+    }
+    return [...groups.values()];
+  }
+
   async create({ data }: { data: Row }) {
     const row: Row = { createdAt: new Date(), updatedAt: new Date(), ...defaults(data), ...data };
     this.assertUnique(row);

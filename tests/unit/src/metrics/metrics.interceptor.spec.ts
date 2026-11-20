@@ -1,25 +1,29 @@
+import { EventEmitter } from "node:events";
 import { ExecutionContext } from "@nestjs/common";
 import { lastValueFrom, of, throwError } from "rxjs";
 import { MetricsService } from "../../../../apps/gateway/src/metrics/metrics.service";
 import { MetricsInterceptor } from "../../../../apps/gateway/src/metrics/metrics.interceptor";
 
-function createContext(
-  request: Record<string, unknown>,
-  response: Record<string, unknown>,
-): ExecutionContext {
+function fakeResponse() {
+  const response = Object.assign(new EventEmitter(), { statusCode: 200, writableFinished: false });
   return {
-    switchToHttp: () => ({
-      getRequest: () => request,
-      getResponse: () => response,
-    }),
+    response,
+    finish(statusCode: number) {
+      response.statusCode = statusCode;
+      response.writableFinished = true;
+      response.emit("finish");
+    },
+  };
+}
+
+function createContext(request: Record<string, unknown>, response: unknown): ExecutionContext {
+  return {
+    switchToHttp: () => ({ getRequest: () => request, getResponse: () => response }),
   } as unknown as ExecutionContext;
 }
 
 describe("MetricsInterceptor", () => {
-  const mockMetrics = {
-    recordHttpRequest: jest.fn(),
-  } as unknown as MetricsService;
-
+  const mockMetrics = { recordHttpRequest: jest.fn() } as unknown as MetricsService;
   let interceptor: MetricsInterceptor;
 
   beforeEach(() => {
@@ -27,52 +31,26 @@ describe("MetricsInterceptor", () => {
     interceptor = new MetricsInterceptor(mockMetrics);
   });
 
-  it("should record request metrics using normalized route path on success", async () => {
-    const request = {
-      method: "GET",
-      route: { path: "/api/v1/tribes/:targetServiceId/*" },
-      path: "/api/v1/tribes/billing-service/invoices",
-    };
-    const response = {
-      statusCode: 200,
-    };
+  it("records the normalized route and final status on success", async () => {
+    const request = { method: "GET", route: { path: "/api/v1/shared/:capability/*" }, path: "/api/v1/shared/email/status/m1" };
+    const { response, finish } = fakeResponse();
 
-    await lastValueFrom(
-      interceptor.intercept(createContext(request, response), {
-        handle: () => of({ ok: true }),
-      }),
-    );
+    await lastValueFrom(interceptor.intercept(createContext(request, response), { handle: () => of({ ok: true }) }));
+    finish(200);
 
-    expect(mockMetrics.recordHttpRequest).toHaveBeenCalledWith(
-      "GET",
-      "/api/v1/tribes/:targetServiceId/*",
-      200,
-      expect.any(Number),
-    );
+    expect(mockMetrics.recordHttpRequest).toHaveBeenCalledWith("GET", "/api/v1/shared/:capability/*", 200, expect.any(Number));
   });
 
-  it("should record error metrics with fallback status code when response status is missing", async () => {
-    const request = {
-      method: "POST",
-      path: "/api/v1/external/kafka/publish",
-    };
-    const response = {
-      statusCode: undefined,
-    };
+  it("records the status the exception filter sent for a failed handler", async () => {
+    const request = { method: "POST", path: "/api/v1/shared/geo/reverse-geocode" };
+    const { response, finish } = fakeResponse();
 
     await expect(
-      lastValueFrom(
-        interceptor.intercept(createContext(request, response), {
-          handle: () => throwError(() => new Error("request-failed")),
-        }),
-      ),
+      lastValueFrom(interceptor.intercept(createContext(request, response), { handle: () => throwError(() => new Error("request-failed")) })),
     ).rejects.toThrow("request-failed");
+    finish(503);
 
-    expect(mockMetrics.recordHttpRequest).toHaveBeenCalledWith(
-      "POST",
-      "/api/v1/external/kafka/publish",
-      500,
-      expect.any(Number),
-    );
+    expect(mockMetrics.recordHttpRequest).toHaveBeenCalledTimes(1);
+    expect(mockMetrics.recordHttpRequest).toHaveBeenCalledWith("POST", "/api/v1/shared/geo/reverse-geocode", 503, expect.any(Number));
   });
 });

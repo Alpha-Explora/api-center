@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 /**
  * Shows a secret exactly once. Only a verifier is stored, so closing the dialog loses it; the person has to
- * say they stored it.
+ * say they stored it. Escape, outside clicks and focus loss are ignored: "I stored it" is the only way out.
  */
 export function SecretDialog({
   secret,
@@ -22,7 +22,7 @@ export function SecretDialog({
   onClose: () => void;
 }) {
   return (
-    <Dialog open={secret !== null} onOpenChange={(open) => !open && onClose()} disablePointerDismissal>
+    <Dialog open={secret !== null} disablePointerDismissal>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

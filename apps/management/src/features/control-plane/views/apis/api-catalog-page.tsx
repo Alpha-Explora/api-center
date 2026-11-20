@@ -32,13 +32,11 @@ export function ApiCatalogPage() {
     queryKey: apiKeys.catalog(organizationId ?? "none"),
     queryFn: () => publishedApis.catalog(organizationId as string),
     enabled: Boolean(organizationId),
-    retry: false,
   });
   const projects = useQuery({
     queryKey: cpKeys.projects(organizationId ?? "none"),
     queryFn: () => controlPlane.listProjects(organizationId as string),
     enabled: Boolean(organizationId),
-    retry: false,
   });
   const [query, setQuery] = useState("");
   const [environment, setEnvironment] = useState<EnvironmentFilter>("all");
