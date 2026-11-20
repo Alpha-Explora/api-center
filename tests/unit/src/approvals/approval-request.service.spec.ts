@@ -373,3 +373,21 @@ function request(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("approval expiry", () => {
+  it("refuses an approval used more than seven days after it was given", async () => {
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const store = inMemoryApprovals(request({ status: "approved", approvedBy: "owner", approvedAt: eightDaysAgo }));
+    await expect(
+      serviceFor(store).assertApprovedForAction({ approvalRequestId: "approval-1", actionType: "quota.enforce", targetEnvironment: "live", targetId: "campus-one" }),
+    ).rejects.toThrow("more than 7 days ago");
+    expect(store.row.status).toBe("approved");
+  });
+
+  it("accepts an approval within seven days", async () => {
+    const store = inMemoryApprovals(request({ status: "approved", approvedBy: "owner", approvedAt: new Date() }));
+    await expect(
+      serviceFor(store).assertApprovedForAction({ approvalRequestId: "approval-1", actionType: "quota.enforce", targetEnvironment: "live", targetId: "campus-one" }),
+    ).resolves.toMatchObject({ status: "applied" });
+  });
+});
