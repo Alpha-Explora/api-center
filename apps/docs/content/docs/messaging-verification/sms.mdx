@@ -12,7 +12,7 @@ For a Node.js backend, the typed client is `api.sms.send(...)` in the [APICenter
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/sms`
-- **Required Header**: `Authorization: Bearer <SERVICE_ACCESS_TOKEN>`
+- **Required Header**: `Authorization: Bearer <application key>` (`ak_test_…` or `ak_live_…`; see [Authentication](/guides/authentication))
 - **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---
