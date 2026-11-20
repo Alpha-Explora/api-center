@@ -13,7 +13,7 @@ export async function GET() {
   const filePath = candidates.find((p) => existsSync(p));
 
   if (!filePath) {
-    return NextResponse.json({ error: "OpenAPI contract not found" }, { status: 444 });
+    return NextResponse.json({ error: "OpenAPI contract not found" }, { status: 500 });
   }
 
   const rawYaml = readFileSync(filePath, "utf8");
