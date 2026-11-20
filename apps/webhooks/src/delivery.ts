@@ -1,7 +1,9 @@
 // Turns one Pub/Sub push into one signed POST to the destination's URL. Pub/Sub retries anything
 // not acknowledged (with backoff, then dead-letter), so this answers "ack" only when the consumer
-// returned 2xx, or when the destination was disabled and the event should be dropped.
+// returned 2xx, or when the destination was disabled or filters the event type out and the event should
+// be dropped.
 import { activeSecrets, DESTINATION_ID, type DestinationStore } from "./destination-store";
+import { deliversEventType } from "./event-filter";
 import type { Sender } from "./send";
 import { signatureHeader } from "./signature";
 
@@ -12,7 +14,7 @@ export interface PushEnvelope {
 }
 
 export type DeliveryOutcome =
-  | { ack: true; reason: "delivered" | "disabled"; eventId?: string; eventType?: string; status?: number }
+  | { ack: true; reason: "delivered" | "disabled" | "filtered"; eventId?: string; eventType?: string; status?: number }
   | {
       ack: false;
       reason: "unknown_destination" | "malformed_message" | "no_active_secret" | "rejected" | "unreachable";
@@ -47,6 +49,7 @@ export async function deliver(
   if (config.disabled) return { ack: true, reason: "disabled", ...event };
 
   const now = (deps.now ?? Date.now)();
+  if (!deliversEventType(config, body)) return { ack: true, reason: "filtered", ...event };
   const secrets = activeSecrets(config, now);
   if (secrets.length === 0) return { ack: false, reason: "no_active_secret", ...event };
   const timestamp = Math.floor(now / 1000);

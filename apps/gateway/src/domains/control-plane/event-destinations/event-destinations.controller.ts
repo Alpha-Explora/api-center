@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import { ValidationError } from "@shared/errors";
 import { ConsoleAccessService } from "../console-access.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "../console-actor.guard";
 import type { EnvironmentScope } from "../control-plane-admin.service";
 import { EventDestinationService } from "./event-destination.service";
+import { PAYMENT_EVENT_TYPES } from "./event-types";
 
 const ENV = "organizations/:organizationId/projects/:projectId/environments/:environment";
 
@@ -18,13 +19,18 @@ const createSchema = z
   })
   .strict();
 
+const eventTypes = z.array(z.string().min(1).max(100)).max(50);
+
 const webhookSchema = z
   .object({
     recipientApplicationId: z.string().regex(/^app_[a-z0-9]{24}$/),
     url: z.string().url().max(2048),
+    eventTypes: eventTypes.optional(),
     actor: z.string().trim().min(1).max(200).optional(),
   })
   .strict();
+
+const eventTypesSchema = z.object({ eventTypes, actor: z.string().trim().min(1).max(200).optional() }).strict();
 
 function destinationId(params: Record<string, string>): string {
   if (!/^dst_[a-z0-9]{24}$/.test(params.destinationId ?? "")) throw new ValidationError("Invalid destination ID");
@@ -78,6 +84,27 @@ export class EventDestinationsController {
     const actor = req.consoleActor!;
     await this.access.require(actor, scope.organizationId, "environment.write", { projectId: scope.projectId, environmentKind: scope.environmentKind });
     return { success: true, data: await this.destinations.rotateSecret(scope, id, actorLabel(actor)) };
+  }
+
+  /** Replaces a webhook's event-type filter; an empty list delivers every type. */
+  @Put(`${ENV}/event-destinations/:destinationId/event-types`)
+  async setEventTypes(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const scope = scopeFrom(params);
+    const id = destinationId(params);
+    const parsed = eventTypesSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new ValidationError(`body ${parsed.error.issues[0]?.path.join(".")} ${parsed.error.issues[0]?.message}`);
+    const actor = req.consoleActor!;
+    await this.access.require(actor, scope.organizationId, "environment.write", { projectId: scope.projectId, environmentKind: scope.environmentKind });
+    return { success: true, data: await this.destinations.setEventTypes(scope, id, parsed.data.eventTypes, actorLabel(actor, parsed.data.actor)) };
+  }
+
+  /** The event types a destination can choose from, kept in step with the AsyncAPI contract. */
+  @Get("organizations/:organizationId/event-types")
+  async eventTypes(@Param("organizationId") organizationId: string, @Req() req: ConsoleRequest) {
+    const org = z.string().uuid().safeParse(organizationId);
+    if (!org.success) throw new ValidationError("Invalid organization ID");
+    await this.access.require(req.consoleActor!, org.data, "organization.read");
+    return { success: true, data: PAYMENT_EVENT_TYPES };
   }
 
   @Get(`${ENV}/event-destinations`)

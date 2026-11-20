@@ -9,6 +9,8 @@ export interface DestinationConfig {
   secrets: Array<{ value: string; expiresAt?: string }>;
   /** Set when the destination is disabled: events are acknowledged and dropped. */
   disabled?: boolean;
+  /** Event types to deliver; missing or empty delivers every type. Others are acknowledged and dropped. */
+  eventTypes?: string[];
 }
 
 export interface DestinationStore {

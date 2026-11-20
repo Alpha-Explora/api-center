@@ -16,7 +16,8 @@ import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstre
 import { newResourceId } from "../application-credential";
 import { withTenant } from "../tenant-transaction";
 import type { EnvironmentScope } from "../control-plane-admin.service";
-import { newSigningSecret, WEBHOOK_CONFIG_STORE, type WebhookConfigStore } from "./webhook-config-store";
+import { newSigningSecret, WEBHOOK_CONFIG_STORE, type WebhookConfigStore, type WebhookDestinationConfig } from "./webhook-config-store";
+import { normalizeEventTypes } from "./event-types";
 
 export interface DestinationInput {
   recipientApplicationId: string;
@@ -28,6 +29,8 @@ export interface DestinationInput {
 export interface WebhookInput {
   recipientApplicationId: string;
   url: string;
+  /** Event types to deliver; empty or missing delivers every type. */
+  eventTypes?: string[];
 }
 
 /** How long a rotated-out signing secret keeps signing, so consumers can switch without a gap. */
@@ -59,6 +62,7 @@ export class EventDestinationService {
    * The secret is stored before the subscription exists, so no event can arrive unsigned.
    */
   async createWebhook(scope: EnvironmentScope, input: WebhookInput, actor: string) {
+    const eventTypes = normalizeEventTypes(input.eventTypes ?? []);
     const url = (await assertPublicUpstream(input.url, upstreamGuardOptions())).toString();
     const delivery = webhookDeliveryTarget();
     const id = newResourceId("dst");
@@ -66,13 +70,14 @@ export class EventDestinationService {
     const prepared = await this.prepare(scope, input.recipientApplicationId, id, {
       transport: "webhook",
       webhookUrl: url,
+      eventTypes,
       pushEndpoint,
       oidcAudience: delivery.url,
       deliveryServiceAccountEmail: delivery.pushServiceAccount,
     }, actor);
     const signingSecret = newSigningSecret();
     try {
-      await this.webhooks.write(id, { url, secrets: [{ value: signingSecret }] });
+      await this.webhooks.write(id, withEventTypes({ url, secrets: [{ value: signingSecret }] }, eventTypes));
     } catch (error) {
       await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
         db.cpEventDestination.update({
@@ -114,6 +119,35 @@ export class EventDestinationService {
     return { ...updated, signingSecret, previousSecretExpiresAt: current ? expiresAt : null };
   }
 
+  /**
+   * Changes which event types a webhook delivers; an empty list delivers every type. The delivery
+   * service applies it, so it takes effect within its config cache (about 30 seconds). A Pub/Sub
+   * push destination cannot be filtered: Pub/Sub never changes a subscription's filter.
+   */
+  async setEventTypes(scope: EnvironmentScope, destinationId: string, requested: string[], actor: string) {
+    const eventTypes = normalizeEventTypes(requested);
+    const destination = await this.find(scope, destinationId);
+    if (destination.transport !== "webhook") {
+      throw new AppError(
+        "Only webhook destinations can filter event types; a Pub/Sub push endpoint can filter on the eventType attribute",
+        409,
+        "EVENT_FILTER_UNSUPPORTED",
+      );
+    }
+    if (destination.status === "disabled") throw new ConflictError("This destination is disabled");
+    const config = await this.webhooks.read(destinationId);
+    if (!config) throw new AppError("This webhook's configuration is missing; create the destination again", 409, "WEBHOOK_CONFIG_MISSING");
+    await this.webhooks.write(destinationId, withEventTypes(config, eventTypes));
+    const updated = await withTenant(this.prisma, { organizationId: scope.organizationId }, (db) =>
+      db.cpEventDestination.update({ where: { id: destinationId }, data: { eventTypes } }),
+    );
+    await this.recordAudit(scope, actor, destinationId, "event_types_changed", "info", "Webhook event types changed", {
+      before: destination.eventTypes ?? [],
+      after: eventTypes,
+    });
+    return updated;
+  }
+
   async list(scope: EnvironmentScope) {
     return withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
       const environment = await db.cpEnvironment.findFirst({
@@ -149,7 +183,14 @@ export class EventDestinationService {
     scope: EnvironmentScope,
     recipientApplicationId: string,
     id: string,
-    row: { transport: string; pushEndpoint: string; oidcAudience: string | null; deliveryServiceAccountEmail: string; webhookUrl?: string },
+    row: {
+      transport: string;
+      pushEndpoint: string;
+      oidcAudience: string | null;
+      deliveryServiceAccountEmail: string;
+      webhookUrl?: string;
+      eventTypes?: string[];
+    },
     actor: string,
   ) {
     return withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
@@ -262,6 +303,13 @@ export class EventDestinationService {
       payload,
     });
   }
+}
+
+/** The config with its event-type filter set; an empty filter is left out, which delivers every type. */
+function withEventTypes(config: WebhookDestinationConfig, eventTypes: string[]): WebhookDestinationConfig {
+  const rest = { ...config };
+  delete rest.eventTypes;
+  return eventTypes.length ? { ...rest, eventTypes } : rest;
 }
 
 /** The delivery service URL and the service account Pub/Sub uses to call it. */

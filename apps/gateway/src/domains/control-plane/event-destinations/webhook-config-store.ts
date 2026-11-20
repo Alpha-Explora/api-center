@@ -9,6 +9,8 @@ export interface WebhookDestinationConfig {
   /** Newest first. A rotated-out secret keeps signing until expiresAt so consumers can switch. */
   secrets: Array<{ value: string; expiresAt?: string }>;
   disabled?: boolean;
+  /** Event types the delivery service delivers; missing delivers every type. */
+  eventTypes?: string[];
 }
 
 export interface WebhookConfigStore {
