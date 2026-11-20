@@ -93,6 +93,19 @@ export class ControlPlaneAdminService {
     return project;
   }
 
+  /** Renames a project. The slug stays: it appears in identifiers people have already copied. */
+  async renameProject(organizationId: string, projectId: string, name: string, actor: string) {
+    const { before, project } = await this.tenant(organizationId, async (db) => {
+      const found = await db.cpProject.findFirst({ where: { id: projectId, organizationId } });
+      if (!found) throw new NotFoundError(`Project '${projectId}' was not found`);
+      return { before: found.name, project: found.name === name ? found : await db.cpProject.update({ where: { id: projectId }, data: { name } }) };
+    });
+    if (before !== name) {
+      await this.recordAudit({ organizationId, projectId }, "control_plane.project.renamed", actor, "cp_project", projectId, "test", { name, previousName: before });
+    }
+    return project;
+  }
+
   /** Suspends an application or resumes it. A suspended application's keys and workload identities are refused (APPLICATION_INACTIVE). */
   async setApplicationStatus(scope: EnvironmentScope, applicationId: string, status: "active" | "suspended", actor: string) {
     const application = await this.tenant(scope.organizationId, async (db) => {

@@ -96,6 +96,7 @@ const schemas = {
     .strict(),
   memberStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   projectStatus: z.object({ status: z.enum(["active", "archived"]), actor: onBehalfOf.optional() }).strict(),
+  renameProject: z.object({ name: z.string().trim().min(1).max(120), actor: onBehalfOf.optional() }).strict(),
   applicationStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
@@ -329,6 +330,15 @@ export class ControlPlaneAdminController {
   }
 
   /** Archives a project (every request refused, nothing deleted) or restores it. */
+  @Put("organizations/:organizationId/projects/:projectId")
+  async renameProject(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const input = parse(schemas.renameProject, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    return { success: true, data: await this.controlPlane.renameProject(organizationId, projectId, input.name, actorLabel(actor, input.actor)) };
+  }
+
   @Put("organizations/:organizationId/projects/:projectId/status")
   async setProjectStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const { organizationId, projectId } = projectScope(params);

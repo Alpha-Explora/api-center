@@ -76,6 +76,17 @@ describe("project archiving", () => {
   });
 });
 
+describe("project renaming", () => {
+  it("renames a project, keeps its slug, and records the old name", async () => {
+    const project = await admin.createProject(ORG, { slug: "shop", name: "Shop" }, actor);
+    const renamed = await admin.renameProject(ORG, project.id, "Storefront", actor);
+    expect(renamed).toMatchObject({ name: "Storefront", slug: "shop" });
+    // The same name again changes nothing.
+    await expect(admin.renameProject(ORG, project.id, "Storefront", actor)).resolves.toMatchObject({ name: "Storefront" });
+    await expect(admin.renameProject(ORG, "prj_missingmissingmissingm", "X", actor)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
 describe("team deletion", () => {
   beforeEach(() => {
     // Nobody is an organization owner or admin, so project admins come only from assignments.

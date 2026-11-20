@@ -1,12 +1,14 @@
 // Platform operators administer organizations: list, create (with an optional first owner, who is
-// sent an invite), rename, and suspend or reactivate. Members of an organization never reach these.
+// sent an invite), rename, and suspend or reactivate. An organization's owners may rename it (its name
+// only); members never reach the rest.
 
-import { Body, Controller, Get, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Optional, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import { ForbiddenError } from "@shared/errors";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
 import { actorOf, emailSchema, nameSchema, organizationIdSchema, parse, slugSchema } from "./console-request";
+import { ConsoleAccessService } from "./console-access.service";
 import { MemberInviteService } from "./member-invite.service";
 import { OrganizationAdminService } from "./organization-admin.service";
 
@@ -27,6 +29,7 @@ export class OrganizationAdminController {
   constructor(
     private readonly organizations: OrganizationAdminService,
     private readonly invites: MemberInviteService,
+    @Optional() private readonly access?: ConsoleAccessService,
   ) {}
 
   @Get("organizations")
@@ -51,11 +54,20 @@ export class OrganizationAdminController {
     return { success: true, data: { ...organization, owner } };
   }
 
+  /**
+   * Renames an organization. Platform operators may change its name and slug; its owners, its name only,
+   * since the slug is part of identifiers people have already copied.
+   */
   @Put("organizations/:organizationId")
   async rename(@Param("organizationId") organizationId: string, @Body() body: unknown, @Req() req: ConsoleRequest) {
-    const actor = requirePlatform(actorOf(req));
+    const actor = actorOf(req);
     const org = parse(organizationIdSchema, organizationId, "organizationId");
     const input = parse(schemas.rename, body, "body");
+    if (!hasPlatformAccess(actor)) {
+      if (!this.access) requirePlatform(actor);
+      await this.access?.require(actor, org, "organization.owners.manage");
+      if (input.slug) throw new ForbiddenError("Only APICenter operators change an organization's slug");
+    }
     return { success: true, data: await this.organizations.rename(org, input, actorLabel(actor, input.actor)) };
   }
 

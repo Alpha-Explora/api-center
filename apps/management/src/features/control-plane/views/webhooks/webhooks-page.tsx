@@ -32,6 +32,7 @@ import { WebhookDeliveriesPanel } from "./webhook-deliveries-panel";
 import { WebhookSecretDialog, type IssuedSigningSecret } from "./webhook-secret-dialog";
 import { EventTypesSheet } from "./event-types-sheet";
 import { RelativeTime } from "@/components/patterns/relative-time";
+import { Explainer } from "@/components/patterns/explainer";
 
 export function WebhooksPage() {
   return (
@@ -124,7 +125,7 @@ function Webhooks() {
         </Notice>
       ) : null}
 
-      <Notice title="How delivery works">
+      <Explainer id="webhooks" title="How delivery works">
         <ul className="list-disc space-y-0.5 pl-4">
           <li>
             A webhook receives every payment event for its application, or only the event types you choose. A Pub/Sub push destination always
@@ -133,7 +134,7 @@ function Webhooks() {
           <li>Each application can have one active destination. Disable it to replace it.</li>
           <li>Deliveries are signed with Standard Webhooks headers. Rotating a secret keeps the old one signing for 24 hours.</li>
         </ul>
-      </Notice>
+      </Explainer>
 
       {applications.error ? <ErrorPanel title="Applications could not be loaded" error={applications.error} /> : null}
 

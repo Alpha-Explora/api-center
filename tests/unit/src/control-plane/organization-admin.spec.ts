@@ -6,6 +6,7 @@ import type { MemberInviteService } from "../../../../apps/gateway/src/domains/c
 import { OrganizationAdminController } from "../../../../apps/gateway/src/domains/control-plane/organization-admin.controller";
 import { OrganizationAdminService } from "../../../../apps/gateway/src/domains/control-plane/organization-admin.service";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
+import { ConsoleAccessService } from "../../../../apps/gateway/src/domains/control-plane/console-access.service";
 
 const ORG = "6f1c1d1e-0000-4000-8000-0000000000a1";
 const platform: ConsoleActor = { kind: "platform", id: "platform" };
@@ -34,6 +35,30 @@ beforeEach(() => {
   invite = jest.fn().mockResolvedValue({ status: "sent", consoleUrl: "https://console.test", text: "invite" });
   const service = new OrganizationAdminService(prisma as unknown as PrismaService, audit as unknown as AuditEventsService);
   controller = new OrganizationAdminController(service, { invite } as unknown as MemberInviteService);
+});
+
+describe("renaming an organization", () => {
+  function withAccess() {
+    const db = prisma as unknown as PrismaService;
+    const service = new OrganizationAdminService(db, audit as unknown as AuditEventsService);
+    return new OrganizationAdminController(service, { invite } as unknown as MemberInviteService, new ConsoleAccessService(db));
+  }
+
+  it("lets an owner change the name but not the slug", async () => {
+    const owned = withAccess();
+    await expect(owned.rename(ORG, { name: "Serbizio PH" }, req(owner))).resolves.toMatchObject({ data: { name: "Serbizio PH", slug: "serbizio" } });
+    await expect(owned.rename(ORG, { slug: "serbizio-ph" }, req(owner))).rejects.toMatchObject({ status: 403 });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ type: "control_plane.organization.renamed" }));
+  });
+
+  it("refuses members who are not owners", async () => {
+    const dev: ConsoleActor = { kind: "member", email: "dev@example.test", subject: "s-dev", platformAdmin: false };
+    await expect(withAccess().rename(ORG, { name: "Mine" }, req(dev))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("lets platform operators change the slug too", async () => {
+    await expect(withAccess().rename(ORG, { slug: "serbizio-ph" }, req(platform))).resolves.toMatchObject({ data: { slug: "serbizio-ph" } });
+  });
 });
 
 describe("organization administration", () => {

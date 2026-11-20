@@ -80,6 +80,13 @@ describe("auditChanges", () => {
     ]);
   });
 
+  it("reads before and after objects field by field, marking only what changed", () => {
+    expect(auditChanges({ before: { name: "Alpha", slug: "alpha" }, after: { name: "Alpha Explora", slug: "alpha" } })).toEqual([
+      { label: "Name", before: "Alpha", after: "Alpha Explora" },
+      { label: "Slug", after: "alpha" },
+    ]);
+  });
+
   it("humanizes keys", () => {
     expect(humanize("memberEmail")).toBe("Member email");
     expect(humanize("project_id")).toBe("Project id");

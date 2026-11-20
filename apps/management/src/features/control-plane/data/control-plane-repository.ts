@@ -30,6 +30,9 @@ export const controlPlane = {
   createProject: (organizationId: string, input: { slug: string; name: string }) =>
     call(projectSchema, `${org(organizationId)}/projects`, send("POST", input)),
   project: (organizationId: string, projectId: string) => call(projectSchema, `${org(organizationId)}/projects/${encodeURIComponent(projectId)}`),
+  /** Renames a project; its slug stays. Project admins only. */
+  renameProject: (organizationId: string, projectId: string, name: string) =>
+    call(z.unknown(), `${org(organizationId)}/projects/${encodeURIComponent(projectId)}`, send("PUT", { name })),
 
   setCapability: (organizationId: string, projectId: string, kind: EnvironmentKind, capability: string, enabled: boolean) =>
     call(z.unknown(), `${env(organizationId, projectId, kind)}/capabilities/${encodeURIComponent(capability)}`, send("PUT", { enabled })),
