@@ -40,6 +40,12 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Quota: every request counts under a usage key the gateway generates. Before, the caller's `X-Correlation-ID` was the key, so repeating one value made every request after the first free. An `Idempotency-Key` now makes retries count once only for `POST` to email, SMS, OTP and payments, whose runtimes replay the stored response, and only within one UTC day.
+- Published APIs no longer receive the gateway's Cloud Run identity token. A tenant chooses the upstream, and a `*.run.app` upstream would have received a token APICenter's private runtimes accept.
+- Workload bindings are listed and revoked only through their own project and environment. Before, a developer on one project could revoke another project's binding by ID.
+- The gateway's audit log and HTTP metrics record the status the client received. Failed requests were recorded as 200, and a client that disconnects is now recorded as 499.
+- Console: the dialog that shows a new key or signing secret once no longer closes on Escape; only "I stored it" closes it.
+- Gateway (operations): one instance stays warm and each instance may open four database connections instead of two. Sign-in no longer times out on a cold gateway, and console pages no longer fail with `INTERNAL_ERROR` when the pool is exhausted.
 - Organization-level audit events (members, teams, API access decisions) are stored. They were written with environment `unknown`, which the table's check refused, so they stayed in memory only; they now use `none`.
 - Project-scoped console routes check that the project belongs to the organization in the path and answer 404 otherwise. Before, an organization owner or admin counted as admin of any project ID.
 - Removing a member, a team member or a project admin assignment is refused with `409 LAST_PROJECT_ADMIN` when it would leave a project with no administrator and the organization has no owner or admin left.
