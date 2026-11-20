@@ -8,6 +8,10 @@ metadata:
     cloud.googleapis.com/location: australia-southeast1
 spec:
   template:
+    metadata:
+      annotations:
+        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
     spec:
       taskCount: 1
       parallelism: 1
@@ -19,8 +23,8 @@ spec:
           containers:
             - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-history-purge:latest
               command: ["node"]
-              # Remove "--dry-run" once a dry run looks right.
-              args: ["scripts/purge-expired-history.cjs", "--dry-run"]
+              # Add "--dry-run" to report what would be deleted without deleting it.
+              args: ["scripts/purge-expired-history.cjs"]
               env:
                 - name: NODE_ENV
                   value: production
@@ -32,10 +36,4 @@ spec:
               resources:
                 limits:
                   cpu: "1"
-                  memory: 256Mi
-          restartPolicy: Never
-      metadata:
-        annotations:
-          run.googleapis.com/service-account: apicenter-history-purge@apicenter-alpha-20260623.iam.gserviceaccount.com
-          run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
-          run.googleapis.com/vpc-access-egress: private-ranges-only
+                  memory: 512Mi

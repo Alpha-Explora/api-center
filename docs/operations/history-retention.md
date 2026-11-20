@@ -47,7 +47,7 @@ The job prints one JSON line (`apicenter_history_purge`) with the rows deleted p
 
 ## Deploying the job
 
-The job runs from its own small image, `docker/Dockerfile.history-purge`, which holds only the script and the `pg` driver. The manifest is `infra/gcp/cloud-run/history-purge.yaml`. It ships with `--dry-run` in its args, so the first executions report what would be deleted and delete nothing.
+The job runs from its own small image, `docker/Dockerfile.history-purge`, which holds only the script and the `pg` driver. The manifest is `infra/gcp/cloud-run/history-purge.yaml`. In a new environment, add `--dry-run` to its args for the first executions, so they report what would be deleted and delete nothing.
 
 1. Build and push the image from the repository root:
 
@@ -61,10 +61,15 @@ The job runs from its own small image, `docker/Dockerfile.history-purge`, which 
 
    ```powershell
    gcloud run jobs replace infra/gcp/cloud-run/history-purge.yaml --region australia-southeast1
-   gcloud run jobs execute apicenter-history-purge --region australia-southeast1 --wait
+   gcloud run jobs execute apicenter-history-purge --region australia-south4. Read the `apicenter_history_purge` log line. When the counts look right, remove `--dry-run`, run `replace` again, and schedule the job daily. The scheduler's service account needs `roles/run.invoker` on the job:
+
+   ```powershell
+   gcloud iam service-accounts create apicenter-purge-scheduler --display-name="Triggers the history purge job"
+   gcloud run jobs add-iam-policy-binding apicenter-history-purge --region australia-southeast1 --member="serviceAccount:apicenter-purge-scheduler@PROJECT_ID.iam.gserviceaccount.com" --role=roles/run.invoker
+   gcloud scheduler jobs create http apicenter-history-purge-daily --location australia-southeast1 --schedule="0 3 * * *" --time-zone="Asia/Manila" --http-method=POST --uri="https://run.googleapis.com/v2/projects/PROJECT_ID/locations/australia-southeast1/jobs/apicenter-history-purge:run" --oauth-service-account-email=apicenter-purge-scheduler@PROJECT_ID.iam.gserviceaccount.com --oauth-token-scope=https://www.googleapis.com/auth/cloud-platform
    ```
 
-4. Read the `apicenter_history_purge` log line. When the counts look right, remove the `--dry-run` argument from the manifest, run `replace` again, and add a Cloud Scheduler job that posts to `https://run.googleapis.com/v2/projects/PROJECT_ID/locations/australia-southeast1/jobs/apicenter-history-purge:run` once a day with an OAuth token from a service account that holds `roles/run.invoker` on the job.
+In `apicenter-alpha-20260623` the job runs for real (no `--dry-run`) every day at 03:00 Asia/Manila..invoker` on the job.
 
 The job runs in `australia-southeast1`, beside the database. The names in the manifest (project, service account, secret, image repository) follow the existing payment dispatcher manifests. Change them if your environment uses others.
 
