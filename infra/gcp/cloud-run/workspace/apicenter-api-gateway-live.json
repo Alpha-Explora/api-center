@@ -131,51 +131,51 @@
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_OTP_TEST",
-                "value": "https://apicenter-one-time-password-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-one-time-password-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_OTP_LIVE",
-                "value": "https://apicenter-one-time-password-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-one-time-password-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_GAUTH_TEST",
-                "value": "https://apicenter-google-authentication-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-google-authentication-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_GAUTH_LIVE",
-                "value": "https://apicenter-google-authentication-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-google-authentication-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_SMS_TEST",
-                "value": "https://apicenter-sms-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-sms-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_SMS_LIVE",
-                "value": "https://apicenter-sms-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-sms-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_GEO_TEST",
-                "value": "https://apicenter-geolocation-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-geolocation-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_GEO_LIVE",
-                "value": "https://apicenter-geolocation-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-geolocation-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_EMAIL_TEST",
-                "value": "https://apicenter-email-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-email-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_EMAIL_LIVE",
-                "value": "https://apicenter-email-live-565306324295.asia-southeast1.run.app"
+                "value": "https://apicenter-email-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_PAYMENT_TEST",
-                "value": "https://apicenter-payments-test-mvrs6gmtgq-as.a.run.app"
+                "value": "https://apicenter-payments-test-565306324295.australia-southeast1.run.app"
               },
               {
                 "name": "SHARED_SERVICE_ROUTE_PAYMENT_LIVE",
-                "value": "https://apicenter-payments-live-mvrs6gmtgq-as.a.run.app"
+                "value": "https://apicenter-payments-live-565306324295.australia-southeast1.run.app"
               },
               {
                 "value": "20261012-reset1",

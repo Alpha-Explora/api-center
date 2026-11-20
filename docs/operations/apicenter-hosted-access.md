@@ -41,11 +41,21 @@ Provider callbacks must use the gateway's actual signed callback routes. The com
 
 Consumer Google Auth redirects belong to the consumer application. Register that application's redirect URI in its project/environment Google sign-in settings. The backend calls APICenter to authorize and exchange the code. A bearer-protected shared-service route is not a universal browser callback.
 
+## Regions
+
+The Supabase database is in `ap-southeast-2` (Sydney). Since 2026-11-20 the services that query it run beside it in `australia-southeast1`: the gateway (`apicenter-api-gateway-live`), the console (`apicenter-management-test`), and the email, SMS, OTP, Google sign-in, geolocation and payments runtimes. Every request queried the database across regions before, and a console page made about a hundred such round trips.
+
+Two services stay in `asia-southeast1`. The docs site has no database. The webhooks runtime keeps its URL because each webhook destination's Pub/Sub push subscription points at it; it writes delivery history asynchronously. The payment-event dispatcher jobs also stay there. Images remain in the `asia-southeast1` Artifact Registry.
+
+The load balancer has one serverless network endpoint group per backend: `apicenter-gateway-neg-syd` and `apicenter-management-neg-syd` in `australia-southeast1`, and `apicenter-docs-neg` in `asia-southeast1`. Deploy with `--region australia-southeast1` for the moved services. The gateway's `SHARED_SERVICE_ROUTE_*` values name the runtimes' `australia-southeast1` URLs.
+
+To move a backend between regions, attach the new region's endpoint group next to the old one and wait until it serves; changes took several minutes to reach the load balancer's proxies. Traffic always goes to the nearest healthy region, and the capacity scaler does not steer serverless backends, so the switch is detaching the old group. Make that change as a single `backend-services export`/`import`, and keep the two-region file to re-import if requests fail. A backend accepts only one serverless endpoint group per region.
+
 ## Gateway credential and database settings
 
 Set `TRIBE_SECRET_GCP_PREFIX=api-center-service-secret-` on the gateway. The variable retains its historical name, but the value must match Management's per-service secret naming. An explicit Cloud Run value takes precedence over the older prefix in the gateway's bootstrap secret bundle. Each payload names its service and environment and stores credential hashes only.
 
-`DATABASE_POOL_MAX` controls the gateway's PostgreSQL connection pool per instance. It defaults to two and must be a positive integer. The checked-in gateway manifest uses four and keeps one instance warm (`minScale` 1), because the database is in Supabase `ap-southeast-2` while Cloud Run is in `asia-southeast1`: each query crosses regions, and two connections could not serve one console page load. At three instances that is twelve connections. Include old and new revisions, maximum instance counts, local processes and other database clients when budgeting Supabase session-pooler capacity. Raising Cloud Run's instance limit without that calculation can prevent a new revision from starting.
+`DATABASE_POOL_MAX` controls the gateway's PostgreSQL connection pool per instance. It defaults to two and must be a positive integer. The checked-in gateway manifest uses four and keeps one instance warm (`minScale` 1), because two connections could not serve one console page load while the gateway ran in `asia-southeast1`, a region away from the database. The gateway now runs next to the database (see Regions). At three instances that is twelve connections. Include old and new revisions, maximum instance counts, local processes and other database clients when budgeting Supabase session-pooler capacity. Raising Cloud Run's instance limit without that calculation can prevent a new revision from starting.
 
 ## Configuration and rollout evidence
 
