@@ -5,8 +5,8 @@ import type { ConfigService } from "../../../../apps/gateway/src/config/config.s
 
 describe("console sign-in memberships", () => {
   const rows = [
-    { organizationId: "org-1", email: "dev@example.test", role: "developer", organization: { slug: "alpha", name: "Alpha" } },
-    { organizationId: "org-2", email: "dev@example.test", role: "operator", organization: { slug: "beta", name: "Beta" } },
+    { organizationId: "org-1", email: "dev@example.test", role: "developer", status: "active", inviteExpiresAt: null, organization: { slug: "alpha", name: "Alpha" } },
+    { organizationId: "org-2", email: "dev@example.test", role: "operator", status: "active", inviteExpiresAt: null, organization: { slug: "beta", name: "Beta" } },
   ];
   const findMany = jest.fn().mockResolvedValue(rows);
   const organizations = jest.fn().mockResolvedValue([
@@ -27,6 +27,17 @@ describe("console sign-in memberships", () => {
       ],
     });
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { email: "dev@example.test" } }));
+  });
+
+  it("offers a pending invite, but not an expired invite or a suspended membership", async () => {
+    const at = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    findMany.mockResolvedValueOnce([
+      { organizationId: "org-1", email: "new@example.test", role: "developer", status: "invited", inviteExpiresAt: at(3), organization: { slug: "alpha", name: "Alpha" } },
+      { organizationId: "org-2", email: "new@example.test", role: "developer", status: "invited", inviteExpiresAt: at(-1), organization: { slug: "beta", name: "Beta" } },
+      { organizationId: "org-3", email: "new@example.test", role: "developer", status: "suspended", inviteExpiresAt: null, organization: { slug: "gamma", name: "Gamma" } },
+    ]);
+    const lookup = await people.membershipsOf("new@example.test");
+    expect(lookup.memberships.map((membership) => membership.organizationId)).toEqual(["org-1"]);
   });
 
   it("marks platform operators and lists every active organization for them", async () => {

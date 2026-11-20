@@ -2,6 +2,7 @@
 
 ## 2026-11-20
 
+- The Management access guide and control plane operations describe invite expiry, resending invites, suspending members and migration `20261120001090`.
 - The Management access guide and control plane operations describe suspending applications, archiving projects and deleting teams.
 - The history retention runbook adds the control-plane usage, quota-counter and key-issue tables with their windows, and runs the purge job in `australia-southeast1`.
 - The hosted-access runbook documents the image build, including the `_RELEASE_SHA` substitution that sets the release commit each image reports.
