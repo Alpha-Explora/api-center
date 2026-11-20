@@ -110,6 +110,7 @@ export class MemberInviteService {
         type: outcome.status === "sent" ? INVITE_SENT : "control_plane.member.invite_not_sent",
         actionFamily: "registration",
         actor: input.invitedBy,
+        organizationId: input.organizationId,
         resourceType: "member",
         resourceId: inviteKey(input),
         severity: outcome.status === "sent" ? "info" : "warning",

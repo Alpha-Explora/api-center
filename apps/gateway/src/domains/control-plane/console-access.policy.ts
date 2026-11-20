@@ -22,6 +22,7 @@ export type ConsoleAction =
   | "organization.owners.manage"
   | "organization.teams.manage"
   | "organization.quotas.manage"
+  | "organization.audit.read"
   | "project.create"
   | "project.read"
   | "project.manage"
@@ -80,6 +81,7 @@ export function canPerform(
     case "organization.members.manage":
     case "organization.teams.manage":
     case "organization.quotas.manage":
+    case "organization.audit.read":
       return role === "owner" || role === "admin";
     case "project.create":
       return role !== "viewer";
@@ -103,4 +105,17 @@ export function canPerform(
     default:
       return false;
   }
+}
+
+/**
+ * Whose audit events an actor may read in one organization: platform callers, owners and admins
+ * read every event; a project admin reads the events of the projects they administer.
+ */
+export type AuditScope = { kind: "organization" } | { kind: "projects"; projectIds: string[] };
+
+export function auditScope(actor: ConsoleActor, access: MemberAccess): AuditScope | undefined {
+  if (canPerform(actor, access, "organization.audit.read")) return { kind: "organization" };
+  if (!access.organizationRole) return undefined;
+  const projectIds = [...access.projectRoles].filter(([, role]) => role === "admin").map(([projectId]) => projectId);
+  return projectIds.length ? { kind: "projects", projectIds } : undefined;
 }

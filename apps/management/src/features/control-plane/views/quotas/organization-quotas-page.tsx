@@ -22,6 +22,9 @@ import { EMPTY_QUOTA_FORM, sharedQuotaFormToBody, type QuotaForm, type QuotaForm
 import { PageSkeleton } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { useAccess, useOrganization } from "../../view-models/use-organization";
+import { observability } from "../../data/observability";
+import { observabilityKeys } from "../../view-models/observability";
+import { QuotaMeterBar } from "./quota-meter";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
 
 const DESCRIPTION = "Shared ceilings: one request budget that several projects draw from together, for test or live.";
@@ -63,6 +66,13 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const usage = useQuery({
+    queryKey: observabilityKeys.sharedQuotaUsage(organizationId),
+    queryFn: () => observability.sharedQuotaUsage(organizationId),
+    retry: false,
+    refetchInterval: 60_000,
+  });
+  const meters = new Map((usage.data?.meters ?? []).map((meter) => [meter.policyId, meter]));
   const names = new Map((projects.data ?? []).map((project) => [project.id, project.name]));
   const shared = (policies.data ?? []).filter((policy) => policy.scope === "shared");
   const copy = statusChangeCopy(changing);
@@ -82,6 +92,7 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
         {`${QUOTA_RULES} ${QUOTA_LIMITATIONS} A project's own policies are on that project's Quotas page.`}
       </Notice>
       {policies.error ? <ErrorPanel title="Quota policies could not be loaded" error={policies.error} /> : null}
+      {usage.error ? <ErrorPanel title="Quota usage could not be loaded" error={usage.error} /> : null}
       {(["test", "live"] as const).map((kind) => {
         const rows = shared.filter((policy) => policy.environmentKind === kind);
         return (
@@ -95,6 +106,7 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
             ) : (
               <QuotaPolicyTable
                 policies={rows}
+                usage={(policy) => (usage.isLoading ? <Skeleton className="h-4 w-32" /> : usage.error ? null : <QuotaMeterBar meter={meters.get(policy.id)} />)}
                 extra={{
                   label: "Covers",
                   render: (policy) => {

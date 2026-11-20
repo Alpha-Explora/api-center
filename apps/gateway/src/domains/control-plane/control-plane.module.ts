@@ -21,6 +21,8 @@ import { OrganizationAdminService } from "./organization-admin.service";
 import { ApprovalsQueueController } from "./approvals-queue.controller";
 import { ApprovalsQueueService } from "./approvals-queue.service";
 import { MemberInviteService } from "./member-invite.service";
+import { ObservabilityController } from "./observability/observability.controller";
+import { ObservabilityService } from "./observability/observability.service";
 
 /**
  * Control plane v2: organization-owned projects, environment-bound applications, explicit
@@ -30,7 +32,7 @@ import { MemberInviteService } from "./member-invite.service";
  */
 @Module({
   imports: [DatabaseModule, AuthModule, ApprovalsModule],
-  controllers: [ControlPlaneAdminController, OrganizationAdminController, ApprovalsQueueController, WhoAmIController],
+  controllers: [ControlPlaneAdminController, OrganizationAdminController, ApprovalsQueueController, WhoAmIController, ObservabilityController],
   providers: [
     ControlPlaneAdminService,
     ApplicationAccessService,
@@ -47,6 +49,7 @@ import { MemberInviteService } from "./member-invite.service";
     OrganizationAdminService,
     ApprovalsQueueService,
     MemberInviteService,
+    ObservabilityService,
   ],
   exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, AuthModule],
 })

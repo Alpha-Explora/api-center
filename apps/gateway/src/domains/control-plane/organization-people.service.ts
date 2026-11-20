@@ -4,7 +4,7 @@ import { Injectable, Optional } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
-import { AuditEventsService } from "@audit/audit-events.service";
+import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service";
 import { ConfigService } from "@config/config.service";
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
@@ -100,7 +100,7 @@ export class OrganizationPeopleService {
       });
       return current;
     });
-    await this.recordAudit("control_plane.member.set", actor, `${organizationId}:${email}`, { role, previousRole: previous ?? null });
+    await this.recordAudit({ organizationId }, "control_plane.member.set", actor, `${organizationId}:${email}`, { role, previousRole: previous ?? null });
     return { email, role, previousRole: previous ?? null };
   }
 
@@ -112,7 +112,7 @@ export class OrganizationPeopleService {
       await db.organizationMember.delete({ where: { organization_members_pkey: { organizationId, email } } });
       return current;
     });
-    await this.recordAudit("control_plane.member.removed", actor, `${organizationId}:${email}`, { previousRole: previous });
+    await this.recordAudit({ organizationId }, "control_plane.member.removed", actor, `${organizationId}:${email}`, { previousRole: previous });
     return { email, removed: true };
   }
 
@@ -125,7 +125,7 @@ export class OrganizationPeopleService {
         return db.cpTeam.create({ data: { id: prefixedId("tm"), organizationId, slug: input.slug, name: input.name, createdBy: actor } });
       }),
     );
-    await this.recordAudit("control_plane.team.created", actor, team.id, { organizationId, slug: team.slug });
+    await this.recordAudit({ organizationId }, "control_plane.team.created", actor, team.id, { organizationId, slug: team.slug });
     return { ...team, members: [] as string[] };
   }
 
@@ -152,7 +152,7 @@ export class OrganizationPeopleService {
         update: {},
       });
     });
-    await this.recordAudit("control_plane.team.member_added", actor, teamId, { email });
+    await this.recordAudit({ organizationId }, "control_plane.team.member_added", actor, teamId, { email });
     return { teamId, email };
   }
 
@@ -161,7 +161,7 @@ export class OrganizationPeopleService {
       await requireTeam(db, organizationId, teamId);
       await db.cpTeamMember.deleteMany({ where: { organizationId, teamId, email } });
     });
-    await this.recordAudit("control_plane.team.member_removed", actor, teamId, { email });
+    await this.recordAudit({ organizationId }, "control_plane.team.member_removed", actor, teamId, { email });
     return { teamId, email, removed: true };
   }
 
@@ -196,7 +196,7 @@ export class OrganizationPeopleService {
         ? db.cpProjectRoleAssignment.update({ where: { id: existing.id }, data: { role } })
         : db.cpProjectRoleAssignment.create({ data: { id: prefixedId("pra"), ...where, role, createdBy: actor } });
     });
-    await this.recordAudit("control_plane.project_role.set", actor, assignment.id, { projectId, ...assignee, role });
+    await this.recordAudit({ organizationId, projectId }, "control_plane.project_role.set", actor, assignment.id, { projectId, ...assignee, role });
     return assignment;
   }
 
@@ -205,7 +205,7 @@ export class OrganizationPeopleService {
       const removed = await db.cpProjectRoleAssignment.deleteMany({ where: { id: assignmentId, organizationId, projectId } });
       if (removed.count === 0) throw new NotFoundError(`Role assignment '${assignmentId}' was not found`);
     });
-    await this.recordAudit("control_plane.project_role.removed", actor, assignmentId, { projectId });
+    await this.recordAudit({ organizationId, projectId }, "control_plane.project_role.removed", actor, assignmentId, { projectId });
     return { id: assignmentId, removed: true };
   }
 
@@ -233,9 +233,11 @@ export class OrganizationPeopleService {
     }
   }
 
-  private async recordAudit(type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {
+  private async recordAudit(owner: AuditOwner, type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {
     await this.audit.record({
       type,
+      organizationId: owner.organizationId,
+      projectId: owner.projectId,
       actionFamily: "registration",
       actor,
       resourceType: type.split(".")[1],

@@ -9,7 +9,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "@database/prisma.service";
-import { AuditEventsService } from "@audit/audit-events.service";
+import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { newResourceId } from "./application-credential";
@@ -45,7 +45,7 @@ export class LiveEnvironmentService {
         throw error;
       }
     });
-    await this.recordAudit("control_plane.live.provisioned", actor, environment.id, { projectId });
+    await this.recordAudit({ organizationId, projectId }, "control_plane.live.provisioned", actor, environment.id, { projectId });
     return environment;
   }
 
@@ -76,7 +76,7 @@ export class LiveEnvironmentService {
       reason,
       requestedBy,
     });
-    await this.recordAudit("control_plane.live.activation_requested", requestedBy, readiness.environmentId, { projectId, approvalRequestId: request.id });
+    await this.recordAudit({ organizationId, projectId }, "control_plane.live.activation_requested", requestedBy, readiness.environmentId, { projectId, approvalRequestId: request.id });
     return request;
   }
 
@@ -102,6 +102,7 @@ export class LiveEnvironmentService {
       ? await this.approvals.approveRequest(approvalRequestId, decision.by)
       : await this.approvals.rejectRequest(approvalRequestId, decision.by, decision.reason);
     await this.recordAudit(
+      { organizationId, projectId },
       decision.approve ? "control_plane.live.activation_approved" : "control_plane.live.activation_rejected",
       decision.by,
       projectId,
@@ -127,7 +128,7 @@ export class LiveEnvironmentService {
         data: { status: "active", activatedAt: new Date(), activatedBy: actor, activationApprovalId: approvalRequestId },
       });
     });
-    await this.recordAudit("control_plane.live.activated", actor, environment.id, { projectId, approvalRequestId });
+    await this.recordAudit({ organizationId, projectId }, "control_plane.live.activated", actor, environment.id, { projectId, approvalRequestId });
     return environment;
   }
 
@@ -141,13 +142,15 @@ export class LiveEnvironmentService {
       }
       return db.cpEnvironment.update({ where: { id: found.id }, data: { status } });
     });
-    await this.recordAudit(`control_plane.environment.${status}`, actor, environment.id, { projectId, kind });
+    await this.recordAudit({ organizationId, projectId }, `control_plane.environment.${status}`, actor, environment.id, { projectId, kind });
     return environment;
   }
 
-  private async recordAudit(type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {
+  private async recordAudit(owner: AuditOwner, type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {
     await this.audit.record({
       type,
+      organizationId: owner.organizationId,
+      projectId: owner.projectId,
       actionFamily: "promotion",
       actor,
       resourceType: "cp_environment",

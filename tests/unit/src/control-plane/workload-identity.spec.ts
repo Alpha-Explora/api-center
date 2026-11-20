@@ -64,19 +64,21 @@ describe("workload identity on the request path", () => {
   let admin: ControlPlaneAdminService;
   let bindings: WorkloadBindingService;
   let access: ApplicationAccessService;
+  let audit: { record: jest.Mock };
   const { privateKey } = generateKeyPairSync("ed25519");
 
   beforeEach(() => {
     prisma = createFakeControlPlanePrisma();
     prisma.organization.rows.push({ id: ORG, status: "active" });
     const db = prisma as unknown as PrismaService;
-    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
-    admin = new ControlPlaneAdminService(db, audit);
-    bindings = new WorkloadBindingService(db, audit);
+    audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const auditEvents = audit as unknown as AuditEventsService;
+    admin = new ControlPlaneAdminService(db, auditEvents);
+    bindings = new WorkloadBindingService(db, auditEvents);
     access = new ApplicationAccessService(
       db,
       new RuntimeContextSigner({ APICENTER_RUNTIME_CONTEXT_SIGNING_KEY: JSON.stringify({ ...privateKey.export({ format: "jwk" }), kid: "k" }) }),
-      new QuotaService(db, audit),
+      new QuotaService(db, auditEvents),
       new WorkloadTokenVerifier(googleClient({ iss: "https://accounts.google.com", sub: SA, aud: AUDIENCE })),
     );
   });
@@ -101,6 +103,12 @@ describe("workload identity on the request path", () => {
 
     await bindings.revoke(scope, app.id, binding.id, actor);
     await expect(send()).rejects.toMatchObject({ status: 401 });
+
+    const workloadEvents = audit.record.mock.calls.map(([event]) => event).filter((event) => event.resourceType === "cp_workload_binding");
+    expect(workloadEvents.map((event) => [event.type, event.organizationId, event.projectId, event.environment])).toEqual([
+      ["control_plane.workload.bound", ORG, scope.projectId, "test"],
+      ["control_plane.workload.revoked", ORG, scope.projectId, "test"],
+    ]);
   });
 
   it("binds only exact numeric subjects and configured audiences", async () => {

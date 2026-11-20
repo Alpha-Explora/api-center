@@ -14,7 +14,7 @@ export const QUOTA_RULES =
   "Every limit that applies must have room: the plan's daily allowance, the project's policies and any shared ceiling. Windows are fixed and aligned to the clock in UTC, so an hourly limit resets on the hour. Requests over an enforced limit get 429 QUOTA_EXCEEDED.";
 
 export const QUOTA_LIMITATIONS =
-  "Policies cannot be edited or deleted. To change one, disable it and create a new one. The console cannot show how much of a limit is used yet.";
+  "Policies cannot be edited or deleted. To change one, disable it and create a new one.";
 
 /** The fields every quota policy has; the sheet around it adds what its scope needs. */
 export function QuotaPolicyFields({
@@ -115,10 +115,13 @@ function windowHint(value: string) {
 export function QuotaPolicyTable({
   policies,
   extra,
+  usage,
   actions,
 }: {
   policies: QuotaPolicy[];
   extra?: { label: string; render: (policy: QuotaPolicy) => ReactNode };
+  /** The policy's current-window usage. */
+  usage?: (policy: QuotaPolicy) => ReactNode;
   actions?: (policy: QuotaPolicy) => ReactNode;
 }) {
   return (
@@ -128,6 +131,7 @@ export function QuotaPolicyTable({
           <TableHead>Limit</TableHead>
           <TableHead className="hidden sm:table-cell">Mode</TableHead>
           <TableHead>Status</TableHead>
+          {usage ? <TableHead className="hidden w-56 sm:table-cell">Used this window</TableHead> : null}
           {extra ? <TableHead className="hidden md:table-cell">{extra.label}</TableHead> : null}
           <TableHead className="hidden lg:table-cell">Created</TableHead>
           {actions ? <TableHead className="w-0" /> : null}
@@ -142,6 +146,7 @@ export function QuotaPolicyTable({
                 {policy.capability ? <span className="font-mono">{policy.capability}</span> : "All requests"}
                 <span className="sm:hidden"> · {policy.mode === "observe" ? "Observe" : "Enforce"}</span>
               </div>
+              {usage ? <div className="mt-2 sm:hidden">{usage(policy)}</div> : null}
             </TableCell>
             <TableCell className="hidden sm:table-cell">
               <StatusBadge tone={policy.mode === "observe" ? "warning" : "info"}>{policy.mode === "observe" ? "Observe" : "Enforce"}</StatusBadge>
@@ -149,6 +154,7 @@ export function QuotaPolicyTable({
             <TableCell>
               <StatusBadge status={policy.status} />
             </TableCell>
+            {usage ? <TableCell className="hidden sm:table-cell">{usage(policy)}</TableCell> : null}
             {extra ? <TableCell className="hidden max-w-64 md:table-cell">{extra.render(policy)}</TableCell> : null}
             <TableCell className="hidden text-muted-foreground lg:table-cell" title={`${formatDateTime(policy.createdAt)}${policy.createdBy ? ` by ${policy.createdBy}` : ""}`}>
               {formatRelative(policy.createdAt)}

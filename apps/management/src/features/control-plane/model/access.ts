@@ -14,6 +14,10 @@ export type Access = {
   canManageOwners: boolean;
   canManageTeams: boolean;
   canManageQuotas: boolean;
+  /** Reads the audit log: every event for owners and admins, their projects' events for project admins. */
+  canReadAuditLog: boolean;
+  /** Reads every event in the organization, including members and teams. */
+  canReadOrganizationAudit: boolean;
   canManageProject: (projectId: string) => boolean;
   canWriteEnvironment: (projectId: string, kind: EnvironmentKind) => boolean;
 };
@@ -44,6 +48,8 @@ export function accessFrom(me: Me | undefined): Access {
     canManageOwners: platform || organizationRole === "owner",
     canManageTeams: orgAdmin,
     canManageQuotas: orgAdmin,
+    canReadAuditLog: orgAdmin || (organizationRole !== null && Object.values(me?.projectRoles ?? {}).includes("admin")),
+    canReadOrganizationAudit: orgAdmin,
     canManageProject: (projectId) => atLeast(projectId, "admin"),
     canWriteEnvironment: (projectId, kind) => atLeast(projectId, kind === "live" ? "admin" : "developer"),
   };
@@ -55,4 +61,5 @@ export function environmentWriteReason(kind: EnvironmentKind) {
 }
 
 export const PROJECT_ADMIN_REASON = "Needs the project admin role.";
+export const AUDIT_REASON = "The audit log is for organization owners and admins, and for project admins on their projects.";
 export const ORGANIZATION_ADMIN_REASON = "Needs the organization owner or admin role.";

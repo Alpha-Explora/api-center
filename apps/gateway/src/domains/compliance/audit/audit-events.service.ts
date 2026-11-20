@@ -1,4 +1,5 @@
 import { Injectable, Optional } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
 import { LoggerService } from "@shared/logger.service";
@@ -24,6 +25,9 @@ export interface AuditEventRecord {
     | "gateway"
     | "lifecycle";
   actor?: string;
+  /** The control-plane organization and project the event belongs to, for the console's audit log. */
+  organizationId?: string;
+  projectId?: string;
   serviceId?: string;
   tribeServiceId?: string;
   sharedServiceId?: string;
@@ -36,6 +40,9 @@ export interface AuditEventRecord {
   payload?: Record<string, unknown>;
   timestamp: string;
 }
+
+/** Which organization and project an audit event belongs to. */
+export type AuditOwner = Pick<AuditEventRecord, "organizationId" | "projectId">;
 
 export interface AuditEventFilter {
   limit?: number;
@@ -50,6 +57,53 @@ export interface AuditEventFilter {
 export interface AuditEventListResult {
   data: AuditEventRecord[];
   sourceMetadata: ManagementSourceMetadata;
+}
+
+/** One page of an organization's (or the platform's) audit events, newest first. */
+export interface AuditEventPageFilter {
+  organizationId?: string;
+  /** Only these projects' events; a project admin's view. */
+  projectIds?: string[];
+  projectId?: string;
+  actor?: string;
+  /** An action, or an action prefix such as `control_plane.credential`. */
+  action?: string;
+  from?: Date;
+  to?: Date;
+  /** Keyset cursor: events strictly older than this one. */
+  before?: { at: Date; id: string };
+  take: number;
+}
+
+export interface AuditEventPageRow {
+  id: string;
+  createdAt: Date;
+  organizationId: string | null;
+  projectId: string | null;
+  environment: string;
+  actorId: string | null;
+  actorType: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  outcome: string;
+  correlationId: string | null;
+  metadata: unknown;
+}
+
+export function auditEventPageWhere(filter: Omit<AuditEventPageFilter, "take">): Prisma.AuditEventWhereInput {
+  const conditions: Prisma.AuditEventWhereInput[] = [];
+  if (filter.organizationId) conditions.push({ organizationId: filter.organizationId });
+  if (filter.projectIds) conditions.push({ projectId: { in: filter.projectIds } });
+  if (filter.projectId) conditions.push({ projectId: filter.projectId });
+  if (filter.actor) conditions.push({ actorId: filter.actor });
+  if (filter.action) conditions.push({ OR: [{ action: filter.action }, { action: { startsWith: `${filter.action}.` } }] });
+  if (filter.from) conditions.push({ createdAt: { gte: filter.from } });
+  if (filter.to) conditions.push({ createdAt: { lte: filter.to } });
+  if (filter.before) {
+    conditions.push({ OR: [{ createdAt: { lt: filter.before.at } }, { createdAt: filter.before.at, id: { lt: filter.before.id } }] });
+  }
+  return { AND: conditions };
 }
 
 const MAX_EVENTS = 500;
@@ -75,6 +129,8 @@ type AuditEventRow = {
   outcome: string;
   metadata: unknown;
   createdAt: Date | string;
+  organizationId?: string | null;
+  projectId?: string | null;
 };
 
 @Injectable()
@@ -160,6 +216,17 @@ export class AuditEventsService {
     };
   }
 
+  /** Reads durable events only; the in-memory cache has no organization attribution to filter on. */
+  async listPage(filter: AuditEventPageFilter): Promise<AuditEventPageRow[]> {
+    if (!this.prisma) throw new Error("Audit events need the APICenter database");
+    const { take, ...where } = filter;
+    return this.prisma.auditEvent.findMany({
+      where: auditEventPageWhere(where),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take,
+    });
+  }
+
   private async readEventsWithSource(
     limit: number,
     now: Date,
@@ -237,6 +304,8 @@ export class AuditEventsService {
           resourceType: record.resourceType ?? this.resolveResourceType(record),
           resourceId: record.resourceId ?? this.resolveResourceId(record),
           outcome: record.severity === "error" ? "failed" : "succeeded",
+          organizationId: record.organizationId ?? null,
+          projectId: record.projectId ?? null,
           metadata: {
             actionFamily: record.actionFamily,
             severity: record.severity,
@@ -339,8 +408,10 @@ function resolveActorType(record: AuditEventRecord): "system" | "operator" | "tr
   return "tribe";
 }
 
-function resolveAuditEnvironment(record: AuditEventRecord): string {
-  return record.environment?.trim() || "unknown";
+/** Organization-level events have no environment; the table accepts test, live or none. */
+export function resolveAuditEnvironment(record: Pick<AuditEventRecord, "environment">): "test" | "live" | "none" {
+  const environment = record.environment?.trim();
+  return environment === "test" || environment === "live" ? environment : "none";
 }
 
 function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
@@ -350,6 +421,8 @@ function mapAuditEventRow(row: AuditEventRow): AuditEventRecord {
     type: row.action,
     actionFamily: metadata.actionFamily as AuditEventRecord["actionFamily"],
     actor: row.actorId ?? undefined,
+    organizationId: row.organizationId ?? undefined,
+    projectId: row.projectId ?? undefined,
     serviceId: stringValue(metadata.serviceId),
     tribeServiceId: stringValue(metadata.tribeServiceId),
     sharedServiceId: stringValue(metadata.sharedServiceId),

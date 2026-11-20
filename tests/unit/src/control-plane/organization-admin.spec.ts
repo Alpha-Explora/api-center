@@ -58,6 +58,8 @@ describe("organization administration", () => {
     );
     expect(invite).toHaveBeenCalledWith({ organizationId: data.id, email: "lead@example.test", role: "owner", invitedBy: "ops@example.test" });
     expect(audit.record.mock.calls.map(([event]) => event.type)).toEqual(["control_plane.organization.created", "control_plane.member.set"]);
+    // Attributed, so the new organization's own audit log shows them.
+    expect(audit.record.mock.calls.map(([event]) => event.organizationId)).toEqual([data.id, data.id]);
   });
 
   it("creates an organization without an owner and sends no invite", async () => {
@@ -98,9 +100,9 @@ describe("organization administration", () => {
     expect((await controller.setStatus(ORG, { status: "suspended" }, req(operator))).data.status).toBe("suspended");
     await controller.setStatus(ORG, { status: "suspended" }, req(operator));
     expect((await controller.setStatus(ORG, { status: "active" }, req(operator))).data.status).toBe("active");
-    expect(audit.record.mock.calls.map(([event]) => [event.type, event.severity])).toEqual([
-      ["control_plane.organization.suspended", "warning"],
-      ["control_plane.organization.reactivated", "info"],
+    expect(audit.record.mock.calls.map(([event]) => [event.type, event.severity, event.organizationId])).toEqual([
+      ["control_plane.organization.suspended", "warning", ORG],
+      ["control_plane.organization.reactivated", "info", ORG],
     ]);
   });
 

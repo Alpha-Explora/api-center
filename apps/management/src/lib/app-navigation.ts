@@ -59,6 +59,13 @@ export const organizationNav: NavItem[] = [
     platformOnly: true,
   },
   {
+    id: "audit",
+    href: "/audit",
+    label: "Audit log",
+    description: "Who changed what: keys, grants, roles, quotas and going live.",
+    keywords: ["audit", "activity", "history", "events", "changes", "who"],
+  },
+  {
     id: "requests",
     href: "/requests",
     label: "Requests",
@@ -108,10 +115,17 @@ export const projectSections: { id: string; path: string; label: string; descrip
     keywords: ["events", "destinations", "signing secret", "rotate", "pubsub", "callback", "payment"],
   },
   {
+    id: "requests",
+    path: "/requests",
+    label: "Requests",
+    description: "Recent requests from this environment's applications.",
+    keywords: ["logs", "errors", "status", "latency", "correlation", "diagnostics", "traffic"],
+  },
+  {
     id: "quotas",
     path: "/quotas",
     label: "Quotas",
-    description: "Request limits for this environment.",
+    description: "Request limits for this environment and how much of each is used.",
     keywords: ["quota", "limit", "rate", "budget", "observe", "enforce"],
   },
 ];

@@ -8,7 +8,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "@database/prisma.service";
-import { AuditEventsService } from "@audit/audit-events.service";
+import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "@shared/errors";
 import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstream-guard";
 import { newResourceId } from "./application-credential";
@@ -80,7 +80,7 @@ export class PublishedApiService {
         throw error;
       }
     });
-    await this.recordAudit("control_plane.api.published", actor, api.id, scope.environmentKind, {
+    await this.recordAudit(scope, "control_plane.api.published", actor, api.id, scope.environmentKind, {
       projectId: scope.projectId,
       operations: input.operations.length,
     });
@@ -143,7 +143,7 @@ export class PublishedApiService {
         data: { ...(change.status ? { status: change.status } : {}), ...(change.upstreamUrl ? { upstreamUrl: change.upstreamUrl } : {}) },
       });
     });
-    await this.recordAudit("control_plane.api.updated", actor, apiId, api.environmentKind, {
+    await this.recordAudit(scope, "control_plane.api.updated", actor, apiId, api.environmentKind, {
       ...(change.status ? { status: change.status } : {}),
       upstreamChanged: Boolean(change.upstreamUrl),
       ...(change.operations ? { operations: change.operations.length } : {}),
@@ -191,7 +191,7 @@ export class PublishedApiService {
       });
       return { kind: "requested" as const, request };
     });
-    await this.recordAudit(`control_plane.api_access.${outcome.kind}`, actor, apiId, consumer.environmentKind, { applicationId, action });
+    await this.recordAudit(consumer, `control_plane.api_access.${outcome.kind}`, actor, apiId, consumer.environmentKind, { applicationId, action });
     return outcome;
   }
 
@@ -227,22 +227,31 @@ export class PublishedApiService {
         if (!application) throw new NotFoundError("The requesting application no longer exists");
         grantId = (await createApiGrant(db, application, request.apiId, request.action, actor)).id;
       }
-      return db.cpApiAccessRequest.update({
+      const api = await db.cpPublishedApi.findFirst({ where: { id: request.apiId, organizationId }, select: { projectId: true } });
+      const updated = await db.cpApiAccessRequest.update({
         where: { id: requestId },
         data: { status: approve ? "approved" : "rejected", decidedBy: actor, decidedAt: new Date(), grantId },
       });
+      return { request: updated, apiProjectId: api?.projectId };
     });
-    await this.recordAudit(`control_plane.api_access.${decided.status}`, actor, decided.apiId, "", { requestId, action: decided.action });
-    return decided;
+    const { request, apiProjectId } = decided;
+    await this.recordAudit({ organizationId, projectId: apiProjectId }, `control_plane.api_access.${request.status}`, actor, request.apiId, "", {
+      requestId,
+      action: request.action,
+      consumerProjectId: request.consumerProjectId,
+    });
+    return request;
   }
 
   private tenant<T>(organizationId: string, work: (db: TenantDb) => Promise<T>): Promise<T> {
     return withTenant(this.prisma, { organizationId }, work);
   }
 
-  private async recordAudit(type: string, actor: string, resourceId: string, environment: string, payload: Record<string, unknown>) {
+  private async recordAudit(owner: AuditOwner, type: string, actor: string, resourceId: string, environment: string, payload: Record<string, unknown>) {
     await this.audit.record({
       type,
+      organizationId: owner.organizationId,
+      projectId: owner.projectId,
       actionFamily: "registration",
       actor,
       resourceType: "cp_published_api",

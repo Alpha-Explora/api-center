@@ -4,12 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightIcon } from "lucide-react";
 import { toast } from "sonner";
 import { buttonVariants } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { IdText } from "@/components/patterns/copy-button";
-import { EmptyState } from "@/components/patterns/empty-state";
 import { NativeSelect } from "@/components/patterns/form";
-import { ErrorPanel } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { DescriptionList, Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
@@ -18,9 +14,12 @@ import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
 import { PROJECT_ADMIN_REASON } from "../../model/access";
+import { observabilityKeys } from "../../view-models/observability";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { ActivityPanel } from "./activity-panel";
 import { GoLivePanel } from "./go-live-panel";
+import { UsagePanel } from "./usage-panel";
 
 export function OverviewPage() {
   const { project, kind, environment } = useProjectEnvironment();
@@ -65,7 +64,10 @@ export function OverviewPage() {
 
       {environment ? (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-          <UsagePanel />
+          <div className="flex min-w-0 flex-col gap-6">
+            <UsagePanel />
+            <ActivityPanel />
+          </div>
           <div className="flex flex-col gap-6">
             <PlanPanel />
             <CapabilitiesSummary />
@@ -87,6 +89,7 @@ function PlanPanel() {
       toast.success("Plan updated");
       void client.invalidateQueries({ queryKey: cpKeys.plan(organizationId, project.id, kind) });
       void client.invalidateQueries({ queryKey: cpKeys.liveReadiness(organizationId, project.id) });
+      void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -148,85 +151,5 @@ function CapabilitiesSummary() {
         })}
       </ul>
     </Panel>
-  );
-}
-
-function UsagePanel() {
-  const { organizationId, project, kind } = useProjectEnvironment();
-  const usage = useQuery({ queryKey: cpKeys.usage(organizationId, project.id, kind), queryFn: () => controlPlane.usage(organizationId, project.id, kind), retry: false });
-  const applications = useQuery({
-    queryKey: cpKeys.applications(organizationId, project.id, kind),
-    queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
-  });
-  const names = new Map((applications.data ?? []).map((application) => [application.id, application.name]));
-
-  return (
-    <Panel title="Last 24 hours" description="Requests admitted for this environment, by application and action." flush>
-      {usage.isLoading ? (
-        <div className="p-4">
-          <Skeleton className="h-24 w-full" />
-        </div>
-      ) : usage.error ? (
-        <div className="p-4">
-          <ErrorPanel title="Usage is unavailable" error={usage.error} />
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 divide-x border-b sm:grid-cols-4">
-            <Stat label="Requests" value={formatNumber(usage.data?.requests)} />
-            <Stat label="Completed" value={formatNumber(sum(usage.data?.byApplicationAction, "completed"))} />
-            <Stat label="Failed" value={formatNumber(sum(usage.data?.byApplicationAction, "failed"))} tone={sum(usage.data?.byApplicationAction, "failed") > 0 ? "danger" : undefined} />
-            <Stat label="Applications" value={formatNumber(applications.data?.length)} href={projectHref(project.id, kind, "/applications")} />
-          </div>
-          {(usage.data?.byApplicationAction.length ?? 0) === 0 ? (
-            <EmptyState title="No requests in the last 24 hours" description="Requests made with this environment's keys appear here." />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Application</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead className="text-right">Admitted</TableHead>
-                  <TableHead className="text-right">Completed</TableHead>
-                  <TableHead className="text-right">Failed</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {usage.data?.byApplicationAction.map((row) => (
-                  <TableRow key={`${row.applicationId}-${row.action}`}>
-                    <TableCell>{names.get(row.applicationId) ?? <span className="font-mono text-xs">{row.applicationId}</span>}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.action}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.admitted)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.completed)}</TableCell>
-                    <TableCell className={cn("text-right tabular-nums", row.failed > 0 && "text-danger")}>{formatNumber(row.failed)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </>
-      )}
-    </Panel>
-  );
-}
-
-function sum(rows: { completed: number; failed: number }[] | undefined, key: "completed" | "failed") {
-  return (rows ?? []).reduce((total, row) => total + row[key], 0);
-}
-
-function Stat({ label, value, tone, href }: { label: string; value: string; tone?: "danger"; href?: string }) {
-  const body = (
-    <>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 text-lg font-semibold tabular-nums", tone === "danger" && "text-danger")}>{value}</p>
-    </>
-  );
-  return href ? (
-    <Link href={href} className="px-4 py-3 transition-colors hover:bg-muted/40">
-      {body}
-    </Link>
-  ) : (
-    <div className="px-4 py-3">{body}</div>
   );
 }
