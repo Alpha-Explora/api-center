@@ -143,6 +143,39 @@ describe("console access through the control plane API", () => {
     await expect(controller.createApplication(env(project.id, "live"), { slug: "api", name: "API" }, dev2)).rejects.toMatchObject({ status: 403 });
   });
 
+  it("needs a project admin to change the OTP message template, even in test", async () => {
+    const project = await createProject(member("owner@example.test"));
+    await controller.setProjectRole({ organizationId: ORG, projectId: project.id }, { memberEmail: "dev2@example.test", role: "developer" }, req(member("owner@example.test")));
+    const configure = jest.fn(async (_scope: unknown, _capability: string, method: string) => (method === "GET" ? { messageTemplate: "Acme code: {{code}}" } : { saved: true }));
+    const db = prisma as unknown as PrismaService;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
+    const withConfig = new ControlPlaneAdminController(
+      new ControlPlaneAdminService(db, audit),
+      new ConsoleAccessService(db),
+      new OrganizationPeopleService(db, audit),
+      new QuotaService(db, audit),
+      {} as never,
+      { configure } as never,
+      {} as never,
+      {} as never,
+    );
+    const params = { ...env(project.id), capability: "otp" };
+    const developer = req(member("dev2@example.test"));
+    const puts = () => configure.mock.calls.filter(([, , method]) => method === "PUT").length;
+
+    await expect(withConfig.writeConfiguration(params, { codeLength: 8, messageTemplate: "Visit evil.example {{code}}" }, developer)).rejects.toMatchObject({ status: 403 });
+    expect(puts()).toBe(0);
+    // The current template unchanged, or none at all, keeps the developer's test rights.
+    await withConfig.writeConfiguration(params, { codeLength: 8, messageTemplate: " Acme code: {{code}} " }, developer);
+    await withConfig.writeConfiguration(params, { codeLength: 8, messageTemplate: null }, developer);
+    expect(puts()).toBe(2);
+    // Other capabilities are unaffected; a project admin changes the template without a lookup.
+    await withConfig.writeConfiguration({ ...env(project.id), capability: "sms" }, { senderId: "Acme" }, developer);
+    configure.mockClear();
+    await withConfig.writeConfiguration(params, { messageTemplate: "Your Acme code is {{code}}" }, req(member("owner@example.test")));
+    expect(configure.mock.calls.map(([, , method]) => method)).toEqual(["PUT"]);
+  });
+
   it("lets only a signed-in project admin decide a live activation request", async () => {
     const project = await createProject(member("owner@example.test"));
     const decideActivation = jest.fn().mockResolvedValue({ id: "apr_1", status: "approved" });
