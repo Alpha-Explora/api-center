@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { request } from "@/lib/api-center/client-core";
 
-export { getApiCenterBaseUrl, setManagementSessionToken } from "@/lib/api-center/client-core";
+export { getApiCenterBaseUrl, setSignedIn } from "@/lib/api-center/client-core";
 
 const consoleRole = z.enum(["admin", "operator", "observer"]);
 
@@ -24,4 +24,15 @@ export type ManagementSession = z.infer<typeof managementSessionSchema>;
 export async function getManagementSession(): Promise<ManagementSession> {
   const data = await request<unknown>("/api/local/session");
   return z.object({ success: z.boolean(), data: managementSessionSchema }).parse(data).data;
+}
+
+/** Exchanges a Google ID token for the console session cookie; resolves to who signed in. */
+export async function signInWithGoogle(credential: string): Promise<ManagementSession> {
+  const data = await request<unknown>("/api/local/session", { method: "POST", body: JSON.stringify({ credential }) });
+  return z.object({ success: z.boolean(), data: managementSessionSchema }).parse(data).data;
+}
+
+/** Ends the console session in this browser. */
+export async function signOut(): Promise<void> {
+  await request<unknown>("/api/local/session", { method: "DELETE" });
 }

@@ -2,9 +2,10 @@
 //
 // 1. The calling server must authenticate as the platform (ScopedAdminGuard: the platform secret).
 //    The management console is such a server.
-// 2. When it forwards the signed-in member's Google ID token in X-APICenter-User-Token, the gateway
-//    verifies it here and acts as that member, enforcing their roles. Without a user token the
-//    caller acts as the platform itself (operator scripts and break-glass access).
+// 2. When it forwards who is signed in, the gateway verifies it here and acts as that member,
+//    enforcing their roles: the console's own session in X-APICenter-User-Session (verified with
+//    MANAGEMENT_SESSION_PUBLIC_KEYS), or a Google ID token in X-APICenter-User-Token. Without either
+//    the caller acts as the platform itself (operator scripts and break-glass access).
 
 import { CanActivate, ExecutionContext, Injectable, Optional } from "@nestjs/common";
 import { OAuth2Client } from "google-auth-library";
@@ -13,8 +14,10 @@ import { ConfigService } from "@config/config.service";
 import { ServiceUnavailableError, UnauthorizedError } from "@shared/errors";
 import type { AuthenticatedRequest } from "../../types";
 import type { ConsoleActor } from "./console-access.policy";
+import { loadConsoleSessionKeys, verifyConsoleSession, type ConsoleSessionKeys } from "./console-session.verifier";
 
 export const CONSOLE_USER_TOKEN_HEADER = "x-apicenter-user-token";
+export const CONSOLE_USER_SESSION_HEADER = "x-apicenter-user-session";
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
 export interface VerifiedConsoleUser {
@@ -53,12 +56,14 @@ export function createGoogleConsoleUserVerifier(clientIds: string[], client = ne
 @Injectable()
 export class ConsoleActorGuard implements CanActivate {
   private readonly verifyUser: ConsoleUserVerifier;
+  private readonly sessionKeys: ConsoleSessionKeys;
 
   constructor(
     private readonly platformGuard: ScopedAdminGuard,
     private readonly config: ConfigService,
     @Optional() verifier?: ConsoleUserVerifier,
   ) {
+    this.sessionKeys = loadConsoleSessionKeys(process.env.MANAGEMENT_SESSION_PUBLIC_KEYS);
     const clientIds = (process.env.MANAGEMENT_GOOGLE_CLIENT_IDS ?? "")
       .split(",")
       .map((id) => id.trim())
@@ -69,10 +74,14 @@ export class ConsoleActorGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     await this.platformGuard.canActivate(context);
     const request = context.switchToHttp().getRequest<ConsoleRequest>();
+    const userSession = request.headers[CONSOLE_USER_SESSION_HEADER];
     const userToken = request.headers[CONSOLE_USER_TOKEN_HEADER];
 
-    if (typeof userToken === "string" && userToken) {
-      const user = await this.verifyUser(userToken);
+    if ((typeof userSession === "string" && userSession) || (typeof userToken === "string" && userToken)) {
+      const user =
+        typeof userSession === "string" && userSession
+          ? verifyConsoleSession(userSession, this.sessionKeys)
+          : await this.verifyUser(userToken as string);
       request.consoleActor = {
         kind: "member",
         email: user.email,

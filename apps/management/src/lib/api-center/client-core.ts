@@ -1,11 +1,16 @@
-let managementSessionToken: string | undefined;
+// The session is an HttpOnly cookie the browser sends with every same-origin request; the page only knows
+// whether it is signed in. Each sign-in or sign-out starts a new epoch, so a 401 to a request sent before
+// the change says nothing about the session now.
+let signedIn = false;
+let sessionEpoch = 0;
 let onSessionRejected: (() => void) | undefined;
 
-export function setManagementSessionToken(token: string | undefined) {
-  managementSessionToken = token;
+export function setSignedIn(value: boolean) {
+  signedIn = value;
+  sessionEpoch += 1;
 }
 
-/** Called when the console server answers 401 to a signed-in request: the Google token expired or was revoked. */
+/** Called when the console server answers 401 to a signed-in request: the session expired or was revoked. */
 export function setSessionRejectedHandler(handler: (() => void) | undefined) {
   onSessionRejected = handler;
 }
@@ -14,17 +19,18 @@ export async function localApiRequest<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  // The token this request is sent with. The current one may change before the response arrives.
-  const sentToken = managementSessionToken;
+  // Whether this request went out signed in, and in which session; both may change before it returns.
+  const sentSignedIn = signedIn;
+  const sentEpoch = sessionEpoch;
   let response: Response;
   try {
     response = await fetch(resolveFetchUrl(path), {
       ...init,
       headers: {
         "content-type": "application/json",
-        ...(sentToken ? { authorization: `Bearer ${sentToken}` } : {}),
         ...(init?.headers ?? {}),
       },
+      credentials: "same-origin",
       cache: "no-store",
     });
   } catch (error) {
@@ -34,9 +40,9 @@ export async function localApiRequest<T>(
 
   if (!response.ok) {
     const body = await response.text();
-    // Only a rejection of the token still in use ends the session. A request sent before sign-in
-    // finished, or with a token since replaced, says nothing about the current one.
-    if (response.status === 401 && sentToken && sentToken === managementSessionToken && path.startsWith("/api/")) onSessionRejected?.();
+    // Only a rejection of the session still in use ends it. A request sent before sign-in finished, or in
+    // a session since replaced, says nothing about the current one.
+    if (response.status === 401 && sentSignedIn && sentEpoch === sessionEpoch && path.startsWith("/api/")) onSessionRejected?.();
     throw new ApiError(formatRequestError(response.status, body), response.status, errorCode(body), retryAfter(response));
   }
 

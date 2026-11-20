@@ -1,27 +1,28 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { ManagementAuthGate } from "@/components/management-auth-gate";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ManagementAuthGate, MANAGEMENT_SIGN_OUT_EVENT } from "@/components/management-auth-gate";
 import { ApiError } from "@/lib/api-center/client-core";
 
-const { getManagementSessionMock, setManagementSessionTokenMock } = vi.hoisted(
-  () => ({
-    getManagementSessionMock: vi.fn(),
-    setManagementSessionTokenMock: vi.fn(),
-  }),
-);
+const { getManagementSessionMock, signInWithGoogleMock, signOutMock, setSignedInMock } = vi.hoisted(() => ({
+  getManagementSessionMock: vi.fn(),
+  signInWithGoogleMock: vi.fn(),
+  signOutMock: vi.fn(),
+  setSignedInMock: vi.fn(),
+}));
 
 vi.mock("@/lib/api-center-client", () => ({
   getManagementSession: getManagementSessionMock,
-  setManagementSessionToken: setManagementSessionTokenMock,
+  signInWithGoogle: signInWithGoogleMock,
+  signOut: signOutMock,
+  setSignedIn: setSignedInMock,
 }));
 
 vi.mock("next/script", async () => {
-  const { useEffect } = await import("react");
-
+  const { useEffect: useMockEffect } = await import("react");
   return {
     default: function MockScript({ onLoad }: { onLoad?: () => void }) {
-      useEffect(() => onLoad?.(), [onLoad]);
+      useMockEffect(() => onLoad?.(), [onLoad]);
       return null;
     },
   };
@@ -29,280 +30,204 @@ vi.mock("next/script", async () => {
 
 const NON_MEMBER_MESSAGE =
   "This Google account does not have APICenter access. Ask an organization admin to add your email, then sign in again.";
+const SESSION = { email: "dana@acme.example" };
+const signedOut = () => new ApiError("Your sign-in has expired or is not valid. Sign in again.", 401, "UNAUTHENTICATED");
+
+/** Installs a Google Identity stub and returns a way to complete its sign-in. */
+function googleStub() {
+  let callback: ((response: { credential?: string }) => void) | undefined;
+  const initialize = vi.fn(({ callback: next }: { callback: (response: { credential?: string }) => void }) => {
+    callback = next;
+  });
+  window.google = { accounts: { id: { initialize, renderButton: vi.fn(), disableAutoSelect: vi.fn() } } };
+  return {
+    initialize,
+    ready: () => waitFor(() => expect(callback).toBeTypeOf("function")),
+    signIn: (credential: string) => act(async () => callback?.({ credential })),
+  };
+}
+
+function renderGate(child = <div>Management app</div>) {
+  return render(<ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">{child}</ManagementAuthGate>);
+}
 
 describe("ManagementAuthGate", () => {
+  beforeEach(() => {
+    getManagementSessionMock.mockRejectedValue(signedOut());
+    signOutMock.mockResolvedValue(undefined);
+  });
+
   afterEach(() => {
-    window.sessionStorage.clear();
     delete window.google;
-    getManagementSessionMock.mockReset();
-    setManagementSessionTokenMock.mockReset();
-    vi.restoreAllMocks();
+    vi.resetAllMocks();
     cleanup();
   });
 
-  it("shows the Google sign-in card before Google authentication", () => {
+  it("shows the Google sign-in card when this browser has no session", async () => {
     render(
       <ManagementAuthGate googleClientId="">
         <div>Management app</div>
       </ManagementAuthGate>,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Sign in to APICenter" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByText("Use your organization Google account to sign in."),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: /continue with google/i }),
-    ).toBeTruthy();
-    expect(screen.queryByLabelText(/email|password|first name/i)).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Sign in to APICenter" })).toBeTruthy();
+    expect(screen.getByText("Use your organization Google account to sign in.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /continue with google/i })).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.getAllByTestId("google-logo")[0]).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("Management app")).toBeNull();
-    expect(screen.queryByText(/already have an account/i)).toBeNull();
     expect(screen.getByRole("link", { name: "APICenter home" }).getAttribute("href")).toBe("/");
   });
 
-  it("shows the Google setup message and pressed feedback when no client ID is configured", () => {
+  it("shows the Google setup message and pressed feedback when no client ID is configured", async () => {
     render(
       <ManagementAuthGate googleClientId="">
         <div>Management app</div>
       </ManagementAuthGate>,
     );
 
-    const googleButton = screen.getByRole("button", {
-      name: /continue with google/i,
-    });
+    const googleButton = await screen.findByRole("button", { name: /continue with google/i });
     fireEvent.click(googleButton);
 
     expect(googleButton.getAttribute("data-pressed")).toBe("true");
     expect(screen.getByRole("alert").textContent).toContain("Google client ID missing");
-    expect(
-      screen.getByText(
-        "Google sign-in is not connected yet. Add your Google client ID, then try again.",
-      ),
-    ).toBeTruthy();
   });
 
-  it("renders the protected app when a Google session is already stored", () => {
-    window.sessionStorage.setItem(
-      "apicenter.management.googleCredential",
-      "stored-google-token",
-    );
+  it("opens the console straight away when this browser already has a session, in any tab", async () => {
+    getManagementSessionMock.mockResolvedValue(SESSION);
+    renderGate();
 
-    render(
-      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-        <div>Management app</div>
-      </ManagementAuthGate>,
-    );
-
-    expect(screen.getByText("Management app")).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Sign in to APICenter" }),
-    ).toBeNull();
+    expect(await screen.findByText("Management app")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Sign in to APICenter" })).toBeNull();
+    expect(setSignedInMock).toHaveBeenLastCalledWith(true);
   });
 
-  it("shows the organization membership error and clears a denied credential", async () => {
-    let credentialCallback:
-      | ((response: { credential?: string }) => void)
-      | undefined;
-    getManagementSessionMock.mockRejectedValue(new Error(NON_MEMBER_MESSAGE));
-    window.google = {
-      accounts: {
-        id: {
-          initialize: ({ callback }) => {
-            credentialCallback = callback;
-          },
-          renderButton: vi.fn(),
-          disableAutoSelect: vi.fn(),
-        },
-      },
-    };
+  it("exchanges the Google credential for a session and opens the console", async () => {
+    signInWithGoogleMock.mockResolvedValue(SESSION);
+    const google = googleStub();
+    renderGate();
 
-    render(
-      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-        <div>Management app</div>
-      </ManagementAuthGate>,
-    );
+    await google.ready();
+    await google.signIn("google-token");
 
-    await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
-    await act(async () => {
-      await credentialCallback?.({ credential: "denied-token" });
-    });
+    expect(signInWithGoogleMock).toHaveBeenCalledWith("google-token");
+    expect(await screen.findByText("Management app")).toBeTruthy();
+  });
 
-    expect(screen.getByText(NON_MEMBER_MESSAGE)).toBeTruthy();
+  it("shows why a denied account cannot sign in, and keeps the console closed", async () => {
+    signInWithGoogleMock.mockRejectedValue(new Error(NON_MEMBER_MESSAGE));
+    const google = googleStub();
+    renderGate();
+
+    await google.ready();
+    await google.signIn("denied-token");
+
     expect(screen.getByText("No access to APICenter")).toBeTruthy();
-    expect(setManagementSessionTokenMock).toHaveBeenCalledWith("denied-token");
-    expect(setManagementSessionTokenMock).toHaveBeenLastCalledWith(undefined);
-    expect(
-      window.sessionStorage.getItem("apicenter.management.googleCredential"),
-    ).toBeNull();
+    expect(screen.getByText(NON_MEMBER_MESSAGE)).toBeTruthy();
     expect(screen.queryByText("Management app")).toBeNull();
   });
 
   it("tells a failed access lookup apart from a denied account", async () => {
-    let credentialCallback:
-      | ((response: { credential?: string }) => void)
-      | undefined;
-    getManagementSessionMock.mockRejectedValue(new Error("Membership lookup failed (503)"));
-    window.google = {
-      accounts: {
-        id: {
-          initialize: ({ callback }) => {
-            credentialCallback = callback;
-          },
-          renderButton: vi.fn(),
-          disableAutoSelect: vi.fn(),
-        },
-      },
-    };
+    signInWithGoogleMock.mockRejectedValue(new Error("Membership lookup failed (503)"));
+    const google = googleStub();
+    renderGate();
 
-    render(
-      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-        <div>Management app</div>
-      </ManagementAuthGate>,
-    );
-
-    await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
-    await act(async () => {
-      await credentialCallback?.({ credential: "google-token" });
-    });
+    await google.ready();
+    await google.signIn("google-token");
 
     expect(screen.getByText("We could not confirm your access")).toBeTruthy();
     expect(screen.getByText("Membership lookup failed (503)")).toBeTruthy();
-    expect(setManagementSessionTokenMock).toHaveBeenLastCalledWith(undefined);
-    expect(
-      window.sessionStorage.getItem("apicenter.management.googleCredential"),
-    ).toBeNull();
   });
 
   it("offers Try again when APICenter is starting up, without a new Google sign-in", async () => {
-    let credentialCallback: ((response: { credential?: string }) => void) | undefined;
-    getManagementSessionMock
+    signInWithGoogleMock
       .mockRejectedValueOnce(new ApiError("Could not confirm APICenter access", 503, "ACCESS_CHECK_UNAVAILABLE"))
-      .mockResolvedValueOnce({ email: "dana@acme.example" });
-    window.google = {
-      accounts: {
-        id: {
-          initialize: ({ callback }) => {
-            credentialCallback = callback;
-          },
-          renderButton: vi.fn(),
-          disableAutoSelect: vi.fn(),
-        },
-      },
-    };
+      .mockResolvedValueOnce(SESSION);
+    const google = googleStub();
+    renderGate();
 
-    render(
-      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-        <div>Management app</div>
-      </ManagementAuthGate>,
-    );
-
-    await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
-    await act(async () => {
-      await credentialCallback?.({ credential: "google-token" });
-    });
+    await google.ready();
+    await google.signIn("google-token");
     expect(screen.getByText("APICenter is starting up")).toBeTruthy();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     });
 
-    await waitFor(() => expect(screen.getByText("Management app")).toBeTruthy());
-    expect(getManagementSessionMock).toHaveBeenCalledTimes(2);
-    expect(window.sessionStorage.getItem("apicenter.management.googleCredential")).toBe("google-token");
+    expect(await screen.findByText("Management app")).toBeTruthy();
+    expect(signInWithGoogleMock).toHaveBeenCalledTimes(2);
+    expect(signInWithGoogleMock).toHaveBeenLastCalledWith("google-token");
   });
 
-  // The console's first queries start in its passive effects. Each one must already carry the token,
-  // or the tokenless request is answered 401 and the console signs the person straight back out.
-  describe("the token is in place before the console's first request", () => {
-    function tokenAtChildEffect() {
-      let current: string | undefined;
-      const seen: (string | undefined)[] = [];
-      setManagementSessionTokenMock.mockImplementation((token: string | undefined) => {
-        current = token;
-      });
-      function Console() {
-        useEffect(() => {
-          seen.push(current);
-        }, []);
-        return <div>Management app</div>;
-      }
-      return { Console, seen };
+  it("retries the session check itself when APICenter is starting up on load", async () => {
+    getManagementSessionMock.mockReset();
+    getManagementSessionMock.mockRejectedValueOnce(new ApiError("Service unavailable", 503, "ACCESS_CHECK_UNAVAILABLE")).mockResolvedValueOnce(SESSION);
+    renderGate();
+
+    expect(await screen.findByText("APICenter is starting up")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    });
+
+    expect(await screen.findByText("Management app")).toBeTruthy();
+  });
+
+  it("signing out ends the session on the server", async () => {
+    getManagementSessionMock.mockResolvedValue(SESSION);
+    renderGate();
+    await screen.findByText("Management app");
+
+    await act(async () => {
+      window.dispatchEvent(new Event(MANAGEMENT_SIGN_OUT_EVENT));
+    });
+
+    expect(signOutMock).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("heading", { name: "Sign in to APICenter" })).toBeTruthy();
+    expect(screen.queryByText("Your session ended")).toBeNull();
+  });
+
+  it("says the session ended when the server rejects it", async () => {
+    getManagementSessionMock.mockResolvedValue(SESSION);
+    renderGate();
+    await screen.findByText("Management app");
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(MANAGEMENT_SIGN_OUT_EVENT, { detail: { expired: true } }));
+    });
+
+    expect(await screen.findByText("Your session ended")).toBeTruthy();
+    expect(signOutMock).not.toHaveBeenCalled();
+  });
+
+  // The console's first queries start in its passive effects. Each must already count as signed in, or a
+  // 401 to it would be ignored and the next one would sign the person out.
+  it("counts as signed in before the console's first request", async () => {
+    getManagementSessionMock.mockResolvedValue(SESSION);
+    let signedIn = false;
+    setSignedInMock.mockImplementation((value: boolean) => {
+      signedIn = value;
+    });
+    const seen: boolean[] = [];
+    function Console() {
+      useEffect(() => {
+        seen.push(signedIn);
+      }, []);
+      return <div>Management app</div>;
     }
 
-    it("on a reload with a stored credential", () => {
-      window.sessionStorage.setItem("apicenter.management.googleCredential", "stored-google-token");
-      const { Console, seen } = tokenAtChildEffect();
+    renderGate(<Console />);
 
-      render(
-        <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-          <Console />
-        </ManagementAuthGate>,
-      );
-
-      expect(seen).toEqual(["stored-google-token"]);
-    });
-
-    it("right after signing in", async () => {
-      let credentialCallback: ((response: { credential?: string }) => void) | undefined;
-      getManagementSessionMock.mockResolvedValue({ email: "dana@acme.example" });
-      window.google = {
-        accounts: {
-          id: {
-            initialize: ({ callback }) => {
-              credentialCallback = callback;
-            },
-            renderButton: vi.fn(),
-            disableAutoSelect: vi.fn(),
-          },
-        },
-      };
-      const { Console, seen } = tokenAtChildEffect();
-
-      render(
-        <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-          <Console />
-        </ManagementAuthGate>,
-      );
-      await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
-      await act(async () => {
-        await credentialCallback?.({ credential: "google-token" });
-      });
-
-      expect(seen).toEqual(["google-token"]);
-    });
+    await screen.findByText("Management app");
+    expect(seen).toEqual([true]);
   });
 
   it("offers the invited account first when opened from an invite link", async () => {
-    const initialize = vi.fn();
-    window.google = { accounts: { id: { initialize, renderButton: vi.fn(), disableAutoSelect: vi.fn() } } };
+    const google = googleStub();
     window.history.replaceState(null, "", "/signup?login_hint=jun%40serbizio.ph");
 
-    render(
-      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
-        <div>Management app</div>
-      </ManagementAuthGate>,
-    );
+    renderGate();
 
-    await waitFor(() => expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ login_hint: "jun@serbizio.ph" })));
+    await waitFor(() => expect(google.initialize).toHaveBeenCalledWith(expect.objectContaining({ login_hint: "jun@serbizio.ph" })));
     window.history.replaceState(null, "", "/");
-  });
-
-  it("does not reuse a stored Google credential that has expired", () => {
-    const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 }));
-    window.sessionStorage.setItem("apicenter.management.googleCredential", `h.${payload}.s`);
-
-    render(
-      <ManagementAuthGate googleClientId="">
-        <div>Management app</div>
-      </ManagementAuthGate>,
-    );
-
-    expect(screen.queryByText("Management app")).toBeNull();
-    expect(window.sessionStorage.getItem("apicenter.management.googleCredential")).toBeNull();
   });
 });

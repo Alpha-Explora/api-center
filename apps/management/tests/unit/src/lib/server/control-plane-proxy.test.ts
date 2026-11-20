@@ -4,12 +4,12 @@ import { proxyControlPlane } from "@/lib/server/control-plane-proxy";
 const ORG = "6f1c1d1e-0000-4000-8000-000000000401";
 
 function setup(sessionOk = true) {
-  const requireSession = vi.fn(async () => {
+  const authenticate = vi.fn(async () => {
     if (!sessionOk) throw new Error("Management authentication required");
-    return {} as never;
+    return { session: {} as never, gatewayHeaders: { "x-apicenter-user-session": "console-session" } };
   });
   const forward = vi.fn<(path: string, init?: unknown) => Promise<Response>>(async () => Response.json({ success: true, data: [] }));
-  return { requireSession, forward, deps: { requireSession, forward } as never };
+  return { authenticate, forward, deps: { authenticate, forward } as never };
 }
 
 describe("proxyControlPlane", () => {
@@ -27,9 +27,21 @@ describe("proxyControlPlane", () => {
     expect(forward).toHaveBeenCalledWith(`/api/v1/admin/control-plane/organizations/${ORG}/projects?x=1`, {
       method: "POST",
       body: JSON.stringify({ slug: "shop", name: "Shop" }),
-      headers: { "x-apicenter-user-token": "google-id-token" },
+      headers: { "x-apicenter-user-session": "console-session" },
       timeoutMs: 20_000,
     });
+  });
+
+  it("refuses a change that another site sends, before authenticating", async () => {
+    const { authenticate, forward, deps } = setup();
+    const request = new Request(`http://console.test/api/local/control-plane/organizations/${ORG}/projects`, {
+      method: "POST",
+      headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+      body: "{}",
+    });
+    expect((await proxyControlPlane(request, ["organizations", ORG, "projects"], deps)).status).toBe(403);
+    expect(authenticate).not.toHaveBeenCalled();
+    expect(forward).not.toHaveBeenCalled();
   });
 
   it("keeps member emails intact in member routes", async () => {
@@ -59,7 +71,7 @@ describe("proxyControlPlane", () => {
     const request = new Request("http://console.test/api/local/control-plane/audit-events?limit=50", { headers: { authorization: "Bearer t" } });
     expect((await proxyControlPlane(request, ["audit-events"], deps)).status).toBe(200);
     expect(forward.mock.calls[0][0]).toBe("/api/v1/admin/control-plane/audit-events?limit=50");
-    expect(forward.mock.calls[0][1]).toMatchObject({ method: "GET", headers: { "x-apicenter-user-token": "t" } });
+    expect(forward.mock.calls[0][1]).toMatchObject({ method: "GET", headers: { "x-apicenter-user-session": "console-session" } });
   });
 
   it("rejects paths outside the control-plane API and traversal", async () => {
