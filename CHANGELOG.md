@@ -40,6 +40,10 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Gateway: a busy or unreachable database answers `503 DATABASE_BUSY` or `503 DATABASE_UNAVAILABLE` with `Retry-After`, instead of `500 INTERNAL_ERROR`. A duplicate record answers 409 and a vanished one 404. Console transactions wait up to 8 seconds for a connection instead of 2, so a briefly full pool queues requests instead of failing them.
+- Gateway: console access checks are cached for 10 seconds per instance, and a project's organization until restart, so a console page checks roles once instead of once per request. Changes to members, teams and project roles drop the cache on the instance that made them; on other instances a removed role keeps working for at most 10 seconds.
+- Gateway: the 24-hour usage summary is counted in the database instead of loading every request record.
+- Gateway: live activation decisions and activation reject a malformed approval request ID with 400 instead of 500.
 - Quota: every request counts under a usage key the gateway generates. Before, the caller's `X-Correlation-ID` was the key, so repeating one value made every request after the first free. An `Idempotency-Key` now makes retries count once only for `POST` to email, SMS, OTP and payments, whose runtimes replay the stored response, and only within one UTC day.
 - Published APIs no longer receive the gateway's Cloud Run identity token. A tenant chooses the upstream, and a `*.run.app` upstream would have received a token APICenter's private runtimes accept.
 - Workload bindings are listed and revoked only through their own project and environment. Before, a developer on one project could revoke another project's binding by ID.

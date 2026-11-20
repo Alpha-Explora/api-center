@@ -298,18 +298,22 @@ export class QuotaService {
   async usageSummary(scope: EnvironmentScope, since: Date) {
     return withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
       const environment = await requireEnvironment(db, scope);
-      const records = await db.cpUsageRecord.findMany({
+      // Counted in the database: a busy environment has far more rows than one transaction should carry.
+      const groups = await db.cpUsageRecord.groupBy({
+        by: ["applicationId", "capability", "action", "outcome"],
         where: { organizationId: scope.organizationId, environmentId: environment.id, createdAt: { gte: since } },
-        select: { applicationId: true, capability: true, action: true, outcome: true },
+        _count: { _all: true },
       });
       const totals = new Map<string, { applicationId: string; capability: string; action: string; admitted: number; completed: number; failed: number }>();
-      for (const record of records) {
-        const key = `${record.applicationId}|${record.action}`;
-        const entry = totals.get(key) ?? { applicationId: record.applicationId, capability: record.capability, action: record.action, admitted: 0, completed: 0, failed: 0 };
-        entry[record.outcome as "admitted" | "completed" | "failed"] += 1;
+      let requests = 0;
+      for (const group of groups) {
+        const key = `${group.applicationId}|${group.action}`;
+        const entry = totals.get(key) ?? { applicationId: group.applicationId, capability: group.capability, action: group.action, admitted: 0, completed: 0, failed: 0 };
+        entry[group.outcome as "admitted" | "completed" | "failed"] += group._count._all;
+        requests += group._count._all;
         totals.set(key, entry);
       }
-      return { since: since.toISOString(), requests: records.length, byApplicationAction: [...totals.values()] };
+      return { since: since.toISOString(), requests, byApplicationAction: [...totals.values()] };
     });
   }
 
