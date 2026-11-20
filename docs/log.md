@@ -2,6 +2,7 @@
 
 ## 2026-11-20
 
+- The email, SMS and OTP guides describe test-environment delivery to registered test recipients; the Management access guide lists the new setting; control plane operations adds migration `20261120001070` and the deploy order (runtimes before the gateway).
 - Control plane operations lists migration `20261120001060` and the new rules for operator suspensions, activation requests, approval expiry and serialized people changes.
 - Added the public guides "Errors and retries" and "Versions and changes", corrected the idempotency guide's description of SDK retries, documented `error.retryable` in the SDK README, and added the missing failure responses to every payments operation in the public OpenAPI.
 - Corrected the agent and contributor entry points: AGENTS.md and the developer guide list the real gateway domains (`control-plane`, not the removed `catalog-registry`) and `apps/webhooks`; the README describes the organization → project → environment → application model and current routes instead of tribes, the registry and `/api/v1/tribes/*`; CONTRIBUTING.md is rewritten around the current commands and pull request checks; the console's AGENTS.md points to the root instructions. `check:documentation` now fails when an instruction file names a repository path or gateway domain that does not exist.

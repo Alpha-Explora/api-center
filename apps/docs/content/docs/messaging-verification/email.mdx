@@ -56,6 +56,10 @@ The optional `from` address must match the sender approved for the project and e
 
 Retries with the same key and request body replay the original status and response for seven days. Reusing a key with a different body returns `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`. If delivery has an uncertain outcome, APICenter blocks the key for reconciliation instead of sending again.
 
+## Test environment
+
+With a test key (`ak_test_`), APICenter delivers only to the phone numbers and email addresses your project registers under **Settings** → **Test recipients** in Management. A send to anyone else still succeeds and is recorded, so your integration behaves the same, but nothing is sent. Those responses carry the header `X-APICenter-Test-Delivery: suppressed`. An email with several recipients is delivered only when every recipient is registered. Live keys deliver to everyone.
+
 ## 2. Get Message Status
 
 - **Endpoint**: `GET /api/v1/shared/email/status/:messageId`
