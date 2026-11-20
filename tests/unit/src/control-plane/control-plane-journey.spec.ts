@@ -178,7 +178,7 @@ describe("control plane: grants and credential issuance", () => {
   it("lists credentials without secret material", async () => {
     const { scope, application } = await onboard();
     await admin.issueCredential(scope, application.id, { operationId: randomUUID() }, actor);
-    const [listed] = await admin.listCredentials(scope, application.id);
+    const [listed] = (await admin.listCredentials(scope, application.id, { limit: 100 })).items;
     expect(listed).not.toHaveProperty("secret");
     expect(listed).not.toHaveProperty("verifierSha256");
     expect(listed.lookupPrefix).toMatch(/^ak_test_[a-z0-9]{16}$/);

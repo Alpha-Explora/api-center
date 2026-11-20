@@ -20,13 +20,20 @@ class FakeDelegate {
         const operators = expected as Row;
         if ("in" in operators) return (operators.in as unknown[]).includes(row[field]);
         if ("not" in operators) return row[field] !== operators.not;
-        if ("lt" in operators || "gte" in operators) {
-          const value = row[field] as number | Date;
-          return (!("lt" in operators) || value < (operators.lt as number | Date)) && (!("gte" in operators) || value >= (operators.gte as number | Date));
+        if ("lt" in operators || "gte" in operators || "gt" in operators || "lte" in operators) {
+          const value = row[field] as number | Date | string;
+          return (
+            (!("lt" in operators) || value < (operators.lt as number | Date | string)) &&
+            (!("gte" in operators) || value >= (operators.gte as number | Date | string)) &&
+            (!("gt" in operators) || value > (operators.gt as number | Date | string)) &&
+            (!("lte" in operators) || value <= (operators.lte as number | Date | string))
+          );
         }
         // Compound unique selectors such as { environmentId_capability: {...} }.
         return Object.entries(operators).every(([inner, value]) => row[inner] === value);
       }
+      // Dates compare by value, as in PostgreSQL.
+      if (expected instanceof Date) return row[field] instanceof Date && (row[field] as Date).getTime() === expected.getTime();
       return row[field] === expected;
     });
   }
@@ -69,8 +76,23 @@ class FakeDelegate {
     return this.project(this.rows.find((row) => this.matches(row, where)) ?? null, select);
   }
 
-  async findMany({ where, select }: { where?: Row; select?: Row } = {}) {
-    return this.rows.filter((row) => this.matches(row, where)).map((row) => this.project(row, select));
+  async findMany({ where, select, orderBy, take }: { where?: Row; select?: Row; orderBy?: Row | Row[]; take?: number } = {}) {
+    let rows = this.rows.filter((row) => this.matches(row, where));
+    // Honours orderBy and take, as keyset pages depend on them.
+    const order = (Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : []).flatMap((entry) => Object.entries(entry));
+    if (order.length) {
+      rows = [...rows].sort((a, b) => {
+        for (const [field, direction] of order) {
+          const left = a[field] as string | number | Date;
+          const right = b[field] as string | number | Date;
+          if (left < right) return direction === "desc" ? 1 : -1;
+          if (left > right) return direction === "desc" ? -1 : 1;
+        }
+        return 0;
+      });
+    }
+    if (take !== undefined) rows = rows.slice(0, take);
+    return rows.map((row) => this.project(row, select));
   }
 
   async groupBy({ by, where }: { by: string[]; where?: Row; _count?: unknown }) {

@@ -12,6 +12,7 @@ import { isCatalogedAction, isKnownCapability, listCapabilities } from "./capabi
 import { generateApplicationCredential, newResourceId } from "./application-credential";
 import type { EnvironmentKind } from "./control-plane.types";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { afterCreatedAt, pageFrom, type PageQuery } from "./list-page";
 import { consoleAccessCacheFor } from "./console-access-cache";
 import { assertMerchantBinding } from "./merchant-binding";
 
@@ -75,13 +76,16 @@ export class ControlPlaneAdminService {
     return this.getProject(organizationId, project.id);
   }
 
-  async listProjects(organizationId: string) {
-    return this.tenant(organizationId, (db) =>
+  /** A page of projects, oldest first. `onlyIds` limits it to the projects a member has a role on. */
+  async listProjects(organizationId: string, page: PageQuery, onlyIds?: string[]) {
+    const rows = await this.tenant(organizationId, (db) =>
       db.cpProject.findMany({
-        where: { organizationId },
-        orderBy: { createdAt: "asc" },
+        where: { organizationId, ...(onlyIds ? { id: { in: onlyIds } } : {}), ...afterCreatedAt(page.after) },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: page.limit + 1,
       }),
     );
+    return pageFrom(rows, page.limit, (project) => [project.createdAt.toISOString(), project.id]);
   }
 
   async getProject(organizationId: string, projectId: string) {
@@ -341,15 +345,18 @@ export class ControlPlaneAdminService {
     };
   }
 
-  async listCredentials(scope: EnvironmentScope, applicationId: string) {
+  /** A page of an application's keys, oldest first. Revoked keys stay listed, so the list can grow without bound. */
+  async listCredentials(scope: EnvironmentScope, applicationId: string, page: PageQuery) {
     const credentials = await this.tenant(scope.organizationId, async (db) => {
       const application = await this.resolveApplication(db, scope, applicationId);
       return db.cpCredential.findMany({
-        where: { applicationId: application.id, environmentId: application.environmentId, organizationId: application.organizationId },
-        orderBy: { createdAt: "asc" },
+        where: { applicationId: application.id, environmentId: application.environmentId, organizationId: application.organizationId, ...afterCreatedAt(page.after) },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: page.limit + 1,
       });
     });
-    return credentials.map(toCredentialView);
+    const result = pageFrom(credentials, page.limit, (credential) => [credential.createdAt.toISOString(), credential.id]);
+    return { items: result.items.map(toCredentialView), nextCursor: result.nextCursor };
   }
 
   async revokeCredential(scope: EnvironmentScope, applicationId: string, credentialId: string, reason: string, actor: string) {

@@ -10,6 +10,7 @@ import { AppError, ConflictError, ForbiddenError, NotFoundError } from "@shared/
 import { normalizeOrganizationRole, type OrganizationRole, type ProjectRole } from "./console-access.policy";
 import { consoleAccessCacheFor } from "./console-access-cache";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { pageFrom, type PageQuery } from "./list-page";
 import { assertProjectsKeepAdministrator } from "./project-admin-guard";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -73,15 +74,22 @@ export class OrganizationPeopleService {
     }));
   }
 
-  async listMembers(organizationId: string) {
+  /** A page of members, by email. */
+  async listMembers(organizationId: string, page: PageQuery) {
     return this.tenant(organizationId, async (db) => {
-      const members = await db.organizationMember.findMany({ where: { organizationId }, orderBy: { email: "asc" } });
-      return members.map((member) => ({
+      const rows = await db.organizationMember.findMany({
+        where: { organizationId, ...(page.after ? { email: { gt: page.after[0] } } : {}) },
+        orderBy: { email: "asc" },
+        take: page.limit + 1,
+      });
+      const { items: members, nextCursor } = pageFrom(rows, page.limit, (member) => [member.email]);
+      const items = members.map((member) => ({
         email: member.email,
         role: normalizeOrganizationRole(member.role) ?? "viewer",
         status: member.status,
         identityLinked: Boolean(member.subject),
       }));
+      return { items, nextCursor };
     });
   }
 
