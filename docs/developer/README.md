@@ -27,7 +27,7 @@ Run the gateway locally with `npm run dev`. All shared microservice runtimes (`a
 
 ## Current Boundaries
 
-- `apps/gateway`: Central NestJS API Gateway control plane organized by domain (`auth-security`, `catalog-registry`, `compliance`, `gateway-proxy`, `governance`, `payments`, `runtime-ops`).
+- `apps/gateway`: Central NestJS API Gateway control plane organized by domain (`auth-security`, `compliance`, `control-plane`, `gateway-proxy`, `governance`, `payments`, `runtime-ops`).
 - `apps/payments`: PayMongo credentials and provider calls, webhook verification, APICenter ownership/reconciliation records, and Pub/Sub publishing. PayMongo remains the source of truth for provider-backed payment resources.
 - `apps/email`, `apps/sms`, `apps/otp`, `apps/geo`, `apps/gauth`: Platform shared microservice runtimes.
 - `apps/management`: Operator provisioning and consumer/key management.

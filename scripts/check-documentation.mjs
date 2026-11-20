@@ -106,6 +106,8 @@ export function auditDocumentation(root = repository) {
     }
   } catch (error) { report("public references", error.message); }
 
+  for (const file of instructionFiles(root)) auditInstructionPaths(root, file, read(file), report);
+
   const graph = new Map();
   for (const [file, document] of parsed) {
     const edges = [];
@@ -146,6 +148,49 @@ export function auditDocumentation(root = repository) {
   }
   for (const file of documents) if (!reachable.has(file)) report(file, "internal document is unreachable from docs/index.md");
   return { errors, documents: documents.length, guides: guides.length, routes: routes.size };
+}
+
+/** The files agents read first: a wrong path there sends every agent to code that does not exist. */
+function instructionFiles(root) {
+  const files = ["AGENTS.md", "README.md", "CONTRIBUTING.md"].filter((file) => existsSync(path.join(root, file)));
+  const apps = path.join(root, "apps");
+  if (existsSync(apps)) {
+    for (const app of readdirSync(apps)) {
+      const file = `apps/${app}/AGENTS.md`;
+      if (existsSync(path.join(root, file))) files.push(file);
+    }
+  }
+  return files;
+}
+
+const REPOSITORY_ROOTS = /^(?:apps|packages|scripts|docs|tests|prisma|contracts|infra|docker|deploy|supabase|\.github)\//;
+const DOMAINS_DIRECTORY = "apps/gateway/src/domains";
+
+/**
+ * Every repository path written as code in an instruction file must exist, and a list of gateway
+ * domains next to `apps/gateway/src/domains/` must name real domain folders. Paths in an app's own
+ * AGENTS.md may also be relative to that app.
+ */
+export function auditInstructionPaths(root, file, text, report) {
+  const base = path.posix.dirname(file);
+  for (const line of text.split("\n")) {
+    const spans = [...line.matchAll(/`([^`\n]+)`/g)].map((match) => match[1].trim());
+    for (const span of spans) {
+      if (/[*<>{}:\s…]/.test(span)) continue;
+      const candidate = span.replace(/\/$/, "");
+      const fromRoot = REPOSITORY_ROOTS.test(candidate);
+      const fromApp = base !== "." && /^src\//.test(candidate);
+      if (!fromRoot && !fromApp) continue;
+      const resolved = path.join(root, fromRoot ? candidate : path.posix.join(base, candidate));
+      if (!existsSync(resolved)) report(file, `path does not exist: ${span}`);
+    }
+    if (line.includes(`${DOMAINS_DIRECTORY}/`) && existsSync(path.join(root, DOMAINS_DIRECTORY))) {
+      const list = /\(([^)]*)\)/.exec(line.slice(line.indexOf(`${DOMAINS_DIRECTORY}/`)));
+      for (const domain of list ? [...list[1].matchAll(/`([a-z0-9-]+)`/g)].map((match) => match[1]) : []) {
+        if (!existsSync(path.join(root, DOMAINS_DIRECTORY, domain))) report(file, `gateway domain does not exist: ${domain}`);
+      }
+    }
+  }
 }
 
 function withinRoot(root, target) {
