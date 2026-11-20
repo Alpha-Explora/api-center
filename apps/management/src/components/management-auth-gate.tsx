@@ -4,13 +4,16 @@ import Link from "next/link";
 import Script from "next/script";
 import { AlertTriangleIcon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import {
   getManagementSession,
   setManagementSessionToken,
 } from "@/lib/api-center-client";
+import { setSessionRejectedHandler } from "@/lib/api-center/client-core";
+import { isTransientError } from "@/lib/api-center/retry-policy";
 import { NO_ORGANIZATION_ACCESS_MESSAGE } from "@/lib/server/management-auth";
 
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
@@ -20,7 +23,7 @@ const PRESS_FEEDBACK_MS = 650;
 const GOOGLE_BUTTON_MAX_WIDTH = 400;
 const DOCS_URL = "https://docs.apicenter.itsandbox.site/guides/getting-started";
 
-type SignInError = { title: string; message: string };
+type SignInError = { title: string; message: string; retryable?: boolean };
 
 const NOT_CONFIGURED_ERROR: SignInError = {
   title: "Google client ID missing",
@@ -35,8 +38,23 @@ const NO_CREDENTIAL_ERROR: SignInError = {
   message: "Google did not finish the sign-in. Try the Google button again.",
 };
 
-/** A failed access check: a denied account reads differently from a lookup that failed. */
+const SESSION_EXPIRED_ERROR: SignInError = {
+  title: "Your session ended",
+  message: "Google sign-in expires after about an hour. Sign in again to continue.",
+};
+
+/**
+ * A failed access check. A denied account reads differently from a lookup that failed, and a lookup
+ * that failed because APICenter is starting up or busy can be tried again without a new Google sign-in.
+ */
 function accessError(error: unknown): SignInError {
+  if (isTransientError(error)) {
+    return {
+      title: "APICenter is starting up",
+      message: "We could not confirm your access yet. This usually clears in a few seconds.",
+      retryable: true,
+    };
+  }
   const message =
     error instanceof Error
       ? error.message
@@ -44,6 +62,27 @@ function accessError(error: unknown): SignInError {
   return message === NO_ORGANIZATION_ACCESS_MESSAGE
     ? { title: "No access to APICenter", message }
     : { title: "We could not confirm your access", message };
+}
+
+/** Whether a stored Google ID token has expired, so a reload does not start with a dead session. */
+export function isExpiredCredential(credential: string, now = Date.now()): boolean {
+  try {
+    const segment = credential.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(segment)) as { exp?: unknown };
+    return typeof payload.exp === "number" && payload.exp * 1000 <= now;
+  } catch {
+    return false;
+  }
+}
+
+function storedCredential(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const credential = window.sessionStorage.getItem(SESSION_STORAGE_KEY) ?? undefined;
+  if (credential && isExpiredCredential(credential)) {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return undefined;
+  }
+  return credential;
 }
 
 type GoogleCredentialResponse = {
@@ -91,40 +130,56 @@ export function ManagementAuthGate({
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const { resolvedTheme } = useTheme();
   const [scriptReady, setScriptReady] = useState(false);
-  const [sessionToken, setSessionToken] = useState<string | undefined>(() =>
-    typeof window === "undefined"
-      ? undefined
-      : (window.sessionStorage.getItem(SESSION_STORAGE_KEY) ?? undefined),
-  );
+  // Optional so the gate also renders outside a QueryClientProvider.
+  const queryClient = useContext(QueryClientContext);
+  const [sessionToken, setSessionToken] = useState<string | undefined>(storedCredential);
   const [error, setError] = useState<SignInError | undefined>();
+  const [checking, setChecking] = useState(false);
   const [googlePressed, setGooglePressed] = useState(false);
+  const [pendingCredential, setPendingCredential] = useState<string | undefined>();
 
   const showGooglePressedFeedback = useCallback(() => {
     setGooglePressed(true);
     window.setTimeout(() => setGooglePressed(false), PRESS_FEEDBACK_MS);
   }, []);
 
-  const handleCredential = useCallback(async (response: GoogleCredentialResponse) => {
-    if (!response.credential) {
-      setError(NO_CREDENTIAL_ERROR);
-      return;
-    }
+  // Confirm the account has APICenter access before keeping the credential, so a denied account
+  // sees why it cannot sign in instead of landing on an empty console.
+  const checkAccess = useCallback(
+    async (credential: string) => {
+      setPendingCredential(credential);
+      setChecking(true);
+      setError(undefined);
+      setManagementSessionToken(credential);
+      try {
+        await getManagementSession();
+      } catch (lookupError) {
+        setManagementSessionToken(undefined);
+        setError(accessError(lookupError));
+        return;
+      } finally {
+        setChecking(false);
+      }
 
-    // Confirm the account has APICenter access before keeping the credential, so a denied account
-    // sees why it cannot sign in instead of landing on an empty console.
-    setManagementSessionToken(response.credential);
-    try {
-      await getManagementSession();
-    } catch (lookupError) {
-      setManagementSessionToken(undefined);
-      setError(accessError(lookupError));
-      return;
-    }
+      setPendingCredential(undefined);
+      // A different person may have used this tab before; nothing of theirs may show.
+      queryClient?.clear();
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, credential);
+      setSessionToken(credential);
+    },
+    [queryClient],
+  );
 
-    window.sessionStorage.setItem(SESSION_STORAGE_KEY, response.credential);
-    setSessionToken(response.credential);
-    setError(undefined);
-  }, []);
+  const handleCredential = useCallback(
+    async (response: GoogleCredentialResponse) => {
+      if (!response.credential) {
+        setError(NO_CREDENTIAL_ERROR);
+        return;
+      }
+      await checkAccess(response.credential);
+    },
+    [checkAccess],
+  );
 
   useEffect(() => {
     setManagementSessionToken(sessionToken);
@@ -139,17 +194,25 @@ export function ManagementAuthGate({
   }, [authenticatedRedirectHref, sessionToken]);
 
   useEffect(() => {
-    const handleSignOut = () => {
+    const handleSignOut = (event: Event) => {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.google?.accounts.id.disableAutoSelect();
       setManagementSessionToken(undefined);
       setSessionToken(undefined);
+      queryClient?.clear();
+      if ((event as CustomEvent<{ expired?: boolean }>).detail?.expired) setError(SESSION_EXPIRED_ERROR);
     };
+    // The server rejected the stored Google token, which expires after about an hour.
+    setSessionRejectedHandler(() =>
+      window.dispatchEvent(new CustomEvent(MANAGEMENT_SIGN_OUT_EVENT, { detail: { expired: true } })),
+    );
 
     window.addEventListener(MANAGEMENT_SIGN_OUT_EVENT, handleSignOut);
-    return () =>
+    return () => {
+      setSessionRejectedHandler(undefined);
       window.removeEventListener(MANAGEMENT_SIGN_OUT_EVENT, handleSignOut);
-  }, []);
+    };
+  }, [queryClient]);
 
   useEffect(() => {
     const container = buttonRef.current;
@@ -228,6 +291,11 @@ export function ManagementAuthGate({
                 Loading Google sign-in…
               </p>
             ) : null}
+            {checking ? (
+              <p className="mt-3 text-center text-xs text-muted-foreground" role="status">
+                Checking your access…
+              </p>
+            ) : null}
           </div>
 
           {error ? (
@@ -236,9 +304,21 @@ export function ManagementAuthGate({
               className="mt-4 flex gap-2.5 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px]"
             >
               <AlertTriangleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-foreground">{error.title}</p>
                 <p className="mt-0.5 text-muted-foreground">{error.message}</p>
+                {error.retryable && pendingCredential ? (
+                  <Button
+                    className="mt-2"
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    disabled={checking}
+                    onClick={() => void checkAccess(pendingCredential)}
+                  >
+                    Try again
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}

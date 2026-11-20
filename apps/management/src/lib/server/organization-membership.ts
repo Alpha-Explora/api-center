@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiCenterAdminJson } from "./api-center-admin";
+import { ApiCenterAdminError, apiCenterAdminJson } from "./api-center-admin";
 import type { MembershipLookup, MembershipLookupFn } from "./management-auth";
 
 /** How long one email's memberships are reused before the gateway is asked again. */
@@ -85,10 +85,21 @@ function pruneCache(cache: Map<string, CacheEntry>, current: number) {
   }
 }
 
+/** A cold gateway took about 11 s to answer the first lookup in production. */
+const MEMBERSHIP_LOOKUP_TIMEOUT_MS = 15_000;
+const MEMBERSHIP_RETRY_DELAY_MS = 1_000;
+
 async function fetchMembershipsFromGateway(email: string): Promise<MembershipLookup> {
-  const body = await apiCenterAdminJson<unknown>(
-    `/api/v1/admin/control-plane/memberships?email=${encodeURIComponent(email)}`,
-  );
+  const path = `/api/v1/admin/control-plane/memberships?email=${encodeURIComponent(email)}`;
+  let body: unknown;
+  try {
+    body = await apiCenterAdminJson<unknown>(path, { timeoutMs: MEMBERSHIP_LOOKUP_TIMEOUT_MS });
+  } catch (error) {
+    // A timeout or a busy gateway usually clears by itself; ask once more before giving up.
+    if (!(error instanceof ApiCenterAdminError) || error.status < 500) throw error;
+    await new Promise((resolve) => setTimeout(resolve, MEMBERSHIP_RETRY_DELAY_MS));
+    body = await apiCenterAdminJson<unknown>(path, { timeoutMs: MEMBERSHIP_LOOKUP_TIMEOUT_MS });
+  }
   const parsed = membershipLookupResponseSchema.safeParse(body);
   if (!parsed.success) {
     throw new Error("API Center returned an unexpected membership response");

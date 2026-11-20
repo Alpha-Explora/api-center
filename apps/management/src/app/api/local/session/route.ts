@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireManagementSession } from "@/lib/server/require-management-session";
+import { sessionErrorResponse } from "@/lib/server/session-error-response";
 
 export async function GET(request: Request) {
   try {
@@ -12,15 +13,6 @@ export async function GET(request: Request) {
       data: session,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Management authentication required",
-      },
-      { status: 401 },
-    );
+    return sessionErrorResponse(error);
   }
 }
