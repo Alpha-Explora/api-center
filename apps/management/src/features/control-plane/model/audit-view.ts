@@ -79,6 +79,18 @@ const BEFORE_PREFIXES = ["previous", "old", "from"];
  * status and oldStatus) reads as one "before → after" line. Nested objects and secrets stay in the raw view.
  */
 export function auditChanges(details: Record<string, unknown>): AuditChange[] {
+  // Some events record { before: {...}, after: {...} }: one line per field that is in either.
+  if (isRecord(details.before) && isRecord(details.after)) {
+    const before = details.before;
+    const after = details.after;
+    const fields = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    return fields.flatMap((field) => {
+      const next = display(after[field] ?? null);
+      if (next === undefined) return [];
+      const previous = display(before[field] ?? null);
+      return [{ label: humanize(field), ...(previous !== undefined && previous !== next ? { before: previous } : {}), after: next }];
+    });
+  }
   const keys = Object.keys(details);
   const consumed = new Set<string>();
   const changes: AuditChange[] = [];
@@ -96,6 +108,10 @@ export function auditChanges(details: Record<string, unknown>): AuditChange[] {
     }
   }
   return changes;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** A primitive as text; null reads as "none"; objects, arrays and redacted values are left to the raw view. */

@@ -15,7 +15,8 @@ import { FormRow, NativeSelect } from "@/components/patterns/form";
 import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
-import { Panel } from "@/components/patterns/panel";
+import { DescriptionList, Panel } from "@/components/patterns/panel";
+import { IdText } from "@/components/patterns/copy-button";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { ApiError } from "@/lib/api-center/client-core";
 import { projectHref } from "@/lib/app-navigation";
@@ -36,11 +37,88 @@ export function ProjectSettingsPage() {
   return (
     <>
       <PageHeader title="Project settings" description={`Who can work on ${project.name}, and whether its environments accept requests. These settings cover test and live.`} />
+      <GeneralPanel />
       <RolesPanel />
       <TestRecipientsPanel />
-      <EnvironmentStatusPanel />
-      <ArchivePanel />
+      <section aria-labelledby="stop-serving" className="flex flex-col gap-4">
+        <div>
+          <h2 id="stop-serving" className="text-sm font-semibold">
+            Stop serving requests
+          </h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">Both can be undone: nothing is deleted.</p>
+        </div>
+        <EnvironmentStatusPanel />
+        <ArchivePanel />
+      </section>
     </>
+  );
+}
+
+// ── General ─────────────────────────────────────────────────────────────────
+
+/** The project's name, slug and ID. Admins rename it; the slug stays, as it appears in copied identifiers. */
+function GeneralPanel() {
+  const { organizationId, project, canManage } = useProject();
+  const client = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(project.name);
+  const rename = useMutation({
+    mutationFn: () => controlPlane.renameProject(organizationId, project.id, name.trim()),
+    onSuccess: () => {
+      toast.success(`Renamed to ${name.trim()}`);
+      setEditing(false);
+      void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+      void client.invalidateQueries({ queryKey: cpKeys.projects(organizationId) });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  return (
+    <Panel
+      title="General"
+      actions={
+        editing ? null : (
+          <GuardedButton
+            size="sm"
+            variant="outline"
+            allowed={canManage}
+            reason={PROJECT_ADMIN_REASON}
+            onClick={() => {
+              setName(project.name);
+              setEditing(true);
+            }}
+          >
+            Rename
+          </GuardedButton>
+        )
+      }
+    >
+      {editing ? (
+        <form
+          className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim() && name.trim() !== project.name) rename.mutate();
+          }}
+        >
+          <Input aria-label="Project name" autoFocus className="sm:max-w-sm" maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+          <div className="flex gap-2">
+            <Button size="sm" type="submit" disabled={!name.trim() || name.trim() === project.name || rename.isPending}>
+              {rename.isPending ? "Saving…" : "Save"}
+            </Button>
+            <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
+      <DescriptionList
+        items={[
+          { label: "Name", value: project.name },
+          { label: "Slug", value: <span className="font-mono text-xs">{project.slug}</span> },
+          { label: "ID", value: <IdText value={project.id} /> },
+        ]}
+      />
+    </Panel>
   );
 }
 

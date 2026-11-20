@@ -4,7 +4,7 @@ import { matchesQuery, parseConsolePath, switchEnvironmentPath, visibleOrganizat
 
 describe("app navigation", () => {
   it("hides platform-only pages from organization members", () => {
-    expect(visibleOrganizationNav(false).map((item) => item.href)).toEqual(["/projects", "/people", "/apis", "/approvals", "/audit"]);
+    expect(visibleOrganizationNav(false).map((item) => item.href)).toEqual(["/projects", "/people", "/apis", "/approvals", "/audit", "/settings"]);
     expect(visibleOrganizationNav(true).map((item) => item.href)).toEqual([
       "/projects",
       "/people",
@@ -19,7 +19,7 @@ describe("app navigation", () => {
   });
 
   it("shows organization quotas to organization owners and admins", () => {
-    expect(visibleOrganizationNav(false, true).map((item) => item.href)).toEqual(["/projects", "/people", "/apis", "/quotas", "/approvals", "/audit"]);
+    expect(visibleOrganizationNav(false, true).map((item) => item.href)).toEqual(["/projects", "/people", "/apis", "/quotas", "/approvals", "/audit", "/settings"]);
   });
 
   it("locates organization pages and project sections", () => {

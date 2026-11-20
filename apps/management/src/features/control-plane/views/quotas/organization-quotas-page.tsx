@@ -27,6 +27,7 @@ import { observabilityKeys } from "../../view-models/observability";
 import { QuotaMeterBar } from "./quota-meter";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
 import { DeleteQuotaPolicyDialog, EditQuotaPolicySheet, QuotaPolicyMenu } from "./quota-policy-changes";
+import { Explainer } from "@/components/patterns/explainer";
 
 const DESCRIPTION = "Shared ceilings: one request budget that several projects draw from together, for test or live.";
 
@@ -92,9 +93,9 @@ function SharedCeilings({ organizationId }: { organizationId: string }) {
           </Button>
         }
       />
-      <Notice title="How quotas apply">
+      <Explainer id="quotas" title="How quotas apply">
         {`${QUOTA_RULES} ${QUOTA_LIMITATIONS} A project's own policies are on that project's Quotas page.`}
-      </Notice>
+      </Explainer>
       {policies.error ? <ErrorPanel title="Quota policies could not be loaded" error={policies.error} /> : null}
       {usage.error ? <ErrorPanel title="Quota usage could not be loaded" error={usage.error} /> : null}
       {(["test", "live"] as const).map((kind) => {

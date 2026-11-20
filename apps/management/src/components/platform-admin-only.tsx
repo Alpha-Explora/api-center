@@ -26,3 +26,9 @@ export function PlatformAdminOnly({ children }: { children: ReactNode }) {
   }
   return children;
 }
+
+/** A section of a page that only platform operators see; everyone else sees nothing in its place. */
+export function PlatformSection({ children }: { children: ReactNode }) {
+  const { session } = useOrganization();
+  return session?.platformAdmin ? children : null;
+}

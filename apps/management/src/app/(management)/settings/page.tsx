@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Notice } from "@/components/patterns/notices";
 import { DescriptionList, Panel } from "@/components/patterns/panel";
-import { PlatformAdminOnly } from "@/components/platform-admin-only";
-import { SessionPanel } from "@/components/session-panel";
+import { PlatformSection } from "@/components/platform-admin-only";
+import { AccountPanel } from "@/components/account-panel";
+import { OrganizationSettingsPanel } from "@/features/control-plane/views/settings/organization-settings-panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { getManagementEnvironment } from "@/lib/management-environment";
 
@@ -18,9 +19,12 @@ export default function SettingsPage() {
   const hasPlatformSecret = Boolean(process.env.API_CENTER_PLATFORM_ADMIN_SECRET);
 
   return (
-    <PlatformAdminOnly>
-      <PageHeader title="Settings" description="The gateway this console talks to and how this deployment is configured." />
-      <SessionPanel />
+    <>
+      <PageHeader title="Settings" description="Your account, this organization and, for platform operators, how this deployment is configured." />
+      <AccountPanel />
+      <OrganizationSettingsPanel />
+      <PlatformSection>
+      <h2 className="mt-2 text-sm font-semibold">Platform</h2>
       <Panel title="Gateway" description="The console server calls the gateway's admin routes at this address.">
         <DescriptionList
           items={[
@@ -42,6 +46,7 @@ export default function SettingsPage() {
         Never put the platform credential, OAuth client secrets, PayMongo or Resend keys, or database URLs in <code className="font-mono">NEXT_PUBLIC_</code>{" "}
         variables. The platform credential belongs only in the server variable <code className="font-mono">API_CENTER_PLATFORM_ADMIN_SECRET</code>.
       </Notice>
-    </PlatformAdminOnly>
+      </PlatformSection>
+    </>
   );
 }

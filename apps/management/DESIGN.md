@@ -62,7 +62,9 @@ about 40px.
 | `Panel`, `DescriptionList` | Bordered sections; label/value properties. |
 | `StatusBadge`, `statusTone` | Any control-plane status; unknown statuses read as neutral. |
 | `EmptyState` | Empty lists, with the next step. |
-| `ErrorPanel`, `Notice` | Failures with the gateway code; limitations and rules. |
+| `ErrorPanel`, `Notice` | Failures with the gateway code; limitations and rules that apply right now. |
+| `Explainer` | How a page works ("How quotas apply"), folded to one line until opened; remembers being opened. Use it instead of a permanent `Notice` for background reading. |
+| `LinkRow` | A table row that opens its object; keep a real link on the name for keyboard users. |
 | `GuardedButton` | Actions gated by role, with the reason. |
 | `ConfirmDialog` | Destructive or live-affecting actions; optional required reason. |
 | `SecretDialog` | One-time secrets (API keys, signing secrets). |

@@ -77,9 +77,8 @@ export const organizationNav: NavItem[] = [
     id: "settings",
     href: "/settings",
     label: "Settings",
-    description: "The gateway this console uses and how it is configured.",
-    keywords: ["configuration", "session", "gateway"],
-    platformOnly: true,
+    description: "Your account, theme and sign-out, and this organization's name.",
+    keywords: ["account", "theme", "dark", "sign out", "organization", "rename", "session", "gateway", "configuration"],
   },
 ];
 

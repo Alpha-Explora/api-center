@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { GuardedButton } from "@/components/patterns/guarded-button";
-import { ErrorPanel, Notice } from "@/components/patterns/notices";
+import { ErrorPanel } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { quotas } from "../../data/quotas";
@@ -24,6 +24,7 @@ import { QuotaMeterBar } from "./quota-meter";
 import { PlanPicker } from "./plan-picker";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
 import { DeleteQuotaPolicyDialog, EditQuotaPolicySheet, QuotaPolicyMenu } from "./quota-policy-changes";
+import { Explainer } from "@/components/patterns/explainer";
 
 export function ProjectQuotasPage() {
   return (
@@ -75,9 +76,9 @@ function ProjectQuotas() {
           </GuardedButton>
         }
       />
-      <Notice title="How quotas apply">
+      <Explainer id="quotas" title="How quotas apply">
         {`${QUOTA_RULES} ${QUOTA_LIMITATIONS}`}
-      </Notice>
+      </Explainer>
       {policies.error ? <ErrorPanel title="Quota policies could not be loaded" error={policies.error} /> : null}
       {usage.error ? <ErrorPanel title="Quota usage could not be loaded" error={usage.error} /> : null}
 
