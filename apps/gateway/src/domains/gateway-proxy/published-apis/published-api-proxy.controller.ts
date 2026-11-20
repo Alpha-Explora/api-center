@@ -65,6 +65,8 @@ export class PublishedApiForwarder {
       throw error;
     }
     req.caller = call.identity;
+    // The request log shows the action this request was authorized for.
+    res.locals.diagnosticAction = call.action;
     await this.checkUpstream(call.upstreamUrl);
     const status = await forwardSigned({
       req,

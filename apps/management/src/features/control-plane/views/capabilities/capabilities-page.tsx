@@ -23,6 +23,7 @@ import { EmailSenderSheet } from "./email-sender-sheet";
 import { GoogleSignInSheet } from "./google-sign-in-sheet";
 import { OtpSettingsSheet } from "./otp-settings-sheet";
 import { SmsSenderSheet } from "./sms-sender-sheet";
+import { formatNumber } from "@/lib/format";
 
 export function CapabilitiesPage() {
   return (
@@ -59,6 +60,22 @@ function CapabilitiesList() {
     },
   });
   const enabled = new Set(environment?.capabilities.filter((entry) => entry.status === "enabled").map((entry) => entry.capability));
+  // Who uses each capability, and how much, for the row's summary line. Best effort: without them the row
+  // still shows its actions.
+  const applications = useQuery({
+    queryKey: cpKeys.applications(organizationId, project.id, kind),
+    queryFn: () => controlPlane.applications(organizationId, project.id, kind),
+    enabled: Boolean(environment),
+  });
+  const usage = useQuery({
+    queryKey: cpKeys.usage(organizationId, project.id, kind),
+    queryFn: () => controlPlane.usage(organizationId, project.id, kind),
+    enabled: Boolean(environment),
+  });
+  const [showingActions, setShowingActions] = useState<string | null>(null);
+  const usedBy = (capability: string) => (applications.data ?? []).filter((application) => application.capabilities?.includes(capability)).length;
+  const requestsFor = (capability: string) =>
+    (usage.data?.byApplicationAction ?? []).filter((row) => row.action.split(":")[0] === capability).reduce((total, row) => total + row.admitted, 0);
 
   function request(capability: Capability, on: boolean) {
     // Turning something off, or anything in live, is confirmed; enabling in test is immediate.
@@ -96,17 +113,38 @@ function CapabilitiesList() {
                       <span className="font-mono text-xs text-muted-foreground">{capability.id}</span>
                       {payments?.badge ? <StatusBadge tone={payments.badge.tone}>{payments.badge.label}</StatusBadge> : null}
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {capability.actions.length} action{capability.actions.length === 1 ? "" : "s"}: {capability.actions.map((action) => action.action).join(", ")}
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                      {on && applications.data?.every((application) => application.capabilities !== undefined) ? (
+                        <span>
+                          {usedBy(capability.id) === 0 ? "No application is granted it yet" : `Used by ${usedBy(capability.id)} application${usedBy(capability.id) === 1 ? "" : "s"}`}
+                          {usage.data ? ` · ${formatNumber(requestsFor(capability.id))} request${requestsFor(capability.id) === 1 ? "" : "s"} in 24h` : ""}
+                          {" · "}
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-expanded={showingActions === capability.id}
+                        className="underline-offset-2 hover:text-foreground hover:underline"
+                        onClick={() => setShowingActions((current) => (current === capability.id ? null : capability.id))}
+                      >
+                        {capability.actions.length} action{capability.actions.length === 1 ? "" : "s"}
+                      </button>
                     </p>
+                    {showingActions === capability.id ? (
+                      <ul className="mt-2 flex flex-wrap gap-1">
+                        {capability.actions.map((action) => (
+                          <li key={action.action} title={action.description} className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 font-mono text-[11px]">
+                            {action.action}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     {note ? <p className={warning ? "mt-1 text-xs text-warning" : "mt-1 text-xs text-muted-foreground"}>{note}</p> : null}
                   </div>
                   {isConfigurable(capability.id) ? (
                     <ConfigureButton id={capability.id} name={capability.name} onOpen={setConfiguring} />
                   ) : null}
-                  <span className="hidden w-[4.5rem] justify-end sm:flex">
-                    <StatusBadge tone={on ? "success" : "neutral"}>{on ? "Enabled" : "Off"}</StatusBadge>
-                  </span>
+                  <span className="hidden w-14 text-right text-xs text-muted-foreground sm:block">{on ? "Enabled" : "Off"}</span>
                   {canWrite && !blocked ? (
                     <Switch
                       aria-label={`${on ? "Disable" : "Enable"} ${capability.name}`}

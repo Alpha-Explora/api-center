@@ -112,15 +112,44 @@ export class ControlPlaneAdminService {
   }
 
   /** A page of projects, oldest first. `onlyIds` limits it to the projects a member has a role on. */
-  async listProjects(organizationId: string, page: PageQuery, onlyIds?: string[]) {
-    const rows = await this.tenant(organizationId, (db) =>
-      db.cpProject.findMany({
+  /**
+   * A page of projects, oldest first, each with a summary for the list: its environments' status, how
+   * many active applications it has, and its requests in the last 24 hours. `onlyIds` limits it to the
+   * projects a member has a role on.
+   */
+  async listProjects(organizationId: string, page: PageQuery, onlyIds?: string[], now = new Date()) {
+    return this.tenant(organizationId, async (db) => {
+      const rows = await db.cpProject.findMany({
         where: { organizationId, ...(onlyIds ? { id: { in: onlyIds } } : {}), ...afterCreatedAt(page.after) },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: page.limit + 1,
-      }),
-    );
-    return pageFrom(rows, page.limit, (project) => [project.createdAt.toISOString(), project.id]);
+      });
+      const { items, nextCursor } = pageFrom(rows, page.limit, (project) => [project.createdAt.toISOString(), project.id]);
+      const ids = items.map((project) => project.id);
+      if (ids.length === 0) return { items: [], nextCursor };
+      const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const [environments, applications, requests] = await Promise.all([
+        db.cpEnvironment.findMany({ where: { organizationId, projectId: { in: ids } }, select: { projectId: true, kind: true, status: true } }),
+        db.cpApplication.groupBy({ by: ["projectId"], where: { organizationId, projectId: { in: ids }, status: "active" }, _count: { _all: true } }),
+        db.cpUsageRecord.groupBy({ by: ["projectId"], where: { organizationId, projectId: { in: ids }, createdAt: { gte: since } }, _count: { _all: true } }),
+      ]);
+      const countFor = (groups: { projectId: string; _count: { _all: number } }[], projectId: string) =>
+        groups.find((group) => group.projectId === projectId)?._count._all ?? 0;
+      return {
+        items: items.map((project) => ({
+          ...project,
+          summary: {
+            environments: environments
+              .filter((environment) => environment.projectId === project.id)
+              .map(({ kind, status }) => ({ kind, status }))
+              .sort((left, right) => left.kind.localeCompare(right.kind)),
+            applications: countFor(applications, project.id),
+            requests24h: countFor(requests, project.id),
+          },
+        })),
+        nextCursor,
+      };
+    });
   }
 
   async getProject(organizationId: string, projectId: string) {
@@ -205,15 +234,33 @@ export class ControlPlaneAdminService {
     return toApplicationView(application);
   }
 
+  /**
+   * The environment's applications, each with what the list shows: active keys, active grants and the
+   * capabilities they cover, and when a key was last used.
+   */
   async listApplications(scope: EnvironmentScope) {
-    const applications = await this.tenant(scope.organizationId, async (db) => {
+    const { applications, credentials, grants } = await this.tenant(scope.organizationId, async (db) => {
       const environment = await this.resolveEnvironment(db, scope);
-      return db.cpApplication.findMany({
-        where: { environmentId: environment.id, projectId: environment.projectId, organizationId: environment.organizationId },
-        orderBy: { createdAt: "asc" },
-      });
+      const where = { environmentId: environment.id, projectId: environment.projectId, organizationId: environment.organizationId };
+      const [applications, credentials, grants] = await Promise.all([
+        db.cpApplication.findMany({ where, orderBy: { createdAt: "asc" } }),
+        db.cpCredential.findMany({ where: { ...where, status: "active" }, select: { applicationId: true, lastUsedAt: true } }),
+        db.cpApplicationGrant.findMany({ where: { ...where, status: "active" }, select: { applicationId: true, targetKind: true, targetId: true } }),
+      ]);
+      return { applications, credentials, grants };
     });
-    return applications.map(toApplicationView);
+    return applications.map((application) => {
+      const keys = credentials.filter((credential) => credential.applicationId === application.id);
+      const granted = grants.filter((grant) => grant.applicationId === application.id);
+      const lastUsed = keys.reduce<Date | null>((latest, key) => (key.lastUsedAt && (!latest || key.lastUsedAt > latest) ? key.lastUsedAt : latest), null);
+      return {
+        ...toApplicationView(application),
+        activeKeys: keys.length,
+        activeGrants: granted.length,
+        capabilities: [...new Set(granted.filter((grant) => grant.targetKind === "capability").map((grant) => grant.targetId))].sort(),
+        lastUsedAt: lastUsed?.toISOString() ?? null,
+      };
+    });
   }
 
   // ── Grants ───────────────────────────────────────────────────────────────

@@ -9,6 +9,14 @@ export const projectSummarySchema = z.object({
   slug: z.string(),
   name: z.string(),
   status: z.string(),
+  /** List pages only: each environment's status, active applications, and requests in the last 24 hours. */
+  summary: z
+    .object({
+      environments: z.array(z.object({ kind: z.string(), status: z.string() })),
+      applications: z.number(),
+      requests24h: z.number(),
+    })
+    .optional(),
 });
 
 export const projectSchema = projectSummarySchema.extend({
@@ -34,6 +42,11 @@ export const applicationSchema = z.object({
   name: z.string(),
   status: z.string(),
   createdAt: z.string().optional(),
+  /** The applications list adds what it shows: active keys and grants, granted capabilities, last key use. */
+  activeKeys: z.number().optional(),
+  activeGrants: z.number().optional(),
+  capabilities: z.array(z.string()).optional(),
+  lastUsedAt: z.string().nullable().optional(),
 });
 
 export const grantSchema = z.object({

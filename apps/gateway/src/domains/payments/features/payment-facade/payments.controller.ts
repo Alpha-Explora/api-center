@@ -88,6 +88,8 @@ export class PaymentsController {
       environment: call.identity.environmentKind,
     };
     authReq.caller = call.identity;
+    // The request log shows the action this request was authorized for.
+    res.locals.diagnosticAction = call.action;
     res.on("finish", () => {
       void this.applications.recordOutcome(call, res.statusCode);
     });

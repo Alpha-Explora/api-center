@@ -31,6 +31,8 @@ export type DiagnosticRecord = {
   projectId: string | null;
   environment: string | null;
   route: string;
+  /** The action the request was authorized for, such as payments:intents:read; null before authorization. */
+  action: string | null;
   method: string;
   statusCode: number;
   errorCode: string | null;
@@ -45,7 +47,7 @@ export class RequestDiagnosticsStore {
   async record(record: DiagnosticRecord): Promise<void> {
     if (process.env.DATABASE_ENABLED !== "true") return;
     await this.prisma.$executeRawUnsafe(
-      "INSERT INTO apic_runtime.request_diagnostics (request_id,correlation_id,service_id,project_id,environment,route,method,status_code,error_code,failure_stage,duration_ms,payment_resource_id) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+      "INSERT INTO apic_runtime.request_diagnostics (request_id,correlation_id,service_id,project_id,environment,route,method,status_code,error_code,failure_stage,duration_ms,payment_resource_id,action) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
       record.requestId,
       record.correlationId,
       record.serviceId,
@@ -58,6 +60,7 @@ export class RequestDiagnosticsStore {
       record.failureStage,
       record.durationMs,
       record.paymentResourceId,
+      record.action,
     );
   }
   async list(query: z.infer<typeof diagnosticQuery>) {
@@ -103,7 +106,7 @@ export class RequestDiagnosticsStore {
     return this.prisma.$queryRaw<ProjectRequestRow[]>`
       SELECT request_id::text AS "requestId", created_at AS "occurredAt",
              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorAt",
-             service_id AS "applicationId", method, route,
+             service_id AS "applicationId", method, route, action,
              status_code AS "statusCode", duration_ms AS "durationMs", failure_stage AS "failureStage",
              error_code AS "errorCode", correlation_id AS "correlationId"
       FROM apic_runtime.request_diagnostics
@@ -127,6 +130,7 @@ export interface ProjectRequestRow {
   applicationId: string | null;
   method: string;
   route: string;
+  action: string | null;
   statusCode: number;
   durationMs: number;
   failureStage: string | null;

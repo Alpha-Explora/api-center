@@ -49,7 +49,12 @@ describe("request diagnostic HTTP boundary", () => {
         credentialId: "crd-a",
       };
       res.locals.paymentResourceId = "chk_fixture";
+      res.locals.diagnosticAction = "payments:checkout:write";
       res.status(201).json({ accessToken: "secret-response-token" });
+    });
+    app.post("/odd-action", (_req, res) => {
+      res.locals.diagnosticAction = "Not An Action; DROP TABLE";
+      res.status(200).json({});
     });
     server = await new Promise<Server>((resolve) => {
       const instance = app.listen(0, "127.0.0.1", () => resolve(instance));
@@ -96,6 +101,13 @@ describe("request diagnostic HTTP boundary", () => {
     expect(JSON.stringify(record)).not.toMatch(/private-|forged-service/);
   });
 
+  it("records no action before authorization, and only a well-formed one after", async () => {
+    const denied = await fetch(base + "/denied/1", { method: "POST" });
+    expect(records.find((row) => row.requestId === denied.headers.get("x-request-id"))?.action).toBeNull();
+    const odd = await fetch(base + "/odd-action", { method: "POST" });
+    expect(records.find((row) => row.requestId === odd.headers.get("x-request-id"))?.action).toBeNull();
+  });
+
   it("records the authorized application and returns a safe generated correlation ID", async () => {
     const response = await fetch(base + "/token", {
       method: "POST",
@@ -112,6 +124,7 @@ describe("request diagnostic HTTP boundary", () => {
       statusCode: 201,
       failureStage: null,
       paymentResourceId: "chk_fixture",
+      action: "payments:checkout:write",
     });
     expect(record?.correlationId).toBe(response.headers.get("x-request-id"));
     expect(JSON.stringify(record)).not.toContain("secret-response-token");
