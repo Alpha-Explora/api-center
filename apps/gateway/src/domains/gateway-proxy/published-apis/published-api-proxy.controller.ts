@@ -1,7 +1,9 @@
 // /api/v1/apis/:apiId/* — calls to APIs that projects publish through the control plane.
 // Only application credentials are accepted. The publisher receives the signed context
 // (audience apicenter-api:<apiId>) and never the caller's key. The upstream is re-checked
-// against private and metadata addresses on every request.
+// against private and metadata addresses on every request. The gateway never attaches its own
+// Cloud Run identity token: a tenant chooses the upstream, and a `*.run.app` upstream would
+// otherwise receive a token that APICenter's private runtimes accept.
 
 import { All, Controller, Injectable, Optional, Param, Req, Res } from "@nestjs/common";
 import type { Response } from "express";
@@ -9,28 +11,26 @@ import { randomUUID } from "node:crypto";
 import { ApplicationAccessService } from "@domains/control-plane/application-access.service";
 import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types";
 import { UnauthorizedError } from "@shared/errors";
-import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { assertNoEnvironmentOverrides } from "@shared/proxy/environment-leak-guard";
 import { forwardSigned, relativeUpstreamPath, type CloudRunAuthorizer, type FetchLike } from "@shared/proxy/signed-forward";
 import { assertPublicUpstream, upstreamGuardOptions } from "@shared/proxy/upstream-guard";
 import type { AuthenticatedRequest } from "../../../types";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const noCloudRunAuthorization: CloudRunAuthorizer = async () => undefined;
 
 @Injectable()
 export class PublishedApiForwarder {
   private readonly fetchImpl: FetchLike;
-  private readonly authorizeUpstream: CloudRunAuthorizer;
   private readonly timeoutMs: number;
   private readonly checkUpstream: (url: string) => Promise<unknown>;
 
   constructor(
     private readonly access: ApplicationAccessService,
     @Optional()
-    options?: { fetchImpl?: FetchLike; cloudRunAuthorizer?: CloudRunAuthorizer; timeoutMs?: number; checkUpstream?: (url: string) => Promise<unknown> },
+    options?: { fetchImpl?: FetchLike; timeoutMs?: number; checkUpstream?: (url: string) => Promise<unknown> },
   ) {
     this.fetchImpl = options?.fetchImpl ?? ((url, init) => fetch(url, init));
-    this.authorizeUpstream = options?.cloudRunAuthorizer ?? getCloudRunAuthorizationHeader;
     this.timeoutMs = options?.timeoutMs ?? Number(process.env.PROXY_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
     this.checkUpstream = options?.checkUpstream ?? ((url) => assertPublicUpstream(url, upstreamGuardOptions()));
   }
@@ -75,7 +75,7 @@ export class PublishedApiForwarder {
       requestId,
       label: `API '${apiId}'`,
       fetchImpl: this.fetchImpl,
-      cloudRunAuthorizer: this.authorizeUpstream,
+      cloudRunAuthorizer: noCloudRunAuthorization,
       timeoutMs: this.timeoutMs,
     });
     await this.access.recordOutcome(call, status);

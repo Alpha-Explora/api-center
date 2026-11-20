@@ -206,7 +206,7 @@ describe("published APIs", () => {
     await apis.requestAccess(owner.scope, owner.app.id, api.id, "orders:read", actor);
     const fetchImpl = jest.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
     const checkUpstream = jest.fn().mockResolvedValue(undefined);
-    const forwarder = new PublishedApiForwarder(access, { fetchImpl, cloudRunAuthorizer: async () => undefined, checkUpstream });
+    const forwarder = new PublishedApiForwarder(access, { fetchImpl, checkUpstream });
     const res = { status: jest.fn().mockReturnThis(), setHeader: jest.fn(), send: jest.fn() };
     const req = {
       method: "GET",
