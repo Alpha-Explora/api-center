@@ -33,17 +33,20 @@ Switch organizations from the top of the sidebar. Inside a project, the **Test /
 
 | Page | What you manage there |
 | :--- | :--- |
-| **People** | Members, their organization roles, and teams |
+| **People** | Members, their organization roles, and teams. A new member gets an invite email; if it cannot be sent, copy the invite from the console |
 | **API catalog** | Every active API that projects in the organization publish |
-| **Quotas** | Shared request ceilings across several projects (owners and admins) |
-| Project **Overview** | Environment status, plan, the last 24 hours of usage, and going live |
-| Project **Applications** | Applications, their capability and API access, keys, workload identities and webhook |
-| Project **Capabilities** | Capabilities enabled in the environment, and email sender and Google sign-in settings |
-| Project **APIs** | APIs the project publishes, and access requests from other projects |
-| Project **Webhooks** | Payment event destinations and signing secrets |
-| Project **Quotas** | Request limits for the environment |
+| **Quotas** | Shared request ceilings across several projects, how much of each is used, and editing or deleting them (owners and admins) |
+| **Approvals** | Live activations and API access requests waiting for a decision that you can make |
+| **Audit log** | Who changed what, filtered by project, person, action and time (owners, admins, and project admins for their projects) |
+| Project **Overview** | Environment status, plan, usage over the last 24 hours, 7 days or 30 days, the daily limit, recent activity, a getting-started checklist with an SDK snippet, keys about to expire, and going live |
+| Project **Applications** | Applications, their capability and API access (including the requests you sent and why any was rejected), keys, workload identities, webhook and recent requests |
+| Project **Capabilities** | Capabilities enabled in the environment; settings for the email sender, the SMS sender, OTP codes and message, and Google sign-in; whether payments are available to the organization |
+| Project **APIs** | APIs the project publishes, and access requests from other projects, which you can reject with a reason |
+| Project **Webhooks** | Payment event destinations, the event types each webhook receives, delivery history, test events and signing secrets |
+| Project **Requests** | Recent requests in the environment, with filters, the failure stage and the correlation ID |
+| Project **Quotas** | Request limits for the environment and how much of each is used; edit, disable or delete them |
 | Project **Settings** | Project roles for members and teams, and suspending or resuming an environment |
 
-Actions your role does not allow stay visible but disabled, with the reason.
+Actions your role does not allow stay visible but disabled, with the reason. Keys that expire within 14 days are flagged on the Keys tab, the overview and the sidebar.
 
-The console does not create organizations. An APICenter administrator provisions the organization and its first owner.
+An APICenter administrator creates organizations and can add the first owner. A project must keep an administrator. When the organization has no owner or admin to take over, the console refuses a change that would remove a project's last admin, whether by removing a member, a team member or a project role.

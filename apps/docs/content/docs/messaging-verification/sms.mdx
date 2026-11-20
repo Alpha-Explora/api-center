@@ -12,7 +12,7 @@ For a Node.js backend, the typed client is `api.sms.send(...)` in the [APICenter
 ## Service Specifications
 
 - **Base Route**: `/api/v1/shared/sms`
-- **Required Header**: `Authorization: Bearer <SERVICE_ACCESS_TOKEN>`
+- **Required Header**: `Authorization: Bearer <application key>` (`ak_test_…` or `ak_live_…`; see [Authentication](/guides/authentication))
 - **Required Header**: `Idempotency-Key: <16–255 characters>`
 
 ---
@@ -47,6 +47,10 @@ For a Node.js backend, the typed client is `api.sms.send(...)` in the [APICenter
 ```
 
 ---
+
+### Sender ID
+
+`senderId` is optional. A project can pin a sender ID for each environment in Management (**Capabilities** → SMS → Configure): an E.164 phone number or an alphanumeric ID of up to 11 letters, digits or spaces. Once a sender is pinned, every message from that environment uses it. Leave `senderId` out or send the pinned value; any other value returns `403 SENDER_NOT_APPROVED` and nothing is sent. Without a pinned sender, the request's `senderId` or APICenter's default sender is used.
 
 Retries with the same key and request body replay the original status and response for seven days. Reusing a key with a different body returns `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`. If delivery has an uncertain outcome, APICenter blocks the key for reconciliation instead of sending again.
 

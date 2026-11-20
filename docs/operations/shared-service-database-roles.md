@@ -6,13 +6,14 @@ owner: platform-operators
 audience: [operators, engineers]
 last_verified: "unverified"
 verification: unverified
-sources: ["supabase/migrations"]
+sources: ["supabase/migrations", "scripts/verify-control-plane-schema.ts"]
 ---
 # Shared-service database roles
 
 Each shared-service runtime connects to Postgres as its own login user. The login user inherits one
 NOLOGIN role, and that role can use only the runtime's own schema. The migration
-`20261010060000_runtime_database_roles` creates the roles.
+`20261010060000_runtime_database_roles` creates the roles, and `20261120001030_webhook_delivery_attempts` adds
+`webhooks_runtime`.
 
 | Role | Schema | Table privileges | Runtime | Secret |
 | --- | --- | --- | --- | --- |
@@ -21,9 +22,11 @@ NOLOGIN role, and that role can use only the runtime's own schema. The migration
 | `sms_runtime` | `shared_sms` | SELECT, INSERT, UPDATE | `apps/sms` | `apicenter-sms-database-url-live` |
 | `otp_runtime` | `shared_otp` | SELECT, INSERT, UPDATE | `apps/otp` | `apicenter-otp-database-url-live` |
 | `gauth_runtime` | `shared_gauth` | SELECT, INSERT, UPDATE, DELETE | `apps/gauth` | `apicenter-gauth-database-url-live` |
+| `webhooks_runtime` | `shared_webhooks` | SELECT, INSERT | `apps/webhooks` | `apicenter-webhooks-runtime-database-url` |
 
-`<env>` is `test` or `live` for payments. The other shared runtimes use `live`. The email and gauth
-runtimes do not query Postgres yet, so their grants are in place for when they do.
+`<env>` is `test` or `live` for payments. The other shared runtimes use `live`. `webhooks_runtime` only
+appends delivery attempts; the retention job deletes them after 30 days. The webhooks runtime delivers without
+its secret and keeps no history until it is set.
 
 ## Create a login user for a role
 
@@ -35,14 +38,14 @@ CREATE ROLE sms_runtime_login LOGIN PASSWORD '<generated-password>' IN ROLE sms_
 
 Store the full connection string as the secret named in the table, with the login user, password, host and
 database. Give the secret's accessor role (`roles/secretmanager.secretAccessor`) only to the Cloud Run service
-account that runs that runtime. Payments and its dispatcher use `apicenter-payments-runtime@...`. The other
-shared runtimes use `apicenter-shared-services-runtime@...`.
+account that runs that runtime. Payments and its dispatcher use `apicenter-payments-runtime@...`. Webhooks uses
+`apicenter-webhooks-runtime@...`. The other shared runtimes use `apicenter-shared-services-runtime@...`.
 
 To rotate a password, run `ALTER ROLE sms_runtime_login PASSWORD '<new-password>';` and update the secret.
 
 ## Deploy order
 
-1. Apply the Supabase migrations. This creates the five roles and drops `shared_services_app`.
+1. Apply the Supabase migrations. This creates the runtime roles and drops `shared_services_app`.
 2. Create a login user for each role that will run, and store its connection string in the matching secret.
 3. Deploy the manifests in `infra/gcp/cloud-run/`.
 

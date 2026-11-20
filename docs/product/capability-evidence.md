@@ -4,7 +4,7 @@ status: canonical
 authority: informative
 owner: platform-maintainers
 audience: [engineers, reviewers, operators, agents]
-last_verified: "2026-11-19"
+last_verified: "2026-11-20"
 verification: repository
 sources: [contracts/public, apps/docs/content/guides.json, packages/contracts/src/index.ts, docs/superpowers/plans/README.md]
 ---
@@ -20,7 +20,7 @@ This register distinguishes documentation coverage from implementation and runti
 | Geo and Google Auth | Independent `geo`/`gauth` runtimes | Authored guides and supported shared HTTP operations in public OpenAPI | Provider credentials, OAuth configuration, and live calls remain environment-specific |
 | Request diagnostics | Redacted per-request records and the console's Requests page | [Control plane operations](../operations/control-plane-operations.md) | Repository checks; deployment acceptance pending |
 | Control plane | Organizations, projects, applications, grants, keys, budgets and live approval | Access and tenancy guides, control-plane runbook | Serbizio's test environment runs on it; live activation awaits approval |
-| Management console | `apps/management`: every control-plane feature the gateway serves, gated by the console access policy the gateway enforces; [runbook](../../apps/management/docs/operations/apicenter-management-runbook.md) | Management guides, console README and DESIGN.md | Unit tests and builds; flows exercised against a local mock gateway on 2026-11-19. Use against a deployed gateway and real Google sign-in is unverified |
+| Management console | `apps/management`: every control-plane feature the gateway serves, gated by the console access policy the gateway enforces. Since #201–#205: organization administration, the approvals queue, member invites, the request log, usage series, quota meters and edits, the audit log, the getting-started checklist, key expiry warnings, webhook event-type filters, delivery history and test events, SMS and OTP settings, the payments merchant status, outgoing API access requests and workload audiences; [runbook](../../apps/management/docs/operations/apicenter-management-runbook.md) | Management guides, console README and DESIGN.md | Unit tests, builds and CI; flows exercised only against a local mock gateway (2026-11-19, and 2026-11-20 for #201–#205). Use against a deployed gateway, real Google sign-in, invite email delivery, webhook delivery history and test events, and the round-2 migrations on a deployed database are unverified |
 | Documentation governance | Canonical internal bundle, guide registry, contract-derived reference | Link/metadata/source audits, contract fidelity tests, and static-export checks | The workflow produces verified artifacts; public hosting is not verified here |
 
 ## Status vocabulary

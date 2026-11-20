@@ -1672,7 +1672,7 @@
             }
           },
           "403": {
-            "description": "Scopes, service dependency, project policy or caller context are not allowed.",
+            "description": "Scopes, service dependency, project policy or caller context are not allowed. `SENDER_NOT_APPROVED` when the project has pinned a sender ID and the request names a different `senderId`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2113,7 +2113,7 @@
             }
           },
           "400": {
-            "description": "Invalid request, credentials or idempotency key.",
+            "description": "Invalid request, credentials or idempotency key, or the code was not accepted (`OTP_INVALID`, `OTP_EXPIRED`, `OTP_ALREADY_USED`, or `OTP_ATTEMPTS_EXCEEDED` once the project's limit of wrong attempts is reached).",
             "content": {
               "application/json": {
                 "schema": {
