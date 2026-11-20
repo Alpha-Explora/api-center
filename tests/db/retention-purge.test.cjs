@@ -22,6 +22,22 @@ test.beforeEach(async () => {
   for (const { schema, table } of MANAGED_TABLES) await client.query('truncate ' + schema + '.' + table);
 });
 
+// Control-plane rows reference an organization, project, environment, application and credential.
+const CP = {
+  org: '6f1c1d1e-0000-4000-8000-000000000ee1',
+  project: 'prj_retentionretentionretent',
+  environment: 'env_retentionretentionretent',
+  application: 'app_retentionretentionretent',
+  credential: 'crd_retentionretentionretent',
+};
+async function controlPlaneParents() {
+  await client.query("insert into apic_catalog.organizations (id, slug, name) values ($1, 'retention-org', 'Retention') on conflict do nothing", [CP.org]);
+  await client.query("insert into apic_catalog.cp_projects (id, organization_id, slug, name, created_by) values ($1, $2, 'retention', 'Retention', 'test') on conflict do nothing", [CP.project, CP.org]);
+  await client.query("insert into apic_catalog.cp_environments (id, organization_id, project_id, kind) values ($1, $2, $3, 'test') on conflict do nothing", [CP.environment, CP.org, CP.project]);
+  await client.query("insert into apic_catalog.cp_applications (id, organization_id, project_id, environment_id, slug, name, created_by) values ($1, $2, $3, $4, 'retention', 'Retention', 'test') on conflict do nothing", [CP.application, CP.org, CP.project, CP.environment]);
+  await client.query("insert into apic_catalog.cp_credentials (id, organization_id, project_id, environment_id, application_id, environment_kind, lookup_prefix, verifier_sha256, expires_at, created_by) values ($1, $2, $3, $4, $5, 'test', 'ak_test_retentionretenti', repeat('b', 64), now() + interval '1 day', 'test') on conflict do nothing", [CP.credential, CP.org, CP.project, CP.environment, CP.application]);
+}
+
 // One insert per managed table. The age argument is how many days old the row's dated column should be.
 const inserts = {
   'apic_runtime.verification_runs': (days) => client.query(
@@ -52,6 +68,24 @@ const inserts = {
   ])),
   'apic_identity.refresh_tokens': (days) => client.query(
     "insert into apic_identity.refresh_tokens (jti, subject, record, expires_at) values ($1, 's', '{}'::jsonb, now() - make_interval(days => $2))", [`retention_${Math.random()}`, days]),
+  'apic_catalog.cp_usage_records': async (days) => {
+    await controlPlaneParents();
+    await client.query(
+      "insert into apic_catalog.cp_usage_records (organization_id, request_key, project_id, environment_id, application_id, capability, action, created_at) values ($1, $2, $3, $4, $5, 'email', 'email:send', now() - make_interval(days => $6))",
+      [CP.org, `req:retention_${Math.random()}`, CP.project, CP.environment, CP.application, days]);
+  },
+  'apic_catalog.cp_quota_counters': async (days) => {
+    await controlPlaneParents();
+    await client.query(
+      "insert into apic_catalog.cp_quota_counters (organization_id, budget_key, window_start, request_count) values ($1, $2, now() - make_interval(days => $3), 1)",
+      [CP.org, `plan:retention_${Math.random()}`, days]);
+  },
+  'apic_catalog.cp_credential_operations': async (days) => {
+    await controlPlaneParents();
+    await client.query(
+      "insert into apic_catalog.cp_credential_operations (operation_id, organization_id, application_id, fingerprint, credential_id, created_at) values (gen_random_uuid(), $1, $2, repeat('a', 64), $3, now() - make_interval(days => $4))",
+      [CP.org, CP.application, CP.credential, days]);
+  },
   'apic_governance.payment_idempotency_keys': (days) => client.query(
     "insert into apic_governance.payment_idempotency_keys (storage_key, fingerprint, expires_at) values ($1, 'f', now() - make_interval(days => $2))", [`retention_${Math.random()}`, days]),
 };
@@ -140,3 +174,21 @@ test('the retention role can purge and the application role cannot delete audit 
   assert.equal(results.find((result) => result.table === 'apic_audit.audit_events').deleted, 1);
 });
 
+
+test('the retention role purges control-plane rows despite row-level security', { skip }, async () => {
+  await inserts['apic_catalog.cp_usage_records'](1000);
+  await inserts['apic_catalog.cp_quota_counters'](1000);
+
+  // The application role sees no rows without a tenant setting.
+  await client.query('set role api_center_app');
+  assert.equal((await client.query('select count(*)::int as n from apic_catalog.cp_usage_records')).rows[0].n, 0);
+  await client.query('reset role');
+
+  await client.query('set role api_center_retention');
+  const results = await purgeExpiredHistory(client);
+  await client.query('reset role');
+
+  assert.equal(results.find((result) => result.table === 'apic_catalog.cp_usage_records').deleted, 1);
+  assert.equal(results.find((result) => result.table === 'apic_catalog.cp_quota_counters').deleted, 1);
+  assert.equal(await count('apic_catalog.cp_usage_records'), 0);
+});
