@@ -1,9 +1,9 @@
 ---
-title: "Payments architecture"
-description: "Understand the APICenter payment request and event flow."
+title: "How payments work"
+description: "The path of a payment request and its events through APICenter."
 ---
 
-APICenter provides a payment API that keeps provider credentials and provider-specific payloads behind the platform boundary. A consumer backend calls the gateway with the server-side SDK. APICenter applies the registered service's authorization and environment, then routes the request to the payment runtime.
+APICenter provides a payment API that keeps provider credentials and provider-specific payloads behind the platform boundary. Your backend calls the gateway with the server-side SDK and its application key. APICenter checks the application's grants and environment, then routes the request to the payment runtime.
 
 ## Request flow
 

@@ -1,29 +1,99 @@
 @import "tailwindcss";
-@import "fumadocs-ui/css/solar.css";
+@import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
-/* ── Layout Width & 3-Column Overrides ─────────────────── */
+/*
+ * The console's tokens (apps/management/src/app/globals.css, DESIGN.md), mapped onto Fumadocs' variables,
+ * so the docs read as the same product: neutral grays, Geist, color only for status.
+ */
 :root {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-sans: var(--font-geist-sans), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.205 0 0);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.965 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.955 0 0);
+  --border: oklch(0.915 0 0);
+  --ring: oklch(0.6 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.975 0 0);
+  --grid-line: oklch(0.86 0 0);
+
+  --success: oklch(0.55 0.14 155);
+  --success-soft: oklch(0.96 0.03 155);
+  --warning: oklch(0.62 0.15 65);
+  --warning-soft: oklch(0.97 0.04 85);
+  --danger: oklch(0.55 0.2 27);
+  --danger-soft: oklch(0.97 0.02 27);
+  --info: oklch(0.55 0.15 255);
+  --info-soft: oklch(0.97 0.02 255);
 
   --fd-layout-width: 100vw !important;
   --fd-page-width: 100% !important;
-
-
-  /* Method Colors */
-  --c-get:    #10b981;
-  --c-post:   #3b82f6;
-  --c-del:    #ef4444;
-  --c-patch:  #f59e0b;
 }
 
-html {
-  font-family: var(--font-sans);
+.dark {
+  --background: oklch(0.155 0 0);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.185 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.68 0 0);
+  --accent: oklch(0.25 0 0);
+  --border: oklch(1 0 0 / 9%);
+  --ring: oklch(0.55 0 0);
+  --primary: oklch(0.96 0 0);
+  --primary-foreground: oklch(0.18 0 0);
+  --sidebar: oklch(0.135 0 0);
+  --grid-line: oklch(1 0 0 / 14%);
+
+  --success: oklch(0.72 0.15 155);
+  --success-soft: oklch(0.72 0.15 155 / 12%);
+  --warning: oklch(0.78 0.14 75);
+  --warning-soft: oklch(0.78 0.14 75 / 12%);
+  --danger: oklch(0.7 0.18 25);
+  --danger-soft: oklch(0.7 0.18 25 / 12%);
+  --info: oklch(0.72 0.13 255);
+  --info-soft: oklch(0.72 0.13 255 / 12%);
 }
 
+:root,
+.dark {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-card: var(--card);
+  --color-fd-card-foreground: var(--foreground);
+  --color-fd-popover: var(--card);
+  --color-fd-popover-foreground: var(--foreground);
+  --color-fd-muted: var(--muted);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-secondary: var(--muted);
+  --color-fd-secondary-foreground: var(--foreground);
+  --color-fd-accent: var(--accent);
+  --color-fd-accent-foreground: var(--foreground);
+  --color-fd-border: var(--border);
+  --color-fd-ring: var(--ring);
+  --color-fd-primary: var(--primary);
+  --color-fd-primary-foreground: var(--primary-foreground);
+}
+
+html,
 body {
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: color-mix(in oklch, var(--info) 22%, transparent);
 }
 
 /* Make layout & container span full screen width cleanly */
@@ -146,9 +216,9 @@ body {
 }
 
 .fd-tag-required {
-  color: #ff453a;
-  background: rgba(255, 69, 58, 0.12);
-  border: 1px solid rgba(255, 69, 58, 0.25);
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in oklch, var(--danger) 25%, transparent);
 }
 
 .fd-tag-optional {
@@ -174,9 +244,9 @@ body {
 }
 
 .fd-status-200 {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid color-mix(in oklch, var(--success) 25%, transparent);
 }
 
 .fd-status-label {
@@ -209,9 +279,9 @@ body {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 700;
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in oklch, var(--danger) 25%, transparent);
   padding: 0.125rem 0.5rem;
   border-radius: 4px;
   min-width: 42px;
@@ -335,12 +405,12 @@ body {
 }
 
 .fd-panel-pre--code {
-  color: #50fa7b;
+  color: var(--color-fd-foreground);
   max-height: 280px;
 }
 
 .fd-panel-pre--resp {
-  color: #8be9fd;
+  color: var(--color-fd-muted-foreground);
   max-height: 220px;
 }
 

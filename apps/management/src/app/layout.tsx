@@ -9,11 +9,8 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 export const metadata: Metadata = {
   title: { default: "APICenter", template: "%s · APICenter" },
   description: "Projects, environments, applications, keys and access for APICenter's gateway.",
-  icons: {
-    icon: "/brand/apicenter-logo-icon-v2.png",
-    shortcut: "/brand/apicenter-logo-icon-v2.png",
-    apple: "/brand/apicenter-logo-icon-v2.png",
-  },
+  // app/favicon.ico covers browsers without SVG favicons.
+  icons: { icon: "/brand/apicenter-mark.svg", apple: "/brand/apicenter-app-icon.png" },
 };
 
 export default function RootLayout({

@@ -1,6 +1,6 @@
 ---
-title: "Email Shared Service API"
-description: "Send HTML/text transactional email notifications via @alpha-explora/apicenter-contracts."
+title: "Email"
+description: "Send transactional email from a verified sender and read its delivery status."
 ---
 
 Send transactional emails with HTML or plain-text content and message status tracking. Each request must include non-empty `html` or `text` content. Teams provide the content in each request; APICenter does not store email templates.
@@ -9,7 +9,7 @@ For a Node.js backend, the typed client is `api.email.send(...)` in the [APICent
 
 ---
 
-## Service Specifications
+## At a glance
 
 - **Base Route**: `/api/v1/shared/email`
 - **Required Header**: `Authorization: Bearer <application key>` (`ak_test_…` or `ak_live_…`; see [Authentication](/guides/authentication))

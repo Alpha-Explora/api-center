@@ -1,9 +1,9 @@
 import { DocsPage, DocsTitle, DocsDescription, DocsBody } from "fumadocs-ui/page";
 import { getDetailedOperations, type PropertyField } from "@/lib/contracts";
-import { PageTOC } from "fumadocs-ui/layouts/docs/page";
 import { CodePanel } from "@/components/code-panel";
 import { notFound } from "next/navigation";
 import legacyReferences from "@/content/legacy-reference.json";
+import { MethodBadge as SharedMethodBadge } from "@/lib/source";
 
 export function generateStaticParams() {
   return [...new Set([...getDetailedOperations().map((op) => op.operationId), ...Object.keys(legacyReferences)])].map((operationId) => ({ operationId }));
@@ -21,24 +21,12 @@ export async function generateMetadata({ params }: { params: Promise<{ operation
 }
 
 // ─── Method badge ─────────────────────────────────────────────
-const METHOD_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  GET:    { color: "#10b981", bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.3)" },
-  POST:   { color: "#3b82f6", bg: "rgba(59,130,246,0.15)",  border: "rgba(59,130,246,0.3)" },
-  DELETE: { color: "#ef4444", bg: "rgba(239,68,68,0.15)",   border: "rgba(239,68,68,0.3)"  },
-  PATCH:  { color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.3)" },
-  PUT:    { color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.3)" },
-};
-
+// The shared badge from the sidebar, a size up for the page header.
 function MethodBadge({ method }: { method: string }) {
-  const c = METHOD_COLORS[method] ?? { color: "#6b7280", bg: "rgba(107,114,128,0.15)", border: "rgba(107,114,128,0.3)" };
-  const label = method === "DELETE" ? "DEL" : method;
   return (
-    <span style={{
-      fontFamily: "var(--font-mono, monospace)",
-      fontSize: "11px", fontWeight: 800,
-      color: c.color, background: c.bg, border: `1px solid ${c.border}`,
-      padding: "3px 8px", borderRadius: "4px", letterSpacing: "0.04em",
-    }}>{label}</span>
+    <span className="inline-flex scale-125 origin-left">
+      <SharedMethodBadge method={method} />
+    </span>
   );
 }
 
@@ -69,7 +57,7 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
   if (!op) {
     const guide = (legacyReferences as Record<string, string>)[operationId];
     if (!guide) notFound();
-    return <DocsPage><DocsTitle>Shared-service integration guide</DocsTitle><DocsBody>
+    return <DocsPage tableOfContent={{ style: "clerk" }}><DocsTitle>Shared-service integration guide</DocsTitle><DocsBody>
       <p>This bookmark points to maintained integration guidance. The downloadable OpenAPI includes supported consumer payment, identity, and shared-service operations.</p>
       <p><a href={"/guides/" + guide}>Read the integration guide</a></p>
     </DocsBody></DocsPage>;
@@ -79,12 +67,10 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
     <DocsPage
       full={true}
       toc={[]}
-      container={{ className: "xl:[--fd-toc-width:440px]" }}
-      tableOfContent={{ component: <PageTOC><CodePanel operation={op} /></PageTOC>, enabled: true }}
+      tableOfContent={{ component: <CodeColumn><CodePanel operation={op} /></CodeColumn>, enabled: true }}
       tableOfContentPopover={{ enabled: false }}
       breadcrumb={{
         enabled: true,
-        full: false,
         component: (
           <div style={{
             display: "flex",
@@ -97,9 +83,9 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
             overflow: "hidden",
             textOverflow: "ellipsis"
           }}>
-            <a href="/reference/api" style={{ color: "var(--color-fd-muted-foreground)", textDecoration: "none" }}>APIs &amp; SDKs</a>
+            <a href="/reference/api" style={{ color: "var(--color-fd-muted-foreground)", textDecoration: "none" }}>API reference</a>
             <span style={{ opacity: 0.4 }}>/</span>
-            <a href="/reference/api" style={{ color: "var(--color-fd-muted-foreground)", textDecoration: "none" }}>APICenter REST API</a>
+            <a href={`/reference/api#endpoints`} style={{ color: "var(--color-fd-muted-foreground)", textDecoration: "none" }}>{op.tag || "General"}</a>
             <span style={{ opacity: 0.4 }}>/</span>
             <span style={{ color: "var(--color-fd-foreground)", fontWeight: 500 }}>{op.summary}</span>
           </div>
@@ -204,5 +190,17 @@ export default async function EndpointPage({ params }: { params: Promise<{ opera
         </section>
       </DocsBody>
     </DocsPage>
+  );
+}
+
+/** The request and response examples, in the column the table of contents uses on other pages: sticky, wider, desktop only. */
+function CodeColumn({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      id="nd-toc"
+      className="sticky top-(--fd-docs-row-1) h-[calc(var(--fd-docs-height)-var(--fd-docs-row-1))] w-(--fd-toc-width) overflow-y-auto pt-12 pe-4 pb-4 [grid-area:toc] max-xl:hidden xl:layout:[--fd-toc-width:440px]"
+    >
+      {children}
+    </div>
   );
 }

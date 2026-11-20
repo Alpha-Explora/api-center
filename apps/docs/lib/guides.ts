@@ -1,8 +1,8 @@
-import { docs } from "../.source";
+import { docs } from "../.source/server";
 import registry from "../content/guides.json";
 
 function canonicalPage(slug: string) {
-  const data = docs.docs.find((page) => page._file.path.replace(/\\/g, "/") === slug + ".mdx");
+  const data = docs.docs.find((page) => page.info.path.replace(/\\/g, "/") === slug + ".mdx");
   return data ? { data, url: "/guides/" + slug } : undefined;
 }
 
@@ -10,7 +10,7 @@ export function getPublishedGuides() {
   return registry.map((entry) => {
     const page = canonicalPage(entry.slug);
     if (!page) throw new Error("Registered guide is missing: " + entry.slug);
-    return { ...entry, title: page.data.title, url: page.url };
+    return { ...entry, title: page.data.title, description: page.data.description, url: page.url, data: page.data };
   });
 }
 

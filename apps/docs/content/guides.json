@@ -1,35 +1,35 @@
 [
   {
     "slug": "getting-started",
-    "section": "Getting started"
+    "section": "Start here"
   },
   {
     "slug": "authentication",
-    "section": "Getting started"
+    "section": "Start here"
   },
   {
     "slug": "idempotency",
-    "section": "Getting started"
+    "section": "Start here"
   },
   {
     "slug": "errors",
-    "section": "Getting started"
+    "section": "Start here"
   },
   {
     "slug": "versioning",
-    "section": "Getting started"
+    "section": "Start here"
   },
   {
     "slug": "sdk-usage",
-    "section": "Getting started"
+    "section": "Start here"
   },
   {
     "slug": "management/access-and-tenancy",
-    "section": "Management"
+    "section": "Console"
   },
   {
     "slug": "management/google-sign-in",
-    "section": "Management"
+    "section": "Console"
   },
   {
     "slug": "payments/overview",

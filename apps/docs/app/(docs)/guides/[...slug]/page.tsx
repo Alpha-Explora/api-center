@@ -19,7 +19,7 @@ export default async function GuideRoute({ params }: { params: Promise<{ slug: s
   const page = getGuide((await params).slug);
   if (!page) notFound();
   return (
-    <DocsPage toc={page.data.toc}>
+    <DocsPage tableOfContent={{ style: "clerk" }} toc={page.data.toc}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody><GuidePage body={page.data.body} /></DocsBody>

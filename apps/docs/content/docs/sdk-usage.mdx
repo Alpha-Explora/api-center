@@ -1,9 +1,9 @@
 ---
 title: "SDK integration"
-description: "Install and configure the server-side @alpha-explora/apicenter-sdk for APICenter shared services and payments."
+description: "Install and configure the server-side @alpha-explora/apicenter-sdk for APICenter's capabilities and payments."
 ---
 
-`@alpha-explora/apicenter-sdk` is the typed Node.js client for APICenter shared services and payments. It is published to restricted GitHub Packages and requires package read access.
+`@alpha-explora/apicenter-sdk` is the typed Node.js client for APICenter's capabilities and payments. It is published to restricted GitHub Packages and requires package read access.
 
 ## Install
 
@@ -39,7 +39,7 @@ const api = new ApiCenter();
 
 The key's prefix (`ak_test_` or `ak_live_`) selects the environment and the key identifies your application; APICenter enforces the actions it was granted.
 
-## Call a shared service
+## Call a capability
 
 Supply an idempotency key for sends and OTP mutations. Generate or persist the key for the business operation, then reuse it when retrying that same operation.
 
