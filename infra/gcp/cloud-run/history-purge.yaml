@@ -5,7 +5,7 @@ kind: Job
 metadata:
   name: apicenter-history-purge
   labels:
-    cloud.googleapis.com/location: asia-southeast1
+    cloud.googleapis.com/location: australia-southeast1
 spec:
   template:
     spec:

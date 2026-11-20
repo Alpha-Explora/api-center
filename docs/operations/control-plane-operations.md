@@ -58,6 +58,9 @@ New control-plane routes, all under `/api/v1/admin/control-plane`:
 | `PUT organizations/:id/members/:email` | Now also returns `previousRole` and the `invite` outcome. A new member is `invited` for 7 days |
 | `POST organizations/:id/members/:email/invite` | Renews an unaccepted invite for 7 days and emails it again |
 | `PUT organizations/:id/members/:email/status` | Suspends (`suspended`) or restores (`active`) an accepted member |
+| `DELETE organizations/:id/teams/:teamId` | Deletes a team with its memberships and project roles; `409 LAST_PROJECT_ADMIN` when it is a project's only administrator |
+| `PUT organizations/:id/projects/:projectId/status` | Archives (`archived`) or restores (`active`) a project; `403 SUSPENDED_BY_PLATFORM` for a project an operator suspended |
+| `PUT …/environments/:env/applications/:applicationId/status` | Suspends (`suspended`) or resumes (`active`) an application |
 | `GET …/environments/:env/requests`, `…/usage/series`, `…/quota-usage`; `GET organizations/:id/quota-usage` | Request log, usage series and quota meters |
 | `GET organizations/:id/audit-events`; `GET audit-events` | Organization audit log; the platform-wide log for platform operators |
 | `GET …/environments/:env/credentials[?expiringWithinDays=N]`; `GET …/environments/:env/grants` | Environment key and grant inventory |

@@ -18,6 +18,7 @@ import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { toSlug } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
+import { lifecycle } from "../../data/lifecycle";
 import { members as memberRoutes } from "../../data/members";
 import { ORGANIZATION_ADMIN_REASON, type Access, type OrganizationRole } from "../../model/access";
 import type { Member, Team } from "../../model/control-plane";
@@ -391,6 +392,19 @@ function TeamsPanel({ organizationId, access }: { organizationId: string; access
 
 function TeamRow({ organizationId, team, canManage, onChanged }: { organizationId: string; team: Team; canManage: boolean; onChanged: () => void }) {
   const [email, setEmail] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => lifecycle.deleteTeam(organizationId, team.id),
+    onSuccess: () => {
+      toast.success(`Deleted ${team.name}`);
+      setDeleting(false);
+      onChanged();
+    },
+    onError: (error: Error) => {
+      setDeleting(false);
+      toast.error(error.message);
+    },
+  });
   const normalized = email.trim().toLowerCase();
   const add = useMutation({
     mutationFn: () => controlPlane.addTeamMember(organizationId, team.id, normalized),
@@ -421,8 +435,21 @@ function TeamRow({ organizationId, team, canManage, onChanged }: { organizationI
           <Button size="sm" variant="ghost" type="submit" disabled={!normalized.includes("@") || add.isPending}>
             Add
           </Button>
+          <Button size="sm" variant="ghost" type="button" onClick={() => setDeleting(true)}>
+            Delete
+          </Button>
         </form>
       ) : null}
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={(next) => !next && setDeleting(false)}
+        title={`Delete ${team.name}`}
+        description="Its members lose the project roles they had through this team. Their organization membership is kept. A team that is a project's only administrator cannot be deleted."
+        confirmLabel="Delete team"
+        destructive
+        busy={remove.isPending}
+        onConfirm={() => remove.mutate()}
+      />
     </li>
   );
 }

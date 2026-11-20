@@ -185,6 +185,21 @@ export class OrganizationPeopleService {
     return { ...team, members: [] as string[] };
   }
 
+  /** Deletes a team with its memberships and project roles, unless a project would lose its last administrator. */
+  async deleteTeam(organizationId: string, teamId: string, actor: string) {
+    const team = await this.mutate(organizationId, async (db) => {
+      const found = await db.cpTeam.findFirst({ where: { id: teamId, organizationId } });
+      if (!found) throw new NotFoundError(`Team '${teamId}' was not found`);
+      await assertProjectsKeepAdministrator(db, organizationId, { kind: "team", teamId });
+      await db.cpProjectRoleAssignment.deleteMany({ where: { organizationId, teamId } });
+      await db.cpTeamMember.deleteMany({ where: { organizationId, teamId } });
+      await db.cpTeam.delete({ where: { id: teamId } });
+      return found;
+    });
+    await this.recordAudit({ organizationId }, "control_plane.team.deleted", actor, teamId, { slug: team.slug });
+    return { id: teamId, deleted: true };
+  }
+
   async listTeams(organizationId: string) {
     return this.tenant(organizationId, async (db) => {
       const teams = await db.cpTeam.findMany({ where: { organizationId }, orderBy: { slug: "asc" } });

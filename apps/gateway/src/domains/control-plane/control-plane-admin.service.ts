@@ -75,6 +75,41 @@ export class ControlPlaneAdminService {
     return this.getProject(organizationId, project.id);
   }
 
+  /**
+   * Archives a project or brings it back. An archived project refuses every application request
+   * (PROJECT_INACTIVE) in test and live; its applications, keys and settings are kept.
+   */
+  async setProjectStatus(organizationId: string, projectId: string, status: "active" | "archived", actor: string) {
+    const project = await this.tenant(organizationId, async (db) => {
+      const found = await db.cpProject.findFirst({ where: { id: projectId, organizationId } });
+      if (!found) throw new NotFoundError(`Project '${projectId}' was not found`);
+      if (found.status === "suspended") {
+        throw new AppError("An APICenter operator suspended this project; ask them to restore it", 403, "SUSPENDED_BY_PLATFORM");
+      }
+      return db.cpProject.update({ where: { id: projectId }, data: { status } });
+    });
+    await this.recordAudit({ organizationId, projectId }, `control_plane.project.${status === "archived" ? "archived" : "restored"}`, actor, "cp_project", projectId, "test", {});
+    return project;
+  }
+
+  /** Suspends an application or resumes it. A suspended application's keys and workload identities are refused (APPLICATION_INACTIVE). */
+  async setApplicationStatus(scope: EnvironmentScope, applicationId: string, status: "active" | "suspended", actor: string) {
+    const application = await this.tenant(scope.organizationId, async (db) => {
+      const found = await this.resolveApplication(db, scope, applicationId);
+      return db.cpApplication.update({ where: { id: found.id }, data: { status } });
+    });
+    await this.recordAudit(
+      { organizationId: scope.organizationId, projectId: scope.projectId },
+      `control_plane.application.${status === "suspended" ? "suspended" : "resumed"}`,
+      actor,
+      "cp_application",
+      applicationId,
+      scope.environmentKind,
+      {},
+    );
+    return application;
+  }
+
   async listProjects(organizationId: string) {
     return this.tenant(organizationId, (db) =>
       db.cpProject.findMany({
