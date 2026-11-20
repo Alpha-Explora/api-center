@@ -88,7 +88,7 @@ export function GoogleSignInSheet({ open, onOpenChange }: { open: boolean; onOpe
           </div>
         ) : (
           // Keyed by fetch time so the form restarts from the saved settings after each save.
-          <GoogleSignInForm key={configuration.dataUpdatedAt} current={configuration.data} onDone={() => onOpenChange(false)} />
+          <GoogleSignInForm key={`${project.id}:${kind}`} current={configuration.data} onDone={() => onOpenChange(false)} />
         )}
       </SheetContent>
     </Sheet>

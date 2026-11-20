@@ -65,6 +65,13 @@ describe("OTP settings", () => {
     expect(otpTemplateProblem("{{code}} for {{name}}")).toMatch(/\{\{name\}\}/);
     expect(otpTemplateProblem(`{{code}}${"x".repeat(300)}`)).toMatch(/300/);
     expect(otpTemplateProblem("{{code}}\tok")).toMatch(/control/);
+    expect(otpTemplateProblem("Your code {{code}}\nCall us")).toMatch(/one line/);
+    expect(otpTemplateProblem("Code {{\ncode}}")).not.toBeNull();
+    expect(otpTemplateProblem("Code {{code}} at https://evil.example")).toMatch(/links/);
+    expect(otpTemplateProblem("Code {{code}}, see www.evil")).toMatch(/links/);
+    expect(otpTemplateProblem("Code {{code}}, confirm at evil.co")).toMatch(/links/);
+    expect(otpTemplateProblem("Code {{code}}. Call +63 917 123 4567")).toMatch(/phone/);
+    expect(otpTemplateProblem("Your Acme code is {{code}}. It expires in {{minutes}} min, e.g. at 10:30.")).toBeNull();
     expect(errors({ messageTemplate: "no placeholder" })).toHaveProperty("messageTemplate");
   });
 

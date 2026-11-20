@@ -6,14 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { FormRow } from "@/components/patterns/form";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { DescriptionList } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { capabilityConfiguration } from "../../data/capability-configuration";
-import { environmentWriteReason } from "../../model/access";
+import { PROJECT_ADMIN_REASON, environmentWriteReason } from "../../model/access";
 import { fieldErrors } from "../../model/form-errors";
 import {
   OTP_BOUNDS,
@@ -27,6 +26,7 @@ import {
 } from "../../model/otp-settings";
 import { configurationKey } from "../../view-models/configuration-key";
 import { useProjectEnvironment } from "../../view-models/project-environment";
+import { useAccess } from "../../view-models/use-organization";
 
 /** The environment's OTP settings from the OTP runtime, and the form to change or reset them. */
 export function OtpSettingsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -57,7 +57,7 @@ export function OtpSettingsSheet({ open, onOpenChange }: { open: boolean; onOpen
             <Skeleton className="h-40 w-full" />
           </div>
         ) : (
-          <OtpSettingsForm key={settings.dataUpdatedAt} current={settings.data} onDone={() => onOpenChange(false)} />
+          <OtpSettingsForm key={`${project.id}:${kind}`} current={settings.data} onDone={() => onOpenChange(false)} />
         )}
       </SheetContent>
     </Sheet>
@@ -69,6 +69,8 @@ const describeAttempts = (value: number | null) =>
 
 function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: () => void }) {
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
+  // The message goes out through APICenter's own senders, so changing it needs a project admin even in test.
+  const canEditMessage = useAccess(organizationId).access.canManageProject(project.id);
   const client = useQueryClient();
   const scope = { organizationId, projectId: project.id, kind };
   const [form, setForm] = useState<OtpSettingsForm>(() => otpSettingsFormFrom(current));
@@ -178,14 +180,18 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
                 label="Message"
                 htmlFor="otp-template"
                 error={errors.messageTemplate}
-                hint={`Sent by SMS, and as the body of the email. Must include {{code}}; {{minutes}} is the expiry in minutes. Up to ${OTP_BOUNDS.messageTemplateMaxLength} characters.`}
+                hint={
+                  canEditMessage
+                    ? `One line, sent by SMS and as the email body; the email subject stays "Your APICenter verification code". Must include {{code}}; {{minutes}} is the expiry in minutes. No links, addresses or phone numbers. Up to ${OTP_BOUNDS.messageTemplateMaxLength} characters.`
+                    : `${PROJECT_ADMIN_REASON} The message is sent from APICenter's own SMS and email senders.`
+                }
               >
-                <Textarea
+                <Input
                   id="otp-template"
-                  rows={3}
                   maxLength={OTP_BOUNDS.messageTemplateMaxLength + 20}
                   placeholder={defaults.messageTemplate}
                   value={form.messageTemplate}
+                  disabled={!canEditMessage}
                   aria-invalid={Boolean(errors.messageTemplate)}
                   onChange={(event) => set({ messageTemplate: event.target.value })}
                 />

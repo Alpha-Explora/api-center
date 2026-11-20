@@ -47,7 +47,7 @@ export function SmsSenderSheet({ open, onOpenChange }: { open: boolean; onOpenCh
             <Skeleton className="h-24 w-full" />
           </div>
         ) : (
-          <SmsSenderForm key={settings.dataUpdatedAt} current={settings.data} onDone={() => onOpenChange(false)} />
+          <SmsSenderForm key={`${project.id}:${kind}`} current={settings.data} onDone={() => onOpenChange(false)} />
         )}
       </SheetContent>
     </Sheet>

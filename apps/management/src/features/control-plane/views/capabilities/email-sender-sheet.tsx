@@ -51,7 +51,7 @@ export function EmailSenderSheet({ open, onOpenChange }: { open: boolean; onOpen
           </div>
         ) : (
           // Keyed by fetch time so the form restarts from the saved settings after each save.
-          <EmailSenderForm key={settings.dataUpdatedAt} current={settings.data} loadError={settings.error} onDone={() => onOpenChange(false)} />
+          <EmailSenderForm key={`${project.id}:${kind}`} current={settings.data} loadError={settings.error} onDone={() => onOpenChange(false)} />
         )}
       </SheetContent>
     </Sheet>

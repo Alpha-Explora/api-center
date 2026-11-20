@@ -27,16 +27,21 @@ export type OtpSettings = z.infer<typeof otpSettingsSchema>;
 export type OtpSettingsForm = { codeLength: string; expirySeconds: string; maxAttempts: string; messageTemplate: string };
 export type OtpSettingsBody = { codeLength: number | null; expirySeconds: number | null; maxAttempts: number | null; messageTemplate: string | null };
 
-const PLACEHOLDER = /\{\{\s*([A-Za-z]+)\s*\}\}/g;
+const PLACEHOLDER = /\{\{[ ]*([A-Za-z]+)[ ]*\}\}/g;
+const LINK = /\b[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/i;
+const PHONE = /\+?\d(?:[\s().-]?\d){6,}/;
 
-/** Why the runtime would refuse this template, or null when it is acceptable. Mirrors the runtime. */
+/** Why the runtime would refuse this template, or null when it is acceptable. Mirrors apps/otp/src/shared/project-settings.ts. */
 export function otpTemplateProblem(template: string): string | null {
   if (template.length > OTP_BOUNDS.messageTemplateMaxLength) return `Use at most ${OTP_BOUNDS.messageTemplateMaxLength} characters.`;
-  if (/[\u0000-\u0009\u000b-\u001f\u007f]/.test(template)) return "Remove control characters such as tabs.";
+  if (/[\u0000-\u001f\u007f]/.test(template)) return "Keep the message to one line, without tabs or other control characters.";
   const names = [...template.matchAll(PLACEHOLDER)].map((match) => match[1]);
   const unknown = names.find((name) => name !== "code" && name !== "minutes");
   if (unknown) return `Only {{code}} and {{minutes}} can be used; {{${unknown}}} is not known.`;
   if (!names.includes("code")) return "Include {{code}} where the code goes.";
+  const text = template.replace(PLACEHOLDER, " ");
+  if (LINK.test(text)) return "Remove links and web or email addresses; the message is sent from APICenter's own senders.";
+  if (PHONE.test(text)) return "Remove phone numbers; the message is sent from APICenter's own senders.";
   return null;
 }
 
