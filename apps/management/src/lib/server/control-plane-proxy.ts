@@ -3,7 +3,7 @@ import { requireManagementSession } from "./require-management-session";
 
 /** Path segments the console may address on the gateway's control-plane API. */
 const SEGMENT = /^[A-Za-z0-9_.@-]{1,320}$/;
-const ROOTS = new Set(["capabilities", "plans", "organizations"]);
+const ROOTS = new Set(["capabilities", "plans", "organizations", "approvals"]);
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
 
 export type ControlPlaneProxyDependencies = {

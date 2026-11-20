@@ -44,6 +44,21 @@ export const organizationNav: NavItem[] = [
     organizationAdminOnly: true,
   },
   {
+    id: "approvals",
+    href: "/approvals",
+    label: "Approvals",
+    description: "Live activations and API access requests waiting for a decision.",
+    keywords: ["approve", "reject", "pending", "decide", "go live", "access requests", "queue"],
+  },
+  {
+    id: "organizations",
+    href: "/organizations",
+    label: "Organizations",
+    description: "Every organization: create, rename, suspend and reactivate.",
+    keywords: ["organization", "tenant", "create", "rename", "suspend", "reactivate", "owner"],
+    platformOnly: true,
+  },
+  {
     id: "requests",
     href: "/requests",
     label: "Requests",

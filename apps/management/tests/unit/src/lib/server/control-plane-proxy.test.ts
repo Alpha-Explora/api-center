@@ -39,6 +39,13 @@ describe("proxyControlPlane", () => {
     expect(forward.mock.calls[0][0]).toBe(`/api/v1/admin/control-plane/organizations/${ORG}/members/dev%40example.com`);
   });
 
+  it("reaches the cross-organization approvals queue", async () => {
+    const { forward, deps } = setup();
+    const request = new Request("http://console.test/api/local/control-plane/approvals", { headers: { authorization: "Bearer t" } });
+    expect((await proxyControlPlane(request, ["approvals"], deps)).status).toBe(200);
+    expect(forward.mock.calls[0][0]).toBe("/api/v1/admin/control-plane/approvals");
+  });
+
   it("rejects paths outside the control-plane API and traversal", async () => {
     const { forward, deps } = setup();
     const request = new Request("http://console.test/x", { headers: { authorization: "Bearer t" } });

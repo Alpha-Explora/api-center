@@ -3,6 +3,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getManagementSession } from "@/lib/api-center-client";
 import { controlPlane } from "../data/control-plane-repository";
+import { organizationsAdmin } from "../data/organizations";
 import { accessFrom } from "../model/access";
 import { cpKeys } from "./query-keys";
 
@@ -43,10 +44,24 @@ export function useOrganization() {
   const memberships = session.data?.organizationIds ?? [];
   const platformAdmin = session.data?.platformAdmin ?? false;
   const known = session.data?.organizations ?? [];
+  // The sign-in lookup is cached for a minute, so platform operators also read the organization list directly:
+  // an organization they just created appears in the switcher at once.
+  const listed = useQuery({
+    queryKey: cpKeys.organizations,
+    queryFn: organizationsAdmin.list,
+    enabled: platformAdmin,
+    retry: false,
+    staleTime: 60_000,
+  });
   // Members default to their first membership; platform operators to the first organization they can see.
   const fallback = memberships[0] ?? (platformAdmin ? known[0]?.id : undefined);
   const organizationId = chosen && (memberships.includes(chosen) || platformAdmin) ? chosen : fallback;
   const organizations: OrganizationOption[] = known.map((entry) => ({ id: entry.id, name: entry.name, slug: entry.slug }));
+  for (const entry of listed.data ?? []) {
+    if (entry.status === "active" && !organizations.some((option) => option.id === entry.id)) {
+      organizations.push({ id: entry.id, name: entry.name, slug: entry.slug });
+    }
+  }
   for (const id of memberships) if (!organizations.some((entry) => entry.id === id)) organizations.push({ id, name: unnamed(id) });
   if (organizationId && !organizations.some((entry) => entry.id === organizationId)) organizations.push({ id: organizationId, name: unnamed(organizationId) });
 

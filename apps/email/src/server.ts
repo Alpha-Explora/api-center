@@ -15,6 +15,7 @@ import { GetEmailStatusService } from './features/get-email-status/get-email-sta
 import { createEmailStore } from './shared/email-store';
 import { DailyLimitReachedError, SenderNotApprovedError } from './shared/email-policy-errors';
 import { createProjectSenderAdminHandler } from './shared/project-sender-admin';
+import { createPlatformMessageAdminHandler } from './shared/platform-message-admin';
 
 const port = Number(process.env.PORT || 4012);
 /** Audience the gateway signs control-plane application contexts for. */
@@ -54,6 +55,12 @@ const idempotencyStore = createSharedIdempotencyStore(sharedState);
 const rateLimitStore = createSharedRateLimitStore(sharedState);
 const sendLimit = Number(process.env.EMAIL_SEND_LIMIT_PER_RECIPIENT || 20);
 const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
+const platformMessageAdminHandler = createPlatformMessageAdminHandler({
+  sendEmail: (input, owner) => sendEmailService.execute(input, owner),
+  consumeRecipientLimit: (recipient) =>
+    rateLimitStore.consume(`email:send:${recipient}`, { limit: sendLimit, windowMs: sendWindowMs }),
+  expectedToken: process.env.EMAIL_ADMIN_TOKEN,
+});
 const idempotencyTtlMs = Number(process.env.EMAIL_IDEMPOTENCY_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 
 app.post('/send', async (req: Request, res: Response) => {
@@ -186,6 +193,7 @@ app.post('/send', async (req: Request, res: Response) => {
 });
 
 app.put('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
+app.post('/admin/platform-messages', platformMessageAdminHandler);
 
 app.post('/webhooks/resend', async (req: Request, res: Response) => {
   const event = req.body || {};

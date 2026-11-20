@@ -115,6 +115,16 @@ export class AuditEventsService {
     return record;
   }
 
+  /** Whether an event with this action and resource was persisted at or after `since`. False without a database. */
+  async hasEventSince(query: { action: string; resourceType: string; resourceId: string; since: Date }): Promise<boolean> {
+    if (!this.databaseEnabled || !this.prisma) return false;
+    const found = await this.prisma.auditEvent.findFirst({
+      where: { action: query.action, resourceType: query.resourceType, resourceId: query.resourceId, createdAt: { gte: query.since } },
+      select: { id: true },
+    });
+    return Boolean(found);
+  }
+
   async list(filter: AuditEventFilter = {}): Promise<AuditEventRecord[]> {
     return (await this.listWithSourceMetadata(filter)).data;
   }

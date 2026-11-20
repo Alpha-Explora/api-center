@@ -8,10 +8,12 @@ import {
   ActivityIcon,
   AppWindowIcon,
   BlocksIcon,
+  Building2Icon,
   CheckIcon,
   ChevronsUpDownIcon,
   FolderIcon,
   GaugeIcon,
+  InboxIcon,
   LayoutDashboardIcon,
   SearchIcon,
   Settings2Icon,
@@ -33,6 +35,8 @@ import {
 import { Kbd } from "@/components/patterns/form";
 import { controlPlane } from "@/features/control-plane/data/control-plane-repository";
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
+import { awaitingYou } from "@/features/control-plane/model/approvals";
+import { useApprovals } from "@/features/control-plane/view-models/approvals";
 import { useAccess, useOrganization } from "@/features/control-plane/view-models/use-organization";
 import {
   parseConsolePath,
@@ -53,6 +57,8 @@ const ORGANIZATION_ICONS: Record<string, LucideIcon> = {
   people: UsersIcon,
   apis: WaypointsIcon,
   quotas: GaugeIcon,
+  approvals: InboxIcon,
+  organizations: Building2Icon,
   requests: ActivityIcon,
   settings: SettingsIcon,
 };
@@ -72,6 +78,7 @@ export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "goo
   const location = parseConsolePath(pathname);
   const { organizationId, platformAdmin } = useOrganization();
   const { access } = useAccess(organizationId);
+  const pending = awaitingYou(useApprovals().data);
 
   return (
     <div className="flex h-full flex-col">
@@ -96,6 +103,7 @@ export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "goo
                 href={item.href}
                 label={item.label}
                 icon={ORGANIZATION_ICONS[item.id] ?? FolderIcon}
+                badge={item.id === "approvals" && pending > 0 ? pending : undefined}
                 active={location.kind === "organization" && location.sectionId === item.id}
                 onNavigate={onNavigate}
               />
@@ -338,12 +346,15 @@ function NavLink({
   href,
   label,
   icon: Icon,
+  badge,
   active,
   onNavigate,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** A count shown at the end of the row, such as pending approvals. */
+  badge?: number;
   active: boolean;
   onNavigate?: () => void;
 }) {
@@ -359,6 +370,13 @@ function NavLink({
     >
       <Icon className={cn("size-4 shrink-0", active ? "text-foreground" : "text-muted-foreground")} />
       {label}
+      {badge ? (
+        <span className="ml-auto inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium text-primary-foreground tabular-nums">
+          <span className="sr-only">, </span>
+          {badge > 99 ? "99+" : badge}
+          <span className="sr-only"> pending</span>
+        </span>
+      ) : null}
     </Link>
   );
 }

@@ -16,6 +16,11 @@ import { PublishedApiService } from "./published-api.service";
 import { WorkloadTokenVerifier } from "./workload-identity";
 import { WorkloadBindingService } from "./workload-binding.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
+import { OrganizationAdminController } from "./organization-admin.controller";
+import { OrganizationAdminService } from "./organization-admin.service";
+import { ApprovalsQueueController } from "./approvals-queue.controller";
+import { ApprovalsQueueService } from "./approvals-queue.service";
+import { MemberInviteService } from "./member-invite.service";
 
 /**
  * Control plane v2: organization-owned projects, environment-bound applications, explicit
@@ -25,7 +30,7 @@ import { ApprovalsModule } from "@approvals/approvals.module";
  */
 @Module({
   imports: [DatabaseModule, AuthModule, ApprovalsModule],
-  controllers: [ControlPlaneAdminController, WhoAmIController],
+  controllers: [ControlPlaneAdminController, OrganizationAdminController, ApprovalsQueueController, WhoAmIController],
   providers: [
     ControlPlaneAdminService,
     ApplicationAccessService,
@@ -39,6 +44,9 @@ import { ApprovalsModule } from "@approvals/approvals.module";
     PublishedApiService,
     WorkloadTokenVerifier,
     WorkloadBindingService,
+    OrganizationAdminService,
+    ApprovalsQueueService,
+    MemberInviteService,
   ],
   exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, AuthModule],
 })
