@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ManagementAuthGate } from "@/components/management-auth-gate";
 import { ApiError } from "@/lib/api-center/client-core";
@@ -213,6 +214,67 @@ describe("ManagementAuthGate", () => {
     await waitFor(() => expect(screen.getByText("Management app")).toBeTruthy());
     expect(getManagementSessionMock).toHaveBeenCalledTimes(2);
     expect(window.sessionStorage.getItem("apicenter.management.googleCredential")).toBe("google-token");
+  });
+
+  // The console's first queries start in its passive effects. Each one must already carry the token,
+  // or the tokenless request is answered 401 and the console signs the person straight back out.
+  describe("the token is in place before the console's first request", () => {
+    function tokenAtChildEffect() {
+      let current: string | undefined;
+      const seen: (string | undefined)[] = [];
+      setManagementSessionTokenMock.mockImplementation((token: string | undefined) => {
+        current = token;
+      });
+      function Console() {
+        useEffect(() => {
+          seen.push(current);
+        }, []);
+        return <div>Management app</div>;
+      }
+      return { Console, seen };
+    }
+
+    it("on a reload with a stored credential", () => {
+      window.sessionStorage.setItem("apicenter.management.googleCredential", "stored-google-token");
+      const { Console, seen } = tokenAtChildEffect();
+
+      render(
+        <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
+          <Console />
+        </ManagementAuthGate>,
+      );
+
+      expect(seen).toEqual(["stored-google-token"]);
+    });
+
+    it("right after signing in", async () => {
+      let credentialCallback: ((response: { credential?: string }) => void) | undefined;
+      getManagementSessionMock.mockResolvedValue({ email: "dana@acme.example" });
+      window.google = {
+        accounts: {
+          id: {
+            initialize: ({ callback }) => {
+              credentialCallback = callback;
+            },
+            renderButton: vi.fn(),
+            disableAutoSelect: vi.fn(),
+          },
+        },
+      };
+      const { Console, seen } = tokenAtChildEffect();
+
+      render(
+        <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
+          <Console />
+        </ManagementAuthGate>,
+      );
+      await waitFor(() => expect(credentialCallback).toBeTypeOf("function"));
+      await act(async () => {
+        await credentialCallback?.({ credential: "google-token" });
+      });
+
+      expect(seen).toEqual(["google-token"]);
+    });
   });
 
   it("does not reuse a stored Google credential that has expired", () => {

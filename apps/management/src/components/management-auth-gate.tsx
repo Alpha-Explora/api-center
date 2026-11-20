@@ -5,7 +5,7 @@ import Script from "next/script";
 import { AlertTriangleIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { QueryClientContext } from "@tanstack/react-query";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import {
@@ -181,7 +181,9 @@ export function ManagementAuthGate({
     [checkAccess],
   );
 
-  useEffect(() => {
+  // A layout effect, so the token is in place before the console's first queries: they start in
+  // passive effects, and a child's passive effects run before this component's.
+  useLayoutEffect(() => {
     setManagementSessionToken(sessionToken);
 
     return () => setManagementSessionToken(undefined);
