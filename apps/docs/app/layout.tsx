@@ -10,7 +10,10 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 export const metadata: Metadata = {
   title: { default: "APICenter Docs", template: "%s | APICenter Docs" },
   description: "Call email, SMS, one-time codes, Google sign-in, geolocation and payments from your backend through one API and one key.",
-  icons: { icon: "/brand/apicenter-logo-icon-v2.png" },
+  icons: {
+    icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/brand/apicenter-mark.svg", type: "image/svg+xml" }],
+    apple: "/brand/apicenter-app-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

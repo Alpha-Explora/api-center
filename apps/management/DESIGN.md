@@ -7,7 +7,7 @@ palette.
 
 Tokens live in `src/app/globals.css`; components in `src/components/ui` (shadcn on Base UI) and
 `src/components/patterns` (console patterns). Render the logo with `BrandMark` (`src/components/brand-mark.tsx`),
-which keeps its dark strokes legible on dark backgrounds.
+an inline SVG whose lanes take the text color, so it needs no tile in dark mode.
 
 ## Principles
 

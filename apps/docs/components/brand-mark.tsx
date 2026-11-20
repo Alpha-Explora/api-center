@@ -1,14 +1,35 @@
-/** The APICenter logo, as in the console. Its strokes are dark, so in dark mode it sits on a light tile. */
+import { useId } from "react";
+
+const LANE_RADII = [30, 21.5, 13];
+const LANE_OPACITY = [1, 0.7, 0.42];
+
+/**
+ * The APICenter logo, as in the console: three lanes form a gateway and one emerald request passes through.
+ * The lanes take the text color, so the mark works in light and dark mode.
+ */
 export function BrandMark({ size = 24 }: { size?: number }) {
+  // SVG ids are document-wide, so each mark needs its own gradient and filter ids.
+  const id = useId().replace(/[^\w-]/g, "");
   return (
-    <span
-      aria-hidden
-      className="inline-flex shrink-0 items-center justify-center dark:rounded-[5px] dark:bg-white"
-      style={{ width: size, height: size }}
-    >
-      {/* The site is a static export, so the logo is a plain image rather than next/image. */}
-      <img src="/brand/apicenter-logo-icon-v2.png" alt="" width={size} height={size} className="size-full object-contain dark:size-[85%]" />
-    </span>
+    <svg aria-hidden viewBox="14 17 72 72" width={size} height={size} className="shrink-0">
+      <defs>
+        <radialGradient id={`${id}-core`} cx=".35" cy=".3" r=".8">
+          <stop offset="0" stopColor="#a7f3d0" />
+          <stop offset=".55" stopColor="#34d399" />
+          <stop offset="1" stopColor="#059669" />
+        </radialGradient>
+        <filter id={`${id}-glow`} x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="5" />
+        </filter>
+      </defs>
+      <g fill="none" stroke="currentColor" strokeWidth={5.5} strokeLinecap="round">
+        {LANE_RADII.map((r, i) => (
+          <path key={r} d={`M${50 - r} 84V52a${r} ${r} 0 0 1 ${2 * r} 0V84`} strokeOpacity={LANE_OPACITY[i]} />
+        ))}
+      </g>
+      <circle cx="50" cy="66" r="9" fill="#34d399" opacity={0.55} filter={`url(#${id}-glow)`} />
+      <circle cx="50" cy="66" r="6" fill={`url(#${id}-core)`} />
+    </svg>
   );
 }
 
