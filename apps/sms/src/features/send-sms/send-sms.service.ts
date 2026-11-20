@@ -16,7 +16,8 @@ export class SendSmsService {
     const recipientVo = new SmsRecipient(input.to);
     const messageVo = new SmsMessagePayload(input.message);
 
-    const delivery = process.env.SMS_PROVIDER_MODE === 'mock' && process.env.NODE_ENV !== 'production'
+    const mock = owner.suppressDelivery || (process.env.SMS_PROVIDER_MODE === 'mock' && process.env.NODE_ENV !== 'production');
+    const delivery = mock
       ? { messageId: `mock_${crypto.randomUUID().replace(/-/g, '')}`, status: 'queued' as const }
       : await this.provider.send(recipientVo.getValue(), messageVo.getValue(), input.senderId);
     const sentAt = new Date().toISOString();

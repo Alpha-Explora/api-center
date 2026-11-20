@@ -16,6 +16,7 @@ import { assertMerchantBinding } from "./merchant-binding";
 import { RuntimeContextSigner } from "./runtime-context.signer";
 import { QuotaService } from "./quota.service";
 import { isWorkloadIdentityToken, WorkloadTokenVerifier } from "./workload-identity";
+import { TestRecipientsService, deliveryRecipients } from "./test-recipients.service";
 import type { ApplicationIdentity, AuthorizedCapabilityCall, EnvironmentKind } from "./control-plane.types";
 
 const LAST_USED_RESOLUTION_MS = 60_000;
@@ -29,6 +30,8 @@ export interface CapabilityRequest {
   requestId: string;
   /** The caller's Idempotency-Key, when sent. See usageRequestKey for when retries count once. */
   idempotencyKey?: string;
+  /** The JSON request body. Email, SMS and OTP sends name their recipients in it (see TestRecipientsService). */
+  body?: unknown;
 }
 
 export interface ApiRequest {
@@ -86,12 +89,19 @@ export class ApplicationAccessService {
     private readonly signer: RuntimeContextSigner,
     private readonly quota: QuotaService,
     @Optional() private readonly workloads?: WorkloadTokenVerifier,
+    @Optional() private readonly testRecipients?: TestRecipientsService,
   ) {}
 
   /** Authorizes a request on a capability route; the route maps to its catalogued action. */
   async authorize(request: CapabilityRequest, now = new Date()): Promise<AuthorizedCapabilityCall> {
     const action = resolveCapabilityAction(request.capability, request.method, request.relativePath);
-    return this.authorizeTarget(request, { kind: "capability", capability: request.capability, action: () => action }, now);
+    const { body, ...rest } = request;
+    const recipients = deliveryRecipients(request.capability, request.method, request.relativePath, body);
+    return this.authorizeTarget(
+      { ...rest, ...(recipients ? { recipients } : {}) },
+      { kind: "capability", capability: request.capability, action: () => action },
+      now,
+    );
   }
 
   /**
@@ -182,7 +192,7 @@ export class ApplicationAccessService {
   }
 
   private async authorizeTarget(
-    request: ({ bearer: string } | { principal: Principal }) & { requestId: string; idempotencyKey?: string; method?: string },
+    request: ({ bearer: string } | { principal: Principal }) & { requestId: string; idempotencyKey?: string; method?: string; recipients?: string[] },
     target: Target,
     now: Date,
   ): Promise<AuthorizedCapabilityCall & { upstreamUrl?: string }> {
@@ -221,6 +231,12 @@ export class ApplicationAccessService {
     });
     await this.quota.reserve(identity, usageTarget, decision.action, requestKey, now);
 
+    // A test send to someone the project has not registered is recorded but not delivered.
+    const deliverySuppressed =
+      identity.environmentKind === "test" && request.recipients !== undefined && this.testRecipients !== undefined
+        ? await this.testRecipients.shouldSuppress(scope.organizationId, scope.projectId, request.recipients)
+        : false;
+
     // Records stay scoped to the legacy owner of a migrated project until they are reconciled.
     const resourceOwner = ownerMapping
       ? { groupId: ownerMapping.ownerGroupId, projectId: ownerMapping.ownerProjectId }
@@ -234,12 +250,14 @@ export class ApplicationAccessService {
       capability: usageTarget,
       action: decision.action,
       ...(resolved?.upstreamUrl ? { upstreamUrl: resolved.upstreamUrl } : {}),
+      ...(deliverySuppressed ? { deliverySuppressed } : {}),
       signedContext: this.signer.sign({
         identity,
         resourceOwner,
         capability: audienceTarget,
         action: decision.action,
         requestId: request.requestId,
+        ...(deliverySuppressed ? { delivery: "suppress" as const } : {}),
         now,
       }),
     };

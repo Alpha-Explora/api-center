@@ -53,6 +53,7 @@ export class ApplicationCapabilityProxy {
         relativePath,
         requestId,
         ...(idempotencyKey ? { idempotencyKey } : {}),
+        ...(req.body !== undefined ? { body: req.body } : {}),
       });
     } catch (error) {
       const retryAfter = (error as { retryAfterSeconds?: unknown }).retryAfterSeconds;
@@ -60,6 +61,8 @@ export class ApplicationCapabilityProxy {
       throw error;
     }
     req.caller = call.identity;
+    // Tells the developer why a test message never arrived.
+    if (call.deliverySuppressed) res.setHeader("X-APICenter-Test-Delivery", "suppressed");
     const route = this.routing.resolve(capability, call.identity.environmentKind);
     const status = await forwardSigned({
       req,

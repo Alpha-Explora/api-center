@@ -33,7 +33,9 @@ export class GenerateOtpService {
       maxAttempts: policy.maxAttempts,
     }, owner);
 
-    const mock = process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production';
+    // Suppressed: a test OTP for an unregistered recipient. The code is returned instead of sent,
+    // so test automation can still verify it.
+    const mock = owner.suppressDelivery === true || (process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production');
     try {
       if (!mock && targetVo.getChannel() === 'sms') {
         await sendTwilioSms({ to: targetVo.getTarget(), message });

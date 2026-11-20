@@ -22,7 +22,7 @@ import { projectHref } from "@/lib/app-navigation";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
-import { projectSettings } from "../../data/project-settings";
+import { projectSettings, type TestRecipient } from "../../data/project-settings";
 import { PROJECT_ADMIN_REASON, type ProjectRole } from "../../model/access";
 import type { EnvironmentKind, ProjectEnvironment, Team } from "../../model/control-plane";
 import { PROJECT_ROLES, removesLastExplicitAdmin, type ProjectRoleAssignment, type ProjectRoleInput } from "../../model/project-roles";
@@ -35,8 +35,97 @@ export function ProjectSettingsPage() {
     <>
       <PageHeader title="Project settings" description={`Who can work on ${project.name}, and whether its environments accept requests. These settings cover test and live.`} />
       <RolesPanel />
+      <TestRecipientsPanel />
       <EnvironmentStatusPanel />
     </>
+  );
+}
+
+// ── Test recipients ─────────────────────────────────────────────────────────
+
+const TEST_DEVELOPER_REASON = "You need the developer role on this project to change test recipients.";
+
+/**
+ * Test keys deliver only to these recipients. A test send to anyone else succeeds and is recorded,
+ * but nothing leaves APICenter; the response carries X-APICenter-Test-Delivery: suppressed.
+ */
+function TestRecipientsPanel() {
+  const { organizationId, project, access } = useProject();
+  const canWrite = access.canWriteEnvironment(project.id, "test");
+  const client = useQueryClient();
+  const key = cpKeys.testRecipients(organizationId, project.id);
+  const [draft, setDraft] = useState("");
+  const recipients = useQuery({ queryKey: key, queryFn: () => projectSettings.testRecipients(organizationId, project.id) });
+  const add = useMutation({
+    mutationFn: (recipient: string) => projectSettings.addTestRecipient(organizationId, project.id, recipient),
+    onSuccess: (saved) => {
+      toast.success(`${saved.recipient} receives test messages`);
+      setDraft("");
+      client.setQueryData<TestRecipient[]>(key, (current) => [...(current ?? []), saved]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const remove = useMutation({
+    mutationFn: (recipient: string) => projectSettings.removeTestRecipient(organizationId, project.id, recipient),
+    onSuccess: (_, recipient) => {
+      toast.success(`${recipient} no longer receives test messages`);
+      client.setQueryData<TestRecipient[]>(key, (current) => (current ?? []).filter((entry) => entry.recipient !== recipient));
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <Panel
+      title="Test recipients"
+      description="Test keys deliver email, SMS and OTP only to these phone numbers and addresses. A test send to anyone else succeeds and is recorded, but nothing is sent. Live is not affected."
+    >
+      <form
+        className="flex flex-col gap-2 sm:flex-row"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (draft.trim()) add.mutate(draft.trim());
+        }}
+      >
+        <Input
+          aria-label="Phone number or email address"
+          placeholder="+639171234567 or dana@example.com"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          disabled={!canWrite}
+          className="sm:max-w-sm"
+        />
+        <GuardedButton type="submit" allowed={canWrite} reason={TEST_DEVELOPER_REASON} disabled={!draft.trim() || add.isPending}>
+          <PlusIcon data-icon="inline-start" /> Add
+        </GuardedButton>
+      </form>
+      <div className="mt-4">
+        {recipients.error ? <ErrorPanel title="Test recipients could not be loaded" error={recipients.error} /> : null}
+        {recipients.isPending ? <Skeleton className="h-16 w-full" /> : null}
+        {recipients.data && recipients.data.length === 0 ? (
+          <Notice title="No test recipients yet">Until you add one, test sends are recorded but not delivered to anyone.</Notice>
+        ) : null}
+        {recipients.data && recipients.data.length > 0 ? (
+          <ul className="divide-y rounded-md border text-[13px]">
+            {recipients.data.map((entry) => (
+              <li key={entry.recipient} className="flex items-center gap-3 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">{entry.recipient}</span>
+                <span className="hidden text-xs text-muted-foreground sm:inline">added by {entry.createdBy}</span>
+                <GuardedButton
+                  size="sm"
+                  variant="ghost"
+                  allowed={canWrite}
+                  reason={TEST_DEVELOPER_REASON}
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(entry.recipient)}
+                >
+                  Remove
+                </GuardedButton>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </Panel>
   );
 }
 

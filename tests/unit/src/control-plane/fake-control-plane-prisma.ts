@@ -194,6 +194,7 @@ export function createFakeControlPlanePrisma() {
     cpShadowMismatch: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}/${row.sourceServiceId}/${row.target}/${row.action}/${row.legacyAllowed}`),
     cpMigrationRun: new FakeDelegate((row) => String(row.id)),
     cpWorkloadBinding: new FakeDelegate((row) => String(row.id)),
+    cpTestRecipient: new FakeDelegate((row) => `${row.projectId}/${row.recipient}`),
     quotaCounters: new Map<string, number>(),
     /** Reads the counters `$queryRaw` writes for cp_quota_counters. */
     cpQuotaCounter: {

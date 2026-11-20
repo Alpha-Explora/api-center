@@ -51,6 +51,10 @@ Use a separate key for each `generate` or `verify` request. Reusing the same key
 
 ---
 
+## Test environment
+
+With a test key (`ak_test_`), APICenter delivers only to the phone numbers and email addresses your project registers under **Settings** → **Test recipients** in Management. A send to anyone else still succeeds and is recorded, so your integration behaves the same, but nothing is sent. Those responses carry the header `X-APICenter-Test-Delivery: suppressed`. For those, the response also returns the generated `code`, so automated tests can verify it without receiving a message. Live keys deliver to everyone.
+
 ## 2. Verify OTP
 
 - **Endpoint**: `POST /api/v1/shared/otp/verify`

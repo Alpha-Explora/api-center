@@ -16,6 +16,8 @@ import { CapabilityConfigurationService } from "./capability-configuration.servi
 import { PublishedApiService } from "./published-api.service";
 import { WorkloadTokenVerifier } from "./workload-identity";
 import { WorkloadBindingService } from "./workload-binding.service";
+import { TestRecipientsController } from "./test-recipients.controller";
+import { TestRecipientsService } from "./test-recipients.service";
 import { ApprovalsModule } from "@approvals/approvals.module";
 import { OrganizationAdminController } from "./organization-admin.controller";
 import { OrganizationAdminService } from "./organization-admin.service";
@@ -47,6 +49,7 @@ import { ConsumerAccessController } from "./consumer-access.controller";
     EnvironmentInventoryController,
     QuotaPoliciesController,
     ConsumerAccessController,
+    TestRecipientsController,
   ],
   providers: [
     ControlPlaneAdminService,
@@ -61,6 +64,7 @@ import { ConsumerAccessController } from "./consumer-access.controller";
     PublishedApiService,
     WorkloadTokenVerifier,
     WorkloadBindingService,
+    TestRecipientsService,
     OrganizationAdminService,
     ApprovalsQueueService,
     MemberInviteService,

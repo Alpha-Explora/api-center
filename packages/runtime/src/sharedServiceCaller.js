@@ -73,6 +73,7 @@ function readSharedServiceCaller(req, options = {}) {
     applicationId: context.applicationId,
     action: context.action,
     requestId: context.requestId,
+    suppressDelivery: context.suppressDelivery === true,
   };
 }
 
