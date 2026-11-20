@@ -47,6 +47,8 @@ export interface RequestLogEntry {
   applicationId: string | null;
   method: string;
   route: string;
+  /** The action the request was authorized for; null when it was refused before that, or before it was recorded. */
+  action: string | null;
   statusCode: number;
   durationMs: number;
   failureStage: string | null;
@@ -60,6 +62,8 @@ export interface RequestLogRow {
   applicationId: string | null;
   method: string;
   route: string;
+  /** The action the request was authorized for; null when it was refused before that, or before it was recorded. */
+  action: string | null;
   statusCode: number;
   durationMs: number;
   failureStage: string | null;
@@ -75,6 +79,7 @@ export function toRequestLogEntry(row: RequestLogRow): RequestLogEntry {
     applicationId: row.applicationId,
     method: row.method,
     route: row.route,
+    action: row.action ?? null,
     statusCode: row.statusCode,
     durationMs: row.durationMs,
     failureStage: row.failureStage,

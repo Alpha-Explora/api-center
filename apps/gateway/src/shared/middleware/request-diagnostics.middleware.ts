@@ -61,6 +61,12 @@ export class RequestDiagnosticsMiddleware implements NestMiddleware {
           projectId: caller?.projectId ?? null,
           environment: caller?.environmentKind ?? request.diagnosticEnvironment ?? null,
           route: route.slice(0, 300),
+          action: z
+            .string()
+            .regex(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
+            .nullable()
+            .catch(null)
+            .parse(response.locals.diagnosticAction ?? null),
           method: request.method,
           statusCode: response.statusCode,
           errorCode: error.success ? error.data.code : null,

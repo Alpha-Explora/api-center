@@ -226,7 +226,7 @@ describe("published APIs", () => {
     const fetchImpl = jest.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
     const checkUpstream = jest.fn().mockResolvedValue(undefined);
     const forwarder = new PublishedApiForwarder(access, { fetchImpl, checkUpstream });
-    const res = { status: jest.fn().mockReturnThis(), setHeader: jest.fn(), send: jest.fn() };
+    const res = { locals: {} as Record<string, unknown>, status: jest.fn().mockReturnThis(), setHeader: jest.fn(), send: jest.fn() };
     const req = {
       method: "GET",
       path: `/api/v1/apis/${api.id}/orders/7`,

@@ -102,6 +102,7 @@ describe("request log", () => {
       applicationId: "app_1",
       method: "POST",
       route: "/api/v1/email/send",
+      action: "email:send",
       statusCode: 502,
       durationMs: 120,
       failureStage: "provider",
@@ -111,6 +112,7 @@ describe("request log", () => {
     };
     expect(Object.keys(toRequestLogEntry(row))).not.toContain("paymentResourceId");
     expect(toRequestLogEntry(row).occurredAt).toBe(NOW.toISOString());
+    expect(toRequestLogEntry(row).action).toBe("email:send");
   });
 });
 

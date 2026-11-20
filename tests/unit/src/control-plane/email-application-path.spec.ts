@@ -61,6 +61,8 @@ function gateway() {
 function capture() {
   const res = {
     statusCode: 0,
+    // Express always provides res.locals; the proxy notes the authorized action there.
+    locals: {} as Record<string, unknown>,
     body: undefined as unknown,
     headers: {} as Record<string, string>,
     status(code: number) {

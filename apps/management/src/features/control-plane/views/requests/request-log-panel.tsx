@@ -156,7 +156,18 @@ export function RequestLogPanel({ applicationId }: { applicationId?: string }) {
                         setSelected(entry);
                       }}
                     >
-                      <span className="font-semibold">{entry.method}</span> {entry.route}
+                      {entry.action ? (
+                        <>
+                          <span className="font-semibold">{entry.action}</span>
+                          <span className="block truncate text-[11px] text-muted-foreground">
+                            {entry.method} {entry.route}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold">{entry.method}</span> {entry.route}
+                        </>
+                      )}
                     </button>
                   </TableCell>
                   <TableCell>
@@ -228,9 +239,7 @@ function RequestSheet({
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 <StatusBadge tone={statusCodeTone(entry.statusCode)}>{entry.statusCode}</StatusBadge>
-                <span className="truncate font-mono text-sm">
-                  {entry.method} {entry.route}
-                </span>
+                <span className="truncate font-mono text-sm">{entry.action ?? `${entry.method} ${entry.route}`}</span>
               </SheetTitle>
               <SheetDescription>{formatDateTime(entry.occurredAt)}</SheetDescription>
             </SheetHeader>
@@ -257,9 +266,14 @@ function RequestSheet({
                       "—"
                     ),
                   },
+                  ...(entry.action ? [{ label: "Action", value: <span className="font-mono text-xs break-all">{entry.action}</span> }] : []),
                   {
                     label: "Route",
-                    value: <span className="font-mono text-xs break-all">{entry.route}</span>,
+                    value: (
+                      <span className="font-mono text-xs break-all">
+                        {entry.method} {entry.route}
+                      </span>
+                    ),
                   },
                   {
                     label: "Duration",

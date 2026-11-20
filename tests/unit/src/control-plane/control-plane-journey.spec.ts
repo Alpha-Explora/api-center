@@ -78,6 +78,24 @@ describe("control plane: test onboarding without API publication", () => {
     expect(claims.projectName).toBe("Serbizio");
   });
 
+  it("summarizes projects and applications for their lists", async () => {
+    const { project, scope, application } = await onboard();
+    await admin.grant(scope, application.id, { capability: "email", action: "email:send" }, actor);
+    const { secret } = await admin.issueCredential(scope, application.id, { operationId: randomUUID() }, actor);
+    await access.authorize(emailSend(secret));
+
+    const projects = await admin.listProjects(ORG, { limit: 10 });
+    expect(projects.items.find((entry) => entry.id === project.id)?.summary).toEqual({
+      environments: [{ kind: "test", status: "active" }],
+      applications: 1,
+      requests24h: 1,
+    });
+
+    const [listed] = await admin.listApplications(scope);
+    expect(listed).toMatchObject({ id: application.id, activeKeys: 1, activeGrants: 1, capabilities: ["email"] });
+    expect(listed.lastUsedAt).toEqual(expect.any(String));
+  });
+
   it("denies an action the application was not granted, even with the capability enabled", async () => {
     const { scope, application } = await onboard();
     await admin.grant(scope, application.id, { capability: "email", action: "email:send" }, actor);

@@ -25,6 +25,8 @@ import { environmentWriteReason } from "../../model/access";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { RelativeTime } from "@/components/patterns/relative-time";
+import { LinkRow } from "@/components/patterns/link-row";
+import type { Application } from "../../model/control-plane";
 
 export function ApplicationsPage() {
   return (
@@ -41,6 +43,8 @@ function ApplicationsList() {
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
   });
+  const catalog = useQuery({ queryKey: cpKeys.catalog, queryFn: controlPlane.capabilities, staleTime: 5 * 60_000 });
+  const capabilityName = (id: string) => catalog.data?.find((capability) => capability.id === id)?.name ?? id;
 
   return (
     <>
@@ -77,31 +81,43 @@ function ApplicationsList() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">ID</TableHead>
-                <TableHead className="hidden lg:table-cell">Created</TableHead>
+                <TableHead>Application</TableHead>
+                <TableHead className="hidden md:table-cell">Access</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">Keys</TableHead>
+                <TableHead className="hidden sm:table-cell">Last used</TableHead>
+                <TableHead className="hidden xl:table-cell">ID</TableHead>
+                <TableHead className="w-0" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(applications.data ?? []).map((application) => (
-                <TableRow key={application.id}>
-                  <TableCell>
-                    <Link href={projectHref(project.id, kind, `/applications/${application.id}`)} className="font-medium hover:underline">
-                      {application.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{application.slug}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={application.status} />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <IdText value={application.id} />
-                  </TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell"><RelativeTime value={application.createdAt} /></TableCell>
-                </TableRow>
-              ))}
+              {(applications.data ?? []).map((application) => {
+                const href = projectHref(project.id, kind, `/applications/${application.id}`);
+                return (
+                  <LinkRow key={application.id} href={href}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Link href={href} className="font-medium hover:underline">
+                          {application.name}
+                        </Link>
+                        {application.status !== "active" ? <StatusBadge status={application.status} /> : null}
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground">{application.slug}</div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <ApplicationAccess application={application} capabilityName={capabilityName} />
+                    </TableCell>
+                    <TableCell className="hidden text-right tabular-nums sm:table-cell">
+                      {application.activeKeys === undefined ? "—" : application.activeKeys === 0 ? <span className="text-muted-foreground">None</span> : application.activeKeys}
+                    </TableCell>
+                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                      {application.lastUsedAt ? <RelativeTime value={application.lastUsedAt} /> : application.activeKeys === undefined ? "—" : "Never"}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <IdText value={application.id} />
+                    </TableCell>
+                  </LinkRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -184,5 +200,26 @@ function CreateApplicationSheet({ open, onOpenChange }: { open: boolean; onOpenC
         </form>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** What an application may call: its granted capabilities by name, or a nudge when it has no grants yet. */
+function ApplicationAccess({ application, capabilityName }: { application: Application; capabilityName: (id: string) => string }) {
+  if (application.activeGrants === undefined) return <span className="text-muted-foreground">—</span>;
+  if (application.activeGrants === 0) return <span className="text-xs text-warning">No actions granted yet</span>;
+  const names = (application.capabilities ?? []).map(capabilityName);
+  const shown = names.slice(0, 3);
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {shown.map((name) => (
+        <span key={name} className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-xs">
+          {name}
+        </span>
+      ))}
+      {names.length > shown.length ? <span className="text-xs text-muted-foreground">+{names.length - shown.length}</span> : null}
+      <span className="text-xs text-muted-foreground">
+        · {application.activeGrants} action{application.activeGrants === 1 ? "" : "s"}
+      </span>
+    </div>
   );
 }

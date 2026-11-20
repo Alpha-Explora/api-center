@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon, ShieldIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, ShieldIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -34,21 +34,40 @@ export function AccessTab({ application }: { application: Application }) {
   const grants = useQuery({ queryKey: key, queryFn: () => controlPlane.grants(organizationId, project.id, kind, application.id) });
   const catalog = useQuery({ queryKey: cpKeys.catalog, queryFn: controlPlane.capabilities, staleTime: 5 * 60_000 });
   const [granting, setGranting] = useState(false);
-  const [revoking, setRevoking] = useState<Grant | null>(null);
+  // One grant, or every grant of one capability.
+  const [revoking, setRevoking] = useState<{ label: string; grants: Grant[] } | null>(null);
+  // Capabilities whose actions are folded away; large grant lists start folded.
+  const [folded, setFolded] = useState<Set<string> | null>(null);
   const revoke = useMutation({
-    mutationFn: (grantId: string) => controlPlane.revokeGrant(organizationId, project.id, kind, application.id, grantId),
-    onSuccess: () => {
-      toast.success("Access revoked");
+    mutationFn: async (targets: Grant[]) => {
+      for (const grant of targets) await controlPlane.revokeGrant(organizationId, project.id, kind, application.id, grant.id);
+      return targets.length;
+    },
+    onSuccess: (count) => {
+      toast.success(count === 1 ? "Access revoked" : `Revoked ${count} actions`);
       setRevoking(null);
       void client.invalidateQueries({ queryKey: key });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      // Some may have been revoked before the failure; show what is left.
+      void client.invalidateQueries({ queryKey: key });
+      toast.error(error.message);
+    },
   });
 
   const enabled = new Set(environment?.capabilities.filter((entry) => entry.status === "enabled").map((entry) => entry.capability));
   const active = (grants.data ?? []).filter((grant) => grant.status === "active" && grant.targetKind !== "api");
   const descriptions = new Map((catalog.data ?? []).flatMap((capability) => capability.actions.map((action) => [action.action, action.description] as const)));
   const capabilityNames = new Map((catalog.data ?? []).map((capability) => [capability.id, capability.name]));
+  const groups = groupGrants(active, (id) => capabilityNames.get(id) ?? id);
+  const isFolded = (capability: string) => (folded ?? (active.length > 12 ? new Set(groups.map((group) => group.capability)) : new Set<string>())).has(capability);
+  const toggle = (capability: string) =>
+    setFolded((current) => {
+      const next = new Set(current ?? (active.length > 12 ? groups.map((group) => group.capability) : []));
+      if (next.has(capability)) next.delete(capability);
+      else next.add(capability);
+      return next;
+    });
 
   return (
     <>
@@ -85,28 +104,58 @@ export function AccessTab({ application }: { application: Application }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Action</TableHead>
-                <TableHead>Capability</TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
                 <TableHead className="hidden sm:table-cell">Granted</TableHead>
                 <TableHead className="w-0" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {active.map((grant) => (
-                <TableRow key={grant.id}>
-                  <TableCell className="font-mono text-xs">{grant.action}</TableCell>
-                  <TableCell>{capabilityNames.get(grant.capability ?? "") ?? grant.capability}</TableCell>
-                  <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">{descriptions.get(grant.action) ?? "—"}</TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell"><RelativeTime value={grant.createdAt} /></TableCell>
-                  <TableCell className="text-right">
-                    {canWrite ? (
-                      <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking(grant)}>
-                        Revoke
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {groups.map((group) => {
+                const open = !isFolded(group.capability);
+                return [
+                  <TableRow key={`group-${group.capability}`} className="bg-muted/40 hover:bg-muted/60">
+                    <TableCell colSpan={3}>
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        onClick={() => toggle(group.capability)}
+                        className="flex items-center gap-1.5 text-left font-medium"
+                      >
+                        {open ? <ChevronDownIcon className="size-3.5 text-muted-foreground" /> : <ChevronRightIcon className="size-3.5 text-muted-foreground" />}
+                        {group.name}
+                        <span className="font-normal text-muted-foreground">
+                          · {group.grants.length} action{group.grants.length === 1 ? "" : "s"}
+                        </span>
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {canWrite && group.grants.length > 1 ? (
+                        <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking({ label: `all ${group.name} actions`, grants: group.grants })}>
+                          Revoke all
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>,
+                  ...(open
+                    ? group.grants.map((grant) => (
+                        <TableRow key={grant.id}>
+                          <TableCell className="pl-8 font-mono text-xs">{grant.action}</TableCell>
+                          <TableCell className="hidden max-w-sm truncate text-muted-foreground md:table-cell">{descriptions.get(grant.action) ?? "—"}</TableCell>
+                          <TableCell className="hidden text-muted-foreground sm:table-cell">
+                            <RelativeTime value={grant.createdAt} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {canWrite ? (
+                              <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking({ label: grant.action, grants: [grant] })}>
+                                Revoke
+                              </Button>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    : []),
+                ];
+              })}
             </TableBody>
           </Table>
         )}
@@ -118,12 +167,16 @@ export function AccessTab({ application }: { application: Application }) {
       <ConfirmDialog
         open={revoking !== null}
         onOpenChange={(next) => !next && setRevoking(null)}
-        title={`Revoke ${revoking?.action ?? ""}`}
-        description={`${application.name} will be refused this action from its next request.`}
-        confirmLabel="Revoke"
+        title={`Revoke ${revoking?.label ?? ""}`}
+        description={
+          revoking && revoking.grants.length > 1
+            ? `${application.name} will be refused these ${revoking.grants.length} actions from its next request.`
+            : `${application.name} will be refused this action from its next request.`
+        }
+        confirmLabel={revoking && revoking.grants.length > 1 ? `Revoke ${revoking.grants.length} actions` : "Revoke"}
         destructive
         busy={revoke.isPending}
-        onConfirm={() => revoking && revoke.mutate(revoking.id)}
+        onConfirm={() => revoking && revoke.mutate(revoking.grants)}
       />
     </>
   );
@@ -225,4 +278,16 @@ function GrantSheet({
       </SheetContent>
     </Sheet>
   );
+}
+
+/** Grants grouped by capability, by capability name, actions in order. */
+export function groupGrants(grants: Grant[], nameOf: (capability: string) => string) {
+  const groups = new Map<string, Grant[]>();
+  for (const grant of grants) {
+    const capability = grant.capability ?? grant.action.split(":")[0];
+    groups.set(capability, [...(groups.get(capability) ?? []), grant]);
+  }
+  return [...groups.entries()]
+    .map(([capability, entries]) => ({ capability, name: nameOf(capability), grants: [...entries].sort((left, right) => left.action.localeCompare(right.action)) }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }

@@ -61,6 +61,8 @@ export class ApplicationCapabilityProxy {
       throw error;
     }
     req.caller = call.identity;
+    // The request log shows the action this request was authorized for.
+    res.locals.diagnosticAction = call.action;
     // Tells the developer why a test message never arrived.
     if (call.deliverySuppressed) res.setHeader("X-APICenter-Test-Delivery", "suppressed");
     const route = this.routing.resolve(capability, call.identity.environmentKind);

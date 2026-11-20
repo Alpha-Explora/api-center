@@ -11,6 +11,8 @@ export const requestLogEntrySchema = z.object({
   method: z.string(),
   /** The route template, not the requested URL. */
   route: z.string(),
+  /** The action the request was authorized for, such as payments:intents:read; null before authorization. */
+  action: z.string().nullable().optional(),
   statusCode: z.number(),
   durationMs: z.number(),
   failureStage: z.string().nullable(),

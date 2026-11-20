@@ -61,6 +61,8 @@ function response() {
   const headers: Record<string, string> = {};
   const res = {
     statusCode: 0,
+    // Express always provides res.locals; the proxy notes the authorized action there.
+    locals: {} as Record<string, unknown>,
     body: undefined as Buffer | undefined,
     status(code: number) {
       res.statusCode = code;
@@ -82,6 +84,8 @@ describe("ApplicationCapabilityProxy", () => {
     const { proxy, authorize, fetchImpl } = setup();
     const res = response();
     await proxy.forward("email", bearer, request(), res as unknown as Response);
+    // The request log records what the request was authorized for.
+    expect(res.locals.diagnosticAction).toBe("email:send");
 
     expect(authorize).toHaveBeenCalledWith({
       bearer,

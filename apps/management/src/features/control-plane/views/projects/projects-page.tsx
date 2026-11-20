@@ -19,11 +19,13 @@ import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref, matchesQuery } from "@/lib/app-navigation";
-import { SLUG_PATTERN, toSlug } from "@/lib/format";
+import { SLUG_PATTERN, toSlug, formatNumber } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { cpKeys } from "../../view-models/query-keys";
 import { LoadMore, usePagedList } from "../../view-models/paged-list";
 import { useAccess, useOrganization } from "../../view-models/use-organization";
+import { LinkRow } from "@/components/patterns/link-row";
+import { EnvironmentChips } from "@/components/patterns/environment-chips";
 
 export function ProjectsPage() {
   const { organizationId, platformAdmin, setOrganizationId, loading } = useOrganization();
@@ -94,34 +96,41 @@ export function ProjectsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">ID</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Environments</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Applications</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Requests, 24h</TableHead>
+                  <TableHead className="hidden xl:table-cell">ID</TableHead>
                   <TableHead className="w-0" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visible.map((project) => (
-                  <TableRow key={project.id} className="group">
+                  <LinkRow key={project.id} href={projectHref(project.id, "test")}>
                     <TableCell>
-                      <Link href={projectHref(project.id, "test")} className="font-medium hover:underline">
-                        {project.name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={projectHref(project.id, "test")} className="font-medium hover:underline">
+                          {project.name}
+                        </Link>
+                        {project.status !== "active" ? <StatusBadge status={project.status} /> : null}
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground">{project.slug}</div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{project.slug}</TableCell>
                     <TableCell>
-                      <StatusBadge status={project.status} />
+                      {project.summary ? <EnvironmentChips environments={project.summary.environments} /> : <span className="text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="hidden text-right tabular-nums sm:table-cell">{project.summary ? formatNumber(project.summary.applications) : "—"}</TableCell>
+                    <TableCell className="hidden text-right tabular-nums sm:table-cell">
+                      {project.summary ? (
+                        project.summary.requests24h ? formatNumber(project.summary.requests24h) : <span className="text-muted-foreground">None</span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
                       <IdText value={project.id} />
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={projectHref(project.id, "live")} className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground focus:opacity-100">
-                        Live →
-                      </Link>
-                    </TableCell>
-                  </TableRow>
+                  </LinkRow>
                 ))}
               </TableBody>
             </Table>
