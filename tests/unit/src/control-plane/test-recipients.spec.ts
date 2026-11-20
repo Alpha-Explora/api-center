@@ -81,7 +81,7 @@ describe("test sends on the request path", () => {
     await admin.grant(scope, app.id, { capability: "sms", action: "sms:send" }, actor);
     const { secret } = await admin.issueCredential(scope, app.id, { operationId: randomUUID() }, actor);
     const send = (to: string) =>
-      access.authorize({ bearer: secret, capability: "sms", method: "POST", relativePath: "/send", requestId: randomUUID(), recipients: [to] });
+      access.authorize({ bearer: secret, capability: "sms", method: "POST", relativePath: "/send", requestId: randomUUID(), body: { to, message: "hello" } });
     return { project, send };
   }
 

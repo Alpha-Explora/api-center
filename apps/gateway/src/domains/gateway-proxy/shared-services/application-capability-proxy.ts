@@ -6,7 +6,6 @@ import { Injectable, Optional } from "@nestjs/common";
 import type { Response } from "express";
 import { randomUUID } from "node:crypto";
 import { ApplicationAccessService } from "@domains/control-plane/application-access.service";
-import { deliveryRecipients } from "@domains/control-plane/test-recipients.service";
 import { AppError } from "@shared/errors";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { assertNoEnvironmentOverrides } from "@shared/proxy/environment-leak-guard";
@@ -45,7 +44,6 @@ export class ApplicationCapabilityProxy {
     const relativePath = relativeCapabilityPath(req.path, capability);
     const requestId = req.correlationId || randomUUID();
     const idempotencyKey = typeof req.headers["idempotency-key"] === "string" ? req.headers["idempotency-key"] : undefined;
-    const recipients = deliveryRecipients(capability, req.method, relativePath, req.body);
     let call;
     try {
       call = await this.access.authorize({
@@ -55,7 +53,7 @@ export class ApplicationCapabilityProxy {
         relativePath,
         requestId,
         ...(idempotencyKey ? { idempotencyKey } : {}),
-        ...(recipients ? { recipients } : {}),
+        ...(req.body !== undefined ? { body: req.body } : {}),
       });
     } catch (error) {
       const retryAfter = (error as { retryAfterSeconds?: unknown }).retryAfterSeconds;
