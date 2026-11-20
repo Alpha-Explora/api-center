@@ -3,7 +3,7 @@ const { createMemoryCacheStore } = require('./cacheStore');
 const { createMemoryIdempotencyStore, createScopedIdempotencyKey } = require('./idempotencyStore');
 const { recordProviderMetric } = require('./metrics');
 const { ProviderGuardError, createCircuitBreaker, withProviderTimeout } = require('./providerGuard');
-const { createMemoryRateLimitStore } = require('./rateLimitStore');
+const { createMemoryRateLimitStore, recipientRateLimitKey } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
 const { sendTwilioSms, sendResendEmail } = require('./delivery');
 const {
@@ -34,6 +34,7 @@ module.exports = {
   createMemoryIdempotencyStore,
   createScopedIdempotencyKey,
   createMemoryRateLimitStore,
+  recipientRateLimitKey,
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
   sendTwilioSms,

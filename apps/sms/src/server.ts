@@ -6,6 +6,7 @@ import {
   createSharedServiceApp,
   readSharedServiceCaller,
   callerIdempotencyScope,
+  recipientRateLimitKey,
   createSuccessResponse,
   type SharedServiceCaller,
 } from '@apicenter/runtime';
@@ -93,7 +94,7 @@ app.post('/send', async (req: Request, res: Response) => {
   let senderId: string | undefined;
   try {
     const projectSender = await smsStore.getProjectSender(caller.projectId, caller.environment);
-    senderId = resolveSmsSender(body.senderId, projectSender?.senderId);
+    senderId = resolveSmsSender(body.senderId, projectSender?.senderId, process.env.TWILIO_FROM_NUMBER);
   } catch (error) {
     if (error instanceof SmsSenderNotApprovedError) return fail(res, 403, error.code, error.message);
     return fail(res, 503, 'PROJECT_SENDER_UNAVAILABLE', 'Project SMS sender settings are unavailable');
@@ -126,7 +127,7 @@ app.post('/send', async (req: Request, res: Response) => {
 
   let limit;
   try {
-    limit = await rateLimitStore.consume(`sms:send:${String(to).toLowerCase()}`, {
+    limit = await rateLimitStore.consume(recipientRateLimitKey('sms:send', caller, to), {
       limit: sendLimit,
       windowMs: sendWindowMs,
     });

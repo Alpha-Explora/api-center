@@ -7,6 +7,7 @@ import {
   createSharedServiceApp,
   readSharedServiceCaller,
   callerIdempotencyScope,
+  recipientRateLimitKey,
   createSuccessResponse,
   type SharedServiceCaller,
 } from '@apicenter/runtime';
@@ -122,7 +123,7 @@ app.post('/generate', async (req: Request, res: Response) => {
 
   let limit;
   try {
-    limit = await rateLimitStore.consume(`otp:generate:${String(rawTarget).toLowerCase()}`, {
+    limit = await rateLimitStore.consume(recipientRateLimitKey('otp:generate', caller, rawTarget), {
       limit: generateLimit,
       windowMs: generateWindowMs,
     });

@@ -25,10 +25,15 @@ describe('SMS sender IDs', () => {
 
   it('uses the pinned sender and refuses a request that names another', () => {
     expect(resolveSmsSender(undefined, null)).toBeUndefined();
-    expect(resolveSmsSender('Mine', null)).toBe('Mine');
     expect(resolveSmsSender(undefined, 'Serbizio')).toBe('Serbizio');
     expect(resolveSmsSender('Serbizio', 'Serbizio')).toBe('Serbizio');
     expect(() => resolveSmsSender('Other', 'Serbizio')).toThrow(SmsSenderNotApprovedError);
+  });
+
+  it('lets an unpinned project name only the platform sender, never a brand of its choosing', () => {
+    expect(() => resolveSmsSender('BDO', null)).toThrow(SmsSenderNotApprovedError);
+    expect(() => resolveSmsSender('BDO', null, '+15005550006')).toThrow(SmsSenderNotApprovedError);
+    expect(resolveSmsSender('+15005550006', null, '+15005550006')).toBe('+15005550006');
   });
 });
 
