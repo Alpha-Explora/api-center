@@ -2,7 +2,7 @@
 // plan's (or test default's) daily budget and each quota policy. Counts come from
 // cp_quota_counters, keyed exactly as QuotaService.reserve writes them (quota-budgets.ts).
 
-import { composeBudgets, DAY_SECONDS, windowStart, type Budget, type PolicyRow } from "../quota-budgets";
+import { composeBudgets, DAY_SECONDS, policyBudgetKey, windowStart, type Budget, type PolicyRow } from "../quota-budgets";
 import { PLAN_DEFINITIONS } from "../plan-definitions";
 import type { EnvironmentKind } from "../control-plane.types";
 
@@ -61,7 +61,7 @@ function meterFor(budget: Budget, policy: MeterPolicy | undefined, counters: Cou
 
 function policyBudget(policy: MeterPolicy): Budget {
   return {
-    key: `policy:${policy.id}`,
+    key: policyBudgetKey(policy),
     limit: policy.maxRequests,
     windowSeconds: policy.windowSeconds,
     mode: policy.mode === "observe" ? "observe" : "enforce",
@@ -80,7 +80,7 @@ export function buildQuotaMeters(
   now: Date,
 ): QuotaMeters {
   const { composition, budgets } = quotaMeterWindows(input);
-  const policies = new Map(input.policies.map((policy) => [`policy:${policy.id}`, policy]));
+  const policies = new Map(input.policies.map((policy) => [policyBudgetKey(policy), policy]));
   const meters = budgets.map((budget) => meterFor(budget, policies.get(budget.key), counters, now));
 
   const plan = input.planKey ? PLAN_DEFINITIONS.find((entry) => entry.planKey === input.planKey) : undefined;

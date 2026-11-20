@@ -42,8 +42,8 @@ describe("composeBudgets", () => {
     });
     expect(result.ok && result.budgets.map((budget) => [budget.key, budget.source, budget.mode])).toEqual([
       ["plan:env_l", "plan", "enforce"],
-      ["policy:qp_email", "project-policy", "enforce"],
-      ["policy:qp_shared", "shared-ceiling", "observe"],
+      ["policy:qp_email:60", "project-policy", "enforce"],
+      ["policy:qp_shared:3600", "shared-ceiling", "observe"],
     ]);
   });
 

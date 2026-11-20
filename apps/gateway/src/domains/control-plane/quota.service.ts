@@ -252,9 +252,9 @@ export class QuotaService {
   }
 
   /**
-   * Changes a policy's limits in place. Its budget key stays `policy:<id>`, so requests already
-   * counted in the current window still count against a new limit; a new window length starts
-   * counting from that length's current window. The audit event records the values before and after.
+   * Changes a policy's limits in place. A new limit applies to requests already counted in the
+   * current window. A new window length starts a fresh count, because the budget key names the
+   * length (policyBudgetKey). The audit event records the values before and after.
    */
   async updatePolicy(organizationId: string, policyId: string, change: QuotaPolicyChange, actor: string) {
     if (change.capability && !isKnownCapability(change.capability)) throw new ValidationError(`Capability '${change.capability}' does not exist`);

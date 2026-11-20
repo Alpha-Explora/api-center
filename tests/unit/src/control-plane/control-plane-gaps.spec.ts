@@ -89,6 +89,29 @@ describe("quota policy edit and delete", () => {
     expect(prisma.cpQuotaPolicy.rows[0]).toMatchObject({ capability: null });
   });
 
+  it("starts a fresh count when the window length changes, even where the windows start together", async () => {
+    const { project, policy } = await projectPolicy();
+    await quotas.updatePolicy(ORG, policy.id, { windowSeconds: 3600, maxRequests: 2 }, actor);
+    const environment = prisma.cpEnvironment.rows.find((row) => row.projectId === project.id && row.kind === "test");
+    const identity = {
+      organizationId: ORG,
+      projectId: project.id,
+      environmentId: String(environment?.id),
+      environmentKind: "test" as const,
+      applicationId: "app_x",
+      credentialId: "cred_x",
+    };
+    // 10:00:30 is inside both the 10:00 hour and the 10:00 minute.
+    const now = new Date("2026-11-20T10:00:30Z");
+    await quotas.reserve(identity, "email", "send", "r1", now);
+    await quotas.reserve(identity, "email", "send", "r2", now);
+    await expect(quotas.reserve(identity, "email", "send", "r3", now)).rejects.toMatchObject({ status: 429 });
+
+    await quotas.updatePolicy(ORG, policy.id, { windowSeconds: 60 }, actor);
+    await expect(quotas.reserve(identity, "email", "send", "r4", now)).resolves.toEqual({ counted: true });
+    expect(prisma.quotaCounters.get(`policy:${policy.id}:60@2026-11-20T10:00:00.000Z`)).toBe(1);
+  });
+
   it("validates the change", async () => {
     const { policy } = await projectPolicy();
     const owner = req(member("owner@example.test"));

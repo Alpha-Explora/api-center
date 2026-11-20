@@ -9,7 +9,7 @@ import { PrismaService } from "@database/prisma.service";
 import { NotFoundError, ValidationError } from "@shared/errors";
 import { RequestDiagnosticsStore } from "@shared/request-diagnostics.store";
 import { AuditEventsService } from "@audit/audit-events.service";
-import { testDefaultDailyRequests, windowStart } from "../quota-budgets";
+import { policyBudgetKey, testDefaultDailyRequests, windowStart } from "../quota-budgets";
 import { requireControlPlaneDatabase, withTenant, type TenantDb } from "../tenant-transaction";
 import type { AuditScope } from "../console-access.policy";
 import type { EnvironmentScope } from "../control-plane-admin.service";
@@ -100,7 +100,7 @@ export class ObservabilityService {
       const earliest = policies.reduce((min, policy) => Math.min(min, windowStart(now, policy.windowSeconds).getTime()), now.getTime());
       const counters = policies.length
         ? await db.cpQuotaCounter.findMany({
-            where: { organizationId, budgetKey: { in: policies.map((policy) => `policy:${policy.id}`) }, windowStart: { gte: new Date(earliest) } },
+            where: { organizationId, budgetKey: { in: policies.map(policyBudgetKey) }, windowStart: { gte: new Date(earliest) } },
           })
         : [];
       return sharedCeilingMeters(policies, counters, now);
