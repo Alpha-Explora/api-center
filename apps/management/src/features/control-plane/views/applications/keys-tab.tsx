@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyRoundIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { environmentCredentialsKey } from "../../view-models/environment-invento
 import { ExpiryBadge } from "./expiry-badge";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { LoadMore, usePagedList } from "../../view-models/paged-list";
 
 const EXPIRY_OPTIONS = [30, 90, 180, 365];
 
@@ -43,7 +44,7 @@ export function KeysTab({ application }: { application: Application }) {
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
   const key = [...cpKeys.application(organizationId, project.id, kind, application.id), "credentials"];
-  const credentials = useQuery({ queryKey: key, queryFn: () => controlPlane.credentials(organizationId, project.id, kind, application.id) });
+  const credentials = usePagedList(key, (cursor) => controlPlane.credentials(organizationId, project.id, kind, application.id, cursor));
   const [issuing, setIssuing] = useState(false);
   const [expiresInDays, setExpiresInDays] = useState(90);
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
@@ -72,7 +73,7 @@ export function KeysTab({ application }: { application: Application }) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const rows = credentials.data ?? [];
+  const rows = credentials.items ?? [];
   const activeCount = rows.filter((row) => row.status === "active").length;
   const needsReplacement = keysNeedingReplacement(rows);
   const expiredCount = needsReplacement.filter((row) => expiryState(row) === "expired").length;
@@ -144,6 +145,7 @@ export function KeysTab({ application }: { application: Application }) {
             </TableBody>
           </Table>
         )}
+        <LoadMore list={credentials} />
       </Panel>
 
       <Dialog open={issuing} onOpenChange={setIssuing}>
