@@ -31,7 +31,10 @@ model OrganizationMember {
   role           String
   /// Verified identity subject, linked on first verified sign-in.
   subject        String?
+  /// active, suspended, or invited (added, not yet signed in).
   status         String   @default("active")
+  /// When an invited member's invite stops working; null once accepted.
+  inviteExpiresAt DateTime? @map("invite_expires_at") @db.Timestamptz(6)
   createdBy      String?  @map("created_by")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

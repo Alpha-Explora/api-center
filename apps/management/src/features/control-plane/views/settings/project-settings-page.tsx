@@ -22,6 +22,7 @@ import { projectHref } from "@/lib/app-navigation";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
+import { lifecycle } from "../../data/lifecycle";
 import { projectSettings, type TestRecipient } from "../../data/project-settings";
 import { PROJECT_ADMIN_REASON, type ProjectRole } from "../../model/access";
 import type { EnvironmentKind, ProjectEnvironment, Team } from "../../model/control-plane";
@@ -37,6 +38,7 @@ export function ProjectSettingsPage() {
       <RolesPanel />
       <TestRecipientsPanel />
       <EnvironmentStatusPanel />
+      <ArchivePanel />
     </>
   );
 }
@@ -125,6 +127,62 @@ function TestRecipientsPanel() {
           </ul>
         ) : null}
       </div>
+    </Panel>
+  );
+}
+
+// ── Archive ─────────────────────────────────────────────────────────────────
+
+/** Archiving stops every request in test and live but deletes nothing, so it can be undone. */
+function ArchivePanel() {
+  const { organizationId, project, canManage } = useProject();
+  const client = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const archived = project.status === "archived";
+  const update = useMutation({
+    mutationFn: (status: "active" | "archived") => lifecycle.setProjectStatus(organizationId, project.id, status),
+    onSuccess: (_, status) => {
+      toast.success(status === "archived" ? `Archived ${project.name}` : `Restored ${project.name}`);
+      setConfirming(false);
+      void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+      void client.invalidateQueries({ queryKey: cpKeys.projects(organizationId) });
+    },
+    onError: (error: Error) => {
+      setConfirming(false);
+      toast.error(error.message);
+    },
+  });
+  return (
+    <Panel
+      title={archived ? "Archived project" : "Archive project"}
+      description={
+        archived
+          ? "Every request from this project's applications is refused with PROJECT_INACTIVE. Restore it to serve requests again."
+          : "Stops every request from this project's applications in test and live. Applications, keys and settings are kept, so you can restore it."
+      }
+      actions={
+        <GuardedButton
+          size="sm"
+          variant={archived ? "default" : "outline"}
+          allowed={canManage}
+          reason={PROJECT_ADMIN_REASON}
+          disabled={update.isPending}
+          onClick={() => (archived ? update.mutate("active") : setConfirming(true))}
+        >
+          {archived ? "Restore project" : "Archive project"}
+        </GuardedButton>
+      }
+    >
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={(next) => !next && setConfirming(false)}
+        title={`Archive ${project.name}`}
+        description="Every request from its test and live applications is refused from the next request. Nothing is deleted."
+        confirmLabel="Archive project"
+        destructive
+        busy={update.isPending}
+        onConfirm={() => update.mutate("archived")}
+      />
     </Panel>
   );
 }

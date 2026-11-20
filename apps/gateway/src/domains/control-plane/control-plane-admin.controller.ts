@@ -84,6 +84,9 @@ const schemas = {
     .strict()
     .refine((value) => !(value.approve && value.reason), "reason is only for a rejection"),
   setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
+  memberStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
+  projectStatus: z.object({ status: z.enum(["active", "archived"]), actor: onBehalfOf.optional() }).strict(),
+  applicationStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   createTeam: z.object({ slug, name, actor: onBehalfOf.optional() }).strict(),
   setProjectRole: z
     .object({
@@ -177,9 +180,38 @@ export class ControlPlaneAdminController {
     const member = await this.people.setMember(org, memberEmail, input.role, label, {
       mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
     });
-    // A new member is sent an invite. Sending never fails the change, which is already saved.
-    const invite = member.previousRole || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
-    return { success: true, data: { ...member, invite } };
+    // A new member is emailed an invite. Sending never fails the change, which is already saved.
+    const { invite: shouldInvite, ...saved } = member;
+    const invite = !shouldInvite || !this.invites ? null : await this.invites.invite({ organizationId: org, email: memberEmail, role: input.role, invitedBy: label });
+    return { success: true, data: { ...saved, invite } };
+  }
+
+  /** Renews an unaccepted invite for another 7 days and emails it again. */
+  @Post("organizations/:organizationId/members/:email/invite")
+  async resendInvite(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const memberEmail = parse(schemas.email, params.email, "email");
+    const actor = actorOf(req);
+    const access = await this.access.require(actor, org, "organization.members.manage");
+    const label = actorLabel(actor);
+    const renewed = await this.people.resendInvite(org, memberEmail, label, { mayManageOwners: canPerform(actor, access, "organization.owners.manage") });
+    const invite = this.invites ? await this.invites.invite({ organizationId: org, email: memberEmail, role: renewed.role, invitedBy: label }) : null;
+    return { success: true, data: { ...renewed, invite } };
+  }
+
+  @Put("organizations/:organizationId/members/:email/status")
+  async setMemberStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const memberEmail = parse(schemas.email, params.email, "email");
+    const input = parse(schemas.memberStatus, body, "body");
+    const actor = actorOf(req);
+    const access = await this.access.require(actor, org, "organization.members.manage");
+    return {
+      success: true,
+      data: await this.people.setMemberStatus(org, memberEmail, input.status, actorLabel(actor, input.actor), {
+        mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
+      }),
+    };
   }
 
   @Delete("organizations/:organizationId/members/:email")
@@ -230,6 +262,15 @@ export class ControlPlaneAdminController {
     return { success: true, data };
   }
 
+  /** Deletes a team with its memberships and project roles. 409 LAST_PROJECT_ADMIN if a project would lose its last administrator. */
+  @Delete("organizations/:organizationId/teams/:teamId")
+  async deleteTeam(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const org = parse(schemas.organizationId, params.organizationId, "organizationId");
+    const actor = actorOf(req);
+    await this.access.require(actor, org, "organization.teams.manage");
+    return { success: true, data: await this.people.deleteTeam(org, parse(schemas.resourceId("tm"), params.teamId, "teamId"), actorLabel(actor)) };
+  }
+
   // ── Projects ─────────────────────────────────────────────────────────────
 
   @Post("organizations/:organizationId/projects")
@@ -263,6 +304,16 @@ export class ControlPlaneAdminController {
     const { organizationId, projectId } = projectScope(params);
     await this.access.require(actorOf(req), organizationId, "project.read", { projectId });
     return { success: true, data: await this.controlPlane.getProject(organizationId, projectId) };
+  }
+
+  /** Archives a project (every request refused, nothing deleted) or restores it. */
+  @Put("organizations/:organizationId/projects/:projectId/status")
+  async setProjectStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const { organizationId, projectId } = projectScope(params);
+    const input = parse(schemas.projectStatus, body, "body");
+    const actor = actorOf(req);
+    await this.access.require(actor, organizationId, "project.manage", { projectId });
+    return { success: true, data: await this.controlPlane.setProjectStatus(organizationId, projectId, input.status, actorLabel(actor, input.actor)) };
   }
 
   @Get("organizations/:organizationId/projects/:projectId/roles")
@@ -548,6 +599,14 @@ export class ControlPlaneAdminController {
   }
 
   // ── Workload identity ────────────────────────────────────────────────────
+
+  /** Suspends an application (its keys and workload identities are refused) or resumes it. */
+  @Put(`${APP}/status`)
+  async setApplicationStatus(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = parse(schemas.applicationStatus, body, "body");
+    const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
+    return { success: true, data: await this.controlPlane.setApplicationStatus(scope, applicationIdFrom(params), input.status, actorLabel(actor, input.actor)) };
+  }
 
   @Post(`${APP}/workload-bindings`)
   async bindWorkload(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {

@@ -7,6 +7,7 @@ import { ConsoleAccessService } from "../../../../apps/gateway/src/domains/contr
 import { OrganizationPeopleService } from "../../../../apps/gateway/src/domains/control-plane/organization-people.service";
 import { MemberInviteService } from "../../../../apps/gateway/src/domains/control-plane/member-invite.service";
 import { consoleUrlFrom, inviteMessage, DEFAULT_CONSOLE_URL } from "../../../../apps/gateway/src/domains/control-plane/member-invite";
+import { consoleAccessCacheFor } from "../../../../apps/gateway/src/domains/control-plane/console-access-cache";
 import { createFakeControlPlanePrisma, type FakeControlPlanePrisma } from "./fake-control-plane-prisma";
 
 const ORG = "6f1c1d1e-0000-4000-8000-0000000000d1";
@@ -172,5 +173,45 @@ describe("adding a member", () => {
     const changed = await controller.setMember({ organizationId: ORG, email: "jun@serbizio.ph" }, { role: "viewer" }, req);
     expect(changed.data).toMatchObject({ previousRole: "developer", invite: null });
     expect(invite).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets an invite be accepted once, before it expires, and renews an expired one", async () => {
+    const invite = jest.fn().mockResolvedValue({ status: "sent" });
+    const controller = controllerWith(invite);
+    const access = new ConsoleAccessService(prisma as unknown as PrismaService);
+    const newcomer: ConsoleActor = { kind: "member", email: "ana@serbizio.ph", subject: "s-ana", platformAdmin: false };
+    const row = () => prisma.organizationMember.rows.find((candidate) => candidate.email === "ana@serbizio.ph")!;
+
+    await controller.setMember({ organizationId: ORG, email: "ana@serbizio.ph" }, { role: "developer" }, req);
+    expect(row()).toMatchObject({ status: "invited", inviteExpiresAt: expect.any(Date) });
+
+    // Expired before the first sign-in: no access.
+    row().inviteExpiresAt = new Date(Date.now() - 1000);
+    await expect(access.require(newcomer, ORG, "organization.read")).rejects.toMatchObject({ status: 404 });
+
+    // Renewed: the first verified sign-in accepts it and links the identity.
+    await controller.resendInvite({ organizationId: ORG, email: "ana@serbizio.ph" }, req);
+    expect(invite).toHaveBeenCalledTimes(2);
+    consoleAccessCacheFor(prisma).invalidateOrganization(ORG);
+    await expect(access.require(newcomer, ORG, "organization.read")).resolves.toBeDefined();
+    expect(row()).toMatchObject({ status: "active", inviteExpiresAt: null, subject: "s-ana" });
+
+    await expect(controller.resendInvite({ organizationId: ORG, email: "ana@serbizio.ph" }, req)).rejects.toMatchObject({ code: "INVITE_ALREADY_ACCEPTED" });
+  });
+
+  it("suspends and restores an accepted member, never the last owner", async () => {
+    const controller = controllerWith(jest.fn());
+    prisma.organizationMember.rows.push({ organizationId: ORG, email: "dev@serbizio.ph", role: "developer", status: "active", inviteExpiresAt: null, subject: "s-dev" });
+    const dev: ConsoleActor = { kind: "member", email: "dev@serbizio.ph", subject: "s-dev", platformAdmin: false };
+    const access = new ConsoleAccessService(prisma as unknown as PrismaService);
+
+    await controller.setMemberStatus({ organizationId: ORG, email: "dev@serbizio.ph" }, { status: "suspended" }, req);
+    await expect(access.require(dev, ORG, "organization.read")).rejects.toMatchObject({ status: 404 });
+    await controller.setMemberStatus({ organizationId: ORG, email: "dev@serbizio.ph" }, { status: "active" }, req);
+    await expect(access.require(dev, ORG, "organization.read")).resolves.toBeDefined();
+
+    await expect(controller.setMemberStatus({ organizationId: ORG, email: "owner@example.test" }, { status: "suspended" }, req)).rejects.toMatchObject({
+      code: "LAST_OWNER",
+    });
   });
 });

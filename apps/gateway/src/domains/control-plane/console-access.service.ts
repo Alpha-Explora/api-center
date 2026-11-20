@@ -15,6 +15,7 @@ import {
 } from "./console-access.policy";
 import type { EnvironmentKind } from "./control-plane.types";
 import { withTenant, type TenantDb } from "./tenant-transaction";
+import { memberCanSignIn } from "./organization-people.service";
 import { consoleAccessCacheFor, type ConsoleAccessCache } from "./console-access-cache";
 
 const NO_ACCESS: MemberAccess = { organizationRole: undefined, projectRoles: new Map() };
@@ -40,13 +41,14 @@ export class ConsoleAccessService {
     const membership = await db.organizationMember.findUnique({
       where: { organization_members_pkey: { organizationId, email: actor.email } },
     });
-    if (!membership || membership.status !== "active") return NO_ACCESS;
+    if (!membership || !memberCanSignIn(membership)) return NO_ACCESS;
 
-    // Link the verified identity on first sign-in; afterwards it must match.
+    // Link the verified identity on first sign-in, which also accepts a pending invite; afterwards
+    // it must match.
     if (!membership.subject) {
       await db.organizationMember.update({
         where: { organization_members_pkey: { organizationId, email: actor.email } },
-        data: { subject: actor.subject },
+        data: { subject: actor.subject, ...(membership.status === "invited" ? { status: "active", inviteExpiresAt: null } : {}) },
       });
     } else if (membership.subject !== actor.subject) {
       return NO_ACCESS;

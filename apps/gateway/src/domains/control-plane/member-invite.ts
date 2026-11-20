@@ -51,13 +51,13 @@ export function inviteMessage(input: { organizationName: string; email: string; 
     `Sign in with the Google account for ${input.email}:`,
     input.consoleUrl,
     "",
-    "Your access starts the first time you sign in.",
+    "Your access starts the first time you sign in. The invite expires after 7 days; ask an admin to add you again if it does.",
   ].join("\n");
   const html = [
     `<p>${escapeHtml(opening)}</p>`,
     `<p>Sign in with the Google account for <strong>${escapeHtml(input.email)}</strong>:</p>`,
     `<p><a href="${escapeHtml(input.consoleUrl)}">${escapeHtml(input.consoleUrl)}</a></p>`,
-    "<p>Your access starts the first time you sign in.</p>",
+    "<p>Your access starts the first time you sign in. The invite expires after 7 days; ask an admin to add you again if it does.</p>",
   ].join("\n");
   return { subject: subject.slice(0, 200), text, html };
 }

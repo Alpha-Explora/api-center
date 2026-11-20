@@ -18,6 +18,7 @@ import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { toSlug } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
+import { lifecycle } from "../../data/lifecycle";
 import { members as memberRoutes } from "../../data/members";
 import { ORGANIZATION_ADMIN_REASON, type Access, type OrganizationRole } from "../../model/access";
 import type { Member, Team } from "../../model/control-plane";
@@ -46,6 +47,9 @@ export function PeoplePage() {
   });
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
+  const [suspending, setSuspending] = useState<Member | null>(null);
+  // When the page opened; invite countdowns are read against it.
+  const [now] = useState(() => Date.now());
   const refresh = () => {
     void client.invalidateQueries({ queryKey: cpKeys.members(organizationId ?? "none") });
     void client.invalidateQueries({ queryKey: cpKeys.teams(organizationId ?? "none") });
@@ -57,6 +61,26 @@ export function PeoplePage() {
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
+  });
+  const resend = useMutation({
+    mutationFn: (email: string) => memberRoutes.resendInvite(organizationId as string, email),
+    onSuccess: (change) => {
+      toast.success(change.invite?.status === "sent" ? `Invite sent again to ${change.email}` : `Invite renewed for ${change.email}; the email was not sent`);
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const setStatus = useMutation({
+    mutationFn: (input: { email: string; status: "active" | "suspended" }) => memberRoutes.setStatus(organizationId as string, input.email, input.status),
+    onSuccess: (_, input) => {
+      toast.success(input.status === "suspended" ? `Suspended ${input.email}` : `Restored ${input.email}`);
+      setSuspending(null);
+      refresh();
+    },
+    onError: (error: Error) => {
+      setSuspending(null);
+      toast.error(error.message);
+    },
   });
   const remove = useMutation({
     mutationFn: (email: string) => controlPlane.removeMember(organizationId as string, email),
@@ -94,7 +118,7 @@ export function PeoplePage() {
               <TableRow>
                 <TableHead>Email</TableHead>
                 <TableHead className="w-40">Role</TableHead>
-                <TableHead>Sign-in</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="w-0" />
               </TableRow>
             </TableHeader>
@@ -127,9 +151,24 @@ export function PeoplePage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge tone={member.identityLinked ? "success" : "warning"}>{member.identityLinked ? "Linked" : "Not signed in yet"}</StatusBadge>
+                      <MemberStatus member={member} now={now} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
+                      {editable && (member.status === "invited" || member.status === "invite_expired") ? (
+                        <Button size="sm" variant="ghost" disabled={resend.isPending} onClick={() => resend.mutate(member.email)}>
+                          Resend invite
+                        </Button>
+                      ) : null}
+                      {editable && !self && member.status === "active" ? (
+                        <Button size="sm" variant="ghost" onClick={() => setSuspending(member)}>
+                          Suspend
+                        </Button>
+                      ) : null}
+                      {editable && member.status === "suspended" ? (
+                        <Button size="sm" variant="ghost" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ email: member.email, status: "active" })}>
+                          Restore
+                        </Button>
+                      ) : null}
                       {editable ? (
                         <Button size="sm" variant="ghost" onClick={() => setRemoving(member)}>
                           Remove
@@ -149,6 +188,16 @@ export function PeoplePage() {
 
       <AddMemberSheet organizationId={organizationId} access={access} open={adding} onOpenChange={setAdding} onAdded={refresh} />
       <ConfirmDialog
+        open={suspending !== null}
+        onOpenChange={(next) => !next && setSuspending(null)}
+        title={`Suspend ${suspending?.email ?? ""}`}
+        description="They cannot sign in or act in this organization until you restore them. Their role, teams and project roles are kept."
+        confirmLabel="Suspend member"
+        destructive
+        busy={setStatus.isPending}
+        onConfirm={() => suspending && setStatus.mutate({ email: suspending.email, status: "suspended" })}
+      />
+      <ConfirmDialog
         open={removing !== null}
         onOpenChange={(next) => !next && setRemoving(null)}
         title={`Remove ${removing?.email ?? ""}`}
@@ -160,6 +209,17 @@ export function PeoplePage() {
       />
     </>
   );
+}
+
+/** Where a member stands: invited (with the days left), invite expired, suspended, or signed in. */
+export function MemberStatus({ member, now }: { member: Member; now: number }) {
+  if (member.status === "invited") {
+    const days = member.inviteExpiresAt ? Math.max(1, Math.ceil((Date.parse(member.inviteExpiresAt) - now) / 86_400_000)) : undefined;
+    return <StatusBadge tone="warning">{days ? `Invited · ${days} day${days === 1 ? "" : "s"} left` : "Invited"}</StatusBadge>;
+  }
+  if (member.status === "invite_expired") return <StatusBadge tone="danger">Invite expired</StatusBadge>;
+  if (member.status === "suspended") return <StatusBadge tone="warning">Suspended</StatusBadge>;
+  return <StatusBadge tone={member.identityLinked ? "success" : "warning"}>{member.identityLinked ? "Signed in" : "Not signed in yet"}</StatusBadge>;
 }
 
 function canEditMember(access: Access, member: Member) {
@@ -242,7 +302,7 @@ function AddMemberSheet({
         >
           <SheetHeader>
             <SheetTitle>Add member</SheetTitle>
-            <SheetDescription>They are emailed an invite and sign in with the Google account for this email. Adding an existing member changes their role.</SheetDescription>
+            <SheetDescription>They are emailed an invite and sign in with the Google account for this email within 7 days. Adding an existing member changes their role.</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 px-4">
             <FormRow
@@ -336,6 +396,19 @@ function TeamsPanel({ organizationId, access }: { organizationId: string; access
 
 function TeamRow({ organizationId, team, canManage, onChanged }: { organizationId: string; team: Team; canManage: boolean; onChanged: () => void }) {
   const [email, setEmail] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => lifecycle.deleteTeam(organizationId, team.id),
+    onSuccess: () => {
+      toast.success(`Deleted ${team.name}`);
+      setDeleting(false);
+      onChanged();
+    },
+    onError: (error: Error) => {
+      setDeleting(false);
+      toast.error(error.message);
+    },
+  });
   const normalized = email.trim().toLowerCase();
   const add = useMutation({
     mutationFn: () => controlPlane.addTeamMember(organizationId, team.id, normalized),
@@ -366,8 +439,21 @@ function TeamRow({ organizationId, team, canManage, onChanged }: { organizationI
           <Button size="sm" variant="ghost" type="submit" disabled={!normalized.includes("@") || add.isPending}>
             Add
           </Button>
+          <Button size="sm" variant="ghost" type="button" onClick={() => setDeleting(true)}>
+            Delete
+          </Button>
         </form>
       ) : null}
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={(next) => !next && setDeleting(false)}
+        title={`Delete ${team.name}`}
+        description="Its members lose the project roles they had through this team. Their organization membership is kept. A team that is a project's only administrator cannot be deleted."
+        confirmLabel="Delete team"
+        destructive
+        busy={remove.isPending}
+        onConfirm={() => remove.mutate()}
+      />
     </li>
   );
 }

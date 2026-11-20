@@ -73,7 +73,14 @@ export const meSchema = z.object({
   projectRoles: z.record(z.string(), z.string()),
 });
 
-export const memberSchema = z.object({ email: z.string(), role: z.string(), status: z.string(), identityLinked: z.boolean() });
+/** status: active, suspended, invited (can still accept) or invite_expired. */
+export const memberSchema = z.object({
+  email: z.string(),
+  role: z.string(),
+  status: z.string(),
+  inviteExpiresAt: z.string().nullable().optional(),
+  identityLinked: z.boolean(),
+});
 export const teamSchema = z.object({ id: z.string(), slug: z.string(), name: z.string(), members: z.array(z.string()) });
 
 export const planSchema = z.object({ planKey: z.string(), displayName: z.string(), requestsPerDay: z.number().nullable(), liveAllowed: z.boolean() });

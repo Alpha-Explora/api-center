@@ -50,7 +50,8 @@ export class OrganizationPeopleService {
     return {
       email,
       platformAdmin,
-      memberships: rows.map((row) => ({
+      // Suspended members and expired invites cannot sign in; a pending invite can, and accepts.
+      memberships: rows.filter((row) => memberCanSignIn(row)).map((row) => ({
         organizationId: row.organizationId,
         organizationSlug: row.organization.slug,
         organizationName: row.organization.name,
@@ -86,29 +87,83 @@ export class OrganizationPeopleService {
       const items = members.map((member) => ({
         email: member.email,
         role: normalizeOrganizationRole(member.role) ?? "viewer",
-        status: member.status,
+        status: member.status === "invited" && !inviteIsPending(member) ? "invite_expired" : member.status,
+        inviteExpiresAt: member.inviteExpiresAt?.toISOString() ?? null,
         identityLinked: Boolean(member.subject),
       }));
       return { items, nextCursor };
     });
   }
 
-  /** `mayManageOwners`: whether the actor may make, change or remove an owner. Defaults to yes for internal callers. */
+  /**
+   * Adds a member, or changes a member's role. A new member is invited: they can sign in until the
+   * invite expires, and their first verified sign-in accepts it. `invite` is true for a new member,
+   * whose invite email should go out; resendInvite renews an unaccepted one. `mayManageOwners`: whether
+   * the actor may make, change or remove an owner (internal callers default to yes).
+   */
   async setMember(organizationId: string, email: string, role: OrganizationRole, actor: string, options: { mayManageOwners: boolean } = { mayManageOwners: true }) {
-    const previous = await this.mutate(organizationId, async (db) => {
+    const { previous, invite } = await this.mutate(organizationId, async (db) => {
       await requireOrganization(db, organizationId);
-      const current = await roleOf(db, organizationId, email);
+      const existing = await db.organizationMember.findUnique({ where: { organization_members_pkey: { organizationId, email } } });
+      const current = existing ? normalizeOrganizationRole(existing.role) : undefined;
       if ((role === "owner" || current === "owner") && !options.mayManageOwners) throw new ForbiddenError(OWNERS_ONLY);
-      if (current === "owner" && role !== "owner") await assertNotLastOwner(db, organizationId);
+      if (current === "owner" && role !== "owner" && existing?.status === "active") await assertNotLastOwner(db, organizationId);
       await db.organizationMember.upsert({
         where: { organization_members_pkey: { organizationId, email } },
-        create: { organizationId, email, role, createdBy: actor },
+        create: { organizationId, email, role, createdBy: actor, status: "invited", inviteExpiresAt: new Date(Date.now() + INVITE_VALIDITY_MS) },
         update: { role },
       });
-      return current;
+      return { previous: current, invite: !existing };
     });
-    await this.recordAudit({ organizationId }, "control_plane.member.set", actor, `${organizationId}:${email}`, { role, previousRole: previous ?? null });
-    return { email, role, previousRole: previous ?? null };
+    await this.recordAudit({ organizationId }, "control_plane.member.set", actor, `${organizationId}:${email}`, { role, previousRole: previous ?? null, invited: invite });
+    return { email, role, previousRole: previous ?? null, invite };
+  }
+
+  /** Gives an unaccepted invite a fresh expiry. Returns the role, for the invite email. */
+  async resendInvite(organizationId: string, email: string, actor: string, options: { mayManageOwners: boolean } = { mayManageOwners: true }) {
+    const role = await this.mutate(organizationId, async (db) => {
+      const existing = await db.organizationMember.findUnique({ where: { organization_members_pkey: { organizationId, email } } });
+      if (!existing) throw new NotFoundError(`'${email}' is not a member`);
+      if (existing.status !== "invited") throw new AppError("This member has already accepted their invite", 409, "INVITE_ALREADY_ACCEPTED");
+      const memberRole = normalizeOrganizationRole(existing.role) ?? "viewer";
+      if (memberRole === "owner" && !options.mayManageOwners) throw new ForbiddenError(OWNERS_ONLY);
+      await db.organizationMember.update({
+        where: { organization_members_pkey: { organizationId, email } },
+        data: { inviteExpiresAt: new Date(Date.now() + INVITE_VALIDITY_MS) },
+      });
+      return memberRole;
+    });
+    await this.recordAudit({ organizationId }, "control_plane.member.invite_renewed", actor, `${organizationId}:${email}`, { role });
+    return { email, role };
+  }
+
+  /** Suspends or restores a member who has accepted their invite. A suspended member cannot sign in or act. */
+  async setMemberStatus(
+    organizationId: string,
+    email: string,
+    status: "active" | "suspended",
+    actor: string,
+    options: { mayManageOwners: boolean } = { mayManageOwners: true },
+  ) {
+    const previous = await this.mutate(organizationId, async (db) => {
+      const existing = await db.organizationMember.findUnique({ where: { organization_members_pkey: { organizationId, email } } });
+      if (!existing) throw new NotFoundError(`'${email}' is not a member`);
+      if (existing.status === "invited") {
+        throw new AppError("This member has not accepted their invite; remove them instead of suspending", 409, "MEMBER_NOT_ACCEPTED");
+      }
+      const role = normalizeOrganizationRole(existing.role);
+      if (role === "owner" && !options.mayManageOwners) throw new ForbiddenError(OWNERS_ONLY);
+      if (status === "suspended" && existing.status === "active") {
+        if (role === "owner") await assertNotLastOwner(db, organizationId);
+        await assertProjectsKeepAdministrator(db, organizationId, { kind: "member", email });
+      }
+      await db.organizationMember.update({ where: { organization_members_pkey: { organizationId, email } }, data: { status } });
+      return existing.status;
+    });
+    await this.recordAudit({ organizationId }, `control_plane.member.${status === "suspended" ? "suspended" : "restored"}`, actor, `${organizationId}:${email}`, {
+      previousStatus: previous,
+    });
+    return { email, status };
   }
 
   async removeMember(organizationId: string, email: string, actor: string, options: { mayManageOwners: boolean } = { mayManageOwners: true }) {
@@ -136,6 +191,21 @@ export class OrganizationPeopleService {
     );
     await this.recordAudit({ organizationId }, "control_plane.team.created", actor, team.id, { organizationId, slug: team.slug });
     return { ...team, members: [] as string[] };
+  }
+
+  /** Deletes a team with its memberships and project roles, unless a project would lose its last administrator. */
+  async deleteTeam(organizationId: string, teamId: string, actor: string) {
+    const team = await this.mutate(organizationId, async (db) => {
+      const found = await db.cpTeam.findFirst({ where: { id: teamId, organizationId } });
+      if (!found) throw new NotFoundError(`Team '${teamId}' was not found`);
+      await assertProjectsKeepAdministrator(db, organizationId, { kind: "team", teamId });
+      await db.cpProjectRoleAssignment.deleteMany({ where: { organizationId, teamId } });
+      await db.cpTeamMember.deleteMany({ where: { organizationId, teamId } });
+      await db.cpTeam.delete({ where: { id: teamId } });
+      return found;
+    });
+    await this.recordAudit({ organizationId }, "control_plane.team.deleted", actor, teamId, { slug: team.slug });
+    return { id: teamId, deleted: true };
   }
 
   async listTeams(organizationId: string) {
@@ -274,6 +344,17 @@ export class OrganizationPeopleService {
 }
 
 const OWNERS_ONLY = "Your role does not allow organization owners.manage";
+
+/** How long an invite can be accepted. Adding the member again renews it. */
+export const INVITE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function inviteIsPending(member: { status: string; inviteExpiresAt: Date | null }, now = Date.now()): boolean {
+  return member.status === "invited" && member.inviteExpiresAt !== null && member.inviteExpiresAt.getTime() > now;
+}
+
+export function memberCanSignIn(member: { status: string; inviteExpiresAt: Date | null }, now = Date.now()): boolean {
+  return member.status === "active" || inviteIsPending(member, now);
+}
 
 async function roleOf(db: TenantDb, organizationId: string, email: string): Promise<OrganizationRole | undefined> {
   const member = await db.organizationMember.findUnique({ where: { organization_members_pkey: { organizationId, email } } });

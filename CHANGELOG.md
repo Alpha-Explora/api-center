@@ -19,6 +19,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Lifecycle actions: suspend and resume an application (its keys and workload identities are refused with `APPLICATION_INACTIVE`), archive and restore a project (every request refused with `PROJECT_INACTIVE`, nothing deleted), and delete a team (its project roles go with it, unless it is a project's only administrator). Each is in the console and audited.
 - Public guides "Errors and retries" (the error response, which failures to retry, and the common codes) and "Versions and changes" (what v1 may add at any time, and how breaking changes ship).
 - SDK 3.2.0: `error.retryable` says whether the same request may succeed if sent again. The SDK's own retries use the same rule.
 - The OpenAPI documents 401, 403, 429 (with `Retry-After`), 500, 502 and 503 (with `Retry-After`) on every payments operation.
@@ -47,6 +48,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- Members: a new member is invited and must sign in within 7 days. Before, the membership was active at once and never lapsed, so whoever first signed in with a mistyped or recycled address got access. An expired invite grants nothing until **Resend invite** renews it. Members can also be suspended and restored. Existing members are unaffected (migration `20261120001090`).
 - Retention: usage records (90 days), quota counters (62 days) and key-issue receipts (30 days) are purged by the history purge job, which previously never touched the control-plane tables. A managed table that no longer exists no longer fails the job.
 - Console: a failure that may clear by itself (the gateway busy or starting, a timeout, rate limiting, the network) is retried up to three times with backoff, honouring `Retry-After`; answers such as 403 or 404 are not retried. Error panels for those failures say so in plain words and offer Try again, which refetches every failed query on the page; the gateway's error code moves under Details. HTML error pages from a proxy no longer appear in messages.
 - Console sign-in: the access check waits up to 15 seconds and asks once more before giving up, shows "Checking your access…" meanwhile, and on failure offers Try again without a new Google sign-in. A failed check answers 503 instead of 401, so open pages retry instead of saying you are signed out; an account without access answers 403.
