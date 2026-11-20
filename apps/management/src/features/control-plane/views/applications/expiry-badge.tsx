@@ -9,7 +9,13 @@ export function ExpiryBadge({ credential }: { credential: { status: string; expi
   if (state === "current") return null;
   return (
     <StatusBadge tone={state === "expired" ? "danger" : "warning"} className="font-normal">
-      {state === "expired" ? "Expired" : `Expires $<RelativeTime value={credential.expiresAt} />`}
+      {state === "expired" ? (
+        "Expired"
+      ) : (
+        <>
+          Expires <RelativeTime value={credential.expiresAt} />
+        </>
+      )}
     </StatusBadge>
   );
 }
