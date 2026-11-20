@@ -5,7 +5,8 @@ import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
 import { sendResendEmail, sendTwilioSms, type SharedServiceCaller } from '@apicenter/runtime';
 import { hashOtpCode } from '../../shared/otp-hash';
-import { renderOtpMessage, resolveOtpPolicy } from '../../shared/project-settings';
+import { messageProjectName, renderOtpMessage, resolveOtpPolicy } from '../../shared/project-settings';
+import { otpEmail } from '../../shared/otp-email';
 
 export class GenerateOtpService {
   constructor(private readonly store: OtpRepositoryInterface = createOtpRepository()) {}
@@ -20,7 +21,8 @@ export class GenerateOtpService {
     const code = String(crypto.randomInt(0, Math.pow(10, policy.digits))).padStart(policy.digits, '0');
     const otpId = `otp_${crypto.randomUUID().replace(/-/g, '')}`;
     const expiresAt = Date.now() + policy.ttlSeconds * 1000;
-    const message = renderOtpMessage(policy.template, code, policy.ttlSeconds);
+    const projectName = messageProjectName(owner.projectName);
+    const message = renderOtpMessage(policy.template, code, policy.ttlSeconds, projectName);
 
     await this.store.save({
       otpId,
@@ -40,11 +42,7 @@ export class GenerateOtpService {
       if (!mock && targetVo.getChannel() === 'sms') {
         await sendTwilioSms({ to: targetVo.getTarget(), message });
       } else if (!mock) {
-        await sendResendEmail({
-          to: targetVo.getTarget(),
-          subject: 'Your APICenter verification code',
-          text: message,
-        });
+        await sendResendEmail({ to: targetVo.getTarget(), ...otpEmail({ projectName, code, ttlSeconds: policy.ttlSeconds, message }) });
       }
     } catch (error) {
       await this.store.update(otpId, { status: 'expired' }, owner);

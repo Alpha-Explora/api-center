@@ -183,7 +183,7 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
                 error={errors.messageTemplate}
                 hint={
                   canEditMessage
-                    ? `One line, sent by SMS and as the email body; the email subject stays "Your APICenter verification code". Must include {{code}}; {{minutes}} is the expiry in minutes. No links, addresses or phone numbers. Up to ${OTP_BOUNDS.messageTemplateMaxLength} characters.`
+                    ? `One line, sent by SMS and as the email body. Must include {{code}}; {{minutes}} is the expiry in minutes and {{project}} is this project's name, which also names the email's sender and subject. No links, addresses or phone numbers. Up to ${OTP_BOUNDS.messageTemplateMaxLength} characters.`
                     : `${PROJECT_ADMIN_REASON} The message is sent from APICenter's own SMS and email senders.`
                 }
               >
@@ -199,7 +199,7 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
               </FormRow>
               <div className="rounded-md border bg-muted/50 px-3 py-2">
                 <p className="text-xs font-medium text-muted-foreground">Preview</p>
-                <p className="mt-0.5 break-words text-[13px]">{otpMessagePreview(effective.template, effective.codeLength, effective.expirySeconds)}</p>
+                <p className="mt-0.5 break-words text-[13px]">{otpMessagePreview(effective.template, effective.codeLength, effective.expirySeconds, project.name)}</p>
               </div>
               {save.error ? <ErrorPanel title="OTP settings were not saved" error={save.error} /> : null}
               {current.configured ? (

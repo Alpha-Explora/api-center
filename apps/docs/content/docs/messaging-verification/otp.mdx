@@ -106,11 +106,13 @@ Each environment can have its own OTP settings, set in Management (**Capabilitie
 | Code length | 4–10 digits | 6 |
 | Expiry | 60–3600 seconds | 300 |
 | Maximum wrong attempts | 1–10 | No limit beyond the verification rate limit |
-| Message text | One line, up to 300 characters | `Your APICenter verification code is {{code}}` |
+| Message text | One line, up to 300 characters | `Your {{project}} verification code is {{code}}` |
 
 `digits` and `ttlSeconds` in a generate request override the code length and expiry. The maximum attempts and the message text always apply; a change affects codes generated after it.
 
-The message text must contain `{{code}}` and may use `{{minutes}}` for the expiry in minutes. Because it is sent from APICenter's own SMS and email senders, it cannot contain links, web addresses or phone numbers, and only a project admin can change it, in test as well. Email OTPs keep the subject "Your APICenter verification code"; the text is the email body.
+The message text must contain `{{code}}`. It may use `{{minutes}}` for the expiry in minutes and `{{project}}` for the project's name. Because it is sent from APICenter's own SMS and email senders, it cannot contain links, web addresses or phone numbers, and only a project admin can change it, in test as well.
+
+Email OTPs carry the project's name: the sender shows as the project (for example `Serbizio <noreply@…>`), the subject is "Your Serbizio verification code", and the email shows the message text, the code, its expiry and a line saying APICenter sent it. A project name that contains a link, web or email address, or phone number is replaced with "APICenter" in messages.
 
 ---
 

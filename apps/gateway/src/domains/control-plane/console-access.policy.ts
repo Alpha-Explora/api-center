@@ -8,7 +8,14 @@ export type ProjectRole = "admin" | "developer" | "viewer";
 
 export type ConsoleActor =
   | { kind: "platform"; id: string }
-  | { kind: "member"; email: string; subject: string; platformAdmin: boolean };
+  | {
+      kind: "member";
+      email: string;
+      subject: string;
+      platformAdmin: boolean;
+      /** The Google account's display name, for messages such as invites. Never used for access. */
+      name?: string;
+    };
 
 export interface MemberAccess {
   organizationRole: OrganizationRole | undefined;

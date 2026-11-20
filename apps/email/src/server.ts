@@ -58,7 +58,7 @@ const rateLimitStore = createSharedRateLimitStore(sharedState);
 const sendLimit = Number(process.env.EMAIL_SEND_LIMIT_PER_RECIPIENT || 20);
 const sendWindowMs = Number(process.env.EMAIL_SEND_LIMIT_WINDOW_MS || 60_000);
 const platformMessageAdminHandler = createPlatformMessageAdminHandler({
-  sendEmail: (input, owner) => sendEmailService.execute(input, owner),
+  sendEmail: (input, owner, options) => sendEmailService.execute(input, owner, options),
   consumeRecipientLimit: (recipient) =>
     rateLimitStore.consume(`email:send:${recipient}`, { limit: sendLimit, windowMs: sendWindowMs }),
   expectedToken: process.env.EMAIL_ADMIN_TOKEN,

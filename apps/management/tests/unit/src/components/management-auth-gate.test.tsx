@@ -277,6 +277,21 @@ describe("ManagementAuthGate", () => {
     });
   });
 
+  it("offers the invited account first when opened from an invite link", async () => {
+    const initialize = vi.fn();
+    window.google = { accounts: { id: { initialize, renderButton: vi.fn(), disableAutoSelect: vi.fn() } } };
+    window.history.replaceState(null, "", "/signup?login_hint=jun%40serbizio.ph");
+
+    render(
+      <ManagementAuthGate googleClientId="client-id.apps.googleusercontent.com">
+        <div>Management app</div>
+      </ManagementAuthGate>,
+    );
+
+    await waitFor(() => expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ login_hint: "jun@serbizio.ph" })));
+    window.history.replaceState(null, "", "/");
+  });
+
   it("does not reuse a stored Google credential that has expired", () => {
     const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 }));
     window.sessionStorage.setItem("apicenter.management.googleCredential", `h.${payload}.s`);

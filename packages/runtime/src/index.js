@@ -5,7 +5,7 @@ const { recordProviderMetric } = require('./metrics');
 const { ProviderGuardError, createCircuitBreaker, withProviderTimeout } = require('./providerGuard');
 const { createMemoryRateLimitStore, recipientRateLimitKey } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
-const { sendTwilioSms, sendResendEmail } = require('./delivery');
+const { sendTwilioSms, sendResendEmail, formatSender } = require('./delivery');
 const {
   SharedServiceCallerError,
   readSharedServiceCaller,
@@ -39,6 +39,7 @@ module.exports = {
   createSharedRateLimitStore,
   sendTwilioSms,
   sendResendEmail,
+  formatSender,
   createSharedServiceApp,
   createSuccessResponse,
   createFailureResponse,

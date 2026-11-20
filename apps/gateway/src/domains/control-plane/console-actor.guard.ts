@@ -20,6 +20,8 @@ const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.
 export interface VerifiedConsoleUser {
   email: string;
   subject: string;
+  /** The account's display name, when Google sent one. */
+  name?: string;
 }
 
 export type ConsoleUserVerifier = (token: string) => Promise<VerifiedConsoleUser>;
@@ -43,7 +45,8 @@ export function createGoogleConsoleUserVerifier(clientIds: string[], client = ne
     if (!payload?.sub || !payload.email || payload.email_verified !== true || !GOOGLE_ISSUERS.has(String(payload.iss))) {
       throw new UnauthorizedError("The console user token is not a verified Google identity");
     }
-    return { email: payload.email.trim().toLowerCase(), subject: payload.sub };
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    return { email: payload.email.trim().toLowerCase(), subject: payload.sub, ...(name ? { name } : {}) };
   };
 }
 
@@ -75,6 +78,7 @@ export class ConsoleActorGuard implements CanActivate {
         email: user.email,
         subject: user.subject,
         platformAdmin: this.config.platformAdminEmails.includes(user.email),
+        ...(user.name ? { name: user.name } : {}),
       };
     } else {
       request.consoleActor = { kind: "platform", id: "platform" };

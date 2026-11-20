@@ -34,15 +34,25 @@ async function sendTwilioSms({ to, message, senderId, statusCallback }) {
   return { messageId: body.sid, status };
 }
 
-/** Send one plain-text email with Resend and return its normalized delivery record. */
-async function sendResendEmail({ to, subject, text }) {
+/**
+ * `"Name" <address>` for a From header. The name is reduced to one line of printable text without
+ * quotes, angle brackets or backslashes, so it cannot change the address or add a header.
+ */
+function formatSender(address, name) {
+  // eslint-disable-next-line no-control-regex
+  const cleaned = typeof name === 'string' ? name.replace(/[\u0000-\u001f\u007f"<>\\]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '';
+  return cleaned ? `"${cleaned}" <${address}>` : address;
+}
+
+/** Send one email with Resend and return its normalized delivery record. */
+async function sendResendEmail({ to, subject, text, html, fromName }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM_ADDRESS;
-  if (!apiKey || !from) throw new Error('Resend API key and sender address are required');
+  const address = process.env.EMAIL_FROM_ADDRESS;
+  if (!apiKey || !address) throw new Error('Resend API key and sender address are required');
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from, to: [to], subject, text }),
+    body: JSON.stringify({ from: formatSender(address, fromName), to: [to], subject, text, ...(html ? { html } : {}) }),
     signal: AbortSignal.timeout(Number(process.env.RESEND_REQUEST_TIMEOUT_MS || 10000)),
   });
   const body = await response.json();
@@ -50,4 +60,4 @@ async function sendResendEmail({ to, subject, text }) {
   return { messageId: body.id, status: 'queued' };
 }
 
-module.exports = { sendTwilioSms, sendResendEmail };
+module.exports = { sendTwilioSms, sendResendEmail, formatSender };
