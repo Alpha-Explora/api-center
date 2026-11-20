@@ -15,6 +15,7 @@ import { controlPlane } from "../../data/control-plane-repository";
 import { AUDIT_REASON, type Access } from "../../model/access";
 import { AUDIT_ACTION_TYPES, AUDIT_RANGES, type AuditEntry, type AuditFilters, type AuditRange } from "../../model/observability";
 import { useAnchoredNow, useAuditLog } from "../../view-models/observability";
+import { usePlatformAuditLog } from "../../view-models/platform-audit";
 import { PageSkeleton } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { useAccess, useOrganization } from "../../view-models/use-organization";
@@ -41,6 +42,8 @@ export function AuditLogPage() {
   return <AuditLog organizationId={organizationId} access={access} />;
 }
 
+type AuditView = "organization" | "platform";
+
 function AuditLog({ organizationId, access }: { organizationId: string; access: Access }) {
   const organizationWide = access.canReadOrganizationAudit;
   const searchParams = useSearchParams();
@@ -50,7 +53,15 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
   }));
   const [actorInput, setActorInput] = useState("");
   const { now, refresh } = useAnchoredNow();
-  const log = useAuditLog(organizationId, filters, now);
+  const { organizations } = useOrganization();
+  // Platform operators can widen the log to every organization (GET audit-events).
+  const [view, setView] = useState<AuditView>("organization");
+  const platformView = access.platform && view === "platform";
+  const organizationLog = useAuditLog(organizationId, filters, now, { enabled: !platformView });
+  const platformLog = usePlatformAuditLog(filters, now, { enabled: platformView });
+  const log = platformView ? platformLog : organizationLog;
+  const organizationNames = new Map(organizations.map((entry) => [entry.id, entry.name]));
+  const organizationName = platformView ? (id: string) => organizationNames.get(id) ?? `Organization ${id.slice(0, 8)}` : undefined;
   const projects = useQuery({
     queryKey: cpKeys.projects(organizationId),
     queryFn: () => controlPlane.listProjects(organizationId),
@@ -61,7 +72,7 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
   const [selected, setSelected] = useState<AuditEntry | null>(null);
   const entries = log.data?.pages.flatMap((page) => page.items) ?? [];
   const set = (patch: Partial<AuditFilters>) => setFilters((current) => ({ ...current, ...patch }));
-  const filtered = Boolean(filters.projectId || filters.actor || filters.action);
+  const filtered = Boolean((!platformView && filters.projectId) || filters.actor || filters.action);
 
   return (
     <>
@@ -82,19 +93,32 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
       )}
       <Panel flush>
         <form
-          className="grid gap-2 border-b p-3 sm:grid-cols-2 lg:grid-cols-4"
+          className={`grid gap-2 border-b p-3 sm:grid-cols-2 ${access.platform ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
           onSubmit={(event) => {
             event.preventDefault();
             set({ actor: actorInput.trim() || undefined });
           }}
         >
-          <NativeSelect aria-label="Project" value={filters.projectId ?? ""} onChange={(event) => set({ projectId: event.target.value || undefined })}>
-            <option value="">{organizationWide ? "All projects and organization" : "All my projects"}</option>
-            {projectOptions.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
+          {access.platform ? (
+            <NativeSelect aria-label="Organizations" value={view} onChange={(event) => setView(event.target.value as AuditView)}>
+              <option value="organization">This organization</option>
+              <option value="platform">All organizations</option>
+            </NativeSelect>
+          ) : null}
+          <NativeSelect
+            aria-label="Project"
+            value={platformView ? "" : (filters.projectId ?? "")}
+            disabled={platformView}
+            onChange={(event) => set({ projectId: event.target.value || undefined })}
+          >
+            <option value="">{platformView ? "Every project" : organizationWide ? "All projects and organization" : "All my projects"}</option>
+            {platformView
+              ? null
+              : projectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
           </NativeSelect>
           <NativeSelect aria-label="Action type" value={filters.action ?? ""} onChange={(event) => set({ action: event.target.value || undefined })}>
             <option value="">Every action</option>
@@ -144,7 +168,7 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
           />
         ) : (
           <>
-            <AuditTable entries={entries} onSelect={setSelected} projectName={(id) => names.get(id)} />
+            <AuditTable entries={entries} onSelect={setSelected} projectName={(id) => names.get(id)} organizationName={organizationName} />
             <div className="flex items-center justify-between gap-3 border-t px-4 py-2.5 text-xs text-muted-foreground">
               <span>
                 {entries.length.toLocaleString("en")} event
@@ -166,7 +190,12 @@ function AuditLog({ organizationId, access }: { organizationId: string; access: 
           </>
         )}
       </Panel>
-      <AuditSheet entry={selected} projectName={(id) => names.get(id)} onOpenChange={(open) => !open && setSelected(null)} />
+      <AuditSheet
+        entry={selected}
+        projectName={(id) => names.get(id)}
+        organizationName={organizationName}
+        onOpenChange={(open) => !open && setSelected(null)}
+      />
     </>
   );
 }

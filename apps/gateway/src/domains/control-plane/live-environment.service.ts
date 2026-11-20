@@ -142,11 +142,19 @@ export class LiveEnvironmentService {
       }
       return db.cpEnvironment.update({ where: { id: found.id }, data: { status } });
     });
-    await this.recordAudit({ organizationId, projectId }, `control_plane.environment.${status}`, actor, environment.id, { projectId, kind });
+    await this.recordAudit({ organizationId, projectId }, `control_plane.environment.${status}`, actor, environment.id, { projectId, kind }, kind);
     return environment;
   }
 
-  private async recordAudit(owner: AuditOwner, type: string, actor: string, resourceId: string, payload: Record<string, unknown>) {
+  /** Every event here concerns the live environment except suspend and resume, which name their own. */
+  private async recordAudit(
+    owner: AuditOwner,
+    type: string,
+    actor: string,
+    resourceId: string,
+    payload: Record<string, unknown>,
+    environment: "test" | "live" = "live",
+  ) {
     await this.audit.record({
       type,
       organizationId: owner.organizationId,
@@ -155,7 +163,7 @@ export class LiveEnvironmentService {
       actor,
       resourceType: "cp_environment",
       resourceId,
-      environment: "live",
+      environment,
       severity: "info",
       message: type.replaceAll(".", " "),
       payload,

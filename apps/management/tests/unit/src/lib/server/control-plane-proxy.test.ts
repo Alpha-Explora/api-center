@@ -46,6 +46,14 @@ describe("proxyControlPlane", () => {
     expect(forward.mock.calls[0][0]).toBe("/api/v1/admin/control-plane/approvals");
   });
 
+  it("reaches the platform-wide audit log, leaving the operator check to the gateway", async () => {
+    const { forward, deps } = setup();
+    const request = new Request("http://console.test/api/local/control-plane/audit-events?limit=50", { headers: { authorization: "Bearer t" } });
+    expect((await proxyControlPlane(request, ["audit-events"], deps)).status).toBe(200);
+    expect(forward.mock.calls[0][0]).toBe("/api/v1/admin/control-plane/audit-events?limit=50");
+    expect(forward.mock.calls[0][1]).toMatchObject({ method: "GET", headers: { "x-apicenter-user-token": "t" } });
+  });
+
   it("rejects paths outside the control-plane API and traversal", async () => {
     const { forward, deps } = setup();
     const request = new Request("http://console.test/x", { headers: { authorization: "Bearer t" } });

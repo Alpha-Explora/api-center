@@ -53,6 +53,8 @@ export const accessRequestSchema = z.object({
   decidedBy: z.string().nullable(),
   decidedAt: z.string().nullable(),
   grantId: z.string().nullable(),
+  /** Why the API's project rejected it, when they said. */
+  rejectionReason: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 

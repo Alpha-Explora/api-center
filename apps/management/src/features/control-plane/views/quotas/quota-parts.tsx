@@ -14,7 +14,7 @@ export const QUOTA_RULES =
   "Every limit that applies must have room: the plan's daily allowance, the project's policies and any shared ceiling. Windows are fixed and aligned to the clock in UTC, so an hourly limit resets on the hour. Requests over an enforced limit get 429 QUOTA_EXCEEDED.";
 
 export const QUOTA_LIMITATIONS =
-  "Policies cannot be edited or deleted. To change one, disable it and create a new one.";
+  "Editing a policy changes it in place from the next request. Deleting one stops it for good; the audit log keeps every change.";
 
 /** The fields every quota policy has; the sheet around it adds what its scope needs. */
 export function QuotaPolicyFields({

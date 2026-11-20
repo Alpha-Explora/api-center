@@ -213,7 +213,28 @@ export class PublishedApiService {
     });
   }
 
-  async decide(organizationId: string, requestId: string, approve: boolean, actor: string) {
+  /**
+   * The requests a project made for other projects' APIs, newest first, with the API's name so the
+   * requester can tell them apart. A rejection carries the deciding project's reason, if it gave one.
+   */
+  async listOutgoingRequests(organizationId: string, consumerProjectId: string) {
+    return this.tenant(organizationId, async (db) => {
+      const requests = await db.cpApiAccessRequest.findMany({ where: { organizationId, consumerProjectId }, orderBy: { createdAt: "desc" }, take: 200 });
+      if (requests.length === 0) return [];
+      const apis = await db.cpPublishedApi.findMany({
+        where: { organizationId, id: { in: [...new Set(requests.map((request) => request.apiId))] } },
+        select: { id: true, name: true, slug: true, projectId: true, environmentKind: true },
+      });
+      const byId = new Map(apis.map((api) => [api.id, api]));
+      return requests.map((request) => {
+        const api = byId.get(request.apiId);
+        return { ...request, api: api ? { name: api.name, slug: api.slug, projectId: api.projectId, environmentKind: api.environmentKind } : null };
+      });
+    });
+  }
+
+  /** `reason` is kept only for a rejection, and the requester sees it. */
+  async decide(organizationId: string, requestId: string, approve: boolean, actor: string, reason?: string) {
     const decided = await this.tenant(organizationId, async (db) => {
       const request = await db.cpApiAccessRequest.findFirst({ where: { id: requestId, organizationId } });
       if (!request) throw new NotFoundError(`Access request '${requestId}' was not found`);
@@ -230,7 +251,13 @@ export class PublishedApiService {
       const api = await db.cpPublishedApi.findFirst({ where: { id: request.apiId, organizationId }, select: { projectId: true } });
       const updated = await db.cpApiAccessRequest.update({
         where: { id: requestId },
-        data: { status: approve ? "approved" : "rejected", decidedBy: actor, decidedAt: new Date(), grantId },
+        data: {
+          status: approve ? "approved" : "rejected",
+          decidedBy: actor,
+          decidedAt: new Date(),
+          grantId,
+          rejectionReason: approve ? null : (reason ?? null),
+        },
       });
       return { request: updated, apiProjectId: api?.projectId };
     });
@@ -239,6 +266,7 @@ export class PublishedApiService {
       requestId,
       action: request.action,
       consumerProjectId: request.consumerProjectId,
+      ...(request.rejectionReason ? { reason: request.rejectionReason } : {}),
     });
     return request;
   }

@@ -717,10 +717,15 @@ model CpQuotaPolicy {
   windowSeconds   Int      @map("window_seconds")
   maxRequests     Int      @map("max_requests")
   mode            String   @default("enforce")
+  /// active, disabled, or deleted (a soft delete kept for the audit trail and never enforced)
   status          String   @default("active")
   provenance      String   @default("explicit")
   createdBy       String   @map("created_by")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime? @map("updated_at") @db.Timestamptz(6)
+  updatedBy       String?  @map("updated_by")
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy       String?  @map("deleted_by")
 
   @@unique([id, organizationId])
   @@map("cp_quota_policies")
@@ -831,8 +836,11 @@ model CpApiAccessRequest {
   decidedBy             String?   @map("decided_by")
   decidedAt             DateTime? @map("decided_at") @db.Timestamptz(6)
   grantId               String?   @map("grant_id")
+  /// Why the API's project rejected the request; shown to the requesting project.
+  rejectionReason       String?   @map("rejection_reason")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@index([organizationId, consumerProjectId, createdAt(sort: Desc)], map: "cp_api_access_requests_consumer_idx")
   @@map("cp_api_access_requests")
   @@schema("apic_catalog")
 }
@@ -853,6 +861,8 @@ model CpEventDestination {
   /// Consumer HTTPS endpoint for transport 'webhook'; its signing secrets are in Secret Manager.
   webhookUrl                  String?  @map("webhook_url")
   secretRotatedAt             DateTime? @map("secret_rotated_at") @db.Timestamptz(6)
+  /// Event types delivered; empty delivers every type. Webhooks apply it in the delivery service.
+  eventTypes                  String[] @default([]) @map("event_types")
   status                      String   @default("provisioning")
   lastError                   String?  @map("last_error")
   createdBy                   String   @map("created_by")

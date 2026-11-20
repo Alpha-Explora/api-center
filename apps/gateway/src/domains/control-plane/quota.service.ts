@@ -51,6 +51,17 @@ export interface QuotaPolicyInput {
   mode: "observe" | "enforce";
 }
 
+/** Fields of an existing policy that can change. `capability: null` widens it to every capability. */
+export interface QuotaPolicyChange {
+  capability?: string | null;
+  windowSeconds?: number;
+  maxRequests?: number;
+  mode?: "observe" | "enforce";
+}
+
+/** Deleted policies are kept for the audit trail and counters but are otherwise invisible. */
+const NOT_DELETED = { not: "deleted" } as const;
+
 @Injectable()
 export class QuotaService {
   constructor(
@@ -212,7 +223,7 @@ export class QuotaService {
   async listPolicies(organizationId: string, projectId?: string) {
     return withTenant(this.prisma, { organizationId }, async (db) => {
       const covered = await db.cpQuotaPolicyProject.findMany({ where: { organizationId } });
-      const policies = await db.cpQuotaPolicy.findMany({ where: { organizationId }, orderBy: { createdAt: "asc" } });
+      const policies = await db.cpQuotaPolicy.findMany({ where: { organizationId, status: NOT_DELETED }, orderBy: { createdAt: "asc" } });
       return policies
         .map((policy) => ({
           ...policy,
@@ -224,7 +235,7 @@ export class QuotaService {
 
   async policyProject(organizationId: string, policyId: string) {
     return withTenant(this.prisma, { organizationId }, async (db) => {
-      const policy = await db.cpQuotaPolicy.findFirst({ where: { id: policyId, organizationId } });
+      const policy = await db.cpQuotaPolicy.findFirst({ where: { id: policyId, organizationId, status: NOT_DELETED } });
       if (!policy) throw new NotFoundError(`Quota policy '${policyId}' was not found`);
       return policy;
     });
@@ -232,12 +243,56 @@ export class QuotaService {
 
   async setPolicyStatus(organizationId: string, policyId: string, status: "active" | "disabled", actor: string) {
     const policy = await withTenant(this.prisma, { organizationId }, async (db) => {
-      const existing = await db.cpQuotaPolicy.findFirst({ where: { id: policyId, organizationId } });
+      const existing = await db.cpQuotaPolicy.findFirst({ where: { id: policyId, organizationId, status: NOT_DELETED } });
       if (!existing) throw new NotFoundError(`Quota policy '${policyId}' was not found`);
       return db.cpQuotaPolicy.update({ where: { id: policyId }, data: { status } });
     });
     await this.recordAudit({ organizationId, projectId: policy.projectId ?? undefined }, `control_plane.quota.${status}`, actor, policyId, policy.environmentKind, {});
     return policy;
+  }
+
+  /**
+   * Changes a policy's limits in place. A new limit applies to requests already counted in the
+   * current window. A new window length starts a fresh count, because the budget key names the
+   * length (policyBudgetKey). The audit event records the values before and after.
+   */
+  async updatePolicy(organizationId: string, policyId: string, change: QuotaPolicyChange, actor: string) {
+    if (change.capability && !isKnownCapability(change.capability)) throw new ValidationError(`Capability '${change.capability}' does not exist`);
+    const { before, policy } = await withTenant(this.prisma, { organizationId }, async (db) => {
+      const existing = await db.cpQuotaPolicy.findFirst({ where: { id: policyId, organizationId, status: NOT_DELETED } });
+      if (!existing) throw new NotFoundError(`Quota policy '${policyId}' was not found`);
+      const updated = await db.cpQuotaPolicy.update({
+        where: { id: policyId },
+        data: { ...change, updatedAt: new Date(), updatedBy: actor },
+      });
+      return { before: existing, policy: updated };
+    });
+    const fields = Object.keys(change) as Array<keyof QuotaPolicyChange>;
+    await this.recordAudit({ organizationId, projectId: policy.projectId ?? undefined }, "control_plane.quota.updated", actor, policyId, policy.environmentKind, {
+      before: Object.fromEntries(fields.map((field) => [field, before[field]])),
+      after: Object.fromEntries(fields.map((field) => [field, policy[field]])),
+    });
+    return policy;
+  }
+
+  /**
+   * Soft-deletes a policy: it stops applying at once and leaves every list, while the row stays so
+   * audit events and counters still name a real policy. A deleted policy cannot be restored.
+   */
+  async deletePolicy(organizationId: string, policyId: string, actor: string) {
+    const policy = await withTenant(this.prisma, { organizationId }, async (db) => {
+      const existing = await db.cpQuotaPolicy.findFirst({ where: { id: policyId, organizationId, status: NOT_DELETED } });
+      if (!existing) throw new NotFoundError(`Quota policy '${policyId}' was not found`);
+      return db.cpQuotaPolicy.update({ where: { id: policyId }, data: { status: "deleted", deletedAt: new Date(), deletedBy: actor } });
+    });
+    await this.recordAudit({ organizationId, projectId: policy.projectId ?? undefined }, "control_plane.quota.deleted", actor, policyId, policy.environmentKind, {
+      scope: policy.scope,
+      capability: policy.capability,
+      windowSeconds: policy.windowSeconds,
+      maxRequests: policy.maxRequests,
+      mode: policy.mode,
+    });
+    return { id: policyId, deleted: true };
   }
 
   async usageSummary(scope: EnvironmentScope, since: Date) {

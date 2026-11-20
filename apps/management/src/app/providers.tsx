@@ -43,7 +43,8 @@ export function Providers({
         ) : (
           children
         )}
-        <Toaster />
+        {/* Top center: sheets open from the right and phone dialogs sit low, so a bottom toast covers their footer buttons. */}
+        <Toaster position="top-center" />
       </TooltipProvider>
     </QueryClientProvider>
   );

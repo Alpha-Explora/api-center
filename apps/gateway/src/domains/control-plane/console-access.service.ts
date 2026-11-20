@@ -63,7 +63,10 @@ export class ConsoleAccessService {
 
   /**
    * Throws unless the actor may perform the action. A member with no access to the organization
-   * gets 404, so organization and project IDs cannot be probed.
+   * gets 404, so organization and project IDs cannot be probed. A target project must belong to the
+   * organization, for every caller including the platform: the role policy treats an organization
+   * owner or admin as admin of any project ID it is given, and tables without row-level security
+   * rely on this check.
    */
   async require(
     actor: ConsoleActor,
@@ -71,14 +74,25 @@ export class ConsoleAccessService {
     action: ConsoleAction,
     target: { projectId?: string; environmentKind?: EnvironmentKind } = {},
   ): Promise<MemberAccess> {
-    const access = await this.accessFor(actor, organizationId);
-    if (canPerform(actor, access, action, target)) return access;
+    const { access, projectInOrganization } = await this.loadForTarget(actor, organizationId, target.projectId);
     if (!hasPlatformAccess(actor) && !access.organizationRole) {
       throw new NotFoundError(`Organization '${organizationId}' was not found`);
     }
-    if (target.projectId && !canPerform(actor, access, "project.read", target)) {
+    if (!projectInOrganization || (target.projectId && !canPerform(actor, access, "project.read", target))) {
       throw new NotFoundError(`Project '${target.projectId}' was not found`);
     }
+    if (canPerform(actor, access, action, target)) return access;
     throw new ForbiddenError(`Your role does not allow ${action.replace(".", " ")}`);
+  }
+
+  /** The actor's roles and, when a project is named, whether it is this organization's: one transaction. */
+  private async loadForTarget(actor: ConsoleActor, organizationId: string, projectId: string | undefined) {
+    if (actor.kind !== "member" && !projectId) return { access: NO_ACCESS, projectInOrganization: true };
+    return withTenant(this.prisma, { organizationId }, async (db) => ({
+      access: actor.kind === "member" ? await this.load(db, actor, organizationId) : NO_ACCESS,
+      projectInOrganization: projectId
+        ? Boolean(await db.cpProject.findFirst({ where: { id: projectId, organizationId }, select: { id: true } }))
+        : true,
+    }));
   }
 }

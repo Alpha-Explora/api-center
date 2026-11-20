@@ -9,7 +9,7 @@ import { PrismaService } from "@database/prisma.service";
 import { NotFoundError, ValidationError } from "@shared/errors";
 import { RequestDiagnosticsStore } from "@shared/request-diagnostics.store";
 import { AuditEventsService } from "@audit/audit-events.service";
-import { testDefaultDailyRequests, windowStart } from "../quota-budgets";
+import { policyBudgetKey, testDefaultDailyRequests, windowStart } from "../quota-budgets";
 import { requireControlPlaneDatabase, withTenant, type TenantDb } from "../tenant-transaction";
 import type { AuditScope } from "../console-access.policy";
 import type { EnvironmentScope } from "../control-plane-admin.service";
@@ -72,6 +72,7 @@ export class ObservabilityService {
         where: {
           organizationId: scope.organizationId,
           environmentKind: scope.environmentKind,
+          status: { not: "deleted" },
           OR: [{ scope: "project", projectId: scope.projectId }, { scope: "shared", id: { in: covering.map((row) => row.policyId) } }],
         },
       });
@@ -95,11 +96,11 @@ export class ObservabilityService {
   /** Current-window usage of every shared ceiling in the organization. */
   async sharedCeilingMeters(organizationId: string, now = new Date()) {
     return withTenant(this.prisma, { organizationId }, async (db) => {
-      const policies = (await db.cpQuotaPolicy.findMany({ where: { organizationId, scope: "shared" } })) as MeterPolicy[];
+      const policies = (await db.cpQuotaPolicy.findMany({ where: { organizationId, scope: "shared", status: { not: "deleted" } } })) as MeterPolicy[];
       const earliest = policies.reduce((min, policy) => Math.min(min, windowStart(now, policy.windowSeconds).getTime()), now.getTime());
       const counters = policies.length
         ? await db.cpQuotaCounter.findMany({
-            where: { organizationId, budgetKey: { in: policies.map((policy) => `policy:${policy.id}`) }, windowStart: { gte: new Date(earliest) } },
+            where: { organizationId, budgetKey: { in: policies.map(policyBudgetKey) }, windowStart: { gte: new Date(earliest) } },
           })
         : [];
       return sharedCeilingMeters(policies, counters, now);

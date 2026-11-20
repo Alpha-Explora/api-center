@@ -198,9 +198,14 @@ describe("webhook delivery history", () => {
       expect((await post(1)).status).toBe(503);
       expect((await post(2)).status).toBe(204);
 
-      const listed = await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries?limit=10`, { headers: { [ADMIN_TOKEN_HEADER]: TOKEN } });
-      expect(listed.status).toBe(200);
-      const { deliveries } = (await listed.json()) as { deliveries: unknown[] };
+      // The runtime answers Pub/Sub before it writes history, so wait for both attempts to be recorded.
+      let deliveries: unknown[] = [];
+      for (let tries = 0; tries < 50 && deliveries.length < 2; tries += 1) {
+        if (tries > 0) await new Promise((resolve) => setTimeout(resolve, 20));
+        const listed = await fetch(`${base}/admin/destinations/${DESTINATION}/deliveries?limit=10`, { headers: { [ADMIN_TOKEN_HEADER]: TOKEN } });
+        expect(listed.status).toBe(200);
+        deliveries = ((await listed.json()) as { deliveries: unknown[] }).deliveries;
+      }
       expect(deliveries).toEqual([
         expect.objectContaining({ eventId: "evt_7f3c1a", eventType: "payment.checkout.paid", attempt: 2, outcome: "delivered", statusCode: 204, latencyMs: 40, error: null }),
         expect.objectContaining({ eventId: "evt_7f3c1a", attempt: 1, outcome: "rejected", statusCode: 500, latencyMs: 40 }),

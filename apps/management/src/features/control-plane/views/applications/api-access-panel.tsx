@@ -25,9 +25,7 @@ import { useProjectEnvironment } from "../../view-models/project-environment";
 import { apiKeys } from "../../view-models/published-apis";
 import { cpKeys } from "../../view-models/query-keys";
 import { grantsKey } from "./access-tab";
-
-/** A request sent from this page; the gateway cannot list outgoing requests, so these live only until the page reloads. */
-type SentRequest = { id: string; action: string; apiName: string; projectName: string };
+import { OutgoingRequestsPanel, outgoingRequestsKey } from "./outgoing-requests-panel";
 
 /** API actions this application holds, and requests for more from the organization's API catalog. */
 export function ApiAccessPanel({ application }: { application: Application }) {
@@ -39,7 +37,6 @@ export function ApiAccessPanel({ application }: { application: Application }) {
   const projects = useQuery({ queryKey: cpKeys.projects(organizationId), queryFn: () => controlPlane.listProjects(organizationId), retry: false, staleTime: 60_000 });
   const [requesting, setRequesting] = useState(false);
   const [revoking, setRevoking] = useState<Grant | null>(null);
-  const [sent, setSent] = useState<SentRequest[]>([]);
   const revoke = useMutation({
     mutationFn: (grantId: string) => controlPlane.revokeGrant(organizationId, project.id, kind, application.id, grantId),
     onSuccess: () => {
@@ -68,15 +65,6 @@ export function ApiAccessPanel({ application }: { application: Application }) {
           </GuardedButton>
         }
       >
-        {sent.length > 0 ? (
-          <div className="flex flex-col gap-2 border-b p-4">
-            {sent.map((request) => (
-              <Notice key={request.id} title={`Requested ${request.action} on ${request.apiName}`}>
-                An admin of {request.projectName} must approve it. The grant appears here once they do.
-              </Notice>
-            ))}
-          </div>
-        ) : null}
         {grants.error ? (
           <div className="p-4">
             <ErrorPanel title="Grants could not be loaded" error={grants.error} />
@@ -130,10 +118,9 @@ export function ApiAccessPanel({ application }: { application: Application }) {
             </TableBody>
           </Table>
         )}
-        <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
-          The gateway does not list requests this application has sent, so a pending request is shown only on this page, right after you send it.
-        </p>
       </Panel>
+
+      <OutgoingRequestsPanel application={application} projectName={(id) => projectNames.get(id) ?? id} />
 
       <RequestApiSheet
         application={application}
@@ -143,7 +130,7 @@ export function ApiAccessPanel({ application }: { application: Application }) {
         catalogError={catalog.error}
         granted={new Set(active.map((grant) => `${grant.apiId} ${grant.action}`))}
         projectName={(id) => projectNames.get(id) ?? id}
-        onRequested={(request) => setSent((current) => [request, ...current.filter((entry) => entry.id !== request.id)])}
+        onRequested={() => void client.invalidateQueries({ queryKey: outgoingRequestsKey(organizationId, project.id) })}
       />
       <ConfirmDialog
         open={revoking !== null}
@@ -180,7 +167,7 @@ function RequestApiSheet({
   catalogError: Error | null;
   granted: Set<string>;
   projectName: (projectId: string) => string;
-  onRequested: (request: SentRequest) => void;
+  onRequested: () => void;
 }) {
   const { organizationId, project, kind } = useProjectEnvironment();
   const client = useQueryClient();
@@ -199,7 +186,7 @@ function RequestApiSheet({
       } else {
         const owner = projectName(input.api.projectId);
         toast.success(`Requested: an admin of ${owner} must approve`);
-        onRequested({ id: outcome.request.id, action: input.action, apiName: input.api.name, projectName: owner });
+        onRequested();
       }
       setApiId("");
       setAction("");

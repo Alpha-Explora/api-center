@@ -7,17 +7,22 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { auditActionLabel, type AuditEntry } from "../../model/observability";
 
-/** Audit events as a table. `projectName` resolves project IDs; `showProject` adds the project column. */
+/**
+ * Audit events as a table. `projectName` resolves project IDs; `showProject` adds the project column;
+ * `organizationName` adds each event's organization under it, for the platform-wide log.
+ */
 export function AuditTable({
   entries,
   onSelect,
   projectName,
   showProject = true,
+  organizationName,
 }: {
   entries: AuditEntry[];
   onSelect: (entry: AuditEntry) => void;
   projectName?: (projectId: string) => string | undefined;
   showProject?: boolean;
+  organizationName?: (organizationId: string) => string;
 }) {
   return (
     <Table>
@@ -53,8 +58,11 @@ export function AuditTable({
                 {entry.projectId ? (
                   (projectName?.(entry.projectId) ?? <span className="font-mono text-xs">{entry.projectId}</span>)
                 ) : (
-                  <span className="text-muted-foreground">Organization</span>
+                  <span className="text-muted-foreground">{organizationName ? (entry.organizationId ? "Organization" : "Platform") : "Organization"}</span>
                 )}
+                {organizationName && entry.organizationId ? (
+                  <span className="block truncate text-xs text-muted-foreground">{organizationName(entry.organizationId)}</span>
+                ) : null}
               </TableCell>
             ) : null}
             <TableCell className="text-right whitespace-nowrap text-muted-foreground" title={formatDateTime(entry.occurredAt)}>
@@ -78,10 +86,12 @@ function EnvironmentTag({ kind }: { kind: "test" | "live" }) {
 export function AuditSheet({
   entry,
   projectName,
+  organizationName,
   onOpenChange,
 }: {
   entry: AuditEntry | null;
   projectName?: (projectId: string) => string | undefined;
+  organizationName?: (organizationId: string) => string;
   onOpenChange: (open: boolean) => void;
 }) {
   const details = entry ? Object.entries(entry.details) : [];
@@ -108,6 +118,9 @@ export function AuditSheet({
                     value: <StatusBadge tone={entry.outcome === "succeeded" ? "success" : "danger"}>{entry.outcome}</StatusBadge>,
                   },
                   { label: "Actor", value: entry.actor ?? "System" },
+                  ...(organizationName
+                    ? [{ label: "Organization", value: entry.organizationId ? organizationName(entry.organizationId) : "None (platform event)" }]
+                    : []),
                   {
                     label: "Project",
                     value: entry.projectId ? (projectName?.(entry.projectId) ?? <IdText value={entry.projectId} />) : "Organization-wide",

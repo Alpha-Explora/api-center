@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { FormRow } from "@/components/patterns/form";
+import { FormRow, NativeSelect } from "@/components/patterns/form";
 import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
@@ -21,7 +21,7 @@ import { formatDateTime, formatRelative } from "@/lib/format";
 import { workloadBindings } from "../../data/workload-bindings";
 import { environmentWriteReason } from "../../model/access";
 import type { Application } from "../../model/control-plane";
-import { workloadBindingFormToBody, type WorkloadBinding, type WorkloadBindingBody, type WorkloadBindingErrors, type WorkloadBindingForm } from "../../model/workload-bindings";
+import { audienceInput, workloadBindingFormToBody, type WorkloadBinding, type WorkloadBindingBody, type WorkloadBindingErrors, type WorkloadBindingForm } from "../../model/workload-bindings";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 
@@ -151,6 +151,14 @@ function BindSheet({
   const { organizationId, project, kind } = useProjectEnvironment();
   const [form, setForm] = useState<WorkloadBindingForm>(EMPTY);
   const [errors, setErrors] = useState<WorkloadBindingErrors>({});
+  const audiences = useQuery({
+    queryKey: ["cp", organizationId, "workload-audiences"],
+    queryFn: () => workloadBindings.audiences(organizationId),
+    enabled: open,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const audienceChoice = audienceInput(audiences.data?.audiences);
   const bind = useMutation({
     mutationFn: (body: WorkloadBindingBody) => workloadBindings.bind(organizationId, project.id, kind, application.id, body),
     onSuccess: () => {
@@ -220,16 +228,41 @@ function BindSheet({
               label="Audience"
               htmlFor="workload-audience"
               error={errors.audience}
-              hint="The audience the workload requests its ID token for. It must exactly match one of the audiences this gateway accepts (its CONTROL_PLANE_WORKLOAD_AUDIENCES setting). The console cannot list them; ask your gateway operator."
+              hint={
+                audienceChoice.kind === "select"
+                  ? "The audience the workload requests its ID token for: one of the audiences this gateway accepts."
+                  : audiences.isLoading
+                    ? "Loading the audiences this gateway accepts…"
+                    : audiences.error
+                      ? "The gateway's audiences could not be loaded. Enter one exactly as configured in CONTROL_PLANE_WORKLOAD_AUDIENCES."
+                      : "This gateway lists no workload audiences (CONTROL_PLANE_WORKLOAD_AUDIENCES is empty), so it accepts no workload tokens yet. Ask your gateway operator."
+              }
             >
-              <Input
-                id="workload-audience"
-                placeholder="https://api.example.com"
-                className="font-mono"
-                aria-invalid={Boolean(errors.audience)}
-                value={form.audience}
-                onChange={(event) => set({ audience: event.target.value })}
-              />
+              {audienceChoice.kind === "select" ? (
+                <NativeSelect
+                  id="workload-audience"
+                  className="font-mono"
+                  aria-invalid={Boolean(errors.audience)}
+                  value={form.audience}
+                  onChange={(event) => set({ audience: event.target.value })}
+                >
+                  <option value="">Choose an audience</option>
+                  {audienceChoice.audiences.map((audience) => (
+                    <option key={audience} value={audience}>
+                      {audience}
+                    </option>
+                  ))}
+                </NativeSelect>
+              ) : (
+                <Input
+                  id="workload-audience"
+                  placeholder="https://api.example.com"
+                  className="font-mono"
+                  aria-invalid={Boolean(errors.audience)}
+                  value={form.audience}
+                  onChange={(event) => set({ audience: event.target.value })}
+                />
+              )}
             </FormRow>
             <FormRow label="Description (optional)" htmlFor="workload-description" error={errors.description} hint="For example the service that uses it.">
               <Textarea id="workload-description" rows={2} maxLength={200} value={form.description} onChange={(event) => set({ description: event.target.value })} />

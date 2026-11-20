@@ -23,7 +23,8 @@ export type ProjectRoleInput = { memberEmail: string; role: ProjectRole } | { te
 
 /**
  * Whether removing this assignment, or demoting it to `nextRole`, leaves no explicit admin. Organization
- * owners and admins still administer the project, so it is a warning rather than a lockout.
+ * owners and admins still administer the project, so it is a warning; the gateway refuses the change
+ * (LAST_PROJECT_ADMIN) only when the organization has no active owner or admin.
  */
 export function removesLastExplicitAdmin(assignments: ProjectRoleAssignment[], target: ProjectRoleAssignment, nextRole?: ProjectRole) {
   if (target.role !== "admin" || nextRole === "admin") return false;

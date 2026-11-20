@@ -80,7 +80,7 @@ export function composeBudgets(input: {
   for (const policy of input.policies) {
     if (policy.capability && policy.capability !== input.capability) continue;
     budgets.push({
-      key: `policy:${policy.id}`,
+      key: policyBudgetKey(policy),
       limit: policy.maxRequests,
       windowSeconds: policy.windowSeconds,
       mode: policy.mode === "observe" ? "observe" : "enforce",
@@ -88,6 +88,14 @@ export function composeBudgets(input: {
     });
   }
   return { ok: true, budgets };
+}
+
+/**
+ * A policy's cp_quota_counters key. It names the window length: windows of different lengths can
+ * start at the same instant, so editing a policy's window would otherwise resume an old count.
+ */
+export function policyBudgetKey(policy: { id: string; windowSeconds: number }): string {
+  return `policy:${policy.id}:${policy.windowSeconds}`;
 }
 
 /** Fixed windows aligned to the epoch, so every gateway instance agrees on boundaries. */

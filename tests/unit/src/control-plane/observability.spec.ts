@@ -166,15 +166,15 @@ describe("quota meters", () => {
       [
         { budgetKey: "test-default:env_t", windowStart: new Date("2026-11-20T00:00:00Z"), requestCount: 42 },
         { budgetKey: "test-default:env_t", windowStart: new Date("2026-11-19T00:00:00Z"), requestCount: 900 },
-        { budgetKey: "policy:qp_a", windowStart: new Date("2026-11-20T10:17:00Z"), requestCount: 3 },
+        { budgetKey: "policy:qp_a:60", windowStart: new Date("2026-11-20T10:17:00Z"), requestCount: 3 },
       ],
       NOW,
     );
     expect(meters.baseBudget).toBe("test-default");
     expect(meters.meters.map((meter) => [meter.budgetKey, meter.limit, meter.used])).toEqual([
       ["test-default:env_t", 1000, 42],
-      ["policy:qp_a", 10, 3],
-      ["policy:qp_b", 10, null],
+      ["policy:qp_a:60", 10, 3],
+      ["policy:qp_b:60", 10, null],
     ]);
     expect(meters.meters[1].windowEnd).toBe("2026-11-20T10:18:00.000Z");
   });

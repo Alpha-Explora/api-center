@@ -5,6 +5,8 @@ import { requireManagementSession } from "./require-management-session";
 const SEGMENT = /^[A-Za-z0-9_.@-]{1,320}$/;
 const ROOTS = new Set(["capabilities", "plans", "organizations", "approvals"]);
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
+/** Platform-wide routes; the gateway refuses them unless the caller is a platform operator. */
+const PLATFORM_ROOTS = new Set(["audit-events"]);
 
 export type ControlPlaneProxyDependencies = {
   requireSession?: typeof requireManagementSession;
@@ -26,7 +28,7 @@ export async function proxyControlPlane(
 
   if (
     segments.length === 0 ||
-    !ROOTS.has(segments[0]) ||
+    !(ROOTS.has(segments[0]) || PLATFORM_ROOTS.has(segments[0])) ||
     segments.some((segment) => !SEGMENT.test(segment) || /^\.+$/.test(segment))
   ) {
     return Response.json({ success: false, error: "Unknown control-plane path" }, { status: 404 });
