@@ -6,6 +6,7 @@
  *   DATABASE_URL=postgres://apicenter_purge:...@host/db node scripts/purge-expired-history.cjs [--dry-run] [--batch-size 5000]
  *
  * A table without a retention comment is never purged and the job exits 1, so a missing policy is noticed.
+ * A managed table that no longer exists is reported as absent and does not fail the run.
  * Rows are deleted in batches, each in its own transaction, so a purge never holds a long lock.
  */
 const { Client } = require('pg');
@@ -29,6 +30,10 @@ const MANAGED_TABLES = [
   ]),
   { schema: 'apic_identity', table: 'refresh_tokens', column: 'expires_at' },
   { schema: 'apic_governance', table: 'payment_idempotency_keys', column: 'expires_at' },
+  // Control plane: one usage record per request, quota counters per window, key-issue receipts.
+  { schema: 'apic_catalog', table: 'cp_usage_records', column: 'created_at' },
+  { schema: 'apic_catalog', table: 'cp_quota_counters', column: 'window_start' },
+  { schema: 'apic_catalog', table: 'cp_credential_operations', column: 'created_at' },
 ];
 
 /** Reads the number of days from a comment such as "retention=400d; partition=monthly". */
@@ -42,6 +47,12 @@ async function purgeExpiredHistory(client, { batchSize = 5000, maxBatches = 1000
   const results = [];
   for (const { schema, table, column } of MANAGED_TABLES) {
     const qualified = schema + '.' + table;
+    // A table retired with its feature is not an error: there is nothing left to purge.
+    const exists = await client.query('select to_regclass($1) is not null as present', [qualified]);
+    if (!exists.rows[0].present) {
+      results.push({ table: qualified, absent: true });
+      continue;
+    }
     const comment = await client.query("select obj_description(to_regclass($1), 'pg_class') as comment", [qualified]);
     const retentionDays = parseRetentionDays(comment.rows[0] && comment.rows[0].comment);
     if (!retentionDays) {
