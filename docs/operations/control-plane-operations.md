@@ -23,6 +23,7 @@ How to deploy and configure the APICenter control plane and take a project live,
    Rotate by adding the new public key to every runtime first, then switching the gateway's signing key, then removing the old public key after one minute.
 4. Gateway settings:
    - `MANAGEMENT_GOOGLE_CLIENT_IDS`: the console's Google OAuth client IDs, so console calls act as the signed-in member.
+   - `MANAGEMENT_SESSION_PUBLIC_KEYS`: a JSON array of the console's session public keys (Ed25519 JWKs with kids). The console signs a 12-hour session after checking the Google sign-in, keeps it in an HttpOnly cookie, and forwards it as `X-APICenter-User-Session`; the gateway still checks the member's roles and status on every request, so removing or suspending someone takes effect at once. The console's `MANAGEMENT_SESSION_SIGNING_KEY` holds the private half. Rotate by adding the new public key here, switching the console's signing key, and removing the old public key 12 hours later.
    - `PAYMENTS_MERCHANT_ORGANIZATION_IDS`: the organizations allowed to use the payment merchant account (the bootstrap organization only).
    - `CONTROL_PLANE_WORKLOAD_AUDIENCES`: audiences accepted on Google-signed workload tokens (usually the gateway URL); empty disables workload identity.
    - `CONTROL_PLANE_TEST_DAILY_REQUESTS` (default 1,000): the test-environment budget when no plan is assigned.

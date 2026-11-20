@@ -8,16 +8,15 @@ import { QueryClientContext } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
-import {
-  getManagementSession,
-  setManagementSessionToken,
-} from "@/lib/api-center-client";
+import { getManagementSession, setSignedIn, signInWithGoogle, signOut } from "@/lib/api-center-client";
 import { setSessionRejectedHandler } from "@/lib/api-center/client-core";
 import { isTransientError } from "@/lib/api-center/retry-policy";
+import { ApiError } from "@/lib/api-center/client-core";
 import { NO_ORGANIZATION_ACCESS_MESSAGE } from "@/lib/server/management-auth";
 
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
-const SESSION_STORAGE_KEY = "apicenter.management.googleCredential";
+/** Where earlier versions kept the Google ID token in each tab; removed on load. */
+const LEGACY_STORAGE_KEY = "apicenter.management.googleCredential";
 export const MANAGEMENT_SIGN_OUT_EVENT = "apicenter-management-sign-out";
 const PRESS_FEEDBACK_MS = 650;
 const GOOGLE_BUTTON_MAX_WIDTH = 400;
@@ -40,7 +39,7 @@ const NO_CREDENTIAL_ERROR: SignInError = {
 
 const SESSION_EXPIRED_ERROR: SignInError = {
   title: "Your session ended",
-  message: "Google sign-in expires after about an hour. Sign in again to continue.",
+  message: "Sessions last 12 hours, and signing out ends them. Sign in again to continue.",
 };
 
 /**
@@ -62,27 +61,6 @@ function accessError(error: unknown): SignInError {
   return message === NO_ORGANIZATION_ACCESS_MESSAGE
     ? { title: "No access to APICenter", message }
     : { title: "We could not confirm your access", message };
-}
-
-/** Whether a stored Google ID token has expired, so a reload does not start with a dead session. */
-export function isExpiredCredential(credential: string, now = Date.now()): boolean {
-  try {
-    const segment = credential.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const payload = JSON.parse(atob(segment)) as { exp?: unknown };
-    return typeof payload.exp === "number" && payload.exp * 1000 <= now;
-  } catch {
-    return false;
-  }
-}
-
-function storedCredential(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  const credential = window.sessionStorage.getItem(SESSION_STORAGE_KEY) ?? undefined;
-  if (credential && isExpiredCredential(credential)) {
-    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    return undefined;
-  }
-  return credential;
 }
 
 type GoogleCredentialResponse = {
@@ -134,29 +112,53 @@ export function ManagementAuthGate({
   const [scriptReady, setScriptReady] = useState(false);
   // Optional so the gate also renders outside a QueryClientProvider.
   const queryClient = useContext(QueryClientContext);
-  const [sessionToken, setSessionToken] = useState<string | undefined>(storedCredential);
+  // "checking" until the console says whether this browser has a session.
+  const [status, setStatus] = useState<"checking" | "signedIn" | "signedOut">("checking");
   const [error, setError] = useState<SignInError | undefined>();
   const [checking, setChecking] = useState(false);
   const [googlePressed, setGooglePressed] = useState(false);
   const [pendingCredential, setPendingCredential] = useState<string | undefined>();
+  const signedIn = status === "signedIn";
 
   const showGooglePressedFeedback = useCallback(() => {
     setGooglePressed(true);
     window.setTimeout(() => setGooglePressed(false), PRESS_FEEDBACK_MS);
   }, []);
 
-  // Confirm the account has APICenter access before keeping the credential, so a denied account
-  // sees why it cannot sign in instead of landing on an empty console.
+  // Does this browser already have a session? A transient failure is shown with Try again rather than
+  // reading as signed out.
+  const checkSession = useCallback(async () => {
+    setStatus("checking");
+    setError(undefined);
+    try {
+      await getManagementSession();
+      setStatus("signedIn");
+    } catch (sessionError) {
+      setStatus("signedOut");
+      if (sessionError instanceof ApiError && sessionError.status === 401) return;
+      setError(accessError(sessionError));
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // Storage may be unavailable; nothing to clean up then.
+    }
+    void checkSession();
+  }, [checkSession]);
+
+  // Exchanges the Google ID token for the console session, which also confirms the account has
+  // APICenter access, so a denied account sees why instead of landing on an empty console.
   const checkAccess = useCallback(
     async (credential: string) => {
       setPendingCredential(credential);
       setChecking(true);
       setError(undefined);
-      setManagementSessionToken(credential);
       try {
-        await getManagementSession();
+        await signInWithGoogle(credential);
       } catch (lookupError) {
-        setManagementSessionToken(undefined);
         setError(accessError(lookupError));
         return;
       } finally {
@@ -164,10 +166,9 @@ export function ManagementAuthGate({
       }
 
       setPendingCredential(undefined);
-      // A different person may have used this tab before; nothing of theirs may show.
+      // A different person may have used this browser before; nothing of theirs may show.
       queryClient?.clear();
-      window.sessionStorage.setItem(SESSION_STORAGE_KEY, credential);
-      setSessionToken(credential);
+      setStatus("signedIn");
     },
     [queryClient],
   );
@@ -183,30 +184,30 @@ export function ManagementAuthGate({
     [checkAccess],
   );
 
-  // A layout effect, so the token is in place before the console's first queries: they start in
-  // passive effects, and a child's passive effects run before this component's.
+  // A layout effect, so the console's first queries already count as signed in: they start in passive
+  // effects, and a child's passive effects run before this component's.
   useLayoutEffect(() => {
-    setManagementSessionToken(sessionToken);
-
-    return () => setManagementSessionToken(undefined);
-  }, [sessionToken]);
+    setSignedIn(signedIn);
+    return () => setSignedIn(false);
+  }, [signedIn]);
 
   useEffect(() => {
-    if (sessionToken && authenticatedRedirectHref) {
+    if (signedIn && authenticatedRedirectHref) {
       window.location.assign(authenticatedRedirectHref);
     }
-  }, [authenticatedRedirectHref, sessionToken]);
+  }, [authenticatedRedirectHref, signedIn]);
 
   useEffect(() => {
     const handleSignOut = (event: Event) => {
-      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      const expired = (event as CustomEvent<{ expired?: boolean }>).detail?.expired === true;
       window.google?.accounts.id.disableAutoSelect();
-      setManagementSessionToken(undefined);
-      setSessionToken(undefined);
+      setStatus("signedOut");
       queryClient?.clear();
-      if ((event as CustomEvent<{ expired?: boolean }>).detail?.expired) setError(SESSION_EXPIRED_ERROR);
+      if (expired) setError(SESSION_EXPIRED_ERROR);
+      // Ending it on the server clears the cookie; an expired session has nothing left to end.
+      else void signOut().catch(() => undefined);
     };
-    // The server rejected the stored Google token, which expires after about an hour.
+    // The server rejected the session: it expired, or the person lost access.
     setSessionRejectedHandler(() =>
       window.dispatchEvent(new CustomEvent(MANAGEMENT_SIGN_OUT_EVENT, { detail: { expired: true } })),
     );
@@ -220,7 +221,7 @@ export function ManagementAuthGate({
 
   useEffect(() => {
     const container = buttonRef.current;
-    if (!scriptReady || sessionToken || !container || !window.google || !googleClientId) {
+    if (!scriptReady || status !== "signedOut" || !container || !window.google || !googleClientId) {
       return;
     }
 
@@ -241,9 +242,19 @@ export function ManagementAuthGate({
       text: "continue_with",
       width: measured > 0 ? Math.min(measured, GOOGLE_BUTTON_MAX_WIDTH) : 320,
     });
-  }, [googleClientId, handleCredential, resolvedTheme, scriptReady, sessionToken]);
+  }, [googleClientId, handleCredential, resolvedTheme, scriptReady, status]);
 
-  if (sessionToken) {
+  if (status === "checking") {
+    return (
+      <main className="flex min-h-svh items-center justify-center bg-background text-foreground">
+        <p className="text-[13px] text-muted-foreground" role="status">
+          Opening APICenter…
+        </p>
+      </main>
+    );
+  }
+
+  if (signedIn) {
     if (authenticatedRedirectHref) {
       return (
         <main className="flex min-h-svh items-center justify-center bg-background text-foreground">
@@ -313,14 +324,14 @@ export function ManagementAuthGate({
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-foreground">{error.title}</p>
                 <p className="mt-0.5 text-muted-foreground">{error.message}</p>
-                {error.retryable && pendingCredential ? (
+                {error.retryable ? (
                   <Button
                     className="mt-2"
                     size="sm"
                     variant="outline"
                     type="button"
                     disabled={checking}
-                    onClick={() => void checkAccess(pendingCredential)}
+                    onClick={() => void (pendingCredential ? checkAccess(pendingCredential) : checkSession())}
                   >
                     Try again
                   </Button>
