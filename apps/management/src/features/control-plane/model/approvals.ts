@@ -14,6 +14,23 @@ const base = {
   requestedAt: z.string(),
   /** The decide routes refuse a requester deciding their own request. */
   requestedByYou: z.boolean(),
+  /** Set on recently decided items. */
+  decision: z
+    .object({
+      status: z.enum(["approved", "rejected", "applied", "cancelled"]),
+      by: z.string().nullable(),
+      at: z.string(),
+      reason: z.string().optional(),
+    })
+    .optional(),
+};
+
+/** How a decided item reads: "Approved", "Activated" (an approval that was used), "Rejected", "Cancelled". */
+export const DECISION_LABEL: Record<"approved" | "rejected" | "applied" | "cancelled", string> = {
+  approved: "Approved",
+  applied: "Activated",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
 };
 
 export const approvalItemSchema = z.discriminatedUnion("kind", [

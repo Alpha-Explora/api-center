@@ -22,6 +22,7 @@ const req = (actor: ConsoleActor) => ({ consoleActor: actor }) as ConsoleRequest
 
 let prisma: FakeControlPlanePrisma;
 let listPending: jest.Mock;
+let listDecided: jest.Mock;
 let controller: ApprovalsQueueController;
 
 beforeAll(() => {
@@ -72,6 +73,8 @@ beforeEach(() => {
       status: "approved",
       requestedBy: "owner@example.test",
       createdAt: new Date("2026-11-18T10:00:00Z"),
+      decidedBy: "lead@example.test",
+      decidedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     },
   );
   const activations = [
@@ -81,14 +84,29 @@ beforeEach(() => {
   listPending = jest.fn(async (_action: string, targetIds?: string[]) =>
     activations.filter((row) => !targetIds || targetIds.includes(row.targetId)),
   );
+  const decided = [
+    {
+      id: "apr-shop-old",
+      actionType: "environment.activate_live",
+      targetId: SHOP,
+      status: "rejected",
+      reason: "First try",
+      requestedBy: "lead@example.test",
+      rejectedBy: "owner@example.test",
+      rejectedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      rejectionReason: "Readiness checks were not done",
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    },
+  ];
+  listDecided = jest.fn(async (_action: string, _since: Date, targetIds?: string[]) => decided.filter((row) => !targetIds || targetIds.includes(row.targetId)));
   const db = prisma as unknown as PrismaService;
-  const queue = new ApprovalsQueueService(db, { listPending } as unknown as ApprovalRequestService);
+  const queue = new ApprovalsQueueService(db, { listPending, listDecided } as unknown as ApprovalRequestService);
   controller = new ApprovalsQueueController(queue, new ConsoleAccessService(db));
 });
 
 describe("approvals queue", () => {
   it("lists every organization's pending items, newest first, for platform operators", async () => {
-    const { data } = await controller.all(req(member("ops@example.test", true)));
+    const { data } = await controller.all(undefined, req(member("ops@example.test", true)));
     expect(data.map((item) => [item.kind, item.id, item.organizationName, item.projectName])).toEqual([
       ["live_activation", "apr-shop", "Serbizio", "Shop"],
       ["api_access", id("acr", 1), "Serbizio", "Billing"],
@@ -99,11 +117,11 @@ describe("approvals queue", () => {
   });
 
   it("refuses the cross-organization queue to organization members", async () => {
-    await expect(controller.all(req(member("owner@example.test")))).rejects.toMatchObject({ status: 403 });
+    await expect(controller.all(undefined, req(member("owner@example.test")))).rejects.toMatchObject({ status: 403 });
   });
 
   it("shows owners their organization's items only, marking their own requests", async () => {
-    const { data } = await controller.forOrganization(ORG, req(member("owner@example.test")));
+    const { data } = await controller.forOrganization(ORG, undefined, req(member("owner@example.test")));
     expect(data.map((item) => item.id)).toEqual(["apr-shop", id("acr", 1)]);
     expect(data.find((item) => item.kind === "api_access")).toMatchObject({
       apiName: "Invoices",
@@ -118,14 +136,30 @@ describe("approvals queue", () => {
 
   it("shows a project admin only what their projects decide", async () => {
     // lead@ administers Billing (the API's project) but not Shop, whose live activation they requested.
-    const { data } = await controller.forOrganization(ORG, req(member("lead@example.test")));
+    const { data } = await controller.forOrganization(ORG, undefined, req(member("lead@example.test")));
     expect(data.map((item) => item.id)).toEqual([id("acr", 1)]);
-    expect((await controller.forOrganization(ORG, req(member("viewer@example.test")))).data).toEqual([]);
+    expect((await controller.forOrganization(ORG, undefined, req(member("viewer@example.test")))).data).toEqual([]);
+  });
+
+  it("lists what was decided recently, with who decided, when, and why for a rejection", async () => {
+    const { data } = await controller.forOrganization(ORG, "decided", req(member("owner@example.test")));
+    expect(data.map((item) => [item.id, item.decision?.status, item.decision?.by])).toEqual([
+      ["apr-shop-old", "rejected", "owner@example.test"],
+      [id("acr", 2), "approved", "lead@example.test"],
+    ]);
+    expect(data[0].decision?.reason).toBe("Readiness checks were not done");
+    const since = listDecided.mock.calls[0][1] as Date;
+    expect(Date.now() - since.getTime()).toBeGreaterThan(29 * 24 * 60 * 60 * 1000);
+    expect(listPending).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unknown state", async () => {
+    await expect(controller.forOrganization(ORG, "everything", req(member("owner@example.test")))).rejects.toMatchObject({ status: 400 });
   });
 
   it("hides the organization from non-members", async () => {
-    await expect(controller.forOrganization(ORG, req(member("stranger@example.test")))).rejects.toMatchObject({ status: 404 });
-    await expect(controller.forOrganization("not-a-uuid", req(member("owner@example.test")))).rejects.toMatchObject({ status: 400 });
+    await expect(controller.forOrganization(ORG, undefined, req(member("stranger@example.test")))).rejects.toMatchObject({ status: 404 });
+    await expect(controller.forOrganization("not-a-uuid", undefined, req(member("owner@example.test")))).rejects.toMatchObject({ status: 400 });
   });
 });
 

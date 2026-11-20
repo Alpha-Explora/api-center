@@ -18,7 +18,7 @@ interface ApprovalRequestDelegate {
   create(args: { data: Record<string, unknown> }): Promise<ApprovalRequest>;
   findMany(args: {
     where: Record<string, unknown>;
-    orderBy: { createdAt: "desc" };
+    orderBy: { createdAt: "desc" } | { updatedAt: "desc" };
     take: number;
   }): Promise<ApprovalRequest[]>;
   findUnique(args: { where: { id: string } }): Promise<ApprovalRequest | null>;
@@ -102,6 +102,21 @@ export class ApprovalRequestService {
       where: { actionType, status: "pending", ...(targetIds ? { targetId: { in: targetIds } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 500,
+    });
+  }
+
+  /** Requests for one action decided since `since` (approved, rejected, applied or cancelled), newest first. */
+  async listDecided(actionType: ApprovalRequest["actionType"], since: Date, targetIds?: string[]): Promise<ApprovalRequest[]> {
+    if (targetIds && targetIds.length === 0) return [];
+    return this.approvalPrisma.approvalRequest.findMany({
+      where: {
+        actionType,
+        status: { in: ["approved", "rejected", "applied", "cancelled"] },
+        updatedAt: { gte: since },
+        ...(targetIds ? { targetId: { in: targetIds } } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
     });
   }
 

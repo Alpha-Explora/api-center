@@ -15,6 +15,16 @@ interface ItemBase {
   summary: string;
   requestedBy: string;
   requestedAt: string;
+  /** Set on decided items: how, by whom, when, and why for a rejection. */
+  decision?: ApprovalDecision;
+}
+
+export interface ApprovalDecision {
+  /** applied: an approved live activation that was then used to activate live. */
+  status: "approved" | "rejected" | "applied" | "cancelled";
+  by: string | null;
+  at: string;
+  reason?: string;
 }
 
 export type ApprovalItem =
@@ -34,8 +44,24 @@ export type ApprovalItem =
 export interface ApprovalRows {
   organizations: { id: string; name: string }[];
   projects: { id: string; organizationId: string; name: string }[];
-  /** Pending environment.activate_live requests; targetId is the project ID. */
-  activations: { id?: string; targetId?: string | null; reason: string; requestedBy: string; createdAt?: Date | string }[];
+  /** environment.activate_live requests; targetId is the project ID. Decided ones carry their decision fields. */
+  activations: {
+    id?: string;
+    targetId?: string | null;
+    reason: string;
+    requestedBy: string;
+    createdAt?: Date | string;
+    status?: string;
+    approvedBy?: string | null;
+    approvedAt?: Date | string | null;
+    rejectedBy?: string | null;
+    rejectedAt?: Date | string | null;
+    rejectionReason?: string | null;
+    cancelledBy?: string | null;
+    cancelledAt?: Date | string | null;
+    appliedAt?: Date | string | null;
+    updatedAt?: Date | string;
+  }[];
   /** Pending cp_api_access_requests. */
   accessRequests: {
     id: string;
@@ -46,6 +72,10 @@ export interface ApprovalRows {
     consumerApplicationId: string;
     requestedBy: string;
     createdAt: Date;
+    status?: string;
+    decidedBy?: string | null;
+    decidedAt?: Date | null;
+    rejectionReason?: string | null;
   }[];
   apis: { id: string; organizationId: string; projectId: string; name: string; environmentKind: string }[];
   applications: { id: string; name: string }[];
@@ -73,6 +103,7 @@ export function buildApprovalItems(rows: ApprovalRows): ApprovalItem[] {
       reason: request.reason,
       requestedBy: request.requestedBy,
       requestedAt: iso(request.createdAt),
+      ...activationDecision(request),
     });
   }
 
@@ -100,10 +131,44 @@ export function buildApprovalItems(rows: ApprovalRows): ApprovalItem[] {
       consumerApplicationName,
       requestedBy: request.requestedBy,
       requestedAt: iso(request.createdAt),
+      ...(request.status === "approved" || request.status === "rejected"
+        ? {
+            decision: {
+              status: request.status,
+              by: request.decidedBy ?? null,
+              at: iso(request.decidedAt ?? request.createdAt),
+              ...(request.rejectionReason ? { reason: request.rejectionReason } : {}),
+            },
+          }
+        : {}),
     });
   }
 
-  return items.sort((left, right) => right.requestedAt.localeCompare(left.requestedAt));
+  // Waiting items by when they were asked for; decided ones by when they were decided.
+  const when = (item: ApprovalItem) => item.decision?.at ?? item.requestedAt;
+  return items.sort((left, right) => when(right).localeCompare(when(left)));
+}
+
+function activationDecision(request: ApprovalRows["activations"][number]): { decision?: ApprovalDecision } {
+  switch (request.status) {
+    case "approved":
+      return { decision: { status: "approved", by: request.approvedBy ?? null, at: iso(request.approvedAt ?? request.updatedAt) } };
+    case "applied":
+      return { decision: { status: "applied", by: request.approvedBy ?? null, at: iso(request.appliedAt ?? request.updatedAt) } };
+    case "rejected":
+      return {
+        decision: {
+          status: "rejected",
+          by: request.rejectedBy ?? null,
+          at: iso(request.rejectedAt ?? request.updatedAt),
+          ...(request.rejectionReason ? { reason: request.rejectionReason } : {}),
+        },
+      };
+    case "cancelled":
+      return { decision: { status: "cancelled", by: request.cancelledBy ?? null, at: iso(request.cancelledAt ?? request.updatedAt) } };
+    default:
+      return {};
+  }
 }
 
 function iso(value: Date | string | undefined): string {

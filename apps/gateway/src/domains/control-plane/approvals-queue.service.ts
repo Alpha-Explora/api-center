@@ -7,6 +7,9 @@ import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { buildApprovalItems, type ApprovalItem } from "./approvals-queue";
 import { withTenant, type TenantScope } from "./tenant-transaction";
 
+/** How far back the "recently decided" view reaches. */
+export const DECIDED_WINDOW_DAYS = 30;
+
 @Injectable()
 export class ApprovalsQueueService {
   constructor(
@@ -14,11 +17,19 @@ export class ApprovalsQueueService {
     private readonly approvals: ApprovalRequestService,
   ) {}
 
-  async list(scope: TenantScope): Promise<ApprovalItem[]> {
+  /** Waiting items, or (`decided`) those decided in the last DECIDED_WINDOW_DAYS days. */
+  async list(scope: TenantScope, state: "pending" | "decided" = "pending", now = new Date()): Promise<ApprovalItem[]> {
     const inOrganization = scope === "platform" ? {} : { organizationId: scope.organizationId };
+    const since = new Date(now.getTime() - DECIDED_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const loaded = await withTenant(this.prisma, scope, async (db) => {
       const projects = await db.cpProject.findMany({ where: inOrganization, select: { id: true, organizationId: true, name: true } });
-      const accessRequests = await db.cpApiAccessRequest.findMany({ where: { ...inOrganization, status: "pending" } });
+      const accessRequests = await db.cpApiAccessRequest.findMany({
+        where:
+          state === "pending"
+            ? { ...inOrganization, status: "pending" }
+            : { ...inOrganization, status: { in: ["approved", "rejected"] }, decidedAt: { gte: since } },
+        ...(state === "decided" ? { orderBy: { decidedAt: "desc" as const }, take: 200 } : {}),
+      });
       const apiIds = [...new Set(accessRequests.map((row) => row.apiId))];
       const applicationIds = [...new Set(accessRequests.map((row) => row.consumerApplicationId))];
       const apis = apiIds.length
@@ -38,10 +49,11 @@ export class ApprovalsQueueService {
     });
     // Activation requests live in the governance schema and carry only the project ID, so they are
     // matched to this scope's projects; requests for projects outside it are dropped.
-    const activations = await this.approvals.listPending(
-      "environment.activate_live",
-      scope === "platform" ? undefined : loaded.projects.map((project) => project.id),
-    );
+    const targets = scope === "platform" ? undefined : loaded.projects.map((project) => project.id);
+    const activations =
+      state === "pending"
+        ? await this.approvals.listPending("environment.activate_live", targets)
+        : await this.approvals.listDecided("environment.activate_live", since, targets);
     return buildApprovalItems({ ...loaded, activations });
   }
 }
