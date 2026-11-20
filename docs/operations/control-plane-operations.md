@@ -55,6 +55,9 @@ New control-plane routes, all under `/api/v1/admin/control-plane`:
 | `GET`, `POST organizations`; `PUT organizations/:id`; `PUT organizations/:id/status` | Platform operators list, create, rename, suspend and reactivate organizations |
 | `GET approvals`; `GET organizations/:id/approvals` | Pending live activations and API access requests (all organizations for platform operators; at most 500 live activations) |
 | `PUT organizations/:id/members/:email` | Now also returns `previousRole` and the `invite` outcome |
+| `DELETE organizations/:id/teams/:teamId` | Deletes a team with its memberships and project roles; `409 LAST_PROJECT_ADMIN` when it is a project's only administrator |
+| `PUT organizations/:id/projects/:projectId/status` | Archives (`archived`) or restores (`active`) a project; `403 SUSPENDED_BY_PLATFORM` for a project an operator suspended |
+| `PUT …/environments/:env/applications/:applicationId/status` | Suspends (`suspended`) or resumes (`active`) an application |
 | `GET …/environments/:env/requests`, `…/usage/series`, `…/quota-usage`; `GET organizations/:id/quota-usage` | Request log, usage series and quota meters |
 | `GET organizations/:id/audit-events`; `GET audit-events` | Organization audit log; the platform-wide log for platform operators |
 | `GET …/environments/:env/credentials[?expiringWithinDays=N]`; `GET …/environments/:env/grants` | Environment key and grant inventory |

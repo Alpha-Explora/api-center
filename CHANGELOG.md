@@ -19,6 +19,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Lifecycle actions: suspend and resume an application (its keys and workload identities are refused with `APPLICATION_INACTIVE`), archive and restore a project (every request refused with `PROJECT_INACTIVE`, nothing deleted), and delete a team (its project roles go with it, unless it is a project's only administrator). Each is in the console and audited.
 - Public guides "Errors and retries" (the error response, which failures to retry, and the common codes) and "Versions and changes" (what v1 may add at any time, and how breaking changes ship).
 - SDK 3.2.0: `error.retryable` says whether the same request may succeed if sent again. The SDK's own retries use the same rule.
 - The OpenAPI documents 401, 403, 429 (with `Retry-After`), 500, 502 and 503 (with `Retry-After`) on every payments operation.
