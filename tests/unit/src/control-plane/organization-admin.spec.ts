@@ -72,6 +72,13 @@ describe("organization administration", () => {
     await expect(controller.create({ name: "X", slug: "x", extra: true }, req(operator))).rejects.toMatchObject({ status: 400 });
   });
 
+  it("refuses names with control characters, which would break every invite's subject", async () => {
+    await expect(controller.create({ name: "Acme\nBcc: x@y.test", slug: "acme" }, req(operator))).rejects.toMatchObject({ status: 400 });
+    await expect(controller.create({ name: "Acme\u0007", slug: "acme" }, req(operator))).rejects.toMatchObject({ status: 400 });
+    await expect(controller.rename(ORG, { name: "Serbizio\r\nPH" }, req(operator))).rejects.toMatchObject({ status: 400 });
+    await expect(controller.create({ name: "  Acme Inc.  ", slug: "acme" }, req(operator))).resolves.toMatchObject({ data: { name: "Acme Inc." } });
+  });
+
   it("renames an organization and refuses a slug another one uses", async () => {
     await controller.create({ name: "Other", slug: "other" }, req(operator));
     await expect(controller.rename(ORG, { slug: "other" }, req(operator))).rejects.toMatchObject({ status: 409 });

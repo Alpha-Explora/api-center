@@ -6,7 +6,13 @@ import type { ConsoleActor } from "./console-access.policy";
 import type { ConsoleRequest } from "./console-actor.guard";
 
 export const slugSchema = z.string().regex(/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/, "must be lowercase letters, digits and hyphens");
-export const nameSchema = z.string().trim().min(1).max(128);
+// Names appear in invite subjects and headers, so control characters such as newlines are refused.
+export const nameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[^\p{Cc}]*$/u, "must not contain control characters");
 export const emailSchema = z.string().trim().toLowerCase().email().max(320);
 export const organizationIdSchema = z.string().uuid();
 
