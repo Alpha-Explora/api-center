@@ -78,6 +78,36 @@ Use a separate key for each `generate` or `verify` request. Reusing the same key
 }
 ```
 
+### Verification errors
+
+| Status and code | Meaning |
+| :--- | :--- |
+| `400 OTP_INVALID` | The code is wrong, or `recipient` does not match. |
+| `400 OTP_EXPIRED` | The code has expired. Generate a new one. |
+| `400 OTP_ALREADY_USED` | The code was already verified. |
+| `400 OTP_ATTEMPTS_EXCEEDED` | The project's limit of wrong attempts was reached, so the code no longer works, even if correct. Generate a new one. |
+| `404 OTP_NOT_FOUND` | No OTP with this `otpId` exists for your project and environment. |
+| `429 RATE_LIMITED` | Too many verification attempts for this OTP in a short time. |
+
+`OTP_ATTEMPTS_EXCEEDED` only occurs when the project sets a maximum number of wrong attempts.
+
+---
+
+## Project settings
+
+Each environment can have its own OTP settings, set in Management (**Capabilities** → OTP → **Configure**). Developers can change them in test; live needs a project admin.
+
+| Setting | Range | Default |
+| :--- | :--- | :--- |
+| Code length | 4–10 digits | 6 |
+| Expiry | 60–3600 seconds | 300 |
+| Maximum wrong attempts | 1–10 | No limit beyond the verification rate limit |
+| Message text | One line, up to 300 characters | `Your APICenter verification code is {{code}}` |
+
+`digits` and `ttlSeconds` in a generate request override the code length and expiry. The maximum attempts and the message text always apply; a change affects codes generated after it.
+
+The message text must contain `{{code}}` and may use `{{minutes}}` for the expiry in minutes. Because it is sent from APICenter's own SMS and email senders, it cannot contain links, web addresses or phone numbers, and only a project admin can change it, in test as well. Email OTPs keep the subject "Your APICenter verification code"; the text is the email body.
+
 ---
 
 ## 3. Get OTP Status

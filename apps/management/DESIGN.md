@@ -49,6 +49,8 @@ about 40px.
   environment-specific objects (an application in test does not exist in live).
 - Page: `PageHeader` (title, one-line description, meta, actions), then `Panel`s. Tables sit flush inside a
   panel. Create and edit happen in a right-hand `Sheet`; quick confirmations in a `Dialog`.
+- Sidebar rows can carry a count badge (pending approvals, keys expiring soon).
+- At 390px, a `Notice`'s action button moves inside its body.
 
 ## Patterns
 
@@ -64,6 +66,25 @@ about 40px.
 | `SecretDialog` | One-time secrets (API keys, signing secrets). |
 | `IdText`, `CopyButton` | Monospace identifiers with copy. |
 | `FormRow`, `NativeSelect`, `Kbd` | Form rows, styled native selects, keyboard hints. |
+| `QuotaMeterBar` | How much of a quota is used: warns from 80%, turns `danger` when an enforced budget is full. |
+
+## Sheets, lists and feedback
+
+- A sheet that has a result to show (an invite, a created organization) replaces its form with the result and a
+  Done button, with no toast.
+- A server conflict on one field, such as a 409 on a slug, is shown under that field.
+- A settings sheet shows the current values in a summary box above the form. Reset to defaults sits in its own
+  section below the form, behind a confirmation. A capability with nothing to configure says why on its row.
+- Editable lists use a row menu: Edit, Enable or Disable, Delete.
+- An asynchronous action's progress, such as a test event, shows as an inline result banner: a full-width tinted
+  strip (success, danger or muted) at the top of a flush `Panel`.
+- Toasts sit top-center, so they never cover sheet or dialog footers.
+
+## Charts
+
+Charts are small inline SVGs (`views/overview/usage-chart.tsx`), not a chart library: one axis, thin bars with
+rounded tops on a recessive grid, a hover and focus tooltip, a legend, and a table beside them.
+Use `danger` only for failures.
 
 ## Writing
 

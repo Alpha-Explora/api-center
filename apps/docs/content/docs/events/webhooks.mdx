@@ -61,6 +61,16 @@ Intent events have `aggregateType: "payment_intent"`. APICenter does not send an
 
 Accept event types you don't handle with a 2xx, so that new types never block your endpoint. The SDK returns them as `eventType: "unrecognized"`.
 
+### Choose event types
+
+By default a webhook receives every payment event type, including types added later. To receive only some, open the webhook on the project's **Webhooks** page in Management and choose **Edit events**. A change takes effect within about 30 seconds. Choosing no types goes back to every type. The filter applies to signed webhooks only; a Pub/Sub push destination receives every type.
+
+## Send a test event
+
+On the **Webhooks** page, or the application's **Webhook** tab, **Send test event** sends a `webhook.test` event to the endpoint; you can send one about every 10 seconds per webhook. It is always delivered, whatever event types you chose. It is signed and retried like a payment event and has the same envelope, with `aggregateType: "webhook_destination"` and `data.test: true`. The SDK's `verifyWebhook` verifies it and returns it as `eventType: "unrecognized"` with `type: "webhook.test"`. Acknowledge it with a 2xx.
+
+The console's delivery history shows each attempt for the webhook: the status your endpoint returned, the latency, the attempt number and any error. History is kept for 30 days.
+
 ## Rotate the secret
 
 A rotation issues a new secret and keeps signing with the old one for 24 hours, so each delivery carries both signatures. Deploy the new secret, and during the overlap you can pass both to `verifyWebhook` as an array. After 24 hours only the new secret signs.
