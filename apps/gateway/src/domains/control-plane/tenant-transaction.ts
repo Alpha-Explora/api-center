@@ -9,11 +9,19 @@ import { ServiceUnavailableError } from "@shared/errors";
 export type TenantDb = Prisma.TransactionClient;
 export type TenantScope = { organizationId: string } | "platform";
 
-/** Prisma's interactive-transaction limits; the defaults (5 s, 2 s wait) suit single-row writes. */
+/** Prisma's interactive-transaction limits. */
 export interface TenantTransactionOptions {
   timeoutMs: number;
   maxWaitMs: number;
 }
+
+/**
+ * The default for console and request-path transactions. Prisma's own defaults (2 s wait, 5 s run)
+ * turn a briefly full pool into errors: the database is in another region, so a transaction holds
+ * its connection for several round trips, and a console page starts about a dozen at once. Waiting
+ * up to 8 s queues them instead; the console proxy allows 20 s per request.
+ */
+export const DEFAULT_TENANT_TRANSACTION: TenantTransactionOptions = { timeoutMs: 10_000, maxWaitMs: 8_000 };
 
 /** For bulk writes such as a migration backfill: dozens of inserts, each one database round trip. */
 export const BULK_TENANT_TRANSACTION: TenantTransactionOptions = { timeoutMs: 120_000, maxWaitMs: 15_000 };
@@ -28,7 +36,7 @@ export async function withTenant<T>(
   prisma: PrismaService,
   scope: TenantScope,
   work: (db: TenantDb) => Promise<T>,
-  options?: TenantTransactionOptions,
+  options: TenantTransactionOptions = DEFAULT_TENANT_TRANSACTION,
 ): Promise<T> {
   requireControlPlaneDatabase();
   const organizationId = scope === "platform" ? "" : scope.organizationId;
@@ -38,7 +46,7 @@ export async function withTenant<T>(
       await db.$executeRaw`SELECT set_config('apicenter.organization_id', ${organizationId}, true), set_config('apicenter.scope', ${platform}, true)`;
       return work(db);
     },
-    options ? { timeout: options.timeoutMs, maxWait: options.maxWaitMs } : undefined,
+    { timeout: options.timeoutMs, maxWait: options.maxWaitMs },
   );
 }
 
