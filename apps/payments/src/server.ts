@@ -9,6 +9,7 @@ import { WebhooksService } from './features/webhooks/webhooks.service';
 import { InvoicesService } from './features/invoices/invoices.service';
 import { PaymentLinksService, QrPhService } from './features/payment-links/payment-links.service';
 import { PayMongoError } from './shared/payment-errors';
+import { readPaymentContext } from './shared/payment-context';
 import { isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
 import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
@@ -68,15 +69,24 @@ function recordFilters(query: Request['query']): PaymentRecordFilters {
   return { type, status, createdAfter, createdBefore, limit, cursor: one('cursor') };
 }
 
+const contextOptions = {
+  canVerify: Boolean(process.env.APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS?.trim()),
+  production: process.env.NODE_ENV === 'production',
+};
+if (!contextOptions.canVerify && contextOptions.production) {
+  console.warn(JSON.stringify({
+    event: 'payments_runtime_context_unverified',
+    message: 'APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS is not set: payment requests are scoped by unsigned headers.',
+  }));
+}
+
+/** The verified caller, read once per request. */
 function paymentContext(req: Request): PaymentContext {
-  const tribeId = req.get('X-APICenter-Owner-Tribe-ID');
-  const projectId = req.get('X-APICenter-Project-ID');
-  const consumerServiceId = req.get('X-APICenter-Consumer-Service-ID');
-  const environment = req.get('X-APICenter-Environment');
-  if (!tribeId || !projectId || !consumerServiceId || (environment !== 'test' && environment !== 'live')) {
-    throw new PayMongoError('Trusted payment context is required', 401, 'UNAUTHORIZED');
-  }
-  return { tribeId, projectId, consumerServiceId, environment };
+  const cached = (req as Request & { paymentContext?: PaymentContext }).paymentContext;
+  if (cached) return cached;
+  const context = readPaymentContext(req, contextOptions);
+  (req as Request & { paymentContext?: PaymentContext }).paymentContext = context;
+  return context;
 }
 
 app.use((req: Request, res: Response, next) => {

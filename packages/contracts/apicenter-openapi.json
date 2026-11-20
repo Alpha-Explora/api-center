@@ -2158,7 +2158,7 @@
             }
           },
           "403": {
-            "description": "Scopes, service dependency, project policy or caller context are not allowed. `SENDER_NOT_APPROVED` when the project has pinned a sender ID and the request names a different `senderId`.",
+            "description": "Scopes, service dependency, project policy or caller context are not allowed. `SENDER_NOT_APPROVED` when the request names a `senderId` other than the project's pinned sender, or, without a pinned sender, other than APICenter's default sender.",
             "content": {
               "application/json": {
                 "schema": {

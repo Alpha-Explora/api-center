@@ -57,9 +57,9 @@ const verifyTokenService = new VerifyTokenService({
 app.all('/admin/oauth-apps/:projectId/:environment', oauthAppAdminHandler);
 
 /**
- * The project and environment come from the verified control-plane context when one is present.
- * Otherwise the gateway sets the legacy project and environment headers and strips any the caller
- * sends, so they can be trusted.
+ * The project and environment come from the verified control-plane context. Production requires
+ * it: the gateway no longer sets trusted project headers, so a header-only request could name any
+ * project. Outside production the headers stand in for local development.
  */
 async function resolveCredentialForRequest(req: Request, res: Response): Promise<GoogleOAuthCredential | null> {
   const redirectUri = typeof req.body?.redirectUri === 'string' ? req.body.redirectUri : null;
@@ -68,6 +68,10 @@ async function resolveCredentialForRequest(req: Request, res: Response): Promise
     context = readRuntimeApplicationContext(req, { runtimeAudience: 'apicenter-runtime:gauth' });
   } catch (error) {
     fail(res, 403, 'CALLER_CONTEXT_REQUIRED', error instanceof Error ? error.message : 'Runtime context is invalid');
+    return null;
+  }
+  if (!context && process.env.NODE_ENV === 'production') {
+    fail(res, 403, 'CALLER_CONTEXT_REQUIRED', 'A signed APICenter runtime context is required');
     return null;
   }
   let resolved;

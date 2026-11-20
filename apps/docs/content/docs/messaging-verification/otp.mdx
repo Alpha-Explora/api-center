@@ -89,7 +89,7 @@ Use a separate key for each `generate` or `verify` request. Reusing the same key
 | `404 OTP_NOT_FOUND` | No OTP with this `otpId` exists for your project and environment. |
 | `429 RATE_LIMITED` | Too many verification attempts for this OTP in a short time. |
 
-`OTP_ATTEMPTS_EXCEEDED` only occurs when the project sets a maximum number of wrong attempts.
+A code accepts five wrong attempts unless the project sets a different limit (1 to 10) in its OTP settings.
 
 ---
 

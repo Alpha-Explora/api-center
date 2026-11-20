@@ -18,7 +18,8 @@ How to deploy and configure the APICenter control plane and take a project live,
 2. Confirm the gateway's `DATABASE_URL` role is a member of `api_center_app` **without** `BYPASSRLS`. Otherwise tenant isolation is not enforced by the database (application-level scoping still applies).
 3. Generate runtime context keys with `node scripts/control-plane/generate-runtime-context-key.cjs`:
    - gateway: `APICENTER_RUNTIME_CONTEXT_SIGNING_KEY` (Secret Manager);
-   - every runtime (email, SMS, OTP, geo, Google sign-in) and every published-API publisher: `APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS`.
+   - every runtime (email, SMS, OTP, geo, Google sign-in, payments test and live) and every published-API publisher: `APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS`.
+   The payments runtime scopes records by the signed context only once it has these keys; without them it falls back to the unsigned `X-APICenter-*` headers and logs `payments_runtime_context_unverified` at startup. Deploy the gateway first (it sends the context), then give both payments services the keys.
    Rotate by adding the new public key to every runtime first, then switching the gateway's signing key, then removing the old public key after one minute.
 4. Gateway settings:
    - `MANAGEMENT_GOOGLE_CLIENT_IDS`: the console's Google OAuth client IDs, so console calls act as the signed-in member.

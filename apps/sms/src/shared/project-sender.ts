@@ -1,6 +1,7 @@
 // A project environment may pin the SMS sender ID. Once pinned, every send uses it and a request
-// naming another sender is refused; without one, a request's senderId (or the platform's Twilio
-// sender) is used as before.
+// naming another sender is refused. Without one, only the platform's own sender may be named: the
+// messages go out on APICenter's Twilio account, so a free-form sender ID would let a tenant send
+// as any brand.
 
 export interface ProjectSmsSender {
   projectId: string;
@@ -22,10 +23,14 @@ export class SmsSenderNotApprovedError extends Error {
   constructor() { super('The requested SMS sender is not approved for this project.'); }
 }
 
-/** The sender a send uses: the project's pinned sender, else whatever the request asked for. */
-export function resolveSmsSender(requested: string | undefined, pinned: string | null | undefined): string | undefined {
+/** The sender a send uses: the project's pinned sender, else the platform sender (undefined means its default). */
+export function resolveSmsSender(
+  requested: string | undefined,
+  pinned: string | null | undefined,
+  platformSender?: string,
+): string | undefined {
   const asked = typeof requested === 'string' && requested.trim() ? requested.trim() : undefined;
-  if (!pinned) return asked;
-  if (asked !== undefined && asked !== pinned) throw new SmsSenderNotApprovedError();
-  return pinned;
+  const approved = pinned || platformSender?.trim() || undefined;
+  if (asked !== undefined && asked !== approved) throw new SmsSenderNotApprovedError();
+  return pinned || asked;
 }

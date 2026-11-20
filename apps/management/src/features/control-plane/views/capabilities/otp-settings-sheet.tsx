@@ -64,7 +64,9 @@ export function OtpSettingsSheet({ open, onOpenChange }: { open: boolean; onOpen
 }
 
 const describeAttempts = (value: number | null) =>
-  value === null ? "No cap beyond the verify rate limit" : `${value} wrong code${value === 1 ? "" : "s"}`;
+  value === null
+    ? `${OTP_BOUNDS.maxAttempts.default} wrong codes (platform default)`
+    : `${value} wrong code${value === 1 ? "" : "s"}`;
 
 function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: () => void }) {
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();

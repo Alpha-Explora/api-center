@@ -56,6 +56,12 @@ export function createMemoryIdempotencyStore(options?: { now?: () => number }): 
 /** Hash an idempotency key together with its trusted consumer and operation scope. */
 export function createScopedIdempotencyKey(options: ScopedIdempotencyKeyOptions): string | null;
 export function createMemoryRateLimitStore(): RateLimitStore;
+/** A per-recipient rate-limit key, normalised and scoped to the caller's project and environment. */
+export function recipientRateLimitKey(
+  namespace: string,
+  caller: Pick<SharedServiceCaller, 'projectId' | 'environment'>,
+  recipient: unknown,
+): string;
 /** Where a runtime keeps shared state: its database and its own `shared_*` schema. */
 export interface SharedStoreOptions { databaseUrl?: string; schema: string }
 /** Idempotency claims in `<schema>.idempotency_keys`; production requires a database URL. */

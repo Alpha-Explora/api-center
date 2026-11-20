@@ -57,7 +57,9 @@ describe('OTP settings parsing', () => {
 
 describe('OTP policy', () => {
   it('prefers request values, then project settings, then platform defaults', () => {
-    expect(resolveOtpPolicy({}, null)).toEqual({ digits: 6, ttlSeconds: 300, maxAttempts: null, template: DEFAULT_OTP_MESSAGE_TEMPLATE });
+    expect(resolveOtpPolicy({}, null)).toEqual({ digits: 6, ttlSeconds: 300, maxAttempts: 5, template: DEFAULT_OTP_MESSAGE_TEMPLATE });
+    // A project that sets no cap still gets the platform's five wrong attempts.
+    expect(resolveOtpPolicy({}, { codeLength: 8, expirySeconds: null, maxAttempts: null, messageTemplate: null }).maxAttempts).toBe(5);
     const settings = { codeLength: 8, expirySeconds: 600, maxAttempts: 3, messageTemplate: 'Code {{code}}' };
     expect(resolveOtpPolicy({}, settings)).toEqual({ digits: 8, ttlSeconds: 600, maxAttempts: 3, template: 'Code {{code}}' });
     expect(resolveOtpPolicy({ digits: 4, ttlSeconds: 120 }, settings)).toMatchObject({ digits: 4, ttlSeconds: 120, maxAttempts: 3 });

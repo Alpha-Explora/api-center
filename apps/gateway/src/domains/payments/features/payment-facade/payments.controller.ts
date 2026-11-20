@@ -168,6 +168,9 @@ export class PaymentsController {
 
     const headers: Record<string, string> = {
       "content-type": "application/json",
+      // The runtime scopes records by this signed context once it has the verification keys; the
+      // unsigned headers below remain for runtimes that do not have them yet, and must match it.
+      "x-apicenter-context": call.signedContext,
       "x-apicenter-environment": env,
       "x-apicenter-consumer-service-id": principal.consumerServiceId,
       "x-apicenter-owner-tribe-id": principal.ownerTribeId,

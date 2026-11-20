@@ -6,6 +6,7 @@ import {
   createSharedServiceApp,
   readSharedServiceCaller,
   callerIdempotencyScope,
+  recipientRateLimitKey,
   createSuccessResponse,
   type SharedServiceCaller,
 } from '@apicenter/runtime';
@@ -135,7 +136,7 @@ app.post('/send', async (req: Request, res: Response) => {
 
   try {
     for (const recipient of recipients) {
-      const limit = await rateLimitStore.consume(`email:send:${String(recipient).toLowerCase()}`, {
+      const limit = await rateLimitStore.consume(recipientRateLimitKey('email:send', caller, recipient), {
         limit: sendLimit,
         windowMs: sendWindowMs,
       });

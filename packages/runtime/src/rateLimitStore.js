@@ -36,4 +36,15 @@ function createMemoryRateLimitStore({ now = () => Date.now() } = {}) {
   return { consume };
 }
 
-module.exports = { createMemoryRateLimitStore };
+/**
+ * The rate-limit key for one recipient of one project environment. The recipient is normalised so
+ * " +63 917-123-4567" and "+639171234567" share a limit, and the key is scoped to the caller's
+ * project and environment so one tenant cannot use up another tenant's limit for a number.
+ */
+function recipientRateLimitKey(namespace, caller, recipient) {
+  const raw = String(recipient ?? '').trim().toLowerCase();
+  const normalised = /^[+\d\s().-]+$/.test(raw) ? raw.replace(/[\s().-]/g, '') : raw;
+  return [namespace, caller.projectId, caller.environment, normalised].join(':');
+}
+
+module.exports = { createMemoryRateLimitStore, recipientRateLimitKey };

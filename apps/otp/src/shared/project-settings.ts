@@ -21,7 +21,8 @@ export type OtpSettingsValues = Pick<OtpProjectSettings, 'codeLength' | 'expiryS
 export const OTP_BOUNDS = {
   codeLength: { min: 4, max: 10, default: 6 },
   expirySeconds: { min: 60, max: 3600, default: 300 },
-  maxAttempts: { min: 1, max: 10 },
+  // Without a cap, a 4-digit code with a one-hour expiry allowed about 300 guesses at the verify rate limit.
+  maxAttempts: { min: 1, max: 10, default: 5 },
   messageTemplateMaxLength: 300,
 } as const;
 
@@ -108,7 +109,7 @@ export function resolveOtpPolicy(request: { digits?: unknown; ttlSeconds?: unkno
   return {
     digits: pick(request.digits, settings?.codeLength, OTP_BOUNDS.codeLength),
     ttlSeconds: pick(request.ttlSeconds, settings?.expirySeconds, OTP_BOUNDS.expirySeconds),
-    maxAttempts: settings?.maxAttempts ?? null,
+    maxAttempts: settings?.maxAttempts ?? OTP_BOUNDS.maxAttempts.default,
     template: settings?.messageTemplate ?? DEFAULT_OTP_MESSAGE_TEMPLATE,
   };
 }
