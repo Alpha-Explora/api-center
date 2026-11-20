@@ -13,7 +13,7 @@ import {
 const DEFAULTS = {
   codeLength: OTP_BOUNDS.codeLength.default,
   expirySeconds: OTP_BOUNDS.expirySeconds.default,
-  maxAttempts: null,
+  maxAttempts: OTP_BOUNDS.maxAttempts.default,
   messageTemplate: DEFAULT_OTP_MESSAGE_TEMPLATE,
 };
 

@@ -4,7 +4,7 @@ import { z } from "zod";
 export const OTP_BOUNDS = {
   codeLength: { min: 4, max: 10 },
   expirySeconds: { min: 60, max: 3600 },
-  maxAttempts: { min: 1, max: 10 },
+  maxAttempts: { min: 1, max: 10, default: 5 },
   messageTemplateMaxLength: 300,
 } as const;
 
