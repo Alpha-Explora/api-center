@@ -185,7 +185,7 @@ function Organizations() {
         open={suspending !== null}
         onOpenChange={(next) => !next && setSuspending(null)}
         title={`Suspend ${suspending?.name ?? ""}`}
-        description="Every request from its applications is refused at once and no new projects can be created. Members can still sign in to the console. You can reactivate it later."
+        description="Every request from its applications is refused at once and no new projects can be created. Members can still sign in and change its settings, members and keys. You can reactivate it later."
         confirmLabel={`Suspend ${suspending?.name ?? ""}`}
         destructive
         busy={setStatus.isPending}

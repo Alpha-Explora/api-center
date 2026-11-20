@@ -4,6 +4,11 @@
 // Suspension is enforced elsewhere: capability-access.policy denies every application request of an
 // inactive organization (ORGANIZATION_INACTIVE), project creation refuses it, and platform
 // operators' organization switcher lists only active organizations.
+//
+// Suspension stops traffic, not administration, by design: members of a suspended organization keep
+// console access and can still change members, keys, quotas and settings (other than creating
+// projects), so they can fix whatever led to the suspension before an operator reactivates it.
+// Nothing they change takes effect for applications until then.
 
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
