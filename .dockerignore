@@ -65,9 +65,6 @@ docs/
 
 # Local sandbox/examples are not needed for gateway image builds
 examples/
-!examples/sandbox/
-!examples/sandbox/demand-service/
-!examples/sandbox/demand-service/**
 
 # CI/CD config
 .github/
