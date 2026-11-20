@@ -1,9 +1,20 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useContext, useState, type ReactNode } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { AlertTriangleIcon, InfoIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api-center/client-core";
+import { isTransientError } from "@/lib/api-center/retry-policy";
 import { cn } from "@/lib/utils";
 
-/** An inline failure with the gateway's message and error code; never hidden behind an empty state. */
+const TRANSIENT_MESSAGE = "APICenter is busy or starting up. This usually clears in a few seconds.";
+
+/**
+ * An inline failure; never hidden behind an empty state. A failure that may clear by itself (busy,
+ * restarting, offline) reads as such and offers Try again, which refetches every failed query on the
+ * page. The gateway's code stays available under Details for support.
+ */
 export function ErrorPanel({
   error,
   title = "Something went wrong",
@@ -15,17 +26,43 @@ export function ErrorPanel({
   className?: string;
   action?: ReactNode;
 }) {
-  const message = error instanceof Error ? error.message : String(error);
+  const queryClient = useContext(QueryClientContext);
+  const [retrying, setRetrying] = useState(false);
+  const transient = isTransientError(error);
+  const message = transient ? TRANSIENT_MESSAGE : error instanceof Error ? error.message : String(error);
   const code = error instanceof ApiError ? (error.code ?? `HTTP ${error.status}`) : undefined;
+  const retry =
+    transient && queryClient && !action ? (
+      <Button
+        size="sm"
+        variant="outline"
+        className="shrink-0 self-start"
+        disabled={retrying}
+        onClick={() => {
+          setRetrying(true);
+          void queryClient
+            .refetchQueries({ type: "active", predicate: (query) => query.state.status === "error" })
+            .finally(() => setRetrying(false));
+        }}
+      >
+        {retrying ? "Retrying…" : "Try again"}
+      </Button>
+    ) : null;
   return (
     <div role="alert" className={cn("flex gap-3 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-[13px]", className)}>
       <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-foreground">{title}</p>
         <p className="mt-0.5 break-words text-muted-foreground">{message}</p>
-        {code ? <p className="mt-1 font-mono text-xs text-muted-foreground">{code}</p> : null}
+        {code ? (
+          <details className="mt-1 text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">Details</summary>
+            <p className="mt-1 font-mono">{code}</p>
+            {transient && error instanceof Error ? <p className="mt-0.5 break-words">{error.message}</p> : null}
+          </details>
+        ) : null}
       </div>
-      {action}
+      {action ?? retry}
     </div>
   );
 }
