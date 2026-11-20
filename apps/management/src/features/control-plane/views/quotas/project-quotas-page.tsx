@@ -21,6 +21,7 @@ import { cpKeys } from "../../view-models/query-keys";
 import { baseMeter } from "../../model/observability";
 import { observabilityKeys, useQuotaUsage } from "../../view-models/observability";
 import { QuotaMeterBar } from "./quota-meter";
+import { PlanPicker } from "./plan-picker";
 import { QUOTA_LIMITATIONS, QUOTA_RULES, QuotaPolicyFields, QuotaPolicyTable, statusChangeCopy } from "./quota-parts";
 import { DeleteQuotaPolicyDialog, EditQuotaPolicySheet, QuotaPolicyMenu } from "./quota-policy-changes";
 
@@ -80,11 +81,15 @@ function ProjectQuotas() {
       {policies.error ? <ErrorPanel title="Quota policies could not be loaded" error={policies.error} /> : null}
       {usage.error ? <ErrorPanel title="Quota usage could not be loaded" error={usage.error} /> : null}
 
-      <Panel title="Daily allowance" description="The plan's requests per UTC day for this environment, or the test default when no plan is assigned.">
+      <Panel
+        title="Daily allowance"
+        description="The plan's requests per UTC day for this environment, or the test default when no plan is assigned."
+        actions={<PlanPicker />}
+      >
         {usage.isLoading ? (
           <Skeleton className="h-8 w-full" />
         ) : usage.data?.baseBudget === "live-plan-required" ? (
-          <p className="text-[13px] text-muted-foreground">No plan is assigned, so live requests are refused. Assign a plan on the overview.</p>
+          <p className="text-[13px] text-muted-foreground">No plan is assigned, so live requests are refused. Choose a live plan above.</p>
         ) : usage.data?.baseBudget === "plan-not-available" ? (
           <p className="text-[13px] text-muted-foreground">The assigned plan does not allow this environment, so requests are refused.</p>
         ) : usage.data ? (

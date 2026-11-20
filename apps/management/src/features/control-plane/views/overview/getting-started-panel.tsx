@@ -2,8 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2Icon, ChevronDownIcon, CircleIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRightIcon, CheckCircle2Icon, ChevronDownIcon, CircleIcon } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyButton } from "@/components/patterns/copy-button";
 import { ErrorPanel } from "@/components/patterns/notices";
@@ -30,7 +30,9 @@ export function GettingStartedPanel() {
   });
   const grants = useEnvironmentGrants(target);
   const credentials = useEnvironmentCredentials(target);
-  const [expanded, setExpanded] = useState(false);
+  // Whether the person folded the guide away, remembered per project and environment.
+  const storageKey = `apicenter.gettingStarted.${project.id}.${kind}`;
+  const [folded, setFolded] = useState<boolean | null>(() => readFolded(storageKey));
 
   const error = applications.error ?? grants.error ?? credentials.error ?? usage.error;
   if (error) {
@@ -60,7 +62,16 @@ export function GettingStartedPanel() {
   );
   const doneCount = steps.filter((step) => step.done).length;
   const complete = doneCount === steps.length;
-  const open = !complete || expanded;
+  // Open while there is work left, folded once everything is done, unless the person chose otherwise.
+  const open = folded === null ? !complete : !folded;
+  const toggle = () => {
+    const next = open;
+    setFolded(next);
+    writeFolded(storageKey, next);
+  };
+  const nextStep = steps.find((step) => !step.done);
+  // The SDK code only helps once there is a key to use: from "Issue a key" on, or when everything is done.
+  const showCode = !nextStep || nextStep.id === "key" || nextStep.id === "request";
   const snippet = sdkSnippet(
     kind,
     grants.data.map((grant) => grant.action),
@@ -72,14 +83,18 @@ export function GettingStartedPanel() {
       description={complete ? "Every step is done: this environment has served a request." : `${doneCount} of ${steps.length} steps done.`}
       flush
       actions={
-        complete ? (
-          <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setExpanded((value) => !value)}>
+        <div className="flex items-center gap-3">
+          {complete ? null : <Progress done={doneCount} total={steps.length} />}
+          {nextStep && !open ? (
+            <Link href={projectHref(project.id, kind, nextStep.path)} className={buttonVariants({ size: "sm" })}>
+              Next: {nextStep.label} <ArrowRightIcon data-icon="inline-end" />
+            </Link>
+          ) : null}
+          <Button size="sm" variant="ghost" aria-expanded={open} onClick={toggle}>
             {open ? "Hide" : "Show steps"}
             <ChevronDownIcon data-icon="inline-end" className={cn("transition-transform", open && "rotate-180")} />
           </Button>
-        ) : (
-          <Progress done={doneCount} total={steps.length} />
-        )
+        </div>
       }
     >
       {open ? (
@@ -89,6 +104,7 @@ export function GettingStartedPanel() {
               <StepItem key={step.id} step={step} number={index + 1} href={projectHref(project.id, kind, step.path)} />
             ))}
           </ol>
+          {showCode ? (
           <div className="flex min-w-0 flex-col gap-3 border-t p-4 lg:border-t-0">
             <p className="text-[13px] text-muted-foreground">
               Call APICenter from your backend with the server-side SDK.{" "}
@@ -105,6 +121,17 @@ export function GettingStartedPanel() {
             <CodeBlock label="Environment" value={snippet.env} />
             <CodeBlock label="First request" value={snippet.code} />
           </div>
+          ) : nextStep ? (
+            <div className="flex min-w-0 flex-col items-start justify-center gap-2 border-t p-6 lg:border-t-0">
+              <p className="text-xs font-medium text-muted-foreground">Next step</p>
+              <p className="text-sm font-semibold">{nextStep.label}</p>
+              <p className="max-w-md text-[13px] text-muted-foreground">{nextStep.hint}</p>
+              <Link href={projectHref(project.id, kind, nextStep.path)} className={cn(buttonVariants({ size: "sm" }), "mt-1")}>
+                {nextStep.label} <ArrowRightIcon data-icon="inline-end" />
+              </Link>
+              <p className="mt-2 text-xs text-muted-foreground">The SDK setup and a first request appear here once there is a key to use.</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </Panel>
@@ -158,4 +185,21 @@ function CodeBlock({ label, value }: { label: string; value: string }) {
       </pre>
     </div>
   );
+}
+
+function readFolded(key: string): boolean | null {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? null : value === "folded";
+  } catch {
+    return null;
+  }
+}
+
+function writeFolded(key: string, folded: boolean) {
+  try {
+    window.localStorage.setItem(key, folded ? "folded" : "open");
+  } catch {
+    // Remembering it is a convenience; without storage the guide simply opens again.
+  }
 }
