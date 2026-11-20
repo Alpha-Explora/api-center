@@ -2,6 +2,7 @@
 
 ## 2026-11-20
 
+- Control plane operations describes paging on the project, member and key lists.
 - The history retention runbook adds the control-plane usage, quota-counter and key-issue tables with their windows, and runs the purge job in `australia-southeast1`.
 - The hosted-access runbook documents the image build, including the `_RELEASE_SHA` substitution that sets the release commit each image reports.
 - The hosted-access runbook records where each service runs after the move to `australia-southeast1`, the load balancer endpoint groups, and how to move a backend between regions without an outage. The gateway manifest's runtime routes and the hostname map name the Sydney services.
