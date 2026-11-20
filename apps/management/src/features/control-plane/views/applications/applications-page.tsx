@@ -19,11 +19,12 @@ import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
-import { SLUG_PATTERN, formatRelative, toSlug } from "@/lib/format";
+import { SLUG_PATTERN, toSlug } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { environmentWriteReason } from "../../model/access";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function ApplicationsPage() {
   return (
@@ -98,7 +99,7 @@ function ApplicationsList() {
                   <TableCell className="hidden md:table-cell">
                     <IdText value={application.id} />
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell">{formatRelative(application.createdAt)}</TableCell>
+                  <TableCell className="hidden text-muted-foreground lg:table-cell"><RelativeTime value={application.createdAt} /></TableCell>
                 </TableRow>
               ))}
             </TableBody>

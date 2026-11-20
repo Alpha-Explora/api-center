@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/patterns/page-header";
 import { DescriptionList, Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { publishedApis } from "../../data/published-apis";
 import { environmentWriteReason } from "../../model/access";
 import type { PublishedApi } from "../../model/published-apis";
@@ -22,6 +22,7 @@ import { PageSkeleton, RequireEnvironment, useProjectEnvironment } from "../../v
 import { apiKeys, useEnvironmentApis } from "../../view-models/published-apis";
 import { AccessRequestsPanel } from "./access-requests-panel";
 import { EditApiSheet } from "./api-sheet";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 
 export function ApiPage({ apiId }: { apiId: string }) {
@@ -128,12 +129,12 @@ function ApiView({ api }: { api: PublishedApi }) {
               label: "Published",
               value: (
                 <span title={formatDateTime(api.createdAt)}>
-                  {formatRelative(api.createdAt)}
+                  <RelativeTime value={api.createdAt} />
                   {api.createdBy ? <span className="text-muted-foreground"> by {api.createdBy}</span> : null}
                 </span>
               ),
             },
-            { label: "Updated", value: <span title={formatDateTime(api.updatedAt)}>{formatRelative(api.updatedAt)}</span> },
+            { label: "Updated", value: <span title={formatDateTime(api.updatedAt)}><RelativeTime value={api.updatedAt} /></span> },
           ]}
         />
       </Panel>

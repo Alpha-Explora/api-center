@@ -28,6 +28,18 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   return Number.isNaN(date.getTime()) ? "—" : absolute.format(date);
 }
 
+/**
+ * An audit actor label as people read it. Operator scripts and the platform credential are recorded
+ * as "platform" or "platform:<who>"; the person (or script) is the name and the platform is how they
+ * acted.
+ */
+export function formatActor(label: string | null | undefined): { name: string; via?: "platform" } {
+  if (!label) return { name: "System" };
+  if (label === "platform") return { name: "APICenter platform" };
+  if (label.startsWith("platform:")) return { name: label.slice("platform:".length).trim() || "APICenter platform", via: "platform" };
+  return { name: label };
+}
+
 export function formatNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : value.toLocaleString("en");
 }

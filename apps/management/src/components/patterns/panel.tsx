@@ -14,7 +14,8 @@ export function Panel({
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
-  children: ReactNode;
+  /** Without children the panel is its header alone. */
+  children?: ReactNode;
   className?: string;
   flush?: boolean;
   id?: string;
@@ -30,7 +31,7 @@ export function Panel({
           {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
         </div>
       ) : null}
-      <div className={flush ? undefined : "p-4"}>{children}</div>
+      {children === undefined || children === null || children === false ? null : <div className={flush ? undefined : "p-4"}>{children}</div>}
     </section>
   );
 }

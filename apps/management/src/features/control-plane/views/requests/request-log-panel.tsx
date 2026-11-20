@@ -14,7 +14,7 @@ import { ErrorPanel } from "@/components/patterns/notices";
 import { DescriptionList, Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import {
   describeFailureStage,
@@ -30,6 +30,7 @@ import {
 import { useAnchoredNow, useRequestLog } from "../../view-models/observability";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 /**
  * Recent requests made by the environment's applications, newest first. With `applicationId`, only that
@@ -172,7 +173,7 @@ export function RequestLogPanel({ applicationId }: { applicationId?: string }) {
                     {entry.errorCode ? <span className="ml-2 font-mono text-xs text-muted-foreground">{entry.errorCode}</span> : null}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground" title={formatDateTime(entry.occurredAt)}>
-                    {formatRelative(entry.occurredAt)}
+                    <RelativeTime value={entry.occurredAt} />
                   </TableCell>
                 </TableRow>
               ))}

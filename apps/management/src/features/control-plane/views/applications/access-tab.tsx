@@ -13,13 +13,14 @@ import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { projectHref } from "@/lib/app-navigation";
-import { formatRelative } from "@/lib/format";
+
 import { controlPlane } from "../../data/control-plane-repository";
 import { environmentWriteReason } from "../../model/access";
 import type { Application, Grant } from "../../model/control-plane";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { ApiAccessPanel } from "./api-access-panel";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function grantsKey(organizationId: string, projectId: string, kind: "test" | "live", applicationId: string) {
   return [...cpKeys.application(organizationId, projectId, kind, applicationId), "grants"] as const;
@@ -96,10 +97,10 @@ export function AccessTab({ application }: { application: Application }) {
                   <TableCell className="font-mono text-xs">{grant.action}</TableCell>
                   <TableCell>{capabilityNames.get(grant.capability ?? "") ?? grant.capability}</TableCell>
                   <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">{descriptions.get(grant.action) ?? "—"}</TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell">{formatRelative(grant.createdAt)}</TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell"><RelativeTime value={grant.createdAt} /></TableCell>
                   <TableCell className="text-right">
                     {canWrite ? (
-                      <Button size="sm" variant="ghost" onClick={() => setRevoking(grant)}>
+                      <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking(grant)}>
                         Revoke
                       </Button>
                     ) : null}

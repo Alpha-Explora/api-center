@@ -12,13 +12,14 @@ import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
-import { formatRelative } from "@/lib/format";
+
 import { environmentWriteReason } from "../../model/access";
 import { upstreamHost } from "../../model/published-apis";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { useEnvironmentApis } from "../../view-models/published-apis";
 import { AccessRequestsPanel } from "./access-requests-panel";
 import { PublishApiSheet } from "./api-sheet";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function ApisPage() {
   return (
@@ -93,7 +94,7 @@ function ApisList() {
                     </TableCell>
                     <TableCell className="hidden max-w-56 truncate font-mono text-xs text-muted-foreground md:table-cell">{upstreamHost(api.upstreamUrl)}</TableCell>
                     <TableCell className="text-right tabular-nums">{api.operations.length}</TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">{formatRelative(api.updatedAt ?? api.createdAt)}</TableCell>
+                    <TableCell className="hidden text-muted-foreground lg:table-cell"><RelativeTime value={api.updatedAt ?? api.createdAt} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

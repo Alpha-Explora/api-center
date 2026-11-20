@@ -23,6 +23,8 @@ export function usePagedList<T>(queryKey: QueryKey, fetchPage: (cursor?: string)
     hasMore: query.hasNextPage,
     loadingMore: query.isFetchingNextPage,
     loadMore: () => void query.fetchNextPage(),
+    /** When the list was last loaded: the "now" that countdowns in it are read against. */
+    loadedAt: query.dataUpdatedAt,
   };
 }
 

@@ -9,12 +9,13 @@ import { ErrorPanel } from "@/components/patterns/notices";
 import { DescriptionList, Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type { Application } from "../../model/control-plane";
 import { TRANSPORT_LABELS, destinationEndpoint, liveDestinationFor } from "../../model/event-destinations";
 import { useEventDestinations } from "../../view-models/event-destinations";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { WebhookDeliveriesPanel } from "../webhooks/webhook-deliveries-panel";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 /** The application's payment event destination, if it has one. Changes happen on the Webhooks page. */
 export function WebhookTab({ application }: { application: Application }) {
@@ -59,14 +60,14 @@ export function WebhookTab({ application }: { application: Application }) {
                     {
                       label: "Secret rotated",
                       value: destination.secretRotatedAt ? (
-                        <span title={formatDateTime(destination.secretRotatedAt)}>{formatRelative(destination.secretRotatedAt)}</span>
+                        <span title={formatDateTime(destination.secretRotatedAt)}><RelativeTime value={destination.secretRotatedAt} /></span>
                       ) : (
                         "Never"
                       ),
                     },
                   ]
                 : []),
-              { label: "Created", value: <span title={formatDateTime(destination.createdAt)}>{formatRelative(destination.createdAt)}</span> },
+              { label: "Created", value: <span title={formatDateTime(destination.createdAt)}><RelativeTime value={destination.createdAt} /></span> },
               { label: "ID", value: <IdText value={destination.id} /> },
             ]}
           />

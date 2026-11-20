@@ -19,7 +19,7 @@ import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { ApiError } from "@/lib/api-center/client-core";
 import { projectHref } from "@/lib/app-navigation";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
 import { lifecycle } from "../../data/lifecycle";
@@ -29,6 +29,7 @@ import type { EnvironmentKind, ProjectEnvironment, Team } from "../../model/cont
 import { PROJECT_ROLES, removesLastExplicitAdmin, type ProjectRoleAssignment, type ProjectRoleInput } from "../../model/project-roles";
 import { useProject } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function ProjectSettingsPage() {
   const { project } = useProject();
@@ -114,7 +115,7 @@ function TestRecipientsPanel() {
                 <span className="hidden text-xs text-muted-foreground sm:inline">added by {entry.createdBy}</span>
                 <GuardedButton
                   size="sm"
-                  variant="ghost"
+                  variant="quiet-destructive"
                   allowed={canWrite}
                   reason={TEST_DEVELOPER_REASON}
                   disabled={remove.isPending}
@@ -153,6 +154,7 @@ function ArchivePanel() {
     },
   });
   return (
+    <>
     <Panel
       title={archived ? "Archived project" : "Archive project"}
       description={
@@ -172,7 +174,7 @@ function ArchivePanel() {
           {archived ? "Restore project" : "Archive project"}
         </GuardedButton>
       }
-    >
+    />
       <ConfirmDialog
         open={confirming}
         onOpenChange={(next) => !next && setConfirming(false)}
@@ -183,7 +185,7 @@ function ArchivePanel() {
         busy={update.isPending}
         onConfirm={() => update.mutate("archived")}
       />
-    </Panel>
+    </>
   );
 }
 
@@ -314,11 +316,11 @@ function RolesPanel() {
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{role}</TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell" title={`${formatDateTime(assignment.createdAt)} by ${assignment.createdBy}`}>
-                      {formatRelative(assignment.createdAt)}
+                      <RelativeTime value={assignment.createdAt} />
                     </TableCell>
                     <TableCell className="text-right">
                       {canManage ? (
-                        <Button size="sm" variant="ghost" onClick={() => setRemoving(assignment)}>
+                        <Button size="sm" variant="quiet-destructive" onClick={() => setRemoving(assignment)}>
                           Remove
                         </Button>
                       ) : null}

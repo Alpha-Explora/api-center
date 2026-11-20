@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { RocketIcon } from "lucide-react";
@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorPanel } from "@/components/patterns/notices";
+import { ApiError } from "@/lib/api-center/client-core";
 import { projectHref } from "@/lib/app-navigation";
 import { controlPlane } from "../data/control-plane-repository";
 import type { Access } from "../model/access";
@@ -82,14 +83,28 @@ function LoadProject({
   projectId: string;
   children: (loaded: { organizationId: string; project: Project; access: Access }) => ReactNode;
 }) {
-  const { organizationId, loading } = useOrganization();
+  const { organizationId, organizations, setOrganizationId, loading } = useOrganization();
   const { access, loading: accessLoading } = useAccess(organizationId);
   const project = useQuery({
     queryKey: cpKeys.project(organizationId ?? "none", projectId),
     queryFn: () => controlPlane.project(organizationId as string, projectId),
     enabled: Boolean(organizationId),
   });
+  // A link to a project in another of the person's organizations opens it there instead of failing.
+  const notHere = !loading && (!organizationId || (project.error instanceof ApiError && project.error.status === 404));
+  const candidates = organizations.map((entry) => entry.id).filter((id) => id !== organizationId);
+  const owner = useQuery({
+    queryKey: ["cp", "project-owner", projectId, candidates.join(",")],
+    queryFn: () => findProjectOrganization(projectId, candidates, (org) => controlPlane.project(org, projectId)),
+    enabled: notHere && candidates.length > 0,
+    retry: false,
+    staleTime: Infinity,
+  });
+  useEffect(() => {
+    if (owner.data && owner.data !== organizationId) setOrganizationId(owner.data);
+  }, [owner.data, organizationId, setOrganizationId]);
 
+  if (notHere && (owner.isFetching || owner.data)) return <PageSkeleton />;
   if (!loading && !organizationId) {
     return <EmptyState title="No organization selected" description="Choose an organization from the switcher in the sidebar." />;
   }
@@ -129,4 +144,24 @@ export function PageSkeleton() {
       <Skeleton className="h-64 w-full" />
     </div>
   );
+}
+
+/**
+ * The first of these organizations that has the project, or null. Each is asked in turn; any failure
+ * (not found, no access) moves on to the next.
+ */
+export async function findProjectOrganization(
+  projectId: string,
+  organizationIds: string[],
+  load: (organizationId: string) => Promise<unknown>,
+): Promise<string | null> {
+  for (const organizationId of organizationIds) {
+    try {
+      await load(organizationId);
+      return organizationId;
+    } catch {
+      // Not in this organization, or not visible to this person.
+    }
+  }
+  return null;
 }

@@ -8,12 +8,13 @@ import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { publishedApis } from "../../data/published-apis";
 import type { Application } from "../../model/control-plane";
 import { outgoingForApplication, type OutgoingRequest } from "../../model/outgoing-requests";
 import { apiKeys } from "../../view-models/published-apis";
 import { useProjectEnvironment } from "../../view-models/project-environment";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export const outgoingRequestsKey = (organizationId: string, projectId: string) => [...apiKeys.accessRequests(organizationId, projectId), "outgoing"] as const;
 
@@ -64,7 +65,7 @@ export function OutgoingRequestsPanel({ application, projectName }: { applicatio
                   className="hidden text-right text-muted-foreground sm:table-cell"
                   title={formatDateTime(request.decidedAt ?? request.createdAt)}
                 >
-                  {formatRelative(request.decidedAt ?? request.createdAt)}
+                  <RelativeTime value={request.decidedAt ?? request.createdAt} />
                 </TableCell>
               </TableRow>
             ))}

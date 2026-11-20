@@ -13,7 +13,7 @@ import { AuditEventsService, type AuditOwner } from "@audit/audit-events.service
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { AppError, ConflictError, NotFoundError } from "@shared/errors";
 import { newResourceId } from "./application-credential";
-import { planAllowsLive } from "./quota-budgets";
+import { listPlans, planAllowsLive } from "./quota-budgets";
 import { withTenant, type TenantDb } from "./tenant-transaction";
 
 export interface ReadinessCheck {
@@ -219,10 +219,35 @@ async function readinessChecks(db: TenantDb, organizationId: string, environment
     {
       key: "plan",
       passed: Boolean(entitlement && planAllowsLive(entitlement.planKey)),
-      detail: entitlement ? `Plan '${entitlement.planKey}'` : "Assign a live-capable plan to the live environment",
+      detail: entitlement
+        ? planAllowsLive(entitlement.planKey)
+          ? `${planName(entitlement.planKey)} plan`
+          : `${planName(entitlement.planKey)} plan is test-only; assign a live-capable plan`
+        : "Assign a live-capable plan to the live environment",
     },
-    { key: "capability", passed: capabilities > 0, detail: `${capabilities} capability(ies) enabled in live` },
-    { key: "application", passed: applications > 0, detail: `${applications} live application(s); live identities are separate from test` },
-    { key: "grant", passed: grants > 0, detail: `${grants} explicit live grant(s)` },
+    {
+      key: "capability",
+      passed: capabilities > 0,
+      detail: capabilities > 0 ? `${count(capabilities, "capability", "capabilities")} enabled in live` : "Enable a capability in live",
+    },
+    {
+      key: "application",
+      passed: applications > 0,
+      detail: applications > 0 ? `${count(applications, "live application")}, separate from test` : "Create a live application; test applications don't carry over",
+    },
+    {
+      key: "grant",
+      passed: grants > 0,
+      detail: grants > 0 ? `${count(grants, "action")} granted in live` : "Grant actions to a live application",
+    },
   ];
+}
+
+/** "1 action", "27 actions". */
+function count(value: number, singular: string, plural = `${singular}s`): string {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
+function planName(planKey: string): string {
+  return listPlans().find((plan) => plan.planKey === planKey)?.displayName ?? planKey;
 }

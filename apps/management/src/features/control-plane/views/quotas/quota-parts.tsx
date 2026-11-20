@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormRow, NativeSelect } from "@/components/patterns/form";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { formatQuotaLimit, formatWindow, WINDOW_PRESETS, type QuotaForm, type QuotaFormErrors, type QuotaPolicy } from "../../model/quotas";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export const QUOTA_RULES =
   "Every limit that applies must have room: the plan's daily allowance, the project's policies and any shared ceiling. Windows are fixed and aligned to the clock in UTC, so an hourly limit resets on the hour. Requests over an enforced limit get 429 QUOTA_EXCEEDED.";
@@ -157,7 +158,7 @@ export function QuotaPolicyTable({
             {usage ? <TableCell className="hidden sm:table-cell">{usage(policy)}</TableCell> : null}
             {extra ? <TableCell className="hidden max-w-64 md:table-cell">{extra.render(policy)}</TableCell> : null}
             <TableCell className="hidden text-muted-foreground lg:table-cell" title={`${formatDateTime(policy.createdAt)}${policy.createdBy ? ` by ${policy.createdBy}` : ""}`}>
-              {formatRelative(policy.createdAt)}
+              <RelativeTime value={policy.createdAt} />
             </TableCell>
             {actions ? <TableCell className="text-right">{actions(policy)}</TableCell> : null}
           </TableRow>

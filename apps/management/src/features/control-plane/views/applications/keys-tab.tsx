@@ -14,7 +14,7 @@ import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { SecretDialog } from "@/components/patterns/secret-dialog";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { environmentWriteReason } from "../../model/access";
 import type { Application, Credential, IssuedCredential } from "../../model/control-plane";
@@ -24,6 +24,7 @@ import { ExpiryBadge } from "./expiry-badge";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { LoadMore, usePagedList } from "../../view-models/paged-list";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 const EXPIRY_OPTIONS = [30, 90, 180, 365];
 
@@ -128,14 +129,14 @@ export function KeysTab({ application }: { application: Application }) {
                     </span>
                     {credential.revokedReason ? <span className="ml-2 text-xs text-muted-foreground">{credential.revokedReason}</span> : null}
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell">{credential.lastUsedAt ? formatRelative(credential.lastUsedAt) : "Never"}</TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">{credential.lastUsedAt ? <RelativeTime value={credential.lastUsedAt} /> : "Never"}</TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell" title={formatDateTime(credential.expiresAt)}>
-                    {formatRelative(credential.expiresAt)}
+                    <RelativeTime value={credential.expiresAt} />
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell">{formatRelative(credential.createdAt)}</TableCell>
+                  <TableCell className="hidden text-muted-foreground lg:table-cell"><RelativeTime value={credential.createdAt} /></TableCell>
                   <TableCell className="text-right">
                     {credential.status === "active" && canWrite ? (
-                      <Button size="sm" variant="ghost" onClick={() => setRevoking(credential)}>
+                      <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking(credential)}>
                         Revoke
                       </Button>
                     ) : null}

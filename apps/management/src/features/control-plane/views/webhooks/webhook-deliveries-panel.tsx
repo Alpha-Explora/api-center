@@ -10,7 +10,7 @@ import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { webhookDeliveries } from "../../data/webhook-deliveries";
 import { environmentWriteReason } from "../../model/access";
@@ -26,6 +26,7 @@ import {
 } from "../../model/webhook-deliveries";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { useWebhookDeliveries, webhookDeliveriesKey } from "../../view-models/webhook-deliveries";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 /** A signed webhook's recent delivery attempts, and a button that sends it a test event and follows it. Key it by destination ID. */
 export function WebhookDeliveriesPanel({
@@ -142,7 +143,7 @@ function TestEventResult({ sent, progress, timedOut }: { sent: SentTestEvent; pr
     title = "Test event sent, waiting for the first attempt…";
     detail = (
       <>
-        Published {formatRelative(sent.sentAt)} as {event}. It is signed and delivered like a real payment event.
+        Published <RelativeTime value={sent.sentAt} /> as {event}. It is signed and delivered like a real payment event.
       </>
     );
   }
@@ -187,7 +188,7 @@ function DeliveriesTable({ rows, highlight }: { rows: WebhookDelivery[]; highlig
               className={cn(delivery.eventId === highlight && "bg-muted/40")}
             >
               <TableCell className="hidden text-muted-foreground sm:table-cell" title={formatDateTime(delivery.attemptedAt)}>
-                {formatRelative(delivery.attemptedAt)}
+                <RelativeTime value={delivery.attemptedAt} />
               </TableCell>
               <TableCell className="max-w-[11rem] sm:max-w-xs">
                 <span className="flex items-center gap-1.5">
@@ -197,7 +198,7 @@ function DeliveriesTable({ rows, highlight }: { rows: WebhookDelivery[]; highlig
                 <span className="block truncate font-mono text-[11px] text-muted-foreground" title={delivery.eventId}>
                   {delivery.eventId}
                 </span>
-                <span className="block text-xs text-muted-foreground sm:hidden">{formatRelative(delivery.attemptedAt)}</span>
+                <span className="block text-xs text-muted-foreground sm:hidden"><RelativeTime value={delivery.attemptedAt} /></span>
               </TableCell>
               <TableCell className="whitespace-normal">
                 <StatusBadge tone={outcome.tone}>{outcome.label}</StatusBadge>

@@ -48,8 +48,6 @@ export function PeoplePage() {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
   const [suspending, setSuspending] = useState<Member | null>(null);
-  // When the page opened; invite countdowns are read against it.
-  const [now] = useState(() => Date.now());
   const refresh = () => {
     void client.invalidateQueries({ queryKey: cpKeys.members(organizationId ?? "none") });
     void client.invalidateQueries({ queryKey: cpKeys.teams(organizationId ?? "none") });
@@ -151,7 +149,7 @@ export function PeoplePage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <MemberStatus member={member} now={now} />
+                      <MemberStatus member={member} now={members.loadedAt} />
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       {editable && (member.status === "invited" || member.status === "invite_expired") ? (
@@ -160,7 +158,7 @@ export function PeoplePage() {
                         </Button>
                       ) : null}
                       {editable && !self && member.status === "active" ? (
-                        <Button size="sm" variant="ghost" onClick={() => setSuspending(member)}>
+                        <Button size="sm" variant="quiet-destructive" onClick={() => setSuspending(member)}>
                           Suspend
                         </Button>
                       ) : null}
@@ -170,7 +168,7 @@ export function PeoplePage() {
                         </Button>
                       ) : null}
                       {editable ? (
-                        <Button size="sm" variant="ghost" onClick={() => setRemoving(member)}>
+                        <Button size="sm" variant="quiet-destructive" onClick={() => setRemoving(member)}>
                           Remove
                         </Button>
                       ) : null}
@@ -439,7 +437,7 @@ function TeamRow({ organizationId, team, canManage, onChanged }: { organizationI
           <Button size="sm" variant="ghost" type="submit" disabled={!normalized.includes("@") || add.isPending}>
             Add
           </Button>
-          <Button size="sm" variant="ghost" type="button" onClick={() => setDeleting(true)}>
+          <Button size="sm" variant="quiet-destructive" type="button" onClick={() => setDeleting(true)}>
             Delete
           </Button>
         </form>
