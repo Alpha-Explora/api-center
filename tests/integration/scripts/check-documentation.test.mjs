@@ -84,3 +84,19 @@ test("unreachable internal concepts and missing legacy targets fail", (t) => {
   assert.ok(errors.some((error) => error.includes("unreachable from docs/index.md")));
   assert.ok(errors.some((error) => error.includes("missing target guide")));
 });
+
+test("instruction files may only name paths and gateway domains that exist", (t) => {
+  const { audit, write } = fixture(t);
+  write("apps/gateway/src/domains/control-plane/index.ts", "");
+  write("scripts/real.js", "");
+  write(
+    "AGENTS.md",
+    "# Instructions\n\n- Domains under `apps/gateway/src/domains/` (`control-plane`, `catalog-registry`)\n- Run `scripts/real.js`, not `scripts/gone.js`.\n- Patterns such as `apps/*/src` are skipped.\n",
+  );
+  write("apps/console/AGENTS.md", "# Console\n\nClient in `src/lib/client.ts`.\n");
+  assert.deepEqual(audit().sort(), [
+    "AGENTS.md: gateway domain does not exist: catalog-registry",
+    "AGENTS.md: path does not exist: scripts/gone.js",
+    "apps/console/AGENTS.md: path does not exist: src/lib/client.ts",
+  ]);
+});
