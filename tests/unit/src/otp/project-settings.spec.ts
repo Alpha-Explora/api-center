@@ -32,6 +32,27 @@ describe('OTP settings parsing', () => {
     expect(otpTemplateProblem('x'.repeat(301) + '{{code}}')).toMatch(/300/);
     expect(otpTemplateProblem('{{code}}\u0007')).toMatch(/control/);
   });
+
+  it('keeps the template to one line of text: no newlines, links, addresses or phone numbers', () => {
+    expect(otpTemplateProblem('Your Acme code is {{code}}.\nCall us')).toMatch(/one line/);
+    // A newline inside the braces passes no placeholder check, so the table never sees it either.
+    expect(otpTemplateProblem('Code {{\ncode}}')).not.toBeNull();
+    expect(otpTemplateProblem('Code {{ code }}')).toBeNull();
+    for (const template of [
+      'Your code {{code}} https://evil.example/x',
+      'Your code {{code}} at www.evil',
+      'Your code {{code}}, confirm at evil.co',
+      'Code {{code}} - reply to help@acme.io',
+      'Code {{code}} bit.ly/abc',
+    ]) {
+      expect(otpTemplateProblem(template)).toMatch(/links/);
+    }
+    for (const template of ['Code {{code}}. Call +63 917 123 4567', 'Code {{code}}, call 555-1234567', 'Code {{code}} (02) 8123 4567']) {
+      expect(otpTemplateProblem(template)).toMatch(/phone/);
+    }
+    expect(otpTemplateProblem('Your Acme code is {{code}}. It expires in {{minutes}} min, e.g. at 10:30.')).toBeNull();
+    expect(otpTemplateProblem('{{code}} is your code. Valid 5 minutes, 3 tries.')).toBeNull();
+  });
 });
 
 describe('OTP policy', () => {
@@ -67,6 +88,18 @@ describe('OTP settings in the runtime', () => {
     expect((await verify.execute({ otpId: generated.otpId, code: wrong }, owner)).reason).toBe('OTP_INVALID');
     expect((await verify.execute({ otpId: generated.otpId, code: wrong }, owner)).reason).toBe('OTP_INVALID');
     expect((await verify.execute({ otpId: generated.otpId, code: generated.code! }, owner)).reason).toBe('OTP_ATTEMPTS_EXCEEDED');
+  });
+
+  it('rejects a template the runtime would refuse with 400 before it reaches the table', async () => {
+    const store = new MemoryOtpStore();
+    const handler = createOtpSettingsAdminHandler({ store, expectedToken: 'otp-token' });
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
+    await handler({
+      method: 'PUT', body: { messageTemplate: 'Code {{\ncode}}' }, params: { projectId: 'prj_a', environment: 'test' },
+      header: (name: string) => (name === 'X-APICenter-Otp-Admin-Token' ? 'otp-token' : undefined),
+    } as any, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(await store.getProjectSettings('prj_a', 'test')).toBeNull();
   });
 
   it('serves GET, PUT and DELETE behind the admin token', async () => {

@@ -1,6 +1,11 @@
 // Per-project OTP settings. Code length and expiry are the project's defaults: a request's `digits`
 // or `ttlSeconds` still wins, within the platform bounds. The attempt cap and the message template
 // always apply. A null field means the platform default.
+//
+// The template is sent through APICenter's own Twilio and Resend senders, so it is held to one line
+// of body text around the code: no links, web addresses or phone numbers, and the email subject
+// stays APICenter's own ("Your APICenter verification code"). Changing it needs a project admin at
+// the gateway.
 
 export interface OtpProjectSettings {
   projectId: string;
@@ -22,7 +27,12 @@ export const OTP_BOUNDS = {
 
 export const DEFAULT_OTP_MESSAGE_TEMPLATE = 'Your APICenter verification code is {{code}}';
 
-const PLACEHOLDER = /\{\{\s*([A-Za-z]+)\s*\}\}/g;
+// Spaces only inside the braces: the table's check finds {{code}} after removing spaces, not newlines.
+const PLACEHOLDER = /\{\{[ ]*([A-Za-z]+)[ ]*\}\}/g;
+/** A URL scheme, www., or anything shaped like a domain name (example.com, bit.ly, a@b.co). */
+const LINK = /\b[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/i;
+/** Seven or more digits, allowing one space, dot, dash or bracket between them. */
+const PHONE = /\+?\d(?:[\s().-]?\d){6,}/;
 const KNOWN_PLACEHOLDERS = new Set(['code', 'minutes']);
 
 export const EMPTY_OTP_SETTINGS: OtpSettingsValues = { codeLength: null, expirySeconds: null, maxAttempts: null, messageTemplate: null };
@@ -71,11 +81,14 @@ export function otpTemplateProblem(template: string): string | null {
     return `messageTemplate must be at most ${OTP_BOUNDS.messageTemplateMaxLength} characters.`;
   }
   // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u0009\u000b-\u001f\u007f]/.test(template)) return 'messageTemplate must not contain control characters.';
+  if (/[\u0000-\u001f\u007f]/.test(template)) return 'messageTemplate must be one line without control characters.';
   const names = [...template.matchAll(PLACEHOLDER)].map((match) => match[1]);
   const unknown = names.find((name) => !KNOWN_PLACEHOLDERS.has(name));
   if (unknown) return `messageTemplate may use only {{code}} and {{minutes}}; found {{${unknown}}}.`;
   if (!names.includes('code')) return 'messageTemplate must include {{code}}.';
+  const text = template.replace(PLACEHOLDER, ' ');
+  if (LINK.test(text)) return 'messageTemplate must not contain links or web addresses.';
+  if (PHONE.test(text)) return 'messageTemplate must not contain phone numbers.';
   return null;
 }
 
