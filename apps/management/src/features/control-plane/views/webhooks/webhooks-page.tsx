@@ -48,7 +48,6 @@ function Webhooks() {
   const applications = useQuery({
     queryKey: cpKeys.applications(organizationId, project.id, kind),
     queryFn: () => controlPlane.applications(organizationId, project.id, kind),
-    retry: false,
   });
   const paymentsEnabled = usePaymentsEnabled();
   const [creating, setCreating] = useState(false);

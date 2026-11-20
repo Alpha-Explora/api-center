@@ -14,5 +14,5 @@ export const apiKeys = {
 /** This environment's published APIs, active and disabled. */
 export function useEnvironmentApis() {
   const { organizationId, project, kind } = useProjectEnvironment();
-  return useQuery({ queryKey: apiKeys.list(organizationId, project.id, kind), queryFn: () => publishedApis.list(organizationId, project.id, kind), retry: false });
+  return useQuery({ queryKey: apiKeys.list(organizationId, project.id, kind), queryFn: () => publishedApis.list(organizationId, project.id, kind) });
 }

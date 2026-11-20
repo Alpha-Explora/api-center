@@ -46,8 +46,8 @@ function RolesPanel() {
   const { organizationId, project, canManage } = useProject();
   const client = useQueryClient();
   const rolesKey = [...cpKeys.project(organizationId, project.id), "roles"];
-  const roles = useQuery({ queryKey: rolesKey, queryFn: () => projectSettings.roles(organizationId, project.id), retry: false });
-  const teams = useQuery({ queryKey: cpKeys.teams(organizationId), queryFn: () => controlPlane.teams(organizationId), retry: false });
+  const roles = useQuery({ queryKey: rolesKey, queryFn: () => projectSettings.roles(organizationId, project.id) });
+  const teams = useQuery({ queryKey: cpKeys.teams(organizationId), queryFn: () => controlPlane.teams(organizationId) });
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<ProjectRoleAssignment | null>(null);
   const [demoting, setDemoting] = useState<{ assignment: ProjectRoleAssignment; role: ProjectRole } | null>(null);
@@ -273,7 +273,7 @@ function AddRoleSheet({
   const [email, setEmail] = useState("");
   const [teamId, setTeamId] = useState("");
   const [role, setRole] = useState<ProjectRole>("developer");
-  const members = useQuery({ queryKey: cpKeys.members(organizationId), queryFn: () => controlPlane.members(organizationId), retry: false, enabled: open });
+  const members = useQuery({ queryKey: cpKeys.members(organizationId), queryFn: () => controlPlane.members(organizationId), enabled: open });
   const normalized = email.trim().toLowerCase();
   const input: ProjectRoleInput | undefined =
     kind === "member" ? (EMAIL.test(normalized) ? { memberEmail: normalized, role } : undefined) : teamId ? { teamId, role } : undefined;

@@ -20,7 +20,6 @@ export function useWebhookDeliveries(
   return useQuery({
     queryKey: webhookDeliveriesKey(scope.organizationId, scope.projectId, scope.kind, destinationId),
     queryFn: () => webhookDeliveries.list(scope, destinationId),
-    retry: false,
     refetchInterval: (query) => (shouldPollForTestEvent(followEventId, query.state.data ?? []) ? 3_000 : false),
   });
 }
