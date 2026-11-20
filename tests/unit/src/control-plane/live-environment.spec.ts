@@ -75,7 +75,15 @@ describe("live environments", () => {
     await admin.setCapability(scope, "email", true, actor);
     const app = await admin.createApplication(scope, { slug: "api", name: "API (live)" }, actor);
     await admin.grant(scope, app.id, { capability: "email", action: "email:send" }, actor);
-    expect((await live.readiness(ORG, project.id)).ready).toBe(true);
+    const readiness = await live.readiness(ORG, project.id);
+    expect(readiness.ready).toBe(true);
+    // Each check reads as a sentence: plan by name, counts with the right plural.
+    expect(readiness.checks.map((check) => check.detail)).toEqual([
+      "Standard plan",
+      "1 capability enabled in live",
+      "1 live application, separate from test",
+      "1 action granted in live",
+    ]);
 
     const activated = await live.activate(ORG, project.id, "apr_1", actor);
     expect(activated).toMatchObject({ status: "active", activationApprovalId: "apr_1", activatedBy: actor });

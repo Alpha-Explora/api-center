@@ -1,7 +1,8 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { formatNumber, formatRelative } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { meterLevel, type QuotaMeter } from "../../model/observability";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 const FILL = {
   success: "bg-foreground/70",
@@ -13,7 +14,7 @@ const FILL = {
 
 /** "resets in 2 hours"; a window ending within a minute reads "resets in under a minute". */
 function resetsIn(windowEnd: string) {
-  return Date.parse(windowEnd) - Date.now() < 60_000 ? "resets in under a minute" : `resets ${formatRelative(windowEnd)}`;
+  return Date.parse(windowEnd) - Date.now() < 60_000 ? "resets in under a minute" : `resets $<RelativeTime value={windowEnd} />`;
 }
 
 /** A thin progress bar for a request budget's current window, with the count and when it resets. */

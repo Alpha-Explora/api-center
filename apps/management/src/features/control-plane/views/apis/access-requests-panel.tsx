@@ -14,7 +14,7 @@ import { ErrorPanel } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { ApiError } from "@/lib/api-center/client-core";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { publishedApis } from "../../data/published-apis";
 import { PROJECT_ADMIN_REASON } from "../../model/access";
@@ -23,6 +23,7 @@ import { MAX_REJECTION_REASON, rejectionReasonBody } from "../../model/outgoing-
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { apiKeys } from "../../view-models/published-apis";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 const SELF_REASON = "You made this request; another project admin has to decide it.";
 
@@ -143,7 +144,7 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
                           {ownRequest ? <span className="text-foreground"> (you)</span> : null}
                         </TableCell>
                         <TableCell className="hidden text-muted-foreground sm:table-cell" title={formatDateTime(request.createdAt)}>
-                          {formatRelative(request.createdAt)}
+                          <RelativeTime value={request.createdAt} />
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1.5">
@@ -197,7 +198,7 @@ export function AccessRequestsPanel({ apis, title = "Access requests" }: { apis:
                         </TableCell>
                         <TableCell className="hidden text-muted-foreground md:table-cell">{request.decidedBy ?? "—"}</TableCell>
                         <TableCell className="hidden text-right text-muted-foreground sm:table-cell" title={formatDateTime(request.decidedAt)}>
-                          {formatRelative(request.decidedAt)}
+                          <RelativeTime value={request.decidedAt} />
                         </TableCell>
                       </TableRow>
                     ))}

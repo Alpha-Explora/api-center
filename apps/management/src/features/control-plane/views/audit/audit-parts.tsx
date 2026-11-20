@@ -4,8 +4,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { IdText } from "@/components/patterns/copy-button";
 import { DescriptionList } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime, formatActor } from "@/lib/format";
 import { auditActionLabel, type AuditEntry } from "../../model/observability";
+import { RelativeTime } from "@/components/patterns/relative-time";
+import { ActorLabel } from "@/components/patterns/actor-label";
 
 /**
  * Audit events as a table. `projectName` resolves project IDs; `showProject` adds the project column;
@@ -50,9 +52,9 @@ export function AuditTable({
                 {entry.environment ? <EnvironmentTag kind={entry.environment} /> : null}
                 {entry.outcome !== "succeeded" ? <StatusBadge status={entry.outcome} /> : null}
               </button>
-              <div className="truncate text-xs text-muted-foreground sm:hidden">{entry.actor ?? "System"}</div>
+              <div className="truncate text-xs text-muted-foreground sm:hidden"><ActorLabel actor={entry.actor} /></div>
             </TableCell>
-            <TableCell className="hidden max-w-56 truncate sm:table-cell">{entry.actor ?? <span className="text-muted-foreground">System</span>}</TableCell>
+            <TableCell className="hidden max-w-64 sm:table-cell"><ActorLabel actor={entry.actor} className="max-w-full" /></TableCell>
             {showProject ? (
               <TableCell className="hidden max-w-48 truncate md:table-cell">
                 {entry.projectId ? (
@@ -66,7 +68,7 @@ export function AuditTable({
               </TableCell>
             ) : null}
             <TableCell className="text-right whitespace-nowrap text-muted-foreground" title={formatDateTime(entry.occurredAt)}>
-              {formatRelative(entry.occurredAt)}
+              <RelativeTime value={entry.occurredAt} />
             </TableCell>
           </TableRow>
         ))}
@@ -103,7 +105,7 @@ export function AuditSheet({
             <SheetHeader>
               <SheetTitle>{auditActionLabel(entry.action)}</SheetTitle>
               <SheetDescription>
-                {formatDateTime(entry.occurredAt)} by {entry.actor ?? "the system"}
+                {formatDateTime(entry.occurredAt)} by {formatActor(entry.actor).name}{formatActor(entry.actor).via ? " via the platform" : ""}
               </SheetDescription>
             </SheetHeader>
             <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
@@ -117,7 +119,7 @@ export function AuditSheet({
                     label: "Outcome",
                     value: <StatusBadge tone={entry.outcome === "succeeded" ? "success" : "danger"}>{entry.outcome}</StatusBadge>,
                   },
-                  { label: "Actor", value: entry.actor ?? "System" },
+                  { label: "Actor", value: <span className="break-all">{entry.actor ?? "System"}</span> },
                   ...(organizationName
                     ? [{ label: "Organization", value: entry.organizationId ? organizationName(entry.organizationId) : "None (platform event)" }]
                     : []),

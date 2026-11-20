@@ -17,13 +17,14 @@ import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { ApiError } from "@/lib/api-center/client-core";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { workloadBindings } from "../../data/workload-bindings";
 import { environmentWriteReason } from "../../model/access";
 import type { Application } from "../../model/control-plane";
 import { audienceInput, workloadBindingFormToBody, type WorkloadBinding, type WorkloadBindingBody, type WorkloadBindingErrors, type WorkloadBindingForm } from "../../model/workload-bindings";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function WorkloadIdentitiesTab({ application }: { application: Application }) {
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
@@ -98,16 +99,16 @@ export function WorkloadIdentitiesTab({ application }: { application: Applicatio
                     <StatusBadge status={row.status} />
                     {row.revokedAt ? (
                       <span className="ml-2 hidden text-xs text-muted-foreground sm:inline" title={`${formatDateTime(row.revokedAt)}${row.revokedBy ? ` by ${row.revokedBy}` : ""}`}>
-                        {formatRelative(row.revokedAt)}
+                        <RelativeTime value={row.revokedAt} />
                       </span>
                     ) : null}
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground lg:table-cell" title={`${formatDateTime(row.createdAt)} by ${row.createdBy}`}>
-                    {formatRelative(row.createdAt)}
+                    <RelativeTime value={row.createdAt} />
                   </TableCell>
                   <TableCell className="text-right">
                     {row.status === "active" && canWrite ? (
-                      <Button size="sm" variant="ghost" onClick={() => setRevoking(row)}>
+                      <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking(row)}>
                         Revoke
                       </Button>
                     ) : null}

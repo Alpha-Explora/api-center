@@ -10,7 +10,7 @@ import { ErrorPanel } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { ApiError } from "@/lib/api-center/client-core";
-import { formatRelative } from "@/lib/format";
+
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
 import { PROJECT_ADMIN_REASON } from "../../model/access";
@@ -18,6 +18,7 @@ import type { ActivationRequest } from "../../model/control-plane";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
 import { useOrganization } from "../../view-models/use-organization";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 /** Live setup: provision, pass readiness, get a second person's approval, activate. */
 export function GoLivePanel() {
@@ -184,7 +185,7 @@ function ProvisioningPanel() {
               <div key={entry.id} className="rounded-md border p-3 text-[13px]">
                 <div className="flex items-center justify-between gap-2">
                   <StatusBadge status={entry.status}>{entry.status === "pending" ? "Waiting for approval" : "Approved"}</StatusBadge>
-                  <span className="text-xs text-muted-foreground">{formatRelative(entry.createdAt)}</span>
+                  <span className="text-xs text-muted-foreground"><RelativeTime value={entry.createdAt} /></span>
                 </div>
                 <p className="mt-2">&ldquo;{entry.reason}&rdquo;</p>
                 <p className="mt-1 text-xs text-muted-foreground">

@@ -8,10 +8,11 @@ import { ErrorPanel } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { APPROVAL_KIND_LABEL, approvalHref, type ApprovalItem } from "../../model/approvals";
 import { useApprovals } from "../../view-models/approvals";
 import { useOrganization } from "../../view-models/use-organization";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function ApprovalsPage() {
   const { organizationId, platformAdmin, setOrganizationId, loading } = useOrganization();
@@ -77,7 +78,7 @@ function ApprovalRow({ item, showOrganization, onOpen }: { item: ApprovalItem; s
         <p className="mt-1 text-[13px] font-medium break-words">{item.summary}</p>
         {item.kind === "live_activation" && item.reason ? <p className="mt-0.5 text-[13px] break-words text-muted-foreground">“{item.reason}”</p> : null}
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Requested by {item.requestedByYou ? "you" : item.requestedBy} <time dateTime={item.requestedAt} title={formatDateTime(item.requestedAt)}>{formatRelative(item.requestedAt)}</time>
+          Requested by {item.requestedByYou ? "you" : item.requestedBy} <time dateTime={item.requestedAt} title={formatDateTime(item.requestedAt)}><RelativeTime value={item.requestedAt} /></time>
           {item.requestedByYou ? " · someone else must decide it" : ""}
         </p>
       </div>

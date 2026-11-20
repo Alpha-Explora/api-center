@@ -29,6 +29,12 @@ const STATUS_TONES: Record<string, Tone> = {
   archived: "neutral",
 };
 
+/** A stored status as people read it: "invite_expired" -> "Invite expired". */
+export function statusLabel(status: string): string {
+  const words = status.replace(/[_-]+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : status;
+}
+
 /** The tone a control-plane status reads as; unknown statuses are neutral. */
 export function statusTone(status: string): Tone {
   return STATUS_TONES[status.toLowerCase()] ?? "neutral";
@@ -55,7 +61,7 @@ export function StatusBadge({
       )}
     >
       <span aria-hidden className={cn("size-1.5 rounded-full", resolved.dot)} />
-      {children ?? status}
+      {children ?? (status ? statusLabel(status) : null)}
     </span>
   );
 }

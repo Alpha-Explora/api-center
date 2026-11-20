@@ -15,7 +15,7 @@ import { FormRow, NativeSelect } from "@/components/patterns/form";
 import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
-import { formatRelative } from "@/lib/format";
+
 import { controlPlane } from "../../data/control-plane-repository";
 import { publishedApis } from "../../data/published-apis";
 import { environmentWriteReason } from "../../model/access";
@@ -26,6 +26,7 @@ import { apiKeys } from "../../view-models/published-apis";
 import { cpKeys } from "../../view-models/query-keys";
 import { grantsKey } from "./access-tab";
 import { OutgoingRequestsPanel, outgoingRequestsKey } from "./outgoing-requests-panel";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 /** API actions this application holds, and requests for more from the organization's API catalog. */
 export function ApiAccessPanel({ application }: { application: Application }) {
@@ -104,10 +105,10 @@ export function ApiAccessPanel({ application }: { application: Application }) {
                       )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell">{api ? (projectNames.get(api.projectId) ?? api.projectId) : "—"}</TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">{formatRelative(grant.createdAt)}</TableCell>
+                    <TableCell className="hidden text-muted-foreground sm:table-cell"><RelativeTime value={grant.createdAt} /></TableCell>
                     <TableCell className="text-right">
                       {canWrite ? (
-                        <Button size="sm" variant="ghost" onClick={() => setRevoking(grant)}>
+                        <Button size="sm" variant="quiet-destructive" onClick={() => setRevoking(grant)}>
                           Revoke
                         </Button>
                       ) : null}

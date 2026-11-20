@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { projectHref } from "@/lib/app-navigation";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
 import { eventDestinations } from "../../data/event-destinations";
 import { environmentWriteReason } from "../../model/access";
@@ -31,6 +31,7 @@ import { CreateDestinationSheet } from "./create-destination-sheet";
 import { WebhookDeliveriesPanel } from "./webhook-deliveries-panel";
 import { WebhookSecretDialog, type IssuedSigningSecret } from "./webhook-secret-dialog";
 import { EventTypesSheet } from "./event-types-sheet";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export function WebhooksPage() {
   return (
@@ -298,10 +299,10 @@ function DestinationRow({
         ) : null}
       </TableCell>
       <TableCell className="hidden text-muted-foreground md:table-cell" title={formatDateTime(destination.secretRotatedAt)}>
-        {destination.transport === "webhook" ? (destination.secretRotatedAt ? formatRelative(destination.secretRotatedAt) : "Never") : "—"}
+        {destination.transport === "webhook" ? (destination.secretRotatedAt ? <RelativeTime value={destination.secretRotatedAt} /> : "Never") : "—"}
       </TableCell>
       <TableCell className="hidden text-muted-foreground lg:table-cell" title={formatDateTime(destination.createdAt)}>
-        {formatRelative(destination.createdAt)}
+        <RelativeTime value={destination.createdAt} />
       </TableCell>
       <TableCell className="text-right">
         {canWrite && (canEditConfig || canDisable) ? (

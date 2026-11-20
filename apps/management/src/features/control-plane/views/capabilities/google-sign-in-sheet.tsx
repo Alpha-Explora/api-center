@@ -13,7 +13,7 @@ import { FormRow } from "@/components/patterns/form";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { DescriptionList } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { capabilityConfiguration } from "../../data/capability-configuration";
 import { environmentWriteReason } from "../../model/access";
 import {
@@ -32,6 +32,7 @@ import type { EnvironmentKind } from "../../model/control-plane";
 import { fieldErrors } from "../../model/form-errors";
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { cpKeys } from "../../view-models/query-keys";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 export const gauthConfigurationKey = (organizationId: string, projectId: string, kind: EnvironmentKind) =>
   [...cpKeys.environment(organizationId, projectId, kind), "configuration", "gauth"] as const;
@@ -167,7 +168,7 @@ function GoogleSignInForm({ current, onDone }: { current: GauthConfiguration; on
                         {
                           label: "Client secret",
                           value: current.secretLastChangedAt ? (
-                            <span title={formatDateTime(current.secretLastChangedAt)}>Changed {formatRelative(current.secretLastChangedAt)}</span>
+                            <span title={formatDateTime(current.secretLastChangedAt)}>Changed <RelativeTime value={current.secretLastChangedAt} /></span>
                           ) : (
                             "Stored"
                           ),

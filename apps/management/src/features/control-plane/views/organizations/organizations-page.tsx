@@ -21,12 +21,13 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import { PlatformAdminOnly } from "@/components/platform-admin-only";
 import { ApiError } from "@/lib/api-center/client-core";
 import { matchesQuery } from "@/lib/app-navigation";
-import { formatNumber, formatRelative, SLUG_PATTERN, toSlug } from "@/lib/format";
+import { formatNumber, SLUG_PATTERN, toSlug } from "@/lib/format";
 import { organizationsAdmin } from "../../data/organizations";
 import type { OrganizationSummary } from "../../model/organizations";
 import { cpKeys } from "../../view-models/query-keys";
 import { useOrganization } from "../../view-models/use-organization";
 import { InviteResult } from "../people/invite-result";
+import { RelativeTime } from "@/components/patterns/relative-time";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_ERROR = "Use lowercase letters, numbers and dashes, starting and ending with a letter or number.";
@@ -147,7 +148,7 @@ function Organizations() {
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">{formatNumber(organization.projectCount)}</TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">{formatNumber(organization.memberCount)}</TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">{formatRelative(organization.createdAt)}</TableCell>
+                    <TableCell className="hidden text-muted-foreground lg:table-cell"><RelativeTime value={organization.createdAt} /></TableCell>
                     <TableCell className="hidden 2xl:table-cell">
                       <IdText value={organization.id} />
                     </TableCell>

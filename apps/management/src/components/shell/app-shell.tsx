@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { controlPlane } from "@/features/control-plane/data/control-plane-repository";
 import { cpKeys } from "@/features/control-plane/view-models/query-keys";
+import { apiKeys } from "@/features/control-plane/view-models/published-apis";
+import { publishedApis } from "@/features/control-plane/data/published-apis";
 import { useOrganization } from "@/features/control-plane/view-models/use-organization";
 import { organizationNav, parseConsolePath, projectHref, projectPages, projectSections } from "@/lib/app-navigation";
 import { cn } from "@/lib/utils";
@@ -98,6 +100,8 @@ function Breadcrumbs() {
     enabled: Boolean(organizationId && projectId),
   });
 
+  const detailName = useDetailName(organizationId, location);
+
   const crumbs: { label: string; href?: string }[] = [];
   if (organization) crumbs.push({ label: organization.name, href: "/projects" });
   if (location.kind === "organization") {
@@ -111,7 +115,7 @@ function Breadcrumbs() {
     if (section && section.id !== "overview" && location.environment) {
       const isList = location.rest === section.path;
       crumbs.push({ label: section.label, href: isList ? undefined : projectHref(location.projectId, location.environment, section.path) });
-      if (!isList) crumbs.push({ label: "Details" });
+      if (!isList) crumbs.push({ label: detailName ?? "Details" });
     }
   }
 
@@ -138,4 +142,31 @@ function Breadcrumbs() {
       </ol>
     </nav>
   );
+}
+
+/**
+ * The name of the application or API a detail page shows, from the same list query the page loads, so the
+ * breadcrumb ends in "Serbizio API" rather than "Details".
+ */
+function useDetailName(organizationId: string | undefined, location: ReturnType<typeof parseConsolePath>): string | undefined {
+  const project = location.kind === "project" && location.environment ? location : undefined;
+  const [, section, id] = project ? project.rest.split("/") : [];
+  const kind = project?.environment ?? "test";
+  const projectId = project?.projectId ?? "none";
+  const org = organizationId ?? "none";
+  const ready = Boolean(organizationId && project && id);
+  const applications = useQuery({
+    queryKey: cpKeys.applications(org, projectId, kind),
+    queryFn: () => controlPlane.applications(org, projectId, kind),
+    enabled: ready && section === "applications",
+  });
+  const apis = useQuery({
+    queryKey: apiKeys.list(org, projectId, kind),
+    queryFn: () => publishedApis.list(org, projectId, kind),
+    enabled: ready && section === "apis",
+  });
+  if (!ready) return undefined;
+  if (section === "applications") return applications.data?.find((entry) => entry.id === id)?.name;
+  if (section === "apis") return apis.data?.find((entry) => entry.id === id)?.name;
+  return undefined;
 }
