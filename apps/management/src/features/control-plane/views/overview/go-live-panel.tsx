@@ -9,6 +9,7 @@ import { GuardedButton } from "@/components/patterns/guarded-button";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
+import { ApiError } from "@/lib/api-center/client-core";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { controlPlane } from "../../data/control-plane-repository";
@@ -80,50 +81,78 @@ function ProvisioningPanel() {
   const { organizationId, project, canManage } = useProjectEnvironment();
   const { session } = useOrganization();
   const client = useQueryClient();
-  const readiness = useQuery({ queryKey: cpKeys.liveReadiness(organizationId, project.id), queryFn: () => controlPlane.liveReadiness(organizationId, project.id), retry: false });
+  const readiness = useQuery({ queryKey: cpKeys.liveReadiness(organizationId, project.id), queryFn: () => controlPlane.liveReadiness(organizationId, project.id) });
   const requests = useQuery({
     queryKey: cpKeys.activationRequests(organizationId, project.id),
     queryFn: () => controlPlane.activationRequests(organizationId, project.id),
-    retry: false,
   });
   const [reason, setReason] = useState("");
   const [rejecting, setRejecting] = useState<ActivationRequest | null>(null);
-  const refresh = () => {
-    void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+  const requestsKey = cpKeys.activationRequests(organizationId, project.id);
+  // Show the server's answer at once: a refetch can fail while the gateway is busy, and the old
+  // "Waiting for approval" with live buttons would invite a second click.
+  const storeRequest = (saved: ActivationRequest) => {
+    client.setQueryData<ActivationRequest[]>(requestsKey, (current) =>
+      current?.some((entry) => entry.id === saved.id)
+        ? current.map((entry) => (entry.id === saved.id ? saved : entry))
+        : [saved, ...(current ?? [])],
+    );
+  };
+  const refreshActivation = () => {
+    void client.invalidateQueries({ queryKey: requestsKey });
     void client.invalidateQueries({ queryKey: cpKeys.approvalsRoot });
-    void client.invalidateQueries({ queryKey: cpKeys.liveReadiness(organizationId, project.id) });
-    void client.invalidateQueries({ queryKey: cpKeys.activationRequests(organizationId, project.id) });
   };
   const onError = (error: Error) => toast.error(error.message);
   const request = useMutation({
     mutationFn: () => controlPlane.requestActivation(organizationId, project.id, reason.trim()),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       toast.success("Activation requested. Another admin must approve it.");
       setReason("");
-      refresh();
+      storeRequest(saved);
+      refreshActivation();
     },
     onError,
   });
   const decide = useMutation({
     mutationFn: (input: { id: string; decision: "approve" | "reject"; reason?: string }) =>
       controlPlane.decideActivation(organizationId, project.id, input.id, input.decision, input.reason),
-    onSuccess: (_, input) => {
+    onSuccess: (saved, input) => {
       toast.success(input.decision === "approve" ? "Activation approved" : "Activation rejected");
       setRejecting(null);
-      refresh();
+      storeRequest(saved);
+      refreshActivation();
     },
-    onError,
+    onError: (error: Error) => {
+      // Someone (possibly this person, in another tab or before a failed refresh) already decided it.
+      if (error instanceof ApiError && error.status === 409) {
+        toast.info("This request was already decided. Showing its current state.");
+        setRejecting(null);
+        refreshActivation();
+        return;
+      }
+      onError(error);
+    },
   });
   const activate = useMutation({
     mutationFn: (approvalRequestId: string) => controlPlane.activateLive(organizationId, project.id, approvalRequestId),
     onSuccess: () => {
       toast.success("Live is active");
-      refresh();
+      // The environment's status changes, so everything about the project is refreshed.
+      void client.invalidateQueries({ queryKey: cpKeys.project(organizationId, project.id) });
+      void client.invalidateQueries({ queryKey: cpKeys.approvalsRoot });
     },
     onError,
   });
 
   const data = readiness.data;
+  // Unknown is not "failed": say so instead of claiming a check did not pass.
+  const notReadyReason = !canManage
+    ? PROJECT_ADMIN_REASON
+    : data
+      ? "Every readiness check must pass first."
+      : readiness.isPending
+        ? "Readiness is still being checked."
+        : "Readiness could not be checked. Try again in a moment.";
   const open = (requests.data ?? []).filter((entry) => entry.status === "pending" || entry.status === "approved");
   const history = (requests.data ?? []).filter((entry) => entry.status !== "pending" && entry.status !== "approved");
   const me = session?.email?.toLowerCase();
@@ -134,6 +163,7 @@ function ProvisioningPanel() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
           <h3 className="mb-2 text-xs font-medium text-muted-foreground">Readiness</h3>
+          {readiness.isPending ? <p className="text-[13px] text-muted-foreground">Checking readiness…</p> : null}
           <ul className="flex flex-col gap-2 text-[13px]">
             {(data?.checks ?? []).map((check) => (
               <li key={check.key} className="flex items-start gap-2">
@@ -146,6 +176,8 @@ function ProvisioningPanel() {
 
         <div className="flex flex-col gap-3">
           <h3 className="text-xs font-medium text-muted-foreground">Activation</h3>
+          {requests.error ? <ErrorPanel title="Activation requests are unavailable" error={requests.error} /> : null}
+          {requests.isPending ? <p className="text-[13px] text-muted-foreground">Loading activation requests…</p> : null}
           {open.map((entry) => {
             const mine = me !== undefined && entry.requestedBy.toLowerCase() === me;
             return (
@@ -179,7 +211,7 @@ function ProvisioningPanel() {
                     <GuardedButton
                       size="sm"
                       allowed={canManage && Boolean(data?.ready)}
-                      reason={canManage ? "Every readiness check must pass first." : PROJECT_ADMIN_REASON}
+                      reason={notReadyReason}
                       disabled={activate.isPending}
                       onClick={() => activate.mutate(entry.id)}
                     >
@@ -191,7 +223,8 @@ function ProvisioningPanel() {
             );
           })}
 
-          {open.length === 0 ? (
+          {/* Only offer a new request once the existing ones are known, so a failed load cannot invite a duplicate. */}
+          {requests.isSuccess && open.length === 0 ? (
             <form
               className="flex flex-col gap-2"
               onSubmit={(event) => {
@@ -210,7 +243,7 @@ function ProvisioningPanel() {
                 <GuardedButton
                   type="submit"
                   allowed={canManage && Boolean(data?.ready)}
-                  reason={canManage ? "Every readiness check must pass first." : PROJECT_ADMIN_REASON}
+                  reason={notReadyReason}
                   disabled={!reason.trim() || request.isPending}
                 >
                   Request activation
