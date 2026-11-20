@@ -12,9 +12,9 @@ import {
   CallHandler,
 } from "@nestjs/common";
 import { Observable } from "rxjs";
-import { tap } from "rxjs/operators";
 import { Request, Response } from "express";
 import { MetricsService } from "./metrics.service";
+import { onResponseDone } from "../shared/response-done";
 
 @Injectable()
 export class MetricsInterceptor implements NestInterceptor {
@@ -29,27 +29,9 @@ export class MetricsInterceptor implements NestInterceptor {
     const route = request.route?.path || request.path || "unknown";
     const method = request.method;
 
-    return next.handle().pipe(
-      tap({
-        next: () => {
-          const durationSec = (Date.now() - start) / 1000;
-          this.metrics.recordHttpRequest(
-            method,
-            route,
-            response.statusCode,
-            durationSec,
-          );
-        },
-        error: () => {
-          const durationSec = (Date.now() - start) / 1000;
-          this.metrics.recordHttpRequest(
-            method,
-            route,
-            response.statusCode || 500,
-            durationSec,
-          );
-        },
-      }),
-    );
+    onResponseDone(response, (statusCode) => {
+      this.metrics.recordHttpRequest(method, route, statusCode, (Date.now() - start) / 1000);
+    });
+    return next.handle();
   }
 }
