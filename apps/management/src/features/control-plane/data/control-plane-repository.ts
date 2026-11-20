@@ -92,4 +92,6 @@ export const controlPlane = {
   createTeam: (organizationId: string, input: { slug: string; name: string }) => call(teamSchema, `${org(organizationId)}/teams`, send("POST", input)),
   addTeamMember: (organizationId: string, teamId: string, email: string) =>
     call(z.unknown(), `${org(organizationId)}/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(email)}`, send("PUT")),
+  removeTeamMember: (organizationId: string, teamId: string, email: string) =>
+    call(z.unknown(), `${org(organizationId)}/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(email)}`, send("DELETE")),
 };

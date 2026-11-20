@@ -80,6 +80,11 @@ export const memberSchema = z.object({
   status: z.string(),
   inviteExpiresAt: z.string().nullable().optional(),
   identityLinked: z.boolean(),
+  /** When they were added, and by whom (an audit actor label). */
+  addedAt: z.string().nullable().optional(),
+  addedBy: z.string().nullable().optional(),
+  /** Their own project roles; roles through teams are not listed here. */
+  projects: z.array(z.object({ projectId: z.string(), name: z.string(), role: z.string() })).optional(),
 });
 export const teamSchema = z.object({ id: z.string(), slug: z.string(), name: z.string(), members: z.array(z.string()) });
 

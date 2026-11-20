@@ -83,7 +83,17 @@ const schemas = {
     .object({ approve: z.boolean(), reason: z.string().trim().min(1).max(500).optional(), actor: onBehalfOf.optional() })
     .strict()
     .refine((value) => !(value.approve && value.reason), "reason is only for a rejection"),
-  setMember: z.object({ role: z.enum(["owner", "admin", "developer", "viewer"]), actor: onBehalfOf.optional() }).strict(),
+  setMember: z
+    .object({
+      role: z.enum(["owner", "admin", "developer", "viewer"]),
+      /** Project roles to give in the same step, so a new member's invite says what they get. */
+      projects: z
+        .array(z.object({ projectId: z.string().regex(/^prj_[a-z0-9]{24}$/), role: z.enum(["admin", "developer", "viewer"]) }).strict())
+        .max(50)
+        .optional(),
+      actor: onBehalfOf.optional(),
+    })
+    .strict(),
   memberStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
   projectStatus: z.object({ status: z.enum(["active", "archived"]), actor: onBehalfOf.optional() }).strict(),
   applicationStatus: z.object({ status: z.enum(["active", "suspended"]), actor: onBehalfOf.optional() }).strict(),
@@ -176,10 +186,17 @@ export class ControlPlaneAdminController {
     // Whether the change touches an owner is decided inside the people lock, from the role as it
     // is when the change is made, not from an earlier read.
     const access = await this.access.require(actor, org, "organization.members.manage");
+    const projects = input.projects ?? [];
+    if (new Set(projects.map((entry) => entry.projectId)).size !== projects.length) {
+      throw new ValidationError("Each project can be listed once");
+    }
+    // Every project role needs the right to manage that project, checked before anything changes.
+    for (const entry of projects) await this.access.require(actor, org, "project.manage", { projectId: entry.projectId });
     const label = actorLabel(actor, input.actor);
     const member = await this.people.setMember(org, memberEmail, input.role, label, {
       mayManageOwners: canPerform(actor, access, "organization.owners.manage"),
     });
+    for (const entry of projects) await this.people.setProjectRole(org, entry.projectId, { memberEmail }, entry.role, label);
     // A new member is emailed an invite. Sending never fails the change, which is already saved.
     const { invite: shouldInvite, ...saved } = member;
     const invite =
