@@ -96,11 +96,14 @@ export class RequestDiagnosticsStore {
     statusRange: [number, number];
     from: Date;
     to: Date;
-    before?: { at: Date; id: string };
+    /** Rows strictly older than this one; `at` is the microsecond text from `cursorAt`. */
+    before?: { at: string; id: string };
     take: number;
   }) {
     return this.prisma.$queryRaw<ProjectRequestRow[]>`
-      SELECT request_id::text AS "requestId", created_at AS "occurredAt", service_id AS "applicationId", method, route,
+      SELECT request_id::text AS "requestId", created_at AS "occurredAt",
+             to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorAt",
+             service_id AS "applicationId", method, route,
              status_code AS "statusCode", duration_ms AS "durationMs", failure_stage AS "failureStage",
              error_code AS "errorCode", correlation_id AS "correlationId"
       FROM apic_runtime.request_diagnostics
@@ -119,6 +122,8 @@ export class RequestDiagnosticsStore {
 export interface ProjectRequestRow {
   requestId: string;
   occurredAt: Date;
+  /** created_at at full (microsecond) precision, for the next page's cursor. */
+  cursorAt: string;
   applicationId: string | null;
   method: string;
   route: string;

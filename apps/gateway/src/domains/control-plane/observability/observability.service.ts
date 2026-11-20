@@ -13,7 +13,7 @@ import { testDefaultDailyRequests, windowStart } from "../quota-budgets";
 import { requireControlPlaneDatabase, withTenant, type TenantDb } from "../tenant-transaction";
 import type { AuditScope } from "../console-access.policy";
 import type { EnvironmentScope } from "../control-plane-admin.service";
-import { decodeCursor, pageOf } from "./cursor";
+import { decodeCursor, pageOf, type Cursor } from "./cursor";
 import { requestLogWindow, statusRange, toRequestLogEntry, type RequestLogQuery } from "./request-log";
 import { buildUsageSeries, usageWindow, type UsageRange, type UsageRow } from "./usage-series";
 import { buildQuotaMeters, quotaMeterWindows, sharedCeilingMeters, type MeterPolicy } from "./quota-meters";
@@ -40,7 +40,7 @@ export class ObservabilityService {
       before: query.cursor ? decodeCursor(query.cursor) : undefined,
       take: query.limit + 1,
     });
-    const page = pageOf(rows, query.limit, (row) => ({ at: row.occurredAt, id: row.requestId }));
+    const page = pageOf(rows, query.limit, (row) => ({ at: row.cursorAt, id: row.requestId }));
     return { from: from.toISOString(), to: to.toISOString(), items: page.items.map(toRequestLogEntry), nextCursor: page.nextCursor };
   }
 
@@ -121,10 +121,10 @@ export class ObservabilityService {
       action: query.action,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
-      before: query.cursor ? decodeCursor(query.cursor) : undefined,
+      before: query.cursor ? auditCursor(decodeCursor(query.cursor)) : undefined,
       take: query.limit + 1,
     });
-    const page = pageOf(rows, query.limit, (row) => ({ at: row.createdAt, id: row.id }));
+    const page = pageOf(rows, query.limit, (row) => ({ at: row.createdAt.toISOString(), id: row.id }));
     return { items: page.items.map(toAuditLogEntry), nextCursor: page.nextCursor };
   }
 }
@@ -141,4 +141,12 @@ async function requireProject(db: TenantDb, organizationId: string, projectId: s
   if (!(await db.cpProject.findFirst({ where: { id: projectId, organizationId } }))) {
     throw new NotFoundError(`Project '${projectId}' was not found`);
   }
+}
+
+/**
+ * Audit events are written by AuditEventsService with a JS Date (millisecond precision), so a Date
+ * comparison through Prisma is exact for them, unlike request diagnostics' database-set created_at.
+ */
+function auditCursor(cursor: Cursor): { at: Date; id: string } {
+  return { at: new Date(cursor.at), id: cursor.id };
 }

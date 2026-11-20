@@ -22,22 +22,58 @@ const NOW = new Date("2026-11-20T10:17:30Z");
 const member = (email: string): ConsoleActor => ({ kind: "member", email, subject: `sub-${email}`, platformAdmin: false });
 
 describe("cursors", () => {
-  it("round-trips the last row's time and ID", () => {
-    const cursor = { at: new Date("2026-11-20T10:00:00.123Z"), id: "5b0c6e9e-4b1f-4f7e-9a51-0c1d2e3f4a5b" };
+  it("round-trips the last row's time, to the microsecond, and ID", () => {
+    const cursor = { at: "2026-11-20T10:00:00.123456Z", id: "5b0c6e9e-4b1f-4f7e-9a51-0c1d2e3f4a5b" };
     expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
   });
 
-  it("rejects a tampered cursor", () => {
-    expect(() => decodeCursor("not-a-cursor")).toThrow("cursor is invalid");
-    expect(() => decodeCursor(Buffer.from(JSON.stringify(["2026-11-20T10:00:00Z", "x' OR 1=1"])).toString("base64url"))).toThrow();
+  it("rejects a tampered cursor with 400, including one whose ID is not a UUID", () => {
+    const encoded = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+    for (const value of [
+      "not-a-cursor",
+      encoded(["2026-11-20T10:00:00Z", "x' OR 1=1"]),
+      encoded(["2026-11-20T10:00:00Z", "r2"]),
+      encoded(["2026-11-20 10:00:00+00", "5b0c6e9e-4b1f-4f7e-9a51-0c1d2e3f4a5b"]),
+      encoded(["2026-13-40T10:00:00Z", "5b0c6e9e-4b1f-4f7e-9a51-0c1d2e3f4a5b"]),
+    ]) {
+      expect(() => decodeCursor(value)).toThrow(expect.objectContaining({ status: 400, message: expect.stringContaining("cursor is invalid") }));
+    }
   });
 
   it("returns a next cursor only when another page exists", () => {
-    const rows = [1, 2, 3].map((n) => ({ at: new Date(n * 1000), id: `r${n}` }));
+    const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+    const rows = [1, 2, 3].map((n) => ({ at: `2026-11-20T10:00:0${n}.000001Z`, id: id(n) }));
     expect(pageOf(rows, 3, (row) => row)).toEqual({ items: rows, nextCursor: null });
     const page = pageOf(rows, 2, (row) => row);
     expect(page.items).toHaveLength(2);
-    expect(decodeCursor(page.nextCursor!)).toEqual({ at: new Date(2000), id: "r2" });
+    expect(decodeCursor(page.nextCursor!)).toEqual({ at: "2026-11-20T10:00:02.000001Z", id: id(2) });
+  });
+
+  it("pages the request log on the row's full-precision time, so rows in the same millisecond are not skipped", async () => {
+    const listForProject = jest.fn().mockResolvedValue(
+      ["2026-11-20T10:00:00.123900Z", "2026-11-20T10:00:00.123500Z"].map((cursorAt, index) => ({
+        requestId: `00000000-0000-4000-8000-00000000000${index}`,
+        occurredAt: new Date("2026-11-20T10:00:00.123Z"),
+        cursorAt,
+        applicationId: null,
+        method: "GET",
+        route: "/x",
+        statusCode: 200,
+        durationMs: 1,
+        failureStage: null,
+        errorCode: null,
+        correlationId: "c",
+      })),
+    );
+    process.env.DATABASE_ENABLED = "true";
+    const prisma = createFakeControlPlanePrisma();
+    prisma.cpEnvironment.rows.push({ id: "env_t", organizationId: ORG, projectId: "prj_a", kind: "test" });
+    const service = new ObservabilityService(prisma as unknown as PrismaService, { listForProject } as never, {} as never);
+    const scope = { organizationId: ORG, projectId: "prj_a", environmentKind: "test" as const };
+    const first = await service.requestLog(scope, { limit: 1 }, NOW);
+    expect(decodeCursor(first.nextCursor!)).toEqual({ at: "2026-11-20T10:00:00.123900Z", id: "00000000-0000-4000-8000-000000000000" });
+    await service.requestLog(scope, { limit: 1, cursor: first.nextCursor! }, NOW);
+    expect(listForProject.mock.calls[1][0].before).toEqual({ at: "2026-11-20T10:00:00.123900Z", id: "00000000-0000-4000-8000-000000000000" });
   });
 });
 
