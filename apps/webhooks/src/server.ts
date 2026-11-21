@@ -4,7 +4,9 @@
 // Every attempt is recorded in the delivery history, which the gateway reads through the admin route.
 // Pub/Sub is answered first and the history written afterwards, without waiting: a slow or hung
 // database must never delay the acknowledgement, or Pub/Sub would redeliver an event the consumer
-// already received.
+// already received. Writing after the response needs CPU after the response: the service runs with
+// run.googleapis.com/cpu-throttling "false" (infra/gcp/cloud-run/workspace/apicenter-webhooks-live.json).
+// With throttling on, a cold instance timed out connecting and the delivery never reached the history.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createSharedServiceApp } from "@apicenter/runtime";
 import type { Request, Response } from "express";

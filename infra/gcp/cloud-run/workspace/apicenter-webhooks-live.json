@@ -13,7 +13,8 @@
         "annotations": {
           "autoscaling.knative.dev/minScale": "0",
           "autoscaling.knative.dev/maxScale": "3",
-          "run.googleapis.com/startup-cpu-boost": "true"
+          "run.googleapis.com/startup-cpu-boost": "true",
+          "run.googleapis.com/cpu-throttling": "false"
         }
       },
       "spec": {
