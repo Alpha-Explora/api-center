@@ -68,6 +68,40 @@ describeWithDatabase('Postgres payout store', () => {
       payload: expect.objectContaining({ payoutId, net: 72_500, referenceId: expect.any(String) }) })]);
   });
 
+  it('holds shares once per payment, copies link templates and claws back a refund once', async () => {
+    const store = new PostgresPayoutStore(pool, () => now);
+    const { payee } = await store.upsertPayee(context, { externalRef: `hold-${Date.now()}`, legalName: 'Juan Dela Cruz' });
+    const linkId = `pl_${Date.now()}`;
+    const intentId = `pi_hold_${Date.now()}`;
+    const base = { payeeId: payee.id, merchantAccountId: 'parent', referenceId: 'ORDER-1', paymentId: null, amount: 42_500,
+      grossAmount: 50_000, status: 'awaiting_payment' as const };
+    await store.insertAllocations(context, [
+      { ...base, resourceType: 'intent', resourceId: intentId, template: false },
+      { ...base, resourceType: 'payment_link', resourceId: linkId, template: true },
+    ]);
+
+    const paymentId = `pay_hold_${Date.now()}`;
+    expect(await store.holdForPayment('test', { type: 'intent', id: intentId }, paymentId)).toHaveLength(1);
+    expect(await store.holdForPayment('test', { type: 'intent', id: intentId }, paymentId)).toHaveLength(0);
+    expect(await store.holdForPayment('test', { type: 'payment_link', id: linkId }, `${paymentId}_a`)).toHaveLength(1);
+    expect(await store.holdForPayment('test', { type: 'payment_link', id: linkId }, `${paymentId}_a`)).toHaveLength(0);
+    expect(await store.holdForPayment('test', { type: 'payment_link', id: linkId }, `${paymentId}_b`)).toHaveLength(1);
+    const held = await pool.query(`SELECT count(*)::int AS n FROM shared_payment.payment_event_outbox
+      WHERE event_type = 'payment.allocation.held' AND project_id = $1 AND aggregate_id IN
+        (SELECT id FROM shared_payment.payout_allocations WHERE payee_id = $2)`, [projectId, payee.id]);
+    expect(held.rows[0].n).toBe(3);
+
+    await pool.query(`UPDATE shared_payment.payout_allocations SET status = 'paid' WHERE payment_id = $1`, [paymentId]);
+    await store.applyRefund('test', { paymentId, refundId: 'ref_1', refunded: 10_000 });
+    await store.applyRefund('test', { paymentId, refundId: 'ref_1', refunded: 10_000 });
+    const adjustments = await pool.query(`SELECT amount FROM shared_payment.payee_adjustments WHERE payee_id = $1`, [payee.id]);
+    expect(adjustments.rows.map((row) => Number(row.amount))).toEqual([-8_500]);
+
+    await store.applyRefund('test', { paymentId: `${paymentId}_a`, refundId: 'ref_2', refunded: 50_000 });
+    const cancelled = await pool.query(`SELECT status FROM shared_payment.payout_allocations WHERE payment_id = $1`, [`${paymentId}_a`]);
+    expect(cancelled.rows).toEqual([{ status: 'cancelled' }]);
+  });
+
   it('a rejected transfer frees the allocations and leaves room for a new attempt', async () => {
     const { mover, payee, deps } = await seed(`rejected-${Date.now()}`);
     const scope = { payeeId: payee.id, projectId };

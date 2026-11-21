@@ -9,6 +9,8 @@ import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
 import type { PayoutDestination } from './money-mover';
 import {
+  refundEffect,
+  refundShare,
   transitionAllocation,
   transitionPayout,
   type AllocationEvent,
@@ -105,9 +107,21 @@ export type OutcomeDetail = Partial<{ transferId: string; providerStatus: 'pendi
 
 export type ComposeFn = (pool: { allocations: PoolEntry[]; adjustments: PoolEntry[] }) => ComposedPayout | { skip: string };
 
+/** A succeeded refund of a payment, as the payout ledger sees it. */
+export type RefundFact = { paymentId: string; refundId: string; refunded: Centavos };
+
 export interface PayoutStore {
   upsertPayee(context: PayoutContext, input: { externalRef: string; legalName: string }): Promise<{ payee: Payee; created: boolean }>;
   getPayee(environment: Environment, projectId: string, payeeId: string): Promise<Payee | null>;
+  findPayees(environment: Environment, projectId: string, payeeIds: string[]): Promise<Payee[]>;
+  /**
+   * Holds the allocations of a resource that was just paid (copying a payment link's templates per
+   * payment) and queues one allocation.held event each. Idempotent. `client` joins the webhook's transaction.
+   */
+  holdForPayment(environment: Environment, resource: { type: AllocationRecord['resourceType']; id: string }, paymentId: string,
+    client?: PoolClient): Promise<AllocationRecord[]>;
+  /** Cancels or claws back the shares of a refunded payment. Idempotent per refund. */
+  applyRefund(environment: Environment, refund: RefundFact, client?: PoolClient): Promise<void>;
   setPayeeDestination(environment: Environment, projectId: string, payeeId: string, destination: PayoutDestination, now: Date): Promise<Payee | null>;
   insertAllocations(context: PayoutContext, rows: NewAllocation[]): Promise<AllocationRecord[]>;
   getSettings(environment: Environment, projectId: string): Promise<PayoutPolicy>;
@@ -131,6 +145,40 @@ export function newId(prefix: 'pye' | 'pal' | 'padj' | 'po' | 'pta'): string {
 /** PayMongo keeps only alphanumerics in a reference, so the payout id maps to its uppercase hex part. */
 export function referenceNumberFor(payoutId: string): string {
   return payoutId.replace(/^po_/, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function heldEvent(allocation: AllocationRecord, owner: { organizationId: string; consumerServiceId: string }, now: string): PayoutStoreEvent {
+  return {
+    eventType: 'payment.allocation.held',
+    aggregateType: 'allocation',
+    aggregateId: allocation.id,
+    organizationId: owner.organizationId,
+    projectId: allocation.projectId,
+    consumerServiceId: owner.consumerServiceId,
+    referenceId: allocation.referenceId,
+    payload: {
+      status: 'held',
+      allocationId: allocation.id,
+      payeeId: allocation.payeeId,
+      paymentId: allocation.paymentId,
+      amount: allocation.amount,
+      currency: 'PHP',
+      occurredAt: now,
+    },
+  };
+}
+
+/**
+ * What a refund does to one share: a full refund cancels a share that has not left; anything else
+ * (a partial refund, or a share already pooled or paid) becomes a clawback against later earnings.
+ */
+function refundAction(allocation: Pick<AllocationRecord, 'status' | 'amount' | 'grossAmount'>, refunded: Centavos):
+  { kind: 'cancel' } | { kind: 'clawback'; amount: Centavos } | { kind: 'none' } {
+  const effect = refundEffect(allocation.status);
+  if (effect === 'none') return { kind: 'none' };
+  if (effect === 'cancel' && refunded >= allocation.grossAmount) return { kind: 'cancel' };
+  const share = refundShare(allocation.amount, allocation.grossAmount, refunded);
+  return share > 0 ? { kind: 'clawback', amount: share } : { kind: 'none' };
 }
 
 function payoutEvent(record: PayoutRecord, payee: { externalRef: string }, owner: { organizationId: string; consumerServiceId: string },
@@ -207,6 +255,55 @@ export class MemoryPayoutStore implements PayoutStore {
   async getPayee(environment: Environment, projectId: string, payeeId: string) {
     const payee = this.payees.get(payeeId);
     return payee && payee.environment === environment && payee.projectId === projectId ? publicPayee(payee) : null;
+  }
+
+  async findPayees(environment: Environment, projectId: string, payeeIds: string[]) {
+    return payeeIds.map((id) => this.payees.get(id))
+      .filter((payee): payee is MemoryPayee => Boolean(payee && payee.environment === environment && payee.projectId === projectId))
+      .map(publicPayee);
+  }
+
+  async holdForPayment(environment: Environment, resource: { type: AllocationRecord['resourceType']; id: string }, paymentId: string) {
+    const now = this.clock().toISOString();
+    const held: AllocationRecord[] = [];
+    const matching = [...this.allocations.values()].filter((entry) => entry.environment === environment
+      && entry.resourceType === resource.type && entry.resourceId === resource.id);
+    if (resource.type === 'payment_link') {
+      for (const template of matching.filter((entry) => entry.template)) {
+        if (matching.some((entry) => !entry.template && entry.paymentId === paymentId && entry.payeeId === template.payeeId)) continue;
+        const copy: MemoryAllocation = { ...template, id: newId('pal'), template: false, paymentId, status: 'held', payoutId: null, createdAt: now };
+        this.allocations.set(copy.id, copy);
+        held.push(publicAllocation(copy));
+        this.queue(heldEvent(publicAllocation(copy), copy, now));
+      }
+      return held;
+    }
+    for (const allocation of matching) {
+      if (allocation.status !== 'awaiting_payment' || allocation.paymentId !== null) continue;
+      allocation.status = transitionAllocation(allocation.status, 'payment_confirmed');
+      allocation.paymentId = paymentId;
+      held.push(publicAllocation(allocation));
+      this.queue(heldEvent(publicAllocation(allocation), allocation, now));
+    }
+    return held;
+  }
+
+  async applyRefund(environment: Environment, refund: RefundFact) {
+    for (const allocation of this.allocations.values()) {
+      if (allocation.environment !== environment || allocation.paymentId !== refund.paymentId || allocation.template) continue;
+      const action = refundAction(allocation, refund.refunded);
+      if (action.kind === 'cancel') {
+        allocation.status = transitionAllocation(allocation.status, 'cancel');
+      } else if (action.kind === 'clawback') {
+        const exists = [...this.adjustments.values()].some((entry) => entry.sourceAllocationId === allocation.id
+          && entry.sourceRefundId === refund.refundId);
+        if (exists) continue;
+        const adjustment: MemoryAdjustment = { id: newId('padj'), environment, projectId: allocation.projectId,
+          merchantAccountId: allocation.merchantAccountId, payeeId: allocation.payeeId, amount: -action.amount, reason: 'clawback',
+          sourceAllocationId: allocation.id, sourceRefundId: refund.refundId, payoutId: null, createdAt: this.clock().toISOString() };
+        this.adjustments.set(adjustment.id, adjustment);
+      }
+    }
   }
 
   async setPayeeDestination(environment: Environment, projectId: string, payeeId: string, destination: PayoutDestination, now: Date) {
@@ -452,6 +549,69 @@ export class PostgresPayoutStore implements PayoutStore {
       [environment, projectId, payeeId],
     );
     return result.rows[0] ? payeeRow(result.rows[0]) : null;
+  }
+
+  async findPayees(environment: Environment, projectId: string, payeeIds: string[]) {
+    if (!payeeIds.length) return [];
+    const result = await this.pool.query(
+      `SELECT ${PAYEE_COLUMNS} FROM shared_payment.payees WHERE environment = $1 AND project_id = $2 AND id = ANY($3::text[])`,
+      [environment, projectId, payeeIds]);
+    return result.rows.map(payeeRow);
+  }
+
+  async holdForPayment(environment: Environment, resource: { type: AllocationRecord['resourceType']; id: string }, paymentId: string,
+    client?: PoolClient) {
+    const work = async (target: PoolClient) => {
+      const result = resource.type === 'payment_link'
+        ? await target.query(
+          `INSERT INTO shared_payment.payout_allocations (id, environment, organization_id, project_id, consumer_service_id,
+             merchant_account_id, payee_id, resource_type, resource_id, reference_id, template, payment_id, amount, gross_amount, status)
+           SELECT 'pal_' || encode(gen_random_bytes(12), 'hex'), environment, organization_id, project_id, consumer_service_id,
+                  merchant_account_id, payee_id, resource_type, resource_id, reference_id, false, $3, amount, gross_amount, 'held'
+             FROM shared_payment.payout_allocations
+            WHERE environment = $1 AND resource_type = 'payment_link' AND resource_id = $2 AND template
+           ON CONFLICT DO NOTHING
+           RETURNING ${ALLOCATION_COLUMNS}, organization_id, consumer_service_id`,
+          [environment, resource.id, paymentId])
+        : await target.query(
+          `UPDATE shared_payment.payout_allocations SET status = 'held', payment_id = $3, updated_at = now()
+            WHERE environment = $1 AND resource_type = $4 AND resource_id = $2 AND status = 'awaiting_payment'
+              AND payment_id IS NULL AND NOT template
+           RETURNING ${ALLOCATION_COLUMNS}, organization_id, consumer_service_id`,
+          [environment, resource.id, paymentId, resource.type]);
+      const now = this.clock().toISOString();
+      const held = result.rows.map(allocationRow);
+      for (const [index, allocation] of held.entries()) {
+        await insertOutbox(target, environment, heldEvent(allocation, {
+          organizationId: result.rows[index].organization_id, consumerServiceId: result.rows[index].consumer_service_id }, now));
+      }
+      return held;
+    };
+    return client ? work(client) : this.transaction(work);
+  }
+
+  async applyRefund(environment: Environment, refund: RefundFact, client?: PoolClient) {
+    const work = async (target: PoolClient) => {
+      const allocations = await target.query(
+        `SELECT ${ALLOCATION_COLUMNS} FROM shared_payment.payout_allocations
+          WHERE environment = $1 AND payment_id = $2 AND NOT template FOR UPDATE`, [environment, refund.paymentId]);
+      for (const allocation of allocations.rows.map(allocationRow)) {
+        const action = refundAction(allocation, refund.refunded);
+        if (action.kind === 'cancel') {
+          await target.query(`UPDATE shared_payment.payout_allocations SET status = $2, updated_at = now() WHERE id = $1`,
+            [allocation.id, transitionAllocation(allocation.status, 'cancel')]);
+        } else if (action.kind === 'clawback') {
+          await target.query(
+            `INSERT INTO shared_payment.payee_adjustments (id, environment, project_id, merchant_account_id, payee_id, amount, reason,
+               source_allocation_id, source_refund_id)
+             VALUES ($1, $2, $3, $4, $5, $6, 'clawback', $7, $8)
+             ON CONFLICT DO NOTHING`,
+            [newId('padj'), environment, allocation.projectId, allocation.merchantAccountId, allocation.payeeId, -action.amount,
+              allocation.id, refund.refundId]);
+        }
+      }
+    };
+    return client ? work(client) : this.transaction(work);
   }
 
   async setPayeeDestination(environment: Environment, projectId: string, payeeId: string, destination: PayoutDestination, now: Date) {
