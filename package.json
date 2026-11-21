@@ -53,6 +53,7 @@
     "db:test:payment-outbox": "npm run build --workspace @alpha-explora/apicenter-contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-outbox-dispatcher.test.cjs",
     "db:test:payment-webhook": "npm run build --workspace @alpha-explora/apicenter-contracts && npm run build --workspace @apicenter/payments && node --test tests/db/payment-webhook-outbox.test.cjs",
     "db:test:payment-schema": "node --test tests/db/payment-schema.test.cjs",
+    "db:test:payout-schema": "node --test tests/db/payout-schema.test.cjs",
     "check:boundaries:test": "node tests/integration/scripts/check-boundaries.test.js",
     "check:environment-naming": "node scripts/check-environment-naming.js",
     "build:gateway": "npm run build --workspace @apicenter/gateway",
