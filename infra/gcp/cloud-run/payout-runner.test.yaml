@@ -1,0 +1,50 @@
+# Payout runner, test environment. Run as two Cloud Scheduler-triggered executions:
+#   schedule  hourly (0 * * * *, Asia/Manila) - pays pools whose weekly slot has passed
+#   reconcile every 5 minutes                   - settles pending and unknown transfers
+# See docs/operations/payouts-runbook.md.
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: apicenter-payout-runner-test
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+spec:
+  template:
+    spec:
+      taskCount: 1
+      parallelism: 1
+      template:
+        spec:
+          timeoutSeconds: 600
+          # Never retry a run automatically: a retry is a fresh run, and the ledger already prevents double payment.
+          maxRetries: 0
+          serviceAccountName: apicenter-payments-runtime@apicenter-alpha-20260623.iam.gserviceaccount.com
+          containers:
+            - image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-test
+              command: ["node"]
+              args: ["dist/features/payouts/payout-runner.js", "schedule"]
+              env:
+                - name: NODE_ENV
+                  value: production
+                - name: GCP_PROJECT_ID
+                  value: apicenter-alpha-20260623
+                - name: PAYMENT_PROVIDER_MODE
+                  value: test
+                - name: PAYMONGO_TEST_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: apicenter-payments-test-secret-key
+                      key: latest
+                - name: SHARED_SERVICES_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: apicenter-payments-test-database-url
+                      key: latest
+                - name: PUBSUB_DISPATCHER_ENABLED
+                  value: "true"
+                - name: APICENTER_PAYMENT_EVENTS_TOPIC_TEST
+                  value: apicenter.payment-events.test
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
