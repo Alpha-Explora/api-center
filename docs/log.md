@@ -3,6 +3,7 @@
 ## 2026-11-21
 
 - Proposed ADR-0008 (project payouts through resolved merchant accounts) and the payouts design: pooled payee payouts from the PayMongo wallet, exactly-once transfers, and a merchant-account resolver so projects can move to PayMongo linked accounts later. ADR-0001 and ADR-0002 still apply until the ADR is accepted.
+- Documented payouts as built: the public payouts guide, webhook event table and scope list; the payouts runbook (wallet setup, runner jobs, float, payouts that need a person); the console README's Payouts page; the spec and plan status.
 - Added the payouts implementation plan: runtime ledger and exactly-once transfers, events, public API, SDK, guide and the console section, with weekly payouts plus cash-out as the default and no child accounts.
 
 ## 2026-11-20

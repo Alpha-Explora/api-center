@@ -18,6 +18,7 @@ Design rules and components are in [DESIGN.md](DESIGN.md).
 | `/projects/:projectId/:env/capabilities` | Capabilities enabled in the environment; settings for the email sender (current sender and daily limit), SMS pinned sender, OTP code length, expiry, attempts and message template, and Google sign-in; the payments merchant binding |
 | `/projects/:projectId/:env/apis[/:apiId]` | Published APIs: publish, edit operations, enable or disable, approve or reject incoming access requests with a reason |
 | `/projects/:projectId/:env/webhooks` | Payment event destinations: signed webhooks or Pub/Sub push, event-type filters, delivery history, send test event, secret rotation, disable |
+| `/projects/:projectId/:env/payouts` | Payouts: the payout wallet balance and low-float threshold, the next weekly payout and cash-out limits, payouts that need a person (resolve as paid or failed with a note), recent payouts, payees with masked destinations and earnings, and the payout settings |
 | `/projects/:projectId/:env/requests` | Request log: recent requests, filters, details, correlation IDs |
 | `/projects/:projectId/:env/quotas` | Quota policies for the environment and the shared ceilings that cover it, how much of each is used; edit, disable, delete |
 | `/projects/:projectId/settings` | Project roles and environment status (both environments) |

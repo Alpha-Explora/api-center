@@ -10,7 +10,7 @@ sources: [docs/adr/0008-project-payouts-through-resolved-merchant-accounts.md, a
 ---
 # APICenter payouts and pooled payee earnings
 
-Design status: proposed on 2026-11-21 and not yet approved. Nothing here is built. [ADR-0008](../../adr/0008-project-payouts-through-resolved-merchant-accounts.md) records the decision.
+Design status: approved by the user on 2026-11-21 and built on branch `feat/payouts` (runtime, events, public API, SDK, console). Not deployed; deployment and live money movement follow [the payouts runbook](../../operations/payouts-runbook.md). [ADR-0008](../../adr/0008-project-payouts-through-resolved-merchant-accounts.md) records the decision.
 
 ## Intent
 
