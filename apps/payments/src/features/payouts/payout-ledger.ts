@@ -9,7 +9,11 @@ export type AllocationEvent = 'payment_confirmed' | 'release' | 'cancel' | 'pool
 
 export type PayoutStatus = 'draft' | 'submitting' | 'pending' | 'unknown' | 'paid' | 'failed' | 'needs_review';
 export type PayoutEvent = 'submit' | 'accepted' | 'rejected' | 'lost' | 'provider_succeeded' | 'provider_failed'
-  | 'not_found_after_deadline' | 'operator_paid' | 'operator_failed';
+  | 'not_found_after_deadline' | 'operator_paid' | 'operator_failed'
+  /** A draft that was never submitted: nothing was sent, so its shares can be paid again. */
+  | 'abandoned'
+  /** A transfer PayMongo has reported pending for too long. */
+  | 'stalled';
 
 export class PayoutStateError extends Error {
   constructor(readonly from: string, readonly event: string) {
@@ -30,10 +34,10 @@ const ALLOCATION_TRANSITIONS: Record<AllocationStatus, Partial<Record<Allocation
 // An unknown payout may have reached PayMongo, so it is never submitted again: only the provider's
 // answer (via lookup) or an operator who checked the PayMongo dashboard can settle it.
 const PAYOUT_TRANSITIONS: Record<PayoutStatus, Partial<Record<PayoutEvent, PayoutStatus>>> = {
-  draft: { submit: 'submitting' },
+  draft: { submit: 'submitting', abandoned: 'failed' },
   submitting: { accepted: 'pending', rejected: 'failed', lost: 'unknown' },
   unknown: { accepted: 'pending', provider_succeeded: 'paid', provider_failed: 'failed', not_found_after_deadline: 'needs_review' },
-  pending: { provider_succeeded: 'paid', provider_failed: 'failed' },
+  pending: { provider_succeeded: 'paid', provider_failed: 'failed', stalled: 'needs_review' },
   needs_review: { operator_paid: 'paid', operator_failed: 'failed' },
   paid: {},
   failed: {},
@@ -73,7 +77,7 @@ export type ComposeInput = {
   fee: Centavos;
   feeBearer: 'platform' | 'payee';
   minimumPayout: Centavos;
-  /** Most the allocations may add up to; whole allocations only, oldest first. */
+  /** Most the allocations may add up to; whole allocations only, oldest first, skipping any that do not fit. */
   cap?: Centavos;
 };
 
@@ -91,7 +95,7 @@ export function composePayout(input: ComposeInput): ComposedPayout | { skip: 'be
   const taken: PoolEntry[] = [];
   let gross = 0;
   for (const allocation of oldestFirst) {
-    if (gross + allocation.amount > cap) break;
+    if (gross + allocation.amount > cap) continue;
     taken.push(allocation);
     gross += allocation.amount;
   }

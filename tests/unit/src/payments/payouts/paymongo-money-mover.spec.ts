@@ -63,6 +63,8 @@ describe('PayMongo money mover', () => {
     [422, { errors: [{ code: 'unprocessable_entity', detail: 'destination_account: invalid' }] }, { kind: 'rejected', code: 'unprocessable_entity' }],
     [429, { errors: [{ code: 'too_many_requests', detail: 'slow down' }] }, { kind: 'rejected', code: 'rate_limited' }],
     [500, { errors: [{ code: 'internal_server_error', detail: 'oops' }] }, { kind: 'unknown' }],
+    [408, { errors: [{ code: 'request_timeout', detail: 'timed out' }] }, { kind: 'unknown' }],
+    [409, { errors: [{ code: 'conflict', detail: 'in progress' }] }, { kind: 'unknown' }],
   ])('maps HTTP %s to its outcome', async (status, body, outcome) => {
     respond = () => json(status, body);
     await expect(new PayMongoMoneyMover().submit(request())).resolves.toMatchObject(outcome);

@@ -70,7 +70,7 @@ await api.payments.intents.create({
 }, { idempotencyKey: 'booking-1042-attempt-1' });
 ```
 
-The allocations may not add up to more than the payment; the difference is your platform's share. Each payee may appear once per payment.
+The allocations may not add up to more than the payment; the difference is your platform's share. Each payee may appear once per payment, and one share is at most ₱50,000 (the most one InstaPay transfer can carry). Retrying the create with the same `Idempotency-Key` stores each share once.
 
 Validation runs before the payment is created:
 - **`404 PAYEE_NOT_FOUND`**: a payee doesn't exist, or belongs to another project.
@@ -116,7 +116,7 @@ An allocation that is already pooled or paid can't be cancelled; you get `409 IN
 
 **Fees.** Each transfer costs about ₱10. When the payee pays the fee, it is deducted from the payout's `net`.
 
-**Large balances.** A single transfer is limited to ₱50,000. A larger balance is paid across several payouts.
+**Large balances.** A single transfer is limited to ₱50,000. A larger balance is paid across several payouts; a share that does not fit in this payout waits for the next one.
 
 ## Follow a payout
 

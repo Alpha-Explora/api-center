@@ -91,7 +91,7 @@ describeWithDatabase('Postgres payout store', () => {
         (SELECT id FROM shared_payment.payout_allocations WHERE payee_id = $2)`, [projectId, payee.id]);
     expect(held.rows[0].n).toBe(3);
 
-    await pool.query(`UPDATE shared_payment.payout_allocations SET status = 'paid' WHERE payment_id = $1`, [paymentId]);
+    await pool.query(`UPDATE shared_payment.payout_allocations SET status = 'released' WHERE payment_id = $1`, [paymentId]);
     await store.applyRefund('test', { paymentId, refundId: 'ref_1', refunded: 10_000 });
     await store.applyRefund('test', { paymentId, refundId: 'ref_1', refunded: 10_000 });
     const adjustments = await pool.query(`SELECT amount FROM shared_payment.payee_adjustments WHERE payee_id = $1`, [payee.id]);
@@ -114,5 +114,64 @@ describeWithDatabase('Postgres payout store', () => {
       `SELECT a.provider_status FROM shared_payment.payout_transfer_attempts a JOIN shared_payment.payouts p ON p.id = a.payout_id
         WHERE p.payee_id = $1 ORDER BY a.submitted_at`, [payee.id]);
     expect(attempts.rows.map((row) => row.provider_status)).toEqual(['failed', 'pending']);
+  });
+
+  // Review finding: a retried create used to store every share a second time, and both were paid.
+  it('stores each share once when a create is retried', async () => {
+    const store = new PostgresPayoutStore(pool, () => now);
+    const { payee } = await store.upsertPayee(context, { externalRef: `retry-${Date.now()}`, legalName: 'Juan Dela Cruz' });
+    const share = { payeeId: payee.id, merchantAccountId: 'parent', resourceType: 'intent' as const, resourceId: `pi_retry_${Date.now()}`,
+      referenceId: 'ORDER-1', template: false, paymentId: null, amount: 50_000, grossAmount: 50_000, status: 'awaiting_payment' as const };
+    const first = await store.insertAllocations(context, [share]);
+    const second = await store.insertAllocations(context, [share]);
+    expect(second.map((allocation) => allocation.id)).toEqual(first.map((allocation) => allocation.id));
+    expect(await store.holdForPayment('test', { type: 'intent', id: share.resourceId }, `pay_retry_${Date.now()}`)).toHaveLength(1);
+    const stored = await pool.query('SELECT count(*)::int AS n FROM shared_payment.payout_allocations WHERE payee_id = $1', [payee.id]);
+    expect(stored.rows[0].n).toBe(1);
+  });
+
+  // Review finding: two cash-outs at once both read the daily total before either was saved.
+  it('keeps two concurrent cash-outs within the daily cap', async () => {
+    const { mover, payee, deps } = await seed(`cap-${Date.now()}`);
+    // Make the balance read slow so both runs are past isDue before either pools.
+    const balance = mover.availableBalance.bind(mover);
+    mover.availableBalance = async (account) => { await new Promise((resolve) => setTimeout(resolve, 200)); return balance(account); };
+    await pool.query(
+      `INSERT INTO shared_payment.project_payout_settings (environment, project_id, schedule_weekday, schedule_hour, immediate,
+         threshold_centavos, on_demand_minimum, on_demand_daily_cap, scheduled_fee_bearer, cash_out_fee_bearer, minimum_payout,
+         transfer_fee, updated_by)
+       VALUES ('test', $1, 5, 20, false, NULL, 100, 50000, 'platform', 'payee', 0, 1000, 'test')
+       ON CONFLICT (environment, project_id) DO UPDATE SET on_demand_daily_cap = 50000`, [projectId]);
+    const scope = { payeeId: payee.id, projectId };
+    try {
+      await Promise.all([1, 2].map(() => runPayouts(deps, 'test', { kind: 'cash_out', cashedOutToday: 0 }, scope)));
+      const total = await pool.query(`SELECT COALESCE(sum(gross), 0)::int AS total FROM shared_payment.payouts WHERE payee_id = $1`, [payee.id]);
+      expect(total.rows[0].total).toBeLessThanOrEqual(50_000);
+    } finally {
+      await pool.query(`DELETE FROM shared_payment.project_payout_settings WHERE environment = 'test' AND project_id = $1`, [projectId]);
+    }
+  });
+
+  // Review finding: the hold was only checked against the pool snapshot taken at the start of the run.
+  it('does not pay a destination that changed after the run read its pools', async () => {
+    const { store, mover, payee, deps } = await seed(`hold-${Date.now()}`);
+    const summaries = await store.poolSummaries('test', 'parent', payee.id);
+    await store.setPayeeDestination('test', projectId, payee.id,
+      { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '999999999999', accountName: 'Someone Else' }, now);
+    deps.store = Object.assign(Object.create(Object.getPrototypeOf(store)), store, { poolSummaries: async () => summaries });
+    const report = await runPayouts(deps, 'test', { kind: 'schedule' }, { payeeId: payee.id, projectId });
+    expect(report.paid).toEqual([]);
+    expect(report.skipped).toEqual([{ payeeId: payee.id, reason: 'destination_hold' }]);
+    expect(mover.submitted).toHaveLength(0);
+  });
+
+  it('refuses a paid share without a payout', async () => {
+    const store = new PostgresPayoutStore(pool, () => now);
+    const { payee } = await store.upsertPayee(context, { externalRef: `check-${Date.now()}`, legalName: 'Juan' });
+    const [share] = await store.insertAllocations(context, [{ payeeId: payee.id, merchantAccountId: 'parent', resourceType: 'intent',
+      resourceId: `pi_check_${Date.now()}`, referenceId: 'ORDER-1', template: false, paymentId: 'pay_x', amount: 100, grossAmount: 100,
+      status: 'released' }]);
+    await expect(pool.query(`UPDATE shared_payment.payout_allocations SET status = 'paid' WHERE id = $1`, [share.id]))
+      .rejects.toMatchObject({ code: '23514' });
   });
 });

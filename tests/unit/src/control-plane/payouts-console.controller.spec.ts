@@ -55,17 +55,24 @@ describe('PayoutsConsoleController', () => {
       'x-apicenter-owner-tribe-id': 'legacy-org', 'x-apicenter-project-id': 'legacy-prj', 'x-apicenter-consumer-service-id': 'console' });
   });
 
+  it('lets only platform operators save settings or resolve a payout', async () => {
+    await expect(controller().saveSettings(params, { immediate: true }, req)).rejects.toThrow('platform operators');
+    await expect(controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'x' }, req)).rejects.toThrow('platform operators');
+    expect(calls).toHaveLength(0);
+  });
+
   it('needs environment.write to save settings or resolve a payout, and records who did it', async () => {
+    const operator = { consoleActor: { ...req.consoleActor, platformAdmin: true } } as any;
     access.require.mockImplementation(async (_actor, _org, action) => {
       if (action === 'environment.write') throw Object.assign(new Error('Your role does not allow environment write'), { statusCode: 403 });
       return {};
     });
-    await expect(controller().saveSettings(params, { immediate: true }, req)).rejects.toThrow('does not allow');
-    await expect(controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'x' }, req)).rejects.toThrow('does not allow');
+    await expect(controller().saveSettings(params, { immediate: true }, operator)).rejects.toThrow('does not allow');
+    await expect(controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'x' }, operator)).rejects.toThrow('does not allow');
     expect(calls).toHaveLength(0);
 
     access.require.mockResolvedValue({});
-    await controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'Found in the dashboard', actor: 'forged' }, req);
+    await controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'Found in the dashboard', actor: 'forged' }, operator);
     expect(calls[0].url).toBe('https://payments.internal/admin/payouts/po_1/resolve');
     expect(JSON.parse(calls[0].init.body)).toEqual({ outcome: 'paid', note: 'Found in the dashboard', actor: 'ops@example.test' });
     expect(contexts.sign).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'payments:payouts:write' }));
@@ -83,7 +90,8 @@ describe('PayoutsConsoleController', () => {
 
   it('passes the runtime error through with its status', async () => {
     reply = { status: 409, body: { success: false, error: { code: 'INVALID_PAYOUT_STATE', message: 'no' } } };
-    await expect(controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'x' }, req))
+    const operator = { consoleActor: { ...req.consoleActor, platformAdmin: true } } as any;
+    await expect(controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'x' }, operator))
       .rejects.toMatchObject({ status: 409, response: { error: { code: 'INVALID_PAYOUT_STATE' } } });
   });
 

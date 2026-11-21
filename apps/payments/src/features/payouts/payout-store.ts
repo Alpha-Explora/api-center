@@ -106,7 +106,18 @@ export type OpenAttempt = {
 export type OutcomeDetail = Partial<{ transferId: string; providerStatus: 'pending' | 'succeeded' | 'failed'; fee: Centavos;
   failureCode: string; note: string; actor: string }>;
 
-export type ComposeFn = (pool: { allocations: PoolEntry[]; adjustments: PoolEntry[] }) => ComposedPayout | { skip: string };
+/** `remainingDailyCap` is set for a cash-out: what is left of the payee's daily cap, read under the payee lock. */
+export type ComposeFn = (pool: { allocations: PoolEntry[]; adjustments: PoolEntry[] }, limits: { remainingDailyCap?: Centavos })
+  => ComposedPayout | { skip: string };
+
+export type CreatePayoutInput = {
+  payeeId: string;
+  merchantAccountId: string;
+  trigger: PayoutTrigger['kind'];
+  compose: ComposeFn;
+  /** For a cash-out: the payee's daily cap, checked against today's cash-outs inside the payee lock. */
+  dailyCap?: Centavos;
+};
 
 export type PageQuery = { cursor?: string; limit?: number };
 export type Page<T> = { records: T[]; nextCursor?: string };
@@ -172,12 +183,20 @@ export interface PayoutStore {
   /** Cancels or claws back the shares of a refunded payment. Idempotent per refund. */
   applyRefund(environment: Environment, refund: RefundFact, client?: PoolClient): Promise<void>;
   setPayeeDestination(environment: Environment, projectId: string, payeeId: string, destination: PayoutDestination, now: Date): Promise<Payee | null>;
+  /**
+   * Stores each share once: a payee has at most one share per intent or checkout, and one template per
+   * payment link. Repeating the call (a retried create) stores nothing new and returns the stored shares.
+   */
   insertAllocations(context: PayoutContext, rows: NewAllocation[]): Promise<AllocationRecord[]>;
   getSettings(environment: Environment, projectId: string): Promise<PayoutPolicy>;
   poolSummaries(environment: Environment, merchantAccountId: string, payeeId?: string): Promise<Array<PoolSummary & { payeeId: string; projectId: string }>>;
   cashedOutToday(environment: Environment, payeeId: string, now: Date): Promise<Centavos>;
-  createPayout(environment: Environment, input: { payeeId: string; merchantAccountId: string; trigger: PayoutTrigger['kind']; compose: ComposeFn }):
-    Promise<PayoutRecord | { skipped: string }>;
+  /** Pools a payee's released shares into a draft payout. Checks the destination hold and the daily cap under the payee lock. */
+  createPayout(environment: Environment, input: CreatePayoutInput): Promise<PayoutRecord | { skipped: string }>;
+  /** The destination stored on the payout when it was created; a payout is always sent there. */
+  payoutDestination(environment: Environment, payoutId: string): Promise<PayoutDestination>;
+  /** Draft payouts created before `before` that were never submitted. */
+  staleDrafts(environment: Environment, before: Date): Promise<string[]>;
   beginAttempt(environment: Environment, payoutId: string): Promise<{ referenceNumber: string; callbackToken: string }>;
   recordOutcome(environment: Environment, payoutId: string, event: PayoutEvent, detail?: OutcomeDetail): Promise<PayoutRecord>;
   openAttempts(environment: Environment, now: Date): Promise<OpenAttempt[]>;
@@ -276,7 +295,7 @@ type MemoryPayee = Payee & { environment: Environment; organizationId: string; c
 type MemoryAllocation = AllocationRecord & { environment: Environment; organizationId: string; consumerServiceId: string };
 type MemoryAdjustment = { id: string; environment: Environment; projectId: string; merchantAccountId: string; payeeId: string;
   amount: Centavos; reason: 'clawback' | 'manual'; sourceAllocationId: string | null; sourceRefundId: string | null;
-  payoutId: string | null; createdAt: string };
+  payoutId: string | null; voidedAt: string | null; createdAt: string };
 type MemoryPayout = PayoutRecord & { environment: Environment; organizationId: string; consumerServiceId: string;
   destination: PayoutDestination; resolutionNote: string | null; resolvedBy: string | null };
 type MemoryAttempt = { id: string; environment: Environment; payoutId: string; referenceNumber: string; callbackToken: string;
@@ -357,13 +376,15 @@ export class MemoryPayoutStore implements PayoutStore {
       const action = refundAction(allocation, refund.refunded);
       if (action.kind === 'cancel') {
         allocation.status = transitionAllocation(allocation.status, 'cancel');
+        this.voidClawbacks(allocation.id);
       } else if (action.kind === 'clawback') {
         const exists = [...this.adjustments.values()].some((entry) => entry.sourceAllocationId === allocation.id
           && entry.sourceRefundId === refund.refundId);
         if (exists) continue;
         const adjustment: MemoryAdjustment = { id: newId('padj'), environment, projectId: allocation.projectId,
           merchantAccountId: allocation.merchantAccountId, payeeId: allocation.payeeId, amount: -action.amount, reason: 'clawback',
-          sourceAllocationId: allocation.id, sourceRefundId: refund.refundId, payoutId: null, createdAt: this.clock().toISOString() };
+          sourceAllocationId: allocation.id, sourceRefundId: refund.refundId, payoutId: null, voidedAt: null,
+          createdAt: this.clock().toISOString() };
         this.adjustments.set(adjustment.id, adjustment);
       }
     }
@@ -381,6 +402,10 @@ export class MemoryPayoutStore implements PayoutStore {
 
   async insertAllocations(context: PayoutContext, rows: NewAllocation[]) {
     return rows.map((row) => {
+      const existing = [...this.allocations.values()].find((entry) => entry.environment === context.environment
+        && entry.resourceType === row.resourceType && entry.resourceId === row.resourceId && entry.payeeId === row.payeeId
+        && (entry.resourceType !== 'payment_link' || entry.template));
+      if (existing && (row.resourceType !== 'payment_link' || row.template)) return publicAllocation(existing);
       const allocation: MemoryAllocation = {
         ...row, id: newId('pal'), environment: context.environment, organizationId: context.organizationId,
         projectId: context.projectId, consumerServiceId: context.consumerServiceId, payoutId: null,
@@ -407,7 +432,8 @@ export class MemoryPayoutStore implements PayoutStore {
       const payee = this.payees.get(id)!;
       if (payee.status !== 'active') continue;
       const adjustments = [...this.adjustments.values()]
-        .filter((entry) => entry.payeeId === id && entry.merchantAccountId === merchantAccountId && entry.payoutId === null)
+        .filter((entry) => entry.payeeId === id && entry.merchantAccountId === merchantAccountId && entry.payoutId === null
+          && entry.voidedAt === null)
         .reduce((sum, entry) => sum + entry.amount, 0);
       const scheduled = [...this.payouts.values()]
         .filter((payout) => payout.payeeId === id && payout.trigger === 'schedule' && payout.status !== 'failed')
@@ -429,19 +455,32 @@ export class MemoryPayoutStore implements PayoutStore {
   }
 
   // No await between reading the pool and pooling it, so the in-memory version is atomic too.
-  async createPayout(environment: Environment, input: { payeeId: string; merchantAccountId: string; trigger: PayoutTrigger['kind']; compose: ComposeFn }) {
+  async createPayout(environment: Environment, input: CreatePayoutInput) {
     const payee = this.payees.get(input.payeeId);
+    const clock = this.clock();
     if (!payee || payee.environment !== environment) return { skipped: 'payee_not_found' };
     if (!payee.destination) return { skipped: 'no_destination' };
+    if (payee.destinationHoldUntil && Date.parse(payee.destinationHoldUntil) > clock.getTime()) return { skipped: 'destination_hold' };
+    let remainingDailyCap: number | undefined;
+    if (input.dailyCap !== undefined) {
+      const { start, end } = manilaDay(clock);
+      const cashedOut = [...this.payouts.values()].filter((payout) => payout.environment === environment
+        && payout.payeeId === input.payeeId && payout.trigger === 'cash_out' && payout.status !== 'failed'
+        && Date.parse(payout.createdAt) >= start.getTime() && Date.parse(payout.createdAt) < end.getTime())
+        .reduce((sum, payout) => sum + payout.gross, 0);
+      remainingDailyCap = input.dailyCap - cashedOut;
+      if (remainingDailyCap <= 0) return { skipped: 'daily_cap_reached' };
+    }
     const allocations = [...this.allocations.values()].filter((entry) => entry.environment === environment
       && entry.payeeId === input.payeeId && entry.merchantAccountId === input.merchantAccountId && entry.status === 'released');
     const adjustments = [...this.adjustments.values()].filter((entry) => entry.environment === environment
-      && entry.payeeId === input.payeeId && entry.merchantAccountId === input.merchantAccountId && entry.payoutId === null);
+      && entry.payeeId === input.payeeId && entry.merchantAccountId === input.merchantAccountId && entry.payoutId === null
+      && entry.voidedAt === null);
     if (!allocations.length) return { skipped: 'nothing_released' };
     const composed = input.compose({
       allocations: allocations.map((entry) => ({ id: entry.id, amount: entry.amount, createdAt: entry.createdAt })),
       adjustments: adjustments.map((entry) => ({ id: entry.id, amount: entry.amount, createdAt: entry.createdAt })),
-    });
+    }, { ...(remainingDailyCap === undefined ? {} : { remainingDailyCap }) });
     if ('skip' in composed) return { skipped: composed.skip };
     const now = this.clock().toISOString();
     const payout: MemoryPayout = {
@@ -512,6 +551,15 @@ export class MemoryPayoutStore implements PayoutStore {
     return open;
   }
 
+  async payoutDestination(environment: Environment, payoutId: string) {
+    return this.requirePayout(environment, payoutId).destination;
+  }
+
+  async staleDrafts(environment: Environment, before: Date) {
+    return [...this.payouts.values()].filter((payout) => payout.environment === environment && payout.status === 'draft'
+      && Date.parse(payout.createdAt) < before.getTime()).map((payout) => payout.id);
+  }
+
   async attemptByCallbackToken(token: string) {
     const attempt = [...this.attempts.values()].find((entry) => entry.callbackToken === token);
     return attempt ? { environment: attempt.environment, payoutId: attempt.payoutId } : null;
@@ -528,9 +576,20 @@ export class MemoryPayoutStore implements PayoutStore {
       throw new PayMongoError('Allocation not found', 404, 'ALLOCATION_NOT_FOUND');
     }
     try {
-      return this.moveAllocation(allocationId, event);
+      const moved = this.moveAllocation(allocationId, event);
+      if (event === 'cancel') this.voidClawbacks(allocationId);
+      return moved;
     } catch (error) {
       return invalidAllocationState(error);
+    }
+  }
+
+  /** A cancelled share was never paid, so refund clawbacks taken from it no longer apply. */
+  private voidClawbacks(allocationId: string): void {
+    for (const adjustment of this.adjustments.values()) {
+      if (adjustment.sourceAllocationId === allocationId && adjustment.payoutId === null && adjustment.voidedAt === null) {
+        adjustment.voidedAt = this.clock().toISOString();
+      }
     }
   }
 
@@ -539,7 +598,8 @@ export class MemoryPayoutStore implements PayoutStore {
       && entry.payeeId === payeeId && !entry.template);
     const sum = (status: AllocationStatus) => allocations.filter((entry) => entry.status === status)
       .reduce((total, entry) => total + entry.amount, 0);
-    const adjustments = [...this.adjustments.values()].filter((entry) => entry.payeeId === payeeId && entry.payoutId === null)
+    const adjustments = [...this.adjustments.values()]
+      .filter((entry) => entry.payeeId === payeeId && entry.payoutId === null && entry.voidedAt === null)
       .reduce((total, entry) => total + entry.amount, 0);
     const payouts = [...this.payouts.values()].filter((payout) => payout.environment === environment && payout.payeeId === payeeId);
     const weekStart = manilaWeekStart(now).getTime();
@@ -685,18 +745,25 @@ export class PostgresPayoutStore implements PayoutStore {
   async holdForPayment(environment: Environment, resource: { type: AllocationRecord['resourceType']; id: string }, paymentId: string,
     client?: PoolClient) {
     const work = async (target: PoolClient) => {
-      const result = resource.type === 'payment_link'
-        ? await target.query(
+      let result;
+      if (resource.type === 'payment_link') {
+        // Ids are made here rather than with a database function, so the copy works wherever pgcrypto lives.
+        const templates = await target.query(
+          `SELECT id FROM shared_payment.payout_allocations
+            WHERE environment = $1 AND resource_type = 'payment_link' AND resource_id = $2 AND template ORDER BY id`,
+          [environment, resource.id]);
+        const ids = templates.rows.map(() => newId('pal'));
+        result = await target.query(
           `INSERT INTO shared_payment.payout_allocations (id, environment, organization_id, project_id, consumer_service_id,
              merchant_account_id, payee_id, resource_type, resource_id, reference_id, template, payment_id, amount, gross_amount, status)
-           SELECT 'pal_' || encode(gen_random_bytes(12), 'hex'), environment, organization_id, project_id, consumer_service_id,
-                  merchant_account_id, payee_id, resource_type, resource_id, reference_id, false, $3, amount, gross_amount, 'held'
-             FROM shared_payment.payout_allocations
-            WHERE environment = $1 AND resource_type = 'payment_link' AND resource_id = $2 AND template
+           SELECT pick.new_id, t.environment, t.organization_id, t.project_id, t.consumer_service_id, t.merchant_account_id,
+                  t.payee_id, t.resource_type, t.resource_id, t.reference_id, false, $1, t.amount, t.gross_amount, 'held'
+             FROM unnest($2::text[], $3::text[]) AS pick(template_id, new_id)
+             JOIN shared_payment.payout_allocations t ON t.id = pick.template_id
            ON CONFLICT DO NOTHING
            RETURNING ${ALLOCATION_COLUMNS}, organization_id, consumer_service_id`,
-          [environment, resource.id, paymentId])
-        : await target.query(
+          [paymentId, templates.rows.map((row) => row.id), ids]);
+      } else result = await target.query(
           `UPDATE shared_payment.payout_allocations SET status = 'held', payment_id = $3, updated_at = now()
             WHERE environment = $1 AND resource_type = $4 AND resource_id = $2 AND status = 'awaiting_payment'
               AND payment_id IS NULL AND NOT template
@@ -715,14 +782,20 @@ export class PostgresPayoutStore implements PayoutStore {
 
   async applyRefund(environment: Environment, refund: RefundFact, client?: PoolClient) {
     const work = async (target: PoolClient) => {
+      // Lock payees before their shares, the same order pooling uses, so a refund and a payout run cannot deadlock.
+      await target.query(
+        `SELECT id FROM shared_payment.payees WHERE id IN (
+           SELECT payee_id FROM shared_payment.payout_allocations WHERE environment = $1 AND payment_id = $2 AND NOT template)
+         ORDER BY id FOR UPDATE`, [environment, refund.paymentId]);
       const allocations = await target.query(
         `SELECT ${ALLOCATION_COLUMNS} FROM shared_payment.payout_allocations
-          WHERE environment = $1 AND payment_id = $2 AND NOT template FOR UPDATE`, [environment, refund.paymentId]);
+          WHERE environment = $1 AND payment_id = $2 AND NOT template ORDER BY id FOR UPDATE`, [environment, refund.paymentId]);
       for (const allocation of allocations.rows.map(allocationRow)) {
         const action = refundAction(allocation, refund.refunded);
         if (action.kind === 'cancel') {
           await target.query(`UPDATE shared_payment.payout_allocations SET status = $2, updated_at = now() WHERE id = $1`,
             [allocation.id, transitionAllocation(allocation.status, 'cancel')]);
+          await voidClawbacks(target, allocation.id);
         } else if (action.kind === 'clawback') {
           await target.query(
             `INSERT INTO shared_payment.payee_adjustments (id, environment, project_id, merchant_account_id, payee_id, amount, reason,
@@ -754,8 +827,9 @@ export class PostgresPayoutStore implements PayoutStore {
     });
   }
 
-  async insertAllocations(context: PayoutContext, rows: NewAllocation[], client?: PoolClient) {
-    const target = client ?? this.pool;
+  async insertAllocations(context: PayoutContext, rows: NewAllocation[], client?: PoolClient): Promise<AllocationRecord[]> {
+    if (!client) return this.transaction((target) => this.insertAllocations(context, rows, target));
+    const target = client;
     const created: AllocationRecord[] = [];
     for (const row of rows) {
       const result = await target.query(
@@ -769,7 +843,17 @@ export class PostgresPayoutStore implements PayoutStore {
           row.merchantAccountId, row.payeeId, row.resourceType, row.resourceId, row.referenceId, row.template, row.paymentId,
           row.amount, row.grossAmount, row.status, row.createdAt ?? null],
       );
-      if (result.rows[0]) created.push(allocationRow(result.rows[0]));
+      if (result.rows[0]) {
+        created.push(allocationRow(result.rows[0]));
+        continue;
+      }
+      // Already stored by an earlier attempt of the same create: return that share.
+      const existing = await target.query(
+        `SELECT ${ALLOCATION_COLUMNS} FROM shared_payment.payout_allocations
+          WHERE environment = $1 AND resource_type = $2 AND resource_id = $3 AND payee_id = $4
+            AND (resource_type <> 'payment_link' OR template)`,
+        [context.environment, row.resourceType, row.resourceId, row.payeeId]);
+      if (existing.rows[0]) created.push(allocationRow(existing.rows[0]));
     }
     return created;
   }
@@ -800,7 +884,8 @@ export class PostgresPayoutStore implements PayoutStore {
                 GROUP BY payee_id) released
          JOIN shared_payment.payees p ON p.id = released.payee_id AND p.status = 'active'
          LEFT JOIN (SELECT payee_id, sum(amount) AS total FROM shared_payment.payee_adjustments
-                     WHERE environment = $1 AND merchant_account_id = $2 AND payout_id IS NULL GROUP BY payee_id) adjusted
+                     WHERE environment = $1 AND merchant_account_id = $2 AND payout_id IS NULL AND voided_at IS NULL
+                     GROUP BY payee_id) adjusted
            ON adjusted.payee_id = p.id
          LEFT JOIN (SELECT payee_id, max(created_at) AS last_at FROM shared_payment.payouts
                      WHERE environment = $1 AND trigger = 'schedule' AND status <> 'failed' GROUP BY payee_id) scheduled
@@ -828,14 +913,29 @@ export class PostgresPayoutStore implements PayoutStore {
     return Number(result.rows[0].total);
   }
 
-  async createPayout(environment: Environment, input: { payeeId: string; merchantAccountId: string; trigger: PayoutTrigger['kind']; compose: ComposeFn }) {
+  async createPayout(environment: Environment, input: CreatePayoutInput) {
     return this.transaction(async (client) => {
       // Serialize pooling per payee: a concurrent run waits here, then finds the allocations already pooled.
       const payee = await client.query(
-        `SELECT id, organization_id, project_id, consumer_service_id, destination FROM shared_payment.payees
+        `SELECT id, organization_id, project_id, consumer_service_id, destination, destination_hold_until FROM shared_payment.payees
           WHERE environment = $1 AND id = $2 FOR UPDATE`, [environment, input.payeeId]);
       if (!payee.rows[0]) return { skipped: 'payee_not_found' };
       if (!payee.rows[0].destination) return { skipped: 'no_destination' };
+      const clock = this.clock();
+      // Checked again under the lock: the destination may have changed since the run read its pools.
+      if (payee.rows[0].destination_hold_until && new Date(payee.rows[0].destination_hold_until).getTime() > clock.getTime()) {
+        return { skipped: 'destination_hold' };
+      }
+      let remainingDailyCap: number | undefined;
+      if (input.dailyCap !== undefined) {
+        const { start, end } = manilaDay(clock);
+        const cashedOut = await client.query(
+          `SELECT COALESCE(sum(gross), 0) AS total FROM shared_payment.payouts
+            WHERE environment = $1 AND payee_id = $2 AND trigger = 'cash_out' AND status <> 'failed' AND created_at >= $3 AND created_at < $4`,
+          [environment, input.payeeId, start, end]);
+        remainingDailyCap = input.dailyCap - Number(cashedOut.rows[0].total);
+        if (remainingDailyCap <= 0) return { skipped: 'daily_cap_reached' };
+      }
       const allocations = await client.query(
         `SELECT id, amount, created_at FROM shared_payment.payout_allocations
           WHERE environment = $1 AND payee_id = $2 AND merchant_account_id = $3 AND status = 'released' FOR UPDATE`,
@@ -843,17 +943,18 @@ export class PostgresPayoutStore implements PayoutStore {
       if (!allocations.rows.length) return { skipped: 'nothing_released' };
       const adjustments = await client.query(
         `SELECT id, amount, created_at FROM shared_payment.payee_adjustments
-          WHERE environment = $1 AND payee_id = $2 AND merchant_account_id = $3 AND payout_id IS NULL FOR UPDATE`,
+          WHERE environment = $1 AND payee_id = $2 AND merchant_account_id = $3 AND payout_id IS NULL AND voided_at IS NULL FOR UPDATE`,
         [environment, input.payeeId, input.merchantAccountId]);
-      const composed = input.compose({ allocations: allocations.rows.map(entryRow), adjustments: adjustments.rows.map(entryRow) });
+      const composed = input.compose({ allocations: allocations.rows.map(entryRow), adjustments: adjustments.rows.map(entryRow) },
+        { ...(remainingDailyCap === undefined ? {} : { remainingDailyCap }) });
       if ('skip' in composed) return { skipped: composed.skip };
       const owner = payee.rows[0];
       const created = await client.query(
         `INSERT INTO shared_payment.payouts (id, environment, organization_id, project_id, consumer_service_id, merchant_account_id,
-           payee_id, gross, fee, net, trigger, status, destination)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12::jsonb) RETURNING ${PAYOUT_COLUMNS}`,
+           payee_id, gross, fee, net, trigger, status, destination, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12::jsonb, $13, $13) RETURNING ${PAYOUT_COLUMNS}`,
         [newId('po'), environment, owner.organization_id, owner.project_id, owner.consumer_service_id, input.merchantAccountId,
-          input.payeeId, composed.gross, composed.fee, composed.net, input.trigger, JSON.stringify(owner.destination)]);
+          input.payeeId, composed.gross, composed.fee, composed.net, input.trigger, JSON.stringify(owner.destination), clock]);
       const payout = payoutRow(created.rows[0]);
       await client.query(
         `UPDATE shared_payment.payout_allocations SET status = 'pooled', payout_id = $2, updated_at = now()
@@ -930,6 +1031,20 @@ export class PostgresPayoutStore implements PayoutStore {
     }));
   }
 
+  async payoutDestination(environment: Environment, payoutId: string) {
+    const result = await this.pool.query(`SELECT destination FROM shared_payment.payouts WHERE environment = $1 AND id = $2`,
+      [environment, payoutId]);
+    if (!result.rows[0]) throw new PayMongoError('Payout not found', 404, 'PAYOUT_NOT_FOUND');
+    return result.rows[0].destination as PayoutDestination;
+  }
+
+  async staleDrafts(environment: Environment, before: Date) {
+    const result = await this.pool.query(
+      `SELECT id FROM shared_payment.payouts WHERE environment = $1 AND status = 'draft' AND created_at < $2 ORDER BY created_at`,
+      [environment, before]);
+    return result.rows.map((row) => row.id as string);
+  }
+
   async attemptByCallbackToken(token: string) {
     const result = await this.pool.query(
       `SELECT environment, payout_id FROM shared_payment.payout_transfer_attempts WHERE callback_token = $1`, [token]);
@@ -962,6 +1077,7 @@ export class PostgresPayoutStore implements PayoutStore {
       const updated = await client.query(
         `UPDATE shared_payment.payout_allocations SET status = $2, updated_at = now() WHERE id = $1 RETURNING ${ALLOCATION_COLUMNS}`,
         [allocationId, next]);
+      if (event === 'cancel') await voidClawbacks(client, allocationId);
       return allocationRow(updated.rows[0]);
     });
   }
@@ -976,7 +1092,7 @@ export class PostgresPayoutStore implements PayoutStore {
          (SELECT COALESCE(sum(amount) FILTER (WHERE status = 'released'), 0) FROM shared_payment.payout_allocations
            WHERE environment = $1 AND payee_id = $2 AND NOT template)
            + (SELECT COALESCE(sum(amount), 0) FROM shared_payment.payee_adjustments
-               WHERE environment = $1 AND payee_id = $2 AND payout_id IS NULL) AS available,
+               WHERE environment = $1 AND payee_id = $2 AND payout_id IS NULL AND voided_at IS NULL) AS available,
          (SELECT COALESCE(sum(net), 0) FROM shared_payment.payouts
            WHERE environment = $1 AND payee_id = $2 AND status = ANY($3::text[])) AS in_flight,
          (SELECT COALESCE(sum(net), 0) FROM shared_payment.payouts
@@ -1039,6 +1155,13 @@ export class PostgresPayoutStore implements PayoutStore {
     if (!result.rows[0]) throw new PayMongoError('Payout not found', 404, 'PAYOUT_NOT_FOUND');
     return result.rows[0];
   }
+}
+
+/** A cancelled share was never paid, so refund clawbacks taken from it no longer apply. */
+async function voidClawbacks(client: Pick<PoolClient, 'query'>, allocationId: string): Promise<void> {
+  await client.query(
+    `UPDATE shared_payment.payee_adjustments SET voided_at = now(), updated_at = now()
+      WHERE source_allocation_id = $1 AND payout_id IS NULL AND voided_at IS NULL`, [allocationId]);
 }
 
 /** Queues a payout-feature event in the payment event outbox, keyed so each event is queued once. */

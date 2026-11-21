@@ -10,12 +10,16 @@ import type { MerchantAccount, MerchantAccountResolver } from './merchant-accoun
 import type { MoneyMover } from './money-mover';
 import { composePayout, type Centavos, type PayoutEvent } from './payout-ledger';
 import { isDue, type PayoutPolicy, type PayoutTrigger } from './payout-policy';
-import type { Environment, PayoutRecord, PayoutStore } from './payout-store';
+import type { Environment, OpenAttempt, PayoutRecord, PayoutStore } from './payout-store';
 
 /** How long a transfer PayMongo has no record of stays unknown before an operator must look. */
 export const UNKNOWN_DEADLINE_MS = 24 * 60 * 60 * 1000;
 /** How far before submission a reference lookup searches. */
 const LOOKUP_WINDOW_MS = 60 * 60 * 1000;
+/** A transfer PayMongo still reports pending after this long goes to an operator (PESONet takes up to a banking day). */
+export const PENDING_DEADLINE_MS = 72 * 60 * 60 * 1000;
+/** A draft payout never submitted after this long was left by a crash; nothing was sent, so its shares are freed. */
+export const DRAFT_GRACE_MS = 10 * 60 * 1000;
 
 export type PayoutDeps = {
   store: PayoutStore;
@@ -72,8 +76,11 @@ export async function runPayouts(deps: PayoutDeps, environment: Environment, tri
       payeeId: pool.payeeId,
       merchantAccountId: account.id,
       trigger: trigger.kind,
-      compose: (entries) => {
-        const composed = composePayout({ ...entries, fee, feeBearer: due.feeBearer, minimumPayout: policy.minimumPayout, cap: due.cap });
+      // The cash-out cap is checked again under the payee lock, so two cash-outs at once cannot both use it.
+      ...(trigger.kind === 'cash_out' && policy.onDemand ? { dailyCap: policy.onDemand.dailyCap } : {}),
+      compose: (entries, limits) => {
+        const cap = Math.min(due.cap, limits.remainingDailyCap ?? Number.POSITIVE_INFINITY);
+        const composed = composePayout({ ...entries, fee, feeBearer: due.feeBearer, minimumPayout: policy.minimumPayout, cap });
         if ('skip' in composed) return composed;
         // The wallet pays the net amount and PayMongo's fee, whoever bears the fee.
         spend = composed.net + composed.fee;
@@ -106,14 +113,14 @@ async function floatBudget(deps: PayoutDeps, account: MerchantAccount): Promise<
 }
 
 async function submit(deps: PayoutDeps, environment: Environment, account: MerchantAccount, payout: PayoutRecord): Promise<PayoutRecord> {
-  const payee = await deps.store.getPayee(environment, payout.projectId, payout.payeeId);
-  if (!payee?.destination) throw new Error(`Payout ${payout.id} has no destination`);
+  // Always the destination stored with the payout, which passed the hold check under the payee lock.
+  const destination = await deps.store.payoutDestination(environment, payout.id);
   const attempt = await deps.store.beginAttempt(environment, payout.id);
   const result = await deps.mover.submit({
     account,
     referenceNumber: attempt.referenceNumber,
     amount: payout.net,
-    destination: payee.destination,
+    destination,
     metadata: { payoutId: payout.id, payeeId: payout.payeeId },
     ...(deps.callbackUrl ? { callbackUrl: deps.callbackUrl(attempt.callbackToken) } : {}),
   });
@@ -131,41 +138,79 @@ async function submit(deps: PayoutDeps, environment: Environment, account: Merch
   return deps.store.recordOutcome(environment, payout.id, result.status === 'succeeded' ? 'provider_succeeded' : 'provider_failed');
 }
 
-/** Settles pending and unknown payouts by asking PayMongo. Never submits anything. */
+/**
+ * Settles pending and unknown payouts by asking PayMongo, and frees drafts a crash left unsubmitted.
+ * Never submits anything. One payout's failure is logged and counted; it never stops the others.
+ */
 export async function reconcileOpenAttempts(deps: PayoutDeps, environment: Environment,
-  only?: { payoutId: string }): Promise<{ resolved: number; needsReview: number }> {
+  only?: { payoutId: string }): Promise<{ resolved: number; needsReview: number; errors: number }> {
   const now = deps.now();
-  const tally = { resolved: 0, needsReview: 0 };
+  const tally = { resolved: 0, needsReview: 0, errors: 0 };
+  if (!only) {
+    for (const payoutId of await deps.store.staleDrafts(environment, new Date(now.getTime() - DRAFT_GRACE_MS))) {
+      try {
+        await deps.store.recordOutcome(environment, payoutId, 'abandoned', { failureCode: 'not_submitted' });
+        tally.resolved += 1;
+      } catch (error) {
+        tally.errors += 1;
+        logReconcileError(environment, payoutId, error);
+      }
+    }
+  }
   for (const attempt of await deps.store.openAttempts(environment, now)) {
     if (only && attempt.payoutId !== only.payoutId) continue;
-    let status = attempt.status;
-    if (status === 'submitting') {
-      await deps.store.recordOutcome(environment, attempt.payoutId, 'lost');
-      status = 'unknown';
+    try {
+      const outcome = await reconcileAttempt(deps, environment, attempt, now);
+      if (outcome === 'resolved') tally.resolved += 1;
+      if (outcome === 'needs_review') tally.needsReview += 1;
+    } catch (error) {
+      // Typically a callback and this job settled the same payout at once; the next run sees the result.
+      tally.errors += 1;
+      logReconcileError(environment, attempt.payoutId, error);
     }
-    const account = await deps.accounts.get(attempt.merchantAccountId, environment);
-    const found = attempt.transferId
-      ? await deps.mover.lookup(account, { transferId: attempt.transferId })
-      : await deps.mover.lookup(account, {
-        referenceNumber: attempt.referenceNumber, since: new Date(Date.parse(attempt.submittedAt) - LOOKUP_WINDOW_MS),
-      });
-    if (!found.found) {
-      if (status === 'unknown' && now.getTime() - Date.parse(attempt.submittedAt) >= UNKNOWN_DEADLINE_MS) {
-        await deps.store.recordOutcome(environment, attempt.payoutId, 'not_found_after_deadline');
-        tally.needsReview += 1;
-        console.warn(JSON.stringify({ type: 'apicenter_payout_needs_review', environment, payoutId: attempt.payoutId }));
-      }
-      continue;
-    }
-    const detail = { transferId: found.transferId, providerStatus: found.status,
-      ...(found.fee === null ? {} : { fee: found.fee }), ...(found.failureCode ? { failureCode: found.failureCode } : {}) };
-    let event: PayoutEvent | undefined;
-    if (found.status === 'succeeded') event = 'provider_succeeded';
-    else if (found.status === 'failed') event = 'provider_failed';
-    else if (status === 'unknown') event = 'accepted';
-    if (!event) continue;
-    await deps.store.recordOutcome(environment, attempt.payoutId, event, detail);
-    if (event !== 'accepted') tally.resolved += 1;
   }
   return tally;
+}
+
+function logReconcileError(environment: Environment, payoutId: string, error: unknown): void {
+  console.error(JSON.stringify({ type: 'apicenter_payout_reconcile_failed', environment, payoutId,
+    code: (error as { code?: string }).code, message: (error as Error).message }));
+}
+
+async function reconcileAttempt(deps: PayoutDeps, environment: Environment,
+  attempt: OpenAttempt, now: Date): Promise<'resolved' | 'needs_review' | 'open'> {
+  let status = attempt.status;
+  if (status === 'submitting') {
+    await deps.store.recordOutcome(environment, attempt.payoutId, 'lost');
+    status = 'unknown';
+  }
+  const account = await deps.accounts.get(attempt.merchantAccountId, environment);
+  const found = attempt.transferId
+    ? await deps.mover.lookup(account, { transferId: attempt.transferId })
+    : await deps.mover.lookup(account, {
+      referenceNumber: attempt.referenceNumber, since: new Date(Date.parse(attempt.submittedAt) - LOOKUP_WINDOW_MS),
+    });
+  const age = now.getTime() - Date.parse(attempt.submittedAt);
+  if (!found.found) {
+    if (status === 'unknown' && age >= UNKNOWN_DEADLINE_MS) {
+      await deps.store.recordOutcome(environment, attempt.payoutId, 'not_found_after_deadline');
+      console.warn(JSON.stringify({ type: 'apicenter_payout_needs_review', environment, payoutId: attempt.payoutId }));
+      return 'needs_review';
+    }
+    return 'open';
+  }
+  const detail = { transferId: found.transferId, providerStatus: found.status,
+    ...(found.fee === null ? {} : { fee: found.fee }), ...(found.failureCode ? { failureCode: found.failureCode } : {}) };
+  let event: PayoutEvent | undefined;
+  if (found.status === 'succeeded') event = 'provider_succeeded';
+  else if (found.status === 'failed') event = 'provider_failed';
+  else if (status === 'unknown') event = 'accepted';
+  else if (age >= PENDING_DEADLINE_MS) event = 'stalled';
+  if (!event) return 'open';
+  await deps.store.recordOutcome(environment, attempt.payoutId, event, detail);
+  if (event === 'stalled') {
+    console.warn(JSON.stringify({ type: 'apicenter_payout_needs_review', environment, payoutId: attempt.payoutId, reason: 'pending_too_long' }));
+    return 'needs_review';
+  }
+  return event === 'accepted' ? 'open' : 'resolved';
 }

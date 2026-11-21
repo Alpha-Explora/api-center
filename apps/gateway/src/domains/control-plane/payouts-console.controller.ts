@@ -7,10 +7,10 @@ import { Body, Controller, Get, HttpException, Param, Post, Query, Req, UseGuard
 import { z } from "zod";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { paymentRuntimeToken, paymentRuntimeUrl } from "@shared/proxy/payment-runtime";
-import { BadGatewayError, ServiceUnavailableError, ValidationError } from "@shared/errors";
+import { BadGatewayError, ForbiddenError, ServiceUnavailableError, ValidationError } from "@shared/errors";
 import { ConsoleAccessService } from "./console-access.service";
 import { ConsoleActorGuard, type ConsoleRequest } from "./console-actor.guard";
-import type { ConsoleAction } from "./console-access.policy";
+import { hasPlatformAccess, type ConsoleAction } from "./console-access.policy";
 import { ConsoleRuntimeContextService } from "./console-runtime-context.service";
 
 const target = z.object({
@@ -27,9 +27,14 @@ const pageQuery = z.object({
   status: z.enum(["draft", "submitting", "pending", "unknown", "paid", "failed", "needs_review"]).optional(),
 });
 
-type Route = { action: ConsoleAction; scope: "payments:payouts:read" | "payments:payouts:write" };
-const READ: Route = { action: "environment.read", scope: "payments:payouts:read" };
-const WRITE: Route = { action: "environment.write", scope: "payments:payouts:write" };
+/**
+ * Reads need environment.read. Changes are for platform operators only: resolving a payout means checking
+ * the payment provider's dashboard, which only they can see, and the settings decide who pays transfer fees
+ * out of the platform's wallet.
+ */
+type Route = { action: ConsoleAction; scope: "payments:payouts:read" | "payments:payouts:write"; platformOnly: boolean };
+const READ: Route = { action: "environment.read", scope: "payments:payouts:read", platformOnly: false };
+const OPERATE: Route = { action: "environment.write", scope: "payments:payouts:write", platformOnly: true };
 
 /** Masks a payee's destination account number to its last four digits. */
 export function maskPayee(payee: unknown): unknown {
@@ -68,7 +73,7 @@ export class PayoutsConsoleController {
   @Post("settings")
   saveSettings(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const policy = body && typeof body === "object" ? body as Record<string, unknown> : {};
-    return this.forward(params, req, WRITE, "POST", "/admin/payouts/settings", { ...policy, actor: actorLabel(req) });
+    return this.forward(params, req, OPERATE, "POST", "/admin/payouts/settings", { ...policy, actor: actorLabel(req) });
   }
 
   @Get("payees")
@@ -95,7 +100,7 @@ export class PayoutsConsoleController {
     const id = payoutId.safeParse(params.payoutId);
     if (!id.success) throw new ValidationError("payoutId is invalid");
     const input = body && typeof body === "object" ? body as Record<string, unknown> : {};
-    return this.forward(params, req, WRITE, "POST", `/admin/payouts/${id.data}/resolve`,
+    return this.forward(params, req, OPERATE, "POST", `/admin/payouts/${id.data}/resolve`,
       { outcome: input.outcome, note: input.note, actor: actorLabel(req) });
   }
 
@@ -106,6 +111,9 @@ export class PayoutsConsoleController {
     if (!req.consoleActor) throw new ValidationError("Console actor is missing");
     const { organizationId, projectId, environment } = parsed.data;
     await this.access.require(req.consoleActor, organizationId, route.action, { projectId, environmentKind: environment });
+    if (route.platformOnly && !hasPlatformAccess(req.consoleActor)) {
+      throw new ForbiddenError("Only APICenter platform operators can resolve payouts or change payout settings");
+    }
 
     const token = paymentRuntimeToken(environment);
     if (!token) throw new ServiceUnavailableError("Payment runtime token is not configured");

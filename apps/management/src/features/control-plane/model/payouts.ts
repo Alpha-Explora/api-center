@@ -67,6 +67,9 @@ export const payoutPolicySchema = z.object({
 });
 export type PayoutPolicy = z.infer<typeof payoutPolicySchema>;
 
+/** Resolving payouts and the payout settings move the platform's money, so only platform operators change them. */
+export const PAYOUT_OPERATOR_REASON = "Only APICenter platform operators can resolve payouts or change payout settings.";
+
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** 72_500 -> "₱725.00". */

@@ -26,6 +26,7 @@ describe('payout transitions', () => {
     ['unknown', 'provider_failed', 'failed'], ['unknown', 'not_found_after_deadline', 'needs_review'],
     ['pending', 'provider_succeeded', 'paid'], ['pending', 'provider_failed', 'failed'],
     ['needs_review', 'operator_paid', 'paid'], ['needs_review', 'operator_failed', 'failed'],
+    ['draft', 'abandoned', 'failed'], ['pending', 'stalled', 'needs_review'],
   ])('%s + %s → %s', (from, event, to) => expect(transitionPayout(from as any, event as any)).toBe(to));
 
   it('never lets an unknown payout be submitted again', () =>
@@ -71,6 +72,11 @@ describe('composePayout', () => {
     expect(composePayout({ allocations: [a('new', 6_000, '2026-11-21T02:00:00Z'), a('old', 5_000, '2026-11-21T01:00:00Z')],
       adjustments: [], fee: 0, feeBearer: 'platform', minimumPayout: 0, cap: 10_000 }))
       .toMatchObject({ gross: 5_000, allocationIds: ['old'] }));
+
+  it('skips a share that does not fit and still pays the ones that do', () =>
+    expect(composePayout({ allocations: [a('big', 6_000_000, '2026-11-21T01:00:00Z'), a('small', 4_000, '2026-11-21T02:00:00Z')],
+      adjustments: [], fee: 0, feeBearer: 'platform', minimumPayout: 0, cap: 5_000_000 }))
+      .toMatchObject({ gross: 4_000, allocationIds: ['small'] }));
 
   it('rejects amounts that are not safe integers', () =>
     expect(() => composePayout({ allocations: [a('al1', 1.5)], adjustments: [], fee: 0, feeBearer: 'platform', minimumPayout: 0 }))

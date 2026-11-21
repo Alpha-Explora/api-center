@@ -90,7 +90,8 @@ CREATE TABLE shared_payment.payout_allocations (
   updated_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (environment, merchant_account_id) REFERENCES shared_payment.merchant_accounts(environment, id),
   CHECK (NOT template OR (status = 'awaiting_payment' AND payment_id IS NULL)),
-  CHECK ((status = 'pooled') = (payout_id IS NOT NULL) OR status = 'paid')
+  CHECK ((status IN ('pooled','paid')) = (payout_id IS NOT NULL)),
+  CHECK (amount <= 5000000)
 );
 CREATE INDEX payout_allocations_resource_idx ON shared_payment.payout_allocations (environment, resource_type, resource_id);
 CREATE INDEX payout_allocations_payment_idx ON shared_payment.payout_allocations (environment, payment_id) WHERE payment_id IS NOT NULL;
@@ -100,6 +101,10 @@ CREATE INDEX payout_allocations_payee_idx ON shared_payment.payout_allocations (
 -- One copy of a link's allocation per paid payment, so a replayed webhook cannot hold twice.
 CREATE UNIQUE INDEX payout_allocations_payment_copy_uidx ON shared_payment.payout_allocations (environment, resource_id, payment_id, payee_id)
   WHERE resource_type = 'payment_link' AND NOT template;
+-- One share per payee per intent or checkout, and one template per payee per link, so a retried create stores each once.
+CREATE UNIQUE INDEX payout_allocations_resource_payee_uidx ON shared_payment.payout_allocations (environment, resource_type, resource_id, payee_id)
+  WHERE resource_type <> 'payment_link' OR template;
+CREATE INDEX payout_allocations_payout_idx ON shared_payment.payout_allocations (payout_id) WHERE payout_id IS NOT NULL;
 
 CREATE TABLE shared_payment.payee_adjustments (
   id text PRIMARY KEY CHECK (id ~ '^padj_[A-Za-z0-9]+$'),
@@ -112,11 +117,15 @@ CREATE TABLE shared_payment.payee_adjustments (
   source_allocation_id text REFERENCES shared_payment.payout_allocations(id),
   source_refund_id text,
   payout_id text,
+  -- Set when the share a clawback came from is cancelled, so the payee is not charged for money they never received.
+  voided_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (environment, merchant_account_id) REFERENCES shared_payment.merchant_accounts(environment, id)
 );
-CREATE INDEX payee_adjustments_open_idx ON shared_payment.payee_adjustments (environment, merchant_account_id, payee_id) WHERE payout_id IS NULL;
+CREATE INDEX payee_adjustments_open_idx ON shared_payment.payee_adjustments (environment, merchant_account_id, payee_id)
+  WHERE payout_id IS NULL AND voided_at IS NULL;
+CREATE INDEX payee_adjustments_payout_idx ON shared_payment.payee_adjustments (payout_id) WHERE payout_id IS NOT NULL;
 -- A refund claws back each allocation once, however often its webhook is delivered.
 CREATE UNIQUE INDEX payee_adjustments_refund_uidx ON shared_payment.payee_adjustments (source_allocation_id, source_refund_id)
   WHERE source_refund_id IS NOT NULL;
@@ -144,7 +153,7 @@ CREATE TABLE shared_payment.payouts (
 );
 CREATE INDEX payouts_project_idx ON shared_payment.payouts (environment, project_id, created_at DESC, id DESC);
 CREATE INDEX payouts_payee_idx ON shared_payment.payouts (payee_id, trigger, created_at DESC);
-CREATE INDEX payouts_open_idx ON shared_payment.payouts (environment, status) WHERE status IN ('submitting','pending','unknown','needs_review');
+CREATE INDEX payouts_open_idx ON shared_payment.payouts (environment, status) WHERE status IN ('draft','submitting','pending','unknown','needs_review');
 
 ALTER TABLE shared_payment.payout_allocations
   ADD CONSTRAINT payout_allocations_payout_fk FOREIGN KEY (payout_id) REFERENCES shared_payment.payouts(id);

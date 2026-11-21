@@ -157,4 +157,48 @@ describe('allocations', () => {
     const [secondId] = (await runPayouts(deps(), 'test', { kind: 'schedule' })).paid;
     expect(store.payouts.get(secondId)).toMatchObject({ gross: 20_000, net: 11_500 });
   });
+
+  // Review finding: a refund confirmed before the payment's own paid webhook found no shares to cancel.
+  it('applies a refund that was confirmed before the payment was', async () => {
+    owners.useWebhookEffects(payoutWebhookEffects(store, async (paymentId) =>
+      (await owners.findWebhookRefundsByPaymentId(paymentId, 'test'))
+        .filter((record) => record.status === 'succeeded')
+        .map((record) => ({ paymentId, refundId: record.resourceId, refunded: Number(record.snapshot.amount) }))));
+    const allocation = await intentWithShare();
+    const service = new WebhooksService(owners);
+    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_early', snapshot: { refundId: 'ref_early', paymentId: 'pay_1' } });
+    await service.processWebhook(refunded('evt_r0', 'ref_early', 50_000), signed(refunded('evt_r0', 'ref_early', 50_000)));
+    expect(store.allocations.get(allocation.id)!.status).toBe('awaiting_payment');
+
+    await service.processWebhook(intentPaid('evt_late'), signed(intentPaid('evt_late')));
+    expect(store.allocations.get(allocation.id)).toMatchObject({ status: 'cancelled', paymentId: 'pay_1' });
+  });
+
+  // Review finding: a partial refund then a cancel charged the payee for a share they never received.
+  it('voids a clawback when its share is cancelled', async () => {
+    const allocation = await intentWithShare();
+    const service = new WebhooksService(owners);
+    await service.processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));
+    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_part', snapshot: { refundId: 'ref_part', paymentId: 'pay_1' } });
+    await service.processWebhook(refunded('evt_r2', 'ref_part', 10_000), signed(refunded('evt_r2', 'ref_part', 10_000)));
+    expect((await store.earnings('test', payeeId, now)).available).toBe(-8_500);
+
+    await store.changeAllocation('test', 'project-1', allocation.id, 'cancel');
+    expect(await store.earnings('test', payeeId, now)).toMatchObject({ held: 0, available: 0 });
+  });
+
+  it('refuses a share larger than one transfer can carry', () => {
+    expect(() => parseAllocations({ allocations: [{ payeeId: 'pye_1', amount: 5_000_001 }] }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_ALLOCATIONS' }));
+    expect(parseAllocations({ allocations: [{ payeeId: 'pye_1', amount: 5_000_000 }] })).toHaveLength(1);
+  });
+
+  // Review finding: a retried create stored every share again.
+  it('stores each share once when the create is retried', async () => {
+    const first = await intentWithShare();
+    const [again] = await attachAllocations(deps(), context, { type: 'intent', id: 'pi_1', gross: 50_000, referenceId: 'ORDER-1' },
+      [{ payeeId, amount: 42_500 }]);
+    expect(again.id).toBe(first.id);
+    expect(store.allocations.size).toBe(1);
+  });
 });

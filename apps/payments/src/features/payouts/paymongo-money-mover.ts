@@ -41,7 +41,10 @@ export class PayMongoMoneyMover implements MoneyMover {
       if (!(error instanceof PayMongoError)) throw error;
       // 4xx means PayMongo refused the request, so nothing was sent; 429 too. Anything else may have been sent.
       if (error.statusCode === 429) return { kind: 'rejected', code: 'rate_limited', message: error.message };
-      if (error.statusCode >= 400 && error.statusCode < 500) return { kind: 'rejected', code: error.code, message: error.message };
+      // 408 (timed out) and 409 (conflict) do not prove the transfer was refused.
+      if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 408 && error.statusCode !== 409) {
+        return { kind: 'rejected', code: error.code, message: error.message };
+      }
       return { kind: 'unknown', reason: `${error.code}: ${error.message}` };
     }
   }

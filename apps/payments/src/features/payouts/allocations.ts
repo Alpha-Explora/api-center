@@ -8,11 +8,13 @@ import type { VerifiedWebhook, WebhookEffects } from '../../shared/payment-owner
 import type { PoolClient } from 'pg';
 import type { MerchantAccountResolver } from './merchant-accounts';
 import type { AllocationStatus, Centavos } from './payout-ledger';
-import type { AllocationRecord, PayoutContext, PayoutStore } from './payout-store';
+import { INSTAPAY_CAP } from './payout-policy';
+import type { AllocationRecord, PayoutContext, PayoutStore, RefundFact } from './payout-store';
 
 export const allocationsInput = z.array(z.object({
   payeeId: z.string().regex(/^pye_[A-Za-z0-9]+$/),
-  amount: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  // One share is paid in one transfer, so it can be no larger than one InstaPay transfer.
+  amount: z.number().int().positive().max(INSTAPAY_CAP),
 }).strict()).min(1).max(20)
   .refine((items) => new Set(items.map((item) => item.payeeId)).size === items.length, { message: 'Each payee may appear once' });
 
@@ -28,7 +30,7 @@ export function parseAllocations(body: unknown): AllocationInput | undefined {
   if (raw === undefined) return undefined;
   const parsed = allocationsInput.safeParse(raw);
   if (!parsed.success) {
-    throw new PayMongoError('allocations must list each payee once with a positive whole amount', 400, 'INVALID_ALLOCATIONS');
+    throw new PayMongoError('allocations must list each payee once, each a whole amount from 1 to 5,000,000 centavos', 400, 'INVALID_ALLOCATIONS');
   }
   return parsed.data;
 }
@@ -67,13 +69,25 @@ export function allocationView(allocation: AllocationRecord): AllocationView {
   return { id: allocation.id, payeeId: allocation.payeeId, amount: allocation.amount, status: allocation.status, paymentId: allocation.paymentId };
 }
 
-/** Holds shares when a payment is confirmed and settles refunds, inside the webhook's own transaction. */
-export function payoutWebhookEffects(store: PayoutStore): WebhookEffects {
+/** Refunds of a payment that already succeeded, for shares held after their payment was refunded. */
+export type PriorRefunds = (paymentId: string, environment: 'test' | 'live') => Promise<RefundFact[]>;
+
+/**
+ * Holds shares when a payment is confirmed and settles refunds, inside the webhook's own transaction. A
+ * refund can be confirmed before the payment's own paid webhook arrives; its effect is applied as the
+ * shares are held, since until then they have no payment to match.
+ */
+export function payoutWebhookEffects(store: PayoutStore, priorRefunds: PriorRefunds = async () => []): WebhookEffects {
   return {
     async apply(webhook: VerifiedWebhook, client?: PoolClient) {
       if (webhook.paidResource) {
-        await store.holdForPayment(webhook.environment,
+        const held = await store.holdForPayment(webhook.environment,
           { type: webhook.paidResource.resourceType, id: webhook.paidResource.resourceId }, webhook.paidResource.paymentId, client);
+        if (held.length) {
+          for (const refund of await priorRefunds(webhook.paidResource.paymentId, webhook.environment)) {
+            await store.applyRefund(webhook.environment, refund, client);
+          }
+        }
       }
       for (const refund of webhook.refunds ?? []) await store.applyRefund(webhook.environment, refund, client);
     },

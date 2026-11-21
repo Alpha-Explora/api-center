@@ -20,7 +20,9 @@ const money = z.object({ amountMinor: z.number().int().positive(), currency: z.l
 const reference = z.string().min(1).max(255);
 const link = z.string().min(1).max(2048);
 /** Payee shares of a payment; held when it is paid, paid out once the project releases them. */
-const allocations = z.array(z.object({ payeeId: z.string().regex(/^pye_[A-Za-z0-9]+$/), amount: money }).strict())
+// One share is paid in one transfer, so it can be no larger than one InstaPay transfer (₱50,000).
+const allocationAmount = z.object({ amountMinor: z.number().int().positive().max(5_000_000), currency: z.literal('PHP') });
+const allocations = z.array(z.object({ payeeId: z.string().regex(/^pye_[A-Za-z0-9]+$/), amount: allocationAmount }).strict())
   .min(1).max(20).optional();
 const accountNumber = z.string().regex(/^[0-9]{6,20}$/);
 const accountName = z.string().trim().min(1).max(200);

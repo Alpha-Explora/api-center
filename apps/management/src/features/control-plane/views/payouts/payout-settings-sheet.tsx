@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { FormRow, NativeSelect } from "@/components/patterns/form";
 import { ErrorPanel } from "@/components/patterns/notices";
-import { environmentWriteReason } from "../../model/access";
-import { formatCentavos, parsePesos, WEEKDAYS, type PayoutPolicy } from "../../model/payouts";
+import { formatCentavos, parsePesos, PAYOUT_OPERATOR_REASON, WEEKDAYS, type PayoutPolicy } from "../../model/payouts";
 import { usePayoutSettings, useSavePayoutSettings } from "../../view-models/payouts";
 import { useProjectEnvironment } from "../../view-models/project-environment";
+import { useOrganization } from "../../view-models/use-organization";
 
 /** The project's payout schedule, cash-out limits and who pays the transfer fee. */
 export function PayoutSettingsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -33,6 +33,8 @@ const toPesos = (centavos: number) => (centavos / 100).toFixed(2);
 
 function SettingsForm({ initial, onDone }: { initial: PayoutPolicy; onDone: () => void }) {
   const { kind, canWrite } = useProjectEnvironment();
+  const { platformAdmin } = useOrganization();
+  const canOperate = canWrite && platformAdmin;
   const save = useSavePayoutSettings();
   const [weekly, setWeekly] = useState(initial.schedule !== null);
   const [weekday, setWeekday] = useState(String(initial.schedule?.weekday ?? 5));
@@ -140,13 +142,13 @@ function SettingsForm({ initial, onDone }: { initial: PayoutPolicy; onDone: () =
           </p>
         ) : null}
         {save.error ? <ErrorPanel title="The payout settings were not saved" error={save.error} /> : null}
-        {!canWrite ? <p className="text-xs text-muted-foreground">{environmentWriteReason(kind)}</p> : null}
+        {!canOperate ? <p className="text-xs text-muted-foreground">{PAYOUT_OPERATOR_REASON}</p> : null}
       </div>
       <SheetFooter className="mt-auto flex-row justify-end border-t">
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!canWrite || save.isPending}>
+        <Button type="submit" disabled={!canOperate || save.isPending}>
           {save.isPending ? "Saving…" : "Save settings"}
         </Button>
       </SheetFooter>

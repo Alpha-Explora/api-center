@@ -14,9 +14,10 @@ const payouts = vi.hoisted(() => ({
   list: vi.fn(),
   resolve: vi.fn(),
 }));
-const environment = vi.hoisted(() => ({ canWrite: true }));
+const environment = vi.hoisted(() => ({ canWrite: true, platformAdmin: true }));
 
 vi.mock("@/features/control-plane/data/payouts", () => ({ payouts }));
+vi.mock("@/features/control-plane/view-models/use-organization", () => ({ useOrganization: () => ({ platformAdmin: environment.platformAdmin }) }));
 vi.mock("@/features/control-plane/view-models/project-environment", () => ({
   RequireEnvironment: ({ children }: { children: React.ReactNode }) => children,
   useProjectEnvironment: () => ({ organizationId: "org_1", project: { id: "prj_1", name: "Marketplace" }, kind: "test", canWrite: environment.canWrite }),
@@ -41,6 +42,7 @@ function renderPage() {
 describe("PayoutsPage", () => {
   beforeEach(() => {
     environment.canWrite = true;
+    environment.platformAdmin = true;
     payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: { needs_review: 1 },
       needsReview: [stuck], nextScheduledAt: "2026-11-27T12:00:00Z" });
     payouts.settings.mockResolvedValue(policy);
@@ -88,8 +90,8 @@ describe("PayoutsPage", () => {
       "failed", "No transfer with this reference"));
   });
 
-  it("keeps settings read-only without environment.write and says why", async () => {
-    environment.canWrite = false;
+  it("lets only platform operators resolve payouts or change settings", async () => {
+    environment.platformAdmin = false;
     renderPage();
     await screen.findByText("₱12,500.00");
     expect(screen.queryByRole("button", { name: "Resolve po_ab12" })).toBeNull();

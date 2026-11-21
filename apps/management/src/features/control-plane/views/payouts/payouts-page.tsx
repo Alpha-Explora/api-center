@@ -16,10 +16,10 @@ import { Panel } from "@/components/patterns/panel";
 import { RelativeTime } from "@/components/patterns/relative-time";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { formatDateTime } from "@/lib/format";
-import { environmentWriteReason } from "../../model/access";
-import { describeDestination, describeSchedule, formatCentavos, TRIGGER_LABELS, type Payout } from "../../model/payouts";
+import { describeDestination, describeSchedule, formatCentavos, PAYOUT_OPERATOR_REASON, TRIGGER_LABELS, type Payout } from "../../model/payouts";
 import { usePayees, usePayoutOverview, usePayouts, usePayoutSettings, useResolvePayout } from "../../view-models/payouts";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
+import { useOrganization } from "../../view-models/use-organization";
 import { PayeeSheet } from "./payee-sheet";
 import { PayoutSettingsSheet } from "./payout-settings-sheet";
 
@@ -35,6 +35,8 @@ type Resolution = { payout: Payout; outcome: "paid" | "failed" };
 
 function Payouts() {
   const { kind, canWrite } = useProjectEnvironment();
+  const { platformAdmin } = useOrganization();
+  const canOperate = canWrite && platformAdmin;
   const overview = usePayoutOverview();
   const settings = usePayoutSettings();
   const list = usePayouts();
@@ -52,7 +54,7 @@ function Payouts() {
         title="Payouts"
         description="Payees' earnings from this environment's payments, paid weekly from the payout wallet or when they cash out."
         actions={
-          <GuardedButton allowed={canWrite} reason={environmentWriteReason(kind)} variant="outline" onClick={() => setEditing(true)}>
+          <GuardedButton allowed={canOperate} reason={PAYOUT_OPERATOR_REASON} variant="outline" onClick={() => setEditing(true)}>
             <Settings2Icon data-icon="inline-start" /> Payout settings
           </GuardedButton>
         }
@@ -136,7 +138,7 @@ function Payouts() {
                     <RelativeTime value={payout.createdAt} />
                   </TableCell>
                   <TableCell className="text-right">
-                    {canWrite ? (
+                    {canOperate ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={`Resolve ${payout.id}`} />}>
                           <MoreHorizontalIcon />

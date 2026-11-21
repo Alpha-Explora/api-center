@@ -9,6 +9,7 @@ const accounts: MerchantAccountResolver = { resolve: async () => wallet, get: as
 
 async function setup(amounts = [42_500, 30_000]) {
   let now = new Date('2026-11-27T12:05:00Z'); // Friday 20:05 Manila
+  let sequence = 0;
   const clock = () => now;
   const store = new MemoryPayoutStore(clock);
   const mover = new MockMoneyMover();
@@ -16,7 +17,7 @@ async function setup(amounts = [42_500, 30_000]) {
   await store.setPayeeDestination('test', 'project-1', payee.id,
     { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09171234567', accountName: 'Juan Dela Cruz' }, new Date('2026-11-01T00:00:00Z'));
   const release = (amount: number, createdAt = '2026-11-26T00:00:00Z') => store.insertAllocations(context, [{
-    payeeId: payee.id, merchantAccountId: 'parent', resourceType: 'intent', resourceId: `pi_${amount}_${createdAt}`, referenceId: 'order-1',
+    payeeId: payee.id, merchantAccountId: 'parent', resourceType: 'intent', resourceId: `pi_${(sequence += 1)}`, referenceId: 'order-1',
     template: false, paymentId: 'pay_1', amount, grossAmount: amount, status: 'released', createdAt,
   }]);
   for (const amount of amounts) await release(amount);
@@ -37,7 +38,7 @@ describe('runPayouts', () => {
     const payout = store.payouts.get(report.paid[0])!;
     expect(payout).toMatchObject({ status: 'pending', gross: 72_500, net: 72_500, fee: 1_000, trigger: 'schedule' });
 
-    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 1, needsReview: 0 });
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 1, needsReview: 0, errors: 0 });
     expect(store.payouts.get(payout.id)!.status).toBe('paid');
     expect([...store.allocations.values()].map((entry) => entry.status)).toEqual(['paid', 'paid']);
     expect(store.events.map((event) => event.eventType)).toEqual(['payment.payout.paid']);
@@ -86,11 +87,11 @@ describe('runPayouts', () => {
     jest.spyOn(mover, 'lookup').mockResolvedValue({ found: false });
 
     setNow('2026-11-28T12:04:00Z');
-    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 0, needsReview: 0 });
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 0, needsReview: 0, errors: 0 });
     expect(store.payouts.get(payoutId)!.status).toBe('unknown');
 
     setNow('2026-11-28T12:06:00Z');
-    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 0, needsReview: 1 });
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 0, needsReview: 1, errors: 0 });
     expect(store.payouts.get(payoutId)!.status).toBe('needs_review');
     expect([...store.allocations.values()].every((entry) => entry.status === 'pooled')).toBe(true);
   });
@@ -151,5 +152,74 @@ describe('runPayouts', () => {
     const [payoutId] = (await runPayouts(deps, 'test', { kind: 'cash_out', cashedOutToday: 0 },
       { payeeId: [...store.payees.keys()][0], projectId: 'project-1' })).paid;
     expect(store.payouts.get(payoutId)).toMatchObject({ trigger: 'cash_out', gross: 72_500, fee: 1_000, net: 71_500 });
+  });
+
+  // Review finding: a payout created but never submitted (a crash in between) stayed draft forever.
+  it('frees a draft that a crash left unsubmitted', async () => {
+    const { store, deps, setNow } = await setup();
+    const created = await store.createPayout('test', { payeeId: [...store.payees.keys()][0], merchantAccountId: 'parent', trigger: 'schedule',
+      compose: (pool) => ({ gross: 72_500, fee: 1_000, net: 72_500, allocationIds: pool.allocations.map((entry) => entry.id), adjustmentIds: [] }) });
+    if ('skipped' in created) throw new Error('expected a payout');
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toMatchObject({ resolved: 0 });
+    expect(store.payouts.get(created.id)!.status).toBe('draft');
+
+    setNow('2026-11-27T12:16:00Z');
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toMatchObject({ resolved: 1 });
+    expect(store.payouts.get(created.id)).toMatchObject({ status: 'failed', failureCode: 'not_submitted' });
+    expect([...store.allocations.values()].every((entry) => entry.status === 'released' && entry.payoutId === null)).toBe(true);
+  });
+
+  // Review finding: one lookup error used to stop the whole reconcile, and with it the weekly run.
+  it('keeps reconciling other payouts when one lookup fails', async () => {
+    const { store, mover, deps } = await setup([42_500]);
+    const second = await store.upsertPayee(context, { externalRef: 'ext-2', legalName: 'Maria' });
+    await store.setPayeeDestination('test', 'project-1', second.payee.id,
+      { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09170000000', accountName: 'Maria' }, new Date('2026-11-01T00:00:00Z'));
+    await store.insertAllocations(context, [{ payeeId: second.payee.id, merchantAccountId: 'parent', resourceType: 'intent', resourceId: 'pi_m',
+      referenceId: 'ORDER-2', template: false, paymentId: 'pay_m', amount: 30_000, grossAmount: 30_000, status: 'released' }]);
+    const [firstId, secondId] = (await runPayouts(deps, 'test', schedule)).paid;
+    const lookup = mover.lookup.bind(mover);
+    let calls = 0;
+    jest.spyOn(mover, 'lookup').mockImplementation(async (account, key) => {
+      calls += 1;
+      if (calls === 1) throw new Error('PayMongo timed out');
+      return lookup(account, key);
+    });
+    const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toEqual({ resolved: 1, needsReview: 0, errors: 1 });
+    error.mockRestore();
+    expect([store.payouts.get(firstId)!.status, store.payouts.get(secondId)!.status].sort()).toEqual(['paid', 'pending']);
+  });
+
+  it('hands a transfer that stays pending for three days to an operator', async () => {
+    const { store, mover, deps, setNow } = await setup();
+    const [payoutId] = (await runPayouts(deps, 'test', schedule)).paid;
+    jest.spyOn(mover, 'lookup').mockResolvedValue({ found: true, transferId: 'tr_1', status: 'pending', fee: 1_000, failureCode: null });
+    setNow('2026-11-29T12:05:00Z');
+    await reconcileOpenAttempts(deps, 'test');
+    expect(store.payouts.get(payoutId)!.status).toBe('pending');
+    setNow('2026-11-30T12:06:00Z');
+    await expect(reconcileOpenAttempts(deps, 'test')).resolves.toMatchObject({ needsReview: 1 });
+    expect(store.payouts.get(payoutId)!.status).toBe('needs_review');
+  });
+
+  it('sends a payout to the destination stored with it, not the payee\'s current one', async () => {
+    const { store, mover, deps } = await setup();
+    const payeeId = [...store.payees.keys()][0];
+    const realSubmit = mover.submit.bind(mover);
+    jest.spyOn(mover, 'submit').mockImplementation(async (request) => {
+      // A destination change lands between pooling and submission.
+      store.payees.get(payeeId)!.destination = { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '999999999999', accountName: 'Someone Else' };
+      return realSubmit(request);
+    });
+    await runPayouts(deps, 'test', schedule);
+    expect(mover.submitted[0].destination).toMatchObject({ accountNumber: '09171234567' });
+  });
+
+  it('pays the shares that fit under the cash-out cap and skips a larger one', async () => {
+    const { store, deps } = await setup([1_500_000, 20_000]);
+    const [payoutId] = (await runPayouts(deps, 'test', { kind: 'cash_out', cashedOutToday: 0 },
+      { payeeId: [...store.payees.keys()][0], projectId: 'project-1' })).paid;
+    expect(store.payouts.get(payoutId)).toMatchObject({ gross: 20_000 });
   });
 });

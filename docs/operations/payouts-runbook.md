@@ -57,7 +57,11 @@ To top up, use the PayMongo dashboard: Wallets → Top up.
 | Status | Meaning | Action |
 | :--- | :--- | :--- |
 | `unknown` | The submission's outcome was not received (timeout, 5xx, crash). It is never resubmitted. | None; the reconcile job looks it up by reference number. |
-| `needs_review` | PayMongo has had no record of the reference for 24 hours. | Search the PayMongo dashboard (Wallets → transactions) for the payout's reference number: the payout ID without `po_`, in upper case. Then resolve it in the console: Payouts → Needs review → Resolve. |
+| `needs_review` | PayMongo has had no record of the reference for 24 hours, or has reported the transfer pending for 72 hours. | Search the PayMongo dashboard (Wallets → transactions) for the payout's reference number: the payout ID without `po_`, in upper case. Then resolve it in the console: Payouts → Needs review → Resolve. |
+
+Only platform operators can resolve payouts or change payout settings; project members see them read-only. The reconcile job searches only PayMongo's most recent 100 batch transfers by reference, so an older transfer can reach `needs_review` although it exists: always search the dashboard before resolving.
+
+A payout left in `draft` by a crash (created, never submitted) is failed automatically after 10 minutes with failure code `not_submitted`; nothing was sent, and its earnings return to the payee's balance.
 
 When resolving a `needs_review` payout:
 - If the transfer exists and succeeded, resolve it as **paid**.
@@ -74,6 +78,7 @@ Never send the money by hand and then resolve the payout as failed. That pays th
 | `apicenter_payout_float_low` | A payee was skipped because the float was too low |
 | `apicenter_payout_outcome_unknown` | A submission without a known outcome |
 | `apicenter_payout_needs_review` | A payout handed to an operator |
+| `apicenter_payout_reconcile_failed` | One payout could not be settled in this run; the others continue and the next run retries it |
 | `apicenter_payout_callback_forward_failed` | The gateway could not forward a PayMongo callback; reconcile covers it |
 
 ## Fees

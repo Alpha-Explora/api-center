@@ -3054,7 +3054,7 @@ components:
             - PHP
     AllocationInput:
       type: object
-      description: A payee's share of the payment. The shares may not add up to more than the payment.
+      description: A payee's share of the payment, at most 5,000,000 minor units (one InstaPay transfer). The shares may not add up to more than the payment.
       required:
         - payeeId
         - amount
