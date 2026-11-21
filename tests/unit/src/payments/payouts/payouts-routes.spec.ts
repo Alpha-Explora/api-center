@@ -102,7 +102,7 @@ describe('runtime payout routes', () => {
     jest.setSystemTime(new Date(Date.now() + 24 * 60 * 60 * 1000 + 1000));
     const cashOut = await call('p-hold', 'POST', `/payouts/payees/${payee.id}/cash-out`);
     expect(cashOut.status).toBe(202);
-    expect(cashOut.body.data.payout).toMatchObject({ gross: 42_500, fee: 1_000, net: 41_500, trigger: 'cash_out', status: 'pending' });
+    expect(cashOut.body.data).toMatchObject({ gross: 42_500, fee: 1_000, net: 41_500, trigger: 'cash_out', status: 'pending' });
   });
 
   it('sending the same destination again does not restart the hold', async () => {
@@ -148,7 +148,7 @@ describe('runtime payout routes', () => {
   it('keeps every route inside its project', async () => {
     const { payee, allocationId } = await payeeWithReleased('p-iso', 30_000);
     jest.setSystemTime(new Date(Date.now() + 24 * 60 * 60 * 1000 + 1000));
-    const payoutId = (await call('p-iso', 'POST', `/payouts/payees/${payee.id}/cash-out`)).body.data.payout.id;
+    const payoutId = (await call('p-iso', 'POST', `/payouts/payees/${payee.id}/cash-out`)).body.data.id;
     for (const [method, path] of [['GET', `/payouts/payees/${payee.id}`], ['PUT', `/payouts/payees/${payee.id}/destination`],
       ['POST', `/payouts/payees/${payee.id}/cash-out`], ['POST', `/payouts/allocations/${allocationId}/cancel`], ['GET', `/payouts/${payoutId}`]]) {
       expect((await call('p-intruder', method, path, method === 'PUT' ? destination : undefined)).status).toBe(404);

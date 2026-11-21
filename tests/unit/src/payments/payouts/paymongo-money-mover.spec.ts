@@ -55,7 +55,7 @@ describe('PayMongo money mover', () => {
 
   it('sends wallet-to-wallet on the paymongo rail', async () => {
     respond = created;
-    await new PayMongoMoneyMover().submit(request({ destination: { type: 'paymongo_wallet', accountNumber: '5555', accountName: 'Maria' } }));
+    await new PayMongoMoneyMover().submit(request({ destination: { type: 'provider_wallet', accountNumber: '5555', accountName: 'Maria' } }));
     expect(calls[0].body.transfers[0]).toMatchObject({ provider: 'paymongo', destination_account: { number: '5555', name: 'Maria', bic: 'PAEYPHM2XXX' } });
   });
 

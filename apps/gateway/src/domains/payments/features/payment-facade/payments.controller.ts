@@ -115,6 +115,9 @@ export class PaymentsController {
               "subscriptions",
               "invoices",
               "records",
+              "payees",
+              "allocations",
+              "payouts",
             ],
           },
         });
@@ -328,6 +331,10 @@ export class PaymentsController {
       "paymentLinkId",
       "customerId",
       "planId",
+      // A payout also names its payee, so its own id is checked first.
+      "payoutId",
+      "allocationId",
+      "payeeId",
     ]) {
       const value = parsed.data.data[field];
       if (typeof value === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(value)) {

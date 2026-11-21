@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ControlPlaneModule } from "@domains/control-plane/control-plane.module";
 import { SharedServicesController } from "./shared-services.controller";
 import { PaymentWebhookController } from "./payment-webhook.controller";
+import { PayoutCallbackController } from "./payout-callback.controller";
 import { DeliveryWebhookController } from "./delivery-webhook.controller";
 import { SharedServiceRoutingService } from "./shared-service-routing.service";
 import { ApplicationCapabilityProxy } from "./application-capability-proxy";
@@ -14,7 +15,7 @@ import { ApplicationCapabilityProxy } from "./application-capability-proxy";
  */
 @Module({
   imports: [ControlPlaneModule],
-  controllers: [PaymentWebhookController, DeliveryWebhookController, SharedServicesController],
+  controllers: [PaymentWebhookController, PayoutCallbackController, DeliveryWebhookController, SharedServicesController],
   providers: [SharedServiceRoutingService, ApplicationCapabilityProxy],
 })
 export class SharedServicesModule {}

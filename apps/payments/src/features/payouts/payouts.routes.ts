@@ -28,7 +28,7 @@ export const destinationInput = z.discriminatedUnion('type', [
     accountName: z.string().trim().min(1).max(200),
   }).strict(),
   z.object({
-    type: z.literal('paymongo_wallet'),
+    type: z.literal('provider_wallet'),
     accountNumber: z.string().regex(/^[0-9]{6,20}$/),
     accountName: z.string().trim().min(1).max(200),
   }).strict(),
@@ -115,7 +115,7 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
       const reason = report.skipped[0]?.reason ?? 'nothing_released';
       throw new PayMongoError(`Cash-out is not possible: ${reason.replace(/_/g, ' ')}`, 409, reason.toUpperCase());
     }
-    helpers.ok(res, { payout: await deps.store.getPayout(environment, projectId, payoutId) }, 202);
+    helpers.ok(res, await deps.store.getPayout(environment, projectId, payoutId), 202);
   }));
 
   for (const event of ['release', 'cancel'] as const) {

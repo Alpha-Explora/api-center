@@ -49,6 +49,15 @@ const requiredOperations: Record<string, string> = {
   'GET /api/v1/payments/subscriptions/{subscriptionId}/invoices': 'listSubscriptionInvoices',
   'GET /api/v1/payments/invoices/{invoiceId}': 'getInvoice',
   'GET /api/v1/payments/capabilities': 'getPaymentCapabilities',
+  'POST /api/v1/payments/payees': 'createPayee',
+  'GET /api/v1/payments/payees': 'listPayees',
+  'GET /api/v1/payments/payees/{payeeId}': 'getPayee',
+  'PUT /api/v1/payments/payees/{payeeId}/destination': 'setPayeeDestination',
+  'POST /api/v1/payments/payees/{payeeId}/cash-out': 'cashOutPayee',
+  'POST /api/v1/payments/allocations/{allocationId}/release': 'releaseAllocation',
+  'POST /api/v1/payments/allocations/{allocationId}/cancel': 'cancelAllocation',
+  'GET /api/v1/payments/payouts': 'listPayouts',
+  'GET /api/v1/payments/payouts/{payoutId}': 'getPayout',
 };
 for (const [operation, operationId] of Object.entries(requiredOperations)) {
   const [method, route] = operation.split(' ', 2);

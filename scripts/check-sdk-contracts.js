@@ -79,6 +79,8 @@ const requiredPaymentOperationIds = [
   'createPaymentLink', 'listPaymentLinks', 'getPaymentLink', 'setPaymentLinkArchived',
   'createRefund', 'getRefund', 'createSubscription', 'getSubscription', 'cancelSubscription',
   'listSubscriptionInvoices', 'getInvoice', 'getPaymentCapabilities', 'listPaymentRecords',
+  'createPayee', 'listPayees', 'getPayee', 'setPayeeDestination', 'cashOutPayee',
+  'releaseAllocation', 'cancelAllocation', 'listPayouts', 'getPayout',
 ];
 const paymentOperations = new Map();
 for (const [route, methods] of Object.entries(openApi.paths ?? {})) {

@@ -81,7 +81,7 @@ All amounts are integer centavos in PHP ([ADR-0004](../../adr/0004-v1-php-only.m
 - **Payee.** A project-scoped recipient with an external reference from the project, a verified legal name, a status (`pending_verification`, `active` or `suspended`) and one active destination.
 - **Destination.** A closed union:
   - `instapay {bic, account_number, account_name}`, for GCash or a bank
-  - `paymongo_wallet {account_number, account_name}`
+  - `provider_wallet {account_number, account_name}`
   - later, `linked_consumer {org_id}`
 
   A destination change requires the project to confirm it with an OTP. Payouts to a new destination are held for 24 hours.
