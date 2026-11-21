@@ -36,6 +36,7 @@ This is the canonical internal reading map. Consumer and Management guides are p
 - [Payment Checkout And Subscription Handoff (historical SDK 1.1.0 reference)](operations/payment-checkout-subscription-handoff.md)
 - [Payment Database Ownership](operations/payment-database-ownership.md)
 - [APICenter Payment Platform Runbook (unverified integration reference)](operations/payment-platform-runbook.md)
+- [Payouts runbook: wallet, runner jobs, float and payouts that need a person](operations/payouts-runbook.md)
 - [Shared-service database roles](operations/shared-service-database-roles.md)
 
 ## Integrations

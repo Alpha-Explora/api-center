@@ -107,6 +107,21 @@ describe('payment events (contract 2.0)', () => {
     expect(() => parsePaymentEvent(noOrganization)).toThrow();
   });
 
+  it('parses held allocations and paid and failed payouts', () => {
+    const held = parsePaymentEvent({ ...paid, eventType: 'payment.allocation.held', aggregateType: 'allocation', aggregateId: 'pal_1',
+      data: { status: 'held', allocationId: 'pal_1', payeeId: 'pye_1', paymentId: 'pay_1', amount: 34000, currency: 'PHP' } });
+    expect(held).toMatchObject({ eventType: 'payment.allocation.held', data: { payeeId: 'pye_1', amount: 34000 } });
+    const payout = { ...paid, aggregateType: 'payout', aggregateId: 'po_1' };
+    const payoutData = { payoutId: 'po_1', payeeId: 'pye_1', net: 72500, fee: 1000, currency: 'PHP', trigger: 'schedule' };
+    const payoutPaid = parsePaymentEvent({ ...payout, eventType: 'payment.payout.paid', data: { status: 'paid', ...payoutData } });
+    if (payoutPaid.eventType !== 'payment.payout.paid') throw new Error('expected a paid payout');
+    expect(payoutPaid.data.net).toBe(72500);
+    const payoutFailed = parsePaymentEvent({ ...payout, eventType: 'payment.payout.failed',
+      data: { status: 'failed', ...payoutData, trigger: 'cash_out', failureCode: 'invalid_destination_account' } });
+    expect(payoutFailed).toMatchObject({ eventType: 'payment.payout.failed', data: { failureCode: 'invalid_destination_account' } });
+    expect(() => parsePaymentEvent({ ...payout, eventType: 'payment.payout.paid', data: { status: 'paid', ...payoutData, net: 0 } })).toThrow();
+  });
+
   it('parses paid and failed payment intents', () => {
     const intent = { ...paid, aggregateType: 'payment_intent', aggregateId: 'pi_1' };
     const intentPaid = parsePaymentEvent({ ...intent, eventType: 'payment.intent.paid',

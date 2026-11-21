@@ -4,7 +4,7 @@
 import { ApiCenterError, ConnectionError, errorFor } from './errors.js';
 import type { RequestHooks, RequestOptions } from '../types.js';
 
-export type HttpMethod = 'GET' | 'POST' | 'PATCH';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH';
 
 export interface ApiRequest {
   path: string;

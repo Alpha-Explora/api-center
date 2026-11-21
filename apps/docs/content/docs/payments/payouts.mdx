@@ -1,0 +1,158 @@
+---
+title: "Payouts"
+description: "Pay the people who deliver your service out of the payments you collect: weekly, or when they cash out."
+---
+
+Payouts let your project pay the people who deliver your service, such as drivers, riders or service providers. This guide calls them **payees**.
+
+1. You register each payee and set where they are paid: a GCash or bank account, through InstaPay.
+2. When you take a payment, you say how much of it belongs to which payee. That share is an **allocation**.
+3. APICenter holds each allocation once the payment is paid, until you **release** it. For example, release it when the job is finished.
+4. Released earnings are pooled per payee. They are paid in a **weekly payout**, or earlier when the payee **cashes out**. One transfer covers many jobs, so the transfer fee is paid once rather than once per job.
+
+For a Node.js backend, use `api.payments.payees`, `api.payments.allocations` and `api.payments.payouts` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
+
+All amounts are in centavos.
+
+## Register a payee
+
+- **Endpoint**: `POST /api/v1/payments/payees`
+- **Required scope**: `payments:payouts:write`
+- **Required header**: `Idempotency-Key`
+
+```bash
+curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/payees \
+  -H "Authorization: Bearer $APICENTER_API_KEY" \
+  -H "Idempotency-Key: payee-provider-0042" \
+  -H "Content-Type: application/json" \
+  -d '{ "externalRef": "PROVIDER-0042", "legalName": "Juan Dela Cruz" }'
+```
+
+`externalRef` is your own identifier for the payee, and payout events carry it as `referenceId`. Registering the same `externalRef` again returns the existing payee with `200`.
+
+`legalName` must match the name on the payee's account. A name mismatch is the most common reason a transfer fails.
+
+## Set where the payee is paid
+
+- **Endpoint**: `PUT /api/v1/payments/payees/{payeeId}/destination`
+- **Required scope**: `payments:payouts:write`
+- **Required header**: `Idempotency-Key`
+
+```ts
+await api.payments.payees.setDestination(payee.payeeId, {
+  type: 'instapay',
+  bic: 'GXCHPHM2XXX', // GCash
+  accountNumber: '09171234567',
+  accountName: 'Juan Dela Cruz',
+}, { idempotencyKey: 'payee-0042-destination-1' });
+```
+
+A destination is one of two types:
+
+- **`instapay`**: a GCash or bank account. It needs the receiving institution's code, `bic`; GCash's is `GXCHPHM2XXX`.
+- **`provider_wallet`**: a wallet at APICenter's payment provider. It needs no `bic`.
+
+Responses show the account number masked, as `accountNumberLast4`.
+
+**24-hour hold.** After a destination changes, payouts to that payee wait 24 hours. The time the hold ends is in `destinationHoldUntil`. This protects payees if someone takes over their account and changes the destination. Sending the same destination again does not restart the hold.
+
+Have the payee confirm a destination change in your app, for example with a one-time code from the [OTP service](/guides/messaging-verification/otp).
+
+## Attach allocations to a payment
+
+Add `allocations` when you create a checkout, a payment intent or a payment link. Your application key needs that resource's write scope.
+
+```ts
+await api.payments.intents.create({
+  referenceId: 'BOOKING-1042',
+  amount: { amountMinor: 50000, currency: 'PHP' },
+  allocations: [{ payeeId: payee.payeeId, amount: { amountMinor: 42500, currency: 'PHP' } }],
+}, { idempotencyKey: 'booking-1042-attempt-1' });
+```
+
+The allocations may not add up to more than the payment; the difference is your platform's share. Each payee may appear once per payment.
+
+Validation runs before the payment is created:
+- **`404 PAYEE_NOT_FOUND`**: a payee doesn't exist, or belongs to another project.
+- **`409 PAYEE_SUSPENDED`**: a payee is suspended.
+- **`400 ALLOCATIONS_EXCEED_AMOUNT`**: the allocations add up to more than the payment.
+
+An allocation's status moves like this:
+- It is `awaiting_payment` until the payment is paid.
+- It is then `held`, and you receive the [`payment.allocation.held`](/guides/events/webhooks) event.
+- A payment link can be paid many times. Each paid payment gets its own copy of the link's allocations.
+
+## Release or cancel an allocation
+
+- **Endpoints**: `POST /api/v1/payments/allocations/{allocationId}/release` and `POST /api/v1/payments/allocations/{allocationId}/cancel`
+- **Required scope**: `payments:payouts:write`
+- **Required header**: `Idempotency-Key`
+
+**Release** a held allocation when your own completion rule is met, for example when the job is done. Released earnings are paid in the payee's next payout.
+
+**Cancel** an allocation that should never be paid out, for example when the work was not done.
+
+An allocation that is already pooled or paid can't be cancelled; you get `409 INVALID_ALLOCATION_STATE`. Refund the payment instead.
+
+## When payees are paid
+
+| Payout | When | Who pays the transfer fee |
+| :--- | :--- | :--- |
+| Weekly | Every Friday at 8:00 PM Philippine time | Your platform |
+| Cash-out | When you call `POST /api/v1/payments/payees/{payeeId}/cash-out` | The payee |
+
+**Cash-out limits.**
+- A cash-out needs at least ₱100 released.
+- A payee can cash out at most ₱10,000 a day.
+- Whole allocations are paid, oldest first, up to that limit.
+- A refusal is `409`, with one of these codes:
+  - `BELOW_CASH_OUT_MINIMUM`
+  - `DAILY_CAP_REACHED`
+  - `DESTINATION_HOLD`
+  - `NO_DESTINATION`
+  - `NOTHING_RELEASED`
+
+**Your settings.** Your project's settings can change any of these: the weekly day and time, the cash-out limits, and who pays the fee. Ask your APICenter administrator.
+
+**Fees.** Each transfer costs about ₱10. When the payee pays the fee, it is deducted from the payout's `net`.
+
+**Large balances.** A single transfer is limited to ₱50,000. A larger balance is paid across several payouts.
+
+## Follow a payout
+
+- **Endpoints**: `GET /api/v1/payments/payouts`, `GET /api/v1/payments/payouts/{payoutId}` and `GET /api/v1/payments/payees/{payeeId}`
+- **Required scope**: `payments:payouts:read`
+
+`GET /payees/{payeeId}` includes the payee's `earnings`:
+
+| Field | Meaning |
+| :--- | :--- |
+| `awaitingPayment` | Allocations whose payments are not paid yet |
+| `held` | Held until you release them |
+| `available` | Released and not yet paid, after any refund clawbacks |
+| `inFlight` | Payouts that have been sent but are not yet confirmed |
+| `paidThisWeek` | Paid since Monday |
+
+A payout ends as `paid` or `failed`, and each sends an event:
+
+- **`payment.payout.paid`**: the money reached the payee.
+- **`payment.payout.failed`**: the transfer did not go through. The earnings go back to the payee's balance and are paid in a later payout. Check the payee's destination; `failureCode` says why.
+
+**`unknown` and `needs_review`.** While a payout is `unknown`, APICenter is confirming the transfer with the provider. A payout that needs a person to check it is `needs_review`. In both cases the payout is never sent twice.
+
+## Refunds
+
+| When the refund happens | What happens to the payee's share |
+| :--- | :--- |
+| A full refund, before the allocation has been paid out | The allocation is cancelled |
+| A partial refund, or a refund after the payout | The payee's proportional share is recovered from their next payout |
+
+## Events
+
+| Event | `referenceId` | `data` |
+| :--- | :--- | :--- |
+| `payment.allocation.held` | The payment's reference | `allocationId`, `payeeId`, `paymentId`, `amount`, `currency` |
+| `payment.payout.paid` | The payee's `externalRef` | `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger` |
+| `payment.payout.failed` | The payee's `externalRef` | `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger`, `failureCode` |
+
+Events go to the application that created the payee, or the payment for `payment.allocation.held`. See [webhooks](/guides/events/webhooks) for delivery and verification.

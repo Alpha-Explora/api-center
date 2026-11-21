@@ -30,7 +30,7 @@ Nothing is allowed by default. An application may call an action only when its e
 | OTP | `otp:generate`, `otp:verify`, `otp:read` |
 | Geo | `geo:geocode`, `geo:reverse-geocode`, `geo:geofence` |
 | Google sign-in | `gauth:authorize`, `gauth:token`, `gauth:logout` |
-| Payments | `payments:checkout:write`, `payments:checkout:read`, `payments:refunds:write`, … |
+| Payments | `payments:checkout:write`, `payments:checkout:read`, `payments:refunds:write`, `payments:payouts:read`, `payments:payouts:write`, … |
 
 A call without the grant fails with `ACTION_NOT_GRANTED` (a `PermissionError` in the SDK); a disabled capability fails with `CAPABILITY_NOT_ENABLED`. `await api.whoami()` lists the key's grants.
 

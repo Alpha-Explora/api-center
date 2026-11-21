@@ -418,6 +418,8 @@ export interface CreateCheckoutInput {
   /** Limits the checkout page to these methods. Leave it out to offer card, GCash and Maya. */
   paymentMethods?: PaymentMethod[];
   metadata?: Record<string, string>;
+  /** Payee shares of the payment: held when it is paid, paid out after you release them. */
+  allocations?: AllocationInput[];
 }
 
 export interface Checkout {
@@ -427,11 +429,15 @@ export interface Checkout {
   amount: Money;
   checkoutUrl?: string;
   aggregateVersion?: number;
+  /** Present on the create response when the request had allocations. */
+  allocations?: Allocation[];
 }
 
 export interface CreatePaymentIntentInput {
   referenceId: string;
   amount: Money;
+  /** Payee shares of the payment: held when it is paid, paid out after you release them. */
+  allocations?: AllocationInput[];
 }
 
 /** Customer details a wallet payment can carry. */
@@ -453,7 +459,7 @@ export interface CreateWalletPaymentIntentInput extends CreatePaymentIntentInput
   billing?: PaymentBilling;
 }
 
-export interface CreateQrPhPaymentIntentInput extends CreatePaymentIntentInput {
+export interface CreateQrPhPaymentIntentInput extends Omit<CreatePaymentIntentInput, 'allocations'> {
   description?: string;
   expirySeconds?: number;
 }
@@ -468,6 +474,8 @@ export interface PaymentIntent {
   nextAction?: PaymentIntentNextAction;
   /** Set on a wallet payment intent. */
   paymentMethod?: WalletPaymentMethod;
+  /** Present on the create response when the request had allocations. */
+  allocations?: Allocation[];
   /** Why the last payment attempt failed, when status is `failed`. */
   lastPaymentError?: PaymentError;
 }
@@ -538,6 +546,8 @@ export interface CreatePaymentLinkInput {
   description: string;
   remarks?: string;
   metadata?: Record<string, string>;
+  /** Payee shares of every payment made through the link. */
+  allocations?: AllocationInput[];
 }
 
 export interface PaymentLink {
@@ -553,6 +563,8 @@ export interface PaymentLink {
   metadata?: Record<string, string>;
   createdAt?: string;
   updatedAt?: string;
+  /** Present on the create response when the request had allocations. */
+  allocations?: Allocation[];
 }
 
 export interface CreateRefundInput {
@@ -607,6 +619,110 @@ export interface ListPaymentRecordsOptions {
   status?: string;
   createdAfter?: string;
   createdBefore?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+// Payouts: a project pays the people who deliver its service (payees) out of its payments.
+
+/** A payee's share of a payment. The shares of one payment may not add up to more than the payment. */
+export interface AllocationInput {
+  payeeId: string;
+  amount: Money;
+}
+
+export type AllocationStatus = 'awaiting_payment' | 'held' | 'released' | 'pooled' | 'paid' | 'cancelled';
+
+export interface Allocation {
+  allocationId: string;
+  payeeId: string;
+  amount: Money;
+  /** awaiting_payment until the payment is confirmed, then held until you release it. */
+  status: AllocationStatus;
+  paymentId: string | null;
+}
+
+export interface CreatePayeeInput {
+  /** Your own identifier for the payee; payout events carry it as referenceId. Creating the same one again returns the existing payee. */
+  externalRef: string;
+  /** The name on the payee's account. A mismatch is the most common reason a transfer fails. */
+  legalName: string;
+}
+
+/** Where a payee is paid: a GCash or bank account through InstaPay, or a wallet at APICenter's payment provider. */
+export type PayoutDestination =
+  | { type: 'instapay'; /** For example GXCHPHM2XXX for GCash. */ bic: string; accountNumber: string; accountName: string }
+  | { type: 'provider_wallet'; accountNumber: string; accountName: string };
+
+/** A payee's destination as APICenter returns it: the account number is masked. */
+export interface PayeeDestination {
+  type: 'instapay' | 'provider_wallet';
+  bic?: string;
+  accountName: string;
+  accountNumberLast4: string;
+}
+
+export interface Payee {
+  payeeId: string;
+  externalRef: string;
+  legalName: string;
+  status: 'active' | 'suspended';
+  destination: PayeeDestination | null;
+  /** Payouts to the payee wait until this time after a destination change. */
+  destinationHoldUntil: string | null;
+  createdAt: string;
+}
+
+export interface PayeeEarnings {
+  awaitingPayment: Money;
+  held: Money;
+  /** Released and not yet paid, after any refund clawbacks. */
+  available: Money;
+  inFlight: Money;
+  paidThisWeek: Money;
+}
+
+export interface PayeeDetail extends Payee {
+  earnings: PayeeEarnings;
+}
+
+export interface PayeePage {
+  records: Payee[];
+  nextCursor?: string;
+}
+
+export interface ListPayeesOptions {
+  limit?: number;
+  cursor?: string;
+}
+
+/** unknown and needs_review mean APICenter is confirming the transfer with the provider; it is never sent twice. */
+export type PayoutStatus = 'draft' | 'submitting' | 'pending' | 'unknown' | 'paid' | 'failed' | 'needs_review';
+export type PayoutTrigger = 'schedule' | 'release' | 'cash_out';
+
+/** One transfer of a payee's pooled earnings. */
+export interface Payout {
+  payoutId: string;
+  payeeId: string;
+  status: PayoutStatus;
+  trigger: PayoutTrigger;
+  gross: Money;
+  /** The transfer fee. It comes out of net only when the payee bears it. */
+  fee: { amountMinor: number; currency: 'PHP' };
+  net: Money;
+  failureCode: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PayoutPage {
+  records: Payout[];
+  nextCursor?: string;
+}
+
+export interface ListPayoutsOptions {
+  payeeId?: string;
+  status?: PayoutStatus;
   limit?: number;
   cursor?: string;
 }

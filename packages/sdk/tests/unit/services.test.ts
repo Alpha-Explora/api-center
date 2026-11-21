@@ -87,6 +87,29 @@ describe('payments', () => {
     await p.subscriptions.listInvoices('sub_1');
     await p.invoices.get('inv_1');
     await p.capabilities.get();
+    await p.payees.create({ externalRef: 'provider-1', legalName: 'Juan' });
+    await p.payees.list({ limit: 10 });
+    await p.payees.get('pye_1');
+    await p.payees.setDestination('pye_1', { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09171234567', accountName: 'Juan' });
+    await p.payees.cashOut('pye_1');
+    await p.allocations.release('pal_1');
+    await p.allocations.cancel('pal_1');
+    await p.payouts.list({ payeeId: 'pye_1' });
+    await p.payouts.get('po_1');
+
+    expect(calls.slice(-9).map(({ method, path, write }) => `${method} ${path}${write ? ' (write)' : ''}`)).toEqual([
+      'POST /api/v1/payments/payees (write)',
+      'GET /api/v1/payments/payees?limit=10',
+      'GET /api/v1/payments/payees/pye_1',
+      'PUT /api/v1/payments/payees/pye_1/destination (write)',
+      'POST /api/v1/payments/payees/pye_1/cash-out (write)',
+      'POST /api/v1/payments/allocations/pal_1/release (write)',
+      'POST /api/v1/payments/allocations/pal_1/cancel (write)',
+      'GET /api/v1/payments/payouts?payeeId=pye_1',
+      'GET /api/v1/payments/payouts/po_1',
+    ]);
+    expect(calls.at(-6)!.body).toEqual({ type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09171234567', accountName: 'Juan' });
+    calls.splice(-9);
 
     expect(calls.map(({ method, path, write }) => `${method} ${path}${write ? ' (write)' : ''}`)).toEqual([
       'POST /api/v1/payments/checkouts (write)',
