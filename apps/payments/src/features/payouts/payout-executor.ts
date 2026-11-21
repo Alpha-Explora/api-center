@@ -98,7 +98,9 @@ export async function runPayouts(deps: PayoutDeps, environment: Environment, tri
 }
 
 async function floatBudget(deps: PayoutDeps, account: MerchantAccount): Promise<Centavos> {
-  if (!account.wallet) return 0;
+  if (!account.wallet) {
+    throw new PayMongoError('The payout wallet is not configured for this merchant account', 409, 'WALLET_NOT_CONFIGURED');
+  }
   const balance = await deps.mover.availableBalance(account);
   return Math.max(0, balance - account.lowFloatAlert);
 }

@@ -18,6 +18,7 @@ import { createPaymentEventPool, drainPaymentEventOutbox } from './events/paymen
 import { z } from 'zod';
 import { attachAllocations, parseAllocations, validateAllocations, type AllocationInput, type PaidResource } from './features/payouts/allocations';
 import { createPayoutsFeature } from './features/payouts/payouts-feature';
+import { registerPayoutCallbackRoute, registerPayoutRoutes } from './features/payouts/payouts.routes';
 import { payoutContext } from './features/payouts/payout-store';
 
 const port = Number(process.env.PORT || 4010);
@@ -95,7 +96,9 @@ function paymentContext(req: Request): PaymentContext {
 
 app.use((req: Request, res: Response, next) => {
   const expected = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
-  const presented = req.path === '/webhooks'
+  // Provider callbacks arrive from the gateway's webhook routes, which send the token in their own header.
+  const providerCallback = req.path === '/webhooks' || req.path.startsWith('/payouts/callbacks/');
+  const presented = providerCallback
     ? req.get('X-APICenter-Internal-Token')
     : req.get('Authorization')?.replace(/^Bearer /, '');
   if (!expected || !presented || presented.length !== expected.length
@@ -103,7 +106,7 @@ app.use((req: Request, res: Response, next) => {
     return fail(res, 401, 'UNAUTHORIZED', 'Payment runtime token is required');
   }
   try {
-    if (req.path === '/webhooks') {
+    if (providerCallback) {
       const mode = process.env.PAYMENT_PROVIDER_MODE;
       if ((mode === 'test' || mode === 'live') && req.get('X-APICenter-Environment') !== mode) {
         return fail(res, 403, 'ENVIRONMENT_MISMATCH', 'Payment environment does not match runtime');
@@ -534,6 +537,9 @@ app.post('/webhooks', async (req: Request, res: Response) => {
     return handleCustomError(res, err);
   }
 });
+
+registerPayoutCallbackRoute(app, payouts, { handleError: handleCustomError });
+registerPayoutRoutes(app, payouts, { ok, context: paymentContext, handleError: handleCustomError });
 
 if (require.main === module) {
   app.listen(port, () => {

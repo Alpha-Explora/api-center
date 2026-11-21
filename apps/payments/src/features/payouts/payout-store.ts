@@ -9,6 +9,7 @@ import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
 import type { PayoutDestination } from './money-mover';
 import {
+  PayoutStateError,
   refundEffect,
   refundShare,
   transitionAllocation,
@@ -21,7 +22,7 @@ import {
   type PayoutStatus,
   type PoolEntry,
 } from './payout-ledger';
-import { DEFAULT_PAYOUT_POLICY, manilaDay, type PayoutPolicy, type PayoutTrigger, type PoolSummary } from './payout-policy';
+import { DEFAULT_PAYOUT_POLICY, manilaDay, manilaWeekStart, type PayoutPolicy, type PayoutTrigger, type PoolSummary } from './payout-policy';
 
 export type Environment = 'test' | 'live';
 
@@ -107,6 +108,54 @@ export type OutcomeDetail = Partial<{ transferId: string; providerStatus: 'pendi
 
 export type ComposeFn = (pool: { allocations: PoolEntry[]; adjustments: PoolEntry[] }) => ComposedPayout | { skip: string };
 
+export type PageQuery = { cursor?: string; limit?: number };
+export type Page<T> = { records: T[]; nextCursor?: string };
+export type Earnings = { awaitingPayment: Centavos; held: Centavos; available: Centavos; inFlight: Centavos; paidThisWeek: Centavos };
+
+const IN_FLIGHT: PayoutStatus[] = ['draft', 'submitting', 'pending', 'unknown', 'needs_review'];
+
+export function encodeCursor(record: { createdAt: string; id: string }): string {
+  return Buffer.from(JSON.stringify([record.createdAt, record.id])).toString('base64url');
+}
+
+export function decodeCursor(cursor: string | undefined): { createdAt: string; id: string } | undefined {
+  if (!cursor) return undefined;
+  try {
+    const [createdAt, id] = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (typeof createdAt === 'string' && typeof id === 'string' && !Number.isNaN(Date.parse(createdAt))) return { createdAt, id };
+  } catch {
+    // Reported below.
+  }
+  throw new PayMongoError('cursor is invalid', 400, 'INVALID_CURSOR');
+}
+
+function pageLimit(limit: number | undefined): number {
+  return Math.min(Math.max(Math.trunc(limit ?? 25), 1), 100);
+}
+
+/** Newest first, after the cursor. */
+function pageOf<T extends { createdAt: string; id: string }>(rows: T[], query: PageQuery): Page<T> {
+  const after = decodeCursor(query.cursor);
+  const limit = pageLimit(query.limit);
+  const sorted = [...rows].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id))
+    .filter((row) => !after || row.createdAt < after.createdAt || (row.createdAt === after.createdAt && row.id < after.id));
+  const records = sorted.slice(0, limit);
+  return { records, ...(sorted.length > limit ? { nextCursor: encodeCursor(records[records.length - 1]) } : {}) };
+}
+
+function paged<T extends { createdAt: string; id: string }>(rows: T[], limit: number): Page<T> {
+  const records = rows.slice(0, limit);
+  return { records, ...(rows.length > limit ? { nextCursor: encodeCursor(records[records.length - 1]) } : {}) };
+}
+
+function invalidAllocationState(error: unknown): never {
+  if (error instanceof PayoutStateError) {
+    throw new PayMongoError(`An allocation that is ${error.from} cannot be ${error.event === 'release' ? 'released' : 'cancelled'}`,
+      409, 'INVALID_ALLOCATION_STATE');
+  }
+  throw error;
+}
+
 /** A succeeded refund of a payment, as the payout ledger sees it. */
 export type RefundFact = { paymentId: string; refundId: string; refunded: Centavos };
 
@@ -133,6 +182,12 @@ export interface PayoutStore {
   recordOutcome(environment: Environment, payoutId: string, event: PayoutEvent, detail?: OutcomeDetail): Promise<PayoutRecord>;
   openAttempts(environment: Environment, now: Date): Promise<OpenAttempt[]>;
   attemptByCallbackToken(token: string): Promise<{ environment: Environment; payoutId: string } | null>;
+  listPayees(environment: Environment, projectId: string, query: PageQuery): Promise<Page<Payee>>;
+  /** Releases or cancels a project's allocation; 404 for another project's, 409 for an illegal change. */
+  changeAllocation(environment: Environment, projectId: string, allocationId: string, event: 'release' | 'cancel'): Promise<AllocationRecord>;
+  earnings(environment: Environment, payeeId: string, now: Date): Promise<Earnings>;
+  listPayouts(environment: Environment, projectId: string, query: PageQuery & { payeeId?: string; status?: PayoutStatus }): Promise<Page<PayoutRecord>>;
+  getPayout(environment: Environment, projectId: string, payoutId: string): Promise<PayoutRecord | null>;
 }
 
 /** A submitting payout whose outcome was never recorded (the process died mid-call) is unknown after this long. */
@@ -452,6 +507,53 @@ export class MemoryPayoutStore implements PayoutStore {
   async attemptByCallbackToken(token: string) {
     const attempt = [...this.attempts.values()].find((entry) => entry.callbackToken === token);
     return attempt ? { environment: attempt.environment, payoutId: attempt.payoutId } : null;
+  }
+
+  async listPayees(environment: Environment, projectId: string, query: PageQuery) {
+    return pageOf([...this.payees.values()].filter((payee) => payee.environment === environment && payee.projectId === projectId)
+      .map(publicPayee), query);
+  }
+
+  async changeAllocation(environment: Environment, projectId: string, allocationId: string, event: 'release' | 'cancel') {
+    const allocation = this.allocations.get(allocationId);
+    if (!allocation || allocation.environment !== environment || allocation.projectId !== projectId || allocation.template) {
+      throw new PayMongoError('Allocation not found', 404, 'ALLOCATION_NOT_FOUND');
+    }
+    try {
+      return this.moveAllocation(allocationId, event);
+    } catch (error) {
+      return invalidAllocationState(error);
+    }
+  }
+
+  async earnings(environment: Environment, payeeId: string, now: Date) {
+    const allocations = [...this.allocations.values()].filter((entry) => entry.environment === environment
+      && entry.payeeId === payeeId && !entry.template);
+    const sum = (status: AllocationStatus) => allocations.filter((entry) => entry.status === status)
+      .reduce((total, entry) => total + entry.amount, 0);
+    const adjustments = [...this.adjustments.values()].filter((entry) => entry.payeeId === payeeId && entry.payoutId === null)
+      .reduce((total, entry) => total + entry.amount, 0);
+    const payouts = [...this.payouts.values()].filter((payout) => payout.environment === environment && payout.payeeId === payeeId);
+    const weekStart = manilaWeekStart(now).getTime();
+    return {
+      awaitingPayment: sum('awaiting_payment'),
+      held: sum('held'),
+      available: sum('released') + adjustments,
+      inFlight: payouts.filter((payout) => IN_FLIGHT.includes(payout.status)).reduce((total, payout) => total + payout.net, 0),
+      paidThisWeek: payouts.filter((payout) => payout.status === 'paid' && Date.parse(payout.createdAt) >= weekStart)
+        .reduce((total, payout) => total + payout.net, 0),
+    };
+  }
+
+  async listPayouts(environment: Environment, projectId: string, query: PageQuery & { payeeId?: string; status?: PayoutStatus }) {
+    return pageOf([...this.payouts.values()].filter((payout) => payout.environment === environment && payout.projectId === projectId
+      && (!query.payeeId || payout.payeeId === query.payeeId) && (!query.status || payout.status === query.status))
+      .map(publicPayout), query);
+  }
+
+  async getPayout(environment: Environment, projectId: string, payoutId: string) {
+    const payout = this.payouts.get(payoutId);
+    return payout && payout.environment === environment && payout.projectId === projectId ? publicPayout(payout) : null;
   }
 
   /** Changes one allocation's status through the ledger's transition table. */
@@ -811,6 +913,76 @@ export class PostgresPayoutStore implements PayoutStore {
     const result = await this.pool.query(
       `SELECT environment, payout_id FROM shared_payment.payout_transfer_attempts WHERE callback_token = $1`, [token]);
     return result.rows[0] ? { environment: result.rows[0].environment, payoutId: result.rows[0].payout_id } : null;
+  }
+
+  async listPayees(environment: Environment, projectId: string, query: PageQuery) {
+    const after = decodeCursor(query.cursor);
+    const limit = pageLimit(query.limit);
+    const result = await this.pool.query(
+      `SELECT ${PAYEE_COLUMNS} FROM shared_payment.payees
+        WHERE environment = $1 AND project_id = $2 AND ($3::timestamptz IS NULL OR (created_at, id) < ($3::timestamptz, $4::text))
+        ORDER BY created_at DESC, id DESC LIMIT $5`,
+      [environment, projectId, after?.createdAt ?? null, after?.id ?? null, limit + 1]);
+    return paged(result.rows.map(payeeRow), limit);
+  }
+
+  async changeAllocation(environment: Environment, projectId: string, allocationId: string, event: 'release' | 'cancel') {
+    return this.transaction(async (client) => {
+      const current = await client.query(
+        `SELECT status FROM shared_payment.payout_allocations
+          WHERE environment = $1 AND project_id = $2 AND id = $3 AND NOT template FOR UPDATE`, [environment, projectId, allocationId]);
+      if (!current.rows[0]) throw new PayMongoError('Allocation not found', 404, 'ALLOCATION_NOT_FOUND');
+      let next: AllocationStatus;
+      try {
+        next = transitionAllocation(current.rows[0].status, event);
+      } catch (error) {
+        return invalidAllocationState(error);
+      }
+      const updated = await client.query(
+        `UPDATE shared_payment.payout_allocations SET status = $2, updated_at = now() WHERE id = $1 RETURNING ${ALLOCATION_COLUMNS}`,
+        [allocationId, next]);
+      return allocationRow(updated.rows[0]);
+    });
+  }
+
+  async earnings(environment: Environment, payeeId: string, now: Date) {
+    const result = await this.pool.query(
+      `SELECT
+         (SELECT COALESCE(sum(amount) FILTER (WHERE status = 'awaiting_payment'), 0) FROM shared_payment.payout_allocations
+           WHERE environment = $1 AND payee_id = $2 AND NOT template) AS awaiting,
+         (SELECT COALESCE(sum(amount) FILTER (WHERE status = 'held'), 0) FROM shared_payment.payout_allocations
+           WHERE environment = $1 AND payee_id = $2 AND NOT template) AS held,
+         (SELECT COALESCE(sum(amount) FILTER (WHERE status = 'released'), 0) FROM shared_payment.payout_allocations
+           WHERE environment = $1 AND payee_id = $2 AND NOT template)
+           + (SELECT COALESCE(sum(amount), 0) FROM shared_payment.payee_adjustments
+               WHERE environment = $1 AND payee_id = $2 AND payout_id IS NULL) AS available,
+         (SELECT COALESCE(sum(net), 0) FROM shared_payment.payouts
+           WHERE environment = $1 AND payee_id = $2 AND status = ANY($3::text[])) AS in_flight,
+         (SELECT COALESCE(sum(net), 0) FROM shared_payment.payouts
+           WHERE environment = $1 AND payee_id = $2 AND status = 'paid' AND created_at >= $4) AS paid_week`,
+      [environment, payeeId, IN_FLIGHT, manilaWeekStart(now)]);
+    const row = result.rows[0];
+    return { awaitingPayment: Number(row.awaiting), held: Number(row.held), available: Number(row.available),
+      inFlight: Number(row.in_flight), paidThisWeek: Number(row.paid_week) };
+  }
+
+  async listPayouts(environment: Environment, projectId: string, query: PageQuery & { payeeId?: string; status?: PayoutStatus }) {
+    const after = decodeCursor(query.cursor);
+    const limit = pageLimit(query.limit);
+    const result = await this.pool.query(
+      `SELECT ${PAYOUT_COLUMNS} FROM shared_payment.payouts
+        WHERE environment = $1 AND project_id = $2 AND ($3::text IS NULL OR payee_id = $3) AND ($4::text IS NULL OR status = $4)
+          AND ($5::timestamptz IS NULL OR (created_at, id) < ($5::timestamptz, $6::text))
+        ORDER BY created_at DESC, id DESC LIMIT $7`,
+      [environment, projectId, query.payeeId ?? null, query.status ?? null, after?.createdAt ?? null, after?.id ?? null, limit + 1]);
+    return paged(result.rows.map(payoutRow), limit);
+  }
+
+  async getPayout(environment: Environment, projectId: string, payoutId: string) {
+    const result = await this.pool.query(
+      `SELECT ${PAYOUT_COLUMNS} FROM shared_payment.payouts WHERE environment = $1 AND project_id = $2 AND id = $3`,
+      [environment, projectId, payoutId]);
+    return result.rows[0] ? payoutRow(result.rows[0]) : null;
   }
 
   private async lockPayout(client: PoolClient, environment: Environment, payoutId: string): Promise<{ status: PayoutStatus }> {
