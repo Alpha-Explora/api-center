@@ -36,7 +36,13 @@ export function getAuthHeader(): string {
   return `Basic ${encoded}`;
 }
 
-export async function paymongoRequest(endpoint: string, options: { method?: string; body?: any; idempotencyKey?: string } = {}): Promise<any> {
+export async function paymongoRequest(endpoint: string, options: {
+  method?: string;
+  body?: any;
+  idempotencyKey?: string;
+  /** The merchant account to act as. A child account is addressed with PayMongo's Account-ID header. */
+  account?: { id: string; kind: 'parent' | 'child' };
+} = {}): Promise<any> {
   if (isMockMode()) {
     return { data: { id: `mock_${Date.now()}`, attributes: { status: 'succeeded' } } };
   }
@@ -49,13 +55,23 @@ export async function paymongoRequest(endpoint: string, options: { method?: stri
   if (options.idempotencyKey) {
     headers['Idempotency-Key'] = options.idempotencyKey;
   }
+  if (options.account?.kind === 'child') {
+    headers['Account-ID'] = options.account.id;
+  }
 
-  const response = await fetch(url, {
-    method: options.method || 'GET',
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    signal: AbortSignal.timeout(Number(process.env.PAYMONGO_REQUEST_TIMEOUT_MS || 15000)),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: options.method || 'GET',
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: AbortSignal.timeout(Number(process.env.PAYMONGO_REQUEST_TIMEOUT_MS || 15000)),
+    });
+  } catch (error) {
+    // No response: the request may or may not have reached PayMongo. Callers that move money must treat
+    // this as an unknown outcome, never as a rejection.
+    throw new PayMongoError(`PayMongo could not be reached: ${(error as Error).message}`, 0, 'PROVIDER_UNREACHABLE');
+  }
 
   const body: any = await response.json();
   if (!response.ok) {
