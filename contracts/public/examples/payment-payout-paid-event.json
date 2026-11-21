@@ -1,0 +1,23 @@
+{
+  "eventId": "evt_payout_paid_01",
+  "contractVersion": "2.0",
+  "eventType": "payment.payout.paid",
+  "environment": "test",
+  "organizationId": "9cb3f8a4-0a56-4c61-a087-6abd02a9e1f0",
+  "projectId": "prj_exampleexampleexample01",
+  "applicationId": "app_exampleexampleexample01",
+  "referenceId": "PROVIDER-0042",
+  "aggregateType": "payout",
+  "aggregateId": "po_3c4d5e6f7a8b9c0d1e2f3a4b",
+  "aggregateVersion": 1,
+  "occurredAt": "2026-11-27T12:05:20.000Z",
+  "data": {
+    "status": "paid",
+    "payoutId": "po_3c4d5e6f7a8b9c0d1e2f3a4b",
+    "payeeId": "pye_8a1b2c3d4e5f6a7b8c9d0e1f",
+    "net": 72500,
+    "fee": 1000,
+    "currency": "PHP",
+    "trigger": "schedule"
+  }
+}
