@@ -7,6 +7,8 @@ import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
 import { allocationView } from './allocations';
 import { reconcileOpenAttempts, runPayouts, type PayoutDeps } from './payout-executor';
+import { PayoutStateError } from './payout-ledger';
+import { nextScheduledSlot, payoutPolicySchema } from './payout-policy';
 import { payoutContext, type Environment, type Payee } from './payout-store';
 
 export type RouteHelpers = {
@@ -43,6 +45,12 @@ const payoutListInput = pageInput.extend({
   payeeId: z.string().regex(/^pye_[A-Za-z0-9]+$/).optional(),
   status: z.enum(['draft', 'submitting', 'pending', 'unknown', 'paid', 'failed', 'needs_review']).optional(),
 });
+
+const resolutionInput = z.object({
+  outcome: z.enum(['paid', 'failed']),
+  note: z.string().trim().min(1).max(500),
+  actor: z.string().trim().min(1).max(200),
+}).strict();
 
 const ids = {
   payee: z.string().regex(/^pye_[A-Za-z0-9]+$/),
@@ -128,6 +136,58 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
       if (event === 'release') payOnRelease(deps, context.environment, context.projectId, allocation.payeeId);
     }));
   }
+
+  app.get('/admin/payouts/overview', route(async (req, res) => {
+    const context = payoutContext(helpers.context(req));
+    const now = deps.now();
+    const account = await deps.accounts.resolve(context.projectId, context.environment, now);
+    let available: number | null = null;
+    if (account.wallet) {
+      try {
+        available = await deps.mover.availableBalance(account);
+      } catch (error) {
+        console.warn(JSON.stringify({ type: 'apicenter_payout_balance_unavailable', environment: context.environment,
+          message: (error as Error).message }));
+      }
+    }
+    const policy = await deps.store.getSettings(context.environment, context.projectId);
+    helpers.ok(res, {
+      wallet: { configured: account.wallet !== null, available, lowFloatAlert: account.lowFloatAlert },
+      counts: await deps.store.payoutCounts(context.environment, context.projectId),
+      needsReview: (await deps.store.listPayouts(context.environment, context.projectId, { status: 'needs_review', limit: 100 })).records,
+      nextScheduledAt: policy.schedule ? nextScheduledSlot(policy.schedule, now).toISOString() : null,
+    });
+  }));
+
+  app.get('/admin/payouts/settings', route(async (req, res) => {
+    const context = payoutContext(helpers.context(req));
+    helpers.ok(res, await deps.store.getSettings(context.environment, context.projectId));
+  }));
+
+  app.post('/admin/payouts/settings', route(async (req, res) => {
+    const context = payoutContext(helpers.context(req));
+    const { actor, ...policyInput } = (req.body ?? {}) as Record<string, unknown>;
+    const policy = parse(payoutPolicySchema, policyInput, 'INVALID_PAYOUT_SETTINGS', 'The payout settings are invalid');
+    const updatedBy = parse(resolutionInput.shape.actor, actor, 'INVALID_PAYOUT_SETTINGS', 'actor is required');
+    helpers.ok(res, await deps.store.saveSettings(context.environment, context.projectId, policy, updatedBy));
+  }));
+
+  app.post('/admin/payouts/:payoutId/resolve', route(async (req, res) => {
+    const context = payoutContext(helpers.context(req));
+    const id = ids.payout.safeParse(param(req, 'payoutId'));
+    const payout = id.success ? await deps.store.getPayout(context.environment, context.projectId, id.data) : null;
+    if (!payout) throw notFound('Payout');
+    const input = parse(resolutionInput, req.body, 'INVALID_RESOLUTION', 'outcome, a note of up to 500 characters and actor are required');
+    try {
+      helpers.ok(res, await deps.store.recordOutcome(context.environment, payout.id,
+        input.outcome === 'paid' ? 'operator_paid' : 'operator_failed', { note: input.note, actor: input.actor }));
+    } catch (error) {
+      if (error instanceof PayoutStateError) {
+        throw new PayMongoError(`A payout that is ${error.from} cannot be resolved by an operator`, 409, 'INVALID_PAYOUT_STATE');
+      }
+      throw error;
+    }
+  }));
 
   app.get('/payouts', route(async (req, res) => {
     const context = payoutContext(helpers.context(req));

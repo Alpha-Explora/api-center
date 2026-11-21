@@ -188,6 +188,14 @@ export interface PayoutStore {
   earnings(environment: Environment, payeeId: string, now: Date): Promise<Earnings>;
   listPayouts(environment: Environment, projectId: string, query: PageQuery & { payeeId?: string; status?: PayoutStatus }): Promise<Page<PayoutRecord>>;
   getPayout(environment: Environment, projectId: string, payoutId: string): Promise<PayoutRecord | null>;
+  saveSettings(environment: Environment, projectId: string, policy: PayoutPolicy, actor: string): Promise<PayoutPolicy>;
+  payoutCounts(environment: Environment, projectId: string): Promise<Record<PayoutStatus, number>>;
+}
+
+export const PAYOUT_STATUSES: PayoutStatus[] = ['draft', 'submitting', 'pending', 'unknown', 'paid', 'failed', 'needs_review'];
+
+function emptyCounts(): Record<PayoutStatus, number> {
+  return Object.fromEntries(PAYOUT_STATUSES.map((status) => [status, 0])) as Record<PayoutStatus, number>;
 }
 
 /** A submitting payout whose outcome was never recorded (the process died mid-call) is unknown after this long. */
@@ -554,6 +562,19 @@ export class MemoryPayoutStore implements PayoutStore {
   async getPayout(environment: Environment, projectId: string, payoutId: string) {
     const payout = this.payouts.get(payoutId);
     return payout && payout.environment === environment && payout.projectId === projectId ? publicPayout(payout) : null;
+  }
+
+  async saveSettings(environment: Environment, projectId: string, policy: PayoutPolicy) {
+    this.settings.set(`${environment}:${projectId}`, policy);
+    return policy;
+  }
+
+  async payoutCounts(environment: Environment, projectId: string) {
+    const counts = emptyCounts();
+    for (const payout of this.payouts.values()) {
+      if (payout.environment === environment && payout.projectId === projectId) counts[payout.status] += 1;
+    }
+    return counts;
   }
 
   /** Changes one allocation's status through the ledger's transition table. */
@@ -983,6 +1004,33 @@ export class PostgresPayoutStore implements PayoutStore {
       `SELECT ${PAYOUT_COLUMNS} FROM shared_payment.payouts WHERE environment = $1 AND project_id = $2 AND id = $3`,
       [environment, projectId, payoutId]);
     return result.rows[0] ? payoutRow(result.rows[0]) : null;
+  }
+
+  async saveSettings(environment: Environment, projectId: string, policy: PayoutPolicy, actor: string) {
+    await this.pool.query(
+      `INSERT INTO shared_payment.project_payout_settings (environment, project_id, schedule_weekday, schedule_hour, immediate,
+         threshold_centavos, on_demand_minimum, on_demand_daily_cap, scheduled_fee_bearer, cash_out_fee_bearer, minimum_payout,
+         transfer_fee, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT (environment, project_id) DO UPDATE SET
+         schedule_weekday = EXCLUDED.schedule_weekday, schedule_hour = EXCLUDED.schedule_hour, immediate = EXCLUDED.immediate,
+         threshold_centavos = EXCLUDED.threshold_centavos, on_demand_minimum = EXCLUDED.on_demand_minimum,
+         on_demand_daily_cap = EXCLUDED.on_demand_daily_cap, scheduled_fee_bearer = EXCLUDED.scheduled_fee_bearer,
+         cash_out_fee_bearer = EXCLUDED.cash_out_fee_bearer, minimum_payout = EXCLUDED.minimum_payout,
+         transfer_fee = EXCLUDED.transfer_fee, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+      [environment, projectId, policy.schedule?.weekday ?? null, policy.schedule?.hour ?? null, policy.immediate,
+        policy.thresholdCentavos, policy.onDemand?.minimum ?? null, policy.onDemand?.dailyCap ?? null, policy.feeBearer.scheduled,
+        policy.feeBearer.cashOut, policy.minimumPayout, policy.transferFee, actor]);
+    return policy;
+  }
+
+  async payoutCounts(environment: Environment, projectId: string) {
+    const result = await this.pool.query(
+      `SELECT status, count(*)::int AS n FROM shared_payment.payouts WHERE environment = $1 AND project_id = $2 GROUP BY status`,
+      [environment, projectId]);
+    const counts = emptyCounts();
+    for (const row of result.rows) counts[row.status as PayoutStatus] = row.n;
+    return counts;
   }
 
   private async lockPayout(client: PoolClient, environment: Environment, payoutId: string): Promise<{ status: PayoutStatus }> {

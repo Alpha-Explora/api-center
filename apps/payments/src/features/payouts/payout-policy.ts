@@ -78,6 +78,11 @@ export function latestScheduledSlot(schedule: WeeklySchedule, now: Date): Date {
   return new Date(slot - MANILA_OFFSET_MS);
 }
 
+/** The first weekly slot after `now`. */
+export function nextScheduledSlot(schedule: WeeklySchedule, now: Date): Date {
+  return new Date(latestScheduledSlot(schedule, now).getTime() + 7 * DAY_MS);
+}
+
 /** Monday 00:00 Asia/Manila of the week containing `now`. */
 export function manilaWeekStart(now: Date): Date {
   const { start } = manilaDay(now);

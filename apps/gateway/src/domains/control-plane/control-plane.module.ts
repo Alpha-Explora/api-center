@@ -4,6 +4,8 @@ import { DatabaseModule } from "@database/database.module";
 import { AuthModule } from "@auth/auth.module";
 import { ControlPlaneAdminController } from "./control-plane-admin.controller";
 import { PaymentsMerchantController } from "./payments-merchant.controller";
+import { PayoutsConsoleController } from "./payouts-console.controller";
+import { ConsoleRuntimeContextService } from "./console-runtime-context.service";
 import { ControlPlaneAdminService } from "./control-plane-admin.service";
 import { ApplicationAccessService } from "./application-access.service";
 import { RuntimeContextSigner } from "./runtime-context.signer";
@@ -44,6 +46,7 @@ import { ConsumerAccessController } from "./consumer-access.controller";
     OrganizationAdminController,
     ApprovalsQueueController,
     PaymentsMerchantController,
+    PayoutsConsoleController,
     WhoAmIController,
     ObservabilityController,
     EnvironmentInventoryController,
@@ -55,6 +58,7 @@ import { ConsumerAccessController } from "./consumer-access.controller";
     ControlPlaneAdminService,
     ApplicationAccessService,
     RuntimeContextSigner,
+    ConsoleRuntimeContextService,
     ConsoleAccessService,
     OrganizationPeopleService,
     ConsoleActorGuard,
