@@ -57,7 +57,7 @@ export const payoutSchema = z.object({
 export type Payout = z.infer<typeof payoutSchema>;
 
 export const payeeDestinationSchema = z.object({
-  type: z.enum(["instapay", "provider_wallet"]),
+  type: z.enum(["instapay", "wallet", "provider_wallet"]),
   bic: z.string().optional(),
   accountName: z.string(),
   accountNumberLast4: z.string(),

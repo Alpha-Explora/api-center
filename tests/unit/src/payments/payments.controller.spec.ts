@@ -491,5 +491,7 @@ describe('deprecated provider codes', () => {
     expect(usesDeprecatedProviderCode({ success: false, error: { code: 'PAYMENT_DECLINED', details: { deprecatedProviderCode: 'insufficient_funds' } } })).toBe(true);
     expect(usesDeprecatedProviderCode({ success: true, data: { lastPaymentError: { code: 'card_expired', deprecatedProviderCode: 'card_expired' } } })).toBe(true);
     expect(usesDeprecatedProviderCode({ success: false, error: { code: 'NOT_FOUND' } })).toBe(false);
+    expect(usesDeprecatedProviderCode({ success: true, data: { destination: { type: 'provider_wallet' } } })).toBe(true);
+    expect(usesDeprecatedProviderCode({ success: true, data: { destination: { type: 'wallet' } } })).toBe(false);
   });
 });

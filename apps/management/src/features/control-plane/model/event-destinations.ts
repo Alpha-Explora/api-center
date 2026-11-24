@@ -42,7 +42,7 @@ export type RotatedSecret = z.infer<typeof rotatedSecretSchema>;
 /** Standard Webhooks headers every delivery carries. */
 export const WEBHOOK_HEADERS = ["webhook-id", "webhook-timestamp", "webhook-signature"] as const;
 
-export const TRANSPORT_LABELS: Record<EventDestination["transport"], string> = { webhook: "Webhook", "pubsub-push": "Pub/Sub push" };
+export const TRANSPORT_LABELS: Record<EventDestination["transport"], string> = { webhook: "Webhook", "pubsub-push": "Pub/Sub push (Google Cloud)" };
 
 /** Where deliveries go: the customer's URL for a webhook (the push endpoint is APICenter's relay), the push endpoint for Pub/Sub. */
 export function destinationEndpoint(destination: EventDestination): string {

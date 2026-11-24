@@ -137,7 +137,7 @@ testDatabase('payee onboarding through the payments runtime', () => {
     const eventId = randomUUID();
     expect(await (await webhook('consumer.activated', wallet, eventId)).json()).toMatchObject({ data: { event: 'applied' } });
     const withWallet = payeeResult.parse((await call('GET', firstPath)).body);
-    expect(withWallet.destination).toMatchObject({ type: 'provider_wallet', accountNumber: '123456789' });
+    expect(withWallet.destination).toMatchObject({ type: 'wallet', accountNumber: '123456789' });
     expect(Date.parse(withWallet.destinationHoldUntil ?? '') - Date.now()).toBeGreaterThan(23.9 * 3_600_000);
     expect(await (await webhook('consumer.activated', wallet, eventId)).json()).toMatchObject({ data: { event: 'duplicate' } });
     expect(payeeResult.parse((await call('GET', firstPath)).body).destinationHoldUntil).toBe(withWallet.destinationHoldUntil);

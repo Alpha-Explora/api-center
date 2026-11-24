@@ -251,7 +251,7 @@ export function CreateDestinationSheet({
               className="self-start text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               onClick={() => switchTransport(transport === "webhook" ? "pubsub-push" : "webhook")}
             >
-              {transport === "webhook" ? "Advanced: deliver to a Pub/Sub push endpoint instead" : "Use a signed webhook instead"}
+              {transport === "webhook" ? "Advanced: deliver through Google Cloud Pub/Sub push instead (requires Google Cloud)" : "Use a signed webhook instead"}
             </button>
           </div>
           <SheetFooter className="flex-row justify-end border-t">

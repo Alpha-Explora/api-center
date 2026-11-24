@@ -7,6 +7,12 @@ APICenter exposes provider-neutral payment resources. Your service sends domain 
 
 For TypeScript backends, use the server-side [APICenter SDK](/guides/sdk-usage). It handles service-token exchange and exposes typed methods for checkouts, intents, customers, refunds, subscriptions, and payment links. The REST examples in this section remain available for other runtimes.
 
+## Choosing a flow
+
+Prefer the hosted flows: [checkouts](/guides/payments/checkouts), [payment links](/guides/payments/payment-links), QR Ph intents and wallet-redirect intents. They need nothing from the payment provider in your application, so they keep working unchanged if APICenter changes its provider.
+
+Confirming an intent with a payment method you create yourself (`POST /api/v1/payments/intents/{paymentIntentId}/confirm`) requires the payment provider's client-side step in your frontend to create that payment method. Use it only when you need card entry inside your own pages.
+
 ## Checkout
 
 Create a checkout with a stable `referenceId`, a PHP amount in minor units, and registered return URLs.

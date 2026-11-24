@@ -30,6 +30,13 @@ export const destinationInput = z.discriminatedUnion('type', [
     accountNumber: z.string().regex(/^[0-9]{6,20}$/),
     accountName: z.string().trim().min(1).max(200),
   }).strict(),
+  // A wallet at APICenter's payment provider.
+  z.object({
+    type: z.literal('wallet'),
+    accountNumber: z.string().regex(/^[0-9]{6,20}$/),
+    accountName: z.string().trim().min(1).max(200),
+  }).strict(),
+  /** @deprecated The same as `wallet`; accepted until 2027-03-01 (ADR-0010). */
   z.object({
     type: z.literal('provider_wallet'),
     accountNumber: z.string().regex(/^[0-9]{6,20}$/),

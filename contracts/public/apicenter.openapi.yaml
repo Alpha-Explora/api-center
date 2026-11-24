@@ -272,6 +272,7 @@ paths:
   /api/v1/payments/intents/{paymentIntentId}/confirm:
     post:
       operationId: confirmPaymentIntent
+      description: Confirms an intent with a payment method created through the payment provider's client-side step, which your frontend must run. Prefer checkouts, payment links, QR Ph or wallet-redirect intents, which need nothing from the provider in your application.
       tags:
         - Payments
       parameters:
@@ -3303,6 +3304,22 @@ components:
               minLength: 1
               maxLength: 200
         - type: object
+          description: A wallet at APICenter's payment provider.
+          required: [type, accountNumber, accountName]
+          additionalProperties: false
+          properties:
+            type:
+              const: wallet
+            accountNumber:
+              type: string
+              pattern: ^[0-9]{6,20}$
+            accountName:
+              type: string
+              minLength: 1
+              maxLength: 200
+        - type: object
+          description: Deprecated; the same as wallet. Accepted until 2027-03-01, then rejected.
+          deprecated: true
           required: [type, accountNumber, accountName]
           additionalProperties: false
           properties:
@@ -3322,7 +3339,8 @@ components:
       properties:
         type:
           type: string
-          enum: [instapay, provider_wallet]
+          enum: [instapay, wallet, provider_wallet]
+          description: provider_wallet is deprecated and appears only for destinations set with it; it means wallet.
         bic:
           type: string
         accountName:

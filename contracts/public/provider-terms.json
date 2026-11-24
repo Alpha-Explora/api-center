@@ -77,6 +77,14 @@
         "apps/docs/content/docs/migration/from-direct-paymongo.mdx"
       ],
       "reason": "Migration guide for teams leaving a direct provider integration"
+    },
+    {
+      "term": "pub/sub",
+      "document": "asyncapi",
+      "paths": [
+        "^info\\.description$"
+      ],
+      "reason": "Names the optional Google Cloud Pub/Sub push delivery beside the standard signed webhooks"
     }
   ],
   "rawFieldNames": [

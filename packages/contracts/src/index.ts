@@ -676,11 +676,14 @@ export interface CreatePayeeInput {
 /** Where a payee is paid: a GCash or bank account through InstaPay, or a wallet at APICenter's payment provider. */
 export type PayoutDestination =
   | { type: 'instapay'; /** For example GXCHPHM2XXX for GCash. */ bic: string; accountNumber: string; accountName: string }
+  | { type: 'wallet'; accountNumber: string; accountName: string }
+  /** @deprecated The same as `wallet`. Accepted until 2027-03-01. */
   | { type: 'provider_wallet'; accountNumber: string; accountName: string };
 
 /** A payee's destination as APICenter returns it: the account number is masked. */
 export interface PayeeDestination {
-  type: 'instapay' | 'provider_wallet';
+  /** `provider_wallet` is deprecated and appears only for destinations set with it; it means `wallet`. */
+  type: 'instapay' | 'wallet' | 'provider_wallet';
   bic?: string;
   accountName: string;
   accountNumberLast4: string;

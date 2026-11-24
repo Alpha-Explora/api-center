@@ -50,7 +50,7 @@ await api.payments.payees.setDestination(payee.payeeId, {
 A destination is one of two types:
 
 - **`instapay`**: a GCash or bank account. It needs the receiving institution's code, `bic`; GCash's is `GXCHPHM2XXX`.
-- **`provider_wallet`**: a wallet at APICenter's payment provider. It needs no `bic`.
+- **`wallet`**: a wallet at APICenter's payment provider. It needs no `bic`. (`provider_wallet` means the same and is deprecated: it is accepted until 2027-03-01, and responses that show it carry `Deprecation` and `Sunset` headers.)
 
 Responses show the account number masked, as `accountNumberLast4`.
 

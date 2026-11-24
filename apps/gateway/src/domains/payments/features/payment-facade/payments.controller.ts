@@ -33,11 +33,12 @@ const internalToken = paymentRuntimeToken;
 /** `deprecatedProviderCode` is returned until this date (ADR-0010; contracts/public/provider-terms.json). */
 export const PROVIDER_CODE_SUNSET = "Mon, 01 Mar 2027 00:00:00 GMT";
 
-/** Whether a response still carries the provider's own code, which is deprecated. */
+/** Whether a response still carries a deprecated value: the provider's own code, or a provider_wallet destination. */
 export function usesDeprecatedProviderCode(body: unknown): boolean {
   const record = body && typeof body === "object" ? body as Record<string, any> : {};
   return typeof record.error?.details?.deprecatedProviderCode === "string"
-    || typeof record.data?.lastPaymentError?.deprecatedProviderCode === "string";
+    || typeof record.data?.lastPaymentError?.deprecatedProviderCode === "string"
+    || record.data?.destination?.type === "provider_wallet";
 }
 @Controller("payments")
 export class PaymentsController {
