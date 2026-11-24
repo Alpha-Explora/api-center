@@ -13,6 +13,7 @@ import { payeeVerificationInput } from './payee-verification';
 import { nextScheduledSlot, payoutPolicySchema } from './payout-policy';
 import { payoutContext, type Environment, type Payee } from './payout-store';
 import { projectFeature, sendingEnabled } from './project-features';
+import { SIMULATED_TEST_WALLET } from './simulated-money-mover';
 import { FeaturePausedError, pausableFeature, type FeaturePauses } from './feature-pauses';
 
 export type RouteHelpers = {
@@ -205,7 +206,8 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
       paused: new Set(pauses.filter((pause) => pause.paused).map((pause) => pause.feature)),
     });
     helpers.ok(res, {
-      wallet: { configured: account.wallet !== null, available: current?.available ?? null, lowFloatAlert: account.lowFloatAlert },
+      wallet: { configured: account.wallet !== null, available: current?.available ?? null, lowFloatAlert: account.lowFloatAlert,
+        simulated: account.wallet?.number === SIMULATED_TEST_WALLET.number },
       wallets,
       counts: await deps.store.payoutCounts(context.environment, context.projectId),
       needsReview: (await deps.store.listPayouts(context.environment, context.projectId, { status: 'needs_review', limit: 100 })).records,

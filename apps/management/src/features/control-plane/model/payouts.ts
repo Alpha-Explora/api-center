@@ -123,7 +123,9 @@ export function availabilityMessage(feature: keyof PayoutAvailability, availabil
 }
 
 export const payoutOverviewSchema = z.object({
-  wallet: z.object({ configured: z.boolean(), available: centavos.nullable(), lowFloatAlert: centavos }),
+  wallet: z.object({ configured: z.boolean(), available: centavos.nullable(), lowFloatAlert: centavos,
+    /** Test only: payouts are simulated and never reach the payment provider, which has no test payout wallet. */
+    simulated: z.boolean().default(false) }),
   wallets: z.array(z.object({ accountId: z.string(), configured: z.boolean(), available: centavos.nullable(),
     lowFloatAlert: centavos, collectedCentavos: centavos })).default([]),
   counts: z.record(z.string(), z.number().int()),

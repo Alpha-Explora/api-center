@@ -5,6 +5,8 @@ import type { OwnerRecord, PaymentOwnerStore } from '../../shared/payment-owner-
 import type { LinkedAccountsSwitch } from '../linked-accounts/linked-accounts-switch';
 import { payoutWebhookEffects } from './allocations';
 import { createMerchantAccountResolver } from './merchant-accounts';
+import { withSimulatedTestWallet } from './simulated-money-mover';
+import { simulatesTestWallets } from '../../shared/paymongo-client';
 import { createMoneyMover } from './mock-money-mover';
 import type { PayoutDeps } from './payout-executor';
 import { createPayoutStore } from './payout-store';
@@ -32,7 +34,8 @@ export function createPayoutsFeature(owners: PaymentOwnerStore, options: {
   const environment = process.env.PAYMENT_PROVIDER_MODE === 'live' ? 'live' : 'test';
   return {
     store,
-    accounts: createMerchantAccountResolver(pool, options.linkedAccountsSwitch),
+    accounts: simulatesTestWallets() ? withSimulatedTestWallet(createMerchantAccountResolver(pool, options.linkedAccountsSwitch))
+      : createMerchantAccountResolver(pool, options.linkedAccountsSwitch),
     mover: createMoneyMover(),
     now,
     projectFeatures: createProjectFeatureSwitches(pool),

@@ -83,6 +83,14 @@ describe("PayoutsPage", () => {
     expect(screen.getByText(/payouts runbook/)).toBeTruthy();
   });
 
+  it("labels the simulated test wallet", async () => {
+    payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 100_000_000, lowFloatAlert: 0, simulated: true }, counts: {},
+      needsReview: [], nextScheduledAt: null, availability: ready });
+    renderPage();
+    expect(await screen.findByText(/Simulated test wallet/)).toBeTruthy();
+    expect(screen.getByText("₱1,000,000.00")).toBeTruthy();
+  });
+
   it("says live payouts are not available in live yet", async () => {
     environment.kind = "live";
     payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: {}, needsReview: [],

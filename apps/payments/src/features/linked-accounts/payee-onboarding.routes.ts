@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from 'express';
+import type { AccountEvent } from './account-events';
 import { PayMongoError } from '../../shared/payment-errors';
 import type { PayoutDeps } from '../payouts/payout-executor';
 import type { RouteHelpers } from '../payouts/payouts.routes';
@@ -12,8 +13,17 @@ export function registerPayeeOnboardingRoutes(app: Express, options: {
   helpers: RouteHelpers;
   persistent: boolean;
   publish: () => Promise<void>;
+  /** In the deployed test environment: provider events the simulated identity check queued, applied after each step. */
+  simulatedEvents?: { takeEvents(): AccountEvent[] };
 }): void {
-  const { onboarding, payees, helpers, persistent, publish } = options;
+  const { onboarding, payees, helpers, persistent, publish, simulatedEvents } = options;
+  const settle = async <T extends { verification?: unknown }>(environment: 'test' | 'live', scope: Parameters<typeof onboarding.current>[0], view: T) => {
+    const events = simulatedEvents?.takeEvents() ?? [];
+    if (!events.length) return view;
+    for (const event of events) await onboarding.applyProviderEvent(environment, event);
+    const current = await onboarding.current(scope);
+    return current ? { ...current, verification: view.verification ?? null } : view;
+  };
   const path = '/payouts/payees/:payeeId/onboarding';
   const route = (action: 'get' | 'start' | 'verification-link' | 'activate') => async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -43,15 +53,15 @@ export function registerPayeeOnboardingRoutes(app: Express, options: {
       if (action === 'start') {
         const details = consumerDetailsInput.safeParse(req.body);
         if (!details.success) throw new PayMongoError('First name, last name and email are required', 400, 'INVALID_PAYEE_ONBOARDING');
-        const view = await onboarding.start(scope, details.data);
+        const view = await settle(context.environment, scope, await onboarding.start(scope, details.data));
         await publish();
         return helpers.ok(res, view);
       }
       const current = await onboarding.current(scope);
       if (!current) throw new PayMongoError('Payee onboarding not found', 404, 'PAYEE_ONBOARDING_NOT_FOUND');
       if (action === 'get') return helpers.ok(res, current);
-      const view = action === 'activate' ? await onboarding.advance(scope, current.id)
-        : await onboarding.reissueVerificationLink(scope, current.id, key);
+      const view = await settle(context.environment, scope, action === 'activate' ? await onboarding.advance(scope, current.id)
+        : await onboarding.reissueVerificationLink(scope, current.id, key));
       await publish();
       return helpers.ok(res, view);
     } catch (error) {

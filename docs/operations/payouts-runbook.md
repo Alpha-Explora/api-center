@@ -62,7 +62,7 @@ In **Payouts → Payout settings**, select **Require a verification record befor
 
    Without a wallet, every payout run fails with `WALLET_NOT_CONFIGURED`.
 
-   Test mode has no PayMongo wallet. Test runtimes run in mock mode, or with `PAYOUT_WALLET_NUMBER` and `PAYOUT_WALLET_NAME` set for the in-memory fallback.
+   Test mode has no PayMongo wallet (checked 2026-11-25: `/v2/wallets` returns none for the test key). The test runtime (`PAYMENT_PROVIDER_MODE=test`) therefore simulates payouts: transfers succeed at once and never reach PayMongo, test merchant accounts without a wallet use `APICenter simulated test wallet`, and payee wallet onboarding runs on a simulated identity check. Local runtimes use mock mode, or `PAYOUT_WALLET_NUMBER` and `PAYOUT_WALLET_NAME` for the in-memory fallback.
 3. **Set the callback base URL.** Set `APICENTER_PUBLIC_BASE_URL` (the gateway's public origin) on the payments runtimes and the runner jobs. PayMongo then calls `/api/v1/shared/payment/payout-callbacks/{environment}/{token}` when a transfer settles. Without it, the reconcile job still settles every transfer within five minutes.
 4. **Create the runner jobs** from `infra/gcp/cloud-run/payout-runner.{test,live}.yaml`.
 5. **Schedule two executions per environment** with Cloud Scheduler, time zone `Asia/Manila`:

@@ -12,7 +12,7 @@ import { PayMongoError } from './shared/payment-errors';
 import { PROVIDER_CODE_SUNSET } from './shared/provider-errors';
 import type { PaymentResourceType } from './shared/payment-id-map';
 import { readPaymentContext } from './shared/payment-context';
-import { hasPayMongoTestCredentials, isMockMode, providerMode } from './shared/paymongo-client';
+import { hasPayMongoTestCredentials, isMockMode, providerMode, simulatesTestWallets } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
 import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } from './shared/payment-owner-store';
 import { PaymentReplayStore } from './events/paymentReplayStore';
@@ -23,7 +23,7 @@ import { createCollectionRouting } from './features/linked-accounts/collection-r
 import { createChildWebhookSecretLookup } from './features/linked-accounts/child-webhook-secret';
 import { LinkedAccountOnboarding } from './features/linked-accounts/linked-account-onboarding';
 import { LinkedAccountStore } from './features/linked-accounts/linked-account-store';
-import { FakeLinkedAccountsProvider, type ConsumerDetails, type MerchantDetails } from './features/linked-accounts/linked-accounts-provider';
+import { FakeLinkedAccountsProvider, SimulatedConsumerProvider, type ConsumerDetails, type MerchantDetails } from './features/linked-accounts/linked-accounts-provider';
 import { registerPayeeOnboardingRoutes } from './features/linked-accounts/payee-onboarding.routes';
 import { PayMongoLinkedAccountsSandbox } from './features/linked-accounts/paymongo-linked-accounts-provider';
 import { registerLinkedAccountRoutes } from './features/linked-accounts/linked-accounts.routes';
@@ -58,22 +58,24 @@ const owners = PaymentOwnerStore.getInstance();
 const linkedAccountsSwitch = createLinkedAccountsSwitch(owners.databasePool);
 const payouts = createPayoutsFeature(owners, { linkedAccountsSwitch });
 const childWebhookSecret = createChildWebhookSecretLookup();
-const linkedAccountStore = new LinkedAccountStore(owners.databasePool, isMockMode);
+const linkedAccountStore = new LinkedAccountStore(owners.databasePool, () => isMockMode() || simulatesTestWallets());
 const onboarding = new LinkedAccountOnboarding<MerchantDetails>(linkedAccountStore, linkedAccountsSwitch,
   isMockMode() ? new FakeLinkedAccountsProvider()
     : hasPayMongoTestCredentials() ? new PayMongoLinkedAccountsSandbox() : null,
   undefined, (accountId) => Boolean(childWebhookSecret(accountId)));
 const payeeWalletsEnabled = (environment: Environment, projectId: string) =>
   payouts.projectFeatures.enabled(environment, projectId, 'payee_wallets');
+const simulatedConsumers = !isMockMode() && simulatesTestWallets() ? new SimulatedConsumerProvider() : null;
+const payeeWalletsSupported = () => isMockMode() || simulatedConsumers !== null;
 const consumerOnboarding = new LinkedAccountOnboarding<ConsumerDetails>(linkedAccountStore, {
   projectEnabled: payeeWalletsEnabled, enabledFor: payeeWalletsEnabled,
   setProject: (environment, projectId, enabled, actor) => payouts.projectFeatures.set(environment, projectId, 'payee_wallets', enabled, actor),
   async assertEnabledFor(environment, projectId) {
-    if (environment !== 'test' || !await payeeWalletsEnabled(environment, projectId) || !isMockMode()) {
+    if (environment !== 'test' || !await payeeWalletsEnabled(environment, projectId) || !payeeWalletsSupported()) {
       throw new PayMongoError('Payee wallet onboarding is unavailable for this project', 503, 'PAYEE_ONBOARDING_DISABLED');
     }
   },
-}, isMockMode() ? new FakeLinkedAccountsProvider() : null);
+}, isMockMode() ? new FakeLinkedAccountsProvider() : simulatedConsumers);
 const collection = createCollectionRouting(payouts.accounts, owners.databasePool);
 const webhooksService = new WebhooksService(owners, refundsService, collection.forOwner, onboarding, childWebhookSecret);
 const eventRecovery = new PaymentReplayStore();
@@ -633,12 +635,13 @@ registerPayoutRoutes(app, payouts, { ok, context: paymentContext,
   signedContext: (req) => readPaymentContext(req, { ...contextOptions, requireSigned: true }),
   handleError: handleCustomError, pauses: payouts.pauses, features: {
   linkedAccountsEnabled: (environment, projectId) => linkedAccountsSwitch.enabledFor(environment, projectId),
-  payeeWalletsAvailable: () => isMockMode() && Boolean(owners.databasePool),
+  payeeWalletsAvailable: () => payeeWalletsSupported() && Boolean(owners.databasePool),
 } });
 registerLinkedAccountRoutes(app, onboarding, { ok, context: paymentContext, handleError: handleCustomError, pauses: payouts.pauses });
 registerPayeeOnboardingRoutes(app, {
   onboarding: consumerOnboarding, payees: payouts.store, persistent: Boolean(owners.databasePool),
   helpers: { ok, context: paymentContext, handleError: handleCustomError, pauses: payouts.pauses }, publish: publishQueuedPaymentEvents,
+  ...(simulatedConsumers ? { simulatedEvents: simulatedConsumers } : {}),
 });
 
 if (require.main === module) {

@@ -7,13 +7,14 @@ RUN npm ci --include=dev --no-audit --no-fund \
     && npm run db:generate \
     && npm run build --workspace @alpha-explora/apicenter-contracts
 
+# Builds every app once and prunes once. It does not depend on APP, so each image below reuses this one cached stage,
+# and the node_modules layer they copy is identical: the registry receives and stores it once.
 FROM workspace AS builder
-ARG APP
 ARG GOOGLE_CLIENT_ID
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-RUN MANAGEMENT_AUTH_MODE=google npm run build --workspace @apicenter/${APP} \
+RUN MANAGEMENT_AUTH_MODE=google npm run build \
     && npm prune --omit=dev --no-audit --no-fund \
-    && mkdir -p /app/apps/${APP}/node_modules
+    && for app in apps/*; do mkdir -p "$app/node_modules"; done
 
 FROM node:24-bookworm-slim AS node-runtime
 ARG APP
