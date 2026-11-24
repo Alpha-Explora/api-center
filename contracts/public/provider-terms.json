@@ -71,22 +71,6 @@
       "reason": "Optional Google Cloud Pub/Sub push binding"
     },
     {
-      "term": "google-maps",
-      "document": "openapi",
-      "paths": [
-        "^components\\.schemas\\.GeoAddressResult\\.properties\\.provider\\."
-      ],
-      "reason": "Temporary until Task 7 of the provider-neutral plan deprecates GeoAddressResult.provider"
-    },
-    {
-      "term": "google-maps",
-      "document": "docs",
-      "files": [
-        "apps/docs/content/docs/platform-utilities/geo.mdx"
-      ],
-      "reason": "Temporary until Task 7 of the provider-neutral plan deprecates GeoAddressResult.provider"
-    },
-    {
       "term": "paymongo",
       "document": "docs",
       "files": [
@@ -117,18 +101,37 @@
       "schema": "ErrorDetails",
       "field": "deprecatedProviderCode",
       "sunset": "2027-03-01"
-    }
-  ],
-  "temporaryExceptions": [
-    {
-      "schema": "GeoAddressResult",
-      "field": "raw",
-      "removedBy": "Task 7 of the provider-neutral plan"
     },
     {
       "schema": "GeoAddressResult",
       "field": "placeId",
-      "removedBy": "Task 7 of the provider-neutral plan"
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "types",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "provider",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "raw",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoReverseGeocodeRequest",
+      "field": "resultType",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoReverseGeocodeRequest",
+      "field": "locationType",
+      "sunset": "2027-03-01"
     }
-  ]
+  ],
+  "temporaryExceptions": []
 }

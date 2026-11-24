@@ -8,38 +8,44 @@ import {
 import { GeocodeService } from './features/geocode/geocode.service';
 import { ReverseGeocodeService } from './features/reverse-geocode/reverse-geocode.service';
 import { GeofenceCheckService } from './features/geofence-check/geofence-check.service';
-import { shouldUseMock } from './shared/google-maps-provider';
+import { createGeocodingProvider } from './shared/geocoding-provider';
 
 const port = Number(process.env.PORT || 4015);
-const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+const geocoding = createGeocodingProvider();
+const geocodingConfigured = geocoding.configured;
 
 const { app } = createSharedServiceApp({
   serviceId: 'geo-gateway',
   health: {
     status: 'ok',
     service: 'geo-gateway',
-    googleMapsEnabled: Boolean(googleMapsApiKey),
+    geocodingConfigured,
     architecture: 'enterprise-feature-sliced',
-    mode: shouldUseMock() ? 'mock' : 'google-maps',
+    mode: geocoding.name,
   },
 });
 
-const geocodeService = new GeocodeService();
-const reverseGeocodeService = new ReverseGeocodeService();
+const geocodeService = new GeocodeService(geocoding);
+const reverseGeocodeService = new ReverseGeocodeService(geocoding);
 const geofenceCheckService = new GeofenceCheckService();
 
-function assertGoogleMapsConfigured(res: Response): boolean {
-  if (googleMapsApiKey || shouldUseMock()) {
-    return true;
-  }
-
-  fail(
-    res,
-    500,
-    'GOOGLE_MAPS_CONFIG_ERROR',
-    'GOOGLE_MAPS_API_KEY is required in production.',
-  );
+function assertGeocodingConfigured(res: Response): boolean {
+  if (geocodingConfigured) return true;
+  fail(res, 503, 'GEOCODING_NOT_CONFIGURED', 'Geocoding is not configured.');
   return false;
+}
+
+/** Geocoding responses still carry placeId, types, provider and raw, which are deprecated (ADR-0010). */
+function announceDeprecatedFields(res: Response) {
+  res.setHeader('Deprecation', 'true');
+  res.setHeader('Sunset', 'Mon, 01 Mar 2027 00:00:00 GMT');
+}
+
+/** The provider's error stays in the log; callers get APICenter's code and message (ADR-0010). */
+function geocodingFailed(res: Response, operation: string, error: unknown) {
+  console.warn(JSON.stringify({ type: 'apicenter_geocoding_failed', operation, provider: geocoding.name,
+    message: error instanceof Error ? error.message : String(error) }));
+  return fail(res, 502, 'GEOCODING_FAILED', 'The address could not be geocoded. Try again later.');
 }
 
 // Control-plane application calls carry a signed context; an invalid one is rejected.
@@ -51,15 +57,16 @@ app.post('/geocode', async (req: Request, res: Response) => {
     return fail(res, 400, 'INVALID_REQUEST', 'address is required.');
   }
 
-  if (!assertGoogleMapsConfigured(res)) {
+  if (!assertGeocodingConfigured(res)) {
     return undefined;
   }
 
   try {
     const data = await geocodeService.execute(req.body);
+    announceDeprecatedFields(res);
     return ok(res, data);
-  } catch (error: any) {
-    return fail(res, 502, 'GOOGLE_MAPS_GEOCODING_FAILED', error?.message || 'Geocoding failed');
+  } catch (error) {
+    return geocodingFailed(res, 'geocode', error);
   }
 });
 
@@ -72,15 +79,16 @@ app.post('/reverse-geocode', async (req: Request, res: Response) => {
     return fail(res, 400, 'INVALID_REQUEST', 'latitude and longitude are required numbers.');
   }
 
-  if (!assertGoogleMapsConfigured(res)) {
+  if (!assertGeocodingConfigured(res)) {
     return undefined;
   }
 
   try {
     const data = await reverseGeocodeService.execute({ ...req.body, latitude: lat, longitude: lng });
+    announceDeprecatedFields(res);
     return ok(res, data);
-  } catch (error: any) {
-    return fail(res, 502, 'GOOGLE_MAPS_REVERSE_GEOCODING_FAILED', error?.message || 'Reverse geocoding failed');
+  } catch (error) {
+    return geocodingFailed(res, 'reverse_geocode', error);
   }
 });
 

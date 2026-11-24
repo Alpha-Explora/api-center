@@ -78,7 +78,7 @@ describe('requests', () => {
     expect(calls[0].url).toBe('https://api.apicenter.itsandbox.site/api/v1/shared/geo/reverse-geocode');
     expect(calls[0].headers.get('authorization')).toBe(`Bearer ${KEY}`);
     expect(calls[0].headers.get('apicenter-version')).toBe('2026-11-19');
-    expect(calls[0].headers.get('apicenter-sdk')).toBe('apicenter-sdk-js/3.5.0');
+    expect(calls[0].headers.get('apicenter-sdk')).toBe('apicenter-sdk-js/3.6.0');
     expect(calls[0].headers.get('idempotency-key')).toBeNull();
   });
 

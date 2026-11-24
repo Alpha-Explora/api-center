@@ -39,13 +39,21 @@ For a Node.js backend, use the typed `api.geo` methods from the [APICenter SDK](
     "formattedAddress": "Ayala Center, Makati, Metro Manila, Philippines",
     "latitude": 14.5519,
     "longitude": 121.0253,
-    "placeId": "ChIJb_2y",
-    "types": ["establishment", "point_of_interest"],
-    "provider": "google-maps",
-    "cacheStatus": "hit"
+    "components": {
+      "barangay": "San Lorenzo",
+      "city": "Makati",
+      "region": "Metro Manila",
+      "postalCode": "1223",
+      "country": "PH"
+    },
+    "precision": "exact"
   }
 }
 ```
+
+Use `components` for the parts of the address and `precision` for how exactly the coordinates locate it (`exact`, `street`, `area` or `approximate`). A part the source does not know is left out.
+
+**Deprecated, removed after 2027-03-01:** responses still carry `placeId`, `types`, `provider` and `raw`, the geocoding source's own values, with `Deprecation` and `Sunset` headers. Do not build on them.
 
 ---
 
@@ -72,13 +80,13 @@ For a Node.js backend, use the typed `api.geo` methods from the [APICenter SDK](
     "formattedAddress": "Manila, Philippines",
     "latitude": 14.5995,
     "longitude": 120.9842,
-    "placeId": "ChIJv0k",
-    "types": ["locality", "political"],
-    "provider": "google-maps",
-    "cacheStatus": "hit"
+    "components": { "city": "Manila", "region": "Metro Manila", "country": "PH" },
+    "precision": "approximate"
   }
 }
 ```
+
+`resultType` and `locationType` are deprecated: they are honoured until 2027-03-01 and ignored after.
 
 ---
 

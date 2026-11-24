@@ -345,6 +345,7 @@ export interface GeocodeResponse {
   formattedAddress: string;
   latitude: number;
   longitude: number;
+  /** @deprecated The geocoding provider's place identifier. Returned until 2027-03-01. */
   placeId?: string;
 }
 
@@ -357,13 +358,35 @@ export interface GeoReverseGeocodeRequest {
   latitude: number;
   longitude: number;
   language?: string;
+  /** @deprecated A geocoding-provider result filter. Honoured until 2027-03-01, then ignored. */
   resultType?: string;
+  /** @deprecated A geocoding-provider precision filter. Honoured until 2027-03-01, then ignored. */
   locationType?: string;
 }
 
+/** The parts of a Philippine address. A part the source does not know is omitted. */
+export interface GeoAddressComponents {
+  streetNumber?: string;
+  street?: string;
+  barangay?: string;
+  /** City or municipality. */
+  city?: string;
+  province?: string;
+  region?: string;
+  postalCode?: string;
+  /** ISO 3166-1 alpha-2 country code. */
+  country: string;
+}
+
 export interface GeoAddressResult extends GeocodeResponse {
+  components: GeoAddressComponents;
+  /** How exactly the coordinates locate the address: exact, street, area or approximate. An open set. */
+  precision: 'exact' | 'street' | 'area' | 'approximate' | (string & {});
+  /** @deprecated The geocoding provider's result types. Returned until 2027-03-01; use precision. */
   types: string[];
-  provider: 'mock' | 'google-maps';
+  /** @deprecated Which geocoding source answered. Returned until 2027-03-01. */
+  provider: string;
+  /** @deprecated The geocoding provider's unprocessed result. Returned until 2027-03-01; use components. */
   raw: unknown | null;
 }
 

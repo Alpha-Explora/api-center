@@ -6,7 +6,8 @@ import { AppError, BadGatewayError } from "../errors";
 import type { AuthenticatedRequest } from "../../types";
 
 export const FORWARDED_REQUEST_HEADERS = ["idempotency-key", "accept"];
-export const RETURNED_RESPONSE_HEADERS = ["content-type", "x-idempotency-replayed", "retry-after"];
+// Deprecation and Sunset announce a deprecated field or route the runtime still serves (ADR-0010).
+export const RETURNED_RESPONSE_HEADERS = ["content-type", "x-idempotency-replayed", "retry-after", "deprecation", "sunset"];
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<globalThis.Response>;
 export type CloudRunAuthorizer = (upstream: string) => Promise<string | undefined>;

@@ -7235,10 +7235,14 @@
             "type": "string"
           },
           "resultType": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "A geocoding-provider result filter. Honoured until 2027-03-01, then ignored."
           },
           "locationType": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "A geocoding-provider precision filter. Honoured until 2027-03-01, then ignored."
           }
         },
         "required": [
@@ -7258,31 +7262,80 @@
           "longitude": {
             "type": "number"
           },
+          "components": {
+            "$ref": "#/components/schemas/GeoAddressComponents"
+          },
+          "precision": {
+            "type": "string",
+            "description": "How exactly the coordinates locate the address: exact, street, area or approximate. An open set."
+          },
           "placeId": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "The geocoding provider's place identifier. Returned until 2027-03-01; use the coordinates and components."
           },
           "types": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "deprecated": true,
+            "description": "The geocoding provider's result types. Returned until 2027-03-01; use precision."
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock",
-              "google-maps"
-            ]
+            "deprecated": true,
+            "description": "Which geocoding source answered. Returned until 2027-03-01."
           },
-          "raw": {}
+          "raw": {
+            "deprecated": true,
+            "description": "The geocoding provider's unprocessed result. Returned until 2027-03-01; use components."
+          }
         },
         "required": [
           "formattedAddress",
           "latitude",
           "longitude",
+          "components",
+          "precision",
           "types",
           "provider",
           "raw"
+        ]
+      },
+      "GeoAddressComponents": {
+        "type": "object",
+        "description": "The parts of a Philippine address. A part the source does not know is omitted.",
+        "properties": {
+          "streetNumber": {
+            "type": "string"
+          },
+          "street": {
+            "type": "string"
+          },
+          "barangay": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string",
+            "description": "City or municipality."
+          },
+          "province": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "postalCode": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code."
+          }
+        },
+        "required": [
+          "country"
         ]
       },
       "GeoFenceInput": {
