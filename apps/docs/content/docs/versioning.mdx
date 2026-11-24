@@ -21,6 +21,19 @@ A change that can break a correct integration ships as a new major version of th
 
 The SDK follows semantic versioning: minor versions add features, and patch versions fix bugs.
 
+## Deprecations
+
+A route, field or value is deprecated before it is removed:
+
+1. It is marked deprecated in the OpenAPI contract and the SDK types, and listed in the changelog.
+2. Responses that use it carry a `Deprecation` header and a `Sunset` header with the removal date.
+3. It keeps working until the sunset date, at least 90 days after the announcement.
+4. It is removed only in a major version.
+
+## IDs
+
+IDs are opaque strings. Store them as they are, compare them only for equality, and do not parse their prefix or length. To find a record you created, look it up by the `referenceId` you supplied.
+
 ## The `APICenter-Version` header
 
 The SDK sends `APICenter-Version` with the API revision it was built against. APICenter records it for diagnostics and does not change behaviour by it. Calls made without the SDK do not need to send it.
