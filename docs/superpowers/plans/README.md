@@ -4,7 +4,7 @@ Plans record execution scope and pending checks. Use [current architecture](../.
 
 Open plan: [Payouts](2026-11-21-payouts.md): payees, held allocations, weekly and cash-out payouts from the PayMongo wallet, events, public API, SDK and the console section. All tasks built on `feat/payouts`; deployment, the first live transfer and ADR-0008 acceptance remain.
 
-Open plan: [Linked accounts](2026-11-24-linked-accounts.md): Sandbox onboarding, account-specific collections and payouts, console and payee verification are implemented on `feat/linked-accounts`. Live onboarding, provider verification and rollout remain pending. Phase B (payee consumer accounts) is held for PayMongo answers.
+Open plan: [Linked accounts](2026-11-24-linked-accounts.md). The test implementation covers merchant onboarding and payee consumer wallets. Live provider verification and rollout conditions remain open.
 
 ## Working specifications
 

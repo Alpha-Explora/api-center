@@ -75,6 +75,35 @@ await api.payments.payees.recordVerification(payee.payeeId, {
 
 Use your own record identifier for the optional `reference` field. Keep identity document numbers and images in your own verification system. If verification is required, cash-out returns `409 PAYEE_NOT_VERIFIED` until you record the check.
 
+## Test payee wallet onboarding
+
+With the feature enabled for your test project, you can start PayMongo wallet onboarding for an existing payee.
+Use a test key with `payments:payouts:write` to start onboarding, reissue a verification link, and request activation.
+Use `payments:payouts:read` to fetch the current status.
+
+```ts
+const onboarding = await apicenter.payments.payees.startOnboarding(payee.payeeId, {
+  firstName: "Juan",
+  lastName: "Dela Cruz",
+  email: "juan@example.com",
+});
+
+if (!isPending(onboarding) && onboarding.verification) {
+  // Present this URL only to the payee for whom it was issued.
+  const { url, expiresAt } = onboarding.verification;
+}
+```
+
+The API returns a new hosted link only on the response that issued it. Status reads and idempotent replays
+return `verification: null`. To issue a new link, call `reissueOnboardingLink(payeeId)` with a new idempotency key.
+PayMongo's sandbox returns placeholder links. Use the local mock flow to test the identity and activation steps.
+
+Listen for `payee.onboarding.updated`, then read `getOnboarding(payeeId)`. When `nextAction` is `activate`,
+call `activateOnboarding(payeeId)`. In local mock payments mode, a verified activation can attach a test wallet
+and start the existing 24-hour destination hold. Your application owns payee eligibility and release rules.
+Provider wallet onboarding is test-only. The [project verification record](#record-how-you-verified-a-payee)
+continues to govern payouts where the project requires it.
+
 ## Attach allocations to a payment
 
 Add `allocations` when you create a checkout, a payment intent or a payment link. Your application key needs that resource's write scope.
@@ -171,5 +200,6 @@ A payout ends as `paid` or `failed`, and each sends an event:
 | `payment.allocation.held` | The payment's reference | `allocationId`, `payeeId`, `paymentId`, `amount`, `currency` |
 | `payment.payout.paid` | The payee's `externalRef` | `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger` |
 | `payment.payout.failed` | The payee's `externalRef` | `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger`, `failureCode` |
+| `payee.onboarding.updated` | The payee's `externalRef` | `onboardingId`, `payeeId`, `status`, `attempts` |
 
 Events go to the application that created the payee, or the payment for `payment.allocation.held`. See [webhooks](/guides/events/webhooks) for delivery and verification.

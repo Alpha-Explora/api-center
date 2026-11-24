@@ -140,6 +140,7 @@ export class PaymentsController {
     });
 
     const idempotencyKey = req.get("Idempotency-Key")?.trim() || undefined;
+    if (operation.resource === "payeeOnboarding") res.setHeader("Cache-Control", "no-store");
     const lookup = await this.idempotency.lookupOrValidate({
       principal,
       method: req.method,
@@ -265,7 +266,9 @@ export class PaymentsController {
           response: {
             status: response.status,
             contentType,
-            body,
+            body: operation.resource === "payeeOnboarding"
+              ? JSON.stringify(paymentResponseBody(operation.resource, parsed, false))
+              : body,
           },
         });
       } else if (response.status >= 500) {

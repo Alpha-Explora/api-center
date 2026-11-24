@@ -34,7 +34,7 @@ const PUBLIC_AGGREGATE_TYPES = { intent: 'payment_intent' };
 function publicResourceId(aggregateType, value) {
   // Payout-feature ids (pye_, pal_, po_) are already APICenter's own and pass through unchanged.
   const kinds = { checkout: 'chk', intent: 'pi', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv',
-    payee: 'pye', allocation: 'pal', payout: 'po' };
+    payee: 'pye', allocation: 'pal', payout: 'po', payee_onboarding: 'lac' };
   return value ? toPublicId(kinds[aggregateType] || 'res', value) : value;
 }
 /**
@@ -86,6 +86,8 @@ function toCanonicalPaymentEvent(event) {
       refundId: publicResourceId('refund', payload.refundId),
       allocationId: publicResourceId('allocation', payload.allocationId),
       payeeId: publicResourceId('payee', payload.payeeId),
+      onboardingId: publicResourceId('payee_onboarding', payload.onboardingId),
+      attempts: payload.attempts,
       payoutId: publicResourceId('payout', payload.payoutId),
       amount: payload.amount,
       currency: payload.currency,

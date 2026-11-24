@@ -3,15 +3,20 @@ import type { Pool, PoolClient } from 'pg';
 import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
 import type { WalletAccount } from '../payouts/merchant-accounts';
-import { SANDBOX_MERCHANT_ID, type AccountEvent } from './account-events';
+import { isSandboxAccountId, type AccountEvent } from './account-events';
+import { attachConsumerWallet, detachConsumerWallet, recordConsumerStatus } from './consumer-wallet-effects';
 import { applyEvent, initialState, type LinkedAccountState, type ProviderAccountId } from './linked-account-lifecycle';
 
 type Environment = PaymentContext['environment'];
+export type LinkedAccountContext = PaymentContext & { payeeId?: string };
 export type LinkedAccountRecord = LinkedAccountState & {
   id: string;
   environment: Environment;
   projectId: string;
   organizationId: string;
+  payeeId: string | null;
+  onboardingApplicationId: string | null;
+  onboardingVersion: number;
   closedAt: Date | null;
   createStartedAt: Date | null;
   verificationSessionId: string | null;
@@ -22,6 +27,9 @@ type AccountRow = {
   environment: Environment;
   project_id: string;
   organization_id: string;
+  payee_id: string | null;
+  onboarding_application_id: string | null;
+  onboarding_version: number;
   status: LinkedAccountState['status'];
   provider_account_id: ProviderAccountId | null;
   verification_attempts: number;
@@ -38,6 +46,7 @@ type AccountRow = {
 function fromRow(row: AccountRow): LinkedAccountRecord {
   return {
     id: row.id, environment: row.environment, projectId: row.project_id, organizationId: row.organization_id, status: row.status,
+    payeeId: row.payee_id, onboardingApplicationId: row.onboarding_application_id, onboardingVersion: row.onboarding_version,
     providerAccountId: row.provider_account_id, attempts: row.verification_attempts,
     verificationExpiresAt: row.verification_expires_at, walletOnly: row.wallet_only,
     activationRequested: row.activation_requested, declineReason: row.decline_reason,
@@ -52,34 +61,41 @@ export class LinkedAccountStore {
   private readonly sessions = new Map<string, Set<string>>();
   private readonly locks = new Map<string, Promise<unknown>>();
 
-  constructor(private readonly pool?: Pool) {}
+  constructor(private readonly pool?: Pool, private readonly allowTestWallet = () => false) {}
 
-  async current(context: PaymentContext, query: PoolClient | Pool | undefined = this.pool): Promise<LinkedAccountRecord | null> {
+  async current(context: LinkedAccountContext, query: PoolClient | Pool | undefined = this.pool): Promise<LinkedAccountRecord | null> {
     if (!query) {
       const records = [...this.records.values()].reverse().filter((record) => record.environment === context.environment
-        && record.projectId === context.projectId && record.organizationId === context.tribeId && !record.closedAt);
+        && record.projectId === context.projectId && record.organizationId === context.tribeId && !record.closedAt
+        && record.payeeId === (context.payeeId ?? null));
       return records.find((record) => record.status !== 'declined') ?? records[0] ?? null;
     }
     const result = await query.query<AccountRow>(
       `SELECT * FROM shared_payment.linked_accounts WHERE environment = $1 AND project_id = $2 AND organization_id = $3 AND closed_at IS NULL
-        ORDER BY (status <> 'declined') DESC, created_at DESC, id DESC LIMIT 1`, [context.environment, context.projectId, context.tribeId],
+        AND payee_id IS NOT DISTINCT FROM $4
+        ORDER BY (status <> 'declined') DESC, created_at DESC, id DESC LIMIT 1`,
+      [context.environment, context.projectId, context.tribeId, context.payeeId ?? null],
     );
     return result.rows[0] ? fromRow(result.rows[0]) : null;
   }
 
-  async open(context: PaymentContext, query?: PoolClient): Promise<LinkedAccountRecord> {
+  async open(context: LinkedAccountContext, query?: PoolClient): Promise<LinkedAccountRecord> {
     const current = await this.current(context, query ?? this.pool);
     if (current && current.status !== 'declined') return current;
     const id = `lac_${randomUUID().replaceAll('-', '')}`;
+    const payeeId = context.payeeId ?? null;
+    const applicationId = payeeId ? context.consumerServiceId : null;
     if (query) {
       const result = await query.query<AccountRow>(
-        `INSERT INTO shared_payment.linked_accounts (id, environment, organization_id, project_id)
-          VALUES ($1,$2,$3,$4) RETURNING *`, [id, context.environment, context.tribeId, context.projectId],
+        `INSERT INTO shared_payment.linked_accounts
+          (id, environment, organization_id, project_id, payee_id, onboarding_application_id)
+          VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [id, context.environment, context.tribeId, context.projectId, payeeId, applicationId],
       );
       return fromRow(result.rows[0]);
     }
     const draft: LinkedAccountRecord = { ...initialState(), id, environment: context.environment, projectId: context.projectId,
-      organizationId: context.tribeId, closedAt: null, createStartedAt: null, verificationSessionId: null };
+      organizationId: context.tribeId, payeeId, onboardingApplicationId: applicationId, onboardingVersion: 0,
+      closedAt: null, createStartedAt: null, verificationSessionId: null };
     this.records.set(id, draft);
     return draft;
   }
@@ -89,15 +105,18 @@ export class LinkedAccountStore {
       this.records.set(record.id, record);
       return;
     }
-    await query.query(
+    const result = await query.query<{ onboarding_version: number }>(
       `UPDATE shared_payment.linked_accounts SET provider_account_id = $2, status = $3, verification_attempts = $4,
         verification_expires_at = $5, wallet_only = $6, activation_requested = $7, decline_reason = $8,
         payment_methods_requested = $9, closed_at = $10, create_started_at = $11, verification_session_id = $12,
-        updated_at = now() WHERE id = $1`,
+        onboarding_version = onboarding_version + CASE WHEN payee_id IS NOT NULL AND status IS DISTINCT FROM $3 THEN 1 ELSE 0 END,
+        updated_at = now() WHERE id = $1 RETURNING onboarding_version`,
       [record.id, record.providerAccountId, record.status, record.attempts, record.verificationExpiresAt, record.walletOnly,
         record.activationRequested, record.declineReason, record.paymentMethodsRequested, record.closedAt,
         record.createStartedAt, record.verificationSessionId],
     );
+    const version = result.rows[0]?.onboarding_version;
+    if (record.payeeId && version > record.onboardingVersion) await recordConsumerStatus(query, record, version);
   }
 
   async addVerificationSession(record: LinkedAccountRecord, sessionId: string, query?: PoolClient): Promise<boolean> {
@@ -116,7 +135,7 @@ export class LinkedAccountStore {
   }
 
   private async eventAccount(environment: Environment, event: AccountEvent, query?: PoolClient | Pool) {
-    const sandbox = event.providerAccountId === SANDBOX_MERCHANT_ID;
+    const sandbox = isSandboxAccountId(event.providerAccountId);
     if (sandbox && (environment !== 'test' || !event.sessionId)) return undefined;
     if (!query) {
       const matches = [...this.records.values()].filter((record) => record.environment === environment
@@ -138,12 +157,16 @@ export class LinkedAccountStore {
 
   async applyProviderEvent(environment: Environment, event: AccountEvent): Promise<'applied' | 'duplicate' | 'unknown_account'> {
     // A real merchant can be found before its in-flight link transaction commits.
-    const accountLookup = event.providerAccountId === SANDBOX_MERCHANT_ID ? event : { ...event, sessionId: undefined };
+    const accountLookup = isSandboxAccountId(event.providerAccountId) ? event : { ...event, sessionId: undefined };
     const candidate = await this.eventAccount(environment, accountLookup, this.pool);
     if (!candidate) return 'unknown_account';
     return this.lock(environment, candidate.projectId, async (query) => {
       const record = await this.eventAccount(environment, event, query);
       if (!record || record.id !== candidate.id) return 'unknown_account';
+      const kind = record.payeeId ? 'consumer' : 'merchant';
+      if ((event.accountKind && event.accountKind !== kind) || (record.payeeId && environment !== 'test')) return 'unknown_account';
+      if (record.payeeId && event.event.type === 'activated'
+        && !['activation_pending', 'active'].includes(record.status)) return 'unknown_account';
       if (query) {
         const result = await query.query(
           `INSERT INTO shared_payment.linked_account_events (environment, provider_event_id, linked_account_id, type)
@@ -160,7 +183,15 @@ export class LinkedAccountStore {
       }
       const next = applyEvent(record, event.event);
       if (next !== record) await this.save({ ...record, ...next }, query);
-      if (query && event.event.type === 'activated' && next.status === 'active' && event.providerAccountId !== SANDBOX_MERCHANT_ID) {
+      if (record.payeeId) {
+        if (query && event.event.type === 'activated' && next.status === 'active' && event.event.wallet
+          && !isSandboxAccountId(event.providerAccountId) && this.allowTestWallet()) {
+          await attachConsumerWallet(query, record, event.event.wallet);
+        }
+        if (query && event.event.type === 'declined') await detachConsumerWallet(query, record);
+        return 'applied';
+      }
+      if (query && event.event.type === 'activated' && next.status === 'active' && !isSandboxAccountId(event.providerAccountId)) {
         await query.query(
           `INSERT INTO shared_payment.merchant_accounts AS account
             (environment, id, kind, wallet_account_number, wallet_account_name, linked_account_id)

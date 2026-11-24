@@ -2143,6 +2143,204 @@
         }
       }
     },
+    "/api/v1/payments/payees/{payeeId}/onboarding": {
+      "get": {
+        "operationId": "getPayeeOnboarding",
+        "description": "Reads the current wallet onboarding status in test. Requires payments:payouts:read.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PayeeOnboardingResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "startPayeeOnboarding",
+        "description": "Starts or resumes wallet onboarding in test. A newly issued hosted link is returned once. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayeeOnboardingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PayeeOnboardingResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payees/{payeeId}/onboarding/verification-link": {
+      "post": {
+        "operationId": "reissuePayeeOnboardingLink",
+        "description": "Issues a fresh hosted verification link in test. Use a new idempotency key to request a new link. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PayeeOnboardingResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payees/{payeeId}/onboarding/activate": {
+      "post": {
+        "operationId": "activatePayeeOnboarding",
+        "description": "Requests wallet activation after identity verification in test. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PayeeOnboardingResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v1/payments/payees/{payeeId}/cash-out": {
       "post": {
         "operationId": "cashOutPayee",
@@ -4826,6 +5024,36 @@
       }
     },
     "responses": {
+      "PayeeOnboardingResponse": {
+        "description": "Wallet onboarding status. Replays return the recorded result with verification set to null.",
+        "headers": {
+          "Cache-Control": {
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "success",
+                "data"
+              ],
+              "properties": {
+                "success": {
+                  "const": true
+                },
+                "data": {
+                  "$ref": "#/components/schemas/PayeeOnboarding"
+                }
+              }
+            }
+          }
+        }
+      },
       "BadRequest": {
         "description": "Invalid request",
         "content": {
@@ -5160,6 +5388,110 @@
           },
           "accountNumberLast4": {
             "type": "string"
+          }
+        }
+      },
+      "PayeeOnboardingInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "firstName",
+          "lastName",
+          "email"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "PayeeOnboarding": {
+        "type": "object",
+        "required": [
+          "onboardingId",
+          "status",
+          "nextAction",
+          "attempts",
+          "walletOnly",
+          "declineReason",
+          "verification"
+        ],
+        "properties": {
+          "onboardingId": {
+            "type": "string",
+            "pattern": "^lac_[A-Za-z0-9]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "created",
+              "details_submitted",
+              "verification_pending",
+              "verification_failed",
+              "manual_review",
+              "activation_pending",
+              "active",
+              "declined"
+            ]
+          },
+          "nextAction": {
+            "type": "string",
+            "enum": [
+              "create",
+              "submit_details",
+              "issue_verification_link",
+              "await_verification",
+              "reissue_verification_link",
+              "activate",
+              "await_activation",
+              "await_manual_review",
+              "none"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "walletOnly": {
+            "type": "boolean"
+          },
+          "declineReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "url",
+              "expiresAt"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
           }
         }
       },

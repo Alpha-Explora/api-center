@@ -19,6 +19,8 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- SDK 3.5.0 and contracts 1.4.0 add test payee wallet onboarding, hosted verification links and `payee.onboarding.updated`. The test feature defaults to off and requires migration `20261124001600`.
+
 - Projects can record who verified a payee, when, and how through `PUT /api/v1/payments/payees/{payeeId}/verification` and SDK 3.4.0. The payouts runtime can require that record with `PAYOUTS_REQUIRE_PAYEE_VERIFICATION=true`. Contracts are version 1.3.0.
 - The payouts console can preview linked-merchant onboarding in test behind environment and project switches. Collections and payouts retain their merchant account across project moves. Live onboarding is pending PayMongo verification.
 

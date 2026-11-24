@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: APICenter Payment Events
-  version: 2.2.0
+  version: 2.3.0
   description: >-
     Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the
     application that created the resource, and delivers it to that application's webhook as a signed
@@ -46,6 +46,8 @@ channels:
         $ref: '#/components/messages/PaymentPayoutPaid'
       PaymentPayoutFailed:
         $ref: '#/components/messages/PaymentPayoutFailed'
+      PayeeOnboardingUpdated:
+        $ref: '#/components/messages/PayeeOnboardingUpdated'
 operations:
   receivePaymentEvent:
     action: receive
@@ -58,6 +60,7 @@ operations:
       - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentAllocationHeld'
       - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentPayoutPaid'
       - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PaymentPayoutFailed'
+      - $ref: '#/channels/apicenter.payment-events.{environment}/messages/PayeeOnboardingUpdated'
 components:
   messages:
     PaymentCheckoutPaid:
@@ -130,7 +133,29 @@ components:
               eventType: { type: string, const: payment.payout.failed }
               aggregateType: { type: string, const: payout }
               data: { $ref: '#/components/schemas/PayoutFailed' }
+    PayeeOnboardingUpdated:
+      name: payee.onboarding.updated
+      title: Payee wallet onboarding updated
+      description: Test wallet onboarding status changed. The referenceId is the payee's externalRef.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/PaymentEvent'
+          - type: object
+            properties:
+              eventType: { type: string, const: payee.onboarding.updated }
+              environment: { type: string, const: test }
+              aggregateType: { type: string, const: payee_onboarding }
+              data: { $ref: '#/components/schemas/PayeeOnboardingUpdatedData' }
   schemas:
+    PayeeOnboardingUpdatedData:
+      type: object
+      additionalProperties: false
+      required: [onboardingId, payeeId, status, attempts]
+      properties:
+        onboardingId: { type: string, pattern: '^lac_[A-Za-z0-9]+$' }
+        payeeId: { type: string, pattern: '^pye_[A-Za-z0-9]+$' }
+        status: { type: string, enum: [draft, created, details_submitted, verification_pending, verification_failed, manual_review, activation_pending, active, declined] }
+        attempts: { type: integer, minimum: 0 }
     PaymentEvent:
       type: object
       required: [eventId, contractVersion, eventType, environment, organizationId, projectId, applicationId, referenceId, aggregateType, aggregateId, aggregateVersion, occurredAt, data]
@@ -143,7 +168,7 @@ components:
         projectId: { type: string }
         applicationId: { type: string, description: 'The application whose call created the resource.' }
         referenceId: { type: string, description: 'The reference the application gave the resource.' }
-        aggregateType: { type: string, enum: [checkout, payment_intent, refund, subscription, invoice, allocation, payout] }
+        aggregateType: { type: string, enum: [checkout, payment_intent, refund, subscription, invoice, allocation, payout, payee_onboarding] }
         aggregateId: { type: string }
         aggregateVersion: { type: integer, minimum: 1, description: 'Apply an event only when it is newer than the stored version.' }
         occurredAt: { type: string, format: date-time }

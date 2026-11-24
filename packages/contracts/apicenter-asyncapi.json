@@ -2,7 +2,7 @@
   "asyncapi": "3.1.0",
   "info": {
     "title": "APICenter Payment Events",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the application that created the resource, and delivers it to that application's webhook as a signed HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature)."
   },
   "defaultContentType": "application/json",
@@ -64,6 +64,9 @@
         },
         "PaymentPayoutFailed": {
           "$ref": "#/components/messages/PaymentPayoutFailed"
+        },
+        "PayeeOnboardingUpdated": {
+          "$ref": "#/components/messages/PayeeOnboardingUpdated"
         }
       }
     }
@@ -92,6 +95,9 @@
         },
         {
           "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PaymentPayoutFailed"
+        },
+        {
+          "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PayeeOnboardingUpdated"
         }
       ]
     }
@@ -263,9 +269,79 @@
             }
           ]
         }
+      },
+      "PayeeOnboardingUpdated": {
+        "name": "payee.onboarding.updated",
+        "title": "Payee wallet onboarding updated",
+        "description": "Test wallet onboarding status changed. The referenceId is the payee's externalRef.",
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/PaymentEvent"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "eventType": {
+                  "type": "string",
+                  "const": "payee.onboarding.updated"
+                },
+                "environment": {
+                  "type": "string",
+                  "const": "test"
+                },
+                "aggregateType": {
+                  "type": "string",
+                  "const": "payee_onboarding"
+                },
+                "data": {
+                  "$ref": "#/components/schemas/PayeeOnboardingUpdatedData"
+                }
+              }
+            }
+          ]
+        }
       }
     },
     "schemas": {
+      "PayeeOnboardingUpdatedData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "onboardingId",
+          "payeeId",
+          "status",
+          "attempts"
+        ],
+        "properties": {
+          "onboardingId": {
+            "type": "string",
+            "pattern": "^lac_[A-Za-z0-9]+$"
+          },
+          "payeeId": {
+            "type": "string",
+            "pattern": "^pye_[A-Za-z0-9]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "created",
+              "details_submitted",
+              "verification_pending",
+              "verification_failed",
+              "manual_review",
+              "activation_pending",
+              "active",
+              "declined"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "PaymentEvent": {
         "type": "object",
         "required": [
@@ -325,7 +401,8 @@
               "subscription",
               "invoice",
               "allocation",
-              "payout"
+              "payout",
+              "payee_onboarding"
             ]
           },
           "aggregateId": {

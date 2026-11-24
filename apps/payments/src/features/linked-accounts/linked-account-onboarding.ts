@@ -1,10 +1,10 @@
 import type { PoolClient } from 'pg';
 import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
-import { SANDBOX_MERCHANT_ID, type AccountEvent } from './account-events';
+import { isSandboxAccountId, type AccountEvent } from './account-events';
 import { lookupChildWallet } from './child-wallet';
 import { applyEvent, nextAction, type LifecycleEvent, type LinkedAccountStatus, type NextAction } from './linked-account-lifecycle';
-import { LinkedAccountStore, type LinkedAccountRecord } from './linked-account-store';
+import { LinkedAccountStore, type LinkedAccountContext, type LinkedAccountRecord } from './linked-account-store';
 import type { LinkedAccountsSwitch } from './linked-accounts-switch';
 import type { LinkedAccountsProvider, MerchantDetails, ProviderResult, VerificationLink } from './linked-accounts-provider';
 
@@ -28,9 +28,9 @@ function unwrap<T>(result: ProviderResult<T>): T {
   throw new PayMongoError('PayMongo declined the account operation', 422, 'LINKED_ACCOUNT_PROVIDER_REJECTED');
 }
 
-export class LinkedAccountOnboarding {
+export class LinkedAccountOnboarding<Details = MerchantDetails> {
   constructor(private readonly store: LinkedAccountStore, readonly switches: LinkedAccountsSwitch,
-    private readonly provider: LinkedAccountsProvider | null, private readonly now = () => new Date(),
+    private readonly provider: LinkedAccountsProvider<Details> | null, private readonly now = () => new Date(),
     private readonly hasChildWebhook = (_accountId: string) => false) {}
 
   get providerAvailable(): boolean {
@@ -45,16 +45,16 @@ export class LinkedAccountOnboarding {
       onboarding: record ? this.view(record) : null,
       providerAvailable: this.providerAvailable,
       collectionMoveAvailable: Boolean(record?.providerAccountId
-        && record.providerAccountId !== SANDBOX_MERCHANT_ID && this.hasChildWebhook(record.providerAccountId)),
+        && !isSandboxAccountId(record.providerAccountId) && this.hasChildWebhook(record.providerAccountId)),
     };
   }
 
-  async current(context: PaymentContext) {
+  async current(context: LinkedAccountContext) {
     const record = await this.store.current(context);
     return record ? this.view(record) : null;
   }
 
-  async start(context: PaymentContext, details: MerchantDetails) {
+  async start(context: LinkedAccountContext, details: Details) {
     await this.switches.assertEnabledFor(context.environment, context.projectId);
     const provider = this.requireProvider();
     const id = await this.ensureCreated(context, provider);
@@ -75,7 +75,7 @@ export class LinkedAccountOnboarding {
     });
   }
 
-  private async ensureCreated(context: PaymentContext, provider: LinkedAccountsProvider): Promise<string> {
+  private async ensureCreated(context: LinkedAccountContext, provider: LinkedAccountsProvider<Details>): Promise<string> {
     const { id, action } = await this.store.lock(context.environment, context.projectId, async (query) => {
       const record = await this.store.open(context, query);
       if (record.status !== 'draft') return { id: record.id, action: 'continue' as const };
@@ -100,7 +100,7 @@ export class LinkedAccountOnboarding {
     return id;
   }
 
-  async reissueVerificationLink(context: PaymentContext, id: string, requestKey: string) {
+  async reissueVerificationLink(context: LinkedAccountContext, id: string, requestKey: string) {
     await this.switches.assertEnabledFor(context.environment, context.projectId);
     const provider = this.requireProvider();
     return this.store.lock(context.environment, context.projectId, async (query) => {
@@ -111,12 +111,13 @@ export class LinkedAccountOnboarding {
       if (!record.providerAccountId || !['details_submitted', 'verification_pending', 'verification_failed'].includes(record.status)) {
         throw this.invalidState();
       }
-      const link = unwrap(await provider.issueVerificationLink(record.providerAccountId, requestKey));
+      const link = unwrap(await provider.issueVerificationLink(record.providerAccountId,
+        record.payeeId ? `${record.id}:reissue:${requestKey}` : requestKey));
       return this.recordLink(record, link, query);
     });
   }
 
-  async advance(context: PaymentContext, id: string) {
+  async advance(context: LinkedAccountContext, id: string) {
     await this.switches.assertEnabledFor(context.environment, context.projectId);
     const provider = this.requireProvider();
     return this.store.lock(context.environment, context.projectId, async (query) => {
@@ -125,10 +126,10 @@ export class LinkedAccountOnboarding {
       const action = nextAction(record, this.now());
       if (action === 'activate') {
         unwrap(await provider.activate(record.providerAccountId));
-        record = record.providerAccountId === SANDBOX_MERCHANT_ID
+        record = isSandboxAccountId(record.providerAccountId)
           ? await this.update(record, { type: 'activated', wallet: null }, query)
           : await this.update(record, { type: 'activation_requested' }, query);
-      } else if (action === 'request_payment_methods' && record.providerAccountId !== SANDBOX_MERCHANT_ID) {
+      } else if (action === 'request_payment_methods' && !record.payeeId && !isSandboxAccountId(record.providerAccountId)) {
         unwrap(await provider.requestPaymentMethods(record.providerAccountId));
         record = await this.update(record, { type: 'payment_methods_requested' }, query);
       }
@@ -161,7 +162,7 @@ export class LinkedAccountOnboarding {
 
   private movableAccount(record: LinkedAccountRecord) {
     const accountId = record.providerAccountId;
-    if (record.status !== 'active' || !accountId || accountId === SANDBOX_MERCHANT_ID || record.walletOnly) {
+    if (record.status !== 'active' || !accountId || isSandboxAccountId(accountId) || record.walletOnly) {
       throw this.invalidState();
     }
     if (!this.hasChildWebhook(accountId)) {
@@ -177,7 +178,7 @@ export class LinkedAccountOnboarding {
     });
   }
 
-  private async owned(context: PaymentContext, id: string, query?: PoolClient) {
+  private async owned(context: LinkedAccountContext, id: string, query?: PoolClient) {
     const record = await this.store.current(context, query);
     if (!record || record.id !== id) throw new PayMongoError('Linked account not found', 404, 'LINKED_ACCOUNT_NOT_FOUND');
     return record;
@@ -199,13 +200,13 @@ export class LinkedAccountOnboarding {
   private view(record: LinkedAccountRecord, link?: VerificationLink): OnboardingView {
     const action = nextAction(record, this.now());
     return { id: record.id, status: record.status,
-      nextAction: action === 'request_payment_methods' && record.providerAccountId === SANDBOX_MERCHANT_ID ? 'none' : action,
+      nextAction: action === 'request_payment_methods' && (record.payeeId || isSandboxAccountId(record.providerAccountId)) ? 'none' : action,
       attempts: record.attempts,
       walletOnly: record.walletOnly, declineReason: record.declineReason,
       verification: link ? { url: link.url, expiresAt: link.expiresAt.toISOString() } : null };
   }
 
-  private requireProvider(): LinkedAccountsProvider {
+  private requireProvider(): LinkedAccountsProvider<Details> {
     if (!this.provider) {
       throw new PayMongoError('PayMongo linked-account onboarding is awaiting provider verification', 503, 'LINKED_ACCOUNTS_PROVIDER_UNVERIFIED');
     }

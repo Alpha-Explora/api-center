@@ -98,6 +98,33 @@ describe('PaymentsController', () => {
     } as any);
   });
 
+  it('returns a hosted payee verification link once and removes it from idempotency replays', async () => {
+    const controller = createController();
+    applications.authorizeAction.mockResolvedValue(authorized('payments:payouts:write'));
+    const verification = { url: 'https://identity.example.test/session-token', expiresAt: '2026-11-25T00:00:00Z' };
+    mockedAxios.request.mockResolvedValueOnce({ status: 200, data: { success: true, data: {
+      id: 'lac_abc', status: 'verification_pending', nextAction: 'await_verification', attempts: 0,
+      walletOnly: false, declineReason: null, verification, providerAccountId: 'org_internal',
+    } } });
+    const req = request('/payees/pye_1/onboarding', 'POST',
+      { firstName: 'Test', lastName: 'Payee', email: 'payee@example.test' });
+    const first = response();
+    const replay = response();
+    await controller.proxy(req, first.res);
+    await controller.proxy(req, replay.res);
+
+    const runtimeRequest = mockedAxios.request.mock.calls[0]?.[0];
+    expect(runtimeRequest?.url).toContain('/payouts/payees/pye_1/onboarding');
+    expect(mockedAxios.request).toHaveBeenCalledTimes(1);
+    expect(first.state.headers['Cache-Control']).toBe('no-store');
+    expect(replay.state.headers).toMatchObject({ 'Cache-Control': 'no-store', 'x-idempotency-replayed': 'true' });
+    expect(JSON.parse(String(first.state.body)).data).toMatchObject({ verification });
+    expect(JSON.parse(String(replay.state.body)).data).toEqual({
+      onboardingId: 'lac_abc', status: 'verification_pending', nextAction: 'await_verification', attempts: 0,
+      walletOnly: false, declineReason: null, verification: null,
+    });
+  });
+
   it.each([
     ['POST', '/checkouts', { referenceId: 'order-123', amount: { amountMinor: 39900, currency: 'PHP' }, successUrl: 'https://app.test/success', cancelUrl: 'https://app.test/cancel' }],
     ['GET', '/checkouts/chk_123', undefined],

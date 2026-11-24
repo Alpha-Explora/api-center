@@ -14,16 +14,22 @@ export const merchantDetailsInput = z.object({
 }).strict();
 
 export type MerchantDetails = z.infer<typeof merchantDetailsInput>;
+export const consumerDetailsInput = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  email: z.email(),
+}).strict();
+export type ConsumerDetails = z.infer<typeof consumerDetailsInput>;
 export type ProviderResult<T> = { kind: 'ok'; value: T }
   | { kind: 'rejected'; code: string; message: string; retryAfter?: number }
   | { kind: 'unknown' };
 
 export type VerificationLink = { url: string; expiresAt: Date; sessionId: string };
 
-export interface LinkedAccountsProvider {
+export interface LinkedAccountsProvider<Details = MerchantDetails> {
   create(reference: string): Promise<ProviderResult<{ providerAccountId: ProviderAccountId }>>;
   findByReference(reference: string): Promise<ProviderResult<{ providerAccountId: ProviderAccountId } | null>>;
-  submitDetails(id: ProviderAccountId, details: MerchantDetails): Promise<ProviderResult<void>>;
+  submitDetails(id: ProviderAccountId, details: Details): Promise<ProviderResult<void>>;
   issueVerificationLink(id: ProviderAccountId, requestKey: string): Promise<ProviderResult<VerificationLink>>;
   activate(id: ProviderAccountId): Promise<ProviderResult<void>>;
   requestPaymentMethods(id: ProviderAccountId): Promise<ProviderResult<void>>;

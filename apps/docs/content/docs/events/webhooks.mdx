@@ -59,6 +59,7 @@ Without the SDK, any Standard Webhooks library works. To verify by hand: decode 
 | `payment.allocation.held` | A payee's share of a payment is held until you release it. See [payouts](/guides/payments/payouts). | `status: "held"`, `allocationId`, `payeeId`, `paymentId`, `amount`, `currency` |
 | `payment.payout.paid` | A payout reached the payee. `referenceId` is the payee's `externalRef`. | `status: "paid"`, `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger` |
 | `payment.payout.failed` | A payout did not go through; the earnings return to the payee's balance. | `status: "failed"`, `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger`, `failureCode` |
+| `payee.onboarding.updated` | A payee's test wallet onboarding status changed. | `onboardingId`, `payeeId`, `status`, `attempts` |
 
 Intent events have `aggregateType: "payment_intent"`. APICenter does not send an event when a checkout or intent expires or is abandoned; read it to see its current status.
 
