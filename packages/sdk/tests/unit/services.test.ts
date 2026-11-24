@@ -57,6 +57,23 @@ describe('shared services', () => {
 });
 
 describe('payments', () => {
+  it('starts, reads, reissues and activates payee onboarding over the published routes', async () => {
+    const { api, calls } = recorder();
+    const payees = api.payments.payees;
+    const details = { firstName: 'Test', lastName: 'Payee', email: 'payee@example.test' };
+    await payees.startOnboarding('pye_1', details);
+    await payees.getOnboarding('pye_1');
+    await payees.reissueOnboardingLink('pye_1');
+    await payees.activateOnboarding('pye_1');
+    expect(calls.map(({ method, path, write }) => [method, path, write])).toEqual([
+      ['POST', '/api/v1/payments/payees/pye_1/onboarding', true],
+      ['GET', '/api/v1/payments/payees/pye_1/onboarding', false],
+      ['POST', '/api/v1/payments/payees/pye_1/onboarding/verification-link', true],
+      ['POST', '/api/v1/payments/payees/pye_1/onboarding/activate', true],
+    ]);
+    expect(calls[0].body).toEqual(details);
+  });
+
   it('maps resources to the published routes', async () => {
     const { api, calls } = recorder();
     const p = api.payments;

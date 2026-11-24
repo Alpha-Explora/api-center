@@ -1,0 +1,20 @@
+{
+  "eventId": "evt_payee_wallet_01",
+  "contractVersion": "2.0",
+  "eventType": "payee.onboarding.updated",
+  "environment": "test",
+  "organizationId": "9cb3f8a4-0a56-4c61-a087-6abd02a9e1f0",
+  "projectId": "prj_exampleexampleexample01",
+  "applicationId": "app_exampleexampleexample01",
+  "referenceId": "PROVIDER-0042",
+  "aggregateType": "payee_onboarding",
+  "aggregateId": "lac_7ed2c90258bd4cb29716cc46cc4019dd",
+  "aggregateVersion": 4,
+  "occurredAt": "2026-11-24T08:05:20.000Z",
+  "data": {
+    "onboardingId": "lac_7ed2c90258bd4cb29716cc46cc4019dd",
+    "payeeId": "pye_8a1b2c3d4e5f6a7b8c9d0e1f",
+    "status": "activation_pending",
+    "attempts": 0
+  }
+}

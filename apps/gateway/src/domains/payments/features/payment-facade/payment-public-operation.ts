@@ -41,6 +41,11 @@ const schemas = {
   paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().trim().min(1).max(255),
     remarks: z.string().max(255).optional(), metadata: z.record(z.string(), z.string()).optional(), allocations }),
   payee: z.object({ externalRef: z.string().trim().min(1).max(120), legalName: z.string().trim().min(1).max(200) }).strict(),
+  payeeOnboarding: z.object({
+    firstName: z.string().trim().min(1).max(100),
+    lastName: z.string().trim().min(1).max(100),
+    email: z.email(),
+  }).strict(),
   payeeVerification: z.object({
     verifiedBy: z.string().trim().min(1).max(200),
     verifiedAt: z.iso.datetime({ offset: true }),
@@ -67,7 +72,7 @@ const schemas = {
 
 type Shape = keyof typeof schemas;
 type Resource = 'checkout' | 'intent' | 'qrph' | 'payment_link' | 'customer' | 'plan' | 'refund' | 'subscription' | 'invoice'
-  | 'payee' | 'allocation' | 'payout' | 'capabilities' | 'records';
+  | 'payee' | 'payeeOnboarding' | 'allocation' | 'payout' | 'capabilities' | 'records';
 type Operation = { method: string; pattern: RegExp; scope: string; target: (match: RegExpMatchArray) => string;
   resource: Resource; shape?: Shape };
 
@@ -102,6 +107,9 @@ const operations: Operation[] = [
   { method: 'GET', pattern: /^\/payees$/, scope: 'payments:payouts:read', target: () => '/payouts/payees', resource: 'payee' },
   { method: 'PUT', pattern: /^\/payees\/([^/]+)\/destination$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/destination`, resource: 'payee', shape: 'destination' },
   { method: 'PUT', pattern: /^\/payees\/([^/]+)\/verification$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/verification`, resource: 'payee', shape: 'payeeVerification' },
+  { method: 'GET', pattern: /^\/payees\/(pye_[A-Za-z0-9]+)\/onboarding$/, scope: 'payments:payouts:read', target: (m) => `/payouts/payees/${m[1]}/onboarding`, resource: 'payeeOnboarding' },
+  { method: 'POST', pattern: /^\/payees\/(pye_[A-Za-z0-9]+)\/onboarding$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/onboarding`, resource: 'payeeOnboarding', shape: 'payeeOnboarding' },
+  { method: 'POST', pattern: /^\/payees\/(pye_[A-Za-z0-9]+)\/onboarding\/(verification-link|activate)$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/onboarding/${m[2]}`, resource: 'payeeOnboarding', shape: 'empty' },
   { method: 'POST', pattern: /^\/payees\/([^/]+)\/cash-out$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/cash-out`, resource: 'payout', shape: 'empty' },
   { method: 'GET', pattern: /^\/payees\/([^/]+)$/, scope: 'payments:payouts:read', target: (m) => `/payouts/payees/${m[1]}`, resource: 'payee' },
   { method: 'POST', pattern: /^\/allocations\/([^/]+)\/release$/, scope: 'payments:payouts:write', target: (m) => `/payouts/allocations/${m[1]}/release`, resource: 'allocation', shape: 'empty' },
@@ -227,7 +235,7 @@ function withAllocations<T extends Record<string, unknown>>(view: T, raw: Record
 }
 
 /** Project a runtime result onto the provider-neutral public payment response shape. */
-export function paymentResponseBody(resource: Resource, upstream: unknown): unknown {
+export function paymentResponseBody(resource: Resource, upstream: unknown, includeHostedVerification = true): unknown {
   if (!upstream || typeof upstream !== 'object') return upstream;
   const envelope = upstream as { success?: boolean; data?: unknown; error?: unknown };
   if (!envelope.success || !envelope.data) return upstream;
@@ -244,6 +252,11 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
         clientKey: raw.clientKey, nextAction: raw.nextAction, paymentMethod: raw.paymentMethod,
         lastPaymentError: raw.lastPaymentError }, raw);
       case 'payee': return publicPayee(raw);
+      case 'payeeOnboarding': return {
+        onboardingId: raw.id, status: raw.status, nextAction: raw.nextAction,
+        attempts: raw.attempts, walletOnly: raw.walletOnly, declineReason: raw.declineReason,
+        verification: includeHostedVerification ? raw.verification : null,
+      };
       case 'allocation': return publicAllocation(raw);
       case 'payout': return publicPayout(raw);
       case 'qrph': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId, status: raw.status,

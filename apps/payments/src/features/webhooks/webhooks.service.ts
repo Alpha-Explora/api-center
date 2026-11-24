@@ -72,7 +72,7 @@ export class WebhooksService {
     if (accountEvent && this.onboarding) {
       const result = await this.onboarding.applyProviderEvent(environment, accountEvent);
       return { event: result === 'unknown_account' ? 'ignored' : result,
-        data: { eventType, updated: result === 'applied' ? 1 : 0 } };
+        data: { eventType, updated: result === 'applied' ? 1 : 0, queued: result === 'applied' } };
     }
     if (eventType === 'payment.refund.updated' || eventType === 'payment.refunded') {
       return this.processRefundWebhook({ providerEventId, eventType, resourceData, environment, rawBody: options.rawBody, accountId });

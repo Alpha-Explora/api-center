@@ -14,11 +14,17 @@ Payouts send payees' pooled earnings from the wallet that holds each allocation.
 
 ## Onboarding a project’s account
 
-Apply migrations `20261124001300` through `20261124001500` after the payout migration. Schedule `20261124001300` during a low-traffic window because it holds an exclusive lock on `shared_payment.resource_owners` while rebuilding its provider-reference index. The migration gives up after 10 seconds if it cannot acquire the lock.
+Apply migrations `20261124001300` through `20261124001600` after the payout migration and before updating the payments runtime. Schedule `20261124001300` during a low-traffic window because it holds an exclusive lock on `shared_payment.resource_owners` while rebuilding its provider-reference index. The migration gives up after 10 seconds if it cannot acquire the lock.
 
 Start with `LINKED_ACCOUNTS_ENABLED` and `PAYOUTS_REQUIRE_PAYEE_VERIFICATION` unset. For sandbox work, enable the linked-account runtime switch in test and enable the project in **Payouts → Project merchant account**. Each project can keep its own onboarding record even when PayMongo returns a shared merchant ID. Use the local mock provider to exercise the full verification flow. The PayMongo sandbox returns a placeholder URL. Test and live each use their existing parent webhook secret. A signed test identity event may carry `livemode: true`.
 
 An uncertain create keeps its original reference. Retry from the same onboarding record to attempt reconciliation before closing it or starting another onboarding. A successful callback can complete verification for an older recorded session. Only a failure from the current session counts toward the attempt limit. Migration `20261124001500` preserves the existing current session and records each new session from then on.
+
+## Testing payee wallet onboarding
+
+Set `PAYEE_WALLET_ONBOARDING_ENABLED=true` and `LINKED_ACCOUNTS_ENABLED=true` on the test payments runtime and enable linked accounts for the test project. Use a database-backed runtime with mock payments to exercise signed identity and activation events and attach a test wallet. The PayMongo sandbox returns fixture account IDs and placeholder URLs. Only an unambiguous recorded session can identify a payee behind a shared sandbox ID.
+
+Use the payee's `externalRef` and onboarding ID to correlate `payee.onboarding.updated` events with payout records. A signed decline removes the wallet attached by onboarding. An explicit destination change remains in effect. The existing payout hold and project verification setting still apply. Keep the feature disabled for live while the [provider rollout conditions](../superpowers/plans/2026-11-24-linked-accounts.md#phase-b-payee-consumer-wallets) are open.
 
 ## Moving and offboarding a project
 

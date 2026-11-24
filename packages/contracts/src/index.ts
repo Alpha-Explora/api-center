@@ -672,6 +672,27 @@ export interface RecordPayeeVerificationInput {
 
 export type PayeeVerification = RecordPayeeVerificationInput & { reference: string | null };
 
+export interface PayeeOnboardingInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export type PayeeOnboardingStatus = 'draft' | 'created' | 'details_submitted' | 'verification_pending'
+  | 'verification_failed' | 'manual_review' | 'activation_pending' | 'active' | 'declined';
+
+export interface PayeeOnboarding {
+  onboardingId: string;
+  status: PayeeOnboardingStatus;
+  nextAction: 'create' | 'submit_details' | 'issue_verification_link' | 'await_verification' | 'reissue_verification_link'
+    | 'activate' | 'await_activation' | 'await_manual_review' | 'none';
+  attempts: number;
+  walletOnly: boolean;
+  declineReason: string | null;
+  /** Available only when the API issues a fresh link. */
+  verification: { url: string; expiresAt: string } | null;
+}
+
 export interface Payee {
   payeeId: string;
   externalRef: string;

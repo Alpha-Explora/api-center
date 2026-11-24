@@ -1,3 +1,4 @@
+import type { PayeeOnboardingStatus } from '@alpha-explora/apicenter-contracts';
 import { z } from 'zod';
 
 // Payment event contract 2.0. Every event names the organization, project and application it
@@ -103,6 +104,21 @@ const PayoutFailedEventSchema = z.object({
   data: z.object({ status: z.literal('failed'), ...payout, failureCode: z.string().optional() }).passthrough(),
 });
 
+/** A payee's wallet onboarding status changed. referenceId is the payee's externalRef. */
+const PayeeOnboardingUpdatedEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payee.onboarding.updated'),
+  environment: z.literal('test'),
+  aggregateType: z.literal('payee_onboarding'),
+  data: z.object({
+    status: z.enum(['draft', 'created', 'details_submitted', 'verification_pending',
+      'verification_failed', 'manual_review', 'activation_pending', 'active', 'declined']) satisfies z.ZodType<PayeeOnboardingStatus>,
+    payeeId: z.string().regex(/^pye_[A-Za-z0-9]+$/),
+    onboardingId: z.string().regex(/^lac_[A-Za-z0-9]+$/),
+    attempts: z.number().int().nonnegative(),
+  }),
+});
+
 /** An event type this SDK version does not know yet. Acknowledge it; upgrade to read it. */
 const UnrecognizedEventSchema = z.object({
   ...envelope,
@@ -117,6 +133,7 @@ export type IntentFailedEvent = z.infer<typeof IntentFailedEventSchema>;
 export type AllocationHeldEvent = z.infer<typeof AllocationHeldEventSchema>;
 export type PayoutPaidEvent = z.infer<typeof PayoutPaidEventSchema>;
 export type PayoutFailedEvent = z.infer<typeof PayoutFailedEventSchema>;
+export type PayeeOnboardingUpdatedEvent = z.infer<typeof PayeeOnboardingUpdatedEventSchema>;
 export type UnrecognizedPaymentEvent = Omit<z.infer<typeof UnrecognizedEventSchema>, 'eventType'> & {
   eventType: 'unrecognized';
   /** The event type as sent. */
@@ -124,7 +141,7 @@ export type UnrecognizedPaymentEvent = Omit<z.infer<typeof UnrecognizedEventSche
 };
 /** Narrow on `eventType`: `if (event.eventType === 'payment.checkout.paid') { event.data.amount … }`. */
 export type PaymentEvent = CheckoutPaidEvent | IntentPaidEvent | IntentFailedEvent | AllocationHeldEvent | PayoutPaidEvent
-  | PayoutFailedEvent | UnrecognizedPaymentEvent;
+  | PayoutFailedEvent | PayeeOnboardingUpdatedEvent | UnrecognizedPaymentEvent;
 
 const KNOWN = {
   'payment.checkout.paid': CheckoutPaidEventSchema,
@@ -133,6 +150,7 @@ const KNOWN = {
   'payment.allocation.held': AllocationHeldEventSchema,
   'payment.payout.paid': PayoutPaidEventSchema,
   'payment.payout.failed': PayoutFailedEventSchema,
+  'payee.onboarding.updated': PayeeOnboardingUpdatedEventSchema,
 } as const;
 
 /** Validates a contract 2.0 payment event. Throws a ZodError for anything malformed. */
@@ -145,4 +163,5 @@ export function parsePaymentEvent(input: unknown): PaymentEvent {
 }
 
 export const PaymentEventSchema = z.union([CheckoutPaidEventSchema, IntentPaidEventSchema, IntentFailedEventSchema,
-  AllocationHeldEventSchema, PayoutPaidEventSchema, PayoutFailedEventSchema, UnrecognizedEventSchema]);
+  AllocationHeldEventSchema, PayoutPaidEventSchema, PayoutFailedEventSchema, PayeeOnboardingUpdatedEventSchema,
+  UnrecognizedEventSchema]);

@@ -29,7 +29,7 @@ The payouts plan's merchant-account resolver stays the only reader of `project_m
 
 **Phases:**
 - **Phase A (Tasks 15 to 25):** account lifecycle, sandbox provider, console, webhook ingress, collection routing, multi-account payouts and the payee verification record are implemented on `feat/linked-accounts`. Live onboarding and capability provisioning remain open. Both linked-account switches default off.
-- **Phase B (held):** payee (consumer) child accounts as an optional destination type. Not planned in detail until PayMongo answers the questions in [Phase B](#phase-b-held-payee-consumer-accounts).
+- **Phase B:** test payee (consumer) onboarding and optional wallet destinations. The [Phase B rollout conditions](#phase-b-payee-consumer-wallets) apply before live use.
 
 ## Responsibilities
 
@@ -464,14 +464,17 @@ Deployment needs the user's approval. In order:
 4. Live, only after the PayMongo blockers clear: enable Serbizio alone, make the approved ₱1 transfer from its child account, then move it.
 5. Turn on `PAYOUTS_REQUIRE_PAYEE_VERIFICATION` in live only if the lawyer requires it.
 
-## Phase B (held): payee consumer accounts
+## Phase B: payee consumer wallets
 
-Not planned in detail. A payee consumer account would be an optional destination type a project chooses: APICenter creates a sibling consumer account under the parent, the payee passes the hosted ID check, and payouts go by `paymongo`-rail transfer to its wallet.
+A project can choose a linked consumer wallet for a payee. APICenter manages the account lifecycle. PayMongo hosts identity capture and the project decides eligibility. The first implementation serves the test environment behind the linked-account switches and `PAYEE_WALLET_ONBOARDING_ENABLED`, which defaults to off.
 
-Start Phase B only when PayMongo has answered:
-- Can a consumer withdraw from their wallet themselves, or must APICenter build the withdrawal?
-- What does each hop cost (parent or child wallet to consumer wallet, then wallet to bank or GCash)?
-- What are the wallet's balance and monthly limits, including for wallet-only accounts?
-- Can one person's ID verify more than one consumer account?
+The test Accounts API returned HTTP 201 with the shared `org_test_consumer` ID. The details update, identity verification and activation APIs returned HTTP 200. Verification returned a session ID, a placeholder URL and an integer expiry timestamp. Use a mock for the end-to-end identity and payout path. [PayMongo Accounts sandbox](https://docs.paymongo.com/docs/onboarding-aas-testing)
 
-What Phase B would add: the consumer kind in the lifecycle and schema (one open account per payee), `consumer.activated|declined` webhooks, a `provider_wallet` destination set on activation (with the 24-hour hold), the public `/payees/{payeeId}/onboarding` operations with a `payee.onboarding.updated` event, and SDK methods. Age and eligibility stay the project's rules; APICenter passes PayMongo's reason through.
+Before live use, confirm that API-created consumer accounts can access their own Dashboard or app, the account-specific cost of each transfer hop, the limits of the wallet PayMongo provisions, and whether one person's ID can verify multiple children. PayMongo publishes separate limits for closed-loop and enabled wallets. Its Dashboard guide lists internal wallet transfers as free and the disbursements guide lists standard external-rail rates. Those publications do not establish the contract for this project's linked API transfers. [Wallet limits](https://docs.paymongo.com/docs/money-movement-wallets) · [Dashboard transfers](https://docs.paymongo.com/docs/money-movement-moving-money-using-your-paymongo-dashboard) · [Disbursements](https://docs.paymongo.com/docs/money-movement-disbursements)
+
+Confirm which required activation fields the hosted flow supplies and which remaining fields PayMongo needs from the application. The sandbox's successful activation does not prove live requirements are met. [PayMongo Accounts API](https://docs.paymongo.com/reference/accounts)
+
+1. Extend the merchant lifecycle and storage to keep a separate onboarding record per payee. Accept signed consumer activation and decline events and associate verification updates by recorded session.
+2. Expose payout-scoped start, read, reissue and activation operations. A hosted URL is returned once and omitted from the gateway's stored replay response.
+3. Set a verified wallet destination with the existing 24-hour hold. Preserve a destination changed since onboarding began. A decline detaches only an APICenter-managed destination. Publish `payee.onboarding.updated` through the payment event outbox.
+4. Verify two isolated payees, provider event replay, detachment on decline, preservation of a manual destination, persistence and signed API integration. Keep placeholder sandbox wallets out of routing and leave live provisioning and real transfer verification open.

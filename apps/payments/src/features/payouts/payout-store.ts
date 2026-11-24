@@ -86,9 +86,10 @@ export type PayoutRecord = {
 };
 
 export type PayoutStoreEvent = {
-  eventType: 'payment.allocation.held' | 'payment.payout.paid' | 'payment.payout.failed';
-  aggregateType: 'allocation' | 'payout';
+  eventType: 'payment.allocation.held' | 'payment.payout.paid' | 'payment.payout.failed' | 'payee.onboarding.updated';
+  aggregateType: 'allocation' | 'payout' | 'payee_onboarding';
   aggregateId: string;
+  aggregateVersion?: number;
   organizationId: string;
   projectId: string;
   consumerServiceId: string;
@@ -174,7 +175,7 @@ export type RefundFact = { paymentId: string; refundId: string; refunded: Centav
 
 export interface PayoutStore {
   upsertPayee(context: PayoutContext, input: { externalRef: string; legalName: string }): Promise<{ payee: Payee; created: boolean }>;
-  getPayee(environment: Environment, projectId: string, payeeId: string): Promise<Payee | null>;
+  getPayee(environment: Environment, projectId: string, payeeId: string, organizationId?: string): Promise<Payee | null>;
   findPayees(environment: Environment, projectId: string, payeeIds: string[]): Promise<Payee[]>;
   /**
    * Holds the allocations of a resource that was just paid (copying a payment link's templates per
@@ -337,9 +338,10 @@ export class MemoryPayoutStore implements PayoutStore {
     return { payee: publicPayee(payee), created: true };
   }
 
-  async getPayee(environment: Environment, projectId: string, payeeId: string) {
+  async getPayee(environment: Environment, projectId: string, payeeId: string, organizationId?: string) {
     const payee = this.payees.get(payeeId);
-    return payee && payee.environment === environment && payee.projectId === projectId ? publicPayee(payee) : null;
+    return payee && payee.environment === environment && payee.projectId === projectId
+      && (organizationId === undefined || payee.organizationId === organizationId) ? publicPayee(payee) : null;
   }
 
   async findPayees(environment: Environment, projectId: string, payeeIds: string[]) {
@@ -741,10 +743,11 @@ export class PostgresPayoutStore implements PayoutStore {
     return { payee: payeeRow(existing.rows[0]), created: false };
   }
 
-  async getPayee(environment: Environment, projectId: string, payeeId: string) {
+  async getPayee(environment: Environment, projectId: string, payeeId: string, organizationId?: string) {
     const result = await this.pool.query(
-      `SELECT ${PAYEE_COLUMNS} FROM shared_payment.payees WHERE environment = $1 AND project_id = $2 AND id = $3`,
-      [environment, projectId, payeeId],
+      `SELECT ${PAYEE_COLUMNS} FROM shared_payment.payees WHERE environment = $1 AND project_id = $2 AND id = $3
+        AND ($4::text IS NULL OR organization_id = $4)`,
+      [environment, projectId, payeeId, organizationId ?? null],
     );
     return result.rows[0] ? payeeRow(result.rows[0]) : null;
   }
@@ -834,7 +837,8 @@ export class PostgresPayoutStore implements PayoutStore {
       if (!current.rows[0]) return null;
       if (sameDestination(current.rows[0].destination, destination)) return payeeRow(current.rows[0]);
       const updated = await client.query(
-        `UPDATE shared_payment.payees SET destination = $2::jsonb, destination_hold_until = $3, updated_at = now()
+        `UPDATE shared_payment.payees SET destination = $2::jsonb, destination_hold_until = $3,
+          linked_wallet_onboarding_id = NULL, updated_at = now()
          WHERE id = $1 RETURNING ${PAYEE_COLUMNS}`,
         [payeeId, JSON.stringify(normalizeDestination(destination)), new Date(now.getTime() + DESTINATION_HOLD_MS)],
       );
@@ -1197,16 +1201,17 @@ async function voidClawbacks(client: Pick<PoolClient, 'query'>, allocationId: st
 
 /** Queues a payout-feature event in the payment event outbox, keyed so each event is queued once. */
 export async function insertOutbox(client: Pick<PoolClient, 'query'>, environment: Environment, event: PayoutStoreEvent): Promise<void> {
+  const eventKey = `${event.eventType}:${event.aggregateId}${event.aggregateVersion === undefined ? '' : `:${event.aggregateVersion}`}`;
   await client.query(
     `INSERT INTO shared_payment.payment_event_outbox
        (environment, provider, provider_event_id, event_type, aggregate_type, aggregate_id, aggregate_version, payload,
         owner_tribe_id, project_id, consumer_service_id, reference_id)
-     VALUES ($1, 'apicenter', $2, $3, $4, $5, 1, $6::jsonb, $7, $8, $9, $10)
+     VALUES ($1, 'apicenter', $2, $3, $4, $5, $11, $6::jsonb, $7, $8, $9, $10)
      ON CONFLICT (environment, provider, provider_event_id) DO NOTHING`,
-    [environment, `${event.eventType}:${event.aggregateId}`, event.eventType, event.aggregateType, event.aggregateId,
+    [environment, eventKey, event.eventType, event.aggregateType, event.aggregateId,
       JSON.stringify({ ...event.payload, referenceId: event.referenceId, ownerTribeId: event.organizationId,
         ownerProjectId: event.projectId, consumerServiceId: event.consumerServiceId }),
-      event.organizationId, event.projectId, event.consumerServiceId, event.referenceId],
+      event.organizationId, event.projectId, event.consumerServiceId, event.referenceId, event.aggregateVersion ?? 1],
   );
 }
 

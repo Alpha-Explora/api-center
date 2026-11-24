@@ -54,6 +54,10 @@ const requiredOperations: Record<string, string> = {
   'GET /api/v1/payments/payees/{payeeId}': 'getPayee',
   'PUT /api/v1/payments/payees/{payeeId}/destination': 'setPayeeDestination',
   'PUT /api/v1/payments/payees/{payeeId}/verification': 'recordPayeeVerification',
+  'GET /api/v1/payments/payees/{payeeId}/onboarding': 'getPayeeOnboarding',
+  'POST /api/v1/payments/payees/{payeeId}/onboarding': 'startPayeeOnboarding',
+  'POST /api/v1/payments/payees/{payeeId}/onboarding/verification-link': 'reissuePayeeOnboardingLink',
+  'POST /api/v1/payments/payees/{payeeId}/onboarding/activate': 'activatePayeeOnboarding',
   'POST /api/v1/payments/payees/{payeeId}/cash-out': 'cashOutPayee',
   'POST /api/v1/payments/allocations/{allocationId}/release': 'releaseAllocation',
   'POST /api/v1/payments/allocations/{allocationId}/cancel': 'cancelAllocation',
@@ -109,6 +113,7 @@ const examplePaths = [
   'contracts/public/examples/payment-allocation-held-event.json',
   'contracts/public/examples/payment-payout-paid-event.json',
   'contracts/public/examples/payment-payout-failed-event.json',
+  'contracts/public/examples/payee-onboarding-updated-event.json',
 ];
 for (const relativePath of examplePaths) {
   const example = readJson(relativePath);

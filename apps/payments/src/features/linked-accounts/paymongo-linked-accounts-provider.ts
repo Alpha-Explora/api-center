@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { PayMongoError } from '../../shared/payment-errors';
 import { paymongoRequest, stepIdempotencyKey } from '../../shared/paymongo-client';
-import { SANDBOX_MERCHANT_ID } from './account-events';
+import { SANDBOX_CONSUMER_ID, SANDBOX_MERCHANT_ID } from './account-events';
 import type { ProviderAccountId } from './linked-account-lifecycle';
-import type { LinkedAccountsProvider, MerchantDetails, ProviderResult } from './linked-accounts-provider';
+import type { ConsumerDetails, LinkedAccountsProvider, MerchantDetails, ProviderResult } from './linked-accounts-provider';
 
-const created = z.object({ data: z.object({ id: z.literal(SANDBOX_MERCHANT_ID), type: z.literal('merchant') }) });
+const created = z.object({ data: z.object({ id: z.union([z.literal(SANDBOX_MERCHANT_ID), z.literal(SANDBOX_CONSUMER_ID)]),
+  type: z.enum(['merchant', 'consumer']) }) });
 const expiresAt = z.union([
   z.iso.datetime({ offset: true }).transform((value) => new Date(value)),
   z.number().int().nonnegative().max(253_402_300_799).transform((value) => new Date(value * 1000)),
@@ -26,16 +27,22 @@ const volumeBands = [
 ] as const;
 
 /** The Accounts sandbox returns a shared static reference and does not create a wallet. */
-export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider {
-  constructor(private readonly request = paymongoRequest) {}
+export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider<MerchantDetails | ConsumerDetails> {
+  constructor(private readonly request = paymongoRequest, private readonly kind: 'merchant' | 'consumer' = 'merchant') {}
+
+  private get accountId() {
+    return this.kind === 'merchant' ? SANDBOX_MERCHANT_ID : SANDBOX_CONSUMER_ID;
+  }
 
   async create(reference: string) {
     const result = await this.call(() => this.request('/v2/accounts', {
-      method: 'POST', body: { type: 'merchant' }, idempotencyKey: stepIdempotencyKey(reference, 'create'),
+      method: 'POST', body: { type: this.kind }, idempotencyKey: stepIdempotencyKey(reference, 'create'),
     }));
     if (result.kind !== 'ok') return result;
     const account = created.safeParse(result.value);
-    if (!account.success) return { kind: 'unknown' as const };
+    if (!account.success || account.data.data.type !== this.kind || account.data.data.id !== this.accountId) {
+      return { kind: 'unknown' as const };
+    }
     return { kind: 'ok' as const, value: { providerAccountId: account.data.data.id } };
   }
 
@@ -44,7 +51,12 @@ export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider {
     return this.create(reference);
   }
 
-  async submitDetails(id: ProviderAccountId, details: MerchantDetails) {
+  async submitDetails(id: ProviderAccountId, details: MerchantDetails | ConsumerDetails) {
+    if (!('representative' in details)) {
+      return this.write(id, '', 'PATCH', 'details', {
+        person: { first_name: details.firstName, last_name: details.lastName, email_address: details.email },
+      }, JSON.stringify(details));
+    }
     return this.write(id, '', 'PATCH', 'details', {
       person: { first_name: details.representative.firstName, last_name: details.representative.lastName,
         email_address: details.representative.email },
@@ -54,7 +66,7 @@ export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider {
   }
 
   async issueVerificationLink(id: ProviderAccountId, requestKey: string) {
-    if (id !== SANDBOX_MERCHANT_ID) return { kind: 'unknown' as const };
+    if (id !== this.accountId) return { kind: 'unknown' as const };
     const result = await this.call(() => this.request(`/v2/accounts/${id}/identity_verification`, {
       method: 'POST', idempotencyKey: stepIdempotencyKey(requestKey, 'verification'),
     }));
@@ -75,7 +87,7 @@ export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider {
 
   private async write(id: ProviderAccountId, suffix: string, method: string, key: string, body: unknown,
     identity: string = id): Promise<ProviderResult<void>> {
-    if (id !== SANDBOX_MERCHANT_ID) return { kind: 'unknown' };
+    if (id !== this.accountId) return { kind: 'unknown' };
     const response = await this.call(() => this.request(`/v2/accounts/${id}${suffix}`, {
       method, body, idempotencyKey: stepIdempotencyKey(identity, key),
     }));

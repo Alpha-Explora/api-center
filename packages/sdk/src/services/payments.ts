@@ -7,6 +7,8 @@ import type {
   ListPayoutsOptions,
   Payee,
   PayeeDetail,
+  PayeeOnboarding,
+  PayeeOnboardingInput,
   PayeePage,
   RecordPayeeVerificationInput,
   Payout,
@@ -242,6 +244,26 @@ class PaymentCapabilitiesClient extends PaymentsResource {
 }
 
 class PayeeClient extends PaymentsResource {
+  /** @sdk-operation startPayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding */
+  startOnboarding(payeeId: string, details: PayeeOnboardingInput, options?: WriteOptions): Promise<PaymentResource<PayeeOnboarding>> {
+    return this.write(`/payees/${id(payeeId)}/onboarding`, details, options);
+  }
+
+  /** @sdk-operation getPayeeOnboarding GET /api/v1/payments/payees/{payeeId}/onboarding */
+  getOnboarding(payeeId: string, options?: RequestOptions): Promise<PayeeOnboarding> {
+    return this.read(`/payees/${id(payeeId)}/onboarding`, options);
+  }
+
+  /** @sdk-operation reissuePayeeOnboardingLink POST /api/v1/payments/payees/{payeeId}/onboarding/verification-link */
+  reissueOnboardingLink(payeeId: string, options?: WriteOptions): Promise<PaymentResource<PayeeOnboarding>> {
+    return this.write(`/payees/${id(payeeId)}/onboarding/verification-link`, {}, options);
+  }
+
+  /** @sdk-operation activatePayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding/activate */
+  activateOnboarding(payeeId: string, options?: WriteOptions): Promise<PaymentResource<PayeeOnboarding>> {
+    return this.write(`/payees/${id(payeeId)}/onboarding/activate`, {}, options);
+  }
+
   /**
    * Registers a payee. Creating the same externalRef again returns the existing payee.
    * @sdk-operation createPayee POST /api/v1/payments/payees

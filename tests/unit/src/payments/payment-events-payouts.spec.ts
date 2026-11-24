@@ -1,7 +1,21 @@
 const { toCanonicalPaymentEvent } = require('../../../../apps/payments/src/events/pubsubPublisher');
 
+export {};
+
 describe('payout events on the public contract', () => {
   const owner = { ownerTribeId: 'org-1', ownerProjectId: 'project-1', consumerServiceId: 'app-1' };
+
+  it('publishes only the payee onboarding status and its public IDs', () => {
+    const event = toCanonicalPaymentEvent({
+      providerEventId: 'payee.onboarding.updated:lac_1:4', eventType: 'payee.onboarding.updated', environment: 'test',
+      aggregateType: 'payee_onboarding', aggregateId: 'lac_1', aggregateVersion: 4, ...owner,
+      payload: { referenceId: 'first', payeeId: 'pye_1', onboardingId: 'lac_1', status: 'activation_pending',
+        attempts: 0, verification: { url: 'https://identity.example.test/session-token' } },
+    });
+    expect(event).toMatchObject({ aggregateId: 'lac_1', aggregateType: 'payee_onboarding', aggregateVersion: 4,
+      referenceId: 'first', applicationId: 'app-1' });
+    expect(event.data).toEqual({ payeeId: 'pye_1', onboardingId: 'lac_1', status: 'activation_pending', attempts: 0 });
+  });
 
   it('publishes a payout with its own id and only public fields', () => {
     const event = toCanonicalPaymentEvent({

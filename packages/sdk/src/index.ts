@@ -22,6 +22,7 @@ export type {
   IntentPaidEvent,
   AllocationHeldEvent,
   PayoutPaidEvent,
+  PayeeOnboardingUpdatedEvent,
   PayoutFailedEvent,
   PaymentEvent,
   UnrecognizedPaymentEvent,

@@ -28,6 +28,11 @@ export const PAYMENT_EVENT_TYPES: readonly EventTypeDefinition[] = [
     title: "Payout failed",
     description: "A payout did not go through; the earnings return to the payee's balance.",
   },
+  {
+    type: "payee.onboarding.updated",
+    title: "Payee wallet onboarding updated",
+    description: "A payee's test wallet onboarding status changed.",
+  },
 ];
 
 /**
