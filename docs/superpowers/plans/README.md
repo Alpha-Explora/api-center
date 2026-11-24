@@ -6,7 +6,7 @@ Open plan: [Payouts](2026-11-21-payouts.md): payees, held allocations, weekly an
 
 Open plan: [Linked accounts](2026-11-24-linked-accounts.md). The test implementation covers merchant onboarding and payee consumer wallets. Live provider verification and rollout conditions remain open.
 
-Open plan: [Provider-neutral boundaries](2026-11-24-provider-neutral-boundaries.md): keep vendors out of the public contract, IDs, errors and docs; put SMS, email and geocoding behind interfaces; 90-day deprecation policy. Starts after PRs #234–#236 merge; not started.
+Open plan: [Provider-neutral boundaries](2026-11-24-provider-neutral-boundaries.md): keep vendors out of the public contract, IDs, errors and docs; put SMS, email and geocoding behind interfaces; 90-day deprecation policy. Tasks 1–9 built on `feat/provider-neutral` (stacked on #236); Task 10 held for an SMS vendor choice; running the usage report on test and live awaits approval.
 
 ## Working specifications
 

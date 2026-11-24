@@ -29,6 +29,33 @@ sources: [contracts/public/apicenter.openapi.yaml, contracts/public/apicenter.as
 
 **Start condition:** PRs #234, #235 and #236 are merged. Rebase this branch onto `main` before Task 1; Tasks 4 and 5 change the same payments files.
 
+## Implementation status (2026-11-24)
+
+Built on `feat/provider-neutral`, stacked on the PR #236 branch; rebase onto `main` after #234 to #236 merge.
+
+| Task | State | Commit |
+|---|---|---|
+| 1 | ADR-0010 and the deprecation section of the public versioning page. | `f9b2529a` |
+| 2 | Report script built and run against a replayed database. **Running it against test and live needs the user's approval.** | `4cce38ed` |
+| 3 | Guardrail live in `npm run contracts:validate` and `npm run check:documentation`; existing leaks cleaned; sub-processors listed on `providers-and-data.mdx`. | `eb8c8bca` |
+| 4 | Neutral payment errors, intent failure reasons and payout failure codes. | `cd0be2fb` |
+| 5 | APICenter payment IDs; migration `20261124001700` replaces existing IDs. | `27e15522` |
+| 6 | APICenter SMS IDs; migration `20261124001800`. | `5e76cd4e` |
+| 7 | Geocoding interface and neutral results; contracts 1.5.0, SDK 3.6.0. | `26b9d415` |
+| 8 | SMS and email senders, delivery-status normalizers, and APICenter email IDs (migration `20261124001900`). | `62fd3336` |
+| 9 | `wallet` destination, webhook-first event docs, payments guidance. | `28802451` |
+| 10 | Held: needs the user's choice of SMS vendor. | |
+
+**Deviations from the tasks as written**
+- **Email IDs (Task 8, not in the plan).** The email store replaced its own local ID with the provider's after sending, so public email IDs were the provider's. The 2026-11-24 audit missed this. Email now keeps `eml_` IDs, and migration `20261124001900` replaces existing ones, the same as SMS.
+- **Error codes renamed outright (Tasks 7 and 8).** An error code cannot be added beside an old one, so `GOOGLE_MAPS_*` became `GEOCODING_NOT_CONFIGURED` and `GEOCODING_FAILED`, and provider error text is no longer returned by email, SMS or OTP. Recorded under Breaking in `CHANGELOG.md`.
+- **Provider 5xx is 502 (Task 4).** Every provider 5xx returns `502 PROVIDER_ERROR`; a provider 503 used to pass through as 503.
+- **`wallet` has no `bic` (Task 9).** A `wallet` is always at APICenter's payment provider; a wallet elsewhere is an `instapay` destination. `provider_wallet` is stored as sent, not rewritten.
+- **Delivery callbacks (Task 8).** Runtimes accept `POST /delivery-events` with the provider named in the body, and keep `/webhooks/twilio` and `/webhooks/resend` as aliases, so runtimes and gateway deploy in either order. The gateway relays `Deprecation` and `Sunset` from every runtime.
+- **One version bump.** Contracts 1.5.0 and SDK 3.6.0 cover every additive change in this plan, since none is released yet.
+
+**Verification:** typecheck, lint, contract validation and compatibility, docs checks, 1036 unit tests, 269 console tests, 41 SDK tests, and, on a fresh Supabase Postgres 17 with all 43 migrations replayed, 26 integration tests and the payout and payment schema tests. The two retention tests that `SET ROLE` fail on that image for lack of permission, before and after this plan.
+
 ## Decisions
 
 - **Provider-neutral means:**
