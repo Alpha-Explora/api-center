@@ -8,7 +8,7 @@ Payouts let your project pay the people who deliver your service, such as driver
 1. You register each payee and set where they are paid: a GCash or bank account, through InstaPay.
 2. When you take a payment, you say how much of it belongs to which payee. That share is an **allocation**.
 3. APICenter holds each allocation once the payment is paid, until you **release** it. For example, release it when the job is finished.
-4. Released earnings are pooled per payee. They are paid in a **weekly payout**, or earlier when the payee **cashes out**. One transfer covers many jobs, so the transfer fee is paid once rather than once per job.
+4. After the settlement hold expires, released earnings are pooled per payee. They are paid in a **weekly payout**, or earlier when the payee **cashes out**. One transfer covers many jobs, so the transfer fee is paid once rather than once per job.
 
 For a Node.js backend, use `api.payments.payees`, `api.payments.allocations` and `api.payments.payouts` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
 
@@ -22,12 +22,18 @@ Payouts are being rolled out in stages. Build against the whole API now: the par
 | :--- | :--- | :--- |
 | Payees, destinations and verification records | Available | |
 | Allocations: hold, release, cancel, refund recovery | Available | |
-| Earnings (`GET /payees/{payeeId}`) and the payout list | Available | The payout list stays empty, because nothing is sent yet. |
-| Sending payouts: the weekly payout and cash-out | Coming soon | Cash-out returns `409 PAYOUTS_LIVE_DISABLED` in live, or `409 WALLET_NOT_CONFIGURED` where the payout wallet is not set. Released earnings keep accumulating and are paid once sending opens. |
+| Earnings (`GET /payees/{payeeId}`) and the payout list | Available | |
+| Sending payouts: the weekly payout and cash-out | Live project pilot | Ask an APICenter operator to enable sending for your live project. Cash-out returns `409 PAYOUTS_LIVE_DISABLED` until it is enabled, or `409 WALLET_NOT_CONFIGURED` without a payout wallet. |
 | [Payee wallet onboarding](#test-payee-wallet-onboarding) | Coming soon (test-only pilot, off by default) | Returns `503 PAYEE_ONBOARDING_DISABLED`. |
 | A merchant account of the project's own | Coming soon | Payments are collected through APICenter's account. Nothing changes in your integration when it opens. |
 
-The console's **Payouts** page shows the same status for each environment, marked **Coming soon**.
+The console's **Payouts** page shows availability in each environment. When APICenter pauses sending, cash-out returns `409 PAYOUTS_PAUSED`. Earnings are kept for the next eligible payout after sending resumes.
+
+## Settlement hold
+
+A paid share becomes eligible seven days after payment by default. APICenter operators can set a project environment's hold to 0–30 days. Release the share using your own fulfillment rules. The hold uses the original payment confirmation time.
+
+The earnings response reports released shares still inside the hold in `settling`. These shares become `available` when the hold expires. A cash-out with only settling earnings returns `409 IN_SETTLEMENT`.
 
 ## Register a payee
 

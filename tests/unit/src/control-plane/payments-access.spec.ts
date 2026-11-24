@@ -19,7 +19,7 @@ let admin: ControlPlaneAdminService;
 let access: ApplicationAccessService;
 
 beforeEach(() => {
-  process.env.DATABASE_ENABLED = "true";
+  process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
   process.env.PAYMENTS_MERCHANT_ORGANIZATION_IDS = MERCHANT_ORG;
   prisma = createFakeControlPlanePrisma();
   prisma.organization.rows.push({ id: MERCHANT_ORG, status: "active" }, { id: OTHER_ORG, status: "active" });

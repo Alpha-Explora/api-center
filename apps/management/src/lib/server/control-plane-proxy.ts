@@ -7,7 +7,7 @@ const SEGMENT = /^[A-Za-z0-9_.@+-]{1,320}$/;
 const ROOTS = new Set(["capabilities", "plans", "organizations", "approvals"]);
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
 /** Platform-wide routes; the gateway refuses them unless the caller is a platform operator. */
-const PLATFORM_ROOTS = new Set(["audit-events"]);
+const PLATFORM_ROOTS = new Set(["audit-events", "feature-requests", "payouts", "platform"]);
 
 export type ControlPlaneProxyDependencies = {
   authenticate?: (request: Request) => ReturnType<typeof authenticateConsoleRequest>;

@@ -1,9 +1,10 @@
 import { Pool } from 'pg';
+import { reserveDailySmsSend } from '@apicenter/runtime';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { SmsRecord } from './sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
 import type { ProviderMessage, SmsDeliveryEvent } from './sms-repository.interface';
-import type { ProjectSmsSender } from './project-sender';
+import type { ProjectSmsSender, ProjectSmsSenderUpdate } from './project-sender';
 
 
 export class PostgresSmsStore implements SmsRepositoryInterface {
@@ -92,7 +93,7 @@ export class PostgresSmsStore implements SmsRepositoryInterface {
 
   async getProjectSender(projectId: string, environment: ProjectSmsSender['environment']): Promise<ProjectSmsSender | null> {
     const result = await this.pool.query(
-      `SELECT project_id, environment, sender_id
+      `SELECT project_id, environment, sender_id, daily_limit, allowed_prefixes
          FROM shared_sms.project_senders
         WHERE project_id = $1 AND environment = $2`,
       [projectId, environment],
@@ -100,16 +101,23 @@ export class PostgresSmsStore implements SmsRepositoryInterface {
     return result.rows.length === 0 ? null : mapProjectSender(result.rows[0]);
   }
 
-  async setProjectSender(sender: ProjectSmsSender): Promise<ProjectSmsSender> {
+  async setProjectSender(sender: ProjectSmsSenderUpdate): Promise<ProjectSmsSender> {
     const result = await this.pool.query(
-      `INSERT INTO shared_sms.project_senders (project_id, environment, sender_id)
-       VALUES ($1, $2, $3)
+      `INSERT INTO shared_sms.project_senders AS current (project_id, environment, sender_id, daily_limit, allowed_prefixes)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (project_id, environment) DO UPDATE
-         SET sender_id = EXCLUDED.sender_id, updated_at = now()
-       RETURNING project_id, environment, sender_id`,
-      [sender.projectId, sender.environment, sender.senderId],
+         SET sender_id = CASE WHEN $6 THEN EXCLUDED.sender_id ELSE current.sender_id END,
+             daily_limit = CASE WHEN $7 THEN EXCLUDED.daily_limit ELSE current.daily_limit END,
+             allowed_prefixes = CASE WHEN $8 THEN EXCLUDED.allowed_prefixes ELSE current.allowed_prefixes END, updated_at = now()
+       RETURNING project_id, environment, sender_id, daily_limit, allowed_prefixes`,
+      [sender.projectId, sender.environment, sender.senderId ?? null, sender.dailyLimit ?? null, sender.allowedPrefixes ?? null,
+        sender.senderId !== undefined, sender.dailyLimit !== undefined, sender.allowedPrefixes !== undefined],
     );
     return mapProjectSender(result.rows[0]);
+  }
+
+  reserveDailySend(owner: SharedServiceCaller, limit: number, now?: Date) {
+    return reserveDailySmsSend(this.pool, 'sms', owner, limit, now);
   }
 }
 
@@ -118,5 +126,7 @@ function mapProjectSender(row: Record<string, unknown>): ProjectSmsSender {
     projectId: String(row.project_id),
     environment: row.environment as ProjectSmsSender['environment'],
     senderId: row.sender_id === null ? null : String(row.sender_id),
+    dailyLimit: typeof row.daily_limit === 'number' ? row.daily_limit : null,
+    allowedPrefixes: Array.isArray(row.allowed_prefixes) ? row.allowed_prefixes : null,
   };
 }

@@ -114,7 +114,9 @@ function ProjectQuotas() {
             policies={own}
             usage={usageCell}
             actions={(policy) =>
-              canManage ? (
+              policy.createdLevel === "organization" && !access.canManageQuotas ? (
+                <span className="text-xs text-muted-foreground">Set by your organization</span>
+              ) : canManage ? (
                 <QuotaPolicyMenu
                   policy={policy}
                   onEdit={() => setEditing(policy)}

@@ -1,3 +1,4 @@
+import { DEFAULT_PAYOUT_POLICY } from '../../../../../apps/payments/src/features/payouts/payout-policy';
 import express from 'express';
 import type { Server } from 'node:http';
 import { MockMoneyMover } from '../../../../../apps/payments/src/features/payouts/mock-money-mover';
@@ -17,6 +18,7 @@ describe('runtime payout admin routes', () => {
   beforeEach(async () => {
     wallet = { id: 'parent', kind: 'parent', wallet: { number: '1234', name: 'ALPHAEXPLORA' }, lowFloatAlert: 100_000 };
     store = new MemoryPayoutStore(() => now);
+    await store.saveSettings('test', context.projectId, { ...DEFAULT_PAYOUT_POLICY, settlementHoldDays: 0 });
     mover = new MockMoneyMover();
     mover.setBalance(1_250_000);
     const app = express();
@@ -24,6 +26,7 @@ describe('runtime payout admin routes', () => {
     registerPayoutRoutes(app, { store, mover, accounts: { resolve: async () => wallet, get: async () => wallet }, now: () => now }, {
       ok: (res, data, status = 200) => res.status(status).json({ success: true, data }),
       context: (req) => ({ tribeId: 'org-1', projectId: String(req.get('x-project') ?? 'project-1'), consumerServiceId: 'console', environment: 'test' }),
+      signedContext: () => ({ tribeId: 'org-1', projectId: 'project-1', consumerServiceId: 'console', environment: 'test' }),
       handleError: (res, error: any) => res.status(error.statusCode ?? 500).json({ success: false, error: { code: error.code, message: error.message } }),
     });
     server = await new Promise<Server>((resolve) => { const instance = app.listen(0, () => resolve(instance)); });
@@ -98,7 +101,7 @@ describe('runtime payout admin routes', () => {
   });
 
   it('saves settings that pass the policy schema', async () => {
-    const settings = { schedule: { weekday: 1, hour: 9 }, immediate: false, thresholdCentavos: null,
+    const settings = { ...DEFAULT_PAYOUT_POLICY, schedule: { weekday: 1, hour: 9 }, immediate: false, thresholdCentavos: null,
       onDemand: { minimum: 20_000, dailyCap: 500_000 }, feeBearer: { scheduled: 'platform', cashOut: 'platform' }, minimumPayout: 0, transferFee: 1_000 };
     expect((await call('POST', '/admin/payouts/settings', { ...settings, actor: 'ops@example.test' })).body.data).toEqual(settings);
     expect((await call('GET', '/admin/payouts/settings')).body.data).toEqual(settings);

@@ -9,18 +9,20 @@ import type { PaymentContext } from '../../shared/payment-owner-store';
 import { allocationView } from './allocations';
 import { reconcileOpenAttempts, runPayouts, type PayoutDeps } from './payout-executor';
 import { PayoutStateError } from './payout-ledger';
-import { payeeVerificationInput, requiresPayeeVerification } from './payee-verification';
+import { payeeVerificationInput } from './payee-verification';
 import { nextScheduledSlot, payoutPolicySchema } from './payout-policy';
 import { payoutContext, type Environment, type Payee } from './payout-store';
+import { projectFeature, sendingEnabled } from './project-features';
+import { FeaturePausedError, pausableFeature, type FeaturePauses } from './feature-pauses';
 
 export type RouteHelpers = {
   ok: (res: Response, data: unknown, status?: number) => unknown;
   context: (req: Request) => PaymentContext;
   handleError: (res: Response, error: unknown) => unknown;
-  /** Feature switches the console overview reports; both default to off. */
+  pauses?: FeaturePauses;
   features?: {
     linkedAccountsEnabled: (environment: Environment, projectId: string) => Promise<boolean>;
-    payeeWalletsEnabled: () => boolean;
+    payeeWalletsAvailable: () => boolean;
   };
 };
 
@@ -88,7 +90,9 @@ function notFound(kind: 'Payee' | 'Allocation' | 'Payout'): PayMongoError {
   return new PayMongoError(`${kind} not found`, 404, `${kind.toUpperCase()}_NOT_FOUND`);
 }
 
-export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: RouteHelpers): void {
+export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: RouteHelpers & {
+  signedContext: (req: Request) => PaymentContext;
+}): void {
   const route = (handler: (req: Request, res: Response) => Promise<unknown>) => async (req: Request, res: Response) => {
     try {
       await handler(req, res);
@@ -131,13 +135,13 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
 
   app.post('/payouts/payees/:payeeId/cash-out', route(async (req, res) => {
     const { payee, environment, projectId } = await ownedPayee(req);
-    if (requiresPayeeVerification() && !payee.verification) {
-      throw new PayMongoError('The project must record verification for this payee before cash-out', 409, 'PAYEE_NOT_VERIFIED');
-    }
     const report = await runPayouts(deps, environment, { kind: 'cash_out', cashedOutToday: 0 }, { payeeId: payee.id, projectId });
     const [payoutId] = report.paid;
     if (!payoutId) {
-      const reason = report.skipped[0]?.reason ?? 'nothing_released';
+      const reason = report.skipped[0]?.reason ??
+        (!payee.verification && (await deps.store.getSettings(environment, projectId)).requirePayeeVerification
+          ? 'payee_unverified' : 'nothing_released');
+      if (reason === 'paused') throw new FeaturePausedError('payouts_sending');
       throw new PayMongoError(`Cash-out is not possible: ${reason.replace(/_/g, ' ')}`, 409,
         reason === 'payee_unverified' ? 'PAYEE_NOT_VERIFIED' : reason.toUpperCase());
     }
@@ -190,11 +194,15 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
     }));
     const current = wallets.find((wallet) => wallet.accountId === account.id);
     const policy = await deps.store.getSettings(context.environment, context.projectId);
+    const pauses = await deps.pauses?.list(context.environment) ?? [];
     const availability = await payoutAvailability({
       environment: context.environment,
       walletConfigured: account.wallet !== null,
+      transfersEnabled: await sendingEnabled(deps.projectFeatures, context.environment, context.projectId),
       linkedAccountsEnabled: () => helpers.features?.linkedAccountsEnabled(context.environment, context.projectId) ?? Promise.resolve(false),
-      payeeWalletsEnabled: helpers.features?.payeeWalletsEnabled() ?? false,
+      payeeWalletsEnabled: helpers.features?.payeeWalletsAvailable() === true
+        && await deps.projectFeatures?.enabled(context.environment, context.projectId, 'payee_wallets') === true,
+      paused: new Set(pauses.filter((pause) => pause.paused).map((pause) => pause.feature)),
     });
     helpers.ok(res, {
       wallet: { configured: account.wallet !== null, available: current?.available ?? null, lowFloatAlert: account.lowFloatAlert },
@@ -210,6 +218,44 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
   app.get('/admin/payouts/settings', route(async (req, res) => {
     const context = payoutContext(helpers.context(req));
     helpers.ok(res, await deps.store.getSettings(context.environment, context.projectId));
+  }));
+
+  const featurePath = '/admin/payouts/project-features/:feature';
+  for (const method of ['get', 'put'] as const) {
+    app[method](featurePath, route(async (req, res) => {
+      const context = helpers.signedContext(req);
+      if (context.consumerServiceId !== 'console') throw new PayMongoError('Console access is required', 403, 'FORBIDDEN');
+      const feature = parse(projectFeature, param(req, 'feature'), 'INVALID_PROJECT_FEATURE', 'Unknown payout feature');
+      if (method === 'get') {
+        return helpers.ok(res, { enabled: await deps.projectFeatures?.enabled(context.environment, context.projectId, feature) ?? false });
+      }
+      const input = parse(z.strictObject({ enabled: z.boolean(), actor: resolutionInput.shape.actor }), req.body,
+        'INVALID_PROJECT_FEATURE', 'enabled and actor are required');
+      if (!deps.projectFeatures) throw new PayMongoError('Feature settings require persistent storage', 503, 'PAYMENT_STORAGE_REQUIRED');
+      await deps.projectFeatures.set(context.environment, context.projectId, feature, input.enabled, input.actor);
+      return helpers.ok(res, { enabled: input.enabled });
+    }));
+  }
+
+  app.get('/admin/payouts/feature-pauses', route(async (req, res) => {
+    const context = helpers.context(req);
+    if (!['console', 'platform-console'].includes(context.consumerServiceId)) {
+      throw new PayMongoError('Console access is required', 403, 'FORBIDDEN');
+    }
+    return helpers.ok(res, await deps.pauses?.list(context.environment) ?? []);
+  }));
+
+  app.put('/admin/payouts/feature-pauses/:feature', route(async (req, res) => {
+    const context = helpers.signedContext(req);
+    if (context.consumerServiceId !== 'platform-console' || context.projectId !== 'platform' || context.tribeId !== 'platform') {
+      throw new PayMongoError('Platform console access is required', 403, 'FORBIDDEN');
+    }
+    const feature = parse(pausableFeature, param(req, 'feature'), 'INVALID_FEATURE_PAUSE', 'Unknown payout feature');
+    const input = parse(z.strictObject({ paused: z.boolean(), actor: resolutionInput.shape.actor, reason: resolutionInput.shape.note }),
+      req.body, 'INVALID_FEATURE_PAUSE', 'paused, reason and actor are required');
+    if (!deps.pauses) throw new PayMongoError('Feature pauses require persistent storage', 503, 'PAYMENT_STORAGE_REQUIRED');
+    await deps.pauses.set(context.environment, feature, input.paused, input.reason, input.actor);
+    return helpers.ok(res, { feature, ...input });
   }));
 
   app.post('/admin/payouts/settings', route(async (req, res) => {

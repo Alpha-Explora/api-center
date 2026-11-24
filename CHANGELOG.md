@@ -6,6 +6,9 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Breaking
 
+- SMS and OTP texts default to Philippine destinations (`+63`). Other calling codes need project approval. Disallowed destinations return `403 SMS_DESTINATION_NOT_ALLOWED`. Operators should review the 90-day international SMS report before rollout.
+- New payment event destinations use signed HTTPS webhooks. The legacy direct Pub/Sub push option has been removed.
+
 - Email message IDs are APICenter's own (`eml_` plus 26 lowercase base32 characters). The store used to replace its local ID with the email provider's after sending; migration `20261124001900` replaces existing IDs, and an email ID issued before it returns `404` from the status route. Email, SMS and OTP provider failures return APICenter's message instead of the provider's text (ADR-0010).
 - Geocoding errors are provider-neutral: `GEOCODING_NOT_CONFIGURED` (503) and `GEOCODING_FAILED` (502) replace `GOOGLE_MAPS_CONFIG_ERROR`, `GOOGLE_MAPS_GEOCODING_FAILED` and `GOOGLE_MAPS_REVERSE_GEOCODING_FAILED`, and the provider's error message is no longer returned (ADR-0010).
 - SMS message IDs are APICenter's own (`sms_` plus 26 lowercase base32 characters) instead of the SMS provider's. Migration `20261124001800` replaces existing IDs; a message ID issued before it returns `404` from the status route (ADR-0010).
@@ -24,13 +27,18 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Projects can request access to higher plans and shared capabilities from the console. Named platform operators decide requests, manage the operator list and receive email notifications for new requests and selected overrides.
+- Payout sending and onboarding use project switches and environment-wide emergency pauses. Released earnings have a seven-day settlement hold by default and report `settling`. Operators can change the hold and require a payee verification record per project environment.
+- SMS and OTP texts each have a default daily limit of 500 per project environment. Organization-owned quota policies stay under organization control.
+- Contracts 1.6.0 and SDK 3.7.0 include the settlement earnings field. Schema changes are in `20261125000100` (feature requests), `20261125000200` (project payout switches), `20261125000300` (pauses), `20261125000400` (SMS quotas), `20261125000500` (SMS destinations), `20261125000600` (operators), `20261125000700` (settlement), `20261125000800` (quota ownership) and `20261125000900` (payee verification).
+
 - Feature availability. The payouts overview (the console's **Payouts** page) reports `availability` for sending payouts, the project's own merchant account and payee wallet onboarding, each `{ available, reason }` with `reason` one of `live_payouts_disabled`, `wallet_not_configured`, `not_enabled` or `test_only`. The console marks what is not open yet **Coming soon** and says what works meanwhile, instead of failing when it is used. The payments guides, the OpenAPI descriptions and the SDK's JSDoc mark the same features. Released as SDK 3.6.0 and contracts 1.5.0, which carry everything since SDK 3.2.0.
 - Payout destinations accept `wallet`, a wallet at APICenter's payment provider. `provider_wallet` means the same and is deprecated: it is accepted until 2027-03-01, and payee responses that show it carry `Deprecation` and `Sunset` headers. Payee wallet onboarding sets `wallet`. Signed webhooks are the standard event delivery; Google Cloud Pub/Sub push is documented as the optional Google Cloud channel. The payments guide recommends checkouts, payment links, QR Ph and wallet-redirect intents, which need no provider code in your application.
 - The email response's `provider` field is deprecated and removed after 2027-03-01; send and status responses carry `Deprecation` and `Sunset` headers. SMS, email and OTP send through provider interfaces in `@apicenter/runtime` (`SMS_PROVIDER`, `EMAIL_PROVIDER`), and provider delivery callbacks go through one normalizer per provider.
 - Geocoding results carry `components` (street, barangay, city, province, region, postal code, country) and `precision` (`exact`, `street`, `area`, `approximate`). `placeId`, `types`, `provider` and `raw`, and the reverse-geocode `resultType` and `locationType` filters, are deprecated and removed after 2027-03-01; responses that carry them send `Deprecation` and `Sunset` headers. Contracts 1.5.0, SDK 3.6.0.
 - SDK 3.5.0 and contracts 1.4.0 add test payee wallet onboarding, hosted verification links and `payee.onboarding.updated`. The test feature defaults to off and requires migration `20261124001600`.
 
-- Projects can record who verified a payee, when, and how through `PUT /api/v1/payments/payees/{payeeId}/verification` and SDK 3.4.0. The payouts runtime can require that record with `PAYOUTS_REQUIRE_PAYEE_VERIFICATION=true`. Contracts are version 1.3.0.
+- Projects can record who verified a payee, when, and how through `PUT /api/v1/payments/payees/{payeeId}/verification` and SDK 3.4.0. Operators can require that record in project payout settings. Contracts are version 1.3.0.
 - The payouts console can preview linked-merchant onboarding in test behind environment and project switches. Collections and payouts retain their merchant account across project moves. Live onboarding is pending PayMongo verification.
 
 - Payouts:
@@ -39,7 +47,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
   - **Following payouts.** `GET /api/v1/payments/payouts` lists payouts. A refund after a payout is recovered from the payee's next payout.
   - **Scopes and events.** New scopes `payments:payouts:read` and `payments:payouts:write`. New events `payment.allocation.held`, `payment.payout.paid` and `payment.payout.failed` (AsyncAPI 2.2.0).
   - **SDK and contracts.** SDK 3.3.0 adds `payments.payees`, `payments.allocations`, `payments.payouts` and the new event types. Contracts 1.2.0 adds the payout types.
-  - **Deployment.** Requires migration `20261121001200`. Live money movement stays off until `PAYOUTS_LIVE_ENABLED=true`. See `docs/operations/payouts-runbook.md`.
+  - **Deployment.** Requires migration `20261121001200`. Live sending requires project approval. See `docs/operations/payouts-runbook.md`.
 
 - Lifecycle actions: suspend and resume an application (its keys and workload identities are refused with `APPLICATION_INACTIVE`), archive and restore a project (every request refused with `PROJECT_INACTIVE`, nothing deleted), and delete a team (its project roles go with it, unless it is a project's only administrator). Each is in the console and audited.
 - Public guides "Errors and retries" (the error response, which failures to retry, and the common codes) and "Versions and changes" (what v1 may add at any time, and how breaking changes ship).

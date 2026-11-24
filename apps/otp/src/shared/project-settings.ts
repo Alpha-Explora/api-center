@@ -7,7 +7,9 @@
 // project's name, which also names the email's sender and subject. Changing the template needs a
 // project admin at the gateway.
 
-export interface OtpProjectSettings {
+import type { SmsDeliverySettings } from '@apicenter/runtime';
+
+export interface OtpProjectSettings extends SmsDeliverySettings {
   projectId: string;
   environment: 'test' | 'live';
   codeLength: number | null;
@@ -17,6 +19,7 @@ export interface OtpProjectSettings {
 }
 
 export type OtpSettingsValues = Pick<OtpProjectSettings, 'codeLength' | 'expirySeconds' | 'maxAttempts' | 'messageTemplate'>;
+export type OtpSettingsUpdate = Pick<OtpProjectSettings, 'projectId' | 'environment'> & Partial<OtpSettingsValues> & SmsDeliverySettings;
 
 export const OTP_BOUNDS = {
   codeLength: { min: 4, max: 10, default: 6 },

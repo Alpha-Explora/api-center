@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-25
+
+- Documented feature requests, named operators and approvals, per-project payout pilots, emergency pauses, the settlement hold, SMS and OTP daily limits and destination rules. The feature escalation plan tracks rollout and release.
+
 ## 2026-11-24
 
 - Added the test payee wallet onboarding flow to the payouts guide and runbook. The linked-account plan records the PayMongo sandbox response and open live rollout conditions.

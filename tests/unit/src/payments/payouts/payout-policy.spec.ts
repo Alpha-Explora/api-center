@@ -19,7 +19,7 @@ describe('default policy', () => {
     expect(DEFAULT_PAYOUT_POLICY).toEqual({
       schedule: { weekday: 5, hour: 20 }, immediate: false, thresholdCentavos: null,
       onDemand: { minimum: 10_000, dailyCap: 1_000_000 }, feeBearer: { scheduled: 'platform', cashOut: 'payee' },
-      minimumPayout: 0, transferFee: 1_000,
+      minimumPayout: 0, transferFee: 1_000, settlementHoldDays: 7, requirePayeeVerification: false,
     }));
 });
 

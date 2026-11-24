@@ -22,7 +22,7 @@ let published: Array<{ environment: string; message: TestEventMessage }>;
 let history: { list: jest.Mock };
 
 beforeEach(() => {
-  process.env.DATABASE_ENABLED = "true";
+  process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
   process.env.PAYMENTS_MERCHANT_ORGANIZATION_IDS = ORG;
   process.env.WEBHOOK_DELIVERY_URL = "https://apicenter-webhooks-live-xyz-as.a.run.app";
   process.env.WEBHOOK_PUSH_SERVICE_ACCOUNT = "apicenter-webhook-push@apicenter.iam.gserviceaccount.com";
@@ -126,15 +126,12 @@ describe("webhook test events", () => {
   });
 
   it("refuses Pub/Sub push destinations, disabled webhooks and other environments", async () => {
-    const { scope, app, webhook } = await setup();
+    const { scope, webhook } = await setup();
     await destinations.disable(scope, webhook.id, actor);
     await expect(deliveries.sendTestEvent(scope, webhook.id, actor)).rejects.toMatchObject({ code: "DESTINATION_NOT_ACTIVE" });
 
-    const push = await destinations.create(
-      scope,
-      { recipientApplicationId: app.id, pushEndpoint: "https://shop-worker-abc-uc.a.run.app/events", deliveryServiceAccountEmail: "push@shop.iam.gserviceaccount.com" },
-      actor,
-    );
+    const push = webhook;
+    await prisma.cpEventDestination.update({ where: { id: push.id }, data: { transport: "pubsub-push" } });
     await expect(deliveries.sendTestEvent(scope, push.id, actor)).rejects.toMatchObject({ code: "NOT_A_WEBHOOK" });
 
     const other = await setup("other");

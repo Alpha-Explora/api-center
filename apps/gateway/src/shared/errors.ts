@@ -21,8 +21,9 @@ export class AppError extends HttpException {
     statusCode: number,
     code: string,
     isOperational = true,
+    details?: Record<string, unknown>,
   ) {
-    super({ message, code }, statusCode);
+    super({ message, code, ...(details ? { details } : {}) }, statusCode);
     this.code = code;
     this.isOperational = isOperational;
     Object.setPrototypeOf(this, new.target.prototype);

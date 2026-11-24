@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { Explainer } from "@/components/patterns/explainer";
 import { GuardedButton } from "@/components/patterns/guarded-button";
-import { ComingSoonBadge } from "@/components/patterns/coming-soon";
+import { FeatureAccess } from "@/components/patterns/feature-access";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
@@ -24,6 +24,7 @@ import { useOrganization } from "../../view-models/use-organization";
 import { PayeeSheet } from "./payee-sheet";
 import { LinkedAccountPanel } from "./linked-account-panel";
 import { PayoutSettingsSheet } from "./payout-settings-sheet";
+import { ProjectPayoutSwitch } from "./project-payout-switch";
 
 export function PayoutsPage() {
   return (
@@ -82,9 +83,10 @@ function Payouts() {
         ) : overview.isLoading || !overview.data ? (
           <Skeleton className="h-16 w-full" />
         ) : !overview.data.availability.transfers.available ? (
-          <Notice title={<span className="flex items-center gap-2">Sending payouts <ComingSoonBadge /></span>}>
-            {availabilityMessage("transfers", overview.data.availability.transfers)}
-          </Notice>
+          <div className="space-y-2">
+            <Notice title="Sending payouts">{availabilityMessage("transfers", overview.data.availability.transfers)}</Notice>
+            <FeatureAccess feature="payouts.sending" fallback />
+          </div>
         ) : (
           <dl className="grid gap-4 text-sm sm:grid-cols-3">
             <div>
@@ -113,7 +115,12 @@ function Payouts() {
         )}
       </Panel>
 
-      <LinkedAccountPanel key={kind} live={kind === "live"} canWrite={canWrite} platformAdmin={platformAdmin} />
+      {canOperate ? <Panel title="Project payout access">
+        {kind === "live" ? <ProjectPayoutSwitch feature="payouts_sending" title="Sending payouts" />
+          : <ProjectPayoutSwitch feature="payee_wallets" title="Payee wallet onboarding" />}
+      </Panel> : null}
+      <LinkedAccountPanel key={kind} live={kind === "live"} canWrite={canWrite} platformAdmin={platformAdmin}
+        paused={overview.data?.availability.linkedAccounts.reason === "paused"} />
 
       {overview.data?.wallets?.length ? (
         <Panel title="Collections by merchant account" description="Payments recorded in the last 30 days for this project." flush>

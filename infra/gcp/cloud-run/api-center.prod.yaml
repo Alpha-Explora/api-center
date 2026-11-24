@@ -34,10 +34,6 @@ spec:
               value: api-center-prod
             - name: ALLOWED_ORIGINS
               value: https://api-center-management-test.itsandbox.site
-            - name: PAYMENT_PUBSUB_IAM_ENABLED
-              value: "true"
-            - name: CLOUD_RUN_AUTH_ENABLED
-              value: "true"
             - name: SHARED_SERVICE_ROUTE_PAYMENT_TEST
               value: https://apicenter-payments-test-mvrs6gmtgq-as.a.run.app
             - name: SHARED_SERVICE_ROUTE_PAYMENT_LIVE

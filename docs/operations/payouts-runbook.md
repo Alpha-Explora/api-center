@@ -16,13 +16,13 @@ Payouts send payees' pooled earnings from the wallet that holds each allocation.
 
 Apply migrations `20261124001300` through `20261124001600` after the payout migration and before updating the payments runtime. Schedule `20261124001300` during a low-traffic window because it holds an exclusive lock on `shared_payment.resource_owners` while rebuilding its provider-reference index. The migration gives up after 10 seconds if it cannot acquire the lock.
 
-Start with `LINKED_ACCOUNTS_ENABLED` and `PAYOUTS_REQUIRE_PAYEE_VERIFICATION` unset. For sandbox work, enable the linked-account runtime switch in test and enable the project in **Payouts → Project merchant account**. Each project can keep its own onboarding record even when PayMongo returns a shared merchant ID. Use the local mock provider to exercise the full verification flow. The PayMongo sandbox returns a placeholder URL. Test and live each use their existing parent webhook secret. A signed test identity event may carry `livemode: true`.
+For sandbox work, enable the test project in **Payouts → Project merchant account** as a platform operator. Each project can keep its own onboarding record even when PayMongo returns a shared merchant ID. Use the local mock provider to exercise the full verification flow. The PayMongo sandbox returns a placeholder URL. Test and live each use their existing parent webhook secret. A signed test identity event may carry `livemode: true`.
 
 An uncertain create keeps its original reference. Retry from the same onboarding record to attempt reconciliation before closing it or starting another onboarding. A successful callback can complete verification for an older recorded session. Only a failure from the current session counts toward the attempt limit. Migration `20261124001500` preserves the existing current session and records each new session from then on.
 
 ## Testing payee wallet onboarding
 
-Set `PAYEE_WALLET_ONBOARDING_ENABLED=true` and `LINKED_ACCOUNTS_ENABLED=true` on the test payments runtime and enable linked accounts for the test project. Use a database-backed runtime with mock payments to exercise signed identity and activation events and attach a test wallet. The PayMongo sandbox returns fixture account IDs and placeholder URLs. Only an unambiguous recorded session can identify a payee behind a shared sandbox ID.
+In **Payouts**, enable the project’s test payee wallet pilot as a platform operator. Use a database-backed runtime with mock payments to exercise signed identity and activation events and attach a test wallet. The PayMongo sandbox returns fixture account IDs and placeholder URLs. Only an unambiguous recorded session can identify a payee behind a shared sandbox ID.
 
 Use the payee's `externalRef` and onboarding ID to correlate `payee.onboarding.updated` events with payout records. A signed decline removes the wallet attached by onboarding. An explicit destination change remains in effect. The existing payout hold and project verification setting still apply. Keep the feature disabled for live while the [provider rollout conditions](../superpowers/plans/2026-11-24-linked-accounts.md#phase-b-payee-consumer-wallets) are open.
 
@@ -40,7 +40,7 @@ Rotate the runtime’s parent secret with the matching environment in Secret Man
 
 ## Requiring payee verification
 
-Set `PAYOUTS_REQUIRE_PAYEE_VERIFICATION=true` on the payment service and payout runner together when the project rollout requires it. The scheduled runner skips unverified payees and cash-out returns `409 PAYEE_NOT_VERIFIED`. Projects supply their verification record through the public payouts API.
+In **Payouts → Payout settings**, select **Require a verification record before paying** for the project environment. The scheduled runner skips unverified payees and cash-out returns `409 PAYEE_NOT_VERIFIED`. Projects supply their verification records through the public payouts API.
 
 ## Before the first payout
 
@@ -72,7 +72,13 @@ Set `PAYOUTS_REQUIRE_PAYEE_VERIFICATION=true` on the payment service and payout 
    1. Create a payee with a destination you control.
    2. Attach a ₱1 allocation to a ₱1 live payment, release it, and cash out.
    3. Confirm the money arrived and `payment.payout.paid` was delivered.
-7. **Enable live money movement** only after legal sign-off: add `PAYOUTS_LIVE_ENABLED=true` to the live runtime and the live runner job. Until then, live runs fail with `PAYOUTS_LIVE_DISABLED`.
+7. **Enable live sending for each approved project** in its **Payouts** page after legal sign-off. Cash-outs for a project without access return `PAYOUTS_LIVE_DISABLED`. Allow the configured settlement period before attempting the transfer.
+
+## Pause payouts in an emergency
+
+Open **Platform settings → Payout controls**, choose Test or Live, and pause **Sending payouts** with a reason. Use this during a provider incident or when new transfers need to stop for investigation. Scheduled runs skip eligible pools with reason `paused` and cash-out returns `PAYOUTS_PAUSED`. Collections, earnings, allocations and reconciliation of existing transfers continue. In-flight provider transfers can still settle.
+
+The **Project merchant account** pause blocks onboarding actions while existing accounts keep collecting payments. The **Payee wallets** pause blocks the test onboarding pilot. Resume in the same environment with a reason to restore the existing project switches. Check the audit log and the affected project's payout status.
 
 ## The float
 

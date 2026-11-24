@@ -81,7 +81,8 @@ export const payeeSchema = z.object({
 export type Payee = z.infer<typeof payeeSchema>;
 
 export const payeeDetailSchema = payeeSchema.extend({
-  earnings: z.object({ awaitingPayment: centavos, held: centavos, available: centavos, inFlight: centavos, paidThisWeek: centavos }),
+  earnings: z.object({ awaitingPayment: centavos, held: centavos, settling: centavos.default(0), available: centavos,
+    inFlight: centavos, paidThisWeek: centavos }),
 });
 export type PayeeDetail = z.infer<typeof payeeDetailSchema>;
 
@@ -102,9 +103,10 @@ export type PayoutAvailability = z.infer<typeof payoutAvailabilitySchema>;
 /** What to tell a project about a feature that is not available yet. */
 export function availabilityMessage(feature: keyof PayoutAvailability, availability: FeatureAvailability): string | null {
   if (availability.available) return null;
+  if (availability.reason === "paused") return "Paused by APICenter.";
   switch (feature) {
     case "transfers":
-      return availability.reason === "live_payouts_disabled"
+      return availability.reason === "not_enabled" || availability.reason === "live_payouts_disabled"
         ? "Sending live payouts is coming soon. Payees, shares and earnings are recorded now and are paid once live payouts open."
         : "Sending payouts is coming soon in this environment. Payees, shares and earnings are recorded now; payouts start once an operator sets the payout wallet (“Before the first payout” in the payouts runbook).";
     case "linkedAccounts":
@@ -131,6 +133,8 @@ export type PayoutOverview = z.infer<typeof payoutOverviewSchema>;
 
 const bearer = z.enum(["platform", "payee"]);
 export const payoutPolicySchema = z.object({
+  settlementHoldDays: z.number().int().min(0).max(30).default(7),
+  requirePayeeVerification: z.boolean().default(false),
   schedule: z.object({ weekday: z.number().int().min(0).max(6), hour: z.number().int().min(0).max(23) }).nullable(),
   immediate: z.boolean(),
   thresholdCentavos: centavos.nullable(),

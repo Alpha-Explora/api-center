@@ -40,8 +40,6 @@ spec:
                     secretKeyRef:
                       name: apicenter-payments-test-database-url
                       key: latest
-                - name: PUBSUB_DISPATCHER_ENABLED
-                  value: "true"
                 - name: APICENTER_PAYMENT_EVENTS_TOPIC_TEST
                   value: apicenter.payment-events.test
               resources:

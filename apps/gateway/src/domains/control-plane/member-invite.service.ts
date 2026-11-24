@@ -14,32 +14,33 @@
 // the same organization and email within INVITE_COOLDOWN_MS is skipped (RECENTLY_INVITED), checked
 // against the audit log's invite_sent events and this instance's own recent sends.
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import { AuditEventsService } from "@audit/audit-events.service";
-import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
-import { resolveSharedServiceRoute } from "@shared/proxy/shared-service-route";
-import { consoleUrlFrom, INVITE_COOLDOWN_MS, INVITE_SENDER_NAME, inviteMessage, type InviteFailure, type InviteOutcome } from "./member-invite";
+import { consoleUrlFrom, INVITE_COOLDOWN_MS, inviteMessage, type InviteFailure, type InviteOutcome } from "./member-invite";
 import type { FetchLike } from "./capability-configuration.service";
 import { withTenant } from "./tenant-transaction";
+import { PlatformMailService } from "./platform-mail.service";
 
-const INVITE_TIMEOUT_MS = 8_000;
 const INVITE_SENT = "control_plane.member.invite_sent";
 
 @Injectable()
 export class MemberInviteService {
-  private fetchImpl: FetchLike = (url, init) => fetch(url, init);
+  private readonly mail: PlatformMailService;
   /** organizationId:email -> when this instance last sent that invite. */
   private readonly recentlySent = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditEventsService,
-  ) {}
+    @Optional() mail?: PlatformMailService,
+  ) {
+    this.mail = mail ?? new PlatformMailService();
+  }
 
   /** Test seam for the HTTP call. */
   useFetch(fetchImpl: FetchLike) {
-    this.fetchImpl = fetchImpl;
+    this.mail.useFetch(fetchImpl);
   }
 
   /**
@@ -55,7 +56,7 @@ export class MemberInviteService {
       const message = inviteMessage({ ...input, organizationName, consoleUrl, expiresAt, projects });
       text = message.text;
       const replyTo = /^[^\s@:]+@[^\s@]+$/.test(input.invitedBy) ? input.invitedBy : undefined;
-      const failure = (await this.sentRecently(input)) ? recentlyInvited : await this.deliver(input.email, message, replyTo);
+      const failure = (await this.sentRecently(input)) ? recentlyInvited : await this.mail.deliver(input.email, message, replyTo);
       outcome = failure ? { status: "not_sent", ...failure, consoleUrl, text } : { status: "sent", consoleUrl, text };
     } catch {
       // Raw error text can carry database or network detail; the console and audit log get a code.
@@ -91,42 +92,6 @@ export class MemberInviteService {
     for (const [entry, sentAt] of this.recentlySent) if (sentAt < since) this.recentlySent.delete(entry);
     if (this.recentlySent.has(key)) return true;
     return this.audit.hasEventSince({ action: INVITE_SENT, resourceType: "member", resourceId: key, since: new Date(since) });
-  }
-
-  /** Undefined when the runtime accepted the message for delivery; otherwise why it was not sent. */
-  private async deliver(to: string, message: { subject: string; text: string; html: string }, replyTo: string | undefined): Promise<{ reason: InviteFailure; detail: string } | undefined> {
-    const token = process.env.EMAIL_ADMIN_TOKEN?.trim();
-    let upstream: string;
-    try {
-      upstream = resolveSharedServiceRoute("email", "live");
-    } catch {
-      return { reason: "EMAIL_NOT_CONFIGURED", detail: "SHARED_SERVICE_ROUTE_EMAIL_LIVE is not set on the gateway" };
-    }
-    if (!token) return { reason: "EMAIL_NOT_CONFIGURED", detail: "EMAIL_ADMIN_TOKEN is not set on the gateway" };
-
-    const headers: Record<string, string> = { "X-APICenter-Email-Admin-Token": token, "Content-Type": "application/json" };
-    let response: globalThis.Response;
-    try {
-      const authorization = await getCloudRunAuthorizationHeader(upstream);
-      if (authorization) headers.Authorization = authorization;
-      response = await this.fetchImpl(`${upstream}/admin/platform-messages`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ to, ...message, fromName: INVITE_SENDER_NAME, ...(replyTo ? { replyTo } : {}) }),
-        signal: AbortSignal.timeout(INVITE_TIMEOUT_MS),
-      });
-    } catch {
-      return { reason: "EMAIL_UNAVAILABLE", detail: "The email runtime could not be reached" };
-    }
-    const body = (await response.json().catch(() => undefined)) as { data?: { provider?: string }; error?: unknown; message?: string } | undefined;
-    if (!response.ok) {
-      const code = typeof body?.error === "string" ? body.error : (body?.error as { code?: string } | undefined)?.code;
-      return { reason: "EMAIL_REJECTED", detail: `The email runtime returned ${response.status}${code ? ` ${code}` : ""}` };
-    }
-    if (body?.data?.provider === "mock") {
-      return { reason: "EMAIL_PROVIDER_NOT_CONFIGURED", detail: "The email runtime has no email provider configured" };
-    }
-    return undefined;
   }
 
   private async record(input: { organizationId: string; email: string; invitedBy: string }, outcome: InviteOutcome) {

@@ -1,15 +1,15 @@
 import { payoutAvailability } from '../../../../../apps/payments/src/features/payouts/availability';
 
 describe('payout availability', () => {
-  const saved = process.env.PAYOUTS_LIVE_ENABLED;
-  afterEach(() => { if (saved === undefined) delete process.env.PAYOUTS_LIVE_ENABLED; else process.env.PAYOUTS_LIVE_ENABLED = saved; });
-  const base = { walletConfigured: true, linkedAccountsEnabled: async () => false, payeeWalletsEnabled: false };
+  const base = { walletConfigured: true, transfersEnabled: true, linkedAccountsEnabled: async () => false, payeeWalletsEnabled: false };
 
-  it('keeps live payouts unavailable until PAYOUTS_LIVE_ENABLED is set', async () => {
-    delete process.env.PAYOUTS_LIVE_ENABLED;
-    expect((await payoutAvailability({ ...base, environment: 'live' })).transfers).toEqual({ available: false, reason: 'live_payouts_disabled' });
-    process.env.PAYOUTS_LIVE_ENABLED = 'true';
+  it('reports project access and gives a pause precedence over the wallet', async () => {
+    expect((await payoutAvailability({ ...base, environment: 'live', transfersEnabled: false })).transfers)
+      .toEqual({ available: false, reason: 'not_enabled' });
     expect((await payoutAvailability({ ...base, environment: 'live' })).transfers).toEqual({ available: true, reason: null });
+    expect((await payoutAvailability({
+      ...base, environment: 'live', walletConfigured: false, paused: new Set(['payouts_sending']),
+    })).transfers).toEqual({ available: false, reason: 'paused' });
   });
 
   it('offers payee wallets in test only, and child accounts only when switched on', async () => {

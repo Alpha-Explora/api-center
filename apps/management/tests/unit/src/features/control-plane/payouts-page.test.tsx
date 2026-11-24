@@ -26,7 +26,8 @@ vi.mock("@/features/control-plane/view-models/project-environment", () => ({
 }));
 
 const policy = { schedule: { weekday: 5, hour: 20 }, immediate: false, thresholdCentavos: null, onDemand: { minimum: 10_000, dailyCap: 1_000_000 },
-  feeBearer: { scheduled: "platform", cashOut: "payee" }, minimumPayout: 0, transferFee: 1_000 };
+  feeBearer: { scheduled: "platform", cashOut: "payee" }, minimumPayout: 0, transferFee: 1_000,
+  settlementHoldDays: 7, requirePayeeVerification: false };
 const available = { available: true, reason: null };
 const notYet = { available: false, reason: "not_enabled" };
 const ready = { transfers: available, linkedAccounts: notYet, payeeWallets: notYet };
@@ -91,7 +92,8 @@ describe("PayoutsPage", () => {
 
   it("shows the project merchant account as coming soon while linked accounts are off", async () => {
     renderPage();
-    expect(await screen.findByText(/collects payments in the project's name, is coming soon/)).toBeTruthy();
+    expect(await screen.findByText("Project merchant account")).toBeTruthy();
+    expect(await screen.findByText("Coming soon")).toBeTruthy();
   });
 
   it("explains when linked accounts are switched off and limits the project switch to platform admins", async () => {
@@ -149,9 +151,12 @@ describe("PayoutsPage", () => {
     const minimum = await screen.findByLabelText("Minimum (₱)");
     fireEvent.change(minimum, { target: { value: "200" } });
     fireEvent.change(screen.getByLabelText("Day"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Settlement hold (days)"), { target: { value: "10" } });
+    fireEvent.click(screen.getByLabelText("Require a verification record before paying"));
     fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
     await waitFor(() => expect(payouts.saveSettings).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      schedule: { weekday: 1, hour: 20 }, onDemand: { minimum: 20_000, dailyCap: 1_000_000 } })));
+      schedule: { weekday: 1, hour: 20 }, onDemand: { minimum: 20_000, dailyCap: 1_000_000 },
+      settlementHoldDays: 10, requirePayeeVerification: true })));
   });
 
   it("surfaces an API failure with its message", async () => {

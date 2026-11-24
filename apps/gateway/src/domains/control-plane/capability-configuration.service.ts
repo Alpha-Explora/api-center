@@ -36,14 +36,14 @@ const CONFIGURABLE: Record<string, ConfigurableCapability> = {
     tokenHeader: "X-APICenter-Sms-Admin-Token",
     path: (projectId, environment) => `/admin/projects/${encodeURIComponent(projectId)}/sms-sender/${environment}`,
     methods: ["GET", "PUT", "DELETE"],
-    auditFields: ["senderId"],
+    auditFields: ["senderId", "dailyLimit", "allowedPrefixes"],
   },
   otp: {
     tokenEnv: "OTP_ADMIN_TOKEN",
     tokenHeader: "X-APICenter-Otp-Admin-Token",
     path: (projectId, environment) => `/admin/projects/${encodeURIComponent(projectId)}/otp-settings/${environment}`,
     methods: ["GET", "PUT", "DELETE"],
-    auditFields: ["codeLength", "expirySeconds", "maxAttempts", "messageTemplate"],
+    auditFields: ["codeLength", "expirySeconds", "maxAttempts", "messageTemplate", "dailyLimit", "allowedPrefixes"],
   },
   gauth: {
     tokenEnv: "GAUTH_ADMIN_TOKEN",
@@ -75,11 +75,17 @@ export class CapabilityConfigurationService {
     if (!definition || !definition.methods.includes(method)) {
       throw new NotFoundError(`Capability '${capability}' has no ${method} configuration`);
     }
-    await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
+    const runtimeProjectId = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
       const environment = await db.cpEnvironment.findFirst({
         where: { organizationId: scope.organizationId, projectId: scope.projectId, kind: scope.environmentKind },
       });
       if (!environment) throw new NotFoundError(`Project '${scope.projectId}' has no ${scope.environmentKind} environment`);
+      if (capability !== "sms" && capability !== "otp") return scope.projectId;
+      const owner = await db.cpResourceOwnerMapping.findFirst({
+        where: { organizationId: scope.organizationId, projectId: scope.projectId, environmentKind: scope.environmentKind },
+        select: { ownerProjectId: true },
+      });
+      return owner?.ownerProjectId ?? scope.projectId;
     });
     if (method === "PUT" && (!body || typeof body !== "object" || Array.isArray(body))) {
       throw new ValidationError("Configuration must be a JSON object");
@@ -95,7 +101,7 @@ export class CapabilityConfigurationService {
 
     let response: globalThis.Response;
     try {
-      response = await this.fetchImpl(`${upstream}${definition.path(scope.projectId, scope.environmentKind)}`, {
+      response = await this.fetchImpl(`${upstream}${definition.path(runtimeProjectId, scope.environmentKind)}`, {
         method,
         headers,
         ...(method === "PUT" ? { body: JSON.stringify(body) } : {}),

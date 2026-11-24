@@ -201,3 +201,23 @@ export function verifyRuntimeContext(
 export function sameProject(left: SharedServiceCaller, right: SharedServiceCaller): boolean;
 export function ok(res: Response, data?: unknown, statusCode?: number): void;
 export function fail(res: Response, statusCode: number, code: string, message: string, details?: unknown): void;
+export const DEFAULT_SMS_PREFIXES: readonly string[];
+export function destinationAllowed(phone: string, prefixes: readonly string[]): boolean;
+export function smsDailyLimitDefault(env?: Record<string, string | undefined>): number;
+export interface SmsDeliverySettings {
+  dailyLimit?: number | null;
+  allowedPrefixes?: string[] | null;
+}
+export function parseSmsDeliverySettings(input: Record<string, unknown>): SmsDeliverySettings | null;
+export function reserveDailySmsSend(
+  pool: Pick<import('pg').Pool, 'query'> | undefined,
+  runtime: 'sms' | 'otp',
+  owner: Pick<SharedServiceCaller, 'projectId' | 'environment'>,
+  limit: number,
+  now?: Date,
+): Promise<boolean>;
+export class SmsDeliveryPolicyError extends Error {
+  readonly code: 'DAILY_LIMIT_REACHED' | 'SMS_DESTINATION_NOT_ALLOWED';
+  readonly statusCode: 429 | 403;
+  constructor(code: 'DAILY_LIMIT_REACHED' | 'SMS_DESTINATION_NOT_ALLOWED');
+}

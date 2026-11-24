@@ -1,8 +1,9 @@
 import { Pool } from 'pg';
+import { reserveDailySmsSend } from '@apicenter/runtime';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { OtpRecord } from './otp-store';
 import type { OtpRepositoryInterface } from './otp-repository.interface';
-import type { OtpProjectSettings } from './project-settings';
+import type { OtpProjectSettings, OtpSettingsUpdate } from './project-settings';
 
 export class PostgresOtpStore implements OtpRepositoryInterface {
   private readonly pool: Pool;
@@ -98,7 +99,7 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
 
   async getProjectSettings(projectId: string, environment: OtpProjectSettings['environment']): Promise<OtpProjectSettings | null> {
     const result = await this.pool.query(
-      `SELECT project_id, environment, code_length, expiry_seconds, max_attempts, message_template
+      `SELECT project_id, environment, code_length, expiry_seconds, max_attempts, message_template, sms_daily_limit, sms_allowed_prefixes
          FROM shared_otp.project_settings
         WHERE project_id = $1 AND environment = $2`,
       [projectId, environment],
@@ -106,24 +107,32 @@ export class PostgresOtpStore implements OtpRepositoryInterface {
     return result.rows.length === 0 ? null : mapProjectSettings(result.rows[0]);
   }
 
-  async setProjectSettings(settings: OtpProjectSettings): Promise<OtpProjectSettings> {
+  async setProjectSettings(settings: OtpSettingsUpdate): Promise<OtpProjectSettings> {
     const result = await this.pool.query(
-      `INSERT INTO shared_otp.project_settings
-         (project_id, environment, code_length, expiry_seconds, max_attempts, message_template)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO shared_otp.project_settings AS stored
+         (project_id, environment, code_length, expiry_seconds, max_attempts, message_template, sms_daily_limit, sms_allowed_prefixes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (project_id, environment) DO UPDATE
-         SET code_length = EXCLUDED.code_length,
-             expiry_seconds = EXCLUDED.expiry_seconds,
-             max_attempts = EXCLUDED.max_attempts,
-             message_template = EXCLUDED.message_template,
+         SET code_length = CASE WHEN $9 THEN EXCLUDED.code_length ELSE stored.code_length END,
+             expiry_seconds = CASE WHEN $10 THEN EXCLUDED.expiry_seconds ELSE stored.expiry_seconds END,
+             max_attempts = CASE WHEN $11 THEN EXCLUDED.max_attempts ELSE stored.max_attempts END,
+             message_template = CASE WHEN $12 THEN EXCLUDED.message_template ELSE stored.message_template END,
+             sms_daily_limit = CASE WHEN $13 THEN EXCLUDED.sms_daily_limit ELSE stored.sms_daily_limit END,
+             sms_allowed_prefixes = CASE WHEN $14 THEN EXCLUDED.sms_allowed_prefixes ELSE stored.sms_allowed_prefixes END,
              updated_at = now()
-       RETURNING project_id, environment, code_length, expiry_seconds, max_attempts, message_template`,
+       RETURNING project_id, environment, code_length, expiry_seconds, max_attempts, message_template, sms_daily_limit, sms_allowed_prefixes`,
       [
-        settings.projectId, settings.environment, settings.codeLength, settings.expirySeconds,
-        settings.maxAttempts, settings.messageTemplate,
+        settings.projectId, settings.environment, settings.codeLength ?? null, settings.expirySeconds ?? null,
+        settings.maxAttempts ?? null, settings.messageTemplate ?? null, settings.dailyLimit ?? null, settings.allowedPrefixes ?? null,
+        settings.codeLength !== undefined, settings.expirySeconds !== undefined, settings.maxAttempts !== undefined,
+        settings.messageTemplate !== undefined, settings.dailyLimit !== undefined, settings.allowedPrefixes !== undefined,
       ],
     );
     return mapProjectSettings(result.rows[0]);
+  }
+
+  reserveDailySend(owner: SharedServiceCaller, limit: number, now?: Date) {
+    return reserveDailySmsSend(this.pool, 'otp', owner, limit, now);
   }
 }
 
@@ -139,5 +148,7 @@ function mapProjectSettings(row: Record<string, unknown>): OtpProjectSettings {
     expirySeconds: nullableNumber(row.expiry_seconds),
     maxAttempts: nullableNumber(row.max_attempts),
     messageTemplate: row.message_template === null ? null : String(row.message_template),
+    dailyLimit: nullableNumber(row.sms_daily_limit),
+    allowedPrefixes: Array.isArray(row.sms_allowed_prefixes) ? row.sms_allowed_prefixes : null,
   };
 }

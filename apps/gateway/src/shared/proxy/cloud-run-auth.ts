@@ -7,7 +7,7 @@ type HeaderValue = string | string[] | number | undefined;
 type HeaderRecord = Record<string, HeaderValue>;
 
 export function shouldUseCloudRunAuth(upstream: string): boolean {
-  if (process.env.CLOUD_RUN_AUTH_ENABLED !== "true") return false;
+  if (!onCloudRun()) return false;
 
   try {
     const url = new URL(upstream);
@@ -15,6 +15,10 @@ export function shouldUseCloudRunAuth(upstream: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function onCloudRun(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.K_SERVICE?.trim());
 }
 
 export function buildCloudRunAudience(upstream: string): string {

@@ -1,6 +1,7 @@
 // Who may do what in the console. Pure: callers pass the actor and the roles already loaded.
 // Console roles govern human actions only; they never authorize application API requests.
 
+import { AppError, ForbiddenError } from "@shared/errors";
 import type { EnvironmentKind } from "./control-plane.types";
 
 export type OrganizationRole = "owner" | "admin" | "developer" | "viewer";
@@ -61,6 +62,12 @@ export function strongerProjectRole(left: ProjectRole | undefined, right: Projec
 
 export function hasPlatformAccess(actor: ConsoleActor): boolean {
   return actor.kind === "platform" || actor.platformAdmin;
+}
+
+export function requireOperatorPerson(actor: ConsoleActor): string {
+  if (actor.kind === "platform") throw new AppError("Sign in as an APICenter operator to perform this action", 403, "PERSON_REQUIRED");
+  if (!actor.platformAdmin) throw new ForbiddenError("Only APICenter platform operators can perform this action");
+  return actor.email;
 }
 
 /** The project role an actor effectively holds. Organization owners and admins administer every project. */

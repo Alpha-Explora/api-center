@@ -1,10 +1,10 @@
 import { createCircuitBreaker, withProviderTimeout, recordProviderMetric } from '@apicenter/runtime';
 
-const providerTimeoutMs = Number(process.env.GAUTH_PROVIDER_TIMEOUT_MS || 2000);
+const providerTimeoutMs = 2_000;
 const googleAuthCircuit = createCircuitBreaker({
   provider: 'google_oauth',
-  failureThreshold: Number(process.env.GAUTH_PROVIDER_FAILURE_THRESHOLD || 5),
-  resetAfterMs: Number(process.env.GAUTH_PROVIDER_CIRCUIT_RESET_MS || 30_000),
+  failureThreshold: 5,
+  resetAfterMs: 30_000,
 });
 
 export async function callGoogleProvider(operation: string, url: string, options: any): Promise<any> {

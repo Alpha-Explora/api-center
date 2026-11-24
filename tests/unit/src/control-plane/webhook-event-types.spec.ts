@@ -44,7 +44,7 @@ describe("webhook event-type filters in the gateway", () => {
   let audit: { record: jest.Mock };
 
   beforeEach(() => {
-    process.env.DATABASE_ENABLED = "true";
+    process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
     process.env.PAYMENTS_MERCHANT_ORGANIZATION_IDS = ORG;
     process.env.WEBHOOK_DELIVERY_URL = "https://apicenter-webhooks-xyz-as.a.run.app";
     process.env.WEBHOOK_PUSH_SERVICE_ACCOUNT = "push@apicenter.iam.gserviceaccount.com";
@@ -137,11 +137,8 @@ describe("webhook event-type filters in the gateway", () => {
 
   it("refuses to filter a Pub/Sub push destination or a disabled webhook", async () => {
     const { scope, app } = await setup();
-    const push = await destinations.create(
-      scope,
-      { recipientApplicationId: app.id, pushEndpoint: "https://shop-worker-abc-uc.a.run.app/events", deliveryServiceAccountEmail: "p@shop.iam.gserviceaccount.com" },
-      actor,
-    );
+    const push = await destinations.createWebhook(scope, { recipientApplicationId: app.id, url: URL }, actor);
+    await prisma.cpEventDestination.update({ where: { id: push.id }, data: { transport: "pubsub-push" } });
     await expect(destinations.setEventTypes(scope, push.id, ["payment.intent.paid"], actor)).rejects.toMatchObject({ code: "EVENT_FILTER_UNSUPPORTED" });
 
     const other = await admin.createApplication(scope, { slug: "other", name: "Other" }, actor);

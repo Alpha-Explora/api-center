@@ -26,7 +26,6 @@ testDatabase('linked-account collection routing through the payments runtime', (
     Object.assign(process.env, {
       SHARED_SERVICES_DATABASE_URL: databaseUrl, NODE_ENV: 'test', PAYMENT_PROVIDER_MODE: 'test',
       APICENTER_PAYMENTS_INTERNAL_TOKEN: 'fixture-token', PAYMONGO_TEST_SECRET_KEY: 'sk_test_routing_fixture',
-      LINKED_ACCOUNTS_ENABLED: 'true',
     });
     delete process.env.APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS;
     const { app } = await import('../../apps/payments/src/server');
@@ -77,7 +76,7 @@ testDatabase('linked-account collection routing through the payments runtime', (
     expect(original.status).toBe(201);
     const { data: { checkoutId } } = await original.json() as { data: { checkoutId: string } };
 
-    process.env.LINKED_ACCOUNTS_ENABLED = 'false';
+    await pool.query("UPDATE shared_payment.project_linked_account_settings SET enabled = false WHERE environment = 'test' AND project_id = 'linked-routing-fixture'");
     expect((await request('/checkout/sessions', 'POST', checkout, 'linked-original-key')).status).toBe(201);
     expect((await request('/checkout/sessions', 'POST', { ...checkout, referenceId: 'parent-fixture' }, 'linked-new-parent-key')).status).toBe(201);
     expect((await request(`/checkout/sessions/${checkoutId}`)).status).toBe(200);

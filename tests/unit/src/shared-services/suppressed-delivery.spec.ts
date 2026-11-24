@@ -34,10 +34,11 @@ describe("suppressed test delivery", () => {
 
   it("records an SMS without calling the provider", async () => {
     const provider = { send: jest.fn() };
-    const store = { save: jest.fn().mockResolvedValue(undefined) };
+    const store = { save: jest.fn().mockResolvedValue(undefined), getProjectSender: jest.fn().mockResolvedValue(null), reserveDailySend: jest.fn() };
     const result = await new SendSmsService(store as never, provider as never).execute({ to: "+639170000000", message: "hello" }, suppressed);
 
     expect(provider.send).not.toHaveBeenCalled();
+    expect(store.reserveDailySend).not.toHaveBeenCalled();
     expect(store.save).toHaveBeenCalledWith(expect.objectContaining({ to: "+639170000000" }), suppressed);
     expect(result.status).toBe("queued");
   });

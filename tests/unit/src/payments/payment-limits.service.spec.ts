@@ -2,19 +2,19 @@ import { PaymentLimitsService } from "../../../../apps/gateway/src/domains/payme
 import type { PrismaService } from "../../../../apps/gateway/src/database/prisma.service";
 
 describe("PaymentLimitsService", () => {
-  const previousDatabaseEnabled = process.env.DATABASE_ENABLED;
+  const previousDatabaseUrl = process.env.DATABASE_URL;
   const prisma = { $queryRawUnsafe: jest.fn(), $executeRawUnsafe: jest.fn() };
   let service: PaymentLimitsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env.DATABASE_ENABLED;
+    delete process.env.DATABASE_URL;
     service = new PaymentLimitsService(prisma as unknown as PrismaService);
   });
 
   afterAll(() => {
-    if (previousDatabaseEnabled === undefined) delete process.env.DATABASE_ENABLED;
-    else process.env.DATABASE_ENABLED = previousDatabaseEnabled;
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
   });
 
   it("rejects a payment above the active plan amount limit with 422", async () => {
@@ -50,7 +50,7 @@ describe("PaymentLimitsService", () => {
   });
 
   it("uses the project/environment override before the active plan defaults", async () => {
-    process.env.DATABASE_ENABLED = "true";
+    process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
     prisma.$queryRawUnsafe
       .mockResolvedValueOnce([{ plan_key: "pro" }])
       .mockResolvedValueOnce([{

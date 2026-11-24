@@ -1,6 +1,5 @@
-// The approvals queue: pending live activation requests and API access requests. Platform operators
-// list every organization's; anyone else lists their organization's items that their role lets them
-// decide (project.manage on the deciding project). Decisions use the existing routes.
+// Operators see all requests. Organization members can follow feature requests for projects they
+// can read and see activation and API access requests for projects they manage.
 
 import { Controller, Get, Param, Query, Req, UseGuards } from "@nestjs/common";
 import { ForbiddenError, ValidationError } from "@shared/errors";
@@ -32,7 +31,7 @@ export class ApprovalsQueueController {
     const actor = actorOf(req);
     const access = await this.access.require(actor, org, "organization.read");
     const items = (await this.queue.list({ organizationId: org }, queueState(state))).filter((item) =>
-      canPerform(actor, access, "project.manage", { projectId: item.projectId }),
+      canPerform(actor, access, item.kind === "feature" ? "project.read" : "project.manage", { projectId: item.projectId }),
     );
     return { success: true, data: withRequester(actor, items) };
   }

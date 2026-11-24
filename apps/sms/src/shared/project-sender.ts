@@ -3,12 +3,16 @@
 // messages go out on APICenter's Twilio account, so a free-form sender ID would let a tenant send
 // as any brand.
 
-export interface ProjectSmsSender {
+import type { SmsDeliverySettings } from '@apicenter/runtime';
+
+export interface ProjectSmsSender extends SmsDeliverySettings {
   projectId: string;
   environment: 'test' | 'live';
   /** E.164 phone number or an alphanumeric sender ID; null when the project uses the platform sender. */
   senderId: string | null;
 }
+
+export type ProjectSmsSenderUpdate = Omit<ProjectSmsSender, 'senderId'> & { senderId?: string | null };
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 /** Alphanumeric sender IDs: 1–11 letters, digits or spaces, with at least one letter. */

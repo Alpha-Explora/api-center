@@ -5,6 +5,8 @@ description: "Receive signed payment events at an HTTPS endpoint and verify them
 
 APICenter can POST your application's payment events, such as `payment.checkout.paid`, to any public HTTPS URL on your backend. Each delivery is signed with a secret only you and APICenter know, and APICenter retries until your endpoint answers with a 2xx status. Your backend can run anywhere and be written in any language.
 
+APICenter delivers payment events to your application as signed HTTPS webhooks.
+
 ## Set up an endpoint
 
 1. Add an HTTPS route to your backend, for example `POST /apicenter/events`. It must be publicly reachable; private and internal addresses are refused.

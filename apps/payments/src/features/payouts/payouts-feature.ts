@@ -8,8 +8,10 @@ import { createMerchantAccountResolver } from './merchant-accounts';
 import { createMoneyMover } from './mock-money-mover';
 import type { PayoutDeps } from './payout-executor';
 import { createPayoutStore } from './payout-store';
+import { createProjectFeatureSwitches, type ProjectFeatureSwitches } from './project-features';
+import { createFeaturePauses, type FeaturePauses } from './feature-pauses';
 
-export type PayoutsFeature = PayoutDeps;
+export type PayoutsFeature = PayoutDeps & { projectFeatures: ProjectFeatureSwitches; pauses: FeaturePauses };
 
 function succeededRefund(record: OwnerRecord, paymentId: string) {
   const status = String(record.status ?? record.snapshot.status ?? '').toLowerCase();
@@ -33,6 +35,8 @@ export function createPayoutsFeature(owners: PaymentOwnerStore, options: {
     accounts: createMerchantAccountResolver(pool, options.linkedAccountsSwitch),
     mover: createMoneyMover(),
     now,
+    projectFeatures: createProjectFeatureSwitches(pool),
+    pauses: createFeaturePauses(pool),
     ...(base ? { callbackUrl: (token: string) => `${base}/api/v1/shared/payment/payout-callbacks/${environment}/${token}` } : {}),
   };
 }

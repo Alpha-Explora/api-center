@@ -15,11 +15,15 @@ export const otpSettingsSchema = z.object({
   expirySeconds: z.number().nullable(),
   maxAttempts: z.number().nullable(),
   messageTemplate: z.string().nullable(),
+  dailyLimit: z.number().nullable().optional(),
+  allowedPrefixes: z.array(z.string()).nullable().optional(),
   defaults: z.object({
     codeLength: z.number(),
     expirySeconds: z.number(),
     maxAttempts: z.number().nullable(),
     messageTemplate: z.string(),
+    dailyLimit: z.number().optional(),
+    allowedPrefixes: z.array(z.string()).optional(),
   }),
 });
 export type OtpSettings = z.infer<typeof otpSettingsSchema>;

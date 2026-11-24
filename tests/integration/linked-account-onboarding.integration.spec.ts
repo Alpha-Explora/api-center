@@ -26,10 +26,9 @@ testDatabase('linked account onboarding with Postgres', () => {
     store = new LinkedAccountStore(pool);
     switches = createLinkedAccountsSwitch(pool);
   });
-  beforeEach(() => { process.env.LINKED_ACCOUNTS_ENABLED = 'true'; });
   afterEach(() => {
     jest.restoreAllMocks();
-    for (const key of ['LINKED_ACCOUNTS_ENABLED', 'PAYMENT_PROVIDER_MODE', 'PAYMONGO_TEST_SECRET_KEY', 'PAYOUTS_REQUIRE_PAYEE_VERIFICATION']) {
+    for (const key of ['PAYMENT_PROVIDER_MODE', 'PAYMONGO_TEST_SECRET_KEY']) {
       if (original[key] === undefined) delete process.env[key];
       else process.env[key] = original[key];
     }
@@ -130,8 +129,7 @@ testDatabase('linked account onboarding with Postgres', () => {
     const resolver = createMerchantAccountResolver(pool, switches);
     await expect(resolver.resolve(context.projectId, 'test', new Date())).resolves.toMatchObject({ id: providerAccountId, wallet: localWallet });
 
-    process.env.LINKED_ACCOUNTS_ENABLED = 'false';
-    process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = 'false';
+    await switches.setProject('test', context.projectId, false, 'fixture');
     await expect(resolver.resolve(context.projectId, 'test', new Date())).resolves.toMatchObject({ id: 'parent' });
     const now = () => new Date('2026-11-27T12:05:00Z');
     const payouts = createPayoutStore(pool, now);
@@ -142,13 +140,13 @@ testDatabase('linked account onboarding with Postgres', () => {
     }, new Date('2026-11-01T00:00:00Z'));
     await payouts.insertAllocations(owner, [{ payeeId: payee.id, merchantAccountId: providerAccountId,
       resourceType: 'checkout', resourceId: 'chk_review', referenceId: 'review', paymentId: 'pay_review',
-      template: false, amount: 30_000, grossAmount: 30_000, status: 'released', createdAt: '2026-11-26T00:00:00Z' }]);
+      template: false, amount: 30_000, grossAmount: 30_000, status: 'released', createdAt: '2026-11-18T00:00:00Z' }]);
     const mover = new MockMoneyMover();
     const report = await runPayouts({ store: payouts, accounts: resolver, mover, now }, 'test', { kind: 'schedule' });
     expect(report.paid).toHaveLength(1);
     expect(mover.submitted[0].account.id).toBe(providerAccountId);
 
-    process.env.LINKED_ACCOUNTS_ENABLED = 'true';
+    await switches.setProject('test', context.projectId, true, 'fixture');
     await onboarding.applyProviderEvent('test', { providerEventId: 'evt_wallet_declined', providerAccountId,
       event: { type: 'declined', reason: 'fixture' } });
     await expect(resolver.resolve(context.projectId, 'test', new Date())).resolves.toMatchObject({ id: 'parent' });

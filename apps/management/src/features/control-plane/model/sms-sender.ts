@@ -6,6 +6,9 @@ export const smsSenderSchema = z.object({
   senderId: z.string().nullable(),
   /** Whether the platform has its own Twilio sender for environments that pin none. */
   platformSenderConfigured: z.boolean(),
+  dailyLimit: z.number().nullable().optional(),
+  allowedPrefixes: z.array(z.string()).nullable().optional(),
+  defaults: z.object({ dailyLimit: z.number(), allowedPrefixes: z.array(z.string()) }).optional(),
 });
 export type SmsSender = z.infer<typeof smsSenderSchema>;
 

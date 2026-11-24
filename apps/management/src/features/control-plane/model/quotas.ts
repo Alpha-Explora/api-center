@@ -16,6 +16,7 @@ export const quotaPolicySchema = z.object({
   mode: z.enum(["observe", "enforce"]),
   status: z.string(),
   createdBy: z.string().optional(),
+  createdLevel: z.enum(["organization", "project"]).optional(),
   createdAt: z.string().optional(),
   /** Only list responses include it. */
   coveredProjectIds: z.array(z.string()).optional(),

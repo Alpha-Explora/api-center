@@ -7,5 +7,6 @@ export function drainPaymentEventOutbox(options?: {
   limit?: number;
   logger?: Pick<Console, "log" | "error">;
   pool?: Pool;
+  environment?: "test" | "live";
   publish?: (event: Record<string, unknown>) => Promise<{ published?: boolean; disabled?: boolean; messageId?: string }>;
 }): Promise<{ claimed: number; published: number; failed: number }>;

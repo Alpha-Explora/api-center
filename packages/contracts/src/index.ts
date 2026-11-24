@@ -735,7 +735,9 @@ export interface Payee {
 export interface PayeeEarnings {
   awaitingPayment: Money;
   held: Money;
-  /** Released and not yet paid, after any refund clawbacks. */
+  /** Released earnings still inside the project's settlement hold. */
+  settling: Money;
+  /** Released, settled and not yet paid, after any refund clawbacks. */
   available: Money;
   inFlight: Money;
   paidThisWeek: Money;

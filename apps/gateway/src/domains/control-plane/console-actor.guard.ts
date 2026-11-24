@@ -14,6 +14,7 @@ import { ConfigService } from "@config/config.service";
 import { ServiceUnavailableError, UnauthorizedError } from "@shared/errors";
 import type { AuthenticatedRequest } from "../../types";
 import type { ConsoleActor } from "./console-access.policy";
+import { PlatformOperatorsService } from "./platform-operators.service";
 import { loadConsoleSessionKeys, verifyConsoleSession, type ConsoleSessionKeys } from "./console-session.verifier";
 
 export const CONSOLE_USER_TOKEN_HEADER = "x-apicenter-user-token";
@@ -62,6 +63,7 @@ export class ConsoleActorGuard implements CanActivate {
     private readonly platformGuard: ScopedAdminGuard,
     private readonly config: ConfigService,
     @Optional() verifier?: ConsoleUserVerifier,
+    @Optional() private readonly operators?: PlatformOperatorsService,
   ) {
     this.sessionKeys = loadConsoleSessionKeys(process.env.MANAGEMENT_SESSION_PUBLIC_KEYS);
     const clientIds = (process.env.MANAGEMENT_GOOGLE_CLIENT_IDS ?? "")
@@ -86,7 +88,7 @@ export class ConsoleActorGuard implements CanActivate {
         kind: "member",
         email: user.email,
         subject: user.subject,
-        platformAdmin: this.config.platformAdminEmails.includes(user.email),
+        platformAdmin: this.operators ? await this.operators.isOperator(user.email) : this.config.platformAdminEmails.includes(user.email),
         ...(user.name ? { name: user.name } : {}),
       };
     } else {

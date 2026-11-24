@@ -27,6 +27,23 @@ Organization → Project → Environment (test, live) → Application → Grants
 
 Project roles (admin, developer, viewer), assigned directly or through a team, give access to individual projects. Live changes need a project admin, and activating a live environment needs an approval from a person other than the requester.
 
+## Changes that need APICenter approval
+
+Open the setting in the project's **Test** or **Live** environment, choose **Request access**, and explain why you need the change. Follow the request in **Approvals**. An APICenter operator reviews it and applies the requested setting if approved.
+
+| Change | When to request approval |
+| :--- | :--- |
+| Upgrade to Pro or Enterprise | When moving to a higher plan in either environment |
+| Enable live payments | When enabling payments in live |
+| Pin an SMS sender ID | When setting or changing a sender in live |
+| Configure an email sender | When changing the sender or limit in live, or raising the limit above the default in test |
+| Raise an SMS limit | When raising the daily limit above the default. The new limit applies separately to SMS and OTP texts. |
+| Send SMS abroad | When adding a calling code other than `+63` that the project does not already use |
+| Try payee wallet onboarding | For a test project in the pilot |
+| Send live payouts or onboard a project merchant account | An operator can enable a project pilot while these features are marked **Coming soon** |
+
+The console shows the latest status and any decision reason. Live environment activation continues to use your project's existing approval process. Your application sets its own eligibility, pricing and fulfillment rules.
+
 ## Where things are in the console
 
 Switch organizations from the top of the sidebar. Inside a project, the **Test / Live** switch selects the environment; live is marked in red. Press <kbd>⌘K</kbd> or <kbd>Ctrl+K</kbd> to jump to any page or project.

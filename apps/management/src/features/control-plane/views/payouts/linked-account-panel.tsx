@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { ComingSoonBadge } from "@/components/patterns/coming-soon";
+import { FeatureAccess } from "@/components/patterns/feature-access";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { GuardedButton } from "@/components/patterns/guarded-button";
 import { Panel } from "@/components/patterns/panel";
@@ -23,10 +24,11 @@ const fields = [
   { name: "email", label: "Representative’s email", type: "email" },
 ] as const;
 
-export function LinkedAccountPanel({ live, canWrite, platformAdmin }: {
+export function LinkedAccountPanel({ live, canWrite, platformAdmin, paused = false }: {
   live: boolean;
   canWrite: boolean;
   platformAdmin: boolean;
+  paused?: boolean;
 }) {
   const query = useLinkedAccount();
   const mutation = useUpdateLinkedAccount();
@@ -36,7 +38,7 @@ export function LinkedAccountPanel({ live, canWrite, platformAdmin }: {
   const account = query.data?.onboarding;
   const roleReason = "Your role cannot change this environment.";
   const platformReason = "A platform admin must change this setting.";
-  const enabled = query.data?.environmentEnabled && query.data.projectEnabled;
+  const enabled = query.data?.environmentEnabled && query.data.projectEnabled && !paused;
 
   async function execute(action: LinkedAccountAction): Promise<boolean> {
     setCopied(false);
@@ -69,8 +71,9 @@ export function LinkedAccountPanel({ live, canWrite, platformAdmin }: {
         {query.isPending ? <Skeleton className="h-10 w-full" /> : null}
         {query.data ? (
           <>
+            {paused || !query.data.projectEnabled ? <FeatureAccess feature="payouts.merchant_account" fallback requestAccess={!query.data.projectEnabled} /> : null}
             {live ? <p className="text-live font-medium">Live environment</p> : null}
-            {!query.data.environmentEnabled ? (
+            {!query.data.environmentEnabled && !platformAdmin ? (
               <Notice title={<span className="flex items-center gap-2">Project merchant account <ComingSoonBadge /></span>}>
                 {availabilityMessage("linkedAccounts", { available: false, reason: "not_enabled" })}
               </Notice>

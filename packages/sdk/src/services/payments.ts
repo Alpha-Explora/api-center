@@ -313,7 +313,7 @@ class PayeeClient extends PaymentsResource {
 
   /**
    * Pays the payee's released earnings now, within the daily cash-out cap. A refusal is an
-   * ApiCenterError with status 409 and a code such as DAILY_CAP_REACHED or DESTINATION_HOLD.
+   * ApiCenterError with status 409 and a code such as DAILY_CAP_REACHED, IN_SETTLEMENT, DESTINATION_HOLD or PAYOUTS_PAUSED.
    * Coming soon: until sending payouts opens for the environment, cash-out is refused with
    * PAYOUTS_LIVE_DISABLED (live) or WALLET_NOT_CONFIGURED. Allocations and earnings are recorded meanwhile.
    * @sdk-operation cashOutPayee POST /api/v1/payments/payees/{payeeId}/cash-out

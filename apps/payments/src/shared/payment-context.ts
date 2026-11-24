@@ -18,6 +18,7 @@ export interface PaymentContextOptions {
   /** For tests: verification keys and clock. */
   contextKeys?: Map<string, unknown>;
   now?: number;
+  requireSigned?: boolean;
 }
 
 export function readPaymentContext(req: HeaderSource, options: PaymentContextOptions): PaymentContext {
@@ -42,7 +43,9 @@ export function readPaymentContext(req: HeaderSource, options: PaymentContextOpt
       assertHeadersAgree(req, context);
       return context;
     }
-    if (options.production) throw new PayMongoError('A signed payment request context is required', 401, 'UNAUTHORIZED');
+  }
+  if (options.requireSigned || (options.canVerify && options.production)) {
+    throw new PayMongoError('A signed payment request context is required', 401, 'UNAUTHORIZED');
   }
   return headerContext(req);
 }

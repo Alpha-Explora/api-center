@@ -48,6 +48,10 @@ The SDK applies these rules itself: it retries network errors, timeouts, 408, 42
 | `403 ENVIRONMENT_INACTIVE`, `403 PROJECT_INACTIVE`, `403 APPLICATION_INACTIVE`, `403 ORGANIZATION_INACTIVE` | Something the key belongs to is suspended, or live is not activated yet. |
 | `403 LIVE_PLAN_REQUIRED`, `403 PLAN_NOT_AVAILABLE` | Live traffic needs a live-capable plan. |
 | `404 NOT_FOUND` | The resource does not exist, or belongs to another project or environment. |
+| `403 SMS_DESTINATION_NOT_ALLOWED` | The project needs approval to send SMS to the destination calling code. |
+| `409 PAYOUTS_PAUSED` | APICenter has paused payout transfers. Earnings are kept for eligible payouts after sending resumes. |
+| `409 IN_SETTLEMENT` | The payee’s released earnings are still inside the settlement hold. |
+| `429 DAILY_LIMIT_REACHED` | The project has used its daily send allowance. SMS and OTP text limits reset at midnight in Asia/Manila. |
 | `409 CONFLICT` | The request conflicts with the resource's current state. |
 | `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` | The idempotency key was already used with a different body. Use a new key for a new operation. |
 | `409 IDEMPOTENCY_KEY_IN_PROGRESS` | A request with this key is still running. Retry shortly with the same key. |

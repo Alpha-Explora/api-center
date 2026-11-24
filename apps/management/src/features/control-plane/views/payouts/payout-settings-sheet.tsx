@@ -44,6 +44,8 @@ function SettingsForm({ initial, onDone }: { initial: PayoutPolicy; onDone: () =
   const [dailyCap, setDailyCap] = useState(toPesos(initial.onDemand?.dailyCap ?? 1_000_000));
   const [scheduledBearer, setScheduledBearer] = useState(initial.feeBearer.scheduled);
   const [cashOutBearer, setCashOutBearer] = useState(initial.feeBearer.cashOut);
+  const [settlementHoldDays, setSettlementHoldDays] = useState(String(initial.settlementHoldDays));
+  const [requireVerification, setRequireVerification] = useState(initial.requirePayeeVerification);
   const [problem, setProblem] = useState<string | undefined>();
 
   function policy(): PayoutPolicy | string {
@@ -51,8 +53,11 @@ function SettingsForm({ initial, onDone }: { initial: PayoutPolicy; onDone: () =
     const cap = parsePesos(dailyCap);
     if (cashOut && (min === undefined || cap === undefined)) return "Enter the cash-out amounts in pesos, for example 100.00.";
     if (cashOut && cap! < min!) return "The daily cap must be at least the minimum.";
+    if (!/^\d+$/.test(settlementHoldDays) || Number(settlementHoldDays) > 30) return "Use a settlement hold between 0 and 30 days.";
     return {
       ...initial,
+      settlementHoldDays: Number(settlementHoldDays),
+      requirePayeeVerification: requireVerification,
       schedule: weekly ? { weekday: Number(weekday), hour: Number(hour) } : null,
       onDemand: cashOut ? { minimum: min!, dailyCap: cap! } : null,
       feeBearer: { scheduled: scheduledBearer, cashOut: cashOutBearer },
@@ -82,6 +87,14 @@ function SettingsForm({ initial, onDone }: { initial: PayoutPolicy; onDone: () =
         </SheetDescription>
       </SheetHeader>
       <div className="flex flex-col gap-4 overflow-y-auto px-4">
+        <FormRow label="Settlement hold (days)" htmlFor="payout-settlement-hold" hint="Released shares become payable after this many days.">
+          <Input id="payout-settlement-hold" inputMode="numeric" value={settlementHoldDays}
+            onChange={(event) => setSettlementHoldDays(event.target.value)} />
+        </FormRow>
+        <label className="flex items-center gap-2 text-[13px] font-medium">
+          <input type="checkbox" checked={requireVerification} onChange={(event) => setRequireVerification(event.target.checked)} />
+          Require a verification record before paying
+        </label>
         <label className="flex items-center gap-2 text-[13px] font-medium">
           <input type="checkbox" checked={weekly} onChange={(event) => setWeekly(event.target.checked)} /> Pay weekly
         </label>

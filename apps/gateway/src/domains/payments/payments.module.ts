@@ -3,11 +3,6 @@ import { AuthModule } from "@auth/auth.module";
 import { DatabaseModule } from "@database/database.module";
 import { ControlPlaneModule } from "@domains/control-plane/control-plane.module";
 import { PaymentsController } from "./features/payment-facade";
-import {
-  PaymentPubSubProvisioningController,
-  PaymentPubSubProvisioningService,
-  PaymentPubSubIamProvisioningService,
-} from "./features/pubsub-provisioning";
 import { PaymentIdempotencyService } from "./shared/payment-idempotency.service";
 import { PaymentLimitsService } from "./features/payment-limits";
 import { PaymentReturnController } from "./features/payment-return/payment-return.controller";
@@ -16,8 +11,7 @@ import { PaymentReturnLinks } from "./features/payment-return/payment-return-lin
 /** The payments facade for application keys, payment return pages, and payment event subscription provisioning. */
 @Module({
   imports: [AuthModule, DatabaseModule, ControlPlaneModule],
-  controllers: [PaymentsController, PaymentReturnController, PaymentPubSubProvisioningController],
-  providers: [PaymentIdempotencyService, PaymentPubSubIamProvisioningService, PaymentPubSubProvisioningService,
-    PaymentLimitsService, PaymentReturnLinks],
+  controllers: [PaymentsController, PaymentReturnController],
+  providers: [PaymentIdempotencyService, PaymentLimitsService, PaymentReturnLinks],
 })
 export class PaymentsModule {}

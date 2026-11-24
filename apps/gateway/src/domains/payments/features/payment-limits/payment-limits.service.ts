@@ -1,3 +1,4 @@
+import { databaseConfigured } from "@config/database-configured";
 import {
   Injectable,
   HttpException,
@@ -45,7 +46,7 @@ export class PaymentLimitsService {
       reason: string;
     } | undefined;
 
-    if (process.env.DATABASE_ENABLED === "true") {
+    if (databaseConfigured()) {
       const assignments = await this.limitPrisma.$queryRawUnsafe<Array<{ plan_key: string }>>(
         "SELECT plan_key FROM apic_governance.entitlement_assignments " +
           "WHERE owner_tribe_id = $1 AND project_id = $2 AND environment = $3 " +
@@ -102,7 +103,7 @@ export class PaymentLimitsService {
 
     const isWrite = ["POST", "PATCH", "PUT", "DELETE"].includes(input.method.toUpperCase());
     if (isWrite && limits.paymentRequestsPerMinute !== null) {
-      const count = process.env.DATABASE_ENABLED === "true"
+      const count = databaseConfigured()
         ? await this.incrementDatabaseWindow(input.projectId, input.environment)
         : this.incrementLocalWindow(input.projectId, input.environment);
       if (count > limits.paymentRequestsPerMinute) {

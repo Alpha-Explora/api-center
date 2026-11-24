@@ -210,6 +210,7 @@ export function createFakeControlPlanePrisma() {
     cpPublishedApi: new FakeDelegate((row) => String(row.id), [(row) => `${row.environmentId}/${row.slug}`]),
     cpPublishedApiOperation: new FakeDelegate((row) => `${row.apiId}/${row.method}/${row.pathPattern}`),
     cpApiAccessRequest: new FakeDelegate((row) => String(row.id)),
+    cpFeatureRequest: new FakeDelegate((row) => String(row.id)),
     cpEventDestination: new FakeDelegate((row) => String(row.id)),
     cpControlPlaneAssignment: new FakeDelegate((row) => `${row.projectId}/${row.environmentKind}`),
     cpLegacyMapping: new FakeDelegate((row) => `${row.sourceKind}/${row.sourceId}/${row.environmentKind}`),

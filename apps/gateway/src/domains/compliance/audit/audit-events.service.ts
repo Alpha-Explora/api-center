@@ -1,3 +1,4 @@
+import { databaseConfigured } from "@config/database-configured";
 import { Injectable, Optional } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -137,7 +138,7 @@ type AuditEventRow = {
 export class AuditEventsService {
   private readonly memoryEvents: AuditEventRecord[] = [];
 
-  private readonly databaseEnabled = process.env.DATABASE_ENABLED === "true";
+  private readonly databaseEnabled = databaseConfigured();
 
   constructor(
     private readonly logger: LoggerService,

@@ -1,6 +1,7 @@
 // Replay records for payment mutations, keyed by caller, operation and Idempotency-Key. With a
 // database they live in apic_governance.payment_idempotency_keys so every gateway instance sees
 // them; without one (local runs and tests) they live in this process, and production refuses that.
+import { databaseConfigured } from "@config/database-configured";
 import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
@@ -40,7 +41,7 @@ export class PaymentIdempotencyService {
   private readonly memory = new Map<string, StoredRecord & { expiresAt: number }>();
   private readonly leases = new Map<string, number>();
   private readonly databaseEnabled =
-    process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL);
+    databaseConfigured();
 
   constructor(@Optional() private readonly prisma?: PrismaService) {}
 

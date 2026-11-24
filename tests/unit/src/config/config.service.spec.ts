@@ -33,13 +33,6 @@ describe('ConfigService', () => {
     expect(() => new ConfigService().onApplicationBootstrap()).toThrow('ALLOWED_ORIGINS must list explicit origins');
   });
 
-  it('rejects an enabled database without a URL', () => {
-    validProductionEnv();
-    process.env.DATABASE_ENABLED = 'true';
-    delete process.env.DATABASE_URL;
-    expect(() => new ConfigService().onApplicationBootstrap()).toThrow('DATABASE_URL is required when DATABASE_ENABLED=true');
-  });
-
   it('requires a database URL in production', () => {
     validProductionEnv();
     delete process.env.DATABASE_URL;
@@ -48,7 +41,6 @@ describe('ConfigService', () => {
 
   it('enables the database when DATABASE_URL is set', () => {
     process.env.DATABASE_URL = 'postgresql://localhost/apicenter';
-    delete process.env.DATABASE_ENABLED;
     expect(new ConfigService().database.enabled).toBe(true);
   });
 });

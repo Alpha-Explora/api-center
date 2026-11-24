@@ -725,6 +725,7 @@ model CpQuotaPolicy {
   /// active, disabled, or deleted (a soft delete kept for the audit trail and never enforced)
   status          String   @default("active")
   provenance      String   @default("explicit")
+  createdLevel    String   @default("project") @map("created_level")
   createdBy       String   @map("created_by")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime? @map("updated_at") @db.Timestamptz(6)
@@ -847,6 +848,40 @@ model CpApiAccessRequest {
 
   @@index([organizationId, consumerProjectId, createdAt(sort: Desc)], map: "cp_api_access_requests_consumer_idx")
   @@map("cp_api_access_requests")
+  @@schema("apic_catalog")
+}
+
+model PlatformOperator {
+  email      String    @id
+  addedBy    String    @map("added_by")
+  addedAt    DateTime  @default(now()) @map("added_at") @db.Timestamptz(6)
+  removedBy  String?   @map("removed_by")
+  removedAt  DateTime? @map("removed_at") @db.Timestamptz(6)
+
+  @@map("platform_operators")
+  @@schema("apic_catalog")
+}
+
+model CpFeatureRequest {
+  id              String    @id
+  organizationId  String    @map("organization_id") @db.Uuid
+  projectId       String    @map("project_id")
+  environmentId   String    @map("environment_id")
+  environmentKind String    @map("environment_kind")
+  feature         String
+  change          Json      @default("{}")
+  reason          String
+  status          String    @default("pending")
+  requestedBy     String    @map("requested_by")
+  decidedBy       String?   @map("decided_by")
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote    String?   @map("decision_note")
+  claimToken      String?   @map("claim_token") @db.Uuid
+  claimedAt       DateTime? @map("claimed_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([organizationId, projectId, createdAt(sort: Desc)], map: "cp_feature_requests_project_idx")
+  @@map("cp_feature_requests")
   @@schema("apic_catalog")
 }
 

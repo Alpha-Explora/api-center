@@ -11,7 +11,7 @@ APICenter calls these providers on your behalf. Your application never calls the
 | SMS and SMS one-time passwords | Twilio | Recipient number and message text |
 | Email and email one-time passwords | Resend | Recipient address, sender, subject and body |
 | Geocoding | Google Maps Platform | Addresses and coordinates you send to the geo routes |
-| Event delivery (optional) | Google Cloud Pub/Sub | Payment events, when your project uses Pub/Sub push instead of signed webhooks |
+| Event delivery | Google Cloud Pub/Sub | Internal transport for signed payment webhooks |
 | Hosting and storage | Google Cloud and Supabase | Everything APICenter stores to provide the service |
 
 Identity documents for account onboarding go directly to the payment provider's hosted page. APICenter never receives or stores them.

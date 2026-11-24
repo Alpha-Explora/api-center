@@ -24,10 +24,12 @@ import { createChildWebhookSecretLookup } from './features/linked-accounts/child
 import { LinkedAccountOnboarding } from './features/linked-accounts/linked-account-onboarding';
 import { LinkedAccountStore } from './features/linked-accounts/linked-account-store';
 import { FakeLinkedAccountsProvider, type ConsumerDetails, type MerchantDetails } from './features/linked-accounts/linked-accounts-provider';
-import { payeeOnboardingEnabled, registerPayeeOnboardingRoutes } from './features/linked-accounts/payee-onboarding.routes';
+import { registerPayeeOnboardingRoutes } from './features/linked-accounts/payee-onboarding.routes';
 import { PayMongoLinkedAccountsSandbox } from './features/linked-accounts/paymongo-linked-accounts-provider';
 import { registerLinkedAccountRoutes } from './features/linked-accounts/linked-accounts.routes';
 import { createLinkedAccountsSwitch } from './features/linked-accounts/linked-accounts-switch';
+import type { Environment } from './features/payouts/payout-store';
+import { hasPaymentEventTopic } from './events/pubsubPublisher';
 import { createPayoutsFeature } from './features/payouts/payouts-feature';
 import { registerPayoutCallbackRoute, registerPayoutRoutes } from './features/payouts/payouts.routes';
 import { payoutContext } from './features/payouts/payout-store';
@@ -54,17 +56,24 @@ const paymentLinksService = new PaymentLinksService();
 const qrPhService = new QrPhService();
 const owners = PaymentOwnerStore.getInstance();
 const linkedAccountsSwitch = createLinkedAccountsSwitch(owners.databasePool);
+const payouts = createPayoutsFeature(owners, { linkedAccountsSwitch });
 const childWebhookSecret = createChildWebhookSecretLookup();
-const linkedAccountStore = new LinkedAccountStore(owners.databasePool,
-  () => payeeOnboardingEnabled() && linkedAccountsSwitch.environmentEnabled() && isMockMode());
+const linkedAccountStore = new LinkedAccountStore(owners.databasePool, isMockMode);
 const onboarding = new LinkedAccountOnboarding<MerchantDetails>(linkedAccountStore, linkedAccountsSwitch,
   isMockMode() ? new FakeLinkedAccountsProvider()
     : hasPayMongoTestCredentials() ? new PayMongoLinkedAccountsSandbox() : null,
   undefined, (accountId) => Boolean(childWebhookSecret(accountId)));
-const payouts = createPayoutsFeature(owners, { linkedAccountsSwitch });
-const consumerOnboarding = new LinkedAccountOnboarding<ConsumerDetails>(linkedAccountStore, linkedAccountsSwitch,
-  isMockMode() ? new FakeLinkedAccountsProvider()
-    : hasPayMongoTestCredentials() ? new PayMongoLinkedAccountsSandbox(undefined, 'consumer') : null);
+const payeeWalletsEnabled = (environment: Environment, projectId: string) =>
+  payouts.projectFeatures.enabled(environment, projectId, 'payee_wallets');
+const consumerOnboarding = new LinkedAccountOnboarding<ConsumerDetails>(linkedAccountStore, {
+  projectEnabled: payeeWalletsEnabled, enabledFor: payeeWalletsEnabled,
+  setProject: (environment, projectId, enabled, actor) => payouts.projectFeatures.set(environment, projectId, 'payee_wallets', enabled, actor),
+  async assertEnabledFor(environment, projectId) {
+    if (environment !== 'test' || !await payeeWalletsEnabled(environment, projectId) || !isMockMode()) {
+      throw new PayMongoError('Payee wallet onboarding is unavailable for this project', 503, 'PAYEE_ONBOARDING_DISABLED');
+    }
+  },
+}, isMockMode() ? new FakeLinkedAccountsProvider() : null);
 const collection = createCollectionRouting(payouts.accounts, owners.databasePool);
 const webhooksService = new WebhooksService(owners, refundsService, collection.forOwner, onboarding, childWebhookSecret);
 const eventRecovery = new PaymentReplayStore();
@@ -251,7 +260,7 @@ let outboxPool: ReturnType<typeof createPaymentEventPool> | undefined;
  * scheduled dispatcher job. A failure stays in the outbox, and the job retries it.
  */
 async function publishQueuedPaymentEvents(): Promise<void> {
-  if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return;
+  if (!hasPaymentEventTopic('test') && !hasPaymentEventTopic('live')) return;
   try {
     outboxPool ??= createPaymentEventPool();
     await drainPaymentEventOutbox({ pool: outboxPool, limit: 10 });
@@ -620,14 +629,16 @@ app.post('/webhooks', async (req: Request, res: Response) => {
 });
 
 registerPayoutCallbackRoute(app, payouts, { handleError: handleCustomError });
-registerPayoutRoutes(app, payouts, { ok, context: paymentContext, handleError: handleCustomError, features: {
+registerPayoutRoutes(app, payouts, { ok, context: paymentContext,
+  signedContext: (req) => readPaymentContext(req, { ...contextOptions, requireSigned: true }),
+  handleError: handleCustomError, pauses: payouts.pauses, features: {
   linkedAccountsEnabled: (environment, projectId) => linkedAccountsSwitch.enabledFor(environment, projectId),
-  payeeWalletsEnabled: () => payeeOnboardingEnabled() && Boolean(owners.databasePool),
+  payeeWalletsAvailable: () => isMockMode() && Boolean(owners.databasePool),
 } });
-registerLinkedAccountRoutes(app, onboarding, { ok, context: paymentContext, handleError: handleCustomError });
+registerLinkedAccountRoutes(app, onboarding, { ok, context: paymentContext, handleError: handleCustomError, pauses: payouts.pauses });
 registerPayeeOnboardingRoutes(app, {
   onboarding: consumerOnboarding, payees: payouts.store, persistent: Boolean(owners.databasePool),
-  helpers: { ok, context: paymentContext, handleError: handleCustomError }, publish: publishQueuedPaymentEvents,
+  helpers: { ok, context: paymentContext, handleError: handleCustomError, pauses: payouts.pauses }, publish: publishQueuedPaymentEvents,
 });
 
 if (require.main === module) {

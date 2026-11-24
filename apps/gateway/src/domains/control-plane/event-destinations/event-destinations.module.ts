@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "@database/database.module";
 import { PaymentPubSubProvisioningService } from "@payments/features/pubsub-provisioning/payment-pubsub-provisioning.service";
-import { PaymentPubSubIamProvisioningService } from "@payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service";
 import { ControlPlaneModule } from "../control-plane.module";
 import { EventDestinationsController } from "./event-destinations.controller";
 import { EventDestinationService } from "./event-destination.service";
@@ -20,7 +19,6 @@ import { createMemoryWebhookConfigStore, createSecretManagerWebhookConfigStore, 
     EventDestinationService,
     WebhookDeliveriesService,
     PaymentPubSubProvisioningService,
-    PaymentPubSubIamProvisioningService,
     {
       // Webhook URLs and signing secrets live in Secret Manager; local runs keep them in memory.
       provide: WEBHOOK_CONFIG_STORE,

@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createEmailSender, createSmsSender, MessagingProviderError } from '@apicenter/runtime';
 import { GenerateOtpService } from '../../../../apps/otp/src/features/generate-otp/generate-otp.service';
 import { MemoryOtpStore } from '../../../../apps/otp/src/shared/otp-store';
@@ -93,11 +93,14 @@ describe('messaging conformance', () => {
   });
 
   it('no sending code outside the adapters names a vendor SDK or API', () => {
-    const matches = execSync(
-      'git grep -nE "api\\.twilio\\.com|api\\.resend\\.com|from [\\"\']resend[\\"\']|new Resend\\(|maps\\.googleapis\\.com" -- '
-      + 'apps/email/src apps/sms/src apps/otp/src apps/geo/src packages/runtime/src ":!packages/runtime/src/adapters" ":!apps/geo/src/shared/google-geocoding-adapter.ts" || true',
-      { encoding: 'utf8' },
-    ).trim();
-    expect(matches).toBe('');
+    const result = spawnSync('git', [
+      'grep', '-nE', String.raw`api\.twilio\.com|api\.resend\.com|from ["']resend["']|new Resend\(|maps\.googleapis\.com`, '--',
+      'apps/email/src', 'apps/sms/src', 'apps/otp/src', 'apps/geo/src', 'packages/runtime/src',
+      ':!packages/runtime/src/adapters', ':!apps/geo/src/shared/google-geocoding-adapter.ts',
+    ], { encoding: 'utf8' });
+    expect(result.error).toBeUndefined();
+    expect(result.stderr).toBe('');
+    expect(result.stdout).toBe('');
+    expect(result.status).toBe(1);
   });
 });

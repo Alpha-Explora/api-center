@@ -1,11 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { PubSub, Subscription } from "@google-cloud/pubsub";
 import { z } from "zod";
-import {
-  PaymentPubSubIamProvisioningService,
-  type PaymentPubSubIamResult,
-} from "./payment-pubsub-iam-provisioning.service";
-
 const ConsumerDeliveryInput = z.object({
   ownerTribeId: z.string().trim().min(1).max(100),
   consumerServiceId: z.string().trim().min(1).max(150),
@@ -17,9 +12,6 @@ const ConsumerDeliveryInput = z.object({
   oidcAudience: z.string().url().optional(),
   deliveryServiceAccountEmail: z.string().email(),
   endpointEnvironment: z.enum(["test", "live"]).optional(),
-  consumerProjectId: z.string().trim().min(1).optional(),
-  cloudRunRegion: z.string().trim().min(1).optional(),
-  cloudRunServiceName: z.string().trim().min(1).optional(),
 });
 
 export type ConsumerDeliveryInput = z.infer<typeof ConsumerDeliveryInput>;
@@ -34,7 +26,6 @@ export type PaymentEventProvisioningResult = {
   filter: string;
   maxDeliveryAttempts: number;
   monitoringAlertName: string;
-  iam: PaymentPubSubIamResult;
 };
 
 /** The payment events topic of an environment; the payments dispatcher publishes to the same name. */
@@ -50,10 +41,6 @@ const MAX_DELIVERY_ATTEMPTS = 20;
 @Injectable()
 export class PaymentPubSubProvisioningService {
   private pubsub: PubSub | null = null;
-
-  constructor(
-    private readonly iamProvisioning: PaymentPubSubIamProvisioningService = new PaymentPubSubIamProvisioningService(),
-  ) {}
 
   async provision(input: unknown): Promise<PaymentEventProvisioningResult> {
     const delivery = this.parse(input);
@@ -100,17 +87,6 @@ export class PaymentPubSubProvisioningService {
       },
     });
 
-    const iam = await this.iamProvisioning.provision({
-      projectId,
-      topicName,
-      deadLetterTopicName,
-      subscriptionName,
-      deliveryServiceAccountEmail: delivery.deliveryServiceAccountEmail,
-      consumerProjectId: delivery.consumerProjectId,
-      cloudRunRegion: delivery.cloudRunRegion,
-      cloudRunServiceName: delivery.cloudRunServiceName,
-    });
-
     return {
       projectId,
       environment: delivery.environment,
@@ -121,7 +97,6 @@ export class PaymentPubSubProvisioningService {
       filter,
       maxDeliveryAttempts: MAX_DELIVERY_ATTEMPTS,
       monitoringAlertName: `${subscriptionName}.delivery-failures`,
-      iam,
     };
   }
 

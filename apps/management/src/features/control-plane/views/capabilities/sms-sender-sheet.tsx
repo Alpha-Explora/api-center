@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { FeatureAccess, useFeaturePrompt } from "@/components/patterns/feature-access";
+import { SmsDeliverySettings } from "./sms-delivery-settings";
 import { FormRow } from "@/components/patterns/form";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { DescriptionList } from "@/components/patterns/panel";
@@ -57,6 +59,7 @@ function SmsSenderForm({ current, onDone }: { current: SmsSender; onDone: () => 
   const { organizationId, project, kind, canWrite } = useProjectEnvironment();
   const client = useQueryClient();
   const scope = { organizationId, projectId: project.id, kind };
+  const featurePrompt = useFeaturePrompt(scope);
   const [form, setForm] = useState<SmsSenderForm>({ senderId: current.senderId ?? "" });
   const [submitted, setSubmitted] = useState(false);
   const [confirm, setConfirm] = useState<"save" | "clear" | null>(null);
@@ -68,6 +71,7 @@ function SmsSenderForm({ current, onDone }: { current: SmsSender; onDone: () => 
   const save = useMutation({
     mutationFn: () => capabilityConfiguration.saveSmsSender(scope, smsSenderBody(form)),
     onSettled: () => setConfirm(null),
+    onError: (error) => { if (featurePrompt.handle(error, smsSenderBody(form))) save.reset(); },
     onSuccess: (sender) => finish(`SMS in ${kind} now sends as ${sender.senderId}`),
   });
   const clear = useMutation({
@@ -81,6 +85,7 @@ function SmsSenderForm({ current, onDone }: { current: SmsSender; onDone: () => 
 
   return (
     <>
+      {featurePrompt.dialog}
       <form
         noValidate
         className="flex min-h-0 flex-1 flex-col"
@@ -112,6 +117,8 @@ function SmsSenderForm({ current, onDone }: { current: SmsSender; onDone: () => 
 
           {canWrite ? (
             <>
+              <FeatureAccess feature="sms.sender" requestAccess={false} />
+              <SmsDeliverySettings current={current} capability="sms" />
               <FormRow
                 label="Sender ID"
                 htmlFor="sms-sender"

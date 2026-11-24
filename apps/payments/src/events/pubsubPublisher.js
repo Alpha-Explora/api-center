@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const publisherCache = new Map();
 
 function getPublisher(environment) {
-  if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return null;
+  if (!hasPaymentEventTopic(environment)) return null;
   if (publisherCache.has(environment)) return publisherCache.get(environment).publisher;
 
   const { PubSub } = require('@google-cloud/pubsub');
@@ -14,8 +14,12 @@ function getPublisher(environment) {
 }
 
 function paymentEventTopicName(environment) {
-  return process.env[`APICENTER_PAYMENT_EVENTS_TOPIC_${environment.toUpperCase()}`]
+  return process.env[`APICENTER_PAYMENT_EVENTS_TOPIC_${environment.toUpperCase()}`]?.trim()
     || `apicenter.payment-events.${environment}`;
+}
+
+function hasPaymentEventTopic(environment) {
+  return Boolean(process.env[`APICENTER_PAYMENT_EVENTS_TOPIC_${environment.toUpperCase()}`]?.trim());
 }
 
 function omitUndefined(value) {
@@ -125,4 +129,4 @@ async function closePaymentEventPublishers() {
   publisherCache.clear();
 }
 
-module.exports = { closePaymentEventPublishers, paymentEventTopicName, publishPaymentEvent, toCanonicalPaymentEvent, publicEventId };
+module.exports = { closePaymentEventPublishers, hasPaymentEventTopic, paymentEventTopicName, publishPaymentEvent, toCanonicalPaymentEvent, publicEventId };

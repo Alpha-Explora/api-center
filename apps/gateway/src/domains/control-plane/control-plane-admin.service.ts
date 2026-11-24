@@ -194,12 +194,21 @@ export class ControlPlaneAdminService {
   // ── Capabilities ─────────────────────────────────────────────────────────
 
   /** Enabling a capability creates its environment configuration. It grants no application access. */
-  async setCapability(scope: EnvironmentScope, capability: string, enabled: boolean, actor: string) {
+  async setCapability(scope: EnvironmentScope, capability: string, enabled: boolean, actor: string, authorizeChange?: (previous: boolean) => void) {
     if (!isKnownCapability(capability)) throw new NotFoundError(`Capability '${capability}' is not available`);
-    if (capability === "payments" && enabled) assertMerchantBinding(scope.organizationId);
     const status = enabled ? "enabled" : "disabled";
     const { environment, installation } = await this.tenant(scope.organizationId, async (db) => {
       const environment = await this.resolveEnvironment(db, scope);
+      if (capability === "payments") {
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`apicenter:payments-capability:${environment.id}`}, 0))`;
+      }
+      if (authorizeChange) {
+        const previous = await db.cpCapabilityInstallation.findFirst({
+          where: { organizationId: scope.organizationId, environmentId: environment.id, capability }, select: { status: true },
+        });
+        authorizeChange(previous?.status === "enabled");
+      }
+      if (capability === "payments" && enabled) assertMerchantBinding(scope.organizationId);
       const installation = await db.cpCapabilityInstallation.upsert({
       where: { environmentId_capability: { environmentId: environment.id, capability } },
       create: {

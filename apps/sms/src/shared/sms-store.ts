@@ -3,7 +3,7 @@ import { sameProject } from '@apicenter/runtime';
 import { PostgresSmsStore } from './postgres-sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
 import type { ProviderMessage, SmsDeliveryEvent } from './sms-repository.interface';
-import type { ProjectSmsSender } from './project-sender';
+import type { ProjectSmsSender, ProjectSmsSenderUpdate } from './project-sender';
 
 export interface SmsRecord {
   messageId: string;
@@ -66,9 +66,11 @@ export class MemorySmsStore implements SmsRepositoryInterface {
     return sender ? { ...sender } : null;
   }
 
-  async setProjectSender(sender: ProjectSmsSender): Promise<ProjectSmsSender> {
-    this.projectSenders.set(`${sender.projectId}:${sender.environment}`, { ...sender });
-    return { ...sender };
+  async setProjectSender(sender: ProjectSmsSenderUpdate): Promise<ProjectSmsSender> {
+    const key = `${sender.projectId}:${sender.environment}`;
+    const next = { senderId: null, ...this.projectSenders.get(key), ...sender };
+    this.projectSenders.set(key, next);
+    return { ...next };
   }
 }
 

@@ -8,6 +8,8 @@ Open plan: [Linked accounts](2026-11-24-linked-accounts.md). The test implementa
 
 Open plan: [Provider-neutral boundaries](2026-11-24-provider-neutral-boundaries.md): keep vendors out of the public contract, IDs, errors and docs; put SMS, email and geocoding behind interfaces; 90-day deprecation policy. Tasks 1–9 built on `feat/provider-neutral` (stacked on #236); Task 10 held for an SMS vendor choice; running the usage report on test and live awaits approval.
 
+Open plan: [Feature escalation](2026-11-24-feature-escalation.md): changes that spend shared accounts or money (Pro and Enterprise plans, live payments, live SMS and email senders, raised email limits, payouts features) need a platform operator's approval; project members request them in the console; operators can pause payout features without a deploy; also SMS caps and allowed countries, notifications, operators in the console, a payout settlement hold, and removing flags that repeat a default. Implemented on `feat/feature-escalation`. The production migration, traffic change and release are tracked in the plan’s [rollout](2026-11-24-feature-escalation.md#rollout).
+
 ## Working specifications
 
 - [Control plane rebuild](../specs/2026-11-14-control-plane-rebuild-design.md): organization-owned projects, environment-bound applications, explicit grants and one application key. Built, deployed, and the only access model since the legacy model was removed on 2026-11-19.

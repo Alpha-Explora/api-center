@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { SmsDeliverySettings } from "./sms-delivery-settings";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { FormRow } from "@/components/patterns/form";
@@ -102,6 +103,7 @@ function OtpSettingsForm({ current, onDone }: { current: OtpSettings; onDone: ()
 
   return (
     <>
+      <div className="px-4"><SmsDeliverySettings current={current} capability="otp" /></div>
       <form
         noValidate
         className="flex min-h-0 flex-1 flex-col"

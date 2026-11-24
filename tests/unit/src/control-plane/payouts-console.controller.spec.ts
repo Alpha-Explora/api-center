@@ -109,7 +109,7 @@ describe('PayoutsConsoleController', () => {
       type: 'linked_account.onboarding_started', organizationId, projectId: 'prj_1', resourceId: 'lac_example',
     }));
     expect(JSON.stringify(audit.record.mock.calls)).not.toMatch(/111-111-111|identity.example/);
-    await expect(controller().setLinkedAccountEnabled(params, { enabled: true }, req)).rejects.toThrow('platform operators');
+    await expect(controller().setLinkedAccountEnabled(params, { enabled: true }, req)).rejects.toMatchObject({ code: 'FEATURE_APPROVAL_REQUIRED' });
     await expect(controller().closeLinkedAccount(params, { id: 'lac_example' }, req)).rejects.toThrow('platform operators');
   });
 

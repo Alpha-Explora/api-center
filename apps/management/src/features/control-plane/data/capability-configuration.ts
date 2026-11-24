@@ -24,6 +24,8 @@ export const capabilityConfiguration = {
   smsSender: (scope: Scope) => call(smsSenderSchema, path(scope, "sms")),
   saveSmsSender: (scope: Scope, body: SmsSenderBody) => call(smsSenderSchema, path(scope, "sms"), send("PUT", body)),
   clearSmsSender: (scope: Scope) => call(smsSenderSchema, path(scope, "sms"), send("DELETE")),
+  saveSmsDeliverySettings: (scope: Scope, capability: "sms" | "otp", body: { dailyLimit?: number | null; allowedPrefixes?: string[] | null }) =>
+    call(z.unknown(), path(scope, capability), send("PUT", body)),
   otpSettings: (scope: Scope) => call(otpSettingsSchema, path(scope, "otp")),
   saveOtpSettings: (scope: Scope, body: OtpSettingsBody) => call(otpSettingsSchema, path(scope, "otp"), send("PUT", body)),
   resetOtpSettings: (scope: Scope) => call(otpSettingsSchema, path(scope, "otp"), send("DELETE")),

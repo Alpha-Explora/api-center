@@ -5,6 +5,7 @@
 //   node dist/features/payouts/payout-runner.js schedule|reconcile
 
 import { createPaymentEventPool, drainPaymentEventOutbox } from '../../events/paymentEventDispatcher';
+import { hasPaymentEventTopic } from '../../events/pubsubPublisher';
 import { PaymentOwnerStore } from '../../shared/payment-owner-store';
 import { reconcileOpenAttempts, runPayouts, type RunReport } from './payout-executor';
 import type { PayoutTrigger } from './payout-policy';
@@ -47,10 +48,10 @@ function defaultDeps(): RunnerDeps {
     reconcile: () => reconcileOpenAttempts(feature, environment),
     run: (trigger) => runPayouts(feature, environment, trigger),
     drain: async () => {
-      if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return;
+      if (!hasPaymentEventTopic(environment)) return;
       const pool = createPaymentEventPool();
       try {
-        await drainPaymentEventOutbox({ pool, limit: 100 });
+        await drainPaymentEventOutbox({ pool, limit: 100, environment });
       } finally {
         await pool.end();
       }

@@ -4,8 +4,6 @@ import {
   destinationEndpoint,
   liveDestinationFor,
   publicHttpsUrlProblem,
-  pushBody,
-  pushFormSchema,
   sortDestinations,
   webhookBody,
   webhookFormSchema,
@@ -90,27 +88,5 @@ describe("webhook URL", () => {
     expect(fieldErrors(webhookFormSchema.safeParse({ recipientApplicationId: "", url: "https://shop.example.com" }).error)).toHaveProperty(
       "recipientApplicationId",
     );
-  });
-});
-
-describe("Pub/Sub push body", () => {
-  const push = {
-    recipientApplicationId: APP,
-    pushEndpoint: "https://events.example.com/push",
-    oidcAudience: "",
-    deliveryServiceAccountEmail: "push@p.iam.gserviceaccount.com",
-  };
-
-  it("leaves out an empty audience", () => {
-    expect(pushBody(push)).toEqual({
-      recipientApplicationId: APP,
-      pushEndpoint: "https://events.example.com/push",
-      deliveryServiceAccountEmail: "push@p.iam.gserviceaccount.com",
-    });
-    expect(pushBody({ ...push, oidcAudience: "https://events.example.com" })).toHaveProperty("oidcAudience", "https://events.example.com");
-  });
-
-  it("requires a service account email", () => {
-    expect(fieldErrors(pushFormSchema.safeParse({ ...push, deliveryServiceAccountEmail: "nope" }).error)).toHaveProperty("deliveryServiceAccountEmail");
   });
 });

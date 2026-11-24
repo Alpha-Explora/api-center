@@ -9,16 +9,6 @@ import { PAYMENT_EVENT_TYPES } from "./event-types";
 
 const ENV = "organizations/:organizationId/projects/:projectId/environments/:environment";
 
-const createSchema = z
-  .object({
-    recipientApplicationId: z.string().regex(/^app_[a-z0-9]{24}$/),
-    pushEndpoint: z.string().url().max(2048),
-    oidcAudience: z.string().url().max(2048).optional(),
-    deliveryServiceAccountEmail: z.string().email().max(320),
-    actor: z.string().trim().min(1).max(200).optional(),
-  })
-  .strict();
-
 const eventTypes = z.array(z.string().min(1).max(100)).max(50);
 
 const webhookSchema = z
@@ -52,17 +42,6 @@ export class EventDestinationsController {
     private readonly destinations: EventDestinationService,
     private readonly access: ConsoleAccessService,
   ) {}
-
-  @Post(`${ENV}/event-destinations`)
-  async create(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
-    const scope = scopeFrom(params);
-    const parsed = createSchema.safeParse(body ?? {});
-    if (!parsed.success) throw new ValidationError(`body ${parsed.error.issues[0]?.path.join(".")} ${parsed.error.issues[0]?.message}`);
-    const actor = req.consoleActor!;
-    await this.access.require(actor, scope.organizationId, "environment.write", { projectId: scope.projectId, environmentKind: scope.environmentKind });
-    const { actor: onBehalfOf, ...input } = parsed.data;
-    return { success: true, data: await this.destinations.create(scope, input, actorLabel(actor, onBehalfOf)) };
-  }
 
   /** A signed HTTPS webhook to any public URL. The response carries the signing secret, once. */
   @Post(`${ENV}/event-destinations/webhooks`)

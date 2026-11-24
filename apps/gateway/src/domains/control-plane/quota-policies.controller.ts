@@ -71,7 +71,7 @@ export class QuotaPoliciesController {
     // Membership first, so a stranger cannot learn which policy IDs exist.
     await this.access.require(actor, organizationId, "organization.read");
     const policy = await this.quotas.policyProject(organizationId, policyId);
-    if (policy.scope === "project" && policy.projectId) {
+    if (policy.scope === "project" && policy.projectId && policy.createdLevel !== "organization") {
       await this.access.require(actor, organizationId, "project.manage", { projectId: policy.projectId });
     } else {
       await this.access.require(actor, organizationId, "organization.quotas.manage");

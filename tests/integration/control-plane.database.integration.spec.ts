@@ -6,7 +6,7 @@
 
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { loadRuntimeContextKeys, verifyRuntimeContext } from "@apicenter/runtime";
+import { loadRuntimeContextKeys, reserveDailySmsSend, verifyRuntimeContext } from "@apicenter/runtime";
 import { PrismaService } from "../../apps/gateway/src/database/prisma.service";
 import type { AuditEventsService } from "../../apps/gateway/src/domains/compliance/audit/audit-events.service";
 import { ControlPlaneAdminService } from "../../apps/gateway/src/domains/control-plane/control-plane-admin.service";
@@ -16,6 +16,12 @@ import { QuotaService } from "../../apps/gateway/src/domains/control-plane/quota
 import { LiveEnvironmentService } from "../../apps/gateway/src/domains/control-plane/live-environment.service";
 import { PublishedApiService } from "../../apps/gateway/src/domains/control-plane/published-api.service";
 import { ApprovalRequestService } from "../../apps/gateway/src/domains/governance/approvals/approval-request.service";
+import { FeatureRequestService } from "../../apps/gateway/src/domains/control-plane/features/feature-request.service";
+import { FeatureRequestsController } from "../../apps/gateway/src/domains/control-plane/features/feature-requests.controller";
+import type { FeatureAppliers } from "../../apps/gateway/src/domains/control-plane/features/feature-appliers";
+import type { ConsoleAccessService } from "../../apps/gateway/src/domains/control-plane/console-access.service";
+import type { ConsoleRequest } from "../../apps/gateway/src/domains/control-plane/console-actor.guard";
+import type { PaymentsRuntimeClient } from "../../apps/gateway/src/domains/control-plane/payments-runtime.client";
 
 const url = process.env.APICENTER_CONTROL_PLANE_TEST_URL;
 if (url && !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
@@ -35,6 +41,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
   let quotas: QuotaService;
   let live: LiveEnvironmentService;
   let apis: PublishedApiService;
+  let features: FeatureRequestService;
   const orgA = randomUUID();
   const orgB = randomUUID();
 
@@ -58,6 +65,7 @@ describeWithDatabase("control plane on PostgreSQL", () => {
     await prisma.onModuleInit();
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditEventsService;
     admin = new ControlPlaneAdminService(prisma, audit);
+    features = new FeatureRequestService(prisma, audit);
     quotas = new QuotaService(prisma, audit);
     live = new LiveEnvironmentService(prisma, new ApprovalRequestService(prisma), audit);
     apis = new PublishedApiService(prisma, audit);
@@ -74,6 +82,48 @@ describeWithDatabase("control plane on PostgreSQL", () => {
   afterAll(async () => {
     await prisma?.onModuleDestroy();
     await pool?.end();
+  });
+
+  it("isolates feature requests and claims one approval, with retries after a failed apply", async () => {
+    const project = await admin.createProject(orgA, { slug: "feature-requests", name: "Feature requests" }, actor);
+    const scope = { organizationId: orgA, projectId: project.id, environmentKind: "test" as const };
+    const input = { feature: "plan.upgrade" as const, change: { planKey: "enterprise" }, reason: "Add capacity" };
+    const request = await features.create(scope, input, actor);
+    await expect(features.create(scope, input, actor)).rejects.toMatchObject({ code: "FEATURE_REQUEST_PENDING" });
+    await expect(features.cancel({ ...scope, organizationId: orgB }, request.id, actor, true)).rejects.toMatchObject({ status: 404 });
+
+    const apply = jest.fn().mockRejectedValueOnce(new Error("runtime failed before applying"))
+      .mockImplementation(async (target, _feature, change) => {
+        await quotas.assignPlan(target, change.planKey, "operator@example.test");
+        return { before: { planKey: "starter" }, after: change };
+      });
+    const decision = new FeatureRequestsController({} as ConsoleAccessService, features,
+      { apply } as unknown as FeatureAppliers, {} as PaymentsRuntimeClient);
+    const asOperator = (email: string) => ({ consoleActor: { kind: "member", email, subject: email, platformAdmin: true } }) as ConsoleRequest;
+    const shared = { consoleActor: { kind: "platform", id: "fixture" } } as ConsoleRequest;
+    await expect(decision.decide(request.id, { approve: true }, shared)).rejects.toMatchObject({ code: "PERSON_REQUIRED" });
+    await expect(decision.decide(request.id, { approve: true }, asOperator(actor))).rejects.toMatchObject({ code: "FEATURE_SELF_APPROVAL" });
+    await expect(decision.decide(request.id, { approve: true }, asOperator("operator@example.test"))).rejects.toThrow("runtime failed");
+    expect((await features.listForEnvironment(scope))[0].status).toBe("pending");
+
+    const results = await Promise.allSettled(["first@example.test", "second@example.test"].map((email) =>
+      decision.decide(request.id, { approve: true }, asOperator(email))));
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(apply).toHaveBeenCalledTimes(2);
+    expect((await features.listForEnvironment(scope))[0]).toMatchObject({ status: "approved", change: input.change });
+  });
+
+  it("reserves independent SMS and OTP budgets atomically and resets them at midnight in Manila", async () => {
+    const projectId = randomUUID();
+    const owner = { projectId, environment: "test" as const };
+    const before = new Date("2026-11-25T15:59:59.999Z");
+    const after = new Date("2026-11-25T16:00:00.000Z");
+    const reservations = await Promise.all(Array.from({ length: 12 }, () => reserveDailySmsSend(pool, "sms", owner, 5, before)));
+    expect(reservations.filter(Boolean)).toHaveLength(5);
+    await expect(reserveDailySmsSend(pool, "sms", owner, 5, before)).resolves.toBe(false);
+    await expect(reserveDailySmsSend(pool, "otp", owner, 5, before)).resolves.toBe(true);
+    await expect(reserveDailySmsSend(pool, "sms", { projectId, environment: "live" }, 5, before)).resolves.toBe(true);
+    await expect(reserveDailySmsSend(pool, "sms", owner, 5, after)).resolves.toBe(true);
   });
 
   it("runs the test onboarding journey and authorizes only the granted action", async () => {

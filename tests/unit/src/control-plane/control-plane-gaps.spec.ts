@@ -34,7 +34,7 @@ let apis: PublishedApiService;
 let consoleAccess: ConsoleAccessService;
 
 beforeEach(() => {
-  process.env.DATABASE_ENABLED = "true";
+  process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
   process.env.CONTROL_PLANE_ALLOW_PRIVATE_UPSTREAMS = "true";
   prisma = createFakeControlPlanePrisma();
   prisma.organization.rows.push({ id: ORG, status: "active" }, { id: OTHER_ORG, status: "active" });

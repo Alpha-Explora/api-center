@@ -2,6 +2,7 @@
 // Gateway configuration, read once from the environment. Fatal problems stop startup.
 // =============================================================================
 
+import { databaseConfigured } from "./database-configured";
 import { Injectable, OnApplicationBootstrap } from "@nestjs/common";
 import dotenv from "dotenv";
 
@@ -42,8 +43,8 @@ export class ConfigService implements OnApplicationBootstrap {
   }
 
   readonly database = {
-    enabled: process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL),
-    url: process.env.DATABASE_URL || "",
+    enabled: databaseConfigured(),
+    url: process.env.DATABASE_URL?.trim() || "",
   };
 
   readonly rateLimit = {
@@ -63,9 +64,6 @@ export class ConfigService implements OnApplicationBootstrap {
     }
     if (this.isProduction && [this.cors.origin].flat().includes("*")) {
       errors.push("ALLOWED_ORIGINS must list explicit origins in production; wildcard (*) is not allowed");
-    }
-    if (this.database.enabled && !this.database.url) {
-      errors.push("DATABASE_URL is required when DATABASE_ENABLED=true");
     }
     if (this.isProduction && !this.database.url) {
       errors.push("DATABASE_URL is required in production");

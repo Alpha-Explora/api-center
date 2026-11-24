@@ -12,6 +12,14 @@ sources: [apps/gateway/src/domains/control-plane, apps/gateway/src/domains/gatew
 
 How to deploy and configure the APICenter control plane and take a project live, as described in the [rebuild design](../superpowers/specs/2026-11-14-control-plane-rebuild-design.md). The model is in [current architecture](../architecture/current-architecture.md#control-plane). Repository checks prove the code and migrations; every step below that touches a real environment needs its own evidence.
 
+## Deciding feature requests
+
+Sign in with a named platform operator account and open **Approvals**. The request shows its project, environment, exact change, reason and age. Review the requested plan and spend for plan changes, the live payment setup for payments, legal and wallet readiness for payout pilots, sender authorization for messaging, and the expected volume or country coverage for messaging limit changes. Reject with the reason the requester needs to resolve. Approving applies the requested setting and records the decision. The requester receives the decision by email when platform mail is available.
+
+If applying an approval fails, the request stays pending. Check the error and runtime configuration before retrying the same request. SMS delivery settings are written to both the SMS and OTP runtimes, so a partial failure can leave one side updated until the retry completes. A decision interrupted mid-apply can be retried after the two-minute decision lease expires. The operator who requested a change needs a second named operator to decide it.
+
+Manage operators in **Platform settings**. Bootstrap operators in `PLATFORM_ADMIN_EMAILS` retain their access. Console changes and decisions are audited under the operator who made them.
+
 ## Deploy
 
 1. Apply every migration in `supabase/migrations` in order. The control-plane tables are `apic_catalog.cp_*`, with row-level security per organization.
@@ -29,7 +37,7 @@ How to deploy and configure the APICenter control plane and take a project live,
    - `CONTROL_PLANE_TEST_DAILY_REQUESTS` (default 1,000): the test-environment budget when no plan is assigned.
    - Never set `CONTROL_PLANE_ALLOW_PRIVATE_UPSTREAMS` outside local development.
 5. Existing `SHARED_SERVICE_ROUTE_<SERVICE>_<ENV>` variables route application calls; no new routes are needed.
-6. Signed webhooks (`apps/webhooks`, Cloud Run `apicenter-webhooks-live`): deploy the service with `GCP_PROJECT_ID`, a dedicated runtime identity holding `roles/secretmanager.secretAccessor` only on secrets named `apicenter-webhook-*`, and no unauthenticated invokers. Create the push identity (`WEBHOOK_PUSH_SERVICE_ACCOUNT`) and grant it, once, `run.invoker` on the delivery service; grant the Pub/Sub service agent `iam.serviceAccountTokenCreator` on it, `pubsub.publisher` on the `…dead-letter` topics and `pubsub.subscriber` on the project. The gateway needs `pubsub.editor`, `iam.serviceAccountUser` on the push identity (to attach it to subscriptions) and `secretmanager.admin` conditioned on `apicenter-webhook-*` secrets (plus the project, to create them). Leave `PAYMENT_PUBSUB_IAM_ENABLED` off: webhook destinations rely on these static grants. Give the gateway `WEBHOOK_DELIVERY_URL` (the service's `run.app` URL). Each destination's URL and signing secrets live in its own secret; the database row holds only the URL.
+6. Signed webhooks (`apps/webhooks`, Cloud Run `apicenter-webhooks-live`): deploy the service with `GCP_PROJECT_ID`, a dedicated runtime identity holding `roles/secretmanager.secretAccessor` only on secrets named `apicenter-webhook-*`, and no unauthenticated invokers. Create the push identity (`WEBHOOK_PUSH_SERVICE_ACCOUNT`) and grant it, once, `run.invoker` on the delivery service; grant the Pub/Sub service agent `iam.serviceAccountTokenCreator` on it, `pubsub.publisher` on the `…dead-letter` topics and `pubsub.subscriber` on the project. The gateway needs `pubsub.editor`, `iam.serviceAccountUser` on the push identity (to attach it to subscriptions) and `secretmanager.admin` conditioned on `apicenter-webhook-*` secrets (plus the project, to create them). Webhook destinations rely on these static grants. Give the gateway `WEBHOOK_DELIVERY_URL` (the service's `run.app` URL). Each destination's URL and signing secrets live in its own secret; the database row holds only the URL.
 7. Run the wiring check (`npx jest --config tests/e2e/jest-e2e.json control-plane-wiring`) against the built gateway, then the staging acceptance below.
 
 ## Console round 2

@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
+import { DEFAULT_SMS_PREFIXES, parseSmsDeliverySettings, smsDailyLimitDefault } from '@apicenter/runtime';
 import type { OtpRepositoryInterface } from './otp-repository.interface';
 import {
   DEFAULT_OTP_MESSAGE_TEMPLATE,
@@ -7,7 +8,7 @@ import {
   OTP_BOUNDS,
   hasOtpSettings,
   parseOtpSettingsInput,
-  type OtpSettingsValues,
+  type OtpSettingsUpdate,
 } from './project-settings';
 
 const DEFAULTS = {
@@ -31,14 +32,21 @@ export function createOtpSettingsAdminHandler(deps: { store: OtpRepositoryInterf
       return;
     }
 
-    let values: OtpSettingsValues | undefined;
+    let values: Omit<OtpSettingsUpdate, 'projectId' | 'environment'> | undefined;
     if (req.method === 'PUT') {
-      const parsed = parseOtpSettingsInput(req.body);
+      const { dailyLimit, allowedPrefixes, ...otpSettings } = req.body ?? {};
+      const smsSettings = parseSmsDeliverySettings({ dailyLimit, allowedPrefixes });
+      if (!smsSettings) {
+        res.status(400).json({ error: 'INVALID_OTP_SETTINGS', message: 'Provide valid SMS delivery settings.' });
+        return;
+      }
+      const smsOnly = Object.keys(smsSettings).length > 0 && !Object.keys(otpSettings).length;
+      const parsed = parseOtpSettingsInput(smsOnly ? {} : otpSettings);
       if (!parsed.ok) {
         res.status(400).json({ error: 'INVALID_OTP_SETTINGS', message: parsed.message });
         return;
       }
-      values = parsed.value;
+      values = { ...(smsOnly ? {} : parsed.value), ...smsSettings };
     } else if (req.method === 'DELETE') {
       values = EMPTY_OTP_SETTINGS;
     } else if (req.method !== 'GET') {
@@ -58,7 +66,9 @@ export function createOtpSettingsAdminHandler(deps: { store: OtpRepositoryInterf
         expirySeconds: record?.expirySeconds ?? null,
         maxAttempts: record?.maxAttempts ?? null,
         messageTemplate: record?.messageTemplate ?? null,
-        defaults: DEFAULTS,
+        dailyLimit: record?.dailyLimit ?? null,
+        allowedPrefixes: record?.allowedPrefixes ?? null,
+        defaults: { ...DEFAULTS, dailyLimit: smsDailyLimitDefault(), allowedPrefixes: DEFAULT_SMS_PREFIXES },
       });
     } catch {
       res.status(503).json({ error: 'OTP_SETTINGS_UNAVAILABLE', message: 'Project OTP settings are unavailable.' });

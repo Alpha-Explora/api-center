@@ -29,11 +29,7 @@ testDatabase('payee onboarding through the payments runtime', () => {
     APICENTER_PAYMENTS_INTERNAL_TOKEN: 'fixture-runtime-token',
     APICENTER_RUNTIME_CONTEXT_PUBLIC_KEYS: JSON.stringify([{ ...publicKey.export({ format: 'jwk' }), kid: 'phase-b-test' }]),
     PAYMONGO_TEST_WEBHOOK_SECRET: 'fixture-webhook-secret',
-    LINKED_ACCOUNTS_ENABLED: 'true',
-    PAYEE_WALLET_ONBOARDING_ENABLED: 'true',
     SHARED_SERVICES_DATABASE_URL: databaseUrl,
-    PUBSUB_DISPATCHER_ENABLED: 'false',
-    PAYOUTS_REQUIRE_PAYEE_VERIFICATION: 'false',
   };
   let pool: Pool;
   let server: Server;
@@ -43,8 +39,8 @@ testDatabase('payee onboarding through the payments runtime', () => {
     if (!databaseUrl || new URL(databaseUrl).hostname !== '127.0.0.1') throw new Error('Use a disposable local database');
     Object.assign(process.env, config);
     pool = new Pool({ connectionString: databaseUrl });
-    await pool.query(`INSERT INTO shared_payment.project_linked_account_settings
-      (environment, project_id, enabled, updated_by) VALUES ('test', $1, true, 'fixture')`, [projectId]);
+    await pool.query(`INSERT INTO shared_payment.project_feature_settings
+      (environment, project_id, feature, enabled, updated_by) VALUES ('test', $1, 'payee_wallets', true, 'fixture')`, [projectId]);
     await pool.query(`UPDATE shared_payment.merchant_accounts SET wallet_account_number = '987654321',
       wallet_account_name = 'Mock merchant' WHERE environment = 'test' AND id = 'parent'`);
     const { app } = await import('../../apps/payments/src/server');
@@ -66,10 +62,12 @@ testDatabase('payee onboarding through the payments runtime', () => {
     }
   });
 
-  async function call(method: string, path: string, body?: unknown, scope = { projectId, organizationId, environment: 'test' as 'test' | 'live' }) {
+  async function call(method: string, path: string, body?: unknown,
+    scope: { projectId: string; organizationId: string; environment: 'test' | 'live' } = { projectId, organizationId, environment: 'test' },
+    caller = applicationId) {
     const action = method === 'GET' ? 'payments:payouts:read' : 'payments:payouts:write';
     const signed = signer.sign({
-      identity: { organizationId: scope.organizationId, projectId: scope.projectId, applicationId,
+      identity: { organizationId: scope.organizationId, projectId: scope.projectId, applicationId: caller,
         environmentKind: scope.environment, environmentId: `env_${tenant}`, credentialId: `crd_${tenant}` },
       resourceOwner: { groupId: scope.organizationId, projectId: scope.projectId },
       capability: 'payments', action, requestId: randomUUID(),
@@ -108,9 +106,9 @@ testDatabase('payee onboarding through the payments runtime', () => {
       .toMatchObject({ status: 404 });
     expect(await call('POST', `${firstPath}/onboarding`, details, { projectId: 'other-project', organizationId, environment: 'test' }))
       .toMatchObject({ status: 404 });
-    process.env.PAYEE_WALLET_ONBOARDING_ENABLED = 'false';
+    await pool.query("UPDATE shared_payment.project_feature_settings SET enabled = false WHERE project_id = $1 AND feature = 'payee_wallets'", [projectId]);
     expect(await call('POST', `${firstPath}/onboarding`, details)).toMatchObject({ status: 503 });
-    process.env.PAYEE_WALLET_ONBOARDING_ENABLED = 'true';
+    await pool.query("UPDATE shared_payment.project_feature_settings SET enabled = true WHERE project_id = $1 AND feature = 'payee_wallets'", [projectId]);
 
     const enrollment = await call('POST', `${firstPath}/onboarding`, details);
     const other = await call('POST', `${secondPath}/onboarding`, details);
@@ -146,11 +144,23 @@ testDatabase('payee onboarding through the payments runtime', () => {
     await createPayoutStore(pool).insertAllocations({ environment: 'test', organizationId, projectId, consumerServiceId: applicationId },
       [{ payeeId: firstPayee.id, merchantAccountId: 'parent', resourceType: 'checkout', resourceId: `chk_${tenant}`,
         referenceId: 'fixture-order', paymentId: `pay_${tenant}`, template: false, amount: 30_000,
-        grossAmount: 30_000, status: 'released', createdAt: new Date().toISOString() }]);
+        grossAmount: 30_000, status: 'released', createdAt: new Date(Date.now() - 8 * 86_400_000).toISOString() }]);
     expect(await call('POST', `${firstPath}/cash-out`, {})).toMatchObject({
       status: 409, body: { error: { code: 'DESTINATION_HOLD' } },
     });
     await pool.query("UPDATE shared_payment.payees SET destination_hold_until = now() - interval '1 minute' WHERE id = $1", [firstPayee.id]);
+    const pausePath = '/admin/payouts/feature-pauses/payouts_sending';
+    const pause = { paused: true, reason: 'Fixture pause', actor: 'operator@example.test' };
+    const platform = { projectId: 'platform', organizationId: 'platform', environment: 'test' as const };
+    expect(await call('PUT', pausePath, pause, undefined, 'console')).toMatchObject({ status: 403 });
+    expect(await call('PUT', pausePath, pause, platform, 'platform-console')).toMatchObject({ status: 200 });
+    try {
+      expect(await call('POST', `${firstPath}/cash-out`, {})).toMatchObject({
+        status: 409, body: { error: { code: 'PAYOUTS_PAUSED' } },
+      });
+    } finally {
+      expect(await call('PUT', pausePath, { ...pause, paused: false }, platform, 'platform-console')).toMatchObject({ status: 200 });
+    }
     const payout = await call('POST', `${firstPath}/cash-out`, {});
     expect(payout).toMatchObject({ status: 202, body: { data: { status: 'pending', payeeId: firstPayee.id } } });
 

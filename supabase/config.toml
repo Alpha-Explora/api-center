@@ -1,5 +1,5 @@
 # Supabase CLI configuration for API Center control-plane migrations.
-# Runtime database access is enabled by DATABASE_URL; optional subsystems may still use DATABASE_ENABLED.
+# Gateway database access is enabled by DATABASE_URL.
 project_id = "api-center-control-plane"
 
 [api]

@@ -24,6 +24,19 @@ export interface ConsoleRuntimeContext {
 export class ConsoleRuntimeContextService {
   constructor(private readonly prisma: PrismaService, private readonly signer: RuntimeContextSigner) {}
 
+  signPlatform(environmentKind: EnvironmentKind, action: string): ConsoleRuntimeContext {
+    const requestId = randomUUID();
+    const resourceOwner = { groupId: "platform", projectId: "platform" };
+    const signedContext = this.signer.sign({
+      identity: {
+        organizationId: resourceOwner.groupId, projectId: resourceOwner.projectId, environmentKind,
+        environmentId: `platform-${environmentKind}`, applicationId: "platform-console", credentialId: "platform-console",
+      },
+      resourceOwner, capability: "payments", action, requestId,
+    });
+    return { signedContext, resourceOwner, requestId };
+  }
+
   async sign(input: { organizationId: string; projectId: string; environmentKind: EnvironmentKind; capability: string; action: string }):
     Promise<ConsoleRuntimeContext> {
     const { environment, ownerMapping } = await withTenant(this.prisma, { organizationId: input.organizationId }, async (db) => {

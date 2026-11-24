@@ -1,16 +1,17 @@
 "use client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ComingSoonBadge } from "@/components/patterns/coming-soon";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { formatDateTime } from "@/lib/format";
 import { availabilityMessage, describeDestination, formatCentavos, type FeatureAvailability } from "../../model/payouts";
+import { FeatureAccess } from "@/components/patterns/feature-access";
 import { usePayee } from "../../view-models/payouts";
 
 const EARNINGS: Array<[keyof import("../../model/payouts").PayeeDetail["earnings"], string]> = [
   ["awaitingPayment", "Awaiting payment"],
   ["held", "Held until released"],
+  ["settling", "Settling"],
   ["available", "Ready for the next payout"],
   ["inFlight", "Being paid"],
   ["paidThisWeek", "Paid this week"],
@@ -58,7 +59,7 @@ export function PayeeSheet({ payeeId, onOpenChange, walletOnboarding }: {
                   <>
                     <dt className="text-muted-foreground">Wallet onboarding</dt>
                     <dd title={availabilityMessage("payeeWallets", walletOnboarding) ?? undefined}>
-                      <ComingSoonBadge />
+                      <FeatureAccess feature="payouts.payee_wallets" fallback />
                     </dd>
                   </>
                 ) : null}
