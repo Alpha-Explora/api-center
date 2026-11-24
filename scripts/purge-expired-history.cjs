@@ -30,6 +30,7 @@ const MANAGED_TABLES = [
   ]),
   { schema: 'apic_identity', table: 'refresh_tokens', column: 'expires_at' },
   { schema: 'apic_governance', table: 'payment_idempotency_keys', column: 'expires_at' },
+  { schema: 'shared_payment', table: 'collection_account_routes', column: 'created_at' },
   // Control plane: one usage record per request, quota counters per window, key-issue receipts.
   { schema: 'apic_catalog', table: 'cp_usage_records', column: 'created_at' },
   { schema: 'apic_catalog', table: 'cp_quota_counters', column: 'window_start' },
