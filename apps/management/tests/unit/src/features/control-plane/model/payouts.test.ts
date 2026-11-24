@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  availabilityMessage,
   describeDestination,
   describeSchedule,
   formatCentavos,
@@ -30,6 +31,19 @@ describe("payout model", () => {
     expect(describeSchedule({ weekday: 5, hour: 20 })).toBe("Friday 8:00 PM");
     expect(describeSchedule({ weekday: 1, hour: 0 })).toBe("Monday 12:00 AM");
     expect(describeSchedule(null)).toBe("No weekly payout");
+  });
+
+  it("explains features that are not available yet", () => {
+    expect(availabilityMessage("transfers", { available: true, reason: null })).toBeNull();
+    expect(availabilityMessage("transfers", { available: false, reason: "live_payouts_disabled" })).toMatch(/live payouts is coming soon/);
+    expect(availabilityMessage("payeeWallets", { available: false, reason: "test_only" })).toMatch(/not available in live/);
+    expect(availabilityMessage("linkedAccounts", { available: false, reason: "not_enabled" })).toMatch(/coming soon/);
+  });
+
+  it("assumes a runtime that predates availability can send payouts but has nothing unreleased", () => {
+    const overview = payoutOverviewSchema.parse({ wallet: { configured: true, available: 0, lowFloatAlert: 0 }, counts: {}, needsReview: [], nextScheduledAt: null });
+    expect(overview.availability.transfers.available).toBe(true);
+    expect(overview.availability.linkedAccounts.available).toBe(false);
   });
 
   it("refuses a payee whose destination is not masked", () => {

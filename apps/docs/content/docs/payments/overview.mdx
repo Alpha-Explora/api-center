@@ -29,6 +29,16 @@ Use payment intents when your application owns confirmation state, customer reco
 
 All provider-impacting creates, confirmations, cancellations, and refunds use `Idempotency-Key`. Resources expose normalized statuses and aggregate versions rather than raw payment provider fields.
 
+## What is available now
+
+| Feature | Status |
+| :--- | :--- |
+| Checkouts, payment links, intents, customers, refunds, subscriptions | Available |
+| [Payouts](/guides/payments/payouts): payees, allocations and earnings | Available |
+| [Payouts](/guides/payments/payouts#what-is-available-now): sending the weekly payout and cash-out | Coming soon |
+| Payee wallet onboarding | Coming soon (test-only pilot) |
+| A merchant account of the project's own, collecting in the project's name | Coming soon |
+
 ## Capabilities
 
 Call `GET /api/v1/payments/capabilities` during onboarding to discover enabled operations and supported payment methods for the selected environment. Treat capabilities as runtime configuration, not as a license to bypass authorization or business rules.

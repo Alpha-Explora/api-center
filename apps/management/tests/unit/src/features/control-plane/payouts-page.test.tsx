@@ -27,6 +27,9 @@ vi.mock("@/features/control-plane/view-models/project-environment", () => ({
 
 const policy = { schedule: { weekday: 5, hour: 20 }, immediate: false, thresholdCentavos: null, onDemand: { minimum: 10_000, dailyCap: 1_000_000 },
   feeBearer: { scheduled: "platform", cashOut: "payee" }, minimumPayout: 0, transferFee: 1_000 };
+const available = { available: true, reason: null };
+const notYet = { available: false, reason: "not_enabled" };
+const ready = { transfers: available, linkedAccounts: notYet, payeeWallets: notYet };
 const stuck = { id: "po_ab12", payeeId: "pye_1", gross: 72_500, fee: 1_000, net: 72_500, trigger: "schedule", status: "needs_review",
   failureCode: null, createdAt: "2026-11-27T12:05:00Z" };
 
@@ -48,7 +51,7 @@ describe("PayoutsPage", () => {
     payouts.linkedAccount.mockResolvedValue({ environmentEnabled: false, projectEnabled: false,
       providerAvailable: false, collectionMoveAvailable: false, onboarding: null });
     payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: { needs_review: 1 },
-      needsReview: [stuck], nextScheduledAt: "2026-11-27T12:00:00Z" });
+      needsReview: [stuck], nextScheduledAt: "2026-11-27T12:00:00Z", availability: ready });
     payouts.settings.mockResolvedValue(policy);
     payouts.payees.mockResolvedValue({ records: [{ id: "pye_1", externalRef: "PROVIDER-0042", legalName: "Juan Dela Cruz", status: "active",
       destination: { type: "instapay", bic: "GXCHPHM2XXX", accountName: "Juan Dela Cruz", accountNumberLast4: "4567" },
@@ -69,12 +72,26 @@ describe("PayoutsPage", () => {
     expect(screen.getAllByText("GCash •••• 4567").length).toBeGreaterThan(0);
   });
 
-  it("explains an unconfigured wallet instead of showing an empty state", async () => {
+  it("shows sending payouts as coming soon while the payout wallet is not set", async () => {
     payouts.overview.mockResolvedValue({ wallet: { configured: false, available: null, lowFloatAlert: 0 }, counts: {}, needsReview: [],
-      nextScheduledAt: null });
+      nextScheduledAt: null, availability: { ...ready, transfers: { available: false, reason: "wallet_not_configured" } } });
     renderPage();
-    expect(await screen.findByText("The payout wallet is not set")).toBeTruthy();
+    expect(await screen.findByText("Sending payouts")).toBeTruthy();
+    expect(screen.getAllByText("Coming soon").length).toBeGreaterThan(0);
     expect(screen.getByText(/payouts runbook/)).toBeTruthy();
+  });
+
+  it("shows live payouts as coming soon while they are switched off", async () => {
+    payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: {}, needsReview: [],
+      nextScheduledAt: null, availability: { ...ready, transfers: { available: false, reason: "live_payouts_disabled" } } });
+    renderPage();
+    expect(await screen.findByText(/Sending live payouts is coming soon/)).toBeTruthy();
+    expect(screen.queryByText("₱12,500.00")).toBeNull();
+  });
+
+  it("shows the project merchant account as coming soon while linked accounts are off", async () => {
+    renderPage();
+    expect(await screen.findByText(/collects payments in the project's name, is coming soon/)).toBeTruthy();
   });
 
   it("explains when linked accounts are switched off and limits the project switch to platform admins", async () => {
@@ -82,7 +99,7 @@ describe("PayoutsPage", () => {
       providerAvailable: true, collectionMoveAvailable: false, onboarding: null });
     environment.platformAdmin = false;
     renderPage();
-    expect(await screen.findByText("Linked accounts are switched off for this project.")).toBeTruthy();
+    expect(await screen.findByText("Not enabled for this project yet. A platform operator enables it.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Enable for project" }).hasAttribute("disabled")).toBe(true);
   });
 

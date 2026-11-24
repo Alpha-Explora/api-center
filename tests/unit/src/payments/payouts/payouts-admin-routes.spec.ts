@@ -66,9 +66,21 @@ describe('runtime payout admin routes', () => {
     });
   });
 
-  it('reports an unconfigured wallet', async () => {
+  it('reports an unconfigured wallet, and that sending payouts is not available yet', async () => {
     wallet = { ...wallet, wallet: null };
-    expect((await call('GET', '/admin/payouts/overview')).body.data.wallet).toEqual({ configured: false, available: null, lowFloatAlert: 100_000 });
+    const { data } = (await call('GET', '/admin/payouts/overview')).body;
+    expect(data.wallet).toEqual({ configured: false, available: null, lowFloatAlert: 100_000 });
+    expect(data.availability.transfers).toEqual({ available: false, reason: 'wallet_not_configured' });
+    expect(data.nextScheduledAt).toBeNull();
+  });
+
+  it('reports child accounts and payee wallets as not enabled by default', async () => {
+    const { data } = (await call('GET', '/admin/payouts/overview')).body;
+    expect(data.availability).toEqual({
+      transfers: { available: true, reason: null },
+      linkedAccounts: { available: false, reason: 'not_enabled' },
+      payeeWallets: { available: false, reason: 'not_enabled' },
+    });
   });
 
   it('only resolves a payout that needs review, and failing it frees the earnings', async () => {
