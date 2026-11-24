@@ -39,3 +39,8 @@ Branch from `main` as `feat/…`, `fix/…`, `refactor/…` or `docs/…`. Keep 
 - Record user-visible changes in [CHANGELOG.md](CHANGELOG.md) under Unreleased.
 - Update the maintained documentation the change affects (see [docs/index.md](docs/index.md)).
 - A new provider-backed capability belongs in a runtime under `apps/`, exposed through `/api/v1/shared/:capability/*` and the SDK. Provider credentials never go to consumer applications.
+- Follow [ADR-0010](docs/adr/0010-provider-neutral-boundaries.md):
+  - Call the provider through an interface, with the provider's adapter selected by configuration.
+  - Mint APICenter IDs and store the provider's IDs as data.
+  - Return APICenter error codes.
+  - Keep vendor names and raw provider data out of the public contract and docs. `npm run contracts:validate` and `npm run check:documentation` enforce this.

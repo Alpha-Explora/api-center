@@ -3,7 +3,7 @@ title: "Payment intents"
 description: "Open GCash or Maya directly, or create, confirm and cancel payment intents."
 ---
 
-A payment intent tracks one payment. The quickest way to use one is to have APICenter open the customer's wallet: one call returns a link that goes straight to GCash or Maya, without PayMongo's checkout page in between. You can also create a plain intent and confirm it with a payment method you create yourself.
+A payment intent tracks one payment. The quickest way to use one is to have APICenter open the customer's wallet: one call returns a link that goes straight to GCash or Maya, without a hosted checkout page in between. You can also create a plain intent and confirm it with a payment method you create yourself.
 
 For a Node.js backend, use `api.payments.intents.create(...)` or `api.payments.intents.createQrPh(...)` from the [APICenter SDK](/guides/sdk-usage). The REST examples below are for other runtimes.
 
@@ -50,7 +50,7 @@ The response has `status: "requires_action"` and `nextAction.redirectUrl`. Open 
 
 **Availability.** `GET /api/v1/payments/capabilities` lists the methods enabled for your environment. If `gcash` or `paymaya` is not listed, hide that option; asking for it returns `400 PAYMENT_METHOD_UNAVAILABLE`.
 
-**Testing.** In the test environment, the redirect opens PayMongo's test wallet page, where you choose whether the payment succeeds or fails.
+**Testing.** In the test environment, the redirect opens the payment provider's test wallet page, where you choose whether the payment succeeds or fails.
 
 ## Create a payment intent you confirm yourself
 
@@ -68,7 +68,7 @@ curl -X POST https://api.apicenter.itsandbox.site/api/v1/payments/intents \
   }'
 ```
 
-A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`. It also includes `clientKey` when PayMongo returns one; pass that key back when attaching a payment method. Payment-method tokenization stays client-side; do not send card numbers or other sensitive payment data to your backend. The short-lived `clientKey` is scoped to that intent and is not a secret API key.
+A successful response includes a `paymentIntentId`, normalized `status`, `amount`, and `aggregateVersion`. It also includes `clientKey` when the payment provider returns one; pass that key back when attaching a payment method. Payment-method tokenization stays client-side; do not send card numbers or other sensitive payment data to your backend. The short-lived `clientKey` is scoped to that intent and is not a secret API key.
 
 ## Retrieve, confirm, or cancel
 
@@ -88,4 +88,4 @@ Confirm and cancel require their own `Idempotency-Key` values. Confirmation acce
 
 For the SDK, pass the same fields as the second argument to `api.payments.intents.confirm(paymentIntentId, input, options)`. When customer authentication is needed, the response includes `nextAction.redirectUrl`; send the customer there. The intent's `GET` response also returns the current `nextAction` if the original confirmation response was lost.
 
-When an attempt fails, the intent's status is `failed` and `lastPaymentError` gives PayMongo's reason. A return to `returnUrl` is not proof of payment; retrieve the intent or verify the payment webhook before fulfilling an order.
+When an attempt fails, the intent's status is `failed` and `lastPaymentError` gives the payment provider's reason. A return to `returnUrl` is not proof of payment; retrieve the intent or verify the payment webhook before fulfilling an order.

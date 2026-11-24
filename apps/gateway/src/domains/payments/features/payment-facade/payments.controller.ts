@@ -29,6 +29,17 @@ import { PaymentReturnLinks } from "../payment-return/payment-return-links";
 
 const internalBaseUrl = paymentRuntimeUrl;
 const internalToken = paymentRuntimeToken;
+
+/** `deprecatedProviderCode` is returned until this date (ADR-0010; contracts/public/provider-terms.json). */
+export const PROVIDER_CODE_SUNSET = "Mon, 01 Mar 2027 00:00:00 GMT";
+
+/** Whether a response still carries a deprecated value: the provider's own code, or a provider_wallet destination. */
+export function usesDeprecatedProviderCode(body: unknown): boolean {
+  const record = body && typeof body === "object" ? body as Record<string, any> : {};
+  return typeof record.error?.details?.deprecatedProviderCode === "string"
+    || typeof record.data?.lastPaymentError?.deprecatedProviderCode === "string"
+    || record.data?.destination?.type === "provider_wallet";
+}
 @Controller("payments")
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -244,7 +255,7 @@ export class PaymentsController {
             : "PAYMENT_RUNTIME_ERROR",
           stage:
             diagnostic.success &&
-            /PROVIDER|PAYMONGO/.test(diagnostic.data.error.code)
+            /^(PROVIDER_|PAYMENT_DECLINED$|PAYMENT_REQUEST_INVALID$|INVALID_PROVIDER_RESPONSE$)/.test(diagnostic.data.error.code)
               ? "provider"
               : "runtime",
         };
@@ -281,6 +292,10 @@ export class PaymentsController {
       }
 
       res.setHeader("content-type", contentType);
+      if (usesDeprecatedProviderCode(mapped)) {
+        res.setHeader("Deprecation", "true");
+        res.setHeader("Sunset", PROVIDER_CODE_SUNSET);
+      }
       res.status(response.status).send(body);
     } catch (error: unknown) {
       await this.preserveUnknownOutcome({

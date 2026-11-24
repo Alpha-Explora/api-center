@@ -1,10 +1,8 @@
-import { Resend } from "resend";
 import type { EmailSendRequest, EmailSendResponse } from "@alpha-explora/apicenter-contracts";
-import { formatSender, type SharedServiceCaller } from "@apicenter/runtime";
+import { createEmailSender, formatSender, type EmailSender, type SharedServiceCaller } from "@apicenter/runtime";
 import { EmailRecipients, EmailSubject } from "./send-email.model";
 import { createEmailStore } from "../../shared/email-store";
 
-const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM_ADDRESS;
 const configuredDailyLimit = Number(process.env.EMAIL_DAILY_LIMIT_DEFAULT ?? 500);
 if (!Number.isSafeInteger(configuredDailyLimit) || configuredDailyLimit < 1) {
@@ -12,10 +10,9 @@ if (!Number.isSafeInteger(configuredDailyLimit) || configuredDailyLimit < 1) {
 }
 export const defaultDailyLimit = configuredDailyLimit;
 const nodeEnv = process.env.NODE_ENV || "development";
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export class SendEmailService {
-  constructor(private readonly store = createEmailStore()) {}
+  constructor(private readonly store = createEmailStore(), private readonly sender: EmailSender = createEmailSender()) {}
 
   /** `options` presents platform messages: a sender name in front of the address, and a reply-to. */
   async execute(
@@ -27,25 +24,25 @@ export class SendEmailService {
     const subjectVo = new EmailSubject(input.subject);
 
     const recipients = recipientsVo.getRecipients();
-    if ((!resend || !emailFrom) && nodeEnv === "production") {
-      throw new Error(
-        "Resend API key and sender address are required in production",
-      );
+    // Outside production an unconfigured provider records the message without sending it.
+    const deliver = this.sender.configured();
+    if ((!deliver || !emailFrom) && nodeEnv === "production") {
+      throw new Error("Email delivery and a sender address are required in production");
     }
 
-    if (resend && !emailFrom) throw new Error("Resend sender address is required");
+    if (deliver && !emailFrom) throw new Error("A sender address is required to send email");
     const record = await this.store.sendWithinDailyLimit(
       owner,
       {
         requestedFrom: input.from,
         defaultFrom: emailFrom || "no-reply@example.test",
         defaultDailyLimit,
-        provider: owner.suppressDelivery ? "suppressed" : resend ? "resend" : "mock",
+        provider: owner.suppressDelivery ? "suppressed" : deliver ? this.sender.provider : "mock",
         recipients,
       },
       async (approvedFrom) => {
         // A test send to an unregistered recipient is recorded but never reaches the provider.
-        if (!resend || owner.suppressDelivery) return undefined;
+        if (!deliver || owner.suppressDelivery) return undefined;
         const content =
           input.html !== undefined && input.text !== undefined
             ? { html: input.html, text: input.text }
@@ -54,16 +51,14 @@ export class SendEmailService {
               : input.text !== undefined
                 ? { text: input.text }
                 : { html: "<p>(no content)</p>" };
-        const payload = {
+        const sent = await this.sender.send({
           from: formatSender(approvedFrom, options.fromName),
           to: recipients,
           subject: subjectVo.getValue(),
           ...(options.replyTo ? { replyTo: options.replyTo } : {}),
           ...content,
-        };
-        const { data, error } = await resend.emails.send(payload);
-        if (error) throw new Error(error.message);
-        return data?.id || undefined;
+        });
+        return sent.providerMessageId;
       },
     );
 

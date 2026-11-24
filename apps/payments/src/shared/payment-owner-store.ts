@@ -1,6 +1,7 @@
 import { Pool, type PoolClient } from 'pg';
 import { isDeepStrictEqual } from 'node:util';
 import { PayMongoError } from './payment-errors';
+import { mintPublicId, PAYMENT_PROVIDER, type PaymentResourceType } from './payment-id-map';
 
 /** Trusted tenant identity used to scope payment resources. */
 export type PaymentContext = {
@@ -15,8 +16,10 @@ export type OwnerRecord = PaymentContext & {
   resourceId: string;
   merchantAccountId?: string;
   referenceId?: string;
-  /** Reference number PayMongo assigned to the resource. Paid payment-link events are matched only on it. */
+  /** Reference number the payment provider assigned to the resource. Paid payment-link events are matched only on it. */
   providerReference?: string | null;
+  /** The payment provider's ID for this resource. Set once, on insert; never returned to callers. */
+  providerResourceId?: string | null;
   snapshot: Record<string, unknown>;
   amountMinor?: string | null;
   currency?: string | null;
@@ -68,8 +71,8 @@ export type AppliedWebhook = { duplicate: boolean; queued: boolean };
 
 const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
     (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
-     amount_minor, currency, status, provider_reference, merchant_account_id)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12, $13)
+     amount_minor, currency, status, provider_reference, merchant_account_id, provider_resource_id)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12, $13, $14)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = CASE WHEN EXCLUDED.resource_type = 'payment_link'
        THEN shared_payment.resource_owners.snapshot || EXCLUDED.snapshot
@@ -78,6 +81,7 @@ const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
      currency = COALESCE(EXCLUDED.currency, shared_payment.resource_owners.currency),
      status = COALESCE(EXCLUDED.status, shared_payment.resource_owners.status),
      provider_reference = COALESCE(shared_payment.resource_owners.provider_reference, EXCLUDED.provider_reference),
+     provider_resource_id = COALESCE(shared_payment.resource_owners.provider_resource_id, EXCLUDED.provider_resource_id),
      aggregate_version = shared_payment.resource_owners.aggregate_version + 1,
      updated_at = now()
    WHERE shared_payment.resource_owners.tribe_id = EXCLUDED.tribe_id
@@ -110,14 +114,15 @@ const FRESH_READ_SNAPSHOT = `(CASE
 
 const UPSERT_FRESH_READ = `INSERT INTO shared_payment.resource_owners AS current_owner
     (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
-     amount_minor, currency, status, provider_reference, merchant_account_id)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12, $15)
+     amount_minor, currency, status, provider_reference, merchant_account_id, provider_resource_id)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12, $15, $16)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = ${FRESH_READ_SNAPSHOT},
      amount_minor = COALESCE(EXCLUDED.amount_minor, current_owner.amount_minor),
      currency = COALESCE(EXCLUDED.currency, current_owner.currency),
      status = ${FRESH_READ_STATUS},
      provider_reference = COALESCE(current_owner.provider_reference, EXCLUDED.provider_reference),
+     provider_resource_id = COALESCE(current_owner.provider_resource_id, EXCLUDED.provider_resource_id),
      aggregate_version = current_owner.aggregate_version + 1,
      updated_at = now()
    WHERE current_owner.tribe_id = EXCLUDED.tribe_id
@@ -213,7 +218,8 @@ export class PaymentOwnerStore {
 
   async save(record: OwnerRecord): Promise<void> {
     if (this.pool) {
-      const result = await this.pool.query(UPSERT_OWNER, [...ownerParams(record), record.merchantAccountId ?? 'parent']);
+      const result = await this.pool.query(UPSERT_OWNER,
+        [...ownerParams(record), record.merchantAccountId ?? 'parent', record.providerResourceId ?? null]);
       if (!result.rowCount) {
         await this.assertOwned(record.resourceType, record.resourceId, record);
       }
@@ -263,7 +269,7 @@ export class PaymentOwnerStore {
     if (this.pool) {
       const result = await this.pool.query(
         `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-                provider_reference, snapshot, amount_minor, currency, status, created_at, aggregate_version, merchant_account_id
+                provider_reference, provider_resource_id, snapshot, amount_minor, currency, status, created_at, aggregate_version, merchant_account_id
          FROM shared_payment.resource_owners
          WHERE environment = $1 AND resource_type = 'refund' AND snapshot->>'paymentId' = $2`,
         [environment, paymentId],
@@ -341,15 +347,16 @@ export class PaymentOwnerStore {
 
   /** Persists a provider read while retaining owner metadata and any already-confirmed terminal status. */
   async reconcileFreshRead(type: 'intent' | 'subscription' | 'invoice', id: string, context: PaymentContext,
-    fresh: Record<string, unknown>): Promise<OwnerRecord> {
+    fresh: Record<string, unknown>, providerResourceId?: string): Promise<OwnerRecord> {
     const snapshot = Object.fromEntries(Object.entries(fresh).filter(([, value]) => value !== undefined));
-    const record: OwnerRecord = { ...context, resourceType: type, resourceId: id, snapshot };
+    const record: OwnerRecord = { ...context, resourceType: type, resourceId: id, snapshot, providerResourceId };
     const terminalStatuses = TERMINAL_READ_STATUSES[type];
     const clearNextAction = type === 'intent' && Object.hasOwn(fresh, 'nextAction') && fresh.nextAction === undefined;
     if (type === 'intent' && terminalStatuses.includes(String(snapshot.status).toLowerCase())) delete snapshot.nextAction;
     if (this.pool) {
       const result = await this.pool.query(UPSERT_FRESH_READ,
-        [...ownerParams(record), terminalStatuses, clearNextAction, record.merchantAccountId ?? 'parent']);
+        [...ownerParams(record), terminalStatuses, clearNextAction, record.merchantAccountId ?? 'parent',
+          record.providerResourceId ?? null]);
       if (result.rows[0]) return this.fromRow(result.rows[0]);
       try { return await this.assertOwned(type, id, context); }
       catch (error) {
@@ -392,19 +399,24 @@ export class PaymentOwnerStore {
   /** Stores a paid payment discovered inside an owned provider checkout read; this does not create an event. */
   async registerCheckoutPayment(checkout: OwnerRecord, payment: {
     paymentId: string; status: 'paid'; amount: number; currency: string; paymentIntentId?: string;
-  }): Promise<void> {
+  }, publicPaymentId?: string): Promise<string> {
     if (checkout.resourceType !== 'checkout' || checkout.snapshot.status !== 'paid'
       || !payment.paymentId.startsWith('pay_') || payment.status !== 'paid'
       || !Number.isSafeInteger(payment.amount) || payment.amount <= 0
       || !/^[A-Z]{3}$/.test(payment.currency)
       || (payment.paymentIntentId !== undefined && !payment.paymentIntentId.startsWith('pi_'))) {
-      throw new PayMongoError('PayMongo checkout did not return valid paid payment facts', 502, 'INVALID_PROVIDER_RESPONSE');
+      throw new PayMongoError('The payment provider did not return valid paid payment facts for the checkout', 502, 'INVALID_PROVIDER_RESPONSE');
     }
-    await this.save({ ...checkout, resourceType: 'payment', resourceId: payment.paymentId,
-      snapshot: { paymentId: payment.paymentId, status: 'paid', amount: payment.amount,
+    // `payment` carries the provider's IDs; the stored record and its snapshot carry APICenter's.
+    const paymentId = publicPaymentId ?? await this.publicIdFor('payment', payment.paymentId, checkout.environment);
+    const intent = payment.paymentIntentId
+      ? await this.findByProviderId('intent', payment.paymentIntentId, checkout.environment) : undefined;
+    await this.save({ ...checkout, resourceType: 'payment', resourceId: paymentId, providerResourceId: payment.paymentId,
+      snapshot: { paymentId, status: 'paid', amount: payment.amount,
         currency: payment.currency, sourceId: checkout.resourceId, checkoutId: checkout.resourceId,
-        ...(payment.paymentIntentId ? { paymentIntentId: payment.paymentIntentId } : {}) },
+        ...(intent ? { paymentIntentId: intent.resourceId } : {}) },
       amountMinor: String(payment.amount), currency: payment.currency, status: 'paid' });
+    return paymentId;
   }
 
   /**
@@ -444,7 +456,8 @@ export class PaymentOwnerStore {
 
       let aggregateVersion: number | undefined;
       for (const record of webhook.updates) {
-        const saved = await client.query(UPSERT_OWNER, [...ownerParams(record), record.merchantAccountId ?? 'parent']);
+        const saved = await client.query(UPSERT_OWNER,
+          [...ownerParams(record), record.merchantAccountId ?? 'parent', record.providerResourceId ?? null]);
         if (!saved.rowCount) {
           const current = await client.query(
             `SELECT tribe_id, project_id FROM shared_payment.resource_owners
@@ -535,6 +548,7 @@ export class PaymentOwnerStore {
       referenceId: record.referenceId || existing?.referenceId,
       providerReference: existing?.providerReference ?? record.providerReference ?? null,
       merchantAccountId: existing?.merchantAccountId ?? record.merchantAccountId ?? 'parent',
+      providerResourceId: existing?.providerResourceId ?? record.providerResourceId ?? null,
       amountMinor: facts.amountMinor ?? existing?.amountMinor ?? null,
       currency: facts.currency ?? existing?.currency ?? null,
       status: facts.status ?? existing?.status ?? null,
@@ -565,9 +579,28 @@ export class PaymentOwnerStore {
     return record;
   }
 
-  // Only the signature-verified webhook path may resolve a source without a caller context.
-  async findWebhookSource(type: string, id: string, environment: 'test' | 'live'): Promise<OwnerRecord | undefined> {
-    return this.find(type, id, environment);
+  /**
+   * Finds a resource by the payment provider's ID. Only the signature-verified webhook path and the runtime's
+   * own provider reads may call this: it resolves without a caller context.
+   */
+  async findByProviderId(type: string, providerId: string, environment: 'test' | 'live'): Promise<OwnerRecord | undefined> {
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
+                provider_reference, provider_resource_id, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
+         FROM shared_payment.resource_owners
+         WHERE environment = $1 AND resource_type = $2 AND provider = $3 AND provider_resource_id = $4`,
+        [environment, type, PAYMENT_PROVIDER, providerId],
+      );
+      return result.rows[0] ? this.fromRow(result.rows[0]) : undefined;
+    }
+    return [...this.memory.values()].find((record) => record.environment === environment
+      && record.resourceType === type && record.providerResourceId === providerId);
+  }
+
+  /** The public ID already assigned to a provider resource, or a newly minted one if it has none yet. */
+  async publicIdFor(type: PaymentResourceType, providerId: string, environment: 'test' | 'live'): Promise<string> {
+    return (await this.findByProviderId(type, providerId, environment))?.resourceId ?? mintPublicId(type);
   }
 
   /**
@@ -579,7 +612,7 @@ export class PaymentOwnerStore {
     if (this.pool) {
       const result = await this.pool.query(
         `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-                provider_reference, snapshot, aggregate_version, merchant_account_id
+                provider_reference, provider_resource_id, snapshot, aggregate_version, merchant_account_id
          FROM shared_payment.resource_owners
          WHERE environment = $1 AND resource_type = $2 AND provider_reference = $3 AND merchant_account_id = $4`,
         [environment, type, providerReference, merchantAccountId],
@@ -596,7 +629,7 @@ export class PaymentOwnerStore {
     if (this.pool) {
       const result = await this.pool.query(
         `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-                provider_reference, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
+                provider_reference, provider_resource_id, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
          FROM shared_payment.resource_owners
          WHERE environment = $1 AND resource_type = $2 AND tribe_id = $3 AND project_id = $4
            AND reference_id = $5
@@ -692,7 +725,7 @@ export class PaymentOwnerStore {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(
       `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-              provider_reference, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
+              provider_reference, provider_resource_id, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
        FROM shared_payment.resource_owners
        WHERE environment = $1 AND resource_type = $2 AND resource_id = $3`,
       [environment, type, id],
@@ -706,6 +739,7 @@ export class PaymentOwnerStore {
       projectId: row.project_id,
       consumerServiceId: row.consumer_service_id, referenceId: row.reference_id,
       providerReference: row.provider_reference ?? null,
+      providerResourceId: row.provider_resource_id ?? null,
       merchantAccountId: row.merchant_account_id ?? 'parent',
       snapshot: row.snapshot, amountMinor: row.amount_minor == null ? null : String(row.amount_minor),
       currency: row.currency, status: row.status, aggregateVersion: Number(row.aggregate_version ?? 1) };

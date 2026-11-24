@@ -1,0 +1,17 @@
+---
+title: "Providers and your data"
+description: "Which service providers APICenter uses for each capability, and what data reaches them."
+---
+
+APICenter calls these providers on your behalf. Your application never calls them, holds their credentials, or receives their identifiers, error messages or raw responses. The API stays the same if APICenter changes a provider.
+
+| Capability | Provider | Data the provider receives |
+|---|---|---|
+| Payments, refunds, payment links, subscriptions and payouts | PayMongo | Amounts, descriptions, your reference, the payer's payment details (entered on the provider's pages or in your client-side payment step), payee destinations, and the details forwarded for account onboarding |
+| SMS and SMS one-time passwords | Twilio | Recipient number and message text |
+| Email and email one-time passwords | Resend | Recipient address, sender, subject and body |
+| Geocoding | Google Maps Platform | Addresses and coordinates you send to the geo routes |
+| Event delivery (optional) | Google Cloud Pub/Sub | Payment events, when your project uses Pub/Sub push instead of signed webhooks |
+| Hosting and storage | Google Cloud and Supabase | Everything APICenter stores to provide the service |
+
+Identity documents for account onboarding go directly to the payment provider's hosted page. APICenter never receives or stores them.

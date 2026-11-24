@@ -158,6 +158,7 @@ export interface EmailSendRequest {
 
 export interface EmailSendResponse {
   messageId: string;
+  /** @deprecated Which email source handled the message. Returned until 2027-03-01. */
   provider: string;
   status: string;
   recipient: string[];
@@ -345,6 +346,7 @@ export interface GeocodeResponse {
   formattedAddress: string;
   latitude: number;
   longitude: number;
+  /** @deprecated The geocoding provider's place identifier. Returned until 2027-03-01. */
   placeId?: string;
 }
 
@@ -357,13 +359,35 @@ export interface GeoReverseGeocodeRequest {
   latitude: number;
   longitude: number;
   language?: string;
+  /** @deprecated A geocoding-provider result filter. Honoured until 2027-03-01, then ignored. */
   resultType?: string;
+  /** @deprecated A geocoding-provider precision filter. Honoured until 2027-03-01, then ignored. */
   locationType?: string;
 }
 
+/** The parts of a Philippine address. A part the source does not know is omitted. */
+export interface GeoAddressComponents {
+  streetNumber?: string;
+  street?: string;
+  barangay?: string;
+  /** City or municipality. */
+  city?: string;
+  province?: string;
+  region?: string;
+  postalCode?: string;
+  /** ISO 3166-1 alpha-2 country code. */
+  country: string;
+}
+
 export interface GeoAddressResult extends GeocodeResponse {
+  components: GeoAddressComponents;
+  /** How exactly the coordinates locate the address: exact, street, area or approximate. An open set. */
+  precision: 'exact' | 'street' | 'area' | 'approximate' | (string & {});
+  /** @deprecated The geocoding provider's result types. Returned until 2027-03-01; use precision. */
   types: string[];
-  provider: 'mock' | 'google-maps';
+  /** @deprecated Which geocoding source answered. Returned until 2027-03-01. */
+  provider: string;
+  /** @deprecated The geocoding provider's unprocessed result. Returned until 2027-03-01; use components. */
   raw: unknown | null;
 }
 
@@ -652,11 +676,14 @@ export interface CreatePayeeInput {
 /** Where a payee is paid: a GCash or bank account through InstaPay, or a wallet at APICenter's payment provider. */
 export type PayoutDestination =
   | { type: 'instapay'; /** For example GXCHPHM2XXX for GCash. */ bic: string; accountNumber: string; accountName: string }
+  | { type: 'wallet'; accountNumber: string; accountName: string }
+  /** @deprecated The same as `wallet`. Accepted until 2027-03-01. */
   | { type: 'provider_wallet'; accountNumber: string; accountName: string };
 
 /** A payee's destination as APICenter returns it: the account number is masked. */
 export interface PayeeDestination {
-  type: 'instapay' | 'provider_wallet';
+  /** `provider_wallet` is deprecated and appears only for destinations set with it; it means `wallet`. */
+  type: 'instapay' | 'wallet' | 'provider_wallet';
   bic?: string;
   accountName: string;
   accountNumberLast4: string;

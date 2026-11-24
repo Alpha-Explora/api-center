@@ -1,7 +1,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
+
+const providerTerms = createRequire(import.meta.url)("./contracts/provider-terms.cjs");
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const markdownFiles = (root, directory) => !existsSync(path.join(root, directory)) ? [] :
@@ -42,6 +45,16 @@ export function auditDocumentation(root = repository) {
     catch (error) { report(file, `invalid Markdown metadata: ${error.message}`); }
   }
   if (!existsSync(path.join(root, "docs/index.md"))) report("docs/index.md", "canonical index is missing");
+
+  // Provider-neutral boundary (ADR-0010): public guides do not name vendors outside allowed pages.
+  if (existsSync(path.join(root, "contracts/public/provider-terms.json"))) {
+    const terms = providerTerms.loadProviderTerms(root);
+    for (const file of guides) {
+      for (const violation of providerTerms.scanText(file, read(file), terms)) {
+        report(violation.location, `names a provider (${violation.term}); see ADR-0010 and contracts/public/provider-terms.json`);
+      }
+    }
+  }
 
   for (const file of documents) {
     if (["index.md", "log.md"].includes(path.posix.basename(file)) || file === "docs/superpowers/plans/README.md") continue;

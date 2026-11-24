@@ -13,24 +13,25 @@ import {
 import { SendSmsService } from './features/send-sms/send-sms.service';
 import { SmsMessagePayload, SmsRecipient } from './features/send-sms/send-sms.model';
 import { GetSmsStatusService } from './features/get-sms-status/get-sms-status.service';
-import { SmsProviderError } from './shared/twilio-sms-provider';
+import { createSmsSender, MessagingProviderError } from '@apicenter/runtime';
 import { createSmsRepository } from './shared/sms-store';
 import { resolveSmsSender, SmsSenderNotApprovedError } from './shared/project-sender';
 import { createSmsSenderAdminHandler } from './shared/project-sender-admin';
 
 const port = Number(process.env.PORT || 4011);
+const smsSender = createSmsSender();
 const { app, ok, fail } = createSharedServiceApp({
   serviceId: 'sms-gateway',
   health: {
     status: 'ok',
     service: 'sms-gateway',
     architecture: 'feature-sliced',
-    provider: 'twilio',
+    provider: smsSender.provider,
   },
 });
 
 const smsStore = createSmsRepository();
-const sendSmsService = new SendSmsService(smsStore);
+const sendSmsService = new SendSmsService(smsStore, smsSender);
 const getSmsStatusService = new GetSmsStatusService(smsStore);
 const sharedState = { databaseUrl: process.env.DATABASE_URL, schema: 'shared_sms' };
 const idempotencyStore = createSharedIdempotencyStore(sharedState);
@@ -94,16 +95,14 @@ app.post('/send', async (req: Request, res: Response) => {
   let senderId: string | undefined;
   try {
     const projectSender = await smsStore.getProjectSender(caller.projectId, caller.environment);
-    senderId = resolveSmsSender(body.senderId, projectSender?.senderId, process.env.TWILIO_FROM_NUMBER);
+    senderId = resolveSmsSender(body.senderId, projectSender?.senderId, smsSender.defaultSenderId);
   } catch (error) {
     if (error instanceof SmsSenderNotApprovedError) return fail(res, 403, error.code, error.message);
     return fail(res, 503, 'PROJECT_SENDER_UNAVAILABLE', 'Project SMS sender settings are unavailable');
   }
 
-  const senderConfigured = process.env.TWILIO_MESSAGING_SERVICE_SID
-    || process.env.TWILIO_FROM_NUMBER || senderId;
-  if (nodeEnv === 'production' && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !senderConfigured)) {
-    return fail(res, 503, 'SMS_PROVIDER_UNAVAILABLE', 'Twilio credentials and sender configuration are required in production');
+  if (nodeEnv === 'production' && !smsSender.configured(senderId)) {
+    return fail(res, 503, 'SMS_PROVIDER_UNAVAILABLE', 'SMS delivery is not configured');
   }
 
   let claim;
@@ -159,10 +158,14 @@ app.post('/send', async (req: Request, res: Response) => {
     } catch {
       return fail(res, 503, 'IDEMPOTENCY_OUTCOME_UNKNOWN', 'SMS may have been sent, but its outcome could not be recorded');
     }
-    const providerError = error instanceof SmsProviderError;
+    const providerError = error instanceof MessagingProviderError;
+    // The provider's own answer stays in the log; callers get APICenter's message (ADR-0010).
+    if (providerError) {
+      console.warn(JSON.stringify({ type: 'apicenter_sms_provider_error', provider: error.provider, kind: error.kind, detail: error.detail }));
+    }
     return fail(res, providerError ? error.statusCode : 503,
       providerError ? 'PROVIDER_ERROR' : 'SMS_DELIVERY_OUTCOME_UNKNOWN',
-      error?.message || 'SMS delivery outcome could not be confirmed');
+      providerError ? error.message : 'SMS delivery outcome could not be confirmed');
   }
 
   const response = createSuccessResponse(data, 201);
@@ -180,23 +183,29 @@ app.post('/send', async (req: Request, res: Response) => {
 const smsSenderAdminHandler = createSmsSenderAdminHandler({
   store: smsStore,
   expectedToken: process.env.SMS_ADMIN_TOKEN,
-  platformSenderConfigured: Boolean(process.env.TWILIO_MESSAGING_SERVICE_SID || process.env.TWILIO_FROM_NUMBER),
+  platformSenderConfigured: smsSender.hasPlatformSender(),
 });
 app.get('/admin/projects/:projectId/sms-sender/:environment', smsSenderAdminHandler);
 app.put('/admin/projects/:projectId/sms-sender/:environment', smsSenderAdminHandler);
 app.delete('/admin/projects/:projectId/sms-sender/:environment', smsSenderAdminHandler);
 
-app.post('/webhooks/twilio', async (req: Request, res: Response) => {
+// Verified provider delivery events, forwarded by the gateway. `messageId` is the provider's message ID.
+// /webhooks/twilio is the route before ADR-0010; the gateway now posts to /delivery-events.
+app.post(['/delivery-events', '/webhooks/twilio'], async (req: Request, res: Response) => {
   const event = req.body || {};
   const validStatuses = new Set(['accepted', 'scheduled', 'queued', 'sending', 'sent', 'delivered', 'undelivered', 'failed', 'read', 'canceled']);
   if (typeof event.providerEventId !== 'string' || !event.providerEventId ||
       typeof event.messageId !== 'string' || !event.messageId ||
       typeof event.status !== 'string' || !validStatuses.has(event.status) ||
       !event.payload || typeof event.payload !== 'object') {
-    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Twilio delivery event is invalid');
+    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'SMS delivery event is invalid');
   }
   try {
-    const result = await smsStore.applyDeliveryEvent(event);
+    // The gateway forwards the provider's message ID as `messageId`.
+    // Before ADR-0010 the gateway posted Twilio events to /webhooks/twilio without naming the provider.
+    const provider = typeof event.provider === 'string' && event.provider ? event.provider : 'twilio';
+    const result = await smsStore.applyDeliveryEvent({ providerEventId: event.providerEventId, provider,
+      providerMessageId: event.messageId, status: event.status, payload: event.payload });
     return res.status(200).json({ received: true, ...result });
   } catch {
     return fail(res, 503, 'SMS_MESSAGE_PENDING', 'SMS delivery event could not be applied yet');

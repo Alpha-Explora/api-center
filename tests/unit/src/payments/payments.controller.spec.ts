@@ -483,3 +483,15 @@ describe('PaymentsController', () => {
     });
   });
 });
+
+describe('deprecated provider codes', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { usesDeprecatedProviderCode } = require('../../../../apps/gateway/src/domains/payments/features/payment-facade/payments.controller');
+  it('flags errors and failed intents that still carry the provider code', () => {
+    expect(usesDeprecatedProviderCode({ success: false, error: { code: 'PAYMENT_DECLINED', details: { deprecatedProviderCode: 'insufficient_funds' } } })).toBe(true);
+    expect(usesDeprecatedProviderCode({ success: true, data: { lastPaymentError: { code: 'card_expired', deprecatedProviderCode: 'card_expired' } } })).toBe(true);
+    expect(usesDeprecatedProviderCode({ success: false, error: { code: 'NOT_FOUND' } })).toBe(false);
+    expect(usesDeprecatedProviderCode({ success: true, data: { destination: { type: 'provider_wallet' } } })).toBe(true);
+    expect(usesDeprecatedProviderCode({ success: true, data: { destination: { type: 'wallet' } } })).toBe(false);
+  });
+});

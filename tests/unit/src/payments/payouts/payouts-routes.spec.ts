@@ -88,6 +88,17 @@ describe('runtime payout routes', () => {
     expect(response).toMatchObject({ status: 400, body: { error: { code: 'INVALID_DESTINATION' } } });
   });
 
+  it('accepts a wallet destination, and still the deprecated provider_wallet', async () => {
+    const payee = (await call('p-wallet', 'POST', '/payouts/payees', { externalRef: 'ext-w', legalName: 'Maria' })).body.data;
+    const path = `/payouts/payees/${payee.id}/destination`;
+    const wallet = await call('p-wallet', 'PUT', path, { type: 'wallet', accountNumber: '09170000001', accountName: 'Maria' });
+    expect(wallet.status).toBe(200);
+    expect(wallet.body.data.destination).toMatchObject({ type: 'wallet', accountNumber: '09170000001' });
+    const legacy = await call('p-wallet', 'PUT', path, { type: 'provider_wallet', accountNumber: '09170000002', accountName: 'Maria' });
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.data.destination).toMatchObject({ type: 'provider_wallet' });
+  });
+
   it('records project-scoped payee verification and enforces it for cash-out only when required', async () => {
     const projectId = 'p-verification';
     const { payee } = await payeeWithReleased(projectId, 42_500);

@@ -20,7 +20,7 @@ export async function recordConsumerStatus(query: PoolClient, record: LinkedAcco
 }
 
 export async function attachConsumerWallet(query: PoolClient, record: LinkedAccountRecord, wallet: WalletAccount) {
-  const destination = { type: 'provider_wallet', accountNumber: wallet.number, accountName: wallet.name };
+  const destination = { type: 'wallet', accountNumber: wallet.number, accountName: wallet.name };
   await query.query(
     `UPDATE shared_payment.payees AS p SET destination = $5::jsonb,
       destination_hold_until = now() + ($6::int * interval '1 millisecond'),

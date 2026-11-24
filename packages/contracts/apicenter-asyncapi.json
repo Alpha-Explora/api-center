@@ -3,19 +3,19 @@
   "info": {
     "title": "APICenter Payment Events",
     "version": "2.3.0",
-    "description": "Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the application that created the resource, and delivers it to that application's webhook as a signed HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature)."
+    "description": "Payment lifecycle events. APICenter publishes each event to its event bus, filters it to the application that created the resource, and delivers it to that application's webhook as a signed HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature). Signed webhooks are the standard delivery; the servers below describe the optional Google Cloud Pub/Sub push delivery for consumers that run on Google Cloud."
   },
   "defaultContentType": "application/json",
   "servers": {
     "test": {
       "host": "pubsub.googleapis.com",
       "protocol": "googlepubsub",
-      "description": "APICenter test project Pub/Sub"
+      "description": "Optional Google Cloud Pub/Sub push delivery, test environment"
     },
     "live": {
       "host": "pubsub.googleapis.com",
       "protocol": "googlepubsub",
-      "description": "APICenter live project Pub/Sub"
+      "description": "Optional Google Cloud Pub/Sub push delivery, live environment"
     }
   },
   "channels": {
@@ -217,7 +217,7 @@
       "PaymentPayoutPaid": {
         "name": "payment.payout.paid",
         "title": "Payout paid",
-        "description": "PayMongo confirmed the transfer to the payee. referenceId is the payee's externalRef.",
+        "description": "The payment provider confirmed the transfer to the payee. referenceId is the payee's externalRef.",
         "payload": {
           "allOf": [
             {

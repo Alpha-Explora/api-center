@@ -32,7 +32,6 @@ describe('checkout reconciliation through the payment runtime', () => {
 
   beforeEach(async () => {
     sequence++;
-    checkoutId = `chk_reconcile_${sequence}`;
     referenceId = `ORDER-${sequence}`;
     providerAttributes = { status: 'active', checkout_url: 'https://checkout.paymongo.com/example',
       created_at: 1792145740, payments: [], payment_intent: { attributes: { status: 'awaiting_payment_method' } } };
@@ -45,6 +44,9 @@ describe('checkout reconciliation through the payment runtime', () => {
         amount: 100, currency: 'PHP', successUrl: 'https://shop.example/success', cancelUrl: 'https://shop.example/cancel',
         metadata: { booking: 'booking-a' } }) });
     expect(response.status).toBe(201);
+    // APICenter mints the checkout ID; the provider's cs_ ID never reaches the caller.
+    checkoutId = ((await response.json()) as { data: { checkoutId: string } }).data.checkoutId;
+    expect(checkoutId).toMatch(/^chk_[0-9a-hjkmnp-tv-z]{26}$/);
   });
 
   afterEach(() => { global.fetch = originalFetch; });
@@ -116,7 +118,10 @@ describe('checkout reconciliation through the payment runtime', () => {
   it('reports a provider error without changing the saved checkout', async () => {
     providerFetch.mockResolvedValueOnce({ ok: false, status: 503,
       json: async () => ({ errors: [{ code: 'provider_unavailable', detail: 'Provider unavailable' }] }) });
-    expect((await request(`/checkout/sessions/${checkoutId}`)).status).toBe(503);
+    // A provider outage is APICenter's upstream failure: neutral 502 PROVIDER_ERROR (ADR-0010).
+    const failed = await request(`/checkout/sessions/${checkoutId}`);
+    expect(failed.status).toBe(502);
+    expect(((await failed.json()) as any).error.code).toBe('PROVIDER_ERROR');
     const records = await request('/payments/records?type=checkout&status=pending');
     expect(await records.json()).toMatchObject({ data: { records: expect.arrayContaining([
       expect.objectContaining({ id: checkoutId, status: 'pending' }),

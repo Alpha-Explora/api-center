@@ -4,6 +4,7 @@
 
 import { paymongoRequest } from '../../shared/paymongo-client';
 import { PayMongoError } from '../../shared/payment-errors';
+import { toTransferFailure } from '../../shared/provider-errors';
 import type { MerchantAccount } from './merchant-accounts';
 import {
   PAYMONGO_BIC,
@@ -40,12 +41,14 @@ export class PayMongoMoneyMover implements MoneyMover {
     } catch (error) {
       if (!(error instanceof PayMongoError)) throw error;
       // 4xx means PayMongo refused the request, so nothing was sent; 429 too. Anything else may have been sent.
-      if (error.statusCode === 429) return { kind: 'rejected', code: 'rate_limited', message: error.message };
+      // Classify by the provider's own HTTP status, not the neutral status APICenter returns to callers.
+      const status = error.providerStatus ?? error.statusCode;
+      if (status === 429) return { kind: 'rejected', code: 'rate_limited', message: error.message };
       // 408 (timed out) and 409 (conflict) do not prove the transfer was refused.
-      if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 408 && error.statusCode !== 409) {
-        return { kind: 'rejected', code: error.code, message: error.message };
+      if (status >= 400 && status < 500 && status !== 408 && status !== 409) {
+        return { kind: 'rejected', code: toTransferFailure(error.provider?.code ?? error.code) ?? 'rejected', message: error.message };
       }
-      return { kind: 'unknown', reason: `${error.code}: ${error.message}` };
+      return { kind: 'unknown', reason: `${error.provider?.code ?? error.code}: ${error.provider?.message ?? error.message}` };
     }
   }
 
@@ -55,7 +58,7 @@ export class PayMongoMoneyMover implements MoneyMover {
         const response = await paymongoRequest(`/v2/transfers/${encodeURIComponent(key.transferId)}`, { account });
         return found(fields(response?.data));
       } catch (error) {
-        if (error instanceof PayMongoError && error.statusCode === 404) return { found: false };
+        if (error instanceof PayMongoError && (error.providerStatus ?? error.statusCode) === 404) return { found: false };
         throw error;
       }
     }
@@ -76,7 +79,7 @@ export class PayMongoMoneyMover implements MoneyMover {
     const wallets: ProviderTransfer[] = Array.isArray(response?.data) ? response.data : [];
     const wallet = wallets.map(fields).find((candidate) => String(candidate?.account?.account_number) === account.wallet!.number);
     const available = amountOrNull(wallet?.balance?.available);
-    if (available === null) throw new PayMongoError('The payout wallet was not found at PayMongo', 409, 'WALLET_NOT_FOUND');
+    if (available === null) throw new PayMongoError('The payout wallet was not found at the payment provider', 409, 'WALLET_NOT_FOUND');
     return available;
   }
 }
@@ -100,7 +103,7 @@ function found(transfer: ProviderTransfer | undefined): LookupResult {
     transferId: transfer.id,
     status: transferStatus(transfer.status),
     fee: amountOrNull(transfer.fee),
-    failureCode: transfer.error_code ?? transfer.failure_code ?? transfer.errors?.[0]?.code ?? null,
+    failureCode: toTransferFailure(transfer.error_code ?? transfer.failure_code ?? transfer.errors?.[0]?.code ?? null),
   };
 }
 

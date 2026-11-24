@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import { PayMongoError } from '../../shared/payment-errors';
 import { isMockMode, paymongoRequest, stepIdempotencyKey, type PayMongoAccount } from '../../shared/paymongo-client';
-import { toProviderId, toPublicId } from '../../shared/payment-ids';
 
 type PayMongoCall = typeof paymongoRequest;
 
@@ -24,7 +23,7 @@ type PaymentLinkView = {
 function paymentLink(resource: any): PaymentLinkView {
   const value = flatResource(resource);
   const status = typeof value.status === 'string' ? value.status : undefined;
-  const view: PaymentLinkView = { paymentLinkId: typeof value.id === 'string' && value.id ? toPublicId('pl', value.id) : undefined,
+  const view: PaymentLinkView = { paymentLinkId: typeof value.id === 'string' && value.id ? value.id : undefined,
     amount: value.amount, currency: value.currency, description: value.description, url: value.url, status,
     active: status === 'active', archived: status === 'archived',
     referenceNumber: typeof value.reference_number === 'string' && value.reference_number ? value.reference_number : undefined,
@@ -68,20 +67,20 @@ export class PaymentLinksService {
     const link = paymentLink(response);
     // A link without PayMongo's reference number could never be matched to its paid event.
     if (!link.paymentLinkId || !link.referenceNumber) {
-      throw new PayMongoError('PayMongo did not return the payment link ID and reference number', 502, 'INVALID_PROVIDER_RESPONSE');
+      throw new PayMongoError('The payment provider did not return the payment link ID and reference number', 502, 'INVALID_PROVIDER_RESPONSE');
     }
     return { ...link, paymentLinkId: link.paymentLinkId, referenceNumber: link.referenceNumber };
   }
 
   async get(id: string, account?: PayMongoAccount) {
     if (this.mockMode()) return { paymentLinkId: id, status: 'active', active: true, archived: false };
-    return paymentLink(await this.request(`/payment_links/${encodeURIComponent(toProviderId('pl', id))}`, account ? { account } : undefined));
+    return paymentLink(await this.request(`/payment_links/${encodeURIComponent(id)}`, account ? { account } : undefined));
   }
 
   async setArchived(id: string, archive: boolean, idempotencyKey?: string, account?: PayMongoAccount) {
     if (typeof archive !== 'boolean') throw new PayMongoError('archive must be a boolean', 400, 'INVALID_ARCHIVE_STATE');
     if (this.mockMode()) return { paymentLinkId: id, status: archive ? 'archived' : 'active', active: !archive, archived: archive };
-    const response = await this.request(`/payment_links/${encodeURIComponent(toProviderId('pl', id))}`, {
+    const response = await this.request(`/payment_links/${encodeURIComponent(id)}`, {
       method: 'PATCH', body: { archive }, idempotencyKey, ...(account ? { account } : {}) });
     return paymentLink(response);
   }
@@ -109,19 +108,19 @@ export class QrPhService {
       body: { data: { attributes: { amount, currency, description, payment_method_allowed: ['qrph'], metadata: { referenceId } } } } });
     const intent = intentResponse?.data || {};
     const intentAttrs = intent.attributes || {};
-    if (!intent.id || !intentAttrs.client_key) throw new PayMongoError('PayMongo did not return the intent client key', 502, 'INVALID_PROVIDER_RESPONSE');
+    if (!intent.id || !intentAttrs.client_key) throw new PayMongoError('The payment provider did not return the intent client key', 502, 'INVALID_PROVIDER_RESPONSE');
     const methodResponse = await this.request('/payment_methods', { method: 'POST', ...(account ? { account } : {}), idempotencyKey: stepIdempotencyKey(idempotencyKey, 'method'),
       body: { data: { attributes: { type: 'qrph', ...(expirySeconds === undefined ? {} : { expiry_seconds: expirySeconds }) } } } });
     const paymentMethodId = methodResponse?.data?.id;
-    if (!paymentMethodId) throw new PayMongoError('PayMongo did not return a QR Ph payment method', 502, 'INVALID_PROVIDER_RESPONSE');
+    if (!paymentMethodId) throw new PayMongoError('The payment provider did not return a QR Ph payment method', 502, 'INVALID_PROVIDER_RESPONSE');
     const attachedResponse = await this.request(`/payment_intents/${encodeURIComponent(intent.id)}/attach`, {
       method: 'POST', ...(account ? { account } : {}), idempotencyKey: stepIdempotencyKey(idempotencyKey, 'attach'),
       body: { data: { attributes: { payment_method: paymentMethodId, client_key: intentAttrs.client_key } } } });
     const attached = attachedResponse?.data || intent;
     const attrs = attached.attributes || {};
     const imageUrl = attrs.next_action?.code?.image_url;
-    if (typeof imageUrl !== 'string' || !imageUrl) throw new PayMongoError('PayMongo did not return a QR Ph image', 502, 'INVALID_PROVIDER_RESPONSE');
-    return { paymentIntentId: toPublicId('pi', attached.id || intent.id), referenceId,
+    if (typeof imageUrl !== 'string' || !imageUrl) throw new PayMongoError('The payment provider did not return a QR Ph image', 502, 'INVALID_PROVIDER_RESPONSE');
+    return { paymentIntentId: attached.id || intent.id, referenceId,
       status: attrs.status || 'awaiting_next_action', amount: attrs.amount ?? amount,
       currency: attrs.currency || currency, qrCodeImageUrl: imageUrl, expirySeconds: expirySeconds ?? 1800 };
   }

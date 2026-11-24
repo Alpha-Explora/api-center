@@ -1,6 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
-import type { SharedServiceCaller } from '@apicenter/runtime';
+import { mintId, type SharedServiceCaller } from '@apicenter/runtime';
 import type { EmailRecord } from './email-store';
 import type { EmailDeliveryEvent, EmailRepositoryInterface, EmailSendReservation, ProjectEmailSender } from './email-repository.interface';
 import { DailyLimitReachedError, SenderNotApprovedError } from './email-policy-errors';
@@ -84,7 +83,7 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
       await this.markFailed(reservation.messageId, owner).catch(() => undefined);
       throw error;
     }
-    return this.markQueued(reservation.messageId, providerMessageId ?? reservation.messageId, owner);
+    return this.markQueued(reservation.messageId, providerMessageId, owner);
   }
 
   /** Checks the sender and the UTC-day limit, then inserts a 'pending' row, in one short transaction under the project lock. */
@@ -112,7 +111,7 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
         [owner.projectId, owner.environment],
       );
       if (Number(count.rows[0]?.count ?? 0) >= dailyLimit) throw new DailyLimitReachedError();
-      const messageId = `msg_${randomUUID().replace(/-/g, '')}`;
+      const messageId = mintId('eml');
       await client.query(
         `INSERT INTO shared_email.email_messages
            (message_id, tribe_id, project_id, service_id, environment, provider, status, recipients, recipient_count, sent_at)
@@ -136,12 +135,18 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
     const client = await this.pool.connect();
     try {
       await client.query('begin');
+      const message = await client.query(
+        `SELECT message_id FROM shared_email.email_messages WHERE provider = $1 AND provider_message_id = $2`,
+        [event.provider, event.providerMessageId],
+      );
+      if (message.rowCount === 0) throw new Error('Email message is not yet recorded');
+      const messageId: string = message.rows[0].message_id;
       const inserted = await client.query(
         `INSERT INTO shared_email.email_delivery_events (provider_event_id, message_id, status, payload)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (provider_event_id) DO NOTHING
          RETURNING provider_event_id`,
-        [event.providerEventId, event.messageId, event.status, event.payload],
+        [event.providerEventId, messageId, event.status, event.payload],
       );
       if (inserted.rowCount === 0) {
         await client.query('commit');
@@ -149,7 +154,7 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
       }
       const updated = await client.query(
         `UPDATE shared_email.email_messages SET status = $2, updated_at = now() WHERE message_id = $1 RETURNING message_id`,
-        [event.messageId, event.status],
+        [messageId, event.status],
       );
       if (updated.rowCount === 0) throw new Error('Email message is not yet recorded');
       await client.query('commit');
@@ -163,13 +168,13 @@ export class PostgresEmailStore implements EmailRepositoryInterface {
   }
 
   /** Swaps in the provider's message ID so delivery events can find the message. */
-  private async markQueued(localId: string, messageId: string, owner: SharedServiceCaller): Promise<EmailRecord> {
+  private async markQueued(messageId: string, providerMessageId: string | undefined, owner: SharedServiceCaller): Promise<EmailRecord> {
     const result = await this.pool.query(
       `UPDATE shared_email.email_messages
-          SET message_id = $4, status = 'queued', sent_at = now(), updated_at = now()
+          SET provider_message_id = $4, status = 'queued', sent_at = now(), updated_at = now()
         WHERE message_id = $1 AND project_id = $2 AND environment = $3
         RETURNING ${EMAIL_RECORD_COLUMNS}`,
-      [localId, owner.projectId, owner.environment, messageId],
+      [messageId, owner.projectId, owner.environment, providerMessageId ?? null],
     );
     if (result.rowCount === 0) throw new Error('Reserved email message is missing');
     return mapEmailRecord(result.rows[0]);

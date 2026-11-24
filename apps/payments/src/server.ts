@@ -9,6 +9,8 @@ import { WebhooksService } from './features/webhooks/webhooks.service';
 import { InvoicesService } from './features/invoices/invoices.service';
 import { PaymentLinksService, QrPhService } from './features/payment-links/payment-links.service';
 import { PayMongoError } from './shared/payment-errors';
+import { PROVIDER_CODE_SUNSET } from './shared/provider-errors';
+import type { PaymentResourceType } from './shared/payment-id-map';
 import { readPaymentContext } from './shared/payment-context';
 import { hasPayMongoTestCredentials, isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
@@ -144,7 +146,7 @@ app.use((req: Request, res: Response, next) => {
 });
 
 async function remember(type: string, id: string, req: Request, snapshot: Record<string, unknown>,
-  references: { providerReference?: string; merchantAccountId?: string } = {}) {
+  references: { providerReference?: string; merchantAccountId?: string; providerResourceId?: string } = {}) {
   const context = paymentContext(req);
   await owners.save({ ...context, resourceType: type, resourceId: id,
     referenceId: typeof req.body?.referenceId === 'string' ? req.body.referenceId : undefined,
@@ -172,6 +174,19 @@ async function owned(type: string, id: string, req: Request) {
   return owners.assertOwned(type, id, paymentContext(req));
 }
 
+/** APICenter's ID for a resource the provider created or returned: the existing one, or a newly minted one. */
+async function publicIdFor(req: Request, type: PaymentResourceType, providerId: string): Promise<string> {
+  return owners.publicIdFor(type, providerId, paymentContext(req).environment);
+}
+
+/** The provider's ID for an owned resource. Provider IDs are used to call the provider and never returned. */
+function providerIdOf(owner: OwnerRecord): string {
+  if (!owner.providerResourceId) {
+    throw new PayMongoError('The payment resource has no provider record', 409, 'PROVIDER_RECORD_MISSING');
+  }
+  return owner.providerResourceId;
+}
+
 async function checkoutSnapshot(owner: OwnerRecord) {
   if (isMockMode()) return { ...owner.snapshot, aggregateVersion: owner.aggregateVersion };
   const paid = owner.status === 'paid' || owner.snapshot.status === 'paid';
@@ -186,9 +201,12 @@ async function checkoutSnapshot(owner: OwnerRecord) {
       if (!(error instanceof PayMongoError) || error.code !== 'NOT_FOUND') throw error;
     }
   }
-  const { paidPayment, ...fresh } = await checkoutService.getCheckoutSession(owner.resourceId, { includePayment: true, account: await collection.forOwner(owner) });
-  const record = await owners.reconcileCheckout(owner.resourceId, owner, fresh);
-  if (paidPayment) await owners.registerCheckoutPayment(record, paidPayment);
+  const { paidPayment, ...fresh } = await checkoutService.getCheckoutSession(providerIdOf(owner),
+    { includePayment: true, account: await collection.forOwner(owner) });
+  const paidPaymentId = paidPayment ? await owners.publicIdFor('payment', paidPayment.paymentId, owner.environment) : undefined;
+  const record = await owners.reconcileCheckout(owner.resourceId, owner,
+    { ...fresh, checkoutId: owner.resourceId, ...(paidPaymentId ? { paymentId: paidPaymentId } : {}) });
+  if (paidPayment) await owners.registerCheckoutPayment(record, paidPayment, paidPaymentId);
   const snapshot = record.snapshot.status === 'paid' || record.status === 'paid'
     ? { ...record.snapshot, status: 'paid' } : record.snapshot;
   return { ...snapshot, aggregateVersion: record.aggregateVersion };
@@ -203,17 +221,27 @@ function tribeId(req: Request): string | undefined {
 }
 
 function handleCustomError(res: Response, err: any) {
-  const status = err.statusCode || 502;
-  // Expected provider and validation errors carry a status; anything else is a defect worth a trace.
-  if (!err.statusCode) {
+  // Only APICenter errors (PayMongoError) are returned as they are; anything else is a defect worth a trace,
+  // and its message stays in the log.
+  if (!(err instanceof PayMongoError) || !err.statusCode) {
     console.error(JSON.stringify({
       type: 'apicenter_payment_unexpected_error',
       path: res.req?.path,
       message: err?.message,
+      ...(err instanceof PayMongoError && err.provider ? { provider: err.provider } : {}),
       stack: typeof err?.stack === 'string' ? err.stack.split('\n').slice(0, 6).join('\n') : undefined,
     }));
+    if (!(err instanceof PayMongoError)) return fail(res, 502, 'PROVIDER_ERROR', 'Payment processing failed');
+  } else if (err.provider) {
+    // The provider's own answer is for operators; callers get the neutral code and message.
+    console.warn(JSON.stringify({ type: 'apicenter_payment_provider_error', path: res.req?.path,
+      code: err.code, provider: { ...err.provider, body: undefined } }));
   }
-  return fail(res, status, err.code || 'PROVIDER_ERROR', err.message || 'Payment processing failed', err.details);
+  if (err.details && typeof err.details === 'object' && 'deprecatedProviderCode' in err.details) {
+    res.set('Deprecation', 'true');
+    res.set('Sunset', new Date(`${PROVIDER_CODE_SUNSET}T00:00:00Z`).toUTCString());
+  }
+  return fail(res, err.statusCode || 502, err.code || 'PROVIDER_ERROR', err.message || 'Payment processing failed', err.details);
 }
 
 let outboxPool: ReturnType<typeof createPaymentEventPool> | undefined;
@@ -270,9 +298,10 @@ app.post('/payment-intents', async (req: Request, res: Response) => {
       idempotencyKey: idempotencyKey(req),
       tribeId: tribeId(req),
     });
-    const snapshot = { ...data, referenceId: req.body?.referenceId };
-    await remember('intent', data.paymentIntentId, req, snapshot, { merchantAccountId: account.id });
-    return ok(res, await withAllocations(req, snapshot, allocations, { type: 'intent', id: data.paymentIntentId, merchantAccountId: account.id }), 201);
+    const paymentIntentId = await publicIdFor(req, 'intent', data.paymentIntentId);
+    const snapshot = { ...data, paymentIntentId, referenceId: req.body?.referenceId };
+    await remember('intent', paymentIntentId, req, snapshot, { merchantAccountId: account.id, providerResourceId: data.paymentIntentId });
+    return ok(res, await withAllocations(req, snapshot, allocations, { type: 'intent', id: paymentIntentId, merchantAccountId: account.id }), 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -280,8 +309,9 @@ app.post('/payment-intents/qrph', async (req: Request, res: Response) => {
   try {
     const account = await collection.forCreate(paymentContext(req), 'qrph', idempotencyKey(req));
     const data = await qrPhService.create(req.body || {}, idempotencyKey(req), account);
-    const snapshot = { ...data, referenceId: req.body?.referenceId };
-    await remember('intent', data.paymentIntentId, req, snapshot, { merchantAccountId: account.id });
+    const paymentIntentId = await publicIdFor(req, 'intent', data.paymentIntentId);
+    const snapshot = { ...data, paymentIntentId, referenceId: req.body?.referenceId };
+    await remember('intent', paymentIntentId, req, snapshot, { merchantAccountId: account.id, providerResourceId: data.paymentIntentId });
     return ok(res, snapshot, 201);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -290,8 +320,8 @@ app.get('/payment-intents/:paymentIntentId', async (req: Request, res: Response)
   try {
     const paymentIntentId = Array.isArray(req.params.paymentIntentId) ? req.params.paymentIntentId[0] : req.params.paymentIntentId;
     const current = await owned('intent', paymentIntentId, req);
-    const data = await paymentIntentsService.getPaymentIntent(paymentIntentId, await collection.forOwner(current));
-    const owner = await owners.reconcileFreshRead('intent', paymentIntentId, paymentContext(req), data);
+    const data = await paymentIntentsService.getPaymentIntent(providerIdOf(current), await collection.forOwner(current));
+    const owner = await owners.reconcileFreshRead('intent', paymentIntentId, paymentContext(req), { ...data, paymentIntentId });
     return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -300,10 +330,10 @@ app.post('/payment-intents/:paymentIntentId/confirm', async (req: Request, res: 
   try {
     const paymentIntentId = Array.isArray(req.params.paymentIntentId) ? req.params.paymentIntentId[0] : req.params.paymentIntentId;
     const owner = await owned('intent', paymentIntentId, req);
-    const data = await paymentIntentsService.confirmPaymentIntent(paymentIntentId, req.body || {}, {
+    const data = await paymentIntentsService.confirmPaymentIntent(providerIdOf(owner), req.body || {}, {
       idempotencyKey: idempotencyKey(req), account: await collection.forOwner(owner),
     });
-    const snapshot = { ...owner.snapshot, ...data };
+    const snapshot = { ...owner.snapshot, ...data, paymentIntentId };
     await remember('intent', paymentIntentId, req, snapshot);
     return ok(res, snapshot);
   } catch (err) { return handleCustomError(res, err); }
@@ -313,10 +343,10 @@ app.post('/payment-intents/:paymentIntentId/cancel', async (req: Request, res: R
   try {
     const paymentIntentId = Array.isArray(req.params.paymentIntentId) ? req.params.paymentIntentId[0] : req.params.paymentIntentId;
     const owner = await owned('intent', paymentIntentId, req);
-    const data = await paymentIntentsService.cancelPaymentIntent(paymentIntentId, {
+    const data = await paymentIntentsService.cancelPaymentIntent(providerIdOf(owner), {
       idempotencyKey: idempotencyKey(req), account: await collection.forOwner(owner),
     });
-    const snapshot = { ...owner.snapshot, ...data };
+    const snapshot = { ...owner.snapshot, ...data, paymentIntentId };
     await remember('intent', paymentIntentId, req, snapshot);
     return ok(res, snapshot);
   } catch (err) { return handleCustomError(res, err); }
@@ -331,9 +361,11 @@ app.post('/checkout/sessions', async (req: Request, res: Response) => {
     }
     const { body, allocations } = await plannedAllocations(req);
     const account = await collection.forCreate(paymentContext(req), 'checkout', key);
-    const data = await checkoutService.charge(body, { idempotencyKey: key, tribeId: tribeId(req), account });
-    await remember('checkout', data.checkoutId, req, data, { merchantAccountId: account.id });
-    return ok(res, await withAllocations(req, data, allocations, { type: 'checkout', id: data.checkoutId, merchantAccountId: account.id }), 201);
+    const created = await checkoutService.charge(body, { idempotencyKey: key, tribeId: tribeId(req), account });
+    const checkoutId = await publicIdFor(req, 'checkout', created.checkoutId);
+    const data = { ...created, checkoutId };
+    await remember('checkout', checkoutId, req, data, { merchantAccountId: account.id, providerResourceId: created.checkoutId });
+    return ok(res, await withAllocations(req, data, allocations, { type: 'checkout', id: checkoutId, merchantAccountId: account.id }), 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -373,9 +405,9 @@ app.post('/checkout/sessions/:checkoutId/cancelled', async (req: Request, res: R
   try {
     const checkoutId = Array.isArray(req.params.checkoutId) ? req.params.checkoutId[0] : req.params.checkoutId;
     const owner = await owned('checkout', checkoutId, req);
-    const data = await checkoutService.markCheckoutCancelled(checkoutId, { tribeId: tribeId(req), reason: req.body?.reason,
+    const data = await checkoutService.markCheckoutCancelled(providerIdOf(owner), { tribeId: tribeId(req), reason: req.body?.reason,
       idempotencyKey: idempotencyKey(req), account: await collection.forOwner(owner) });
-    return ok(res, data);
+    return ok(res, { ...data, checkoutId });
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -383,9 +415,9 @@ app.post('/checkout/sessions/:checkoutId/cancel', async (req: Request, res: Resp
   try {
     const checkoutId = String(req.params.checkoutId);
     const owner = await owned('checkout', checkoutId, req);
-    const data = await checkoutService.markCheckoutCancelled(checkoutId, { tribeId: tribeId(req), reason: req.body?.reason,
+    const data = await checkoutService.markCheckoutCancelled(providerIdOf(owner), { tribeId: tribeId(req), reason: req.body?.reason,
       idempotencyKey: idempotencyKey(req), account: await collection.forOwner(owner) });
-    const snapshot = { ...owner.snapshot, ...data };
+    const snapshot = { ...owner.snapshot, ...data, checkoutId };
     await remember('checkout', checkoutId, req, snapshot);
     return ok(res, snapshot);
   } catch (err) { return handleCustomError(res, err); }
@@ -395,8 +427,9 @@ app.post('/checkout/sessions/:checkoutId/cancel', async (req: Request, res: Resp
 app.post('/customers', async (req: Request, res: Response) => {
   try {
     const data = await catalogService.createCustomer(req.body || {}, { idempotencyKey: idempotencyKey(req) });
-    const snapshot = { ...data, customerReference: req.body?.customerReference };
-    await remember('customer', data.customerId, req, snapshot);
+    const customerId = await publicIdFor(req, 'customer', data.customerId);
+    const snapshot = { ...data, customerId, customerReference: req.body?.customerReference };
+    await remember('customer', customerId, req, snapshot, { providerResourceId: data.customerId });
     return ok(res, snapshot, 201);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -405,15 +438,17 @@ app.get('/customers/:customerId', async (req: Request, res: Response) => {
   try {
     const customerId = Array.isArray(req.params.customerId) ? req.params.customerId[0] : req.params.customerId;
     const owner = await owned('customer', customerId, req);
-    const data = await catalogService.getCustomer(customerId);
-    return ok(res, { ...owner.snapshot, ...data });
+    const data = await catalogService.getCustomer(providerIdOf(owner));
+    return ok(res, { ...owner.snapshot, ...data, customerId });
   } catch (err) { return handleCustomError(res, err); }
 });
 
 app.post('/plans', async (req: Request, res: Response) => {
   try {
-    const data = await catalogService.createPlan(req.body || {}, { idempotencyKey: idempotencyKey(req) });
-    await remember('plan', data.planId, req, data);
+    const created = await catalogService.createPlan(req.body || {}, { idempotencyKey: idempotencyKey(req) });
+    const planId = await publicIdFor(req, 'plan', created.planId);
+    const data = { ...created, planId };
+    await remember('plan', planId, req, data, { providerResourceId: created.planId });
     return ok(res, data, 201);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -428,8 +463,8 @@ app.get('/plans/:planId', async (req: Request, res: Response) => {
   try {
     const planId = Array.isArray(req.params.planId) ? req.params.planId[0] : req.params.planId;
     const owner = await owned('plan', planId, req);
-    const data = await catalogService.getPlan(planId);
-    return ok(res, { ...owner.snapshot, ...data });
+    const data = await catalogService.getPlan(providerIdOf(owner));
+    return ok(res, { ...owner.snapshot, ...data, planId });
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -439,9 +474,11 @@ app.post('/payment-links', async (req: Request, res: Response) => {
     const { body, allocations } = await plannedAllocations(req);
     const account = await collection.forCreate(paymentContext(req), 'payment_link', idempotencyKey(req));
     const data = await paymentLinksService.create(body, idempotencyKey(req), account);
-    const snapshot = { ...data, referenceId: req.body?.referenceId };
-    await remember('payment_link', data.paymentLinkId, req, snapshot, { providerReference: data.referenceNumber, merchantAccountId: account.id });
-    return ok(res, await withAllocations(req, snapshot, allocations, { type: 'payment_link', id: data.paymentLinkId, merchantAccountId: account.id }), 201);
+    const paymentLinkId = await publicIdFor(req, 'payment_link', data.paymentLinkId!);
+    const snapshot = { ...data, paymentLinkId, referenceId: req.body?.referenceId };
+    await remember('payment_link', paymentLinkId, req, snapshot, { providerReference: data.referenceNumber,
+      merchantAccountId: account.id, providerResourceId: data.paymentLinkId });
+    return ok(res, await withAllocations(req, snapshot, allocations, { type: 'payment_link', id: paymentLinkId, merchantAccountId: account.id }), 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -454,8 +491,8 @@ app.get('/payment-links/:paymentLinkId', async (req: Request, res: Response) => 
   try {
     const id = String(req.params.paymentLinkId);
     const owner = await owned('payment_link', id, req);
-    const data = await paymentLinksService.get(id, await collection.forOwner(owner));
-    return ok(res, { ...owner.snapshot, ...data, ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) });
+    const data = await paymentLinksService.get(providerIdOf(owner), await collection.forOwner(owner));
+    return ok(res, { ...owner.snapshot, ...data, paymentLinkId: id, ...(owner.snapshot.status === 'paid' ? { status: 'paid' } : {}) });
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -463,8 +500,8 @@ app.patch('/payment-links/:paymentLinkId', async (req: Request, res: Response) =
   try {
     const id = String(req.params.paymentLinkId);
     const current = await owned('payment_link', id, req);
-    const data = await paymentLinksService.setArchived(id, req.body?.archive, idempotencyKey(req), await collection.forOwner(current));
-    const owner = await owners.reconcilePaymentLink(id, paymentContext(req), data);
+    const data = await paymentLinksService.setArchived(providerIdOf(current), req.body?.archive, idempotencyKey(req), await collection.forOwner(current));
+    const owner = await owners.reconcilePaymentLink(id, paymentContext(req), { ...data, paymentLinkId: id });
     return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -472,10 +509,14 @@ app.patch('/payment-links/:paymentLinkId', async (req: Request, res: Response) =
 // Subscriptions
 app.post('/subscriptions', async (req: Request, res: Response) => {
   try {
-    await owned('customer', req.body?.customerId, req);
-    await owned('plan', req.body?.planId, req);
-    const data = await subscriptionsService.createSubscription(req.body || {}, { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req) });
-    await remember('subscription', data.subscriptionId, req, data);
+    const customer = await owned('customer', req.body?.customerId, req);
+    const plan = await owned('plan', req.body?.planId, req);
+    const created = await subscriptionsService.createSubscription(
+      { ...(req.body || {}), customerId: providerIdOf(customer), planId: providerIdOf(plan) },
+      { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req) });
+    const subscriptionId = await publicIdFor(req, 'subscription', created.subscriptionId);
+    const data = { ...created, subscriptionId, customerId: customer.resourceId, planId: plan.resourceId };
+    await remember('subscription', subscriptionId, req, data, { providerResourceId: created.subscriptionId });
     return ok(res, data, 201);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -483,9 +524,10 @@ app.post('/subscriptions', async (req: Request, res: Response) => {
 app.get('/subscriptions/:subscriptionId', async (req: Request, res: Response) => {
   try {
     const subscriptionId = Array.isArray(req.params.subscriptionId) ? req.params.subscriptionId[0] : req.params.subscriptionId;
-    await owned('subscription', subscriptionId, req);
-    const data = await subscriptionsService.getSubscription(subscriptionId);
-    const owner = await owners.reconcileFreshRead('subscription', subscriptionId, paymentContext(req), data);
+    const current = await owned('subscription', subscriptionId, req);
+    const data = await subscriptionsService.getSubscription(providerIdOf(current));
+    const owner = await owners.reconcileFreshRead('subscription', subscriptionId, paymentContext(req),
+      { ...data, subscriptionId, customerId: current.snapshot.customerId, planId: current.snapshot.planId });
     return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -494,8 +536,8 @@ app.post('/subscriptions/:subscriptionId/cancel', async (req: Request, res: Resp
   try {
     const subscriptionId = Array.isArray(req.params.subscriptionId) ? req.params.subscriptionId[0] : req.params.subscriptionId;
     const owner = await owned('subscription', subscriptionId, req);
-    const data = await subscriptionsService.cancelSubscription(subscriptionId, { idempotencyKey: idempotencyKey(req) });
-    const snapshot = { ...owner.snapshot, ...data };
+    const data = await subscriptionsService.cancelSubscription(providerIdOf(owner), { idempotencyKey: idempotencyKey(req) });
+    const snapshot = { ...owner.snapshot, ...data, subscriptionId };
     await remember('subscription', subscriptionId, req, snapshot);
     return ok(res, snapshot);
   } catch (err) { return handleCustomError(res, err); }
@@ -504,12 +546,14 @@ app.post('/subscriptions/:subscriptionId/cancel', async (req: Request, res: Resp
 app.get('/subscriptions/:subscriptionId/invoices', async (req: Request, res: Response) => {
   try {
     const subscriptionId = String(req.params.subscriptionId);
-    await owned('subscription', subscriptionId, req);
-    const invoices = await invoicesService.listForSubscription(subscriptionId);
+    const subscription = await owned('subscription', subscriptionId, req);
+    const invoices = await invoicesService.listForSubscription(providerIdOf(subscription));
     const context = paymentContext(req);
     const reconciled: OwnerRecord[] = [];
     for (const invoice of invoices) {
-      reconciled.push(await owners.reconcileFreshRead('invoice', invoice.invoiceId, context, invoice));
+      const invoiceId = await publicIdFor(req, 'invoice', invoice.invoiceId);
+      reconciled.push(await owners.reconcileFreshRead('invoice', invoiceId, context,
+        { ...invoice, invoiceId, subscriptionId }, invoice.invoiceId));
     }
     return ok(res, reconciled.map((owner) => owner.snapshot));
   } catch (err) { return handleCustomError(res, err); }
@@ -518,9 +562,10 @@ app.get('/subscriptions/:subscriptionId/invoices', async (req: Request, res: Res
 app.get('/invoices/:invoiceId', async (req: Request, res: Response) => {
   try {
     const invoiceId = String(req.params.invoiceId);
-    await owned('invoice', invoiceId, req);
-    const invoice = await invoicesService.get(invoiceId);
-    const owner = await owners.reconcileFreshRead('invoice', invoiceId, paymentContext(req), invoice);
+    const current = await owned('invoice', invoiceId, req);
+    const invoice = await invoicesService.get(providerIdOf(current));
+    const owner = await owners.reconcileFreshRead('invoice', invoiceId, paymentContext(req),
+      { ...invoice, invoiceId, subscriptionId: current.snapshot.subscriptionId });
     return ok(res, owner.snapshot);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -531,8 +576,11 @@ app.post('/payments/:paymentId/refunds', async (req: Request, res: Response) => 
     const paymentId = Array.isArray(req.params.paymentId) ? req.params.paymentId[0] : req.params.paymentId;
     const owner = await owned('payment', paymentId, req);
     const account = await collection.forOwner(owner);
-    const data = await refundsService.refund({ ...req.body, paymentId }, { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req), account });
-    await remember('refund', data.refundId, req, data, { merchantAccountId: account.id });
+    const created = await refundsService.refund({ ...req.body, paymentId: providerIdOf(owner) },
+      { idempotencyKey: idempotencyKey(req), tribeId: tribeId(req), account });
+    const refundId = await publicIdFor(req, 'refund', created.refundId);
+    const data = { ...created, refundId, paymentId };
+    await remember('refund', refundId, req, data, { merchantAccountId: account.id, providerResourceId: created.refundId });
     return ok(res, data, 201);
   } catch (err) { return handleCustomError(res, err); }
 });
@@ -542,7 +590,8 @@ app.get('/refunds/:refundId', async (req: Request, res: Response) => {
     const refundId = String(req.params.refundId);
     const owner = await owned('refund', refundId, req);
     const record = isMockMode() ? owner
-      : await owners.reconcileRefund(refundId, paymentContext(req), await refundsService.getRefund(refundId, await collection.forOwner(owner)));
+      : await owners.reconcileRefund(refundId, paymentContext(req), { ...await refundsService.getRefund(providerIdOf(owner),
+        await collection.forOwner(owner)), refundId, paymentId: owner.snapshot.paymentId as string | undefined });
     return ok(res, { ...record.snapshot, aggregateVersion: record.aggregateVersion });
   } catch (err) { return handleCustomError(res, err); }
 });

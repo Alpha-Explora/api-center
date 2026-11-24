@@ -9,7 +9,7 @@ export const PAYMONGO_BIC = 'PAEYPHM2XXX';
 
 export type PayoutDestination =
   | { type: 'instapay'; bic: string; accountNumber: string; accountName: string }
-  | { type: 'provider_wallet'; accountNumber: string; accountName: string };
+  | { type: 'wallet' | 'provider_wallet'; accountNumber: string; accountName: string };
 
 export type TransferRequest = {
   account: MerchantAccount;

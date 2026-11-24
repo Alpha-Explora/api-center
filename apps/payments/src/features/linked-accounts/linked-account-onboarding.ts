@@ -22,10 +22,10 @@ function unwrap<T>(result: ProviderResult<T>): T {
   if (result.kind === 'ok') return result.value;
   if (result.kind === 'unknown') throw new PayMongoError('The account operation needs provider reconciliation', 503, 'LINKED_ACCOUNT_OUTCOME_UNKNOWN');
   if (result.code === 'rate_limited') {
-    throw new PayMongoError('PayMongo rate limited this account operation', 429, 'PROVIDER_RATE_LIMITED',
+    throw new PayMongoError('The payment provider rate limited this account operation', 429, 'PROVIDER_RATE_LIMITED',
       { retryAfter: result.retryAfter ?? 30 });
   }
-  throw new PayMongoError('PayMongo declined the account operation', 422, 'LINKED_ACCOUNT_PROVIDER_REJECTED');
+  throw new PayMongoError('The payment provider declined the account operation', 422, 'LINKED_ACCOUNT_PROVIDER_REJECTED');
 }
 
 export class LinkedAccountOnboarding<Details = MerchantDetails> {
@@ -208,7 +208,7 @@ export class LinkedAccountOnboarding<Details = MerchantDetails> {
 
   private requireProvider(): LinkedAccountsProvider<Details> {
     if (!this.provider) {
-      throw new PayMongoError('PayMongo linked-account onboarding is awaiting provider verification', 503, 'LINKED_ACCOUNTS_PROVIDER_UNVERIFIED');
+      throw new PayMongoError('Linked-account onboarding is awaiting provider verification', 503, 'LINKED_ACCOUNTS_PROVIDER_UNVERIFIED');
     }
     return this.provider;
   }

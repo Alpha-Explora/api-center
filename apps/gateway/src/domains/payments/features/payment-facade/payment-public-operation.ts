@@ -54,6 +54,8 @@ const schemas = {
   }).strict(),
   destination: z.discriminatedUnion('type', [
     z.object({ type: z.literal('instapay'), bic: z.string().regex(/^[A-Z0-9]{8}([A-Z0-9]{3})?$/), accountNumber, accountName }).strict(),
+    z.object({ type: z.literal('wallet'), accountNumber, accountName }).strict(),
+    // Deprecated: the same as `wallet`, accepted until 2027-03-01 (ADR-0010).
     z.object({ type: z.literal('provider_wallet'), accountNumber, accountName }).strict(),
   ]),
   archive: z.object({ archive: z.boolean() }),

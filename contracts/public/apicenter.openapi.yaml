@@ -272,6 +272,7 @@ paths:
   /api/v1/payments/intents/{paymentIntentId}/confirm:
     post:
       operationId: confirmPaymentIntent
+      description: Confirms an intent with a payment method created through the payment provider's client-side step, which your frontend must run. Prefer checkouts, payment links, QR Ph or wallet-redirect intents, which need nothing from the provider in your application.
       tags:
         - Payments
       parameters:
@@ -1218,7 +1219,7 @@ paths:
   /api/v1/payments/payees/{payeeId}/destination:
     put:
       operationId: setPayeeDestination
-      description: "Sets where the payee is paid: a GCash or bank account through InstaPay, or a PayMongo wallet. A new destination holds payouts to the payee for 24 hours; sending the same destination again does not restart the hold. Requires payments:payouts:write."
+      description: "Sets where the payee is paid: a GCash or bank account through InstaPay, or a wallet at the payment provider. A new destination holds payouts to the payee for 24 hours; sending the same destination again does not restart the hold. Requires payments:payouts:write."
       tags:
         - Payments
       parameters:
@@ -3303,6 +3304,22 @@ components:
               minLength: 1
               maxLength: 200
         - type: object
+          description: A wallet at APICenter's payment provider.
+          required: [type, accountNumber, accountName]
+          additionalProperties: false
+          properties:
+            type:
+              const: wallet
+            accountNumber:
+              type: string
+              pattern: ^[0-9]{6,20}$
+            accountName:
+              type: string
+              minLength: 1
+              maxLength: 200
+        - type: object
+          description: Deprecated; the same as wallet. Accepted until 2027-03-01, then rejected.
+          deprecated: true
           required: [type, accountNumber, accountName]
           additionalProperties: false
           properties:
@@ -3322,7 +3339,8 @@ components:
       properties:
         type:
           type: string
-          enum: [instapay, provider_wallet]
+          enum: [instapay, wallet, provider_wallet]
+          description: provider_wallet is deprecated and appears only for destinations set with it; it means wallet.
         bic:
           type: string
         accountName:
@@ -3476,7 +3494,7 @@ components:
         status:
           type: string
           enum: [draft, submitting, pending, unknown, paid, failed, needs_review]
-          description: unknown and needs_review mean APICenter is confirming the transfer with PayMongo; it is never sent twice.
+          description: unknown and needs_review mean APICenter is confirming the transfer with the payment provider; it is never sent twice.
         trigger:
           type: string
           enum: [schedule, release, cash_out]
@@ -3496,6 +3514,7 @@ components:
           $ref: "#/components/schemas/Money"
         failureCode:
           type: [string, "null"]
+          description: "Why the payout failed: insufficient_funds, invalid_destination, rate_limited, wallet_not_configured, rejected, failed or not_submitted. An open set."
         createdAt:
           type: string
           format: date-time
@@ -3754,8 +3773,13 @@ components:
           properties:
             code:
               type: string
+              description: "A neutral decline reason: insufficient_funds, card_expired, invalid_card_details, card_declined, authentication_failed, cancelled_by_payer, processor_unavailable or other. An open set."
             message:
               type: string
+            deprecatedProviderCode:
+              type: string
+              deprecated: true
+              description: The payment provider's own failure code. Returned until 2027-03-01; use code instead.
     Customer:
       type: object
       required:
@@ -3904,10 +3928,26 @@ components:
         message:
           type: string
         details:
-          type: array
-          items:
-            type: string
+          description: Extra facts about the error. Payment errors that come from the payment provider carry a neutral reason; rate limits carry retryAfter in seconds.
+          anyOf:
+            - type: array
+              items:
+                type: string
+            - $ref: "#/components/schemas/ErrorDetails"
         detail: {}
+    ErrorDetails:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: "Why a payment was declined: insufficient_funds, card_expired, invalid_card_details, card_declined, authentication_failed, cancelled_by_payer, processor_unavailable or other. An open set."
+        retryAfter:
+          type: integer
+          minimum: 0
+        deprecatedProviderCode:
+          type: string
+          deprecated: true
+          description: The payment provider's own error code. Returned until 2027-03-01 for integrations that matched provider codes; use the error code and reason instead.
     ErrorEnvelope:
       type: object
       required:
@@ -4062,14 +4102,14 @@ components:
           format: uri
         status:
           type: string
-          description: active or archived from PayMongo, or paid once PayMongo reports a payment for the link.
+          description: active or archived, or paid once the payment provider reports a payment for the link.
         active:
           type: boolean
         archived:
           type: boolean
         referenceNumber:
           type: string
-          description: Reference number PayMongo assigned to the link.
+          description: Reference number shown to the payer for this link.
         metadata:
           type: object
           additionalProperties:
@@ -4196,7 +4236,10 @@ components:
       properties:
         messageId: &a1
           type: string
-        provider: *a1
+        provider:
+          type: string
+          deprecated: true
+          description: Which email source handled the message. Returned until 2027-03-01.
         status: *a1
         recipient:
           type: array
@@ -4218,7 +4261,10 @@ components:
       properties:
         messageId: &a1
           type: string
-        provider: *a1
+        provider:
+          type: string
+          deprecated: true
+          description: Which email source handled the message. Returned until 2027-03-01.
         status: *a1
         recipient:
           type: array
@@ -4413,41 +4459,87 @@ components:
     GeoReverseGeocodeRequest:
       type: object
       properties:
-        latitude: &a1
+        latitude:
           type: number
-        longitude: *a1
-        language: &a2
+        longitude:
+          type: number
+        language:
           type: string
-        resultType: *a2
-        locationType: *a2
+        resultType:
+          type: string
+          deprecated: true
+          description: A geocoding-provider result filter. Honoured until 2027-03-01, then ignored.
+        locationType:
+          type: string
+          deprecated: true
+          description: A geocoding-provider precision filter. Honoured until 2027-03-01, then ignored.
       required:
         - latitude
         - longitude
     GeoAddressResult:
       type: object
       properties:
-        formattedAddress: &a2
+        formattedAddress:
           type: string
-        latitude: &a1
+        latitude:
           type: number
-        longitude: *a1
-        placeId: *a2
+        longitude:
+          type: number
+        components:
+          $ref: "#/components/schemas/GeoAddressComponents"
+        precision:
+          type: string
+          description: "How exactly the coordinates locate the address: exact, street, area or approximate. An open set."
+        placeId:
+          type: string
+          deprecated: true
+          description: The geocoding provider's place identifier. Returned until 2027-03-01; use the coordinates and components.
         types:
           type: array
-          items: *a2
+          items:
+            type: string
+          deprecated: true
+          description: The geocoding provider's result types. Returned until 2027-03-01; use precision.
         provider:
           type: string
-          enum:
-            - mock
-            - google-maps
-        raw: {}
+          deprecated: true
+          description: Which geocoding source answered. Returned until 2027-03-01.
+        raw:
+          deprecated: true
+          description: The geocoding provider's unprocessed result. Returned until 2027-03-01; use components.
       required:
         - formattedAddress
         - latitude
         - longitude
+        - components
+        - precision
         - types
         - provider
         - raw
+    GeoAddressComponents:
+      type: object
+      description: The parts of a Philippine address. A part the source does not know is omitted.
+      properties:
+        streetNumber:
+          type: string
+        street:
+          type: string
+        barangay:
+          type: string
+        city:
+          type: string
+          description: City or municipality.
+        province:
+          type: string
+        region:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code.
+      required:
+        - country
     GeoFenceInput:
       type: object
       properties:

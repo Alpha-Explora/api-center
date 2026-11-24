@@ -24,6 +24,7 @@ describe("payout model", () => {
 
   it("describes destinations and schedules for people", () => {
     expect(describeDestination({ type: "instapay", bic: "GXCHPHM2XXX", accountName: "Juan", accountNumberLast4: "4567" })).toBe("GCash •••• 4567");
+    expect(describeDestination({ type: "wallet", accountName: "Juan", accountNumberLast4: "9999" })).toBe("Wallet •••• 9999");
     expect(describeDestination({ type: "provider_wallet", accountName: "Juan", accountNumberLast4: "9999" })).toBe("Wallet •••• 9999");
     expect(describeDestination(null)).toBe("Not set");
     expect(describeSchedule({ weekday: 5, hour: 20 })).toBe("Friday 8:00 PM");

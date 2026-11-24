@@ -7,7 +7,7 @@ import { isValidSmsSenderId } from './project-sender';
 export function createSmsSenderAdminHandler(deps: {
   store: SmsRepositoryInterface;
   expectedToken: string | undefined;
-  /** Whether the platform has its own Twilio sender for projects that pin none. */
+  /** Whether the platform has its own sender for projects that pin none. */
   platformSenderConfigured: boolean;
 }) {
   return async (req: Request, res: Response): Promise<void> => {

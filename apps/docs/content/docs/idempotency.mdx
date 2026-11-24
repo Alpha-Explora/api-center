@@ -17,7 +17,7 @@ Idempotency-Key: 7b9e0f14-3a21-4f92-901b-bf81c94d0e12
 
 After a definitive response, APICenter replays the response for the same key and request body for seven days. Reusing a key with a different body returns HTTP `409` with `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`. Concurrent reuse returns `IDEMPOTENCY_KEY_IN_PROGRESS`; retry later with the same key.
 
-If the provider outcome is uncertain, keep using the original key. APICenter allows retries with that key for up to 23 hours from the first attempt, leaving a safety margin before PayMongo's provider idempotency key expires. After that window, APICenter returns HTTP `409` with `PAYMENT_OUTCOME_UNKNOWN`. Reconcile the payment with APICenter or PayMongo before starting a new operation with a different key.
+If the provider outcome is uncertain, keep using the original key. APICenter allows retries with that key for up to 23 hours from the first attempt, leaving a safety margin before the payment provider's own idempotency window ends. After that window, APICenter returns HTTP `409` with `PAYMENT_OUTCOME_UNKNOWN`. Reconcile the payment with APICenter before starting a new operation with a different key.
 
 For payments, `referenceId` must be unique within your application and environment.
 

@@ -2,8 +2,16 @@ import { createHmac } from 'node:crypto';
 import { WebhooksService } from '../../../../apps/payments/src/features/webhooks/webhooks.service';
 import { PaymentOwnerStore } from '../../../../apps/payments/src/shared/payment-owner-store';
 
+const PAYMENT_ID = /^pay_[0-9a-hjkmnp-tv-z]{26}$/;
+
 describe('verified payment ownership', () => {
   const owner = { tribeId: 'tribe-a', projectId: 'project-a', consumerServiceId: 'service-a', environment: 'test' as const };
+
+  /** The payment recorded for a provider payment ID, as `context` sees it. Payments get APICenter IDs. */
+  async function payment(owners: PaymentOwnerStore, providerId: string, context: typeof owner) {
+    const found = await owners.findByProviderId('payment', providerId, context.environment);
+    return owners.assertOwned('payment', found?.resourceId ?? providerId, context);
+  }
   const previousSecret = process.env.PAYMONGO_TEST_WEBHOOK_SECRET;
 
   beforeEach(() => { process.env.PAYMONGO_TEST_WEBHOOK_SECRET = 'test-webhook-secret'; });
@@ -22,7 +30,7 @@ describe('verified payment ownership', () => {
 
   it('accepts a child payment only with its account and signing secret', async () => {
     const owners = new PaymentOwnerStore('');
-    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_child', merchantAccountId: 'org_child', snapshot: {} });
+    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_child', providerResourceId: 'pi_child', merchantAccountId: 'org_child', snapshot: {} });
     const payload = { data: { id: 'evt_child', attributes: { type: 'payment.paid', livemode: false,
       data: { id: 'pay_child', type: 'payment', attributes: { payment_intent_id: 'pi_child', status: 'paid' } } } } };
     const secrets = new Map([['org_child', 'child-secret'], ['org_other', 'other-secret']]);
@@ -34,50 +42,50 @@ describe('verified payment ownership', () => {
       .resolves.toMatchObject({ event: 'ignored' });
     await expect(service.processWebhook(payload, { ...signed(payload, 'child-secret'), accountId: 'org_child' }))
       .resolves.toMatchObject({ event: 'processed' });
-    await expect(owners.assertOwned('payment', 'pay_child', owner)).resolves.toMatchObject({ merchantAccountId: 'org_child' });
+    await expect(payment(owners, 'pay_child', owner)).resolves.toMatchObject({ merchantAccountId: 'org_child' });
   });
 
   it('records a paid checkout payment for its source tribe only', async () => {
     const owners = new PaymentOwnerStore('');
-    await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', referenceId: 'ORDER-0',
+    await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', providerResourceId: 'cs_123', referenceId: 'ORDER-0',
       snapshot: { checkoutId: 'chk_123' } });
     const payload = { data: { id: 'evt_paid_1', attributes: { type: 'checkout_session.payment.paid', livemode: false,
       data: { id: 'cs_123', attributes: { payments: [{ id: 'pay_123', type: 'payment',
         attributes: { status: 'paid', amount: 10000, currency: 'PHP' } }] } } } } };
     await expect(new WebhooksService(owners).processWebhook(payload, signed(payload)))
       .resolves.toMatchObject({ data: { updated: 1 } });
-    await expect(owners.assertOwned('payment', 'pay_123', owner))
-      .resolves.toMatchObject({ snapshot: { paymentId: 'pay_123' } });
+    await expect(payment(owners, 'pay_123', owner))
+      .resolves.toMatchObject({ snapshot: { paymentId: expect.stringMatching(PAYMENT_ID) } });
     await expect(owners.assertOwned('checkout', 'chk_123', owner))
-      .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: 'pay_123' } });
-    await expect(owners.assertOwned('payment', 'pay_123', { ...owner, tribeId: 'tribe-b' }))
+      .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: (await payment(owners, 'pay_123', owner)).resourceId } });
+    await expect(payment(owners, 'pay_123', { ...owner, tribeId: 'tribe-b' }))
       .rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('keeps the project of the checkout a webhook updates and hides that payment from another project', async () => {
     const owners = new PaymentOwnerStore('');
-    await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', referenceId: 'ORDER-0',
+    await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', providerResourceId: 'cs_123', referenceId: 'ORDER-0',
       snapshot: { checkoutId: 'chk_123' } });
     const payload = { data: { id: 'evt_paid_project', attributes: { type: 'checkout_session.payment.paid', livemode: false,
       data: { id: 'cs_123', attributes: { payments: [{ id: 'pay_123', type: 'payment',
         attributes: { status: 'paid', amount: 10000, currency: 'PHP' } }] } } } } };
     await new WebhooksService(owners).processWebhook(payload, signed(payload));
 
-    await expect(owners.assertOwned('payment', 'pay_123', owner))
+    await expect(payment(owners, 'pay_123', owner))
       .resolves.toMatchObject({ projectId: 'project-a' });
-    await expect(owners.assertOwned('payment', 'pay_123', { ...owner, projectId: 'project-b' }))
+    await expect(payment(owners, 'pay_123', { ...owner, projectId: 'project-b' }))
       .rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('rejects forged and mismatched events without recording a payment', async () => {
     const owners = new PaymentOwnerStore('');
-    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_123', snapshot: {} });
+    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_123', providerResourceId: 'pi_123', snapshot: {} });
     const payload = { data: { id: 'evt_paid_2', attributes: { type: 'payment.paid', livemode: false,
       data: { id: 'pay_456', type: 'payment', attributes: { payment_intent_id: 'pi_123', status: 'paid' } } } } };
     await expect(new WebhooksService(owners).processWebhook(payload, {
       ...signed(payload), signatureHeader: 't=1760000000,te=' + '0'.repeat(64),
     })).rejects.toMatchObject({ statusCode: 401 });
-    await expect(owners.assertOwned('payment', 'pay_456', owner)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(payment(owners, 'pay_456', owner)).rejects.toMatchObject({ statusCode: 404 });
     await expect(new WebhooksService(owners).processWebhook(payload, signed(payload)))
       .resolves.toMatchObject({ data: { updated: 1 } });
   });
@@ -90,7 +98,7 @@ describe('verified payment ownership', () => {
 
     async function ownersWithCheckout(referenceId: string | null = 'ORDER-1') {
       const owners = new PaymentOwnerStore('');
-      await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', referenceId: referenceId ?? undefined,
+      await owners.save({ ...owner, resourceType: 'checkout', resourceId: 'chk_123', providerResourceId: 'cs_123', referenceId: referenceId ?? undefined,
         snapshot: { checkoutId: 'chk_123' } });
       return owners;
     }
@@ -105,7 +113,7 @@ describe('verified payment ownership', () => {
         providerEventId: 'evt_1', eventType: 'payment.checkout.paid', aggregateType: 'checkout',
         aggregateId: 'chk_123', aggregateVersion: 2, ownerTribeId: 'tribe-a', ownerProjectId: 'project-a',
         consumerServiceId: 'service-a', referenceId: 'ORDER-1',
-        payload: expect.objectContaining({ checkoutId: 'chk_123', paymentId: 'pay_123', amount: 10000,
+        payload: expect.objectContaining({ checkoutId: 'chk_123', paymentId: expect.stringMatching(PAYMENT_ID), amount: 10000,
           currency: 'PHP', status: 'paid', occurredAt: '2025-10-09T08:53:20.000Z' }),
       })]);
     });
@@ -158,7 +166,7 @@ describe('verified payment ownership', () => {
 
     async function ownersWithIntent() {
       const owners = new PaymentOwnerStore('');
-      await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_123', referenceId: 'BOOKING-1',
+      await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_123', providerResourceId: 'pi_123', referenceId: 'BOOKING-1',
         snapshot: { paymentIntentId: 'pi_123', status: 'awaiting_next_action' } });
       return owners;
     }
@@ -171,7 +179,7 @@ describe('verified payment ownership', () => {
       expect(owners.queuedEvents()).toEqual([expect.objectContaining({
         eventType: 'payment.intent.paid', aggregateType: 'intent', aggregateId: 'pi_123', aggregateVersion: 2,
         referenceId: 'BOOKING-1', consumerServiceId: 'service-a',
-        payload: expect.objectContaining({ paymentIntentId: 'pi_123', paymentId: 'pay_456', status: 'succeeded',
+        payload: expect.objectContaining({ paymentIntentId: 'pi_123', paymentId: expect.stringMatching(PAYMENT_ID), status: 'succeeded',
           amount: 5000, currency: 'PHP' }),
       })]);
       await expect(owners.assertOwned('intent', 'pi_123', owner)).resolves.toMatchObject({ snapshot: { status: 'succeeded' } });
@@ -184,11 +192,12 @@ describe('verified payment ownership', () => {
         .resolves.toMatchObject({ event: 'processed', data: { updated: 1, queued: true } });
       expect(owners.queuedEvents()).toEqual([expect.objectContaining({
         eventType: 'payment.intent.failed', aggregateId: 'pi_123',
-        payload: expect.objectContaining({ status: 'failed', failureCode: 'payment_cancelled',
-          failureMessage: 'Cancelled in GCash' }),
+        payload: expect.objectContaining({ status: 'failed', failureCode: 'cancelled_by_payer',
+          failureMessage: 'The payer cancelled the payment.' }),
       })]);
       await expect(owners.assertOwned('intent', 'pi_123', owner)).resolves.toMatchObject({
-        snapshot: { status: 'failed', lastPaymentError: { code: 'payment_cancelled', message: 'Cancelled in GCash' } } });
+        snapshot: { status: 'failed', lastPaymentError: { code: 'cancelled_by_payer', message: 'The payer cancelled the payment.',
+          deprecatedProviderCode: 'payment_cancelled' } } });
     });
 
     it('keeps a succeeded intent succeeded when a failure for it arrives late', async () => {
@@ -223,9 +232,9 @@ describe('verified payment ownership', () => {
     // Project A's link has PayMongo reference PMREF-A. Project B chose PMREF-UNSAVED as its own referenceId.
     async function ownersWithLinks() {
       const owners = new PaymentOwnerStore('');
-      await owners.save({ ...owner, resourceType: 'payment_link', resourceId: 'pl_a', referenceId: 'ORDER-A',
+      await owners.save({ ...owner, resourceType: 'payment_link', resourceId: 'pl_a', providerResourceId: 'link_a', referenceId: 'ORDER-A',
         providerReference: 'PMREF-A', snapshot: { paymentLinkId: 'pl_a', status: 'active' } });
-      await owners.save({ ...projectB, resourceType: 'payment_link', resourceId: 'pl_b', referenceId: 'PMREF-UNSAVED',
+      await owners.save({ ...projectB, resourceType: 'payment_link', resourceId: 'pl_b', providerResourceId: 'link_b', referenceId: 'PMREF-UNSAVED',
         providerReference: 'PMREF-B', snapshot: { paymentLinkId: 'pl_b', status: 'active' } });
       return owners;
     }
@@ -237,7 +246,8 @@ describe('verified payment ownership', () => {
         .resolves.toEqual({ event: 'processed', data: { eventType: 'payment.paid', updated: 1 } });
 
       await expect(owners.assertOwned('payment_link', 'pl_a', owner))
-        .resolves.toMatchObject({ status: 'paid', aggregateVersion: 2, snapshot: { status: 'paid', paymentId: 'pay_link_1' } });
+        .resolves.toMatchObject({ status: 'paid', aggregateVersion: 2,
+          snapshot: { status: 'paid', paymentId: (await payment(owners, 'pay_link_1', owner)).resourceId } });
       await expect(owners.assertOwned('payment_link', 'pl_b', projectB))
         .resolves.toMatchObject({ status: 'active', aggregateVersion: 1 });
     });
@@ -266,7 +276,7 @@ describe('verified payment ownership', () => {
 
     it('routes a link payment past the intent lookup, because its payment intent belongs to PayMongo', async () => {
       const owners = await ownersWithLinks();
-      await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_paymongo_link', snapshot: {} });
+      await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_paymongo_link', providerResourceId: 'pi_paymongo_link', snapshot: {} });
       const payload = linkPaymentPaid('evt_link_4', 'PMREF-A');
       await new WebhooksService(owners).processWebhook(payload, signed(payload));
 
@@ -280,7 +290,7 @@ describe('verified payment ownership', () => {
       await expect(new WebhooksService(owners).processWebhook(payload, signed(payload)))
         .resolves.toMatchObject({ event: 'processed', data: { updated: 1 } });
       await expect(owners.assertOwned('payment_link', 'pl_a', owner))
-        .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: 'pay_link_1' } });
+        .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: (await payment(owners, 'pay_link_1', owner)).resourceId } });
     });
 
     it('matches a link.payment.paid link object by its PayMongo link ID', async () => {
@@ -292,7 +302,7 @@ describe('verified payment ownership', () => {
         .resolves.toMatchObject({ event: 'processed', data: { updated: 1 } });
 
       await expect(owners.assertOwned('payment_link', 'pl_a', owner))
-        .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: 'pay_link_6' } });
+        .resolves.toMatchObject({ snapshot: { status: 'paid', paymentId: (await payment(owners, 'pay_link_6', owner)).resourceId } });
       await expect(owners.assertOwned('payment_link', 'pl_b', projectB)).resolves.toMatchObject({ status: 'active' });
     });
   });

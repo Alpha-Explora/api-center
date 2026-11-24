@@ -53,14 +53,14 @@ describe('PayMongo money mover', () => {
     }] });
   });
 
-  it('sends wallet-to-wallet on the paymongo rail', async () => {
+  it.each(['wallet', 'provider_wallet'] as const)('sends a %s destination wallet-to-wallet on the provider rail', async (type) => {
     respond = created;
-    await new PayMongoMoneyMover().submit(request({ destination: { type: 'provider_wallet', accountNumber: '5555', accountName: 'Maria' } }));
+    await new PayMongoMoneyMover().submit(request({ destination: { type, accountNumber: '5555', accountName: 'Maria' } }));
     expect(calls[0].body.transfers[0]).toMatchObject({ provider: 'paymongo', destination_account: { number: '5555', name: 'Maria', bic: 'PAEYPHM2XXX' } });
   });
 
   it.each([
-    [422, { errors: [{ code: 'unprocessable_entity', detail: 'destination_account: invalid' }] }, { kind: 'rejected', code: 'unprocessable_entity' }],
+    [422, { errors: [{ code: 'unprocessable_entity', detail: 'destination_account: invalid' }] }, { kind: 'rejected', code: 'rejected' }],
     [429, { errors: [{ code: 'too_many_requests', detail: 'slow down' }] }, { kind: 'rejected', code: 'rate_limited' }],
     [500, { errors: [{ code: 'internal_server_error', detail: 'oops' }] }, { kind: 'unknown' }],
     [408, { errors: [{ code: 'request_timeout', detail: 'timed out' }] }, { kind: 'unknown' }],
@@ -95,7 +95,7 @@ describe('PayMongo money mover', () => {
       { id: 'batch_tr_1', transfers: [{ id: 'tr_1', reference_number: '7K2M9X', status: 'failed', fee: 0, error_code: 'invalid_destination_account' }] },
     ] });
     await expect(new PayMongoMoneyMover().lookup(account, { referenceNumber: '7K2M9X', since: new Date('2026-11-27T00:00:00Z') }))
-      .resolves.toEqual({ found: true, transferId: 'tr_1', status: 'failed', fee: 0, failureCode: 'invalid_destination_account' });
+      .resolves.toEqual({ found: true, transferId: 'tr_1', status: 'failed', fee: 0, failureCode: 'invalid_destination' });
     expect(calls[0].url).toMatch(/\/v2\/batch_transfers/);
   });
 

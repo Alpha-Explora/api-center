@@ -50,7 +50,7 @@ await api.payments.payees.setDestination(payee.payeeId, {
 A destination is one of two types:
 
 - **`instapay`**: a GCash or bank account. It needs the receiving institution's code, `bic`; GCash's is `GXCHPHM2XXX`.
-- **`provider_wallet`**: a wallet at APICenter's payment provider. It needs no `bic`.
+- **`wallet`**: a wallet at APICenter's payment provider. It needs no `bic`. (`provider_wallet` means the same and is deprecated: it is accepted until 2027-03-01, and responses that show it carry `Deprecation` and `Sunset` headers.)
 
 Responses show the account number masked, as `accountNumberLast4`.
 
@@ -77,7 +77,7 @@ Use your own record identifier for the optional `reference` field. Keep identity
 
 ## Test payee wallet onboarding
 
-With the feature enabled for your test project, you can start PayMongo wallet onboarding for an existing payee.
+With the feature enabled for your test project, you can start wallet onboarding for an existing payee.
 Use a test key with `payments:payouts:write` to start onboarding, reissue a verification link, and request activation.
 Use `payments:payouts:read` to fetch the current status.
 
@@ -96,7 +96,7 @@ if (!isPending(onboarding) && onboarding.verification) {
 
 The API returns a new hosted link only on the response that issued it. Status reads and idempotent replays
 return `verification: null`. To issue a new link, call `reissueOnboardingLink(payeeId)` with a new idempotency key.
-PayMongo's sandbox returns placeholder links. Use the local mock flow to test the identity and activation steps.
+The payment provider's test environment returns placeholder links. Use the local mock flow to test the identity and activation steps.
 
 Listen for `payee.onboarding.updated`, then read `getOnboarding(payeeId)`. When `nextAction` is `activate`,
 call `activateOnboarding(payeeId)`. In local mock payments mode, a verified activation can attach a test wallet

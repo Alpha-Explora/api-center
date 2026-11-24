@@ -58,8 +58,14 @@ describe('allocations', () => {
     else process.env.PAYMONGO_TEST_WEBHOOK_SECRET = previousSecret;
   });
 
+  /** APICenter's ID for the payment the provider calls `providerId`. */
+  async function paymentIdOf(providerId: string): Promise<string> {
+    return (await owners.findByProviderId('payment', providerId, 'test'))!.resourceId;
+  }
+
   async function intentWithShare(amount = 42_500) {
-    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_1', referenceId: 'ORDER-1', snapshot: { paymentIntentId: 'pi_1' } });
+    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_1', providerResourceId: 'pi_1', referenceId: 'ORDER-1',
+      snapshot: { paymentIntentId: 'pi_1' } });
     const [allocation] = await attachAllocations(deps(), context, { type: 'intent', id: 'pi_1', gross: 50_000, referenceId: 'ORDER-1' },
       [{ payeeId, amount }]);
     return allocation;
@@ -96,9 +102,10 @@ describe('allocations', () => {
     expect(allocation).toMatchObject({ payeeId, amount: 42_500, status: 'awaiting_payment', paymentId: null });
 
     await new WebhooksService(owners).processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));
-    expect(store.allocations.get(allocation.id)).toMatchObject({ status: 'held', paymentId: 'pay_1' });
+    const paymentId = await paymentIdOf('pay_1');
+    expect(store.allocations.get(allocation.id)).toMatchObject({ status: 'held', paymentId });
     expect(store.events).toEqual([expect.objectContaining({ eventType: 'payment.allocation.held', aggregateId: allocation.id,
-      referenceId: 'ORDER-1', payload: expect.objectContaining({ payeeId, paymentId: 'pay_1', amount: 42_500, currency: 'PHP' }) })]);
+      referenceId: 'ORDER-1', payload: expect.objectContaining({ payeeId, paymentId, amount: 42_500, currency: 'PHP' }) })]);
   });
 
   it('a duplicate paid webhook holds once', async () => {
@@ -107,7 +114,7 @@ describe('allocations', () => {
     await service.processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));
     await service.processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));
     await service.processWebhook(intentPaid('evt_2', 'pay_2'), signed(intentPaid('evt_2', 'pay_2')));
-    expect([...store.allocations.values()].map((entry) => [entry.status, entry.paymentId])).toEqual([['held', 'pay_1']]);
+    expect([...store.allocations.values()].map((entry) => [entry.status, entry.paymentId])).toEqual([['held', await paymentIdOf('pay_1')]]);
     expect(store.events).toHaveLength(1);
   });
 
@@ -121,14 +128,15 @@ describe('allocations', () => {
     const rows = [...store.allocations.values()];
     expect(rows.filter((entry) => entry.template)).toHaveLength(1);
     expect(rows.filter((entry) => !entry.template).map((entry) => [entry.status, entry.paymentId]))
-      .toEqual([['held', 'pay_a'], ['held', 'pay_b']]);
+      .toEqual([['held', await paymentIdOf('pay_a')], ['held', await paymentIdOf('pay_b')]]);
   });
 
   it('refund before release cancels; refund after payout claws back on next payout', async () => {
     const allocation = await intentWithShare();
     const service = new WebhooksService(owners);
     await service.processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));
-    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_full', snapshot: { refundId: 'ref_full', paymentId: 'pay_1' } });
+    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_full', providerResourceId: 'ref_full',
+      snapshot: { refundId: 'ref_full', paymentId: await paymentIdOf('pay_1') } });
     await service.processWebhook(refunded('evt_r1', 'ref_full', 50_000), signed(refunded('evt_r1', 'ref_full', 50_000)));
     expect(store.allocations.get(allocation.id)!.status).toBe('cancelled');
   });
@@ -145,7 +153,8 @@ describe('allocations', () => {
     await store.recordOutcome('test', first.id, 'provider_succeeded');
     expect(store.allocations.get(allocation.id)!.status).toBe('paid');
 
-    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_part', snapshot: { refundId: 'ref_part', paymentId: 'pay_1' } });
+    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_part', providerResourceId: 'ref_part',
+      snapshot: { refundId: 'ref_part', paymentId: await paymentIdOf('pay_1') } });
     const partial = refunded('evt_r2', 'ref_part', 10_000);
     await service.processWebhook(partial, signed(partial));
     await service.processWebhook(partial, signed(partial));
@@ -166,12 +175,16 @@ describe('allocations', () => {
         .map((record) => ({ paymentId, refundId: record.resourceId, refunded: Number(record.snapshot.amount) }))));
     const allocation = await intentWithShare();
     const service = new WebhooksService(owners);
-    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_early', snapshot: { refundId: 'ref_early', paymentId: 'pay_1' } });
+    // The refund was made through the API against the recorded payment, before its paid webhook arrived.
+    await owners.save({ ...owner, resourceType: 'payment', resourceId: 'pay_public1', providerResourceId: 'pay_1',
+      snapshot: { paymentId: 'pay_public1' } });
+    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_early', providerResourceId: 'ref_early',
+      snapshot: { refundId: 'ref_early', paymentId: 'pay_public1' } });
     await service.processWebhook(refunded('evt_r0', 'ref_early', 50_000), signed(refunded('evt_r0', 'ref_early', 50_000)));
     expect(store.allocations.get(allocation.id)!.status).toBe('awaiting_payment');
 
     await service.processWebhook(intentPaid('evt_late'), signed(intentPaid('evt_late')));
-    expect(store.allocations.get(allocation.id)).toMatchObject({ status: 'cancelled', paymentId: 'pay_1' });
+    expect(store.allocations.get(allocation.id)).toMatchObject({ status: 'cancelled', paymentId: 'pay_public1' });
   });
 
   // Review finding: a partial refund then a cancel charged the payee for a share they never received.
@@ -179,7 +192,8 @@ describe('allocations', () => {
     const allocation = await intentWithShare();
     const service = new WebhooksService(owners);
     await service.processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));
-    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_part', snapshot: { refundId: 'ref_part', paymentId: 'pay_1' } });
+    await owners.save({ ...owner, resourceType: 'refund', resourceId: 'ref_part', providerResourceId: 'ref_part',
+      snapshot: { refundId: 'ref_part', paymentId: await paymentIdOf('pay_1') } });
     await service.processWebhook(refunded('evt_r2', 'ref_part', 10_000), signed(refunded('evt_r2', 'ref_part', 10_000)));
     expect((await store.earnings('test', payeeId, now)).available).toBe(-8_500);
 

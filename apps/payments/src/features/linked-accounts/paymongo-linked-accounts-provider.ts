@@ -98,10 +98,10 @@ export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider<Mer
     try {
       return { kind: 'ok', value: await action() };
     } catch (error) {
-      if (error instanceof PayMongoError && error.statusCode >= 400 && error.statusCode < 500
-        && error.statusCode !== 408 && error.statusCode !== 409) {
-        return { kind: 'rejected', code: error.statusCode === 429 ? 'rate_limited' : error.code,
-          message: 'PayMongo rejected the sandbox operation' };
+      const status = error instanceof PayMongoError ? error.providerStatus ?? error.statusCode : 0;
+      if (error instanceof PayMongoError && status >= 400 && status < 500 && status !== 408 && status !== 409) {
+        return { kind: 'rejected', code: status === 429 ? 'rate_limited' : error.code,
+          message: 'The payment provider rejected the account operation' };
       }
       return { kind: 'unknown' };
     }

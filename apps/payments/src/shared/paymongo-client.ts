@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { PayMongoError } from './payment-errors';
+import { toNeutralError } from './provider-errors';
 
 const baseUrl = (process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1').replace(/\/+$/, '');
 
@@ -76,15 +77,24 @@ export async function paymongoRequest(endpoint: string, options: {
   } catch (error) {
     // No response: the request may or may not have reached PayMongo. Callers that move money must treat
     // this as an unknown outcome, never as a rejection.
-    throw new PayMongoError(`PayMongo could not be reached: ${(error as Error).message}`, 0, 'PROVIDER_UNREACHABLE');
+    const unreachable = new PayMongoError('The payment provider could not be reached.', 0, 'PROVIDER_UNREACHABLE');
+    unreachable.provider = { status: 0, message: (error as Error).message };
+    throw unreachable;
   }
 
   const body: any = await response.json();
   if (!response.ok) {
     const errorDetails = Array.isArray(body?.errors) ? body.errors[0] : null;
-    const message = errorDetails?.detail || body?.message || `PayMongo HTTP ${response.status}`;
-    const code = errorDetails?.code || 'PAYMONGO_API_ERROR';
-    throw new PayMongoError(message, response.status, code, body);
+    const providerCode: string | undefined = typeof errorDetails?.code === 'string' ? errorDetails.code : undefined;
+    const neutral = toNeutralError(response.status, providerCode);
+    const error = new PayMongoError(neutral.message, neutral.status, neutral.code, {
+      ...(neutral.reason ? { reason: neutral.reason } : {}),
+      ...(providerCode ? { deprecatedProviderCode: providerCode } : {}),
+    });
+    error.providerStatus = response.status;
+    error.provider = { status: response.status, code: providerCode,
+      message: errorDetails?.detail || body?.message, body };
+    throw error;
   }
 
   return body;

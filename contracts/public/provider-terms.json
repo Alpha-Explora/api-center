@@ -1,0 +1,147 @@
+{
+  "$comment": "Provider-neutral boundary (ADR-0010). Forbidden terms may not appear in the public contracts or public docs, except at the listed JSON paths. Payment methods (card, gcash, paymaya, qrph) and rails (instapay) are not vendors. Google login is a named capability and is not listed.",
+  "forbidden": [
+    "paymongo",
+    "twilio",
+    "google maps",
+    "google-maps",
+    "maps.googleapis",
+    "pubsub.googleapis",
+    "googlepubsub",
+    "pub/sub",
+    "pubsub",
+    "resend.com",
+    "\"resend\""
+  ],
+  "allowed": [
+    {
+      "term": "pubsub",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding for consumers on Google Cloud"
+    },
+    {
+      "term": "pubsub.googleapis",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding"
+    },
+    {
+      "term": "googlepubsub",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding"
+    },
+    {
+      "term": "pubsub",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/providers-and-data.mdx"
+      ],
+      "reason": "Sub-processor list and the optional Pub/Sub delivery guide"
+    },
+    {
+      "term": "pub/sub",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/providers-and-data.mdx"
+      ],
+      "reason": "Sub-processor list and the optional Pub/Sub delivery guide"
+    },
+    {
+      "term": "*",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/providers-and-data.mdx"
+      ],
+      "reason": "Sub-processor list (Data Privacy Act disclosure)"
+    },
+    {
+      "term": "pub/sub",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding"
+    },
+    {
+      "term": "paymongo",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/migration/from-direct-paymongo.mdx"
+      ],
+      "reason": "Migration guide for teams leaving a direct provider integration"
+    },
+    {
+      "term": "pub/sub",
+      "document": "asyncapi",
+      "paths": [
+        "^info\\.description$"
+      ],
+      "reason": "Names the optional Google Cloud Pub/Sub push delivery beside the standard signed webhooks"
+    }
+  ],
+  "rawFieldNames": [
+    "raw",
+    "placeId"
+  ],
+  "deprecatedFields": [
+    {
+      "schema": "OtpGenerateRequest",
+      "field": "target",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "ErrorDetails",
+      "field": "deprecatedProviderCode",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "placeId",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "types",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "provider",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "raw",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoReverseGeocodeRequest",
+      "field": "resultType",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "GeoReverseGeocodeRequest",
+      "field": "locationType",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "EmailSendResponse",
+      "field": "provider",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "EmailDeliveryStatus",
+      "field": "provider",
+      "sunset": "2027-03-01"
+    }
+  ],
+  "temporaryExceptions": []
+}

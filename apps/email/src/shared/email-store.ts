@@ -1,6 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import type { SharedServiceCaller } from '@apicenter/runtime';
-import { sameProject } from '@apicenter/runtime';
+import { mintId, sameProject } from '@apicenter/runtime';
 import type { EmailDeliveryEvent, EmailRepositoryInterface, EmailSendReservation, ProjectEmailSender } from './email-repository.interface';
 import { PostgresEmailStore } from './postgres-email-store';
 import { DailyLimitReachedError, SenderNotApprovedError } from './email-policy-errors';
@@ -24,6 +23,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export class MemoryEmailStore implements EmailRepositoryInterface {
   private static instance: MemoryEmailStore;
+  private readonly providerMessageIds = new Map<string, string>();
   private readonly store = new Map<string, OwnedEmailRecord>();
   private readonly projectSenders = new Map<string, ProjectEmailSender>();
   private readonly projectLocks = new Map<string, Promise<void>>();
@@ -78,7 +78,7 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
       this.markFailed(reservation.messageId, owner);
       throw error;
     }
-    return this.markQueued(reservation.messageId, providerMessageId ?? reservation.messageId, owner);
+    return this.markQueued(reservation.messageId, providerMessageId, owner);
   }
 
   /** Checks the sender and the UTC-day limit, then stores a 'pending' message. Callers hold the project lock. */
@@ -95,7 +95,7 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
         createdAt >= dayStart && createdAt < dayStart + DAY_MS;
     }).length;
     if (count >= dailyLimit) throw new DailyLimitReachedError();
-    const messageId = `msg_${randomUUID().replace(/-/g, '')}`;
+    const messageId = mintId('eml');
     const timestamp = now.toISOString();
     this.store.set(messageId, {
       record: {
@@ -112,12 +112,14 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
     return { messageId, fromAddress };
   }
 
-  private markQueued(localId: string, messageId: string, owner: SharedServiceCaller): EmailRecord {
-    const entry = this.store.get(localId);
+  private markQueued(messageId: string, providerMessageId: string | undefined, owner: SharedServiceCaller): EmailRecord {
+    const entry = this.store.get(messageId);
     if (!entry || !sameProject(entry.owner, owner)) throw new Error('Reserved email message is missing');
-    if (messageId !== localId && this.store.has(messageId)) throw new Error('Email message id is already recorded');
-    const record = { ...entry.record, messageId, status: 'queued', sentAt: new Date().toISOString() };
-    this.store.delete(localId);
+    if (providerMessageId) {
+      if (this.providerMessageIds.has(providerMessageId)) throw new Error('Email provider message id is already recorded');
+      this.providerMessageIds.set(providerMessageId, messageId);
+    }
+    const record = { ...entry.record, status: 'queued', sentAt: new Date().toISOString() };
     this.store.set(messageId, { record, owner: entry.owner });
     return { ...record };
   }
@@ -147,10 +149,11 @@ export class MemoryEmailStore implements EmailRepositoryInterface {
 
   async applyDeliveryEvent(event: EmailDeliveryEvent): Promise<{ duplicate: boolean }> {
     if (this.deliveryEventIds.has(event.providerEventId)) return { duplicate: true };
-    const entry = this.store.get(event.messageId);
-    if (!entry) throw new Error('Email message is not yet recorded');
+    const messageId = this.providerMessageIds.get(event.providerMessageId);
+    const entry = messageId ? this.store.get(messageId) : undefined;
+    if (!messageId || !entry) throw new Error('Email message is not yet recorded');
     this.deliveryEventIds.add(event.providerEventId);
-    this.store.set(event.messageId, { ...entry, record: { ...entry.record, status: event.status } });
+    this.store.set(messageId, { ...entry, record: { ...entry.record, status: event.status } });
     return { duplicate: false };
   }
 }

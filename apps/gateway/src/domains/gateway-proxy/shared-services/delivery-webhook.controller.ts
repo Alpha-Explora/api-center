@@ -1,75 +1,30 @@
-import { Controller, HttpCode, Post, RawBodyRequest, Req } from '@nestjs/common';
+import { Controller, HttpCode, Param, Post, RawBodyRequest, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { BadGatewayError, NotFoundError, ServiceUnavailableError, UnauthorizedError, ValidationError } from '@shared/errors';
+import { BadGatewayError, NotFoundError, ValidationError } from '@shared/errors';
 import { ConfigService } from '@config/config.service';
 import { SharedServiceRoutingService } from './shared-service-routing.service';
 import { getCloudRunAuthorizationHeader } from '@shared/proxy/cloud-run-auth';
-import { verifyResendSignature, verifyTwilioSignature, twilioProviderEventId } from './delivery-webhook-signatures';
+import { DELIVERY_STATUS_NORMALIZERS, type DeliveryEvent } from './delivery-status-normalizers';
 
-type EventPayload = { providerEventId: string; messageId: string; status: string; payload: unknown };
-
+/**
+ * Provider delivery-status callbacks: POST /api/v1/webhooks/:provider. The provider's normalizer verifies
+ * and translates the callback; the owning runtime receives APICenter's delivery event at /delivery-events.
+ */
 @Controller('webhooks')
 export class DeliveryWebhookController {
   constructor(private readonly routing: SharedServiceRoutingService, private readonly config: ConfigService) {}
 
-  @Post('resend')
+  @Post(':provider')
   @HttpCode(200)
-  async resend(@Req() req: RawBodyRequest<Request>) {
-    const secret = this.config.deliveryWebhooks.resendWebhookSecret;
-    if (!secret) throw new ServiceUnavailableError('RESEND_WEBHOOK_SECRET is not configured');
-    const rawBody = req.rawBody;
-    const headers = {
-      id: header(req, 'svix-id'),
-      timestamp: header(req, 'svix-timestamp'),
-      signature: header(req, 'svix-signature'),
-    };
-    if (!rawBody || !headers.id || !headers.timestamp || !headers.signature) {
-      throw new UnauthorizedError('Invalid Resend webhook signature');
-    }
-    let event: any;
-    try {
-      event = verifyResendSignature(secret, rawBody, headers);
-    } catch {
-      throw new UnauthorizedError('Invalid Resend webhook signature');
-    }
-    const status = resendStatus(event?.type);
-    const messageId = event?.data?.email_id;
-    if (!status || typeof messageId !== 'string' || !messageId) return { received: true, ignored: true };
-    const deliveryEvent: EventPayload = {
-      providerEventId: headers.id,
-      messageId,
-      status,
-      payload: event,
-    };
-    return this.forward('email', 'resend', deliveryEvent);
+  async receive(@Param('provider') provider: string, @Req() req: RawBodyRequest<Request>) {
+    const normalizer = Object.hasOwn(DELIVERY_STATUS_NORMALIZERS, provider) ? DELIVERY_STATUS_NORMALIZERS[provider] : undefined;
+    if (!normalizer) throw new NotFoundError('Unknown delivery webhook provider');
+    const event = normalizer.normalize(req, this.config);
+    if (!event) return { received: true, ignored: true };
+    return this.forward(normalizer.serviceId, provider, event);
   }
 
-  @Post('twilio')
-  @HttpCode(200)
-  async twilio(@Req() req: RawBodyRequest<Request>) {
-    const authToken = this.config.deliveryWebhooks.twilioAuthToken;
-    const callbackUrl = this.config.deliveryWebhooks.twilioStatusCallbackUrl;
-    if (!authToken || !callbackUrl) throw new ServiceUnavailableError('Twilio webhook validation is not configured');
-    const signature = header(req, 'x-twilio-signature');
-    const params = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
-    const url = new URL(req.originalUrl || '/api/v1/webhooks/twilio', callbackUrl).toString();
-    if (!signature || !verifyTwilioSignature(authToken, signature, url, params)) {
-      throw new UnauthorizedError('Invalid Twilio webhook signature');
-    }
-    const messageId = params.MessageSid;
-    const status = twilioStatus(params.MessageStatus);
-    if (typeof messageId !== 'string' || !messageId || !status) {
-      throw new ValidationError('Twilio status callback is missing a valid message SID or status');
-    }
-    return this.forward('sms', 'twilio', {
-      providerEventId: twilioProviderEventId(params),
-      messageId,
-      status,
-      payload: params,
-    });
-  }
-
-  private async forward(serviceId: 'email' | 'sms', provider: 'resend' | 'twilio', event: EventPayload) {
+  private async forward(serviceId: 'email' | 'sms', provider: string, event: DeliveryEvent) {
     // Delivery events are provider callbacks; the runtime serves both environments.
     let upstream: string;
     try {
@@ -80,10 +35,12 @@ export class DeliveryWebhookController {
     const authorization = await getCloudRunAuthorizationHeader(upstream);
     let response: globalThis.Response;
     try {
-      response = await fetch(`${upstream}/webhooks/${provider}`, {
+      response = await fetch(`${upstream}/delivery-events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
-        body: JSON.stringify(event),
+        // `messageId` is the provider's message ID; the runtime resolves it to APICenter's.
+        body: JSON.stringify({ provider, providerEventId: event.providerEventId, messageId: event.providerMessageId,
+          status: event.status, payload: event.payload }),
       });
     } catch {
       throw new BadGatewayError(`${serviceId} webhook runtime is unavailable`);
@@ -96,23 +53,4 @@ export class DeliveryWebhookController {
     if (!text) return { received: true };
     try { return JSON.parse(text); } catch { return { received: true }; }
   }
-}
-
-function header(req: Request, name: string): string {
-  const value = req.headers[name.toLowerCase()];
-  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
-}
-
-function resendStatus(eventType: unknown): EventPayload['status'] | null {
-  if (typeof eventType !== 'string' || !eventType.startsWith('email.')) return null;
-  const status = eventType.slice('email.'.length).replaceAll('.', '_');
-  return ['sent', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'failed', 'suppressed', 'opened', 'clicked'].includes(status)
-    ? status
-    : null;
-}
-
-function twilioStatus(value: unknown): EventPayload['status'] | null {
-  return typeof value === 'string' && ['accepted', 'scheduled', 'queued', 'sending', 'sent', 'delivered', 'undelivered', 'failed', 'read', 'canceled'].includes(value)
-    ? value
-    : null;
 }

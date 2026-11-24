@@ -80,8 +80,16 @@ for (const [route, pathItem] of Object.entries<RecordValue>(openApi.paths ?? {})
     assert(operation.responses?.['409']?.$ref === '#/components/responses/IdempotencyConflict', `${method.toUpperCase()} ${route} must document idempotency conflicts`);
   }
 }
-const serializedOpenApi = JSON.stringify(openApi).toLowerCase();
-assert(!serializedOpenApi.includes('paymongo_') && !serializedOpenApi.includes('paymongoid'), 'public HTTP contract leaks provider-specific fields');
+// Provider-neutral boundary (ADR-0010): no vendor terms or undeclared raw provider fields.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const providerTerms = require('./provider-terms.cjs');
+const terms = providerTerms.loadProviderTerms(root);
+const leaks = [
+  ...providerTerms.scanDocument(openApi, 'openapi', terms).map((v: RecordValue) => `openapi ${v.location}: ${v.term}`),
+  ...providerTerms.scanDocument(asyncApi, 'asyncapi', terms).map((v: RecordValue) => `asyncapi ${v.location}: ${v.term}`),
+  ...providerTerms.checkDeprecations(openApi, terms),
+];
+assert(!leaks.length, `public contract is not provider-neutral:\n  ${leaks.join('\n  ')}`);
 assert(openApi.components?.schemas?.CheckoutCreateRequest?.properties?.metadata?.additionalProperties?.type === 'string', 'Checkout metadata must be string-valued correlation metadata');
 
 const channel = asyncApi.channels?.['apicenter.payment-events.{environment}'];
