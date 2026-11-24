@@ -57,6 +57,6 @@ describe('wallet payment intents', () => {
   it('reports a failed attempt as failed, with the reason', async () => {
     const { request } = provider();
     await expect(new PaymentIntentsService(request as never, () => false).getPaymentIntent('pi_abc')).resolves.toMatchObject({
-      status: 'failed', lastPaymentError: { code: 'payment_cancelled', message: 'Cancelled in GCash' } });
+      status: 'failed', lastPaymentError: { code: 'cancelled_by_payer', message: 'The payer cancelled the payment.', deprecatedProviderCode: 'payment_cancelled' } });
   });
 });

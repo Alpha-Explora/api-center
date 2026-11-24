@@ -58,10 +58,10 @@ export class RefundsService {
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
     if (providerData.id !== providerId) {
-      throw new PayMongoError('PayMongo returned a different refund', 502, 'PROVIDER_RESOURCE_MISMATCH');
+      throw new PayMongoError('The payment provider returned a different refund', 502, 'PROVIDER_RESOURCE_MISMATCH');
     }
     if (!isRefundStatus(attributes.status)) {
-      throw new PayMongoError('PayMongo returned an unsupported refund status', 502, 'INVALID_PROVIDER_RESPONSE');
+      throw new PayMongoError('The payment provider returned an unsupported refund status', 502, 'INVALID_PROVIDER_RESPONSE');
     }
 
     return {

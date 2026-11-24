@@ -398,7 +398,7 @@ export class PaymentOwnerStore {
       || !Number.isSafeInteger(payment.amount) || payment.amount <= 0
       || !/^[A-Z]{3}$/.test(payment.currency)
       || (payment.paymentIntentId !== undefined && !payment.paymentIntentId.startsWith('pi_'))) {
-      throw new PayMongoError('PayMongo checkout did not return valid paid payment facts', 502, 'INVALID_PROVIDER_RESPONSE');
+      throw new PayMongoError('The payment provider did not return valid paid payment facts for the checkout', 502, 'INVALID_PROVIDER_RESPONSE');
     }
     await this.save({ ...checkout, resourceType: 'payment', resourceId: payment.paymentId,
       snapshot: { paymentId: payment.paymentId, status: 'paid', amount: payment.amount,

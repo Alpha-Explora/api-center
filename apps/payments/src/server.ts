@@ -9,6 +9,7 @@ import { WebhooksService } from './features/webhooks/webhooks.service';
 import { InvoicesService } from './features/invoices/invoices.service';
 import { PaymentLinksService, QrPhService } from './features/payment-links/payment-links.service';
 import { PayMongoError } from './shared/payment-errors';
+import { PROVIDER_CODE_SUNSET } from './shared/provider-errors';
 import { readPaymentContext } from './shared/payment-context';
 import { hasPayMongoTestCredentials, isMockMode, providerMode } from './shared/paymongo-client';
 import { timingSafeEqual } from 'node:crypto';
@@ -203,17 +204,27 @@ function tribeId(req: Request): string | undefined {
 }
 
 function handleCustomError(res: Response, err: any) {
-  const status = err.statusCode || 502;
-  // Expected provider and validation errors carry a status; anything else is a defect worth a trace.
-  if (!err.statusCode) {
+  // Only APICenter errors (PayMongoError) are returned as they are; anything else is a defect worth a trace,
+  // and its message stays in the log.
+  if (!(err instanceof PayMongoError) || !err.statusCode) {
     console.error(JSON.stringify({
       type: 'apicenter_payment_unexpected_error',
       path: res.req?.path,
       message: err?.message,
+      ...(err instanceof PayMongoError && err.provider ? { provider: err.provider } : {}),
       stack: typeof err?.stack === 'string' ? err.stack.split('\n').slice(0, 6).join('\n') : undefined,
     }));
+    if (!(err instanceof PayMongoError)) return fail(res, 502, 'PROVIDER_ERROR', 'Payment processing failed');
+  } else if (err.provider) {
+    // The provider's own answer is for operators; callers get the neutral code and message.
+    console.warn(JSON.stringify({ type: 'apicenter_payment_provider_error', path: res.req?.path,
+      code: err.code, provider: { ...err.provider, body: undefined } }));
   }
-  return fail(res, status, err.code || 'PROVIDER_ERROR', err.message || 'Payment processing failed', err.details);
+  if (err.details && typeof err.details === 'object' && 'deprecatedProviderCode' in err.details) {
+    res.set('Deprecation', 'true');
+    res.set('Sunset', new Date(`${PROVIDER_CODE_SUNSET}T00:00:00Z`).toUTCString());
+  }
+  return fail(res, err.statusCode || 502, err.code || 'PROVIDER_ERROR', err.message || 'Payment processing failed', err.details);
 }
 
 let outboxPool: ReturnType<typeof createPaymentEventPool> | undefined;

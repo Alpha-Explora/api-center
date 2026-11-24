@@ -112,6 +112,11 @@
       "schema": "OtpGenerateRequest",
       "field": "target",
       "sunset": "2027-03-01"
+    },
+    {
+      "schema": "ErrorDetails",
+      "field": "deprecatedProviderCode",
+      "sunset": "2027-03-01"
     }
   ],
   "temporaryExceptions": [

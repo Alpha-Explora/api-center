@@ -3496,6 +3496,7 @@ components:
           $ref: "#/components/schemas/Money"
         failureCode:
           type: [string, "null"]
+          description: "Why the payout failed: insufficient_funds, invalid_destination, rate_limited, wallet_not_configured, rejected, failed or not_submitted. An open set."
         createdAt:
           type: string
           format: date-time
@@ -3754,8 +3755,13 @@ components:
           properties:
             code:
               type: string
+              description: "A neutral decline reason: insufficient_funds, card_expired, invalid_card_details, card_declined, authentication_failed, cancelled_by_payer, processor_unavailable or other. An open set."
             message:
               type: string
+            deprecatedProviderCode:
+              type: string
+              deprecated: true
+              description: The payment provider's own failure code. Returned until 2027-03-01; use code instead.
     Customer:
       type: object
       required:
@@ -3904,10 +3910,26 @@ components:
         message:
           type: string
         details:
-          type: array
-          items:
-            type: string
+          description: Extra facts about the error. Payment errors that come from the payment provider carry a neutral reason; rate limits carry retryAfter in seconds.
+          anyOf:
+            - type: array
+              items:
+                type: string
+            - $ref: "#/components/schemas/ErrorDetails"
         detail: {}
+    ErrorDetails:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: "Why a payment was declined: insufficient_funds, card_expired, invalid_card_details, card_declined, authentication_failed, cancelled_by_payer, processor_unavailable or other. An open set."
+        retryAfter:
+          type: integer
+          minimum: 0
+        deprecatedProviderCode:
+          type: string
+          deprecated: true
+          description: The payment provider's own error code. Returned until 2027-03-01 for integrations that matched provider codes; use the error code and reason instead.
     ErrorEnvelope:
       type: object
       required:

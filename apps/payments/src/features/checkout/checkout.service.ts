@@ -95,7 +95,7 @@ export class CheckoutService {
     const attributes = providerData.attributes || {};
 
     if (providerData.id !== toProviderId('chk', checkoutId)) {
-      throw new PayMongoError('PayMongo returned a different checkout session', 502, 'PROVIDER_RESOURCE_MISMATCH');
+      throw new PayMongoError('The payment provider returned a different checkout session', 502, 'PROVIDER_RESOURCE_MISMATCH');
     }
     const payment = paidCheckoutPayment(attributes);
     return {

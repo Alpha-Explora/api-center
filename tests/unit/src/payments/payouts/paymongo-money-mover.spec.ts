@@ -60,7 +60,7 @@ describe('PayMongo money mover', () => {
   });
 
   it.each([
-    [422, { errors: [{ code: 'unprocessable_entity', detail: 'destination_account: invalid' }] }, { kind: 'rejected', code: 'unprocessable_entity' }],
+    [422, { errors: [{ code: 'unprocessable_entity', detail: 'destination_account: invalid' }] }, { kind: 'rejected', code: 'rejected' }],
     [429, { errors: [{ code: 'too_many_requests', detail: 'slow down' }] }, { kind: 'rejected', code: 'rate_limited' }],
     [500, { errors: [{ code: 'internal_server_error', detail: 'oops' }] }, { kind: 'unknown' }],
     [408, { errors: [{ code: 'request_timeout', detail: 'timed out' }] }, { kind: 'unknown' }],
@@ -95,7 +95,7 @@ describe('PayMongo money mover', () => {
       { id: 'batch_tr_1', transfers: [{ id: 'tr_1', reference_number: '7K2M9X', status: 'failed', fee: 0, error_code: 'invalid_destination_account' }] },
     ] });
     await expect(new PayMongoMoneyMover().lookup(account, { referenceNumber: '7K2M9X', since: new Date('2026-11-27T00:00:00Z') }))
-      .resolves.toEqual({ found: true, transferId: 'tr_1', status: 'failed', fee: 0, failureCode: 'invalid_destination_account' });
+      .resolves.toEqual({ found: true, transferId: 'tr_1', status: 'failed', fee: 0, failureCode: 'invalid_destination' });
     expect(calls[0].url).toMatch(/\/v2\/batch_transfers/);
   });
 
