@@ -1340,7 +1340,7 @@ paths:
           $ref: "#/components/responses/ServiceUnavailable"
     post:
       operationId: startPayeeOnboarding
-      description: Starts or resumes wallet onboarding in test. A newly issued hosted link is returned once. Requires payments:payouts:write.
+      description: "Starts or resumes wallet onboarding in test. A newly issued hosted link is returned once. Availability: test-only pilot, coming soon; not enabled by default. While it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write."
       tags: [Payments]
       parameters:
         - $ref: "#/components/parameters/PayeeId"
@@ -1375,7 +1375,7 @@ paths:
   /api/v1/payments/payees/{payeeId}/onboarding/verification-link:
     post:
       operationId: reissuePayeeOnboardingLink
-      description: Issues a fresh hosted verification link in test. Use a new idempotency key to request a new link. Requires payments:payouts:write.
+      description: "Issues a fresh hosted verification link in test. Use a new idempotency key to request a new link. Availability: test-only pilot, coming soon; not enabled by default. While it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write."
       tags: [Payments]
       parameters:
         - $ref: "#/components/parameters/PayeeId"
@@ -1404,7 +1404,7 @@ paths:
   /api/v1/payments/payees/{payeeId}/onboarding/activate:
     post:
       operationId: activatePayeeOnboarding
-      description: Requests wallet activation after identity verification in test. Requires payments:payouts:write.
+      description: "Requests wallet activation after identity verification in test. Availability: test-only pilot, coming soon; not enabled by default. While it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write."
       tags: [Payments]
       parameters:
         - $ref: "#/components/parameters/PayeeId"
@@ -1433,7 +1433,7 @@ paths:
   /api/v1/payments/payees/{payeeId}/cash-out:
     post:
       operationId: cashOutPayee
-      description: "Pays the payee's released earnings now, whole allocations oldest first, up to what is left of the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED, PAYEE_NOT_VERIFIED or NOTHING_RELEASED. Requires payments:payouts:write."
+      description: "Pays the payee's released earnings now, whole allocations oldest first, up to what is left of the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED, PAYEE_NOT_VERIFIED or NOTHING_RELEASED. Availability: sending payouts is coming soon. Until it opens for an environment, cash-out is refused with 409 PAYOUTS_LIVE_DISABLED (live) or WALLET_NOT_CONFIGURED; payees, allocations and earnings are recorded in the meantime. Requires payments:payouts:write."
       tags:
         - Payments
       parameters:
@@ -1559,7 +1559,7 @@ paths:
   /api/v1/payments/payouts:
     get:
       operationId: listPayouts
-      description: "Payouts of the calling project, newest first. Requires payments:payouts:read."
+      description: "Payouts of the calling project, newest first. Availability: payouts appear here once sending payouts opens for the environment (coming soon). Requires payments:payouts:read."
       tags:
         - Payments
       parameters:
