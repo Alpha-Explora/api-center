@@ -21,8 +21,11 @@ export const SMS_DEFAULT_PREFIXES = ["+63"];
 type Definition<C extends Record<string, unknown>> = {
   title: string;
   description: string;
-  release: FeatureRelease;
+  /** Release status per environment: a feature can be open in test while live waits. */
+  release: Readonly<Record<EnvironmentKind, FeatureRelease>>;
   environments: readonly EnvironmentKind[];
+  /** Where a project files a request for it. Elsewhere it is self-service, or not offered. */
+  requestsIn: readonly EnvironmentKind[];
   change: z.ZodType<C>;
   needsApproval(change: C, context: FeatureContext): boolean;
   summary(change: C): string;
@@ -42,7 +45,10 @@ function define<C extends Record<string, unknown>>(definition: Definition<C>) {
   };
 }
 
-const available = { release: "available", environments } as const;
+const available = { release: { test: "available", live: "available" }, environments, requestsIn: environments } as const;
+/** Open in test, self-service there; live is not open yet and accepts no requests. */
+const testOnlyForNow = { release: { test: "available", live: "coming_soon" }, environments, requestsIn: ["live"] } as const;
+const liveNeedsApproval = (_: unknown, { environment, current }: FeatureContext) => environment === "live" && current.enabled !== true;
 export const FEATURE_CATALOG = {
   "plan.upgrade": define({
     ...available, title: "Pro or Enterprise plan", description: "Use a higher service plan.",
@@ -52,27 +58,28 @@ export const FEATURE_CATALOG = {
     summary: ({ planKey }) => `Switch to the ${planKey} plan`,
   }),
   "payments.live": define({
-    ...available, title: "Payments in live", description: "Use payments in the live environment.", environments: ["live"],
+    ...available, title: "Payments in live", description: "Use payments in the live environment.", environments: ["live"], requestsIn: ["live"],
     change: empty, needsApproval: (_, { environment, current }) => environment === "live" && current.enabled !== true,
     summary: () => "Enable live payments",
   }),
   "payouts.sending": define({
-    ...available, title: "Sending payouts", description: "Pay payees from the money your project collects.", release: "coming_soon",
-    change: empty, needsApproval: (_, { environment, current }) => environment === "live" && current.enabled !== true,
+    ...testOnlyForNow, title: "Sending payouts", description: "Pay payees from the money your project collects.",
+    change: empty, needsApproval: liveNeedsApproval,
     summary: () => "Enable payout transfers",
   }),
   "payouts.merchant_account": define({
-    ...available, title: "Project merchant account", description: "Onboard a project-owned merchant account.", release: "coming_soon",
-    change: empty, needsApproval: (_, { current }) => current.enabled !== true,
+    ...testOnlyForNow, title: "Project merchant account", description: "Onboard a project-owned merchant account.",
+    change: empty, needsApproval: liveNeedsApproval,
     summary: () => "Enable project merchant onboarding",
   }),
   "payouts.payee_wallets": define({
-    release: "pilot", environments: ["test"], title: "Payee wallet onboarding", description: "Verify and activate test consumer wallets.",
-    change: empty, needsApproval: (_, { current }) => current.enabled !== true,
+    ...testOnlyForNow, release: { test: "pilot", live: "coming_soon" }, title: "Payee wallet onboarding",
+    description: "Verify and activate payee wallets.",
+    change: empty, needsApproval: liveNeedsApproval,
     summary: () => "Enable test payee wallet onboarding",
   }),
   "sms.sender": define({
-    ...available, title: "SMS sender ID", description: "Pin a sender ID for SMS messages.",
+    ...available, title: "SMS sender ID", description: "Pin a sender ID for SMS messages.", requestsIn: ["live"],
     change: z.strictObject({
       senderId: z.string().trim().regex(/^(?:\+[1-9]\d{6,14}|(?=[A-Za-z0-9 ]*[A-Za-z])[A-Za-z0-9 ]{1,11})$/),
     }),

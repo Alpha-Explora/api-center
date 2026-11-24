@@ -109,8 +109,27 @@ describe('PayoutsConsoleController', () => {
       type: 'linked_account.onboarding_started', organizationId, projectId: 'prj_1', resourceId: 'lac_example',
     }));
     expect(JSON.stringify(audit.record.mock.calls)).not.toMatch(/111-111-111|identity.example/);
-    await expect(controller().setLinkedAccountEnabled(params, { enabled: true }, req)).rejects.toMatchObject({ code: 'FEATURE_APPROVAL_REQUIRED' });
     await expect(controller().closeLinkedAccount(params, { id: 'lac_example' }, req)).rejects.toThrow('platform operators');
+  });
+
+  it('lets project members switch payout features in test, and sends live through approval', async () => {
+    process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE = 'runtime-token';
+    const live = { ...params, environment: 'live' };
+    reply = { status: 200, body: { success: true, data: { enabled: false, projectEnabled: false } } };
+
+    await controller().setLinkedAccountEnabled(params, { enabled: true }, req);
+    expect(calls.at(-1)?.url).toMatch(/\/admin\/payouts\/linked-account\/enabled$/);
+    expect(JSON.parse(String(calls.at(-1)?.init.body))).toMatchObject({ enabled: true });
+    await controller().setLinkedAccountEnabled(params, { enabled: false }, req);
+    await controller().setProjectFeature({ ...params, feature: 'payee_wallets' }, { enabled: true }, req);
+    expect(calls.at(-1)?.url).toMatch(/\/admin\/payouts\/project-features\/payee_wallets$/);
+
+    const before = calls.length;
+    await expect(controller().setLinkedAccountEnabled(live, { enabled: true }, req)).rejects.toMatchObject({ code: 'FEATURE_APPROVAL_REQUIRED' });
+    await expect(controller().setProjectFeature({ ...live, feature: 'payouts_sending' }, { enabled: true }, req))
+      .rejects.toMatchObject({ code: 'FEATURE_APPROVAL_REQUIRED' });
+    await expect(controller().setLinkedAccountEnabled(live, { enabled: false }, req)).rejects.toThrow('platform operators');
+    expect(calls.slice(before).every((call) => !/enabled$|project-features\/payouts_sending$/.test(call.url) || call.init.method === 'GET')).toBe(true);
   });
 
   it('rejects malformed targets and filters', async () => {

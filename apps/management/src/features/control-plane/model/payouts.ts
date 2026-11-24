@@ -106,15 +106,19 @@ export function availabilityMessage(feature: keyof PayoutAvailability, availabil
   if (availability.reason === "paused") return "Paused by APICenter.";
   switch (feature) {
     case "transfers":
-      return availability.reason === "not_enabled" || availability.reason === "live_payouts_disabled"
-        ? "Sending live payouts is coming soon. Payees, shares and earnings are recorded now and are paid once live payouts open."
-        : "Sending payouts is coming soon in this environment. Payees, shares and earnings are recorded now; payouts start once an operator sets the payout wallet (“Before the first payout” in the payouts runbook).";
+      return availability.reason === "wallet_not_configured"
+        ? "Sending payouts in this environment waits for an operator to set the payout wallet (“Before the first payout” in the payouts runbook). Payees, shares and earnings are recorded now."
+        : "Sending payouts is not available in live yet. Try it in test. Payees, shares and earnings are recorded now and are paid once live payouts open.";
     case "linkedAccounts":
-      return "A merchant account of the project's own, which collects payments in the project's name, is coming soon. Payments are collected through APICenter's account until then.";
+      return availability.reason === "provider_unavailable"
+        ? "The payment provider's merchant onboarding is not set up for this environment yet."
+        : "A merchant account of the project's own is not available in live yet. Try it in test. Live payments are collected through APICenter's account until then.";
     case "payeeWallets":
       return availability.reason === "test_only"
-        ? "Payee wallets are in a test pilot and are not available in live."
-        : "Payee wallets, with a hosted identity check, are coming soon. Pay payees through InstaPay or a wallet number until then.";
+        ? "Payee wallets are not available in live yet. Try them in test."
+        : availability.reason === "provider_unavailable"
+          ? "Payee wallet onboarding needs the payment provider's identity check, which its test environment does not support yet. It works in local mock mode."
+          : "Payee wallet onboarding is off for this project. Turn it on under Project payout access to try it in test.";
   }
 }
 

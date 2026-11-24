@@ -17,5 +17,7 @@ describe('payout availability', () => {
       .toEqual({ available: false, reason: 'test_only' });
     expect((await payoutAvailability({ ...base, environment: 'test', payeeWalletsEnabled: true })).payeeWallets.available).toBe(true);
     expect((await payoutAvailability({ ...base, environment: 'test', linkedAccountsEnabled: async () => true })).linkedAccounts.available).toBe(true);
+    expect((await payoutAvailability({ ...base, environment: 'test', payeeWalletsEnabled: true, payeeWalletsSupported: false })).payeeWallets)
+      .toEqual({ available: false, reason: 'provider_unavailable' });
   });
 });

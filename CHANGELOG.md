@@ -27,6 +27,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Payout features open in test first. In test, projects turn on the merchant account and payee wallet onboarding themselves, and sending payouts needs no approval. In live these features read **Not available in live yet** instead of **Coming soon**, and an operator can enable a live pilot for a project. The features endpoint reports `requestable` per environment, and payee wallet availability reports `provider_unavailable` where the payment provider's test environment cannot run it.
 - Projects can request access to higher plans and shared capabilities from the console. Named platform operators decide requests, manage the operator list and receive email notifications for new requests and selected overrides.
 - Payout sending and onboarding use project switches and environment-wide emergency pauses. Released earnings have a seven-day settlement hold by default and report `settling`. Operators can change the hold and require a payee verification record per project environment.
 - SMS and OTP texts each have a default daily limit of 500 per project environment. Organization-owned quota policies stay under organization control.

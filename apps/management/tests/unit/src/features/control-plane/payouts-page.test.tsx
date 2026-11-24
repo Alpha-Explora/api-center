@@ -16,13 +16,13 @@ const payouts = vi.hoisted(() => ({
   list: vi.fn(),
   resolve: vi.fn(),
 }));
-const environment = vi.hoisted(() => ({ canWrite: true, platformAdmin: true }));
+const environment = vi.hoisted(() => ({ canWrite: true, platformAdmin: true, kind: "test" as "test" | "live" }));
 
 vi.mock("@/features/control-plane/data/payouts", () => ({ payouts }));
 vi.mock("@/features/control-plane/view-models/use-organization", () => ({ useOrganization: () => ({ platformAdmin: environment.platformAdmin }) }));
 vi.mock("@/features/control-plane/view-models/project-environment", () => ({
   RequireEnvironment: ({ children }: { children: React.ReactNode }) => children,
-  useProjectEnvironment: () => ({ organizationId: "org_1", project: { id: "prj_1", name: "Marketplace" }, kind: "test", canWrite: environment.canWrite }),
+  useProjectEnvironment: () => ({ organizationId: "org_1", project: { id: "prj_1", name: "Marketplace" }, kind: environment.kind, canWrite: environment.canWrite }),
 }));
 
 const policy = { schedule: { weekday: 5, hour: 20 }, immediate: false, thresholdCentavos: null, onDemand: { minimum: 10_000, dailyCap: 1_000_000 },
@@ -49,6 +49,7 @@ describe("PayoutsPage", () => {
   beforeEach(() => {
     environment.canWrite = true;
     environment.platformAdmin = true;
+    environment.kind = "test";
     payouts.linkedAccount.mockResolvedValue({ environmentEnabled: false, projectEnabled: false,
       providerAvailable: false, collectionMoveAvailable: false, onboarding: null });
     payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: { needs_review: 1 },
@@ -82,11 +83,13 @@ describe("PayoutsPage", () => {
     expect(screen.getByText(/payouts runbook/)).toBeTruthy();
   });
 
-  it("shows live payouts as coming soon while they are switched off", async () => {
+  it("says live payouts are not available in live yet", async () => {
+    environment.kind = "live";
     payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: {}, needsReview: [],
-      nextScheduledAt: null, availability: { ...ready, transfers: { available: false, reason: "live_payouts_disabled" } } });
+      nextScheduledAt: null, availability: { ...ready, transfers: { available: false, reason: "not_enabled" } } });
     renderPage();
-    expect(await screen.findByText(/Sending live payouts is coming soon/)).toBeTruthy();
+    expect(await screen.findByText(/Sending payouts is not available in live yet/)).toBeTruthy();
+    expect((await screen.findAllByText("Not available in live yet")).length).toBeGreaterThan(0);
     expect(screen.queryByText("₱12,500.00")).toBeNull();
   });
 
@@ -96,7 +99,18 @@ describe("PayoutsPage", () => {
     expect(await screen.findByText("Coming soon")).toBeTruthy();
   });
 
-  it("explains when linked accounts are switched off and limits the project switch to platform admins", async () => {
+  it("lets project members switch on the merchant account in test", async () => {
+    payouts.linkedAccount.mockResolvedValue({ environmentEnabled: true, projectEnabled: false,
+      providerAvailable: true, collectionMoveAvailable: false, onboarding: null });
+    environment.platformAdmin = false;
+    renderPage();
+    const panel = (await screen.findByText("Off for this project. Turn it on to try it in test.")).closest("section") as HTMLElement;
+    expect(within(panel).getByRole("button", { name: "Enable for project" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByText("Project payout access")).toBeTruthy();
+  });
+
+  it("limits the live merchant account switch to platform operators", async () => {
+    environment.kind = "live";
     payouts.linkedAccount.mockResolvedValue({ environmentEnabled: true, projectEnabled: false,
       providerAvailable: true, collectionMoveAvailable: false, onboarding: null });
     environment.platformAdmin = false;

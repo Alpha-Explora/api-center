@@ -115,9 +115,10 @@ function Payouts() {
         )}
       </Panel>
 
-      {canOperate ? <Panel title="Project payout access">
-        {kind === "live" ? <ProjectPayoutSwitch feature="payouts_sending" title="Sending payouts" />
-          : <ProjectPayoutSwitch feature="payee_wallets" title="Payee wallet onboarding" />}
+      {kind === "live" ? (canOperate ? <Panel title="Project payout access">
+        <ProjectPayoutSwitch feature="payouts_sending" title="Sending payouts" />
+      </Panel> : null) : canWrite ? <Panel title="Project payout access" description="Try payout features in test. They are not available in live yet.">
+        <ProjectPayoutSwitch feature="payee_wallets" title="Payee wallet onboarding" />
       </Panel> : null}
       <LinkedAccountPanel key={kind} live={kind === "live"} canWrite={canWrite} platformAdmin={platformAdmin}
         paused={overview.data?.availability.linkedAccounts.reason === "paused"} />

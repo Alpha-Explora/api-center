@@ -200,8 +200,8 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
       walletConfigured: account.wallet !== null,
       transfersEnabled: await sendingEnabled(deps.projectFeatures, context.environment, context.projectId),
       linkedAccountsEnabled: () => helpers.features?.linkedAccountsEnabled(context.environment, context.projectId) ?? Promise.resolve(false),
-      payeeWalletsEnabled: helpers.features?.payeeWalletsAvailable() === true
-        && await deps.projectFeatures?.enabled(context.environment, context.projectId, 'payee_wallets') === true,
+      payeeWalletsSupported: helpers.features?.payeeWalletsAvailable(),
+      payeeWalletsEnabled: await deps.projectFeatures?.enabled(context.environment, context.projectId, 'payee_wallets') === true,
       paused: new Set(pauses.filter((pause) => pause.paused).map((pause) => pause.feature)),
     });
     helpers.ok(res, {
