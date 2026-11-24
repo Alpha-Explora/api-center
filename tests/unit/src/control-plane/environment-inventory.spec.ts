@@ -14,7 +14,7 @@ let admin: ControlPlaneAdminService;
 let inventory: EnvironmentInventoryService;
 
 beforeEach(() => {
-  process.env.DATABASE_ENABLED = "true";
+  process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
   prisma = createFakeControlPlanePrisma();
   prisma.organization.rows.push({ id: ORG, status: "active" });
   const db = prisma as unknown as PrismaService;

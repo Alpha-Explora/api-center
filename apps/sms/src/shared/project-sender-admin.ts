@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
+import { DEFAULT_SMS_PREFIXES, parseSmsDeliverySettings, smsDailyLimitDefault } from '@apicenter/runtime';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
 import { isValidSmsSenderId } from './project-sender';
 
@@ -22,20 +23,26 @@ export function createSmsSenderAdminHandler(deps: {
       return;
     }
 
-    let senderId: string | null;
-    if (req.method === 'GET' || req.method === 'DELETE') {
-      senderId = null;
-    } else if (req.method === 'PUT') {
-      const raw = req.body?.senderId;
-      senderId = typeof raw === 'string' ? raw.trim() : '';
-      if (!isValidSmsSenderId(senderId)) {
+    let senderId: string | null | undefined = req.method === 'DELETE' ? null : undefined;
+    let settings = {};
+    if (req.method === 'PUT') {
+      const input = parseSmsDeliverySettings(req.body ?? {});
+      if (!input || (req.body?.senderId === undefined && Object.keys(input).length === 0)) {
+        res.status(400).json({ error: 'INVALID_PROJECT_SENDER', message: 'Provide valid sender or SMS delivery settings.' });
+        return;
+      }
+      settings = input;
+      if (req.body?.senderId !== undefined) {
+        senderId = typeof req.body.senderId === 'string' ? req.body.senderId.trim() : '';
+      }
+      if (senderId !== undefined && senderId !== null && !isValidSmsSenderId(senderId)) {
         res.status(400).json({
           error: 'INVALID_PROJECT_SENDER',
           message: 'senderId must be an E.164 phone number or 1–11 letters, digits or spaces with at least one letter.',
         });
         return;
       }
-    } else {
+    } else if (req.method !== 'GET' && req.method !== 'DELETE') {
       res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
       return;
     }
@@ -43,7 +50,7 @@ export function createSmsSenderAdminHandler(deps: {
     try {
       const record = req.method === 'GET'
         ? await deps.store.getProjectSender(projectId, environment)
-        : await deps.store.setProjectSender({ projectId, environment, senderId });
+        : await deps.store.setProjectSender({ projectId, environment, ...(senderId !== undefined ? { senderId } : {}), ...settings });
       const pinned = record?.senderId ?? null;
       res.status(200).json({
         projectId,
@@ -51,6 +58,9 @@ export function createSmsSenderAdminHandler(deps: {
         configured: pinned !== null,
         senderId: pinned,
         platformSenderConfigured: deps.platformSenderConfigured,
+        dailyLimit: record?.dailyLimit ?? null,
+        allowedPrefixes: record?.allowedPrefixes ?? null,
+        defaults: { dailyLimit: smsDailyLimitDefault(), allowedPrefixes: DEFAULT_SMS_PREFIXES },
       });
     } catch {
       res.status(503).json({ error: 'PROJECT_SENDER_UNAVAILABLE', message: 'Project SMS sender settings are unavailable.' });

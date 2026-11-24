@@ -3,6 +3,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { InboxIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorPanel } from "@/components/patterns/notices";
@@ -13,6 +17,8 @@ import { APPROVAL_KIND_LABEL, DECISION_LABEL, approvalHref, type ApprovalItem } 
 import { useApprovals } from "../../view-models/approvals";
 import { useOrganization } from "../../view-models/use-organization";
 import { RelativeTime } from "@/components/patterns/relative-time";
+import { featureAccess } from "../../data/features";
+import { cpKeys } from "../../view-models/query-keys";
 
 export function ApprovalsPage() {
   const { organizationId, platformAdmin, setOrganizationId, loading } = useOrganization();
@@ -34,8 +40,8 @@ export function ApprovalsPage() {
         title="Approvals"
         description={
           platformAdmin
-            ? "Live activations and API access requests waiting for a decision, across every organization."
-            : "Live activations and API access requests in this organization that you can decide."
+            ? "Review feature access, live activation and API access requests across organizations."
+            : "Track requests for this organization and decide those your role allows."
         }
       />
       {!loading && !organizationId && !platformAdmin ? (
@@ -76,7 +82,7 @@ export function ApprovalsPage() {
             </div>
           ) : items.length === 0 ? (
             view === "pending" ? (
-              <EmptyState icon={<InboxIcon />} title="Nothing waiting" description="Requests to activate live or to call another project's API appear here until someone decides them." />
+              <EmptyState icon={<InboxIcon />} title="Nothing waiting" description="New feature access, live activation and API access requests appear here." />
             ) : (
               <EmptyState icon={<InboxIcon />} title="Nothing decided in the last 30 days" description="Approved and rejected requests stay here for 30 days." />
             )
@@ -104,15 +110,18 @@ function ApprovalRow({ item, showOrganization, onOpen }: { item: ApprovalItem; s
           <span className="text-xs text-muted-foreground">
             {showOrganization ? `${item.organizationName} · ` : ""}
             {item.projectName}
-            {item.kind === "api_access" ? ` · ${item.environmentKind}` : ""}
+            {item.kind !== "live_activation" ? ` · ${item.environmentKind}` : ""}
           </span>
         </div>
         <p className="mt-1 text-[13px] font-medium break-words">{item.summary}</p>
-        {item.kind === "live_activation" && item.reason ? <p className="mt-0.5 text-[13px] break-words text-muted-foreground">“{item.reason}”</p> : null}
+        {item.kind !== "api_access" && item.reason ? <p className="mt-0.5 text-[13px] break-words text-muted-foreground">“{item.reason}”</p> : null}
         <p className="mt-0.5 text-xs text-muted-foreground">
           Requested by {item.requestedByYou ? "you" : item.requestedBy} <RelativeTime value={item.requestedAt} />
           {item.requestedByYou && !item.decision ? " · someone else must decide it" : ""}
         </p>
+        {item.kind === "feature" && !item.decision && item.ageHours >= 24 ? <p className="text-xs text-muted-foreground">
+          Waiting {Math.floor(item.ageHours / 24)} {item.ageHours < 48 ? "day" : "days"}
+        </p> : null}
         {item.decision ? (
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <StatusBadge status={item.decision.status === "applied" ? "approved" : item.decision.status}>{DECISION_LABEL[item.decision.status]}</StatusBadge>
@@ -122,6 +131,9 @@ function ApprovalRow({ item, showOrganization, onOpen }: { item: ApprovalItem; s
           </p>
         ) : null}
       </div>
+      {item.kind === "feature" && !item.decision && !item.requestedByYou
+        ? showOrganization ? <FeatureDecision item={item} /> : <span className="text-xs text-muted-foreground">Waiting for APICenter</span>
+        : null}
       <Link
         href={approvalHref(item)}
         onClick={(event) => {
@@ -130,8 +142,33 @@ function ApprovalRow({ item, showOrganization, onOpen }: { item: ApprovalItem; s
         }}
         className="inline-flex h-8 shrink-0 items-center justify-center self-start rounded-md border bg-background px-3 text-[13px] font-medium shadow-xs transition-colors hover:bg-muted sm:self-center"
       >
-        {item.decision || item.requestedByYou ? "View" : "Review"}
+        {item.decision || item.requestedByYou || item.kind === "feature" ? "View" : "Review"}
       </Link>
     </div>
   );
+}
+
+function FeatureDecision({ item }: { item: Extract<ApprovalItem, { kind: "feature" }> }) {
+  const client = useQueryClient();
+  const [choice, setChoice] = useState<"approve" | "reject" | null>(null);
+  const decision = useMutation({
+    mutationFn: (note: string) => featureAccess.decide(item.id, choice === "approve" ? { approve: true } : { approve: false, note }),
+    onSuccess: () => {
+      toast.success(choice === "approve" ? "Request approved" : "Request rejected");
+      setChoice(null);
+      void client.invalidateQueries({ queryKey: cpKeys.approvalsRoot });
+      void client.invalidateQueries({ queryKey: ["features", item.organizationId, item.projectId, item.environmentKind] });
+    },
+  });
+  return <div className="flex items-center gap-2">
+    <Button type="button" size="sm" variant="outline" onClick={() => { decision.reset(); setChoice("reject"); }}>Reject</Button>
+    <Button type="button" size="sm" onClick={() => { decision.reset(); setChoice("approve"); }}>Approve</Button>
+    <ConfirmDialog open={choice !== null} onOpenChange={(open) => { if (!open) setChoice(null); }}
+      title={choice === "approve" ? "Approve feature request" : "Reject feature request"}
+      description={item.summary} reasonLabel={choice === "reject" ? "Reason for rejecting" : undefined}
+      confirmLabel={choice === "approve" ? "Approve request" : "Reject request"} destructive={choice === "reject"}
+      busy={decision.isPending} onConfirm={(reason) => decision.mutate(reason)}>
+      {decision.error ? <ErrorPanel error={decision.error} /> : null}
+    </ConfirmDialog>
+  </div>;
 }

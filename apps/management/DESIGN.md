@@ -64,6 +64,7 @@ about 40px.
 | `EmptyState` | Empty lists, with the next step. |
 | `ErrorPanel`, `Notice` | Failures with the gateway code; limitations and rules that apply right now. |
 | `ComingSoonBadge` | A feature that is built but not available yet. Pair it with a `Notice` saying what works today; never hide the feature or let it fail when used. The reason comes from the server (for example the payouts overview's `availability`). |
+| `FeatureAccess` | The gateway's feature status, including a pause, a pending request or a rejection. Prompts eligible members for a reason when they request access. |
 | `Explainer` | How a page works ("How quotas apply"), folded to one line until opened; remembers being opened. Use it instead of a permanent `Notice` for background reading. |
 | `LinkRow` | A table row that opens its object; keep a real link on the name for keyboard users. |
 | `GuardedButton` | Actions gated by role, with the reason. |

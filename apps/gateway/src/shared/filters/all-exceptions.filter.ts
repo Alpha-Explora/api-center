@@ -78,6 +78,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             code,
             message: messages.length === 1 ? messages[0] : "Validation failed",
             ...(messages.length > 1 && { details: messages }),
+            ...(exception instanceof AppError && "details" in resp && { details: resp.details }),
             ...("detail" in resp && { detail: resp.detail }),
           },
           meta: { timestamp: new Date().toISOString(), correlationId },

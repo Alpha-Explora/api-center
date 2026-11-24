@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -13,13 +12,10 @@ import { eventDestinations } from "../../data/event-destinations";
 import {
   createOutcome,
   liveDestinationFor,
-  pushBody,
-  pushFormSchema,
   webhookBody,
   webhookFormSchema,
   type CreatedWebhook,
   type EventDestination,
-  type PushForm,
   type WebhookForm,
 } from "../../model/event-destinations";
 import { ALL_EVENT_TYPES, eventTypesBody, type EventTypeSelection } from "../../model/event-types";
@@ -27,16 +23,8 @@ import { eventDestinationsKey, useEventTypeCatalogue } from "../../view-models/e
 import { useProjectEnvironment } from "../../view-models/project-environment";
 import { EventTypesPicker } from "./event-types-picker";
 
-type Transport = "webhook" | "pubsub-push";
-type Created = { transport: "webhook"; destination: CreatedWebhook } | { transport: "pubsub-push"; destination: EventDestination };
-
 const EMPTY_WEBHOOK: WebhookForm = { recipientApplicationId: "", url: "" };
-const EMPTY_PUSH: PushForm = { recipientApplicationId: "", pushEndpoint: "", oidcAudience: "", deliveryServiceAccountEmail: "" };
 
-/**
- * Adds a payment event destination. A signed HTTPS webhook is the normal case; a Pub/Sub push endpoint is
- * an advanced option for teams that run their own push receiver.
- */
 export function CreateDestinationSheet({
   open,
   onOpenChange,
@@ -53,61 +41,39 @@ export function CreateDestinationSheet({
   const { organizationId, project, kind } = useProjectEnvironment();
   const client = useQueryClient();
   const scope = { organizationId, projectId: project.id, kind };
-  const [transport, setTransport] = useState<Transport>("webhook");
   const [webhook, setWebhook] = useState<WebhookForm>(EMPTY_WEBHOOK);
-  const [push, setPush] = useState<PushForm>(EMPTY_PUSH);
   const [eventTypes, setEventTypes] = useState<EventTypeSelection>(ALL_EVENT_TYPES);
   const catalogue = useEventTypeCatalogue();
   const [submitted, setSubmitted] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
   const create = useMutation({
-    mutationFn: async (): Promise<Created> =>
-      transport === "webhook"
-        ? { transport, destination: await eventDestinations.createWebhook(scope, webhookBody(webhook, chosenTypes.ok ? chosenTypes.eventTypes : [])) }
-        : { transport, destination: await eventDestinations.createPush(scope, pushBody(push)) },
+    mutationFn: () => eventDestinations.createWebhook(scope, webhookBody(webhook, chosenTypes.ok ? chosenTypes.eventTypes : [])),
     onSettled: () => client.invalidateQueries({ queryKey: eventDestinationsKey(organizationId, project.id, kind) }),
     onSuccess: (created) => {
       // The gateway answers 200 even when provisioning failed; that is a failure, not a new endpoint.
-      const outcome = createOutcome(created.destination);
+      const outcome = createOutcome(created);
       if (outcome.kind === "failed") {
         setFailure(outcome.error);
         return;
       }
       close(false);
-      if (created.transport === "webhook") onWebhookCreated(created.destination);
-      else toast.success("Pub/Sub push destination added");
+      onWebhookCreated(created);
     },
   });
 
-  const parsed = transport === "webhook" ? webhookFormSchema.safeParse(webhook) : pushFormSchema.safeParse(push);
+  const parsed = webhookFormSchema.safeParse(webhook);
   const chosenTypes = eventTypesBody(eventTypes);
   const errors = submitted ? fieldErrors(parsed.error) : {};
-  const recipientId = transport === "webhook" ? webhook.recipientApplicationId : push.recipientApplicationId;
-  const setRecipient = (value: string) =>
-    transport === "webhook" ? setWebhook({ ...webhook, recipientApplicationId: value }) : setPush({ ...push, recipientApplicationId: value });
-
   function close(next: boolean) {
     if (!next) {
-      setTransport("webhook");
       setWebhook(EMPTY_WEBHOOK);
-      setPush(EMPTY_PUSH);
       setEventTypes(ALL_EVENT_TYPES);
       setSubmitted(false);
       setFailure(null);
       create.reset();
     }
     onOpenChange(next);
-  }
-
-  function switchTransport(next: Transport) {
-    setTransport(next);
-    setSubmitted(false);
-    setFailure(null);
-    create.reset();
-    // Keep the chosen application when switching.
-    if (next === "pubsub-push") setPush({ ...push, recipientApplicationId: webhook.recipientApplicationId });
-    else setWebhook({ ...webhook, recipientApplicationId: push.recipientApplicationId });
   }
 
   const recipients = applications.filter((application) => application.status === "active");
@@ -122,16 +88,12 @@ export function CreateDestinationSheet({
             event.preventDefault();
             setSubmitted(true);
             setFailure(null);
-            if (parsed.success && (transport !== "webhook" || chosenTypes.ok)) create.mutate();
+            if (parsed.success && chosenTypes.ok) create.mutate();
           }}
         >
           <SheetHeader>
-            <SheetTitle>{transport === "webhook" ? "Add webhook endpoint" : "Add Pub/Sub push destination"}</SheetTitle>
-            <SheetDescription>
-              {transport === "webhook"
-                ? "APICenter posts the application's payment events to this URL, signed with a secret shown once. Choose all event types or only some."
-                : "Pub/Sub pushes every payment event for the application to your endpoint, authenticated with an OIDC token for the service account. Push destinations cannot filter event types; filter on the eventType attribute in your receiver."}
-            </SheetDescription>
+            <SheetTitle>Add webhook endpoint</SheetTitle>
+            <SheetDescription>APICenter posts selected payment events to this URL. The signing secret is shown once.</SheetDescription>
           </SheetHeader>
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
             <FormRow
@@ -142,9 +104,9 @@ export function CreateDestinationSheet({
             >
               <NativeSelect
                 id="destination-application"
-                value={recipientId}
+                value={webhook.recipientApplicationId}
                 aria-invalid={Boolean(errors.recipientApplicationId)}
-                onChange={(event) => setRecipient(event.target.value)}
+                onChange={(event) => setWebhook({ ...webhook, recipientApplicationId: event.target.value })}
               >
                 <option value="">Choose an application</option>
                 {recipients.map((application) => {
@@ -159,84 +121,28 @@ export function CreateDestinationSheet({
               </NativeSelect>
             </FormRow>
 
-            {transport === "webhook" ? (
-              <FormRow label="Endpoint URL" htmlFor="destination-url" error={errors.url} hint="A public https URL. Private and internal hosts are refused.">
-                <Input
-                  id="destination-url"
-                  type="url"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="font-mono md:text-xs"
-                  placeholder="https://api.yourcompany.com/webhooks/apicenter"
-                  value={webhook.url}
-                  aria-invalid={Boolean(errors.url)}
-                  onChange={(event) => setWebhook({ ...webhook, url: event.target.value })}
-                />
-              </FormRow>
-            ) : null}
-            {transport === "webhook" ? (
-              <EventTypesPicker
-                idPrefix="create-event-types"
-                catalogue={catalogue.data ?? []}
-                loading={catalogue.isLoading}
-                error={catalogue.error}
-                selection={eventTypes}
-                onChange={setEventTypes}
-                problem={submitted && !chosenTypes.ok ? chosenTypes.error : undefined}
+            <FormRow label="Endpoint URL" htmlFor="destination-url" error={errors.url} hint="A public https URL. Private and internal hosts are refused.">
+              <Input
+                id="destination-url"
+                type="url"
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono md:text-xs"
+                placeholder="https://api.yourcompany.com/webhooks/apicenter"
+                value={webhook.url}
+                aria-invalid={Boolean(errors.url)}
+                onChange={(event) => setWebhook({ ...webhook, url: event.target.value })}
               />
-            ) : (
-              <>
-                <FormRow label="Push endpoint" htmlFor="destination-push" error={errors.pushEndpoint} hint="The https URL Pub/Sub delivers to.">
-                  <Input
-                    id="destination-push"
-                    type="url"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="font-mono md:text-xs"
-                    placeholder="https://events.yourcompany.com/pubsub"
-                    value={push.pushEndpoint}
-                    aria-invalid={Boolean(errors.pushEndpoint)}
-                    onChange={(event) => setPush({ ...push, pushEndpoint: event.target.value })}
-                  />
-                </FormRow>
-                <FormRow
-                  label="Delivery service account"
-                  htmlFor="destination-sa"
-                  error={errors.deliveryServiceAccountEmail}
-                  hint="Pub/Sub signs each push with an OIDC token for this account."
-                >
-                  <Input
-                    id="destination-sa"
-                    type="email"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="font-mono md:text-xs"
-                    placeholder="pubsub-push@your-project.iam.gserviceaccount.com"
-                    value={push.deliveryServiceAccountEmail}
-                    aria-invalid={Boolean(errors.deliveryServiceAccountEmail)}
-                    onChange={(event) => setPush({ ...push, deliveryServiceAccountEmail: event.target.value })}
-                  />
-                </FormRow>
-                <FormRow
-                  label="OIDC audience (optional)"
-                  htmlFor="destination-audience"
-                  error={errors.oidcAudience}
-                  hint="Leave empty to use the push endpoint."
-                >
-                  <Input
-                    id="destination-audience"
-                    type="url"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="font-mono md:text-xs"
-                    value={push.oidcAudience}
-                    aria-invalid={Boolean(errors.oidcAudience)}
-                    onChange={(event) => setPush({ ...push, oidcAudience: event.target.value })}
-                  />
-                </FormRow>
-              </>
-            )}
-
+            </FormRow>
+            <EventTypesPicker
+              idPrefix="create-event-types"
+              catalogue={catalogue.data ?? []}
+              loading={catalogue.isLoading}
+              error={catalogue.error}
+              selection={eventTypes}
+              onChange={setEventTypes}
+              problem={submitted && !chosenTypes.ok ? chosenTypes.error : undefined}
+            />
             {failure ? (
               <ErrorPanel
                 title="The destination could not be provisioned"
@@ -246,20 +152,13 @@ export function CreateDestinationSheet({
               <ErrorPanel title="The destination was not added" error={create.error} />
             ) : null}
 
-            <button
-              type="button"
-              className="self-start text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              onClick={() => switchTransport(transport === "webhook" ? "pubsub-push" : "webhook")}
-            >
-              {transport === "webhook" ? "Advanced: deliver through Google Cloud Pub/Sub push instead (requires Google Cloud)" : "Use a signed webhook instead"}
-            </button>
           </div>
           <SheetFooter className="flex-row justify-end border-t">
             <Button type="button" variant="outline" onClick={() => close(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? "Adding…" : transport === "webhook" ? "Add webhook" : "Add destination"}
+              {create.isPending ? "Adding…" : "Add webhook"}
             </Button>
           </SheetFooter>
         </form>

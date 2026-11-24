@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { FeatureAccess, useFeaturePrompt } from "@/components/patterns/feature-access";
 import { FormRow } from "@/components/patterns/form";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { DescriptionList } from "@/components/patterns/panel";
@@ -63,9 +64,11 @@ function EmailSenderForm({ current, loadError, onDone }: { current: EmailSenderS
   const [form, setForm] = useState<EmailSenderForm>(() => emailSenderFormFrom(current));
   const [submitted, setSubmitted] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const featurePrompt = useFeaturePrompt({ organizationId, projectId: project.id, kind });
   const save = useMutation({
     mutationFn: () => capabilityConfiguration.saveEmailSender({ organizationId, projectId: project.id, kind }, emailSenderBody(form)),
     onSettled: () => setConfirming(false),
+    onError: (error) => { if (featurePrompt.handle(error, emailSenderBody(form))) save.reset(); },
     onSuccess: (sender) => {
       toast.success(
         `Email in ${kind} now sends from ${sender.fromAddress}${sender.dailyLimit === null ? "" : `, up to ${formatNumber(sender.dailyLimit)} a day`}`,
@@ -81,6 +84,7 @@ function EmailSenderForm({ current, loadError, onDone }: { current: EmailSenderS
 
   return (
     <>
+      {featurePrompt.dialog}
       <form
         noValidate
         className="flex min-h-0 flex-1 flex-col"
@@ -94,6 +98,7 @@ function EmailSenderForm({ current, loadError, onDone }: { current: EmailSenderS
         }}
       >
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+          <FeatureAccess feature="email.sender" requestAccess={false} />
           {loadError ? (
             <ErrorPanel title="The current sender could not be loaded" error={loadError} />
           ) : current ? (

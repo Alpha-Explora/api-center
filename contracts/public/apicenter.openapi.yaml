@@ -1433,7 +1433,7 @@ paths:
   /api/v1/payments/payees/{payeeId}/cash-out:
     post:
       operationId: cashOutPayee
-      description: "Pays the payee's released earnings now, whole allocations oldest first, up to what is left of the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED, PAYEE_NOT_VERIFIED or NOTHING_RELEASED. Availability: sending payouts is coming soon. Until it opens for an environment, cash-out is refused with 409 PAYOUTS_LIVE_DISABLED (live) or WALLET_NOT_CONFIGURED; payees, allocations and earnings are recorded in the meantime. Requires payments:payouts:write."
+      description: "Pays the payee's released and settled earnings, whole allocations oldest first, up to the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED, IN_SETTLEMENT, PAYEE_NOT_VERIFIED, PAYOUTS_PAUSED or NOTHING_RELEASED. Live cash-out requires project approval and returns 409 PAYOUTS_LIVE_DISABLED without it. A missing payout wallet returns WALLET_NOT_CONFIGURED. Requires payments:payouts:write."
       tags:
         - Payments
       parameters:
@@ -1833,7 +1833,7 @@ paths:
       summary: sms.send
       security:
         - ApplicationKey: []
-      description: "The application key selects the environment. The application needs a grant for each listed action: sms:send, sms:status.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
+      description: "The application key selects the environment. The application needs a grant for each listed action: sms:send, sms:status. The project defaults to 500 sends per Manila day and Philippine (+63) destinations. An exhausted daily allowance returns 429 DAILY_LIMIT_REACHED. A destination outside the allowed countries returns 403 SMS_DESTINATION_NOT_ALLOWED. Reusing an idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
       x-required-scopes:
         - sms:send
         - sms:status
@@ -2020,7 +2020,7 @@ paths:
       summary: otp.send
       security:
         - ApplicationKey: []
-      description: "The application key selects the environment. The application needs a grant for each listed action: otp:generate, otp:verify.  Reusing the same idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
+      description: "The application key selects the environment. The application needs a grant for each listed action: otp:generate, otp:verify. OTP texts default to 500 sends per Manila day and Philippine (+63) destinations. An exhausted daily allowance returns 429 DAILY_LIMIT_REACHED. A destination outside the allowed countries returns 403 SMS_DESTINATION_NOT_ALLOWED. Email OTP uses its existing delivery rules. Reusing an idempotency key and body replays the original response for seven days. Unknown outcomes require reconciliation."
       x-required-scopes:
         - otp:generate
         - otp:verify
@@ -3434,11 +3434,13 @@ components:
           format: date-time
     PayeeEarnings:
       type: object
-      required: [awaitingPayment, held, available, inFlight, paidThisWeek]
+      required: [awaitingPayment, held, settling, available, inFlight, paidThisWeek]
       properties:
         awaitingPayment:
           $ref: "#/components/schemas/Money"
         held:
+          $ref: "#/components/schemas/Money"
+        settling:
           $ref: "#/components/schemas/Money"
         available:
           $ref: "#/components/schemas/Money"

@@ -1,11 +1,7 @@
 // Event destinations: one recipient application's payment events in one environment.
 //
-// Two transports share one pipeline. Payment events created by an application carry its ID as
-// consumerServiceId, which is the filter of a Pub/Sub subscription provisioned for the destination
-// (dead-lettering, retries, environment match). The subscription pushes to:
-// - 'pubsub-push': the consumer's own Cloud Run endpoint, authenticated with a Google OIDC token;
-// - 'webhook': APICenter's delivery service, which signs each event (Standard Webhooks) and POSTs it
-//   to any public HTTPS URL. Its URL and signing secrets live in Secret Manager, never in this table.
+// The application's event subscription pushes to APICenter's delivery service. It signs each event
+// and delivers it to the configured HTTPS URL. Signing secrets stay in Secret Manager.
 
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
@@ -18,13 +14,6 @@ import { withTenant, type TenantDb, type TenantTransactionOptions } from "../ten
 import type { EnvironmentScope } from "../control-plane-admin.service";
 import { newSigningSecret, WEBHOOK_CONFIG_STORE, type WebhookConfigStore, type WebhookDestinationConfig } from "./webhook-config-store";
 import { normalizeEventTypes } from "./event-types";
-
-export interface DestinationInput {
-  recipientApplicationId: string;
-  pushEndpoint: string;
-  oidcAudience?: string;
-  deliveryServiceAccountEmail: string;
-}
 
 export interface WebhookInput {
   recipientApplicationId: string;
@@ -50,16 +39,6 @@ export class EventDestinationService {
     private readonly audit: AuditEventsService,
     @Inject(WEBHOOK_CONFIG_STORE) private readonly webhooks: WebhookConfigStore,
   ) {}
-
-  async create(scope: EnvironmentScope, input: DestinationInput, actor: string) {
-    const prepared = await this.prepare(scope, input.recipientApplicationId, newResourceId("dst"), {
-      transport: "pubsub-push",
-      pushEndpoint: input.pushEndpoint,
-      oidcAudience: input.oidcAudience ?? null,
-      deliveryServiceAccountEmail: input.deliveryServiceAccountEmail,
-    }, actor);
-    return this.provision(scope, prepared, input, actor);
-  }
 
   /**
    * Creates a signed-webhook destination and returns its signing secret, which is shown only once.

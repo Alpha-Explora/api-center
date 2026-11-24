@@ -18,8 +18,10 @@ const {
   RUNTIME_CONTEXT_HEADER,
 } = require('./sharedServiceCaller');
 const { RuntimeContextError, loadRuntimeContextKeys, verifyRuntimeContext } = require('./runtimeContext');
+const smsDestinations = require('./sms-destinations');
 
 module.exports = {
+  ...smsDestinations,
   mintId,
   mintedIdPattern,
   ProviderGuardError,

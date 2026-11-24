@@ -35,10 +35,6 @@
                 "value": "https://api-center-management-test.itsandbox.site,https://apicenter.itsandbox.site,https://docs.apicenter.itsandbox.site"
               },
               {
-                "name": "CLOUD_RUN_AUTH_ENABLED",
-                "value": "true"
-              },
-              {
                 "name": "APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST",
                 "valueFrom": {
                   "secretKeyRef": {
@@ -71,10 +67,6 @@
               {
                 "name": "DATABASE_POOL_MAX",
                 "value": "4"
-              },
-              {
-                "value": "true",
-                "name": "DATABASE_ENABLED"
               },
               {
                 "value": "abtorres.it@alphaexplora.com",

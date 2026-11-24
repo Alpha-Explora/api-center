@@ -1,11 +1,11 @@
-// Loads pending live activation requests and API access requests, across all organizations or for
-// one. Deciding stays on the existing routes (live-environment.service, published-api.service).
+// Loads feature, live activation and API access requests for one organization or for the platform.
 
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import { ApprovalRequestService } from "@approvals/approval-request.service";
 import { buildApprovalItems, type ApprovalItem } from "./approvals-queue";
 import { withTenant, type TenantScope } from "./tenant-transaction";
+import { featureRequestView } from "./features/feature-request.service";
 
 /** How far back the "recently decided" view reaches. */
 export const DECIDED_WINDOW_DAYS = 30;
@@ -45,7 +45,13 @@ export class ApprovalsQueueService {
       const organizations = organizationIds.length
         ? await db.organization.findMany({ where: { id: { in: organizationIds } }, select: { id: true, name: true } })
         : [];
-      return { projects, accessRequests, apis, applications, organizations };
+      const features = await db.cpFeatureRequest.findMany({
+        where: state === "pending" ? { ...inOrganization, status: { in: ["pending", "deciding"] } }
+          : { ...inOrganization, status: { in: ["approved", "rejected", "cancelled"] }, decidedAt: { gte: since } },
+        orderBy: state === "pending" ? { createdAt: "desc" } : { decidedAt: "desc" },
+        ...(state === "decided" ? { take: 200 } : {}),
+      });
+      return { projects, accessRequests, apis, applications, organizations, featureRequests: features.map(featureRequestView) };
     });
     // Activation requests live in the governance schema and carry only the project ID, so they are
     // matched to this scope's projects; requests for projects outside it are dropped.
@@ -54,6 +60,6 @@ export class ApprovalsQueueService {
       state === "pending"
         ? await this.approvals.listPending("environment.activate_live", targets)
         : await this.approvals.listDecided("environment.activate_live", since, targets);
-    return buildApprovalItems({ ...loaded, activations });
+    return buildApprovalItems({ ...loaded, activations }, now);
   }
 }

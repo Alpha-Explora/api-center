@@ -8,7 +8,3 @@ export const payeeVerificationInput = z.object({
 }).strict();
 
 export type PayeeVerification = Omit<z.infer<typeof payeeVerificationInput>, 'reference'> & { reference: string | null };
-
-export function requiresPayeeVerification(): boolean {
-  return process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION === 'true';
-}

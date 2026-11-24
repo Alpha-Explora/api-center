@@ -78,3 +78,9 @@ With a test key (`ak_test_`), APICenter delivers only to the phone numbers and e
 
 ---
 Requests containing the obsolete `templateId` field return `400`. Send the message content in `message` instead.
+
+## Daily text limit and destinations
+
+The default allowance is 500 SMS messages and 500 OTP texts a day per project environment. Each service counts its own sends and resets at midnight in Asia/Manila. A send that exceeds the limit returns `429 DAILY_LIMIT_REACHED`. Provider attempts count against the limit, including failed attempts.
+
+Projects can send to Philippine numbers (`+63`) by default. Sending to a calling code outside the project's allowed list returns `403 SMS_DESTINATION_NOT_ALLOWED`. In the console, open the SMS settings under **Capabilities** to request a higher daily limit or additional calling codes.

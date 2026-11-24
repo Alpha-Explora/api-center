@@ -18,6 +18,9 @@ import { WorkloadBindingService } from "./workload-binding.service";
 import { MemberInviteService } from "./member-invite.service";
 import { ConsoleActorGuard, actorLabel, type ConsoleRequest } from "./console-actor.guard";
 import { canPerform, hasPlatformAccess, type ConsoleActor } from "./console-access.policy";
+import { assertFeatureAllowed } from "./features/feature-gate";
+import { currentConfiguration } from "./features/feature-appliers";
+import { FeatureNotifications } from "./features/feature-notifications";
 
 const slug = z.string().regex(/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/, "must be lowercase letters, digits and hyphens");
 const name = z.string().trim().min(1).max(128);
@@ -137,6 +140,7 @@ export class ControlPlaneAdminController {
     private readonly workloads: WorkloadBindingService,
     // Optional so the controller can be built without email wiring; the module always provides it.
     @Optional() private readonly invites?: MemberInviteService,
+    @Optional() private readonly featureNotifications?: FeatureNotifications,
   ) {}
 
   /** Which organizations an email belongs to. Only the console's server asks, at sign-in. */
@@ -396,7 +400,17 @@ export class ControlPlaneAdminController {
     const scope = scopeFrom(params);
     const actor = actorOf(req);
     await this.access.require(actor, scope.organizationId, "project.manage", { projectId: scope.projectId });
-    return { success: true, data: await this.quotas.assignPlan(scope, input.planKey, actorLabel(actor, input.actor)) };
+    let override = false;
+    const label = actorLabel(actor, input.actor);
+    const authorize = (planKey: string | null) => {
+      if (actor.kind === "member" && (input.planKey === "pro" || input.planKey === "enterprise")) {
+        override = assertFeatureAllowed(actor, "plan.upgrade", { planKey: input.planKey },
+          { environment: scope.environmentKind, current: { planKey } }) === "override";
+      }
+    };
+    const data = await this.quotas.assignPlan(scope, input.planKey, label, authorize);
+    if (override) await this.featureNotifications?.override(scope, "plan.upgrade", { planKey: input.planKey }, label);
+    return { success: true, data };
   }
 
   @Get(`${ENV}/usage`)
@@ -417,8 +431,9 @@ export class ControlPlaneAdminController {
     const { organizationId, projectId } = projectScope(params);
     const input = parse(schemas.quotaPolicy, body, "body");
     const actor = actorOf(req);
-    await this.access.require(actor, organizationId, "project.manage", { projectId });
-    return { success: true, data: await this.quotas.createProjectPolicy(organizationId, projectId, input, actorLabel(actor, input.actor)) };
+    const access = await this.access.require(actor, organizationId, "project.manage", { projectId });
+    const level = canPerform(actor, access, "organization.quotas.manage") ? "organization" : "project";
+    return { success: true, data: await this.quotas.createProjectPolicy(organizationId, projectId, input, actorLabel(actor, input.actor), level) };
   }
 
   @Get("organizations/:organizationId/quota-policies")
@@ -443,8 +458,9 @@ export class ControlPlaneAdminController {
     const policyId = parse(schemas.resourceId("qp"), params.policyId, "policyId");
     const input = parse(schemas.policyStatus, body, "body");
     const actor = actorOf(req);
+    await this.access.require(actor, org, "organization.read");
     const policy = await this.quotas.policyProject(org, policyId);
-    if (policy.scope === "project" && policy.projectId) {
+    if (policy.scope === "project" && policy.projectId && policy.createdLevel !== "organization") {
       await this.access.require(actor, org, "project.manage", { projectId: policy.projectId });
     } else {
       await this.access.require(actor, org, "organization.quotas.manage");
@@ -547,7 +563,43 @@ export class ControlPlaneAdminController {
   async writeConfiguration(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
     if (params.capability === "otp") await this.requireOtpTemplateEditor(scope, actor, body);
-    return { success: true, data: await this.configuration.configure(scope, params.capability, "PUT", body, actorLabel(actor)) };
+    const capability = params.capability;
+    const change = z.record(z.string(), z.unknown()).safeParse(body);
+    const deliveryPolicy: Record<string, unknown> = {};
+    if (change.success && (capability === "sms" || capability === "otp" || capability === "email")) {
+      const values = change.data;
+      const gateSender = capability === "email" || (capability === "sms" && scope.environmentKind === "live" && "senderId" in values);
+      const gateSms = capability !== "email" && ("dailyLimit" in values || "allowedPrefixes" in values);
+      if (gateSms) {
+        if ("dailyLimit" in values) deliveryPolicy.dailyLimit = values.dailyLimit;
+        if ("allowedPrefixes" in values) deliveryPolicy.allowedPrefixes = values.allowedPrefixes;
+      }
+      if (!hasPlatformAccess(actor) && (gateSender || gateSms)) {
+        const current = await currentConfiguration(this.configuration, scope, capability, actorLabel(actor));
+        const context = { environment: scope.environmentKind, current };
+        if (capability === "email") {
+          assertFeatureAllowed(actor, "email.sender", { fromAddress: values.fromAddress, dailyLimit: values.dailyLimit ?? null }, context);
+        }
+        if (gateSender && capability === "sms") assertFeatureAllowed(actor, "sms.sender", { senderId: values.senderId }, context);
+        if (gateSms) {
+          const other = await currentConfiguration(this.configuration, scope, capability === "sms" ? "otp" : "sms", actorLabel(actor));
+          for (const state of [context, { environment: scope.environmentKind, current: other }]) {
+            if ("dailyLimit" in deliveryPolicy) {
+              assertFeatureAllowed(actor, "sms.daily_limit", { dailyLimit: deliveryPolicy.dailyLimit }, state);
+            }
+            if ("allowedPrefixes" in deliveryPolicy && deliveryPolicy.allowedPrefixes !== null) {
+              assertFeatureAllowed(actor, "sms.international", { prefixes: deliveryPolicy.allowedPrefixes }, state);
+            }
+          }
+        }
+      }
+    }
+    const label = actorLabel(actor);
+    const data = await this.configuration.configure(scope, capability, "PUT", body, label);
+    if (Object.keys(deliveryPolicy).length) {
+      await this.configuration.configure(scope, capability === "sms" ? "otp" : "sms", "PUT", deliveryPolicy, label);
+    }
+    return { success: true, data };
   }
 
   @Delete(`${ENV}/capabilities/:capability/configuration`)
@@ -677,7 +729,16 @@ export class ControlPlaneAdminController {
   async setCapability(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const input = parse(schemas.setCapability, body, "body");
     const { scope, actor } = await this.authorizeEnvironment(params, req, "environment.write");
-    return { success: true, data: await this.controlPlane.setCapability(scope, params.capability, input.enabled, actorLabel(actor, input.actor)) };
+    let override = false;
+    const label = actorLabel(actor, input.actor);
+    const authorize = params.capability === "payments" && scope.environmentKind === "live" && input.enabled
+      ? (enabled: boolean) => {
+          override = assertFeatureAllowed(actor, "payments.live", {}, { environment: scope.environmentKind, current: { enabled } }) === "override";
+        }
+      : undefined;
+    const data = await this.controlPlane.setCapability(scope, params.capability, input.enabled, label, authorize);
+    if (override) await this.featureNotifications?.override(scope, "payments.live", {}, label);
+    return { success: true, data };
   }
 
   @Post(`${ENV}/applications`)

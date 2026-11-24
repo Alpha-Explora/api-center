@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { FeatureAccess, useFeaturePrompt } from "@/components/patterns/feature-access";
 import { NativeSelect } from "@/components/patterns/form";
 import { formatNumber } from "@/lib/format";
 import { controlPlane } from "../../data/control-plane-repository";
@@ -18,6 +19,7 @@ export function PlanPicker() {
   const plans = useQuery({ queryKey: cpKeys.plans, queryFn: controlPlane.plans, staleTime: 5 * 60_000 });
   const plan = useQuery({ queryKey: cpKeys.plan(organizationId, project.id, kind), queryFn: () => controlPlane.plan(organizationId, project.id, kind) });
   const [pending, setPending] = useState<string | null>(null);
+  const access = useFeaturePrompt({ organizationId, projectId: project.id, kind });
   const assign = useMutation({
     mutationFn: (planKey: string) => controlPlane.assignPlan(organizationId, project.id, kind, planKey),
     onSuccess: () => {
@@ -27,9 +29,9 @@ export function PlanPicker() {
       void client.invalidateQueries({ queryKey: cpKeys.liveReadiness(organizationId, project.id) });
       void client.invalidateQueries({ queryKey: observabilityKeys.quotaUsage(organizationId, project.id, kind) });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, planKey) => {
       setPending(null);
-      toast.error(error.message);
+      if (!access.handle(error, { planKey })) toast.error(error.message);
     },
   });
   const options = (plans.data ?? []).filter((entry) => kind === "test" || entry.liveAllowed);
@@ -67,6 +69,8 @@ export function PlanPicker() {
         busy={assign.isPending}
         onConfirm={() => pending && assign.mutate(pending)}
       />
+      {access.dialog}
+      <FeatureAccess feature="plan.upgrade" requestAccess={false} />
     </>
   );
 }

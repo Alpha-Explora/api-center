@@ -16,6 +16,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type WeeklySchedule = { weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6; hour: number };
 
 export type PayoutPolicy = {
+  settlementHoldDays: number;
+  requirePayeeVerification: boolean;
   schedule: WeeklySchedule | null;
   immediate: boolean;
   thresholdCentavos: Centavos | null;
@@ -26,6 +28,8 @@ export type PayoutPolicy = {
 };
 
 export const DEFAULT_PAYOUT_POLICY: PayoutPolicy = {
+  settlementHoldDays: 7,
+  requirePayeeVerification: false,
   schedule: { weekday: 5, hour: 20 },
   immediate: false,
   thresholdCentavos: null,
@@ -39,6 +43,8 @@ const centavos = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const bearer = z.enum(['platform', 'payee']);
 
 export const payoutPolicySchema: z.ZodType<PayoutPolicy> = z.object({
+  settlementHoldDays: z.number().int().min(0).max(30).default(DEFAULT_PAYOUT_POLICY.settlementHoldDays),
+  requirePayeeVerification: z.boolean().default(DEFAULT_PAYOUT_POLICY.requirePayeeVerification),
   schedule: z.object({
     weekday: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
     hour: z.number().int().min(0).max(23),
@@ -57,6 +63,7 @@ export type PayoutTrigger = { kind: 'schedule' } | { kind: 'release' } | { kind:
 
 export type PoolSummary = {
   available: Centavos;
+  settling?: Centavos;
   destinationHoldUntil: string | null;
   hasDestination: boolean;
   verified?: boolean;
@@ -128,4 +135,8 @@ export function isDue(pool: PoolSummary, policy: PayoutPolicy, trigger: PayoutTr
       };
     }
   }
+}
+
+export function settlementCutoff(now: Date, days: number): Date {
+  return new Date(now.getTime() - days * DAY_MS);
 }

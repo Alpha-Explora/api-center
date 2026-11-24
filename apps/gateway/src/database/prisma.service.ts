@@ -1,3 +1,4 @@
+import { databaseConfigured } from "@config/database-configured";
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -8,7 +9,7 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly enabled =
-    process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL);
+    databaseConfigured();
 
   constructor() {
     const connectionString =

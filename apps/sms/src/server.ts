@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import {
+  SmsDeliveryPolicyError,
   createScopedIdempotencyKey,
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
@@ -152,7 +153,15 @@ app.post('/send', async (req: Request, res: Response) => {
   let data;
   try {
     data = await sendSmsService.execute({ ...body, senderId }, caller);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof SmsDeliveryPolicyError) {
+      try {
+        await idempotencyStore.release(storageKey, body);
+      } catch {
+        return fail(res, 503, 'IDEMPOTENCY_UNAVAILABLE', 'The idempotency claim could not be released');
+      }
+      return fail(res, error.statusCode, error.code, error.message);
+    }
     try {
       await idempotencyStore.markUnknown(storageKey, body);
     } catch {

@@ -3,6 +3,8 @@
 // a live activation is decided on its own project, an API access request on the API's project.
 
 import type { EnvironmentKind } from "./control-plane.types";
+import { FEATURE_CATALOG, type FeatureKey } from "./features/feature-catalog";
+import type { FeatureRequest } from "./features/feature-request.service";
 
 interface ItemBase {
   id: string;
@@ -29,6 +31,8 @@ export interface ApprovalDecision {
 
 export type ApprovalItem =
   | (ItemBase & { kind: "live_activation"; reason: string })
+  | (ItemBase & { kind: "feature"; feature: FeatureKey; title: string; change: Record<string, unknown>;
+      reason: string; environmentKind: EnvironmentKind; decidedBy: "platform"; ageHours: number })
   | (ItemBase & {
       kind: "api_access";
       apiId: string;
@@ -42,6 +46,7 @@ export type ApprovalItem =
     });
 
 export interface ApprovalRows {
+  featureRequests?: FeatureRequest[];
   organizations: { id: string; name: string }[];
   projects: { id: string; organizationId: string; name: string }[];
   /** environment.activate_live requests; targetId is the project ID. Decided ones carry their decision fields. */
@@ -82,12 +87,30 @@ export interface ApprovalRows {
 }
 
 /** Builds the queue, newest first. Rows whose project or API no longer exists are dropped. */
-export function buildApprovalItems(rows: ApprovalRows): ApprovalItem[] {
+export function buildApprovalItems(rows: ApprovalRows, now = new Date()): ApprovalItem[] {
   const organizations = new Map(rows.organizations.map((row) => [row.id, row.name]));
   const projects = new Map(rows.projects.map((row) => [row.id, row]));
   const apis = new Map(rows.apis.map((row) => [row.id, row]));
   const applications = new Map(rows.applications.map((row) => [row.id, row.name]));
   const items: ApprovalItem[] = [];
+
+  for (const request of rows.featureRequests ?? []) {
+    const project = projects.get(request.projectId);
+    if (!project || project.organizationId !== request.organizationId) continue;
+    const definition = FEATURE_CATALOG[request.feature];
+    items.push({
+      kind: "feature", id: request.id, feature: request.feature, title: definition.title, change: request.change,
+      organizationId: request.organizationId, organizationName: organizations.get(request.organizationId) ?? request.organizationId,
+      projectId: project.id, projectName: project.name, environmentKind: request.environmentKind, decidedBy: "platform",
+      summary: `${definition.summary(request.change)} in ${request.environmentKind}`, reason: request.reason,
+      requestedAt: request.createdAt, requestedBy: request.requestedBy,
+      ageHours: Math.max(0, Math.floor((now.getTime() - Date.parse(request.createdAt)) / 3_600_000)),
+      ...(request.status !== "pending" && request.decidedAt ? {
+        decision: { status: request.status, by: request.decidedBy, at: request.decidedAt,
+          ...(request.decisionNote ? { reason: request.decisionNote } : {}) },
+      } : {}),
+    });
+  }
 
   for (const request of rows.activations) {
     const project = request.targetId ? projects.get(request.targetId) : undefined;

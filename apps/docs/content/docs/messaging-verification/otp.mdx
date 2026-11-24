@@ -134,3 +134,9 @@ Email OTPs carry the project's name: the sender shows as the project (for exampl
   }
 }
 ```
+
+## Daily text limit and destinations
+
+The default allowance is 500 SMS messages and 500 OTP texts a day per project environment. Each service counts its own sends and resets at midnight in Asia/Manila. A send that exceeds the limit returns `429 DAILY_LIMIT_REACHED`. Provider attempts count against the limit, including failed attempts.
+
+Projects can send to Philippine numbers (`+63`) by default. Sending to a calling code outside the project's allowed list returns `403 SMS_DESTINATION_NOT_ALLOWED`. In the console, open **Capabilities** to request a higher daily limit in **One-time codes** or additional calling codes in the SMS settings.

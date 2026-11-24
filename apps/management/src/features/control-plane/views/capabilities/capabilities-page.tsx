@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { FeatureAccess, useFeaturePrompt } from "@/components/patterns/feature-access";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
@@ -47,6 +48,7 @@ function CapabilitiesList() {
   });
   const [pending, setPending] = useState<{ capability: Capability; on: boolean } | null>(null);
   const [configuring, setConfiguring] = useState<ConfigurableCapability | null>(null);
+  const featurePrompt = useFeaturePrompt({ organizationId, projectId: project.id, kind });
   const toggle = useMutation({
     mutationFn: (input: { capability: string; on: boolean }) => controlPlane.setCapability(organizationId, project.id, kind, input.capability, input.on),
     onSuccess: (_, input) => {
@@ -56,7 +58,7 @@ function CapabilitiesList() {
     },
     onError: (error: Error) => {
       setPending(null);
-      toast.error(error.message);
+      if (!featurePrompt.handle(error, {})) toast.error(error.message);
     },
   });
   const enabled = new Set(environment?.capabilities.filter((entry) => entry.status === "enabled").map((entry) => entry.capability));
@@ -140,6 +142,7 @@ function CapabilitiesList() {
                       </ul>
                     ) : null}
                     {note ? <p className={warning ? "mt-1 text-xs text-warning" : "mt-1 text-xs text-muted-foreground"}>{note}</p> : null}
+                    {capability.id === "payments" && kind === "live" && !on ? <FeatureAccess feature="payments.live" requestAccess={false} /> : null}
                   </div>
                   {isConfigurable(capability.id) ? (
                     <ConfigureButton id={capability.id} name={capability.name} onOpen={setConfiguring} />
@@ -184,6 +187,7 @@ function CapabilitiesList() {
       <SmsSenderSheet open={configuring === "sms"} onOpenChange={(next) => !next && setConfiguring(null)} />
       <OtpSettingsSheet open={configuring === "otp"} onOpenChange={(next) => !next && setConfiguring(null)} />
       <GoogleSignInSheet open={configuring === "gauth"} onOpenChange={(next) => !next && setConfiguring(null)} />
+      {featurePrompt.dialog}
     </>
   );
 }

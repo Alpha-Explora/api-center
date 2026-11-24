@@ -1,12 +1,13 @@
 // Liveness (the process is up) and readiness (the database answers). Readiness also reports the
 // running release, so a deploy can be checked from outside.
+import { databaseConfigured } from "@config/database-configured";
 import { Controller, Get, Optional } from "@nestjs/common";
 import { HealthCheck, HealthCheckService, HealthCheckResult, HealthIndicatorResult } from "@nestjs/terminus";
 import { PrismaService } from "@database/prisma.service";
 
 @Controller("health")
 export class HealthController {
-  private readonly databaseEnabled = process.env.DATABASE_ENABLED === "true" || Boolean(process.env.DATABASE_URL);
+  private readonly databaseEnabled = databaseConfigured();
 
   constructor(
     private readonly health: HealthCheckService,

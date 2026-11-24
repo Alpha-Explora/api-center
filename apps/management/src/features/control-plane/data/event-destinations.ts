@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { EnvironmentKind } from "../model/control-plane";
-import { createdWebhookSchema, eventDestinationSchema, rotatedSecretSchema, type PushBody, type WebhookBody } from "../model/event-destinations";
+import { createdWebhookSchema, eventDestinationSchema, rotatedSecretSchema, type WebhookBody } from "../model/event-destinations";
 import { eventTypeSchema } from "../model/event-types";
 import { call, env, org, send } from "./http";
 
@@ -13,7 +13,6 @@ export const eventDestinations = {
   list: (scope: Scope) => call(z.array(eventDestinationSchema), base(scope)),
   /** The response carries the signing secret once; it may also come back with status "failed". */
   createWebhook: (scope: Scope, body: WebhookBody) => call(createdWebhookSchema, `${base(scope)}/webhooks`, send("POST", body)),
-  createPush: (scope: Scope, body: PushBody) => call(eventDestinationSchema, base(scope), send("POST", body)),
   rotateSecret: (scope: Scope, destinationId: string) =>
     call(rotatedSecretSchema, `${base(scope)}/${encodeURIComponent(destinationId)}/rotate-secret`, send("POST", {})),
   disable: (scope: Scope, destinationId: string) =>

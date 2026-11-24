@@ -1,3 +1,4 @@
+import { DEFAULT_PAYOUT_POLICY } from '../../../../../apps/payments/src/features/payouts/payout-policy';
 import { createHmac } from 'node:crypto';
 import { WebhooksService } from '../../../../../apps/payments/src/features/webhooks/webhooks.service';
 import { PaymentOwnerStore } from '../../../../../apps/payments/src/shared/payment-owner-store';
@@ -142,6 +143,7 @@ describe('allocations', () => {
   });
 
   it('claws back a refund of a share that was already paid out', async () => {
+    await store.saveSettings('test', context.projectId, { ...DEFAULT_PAYOUT_POLICY, settlementHoldDays: 0 });
     const allocation = await intentWithShare();
     const service = new WebhooksService(owners);
     await service.processWebhook(intentPaid('evt_1'), signed(intentPaid('evt_1')));

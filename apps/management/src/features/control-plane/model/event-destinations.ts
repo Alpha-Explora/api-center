@@ -121,22 +121,3 @@ export type WebhookBody = z.infer<typeof webhookFormSchema> & { eventTypes?: str
 export function webhookBody(form: WebhookForm, eventTypes: string[] = []): WebhookBody {
   return { ...webhookFormSchema.parse(form), ...(eventTypes.length ? { eventTypes } : {}) };
 }
-
-export const pushFormSchema = z.object({
-  recipientApplicationId: recipient,
-  pushEndpoint: publicHttpsUrl,
-  oidcAudience: z
-    .string()
-    .trim()
-    .max(2048, "Use at most 2048 characters.")
-    .refine((value) => value === "" || URL.canParse(value), "Enter a full URL, or leave it empty."),
-  deliveryServiceAccountEmail: z.string().trim().min(1, "Enter the service account email.").max(320).email("Enter a valid service account email."),
-});
-export type PushForm = { recipientApplicationId: string; pushEndpoint: string; oidcAudience: string; deliveryServiceAccountEmail: string };
-export type PushBody = { recipientApplicationId: string; pushEndpoint: string; oidcAudience?: string; deliveryServiceAccountEmail: string };
-
-/** An empty audience is left out; Pub/Sub then uses the push endpoint as the token audience. */
-export function pushBody(form: PushForm): PushBody {
-  const { oidcAudience, ...rest } = pushFormSchema.parse(form);
-  return oidcAudience ? { ...rest, oidcAudience } : rest;
-}

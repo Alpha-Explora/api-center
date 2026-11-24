@@ -6,7 +6,7 @@ const cloudRunClients = new Map<string, Promise<IdTokenClient>>();
 export async function fetchApiCenter(url: string, init?: RequestInit) {
   const audience = new URL(getApiCenterBaseUrl()).origin;
   if (
-    process.env.API_CENTER_CLOUD_RUN_AUTH_ENABLED !== "true" ||
+    !process.env.K_SERVICE?.trim() ||
     !audience.startsWith("https://") ||
     !new URL(audience).hostname.endsWith(".run.app") ||
     new URL(url).origin !== audience

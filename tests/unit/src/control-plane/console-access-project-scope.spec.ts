@@ -38,7 +38,7 @@ let prisma: FakeControlPlanePrisma;
 let access: ConsoleAccessService;
 
 beforeAll(() => {
-  process.env.DATABASE_ENABLED = "true";
+  process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
 });
 
 beforeEach(() => {

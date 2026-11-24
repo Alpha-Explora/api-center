@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import {
+  SmsDeliveryPolicyError,
   createFailureResponse,
   createScopedIdempotencyKey,
   createSharedIdempotencyStore,
@@ -152,7 +153,15 @@ app.post('/generate', async (req: Request, res: Response) => {
   let result;
   try {
     result = await generateOtpService.execute(req.body, caller);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof SmsDeliveryPolicyError) {
+      try {
+        await idempotencyStore.release(storageKey, req.body);
+      } catch {
+        return fail(res, 503, 'IDEMPOTENCY_UNAVAILABLE', 'The idempotency claim could not be released');
+      }
+      return fail(res, error.statusCode, error.code, error.message);
+    }
     try {
       await idempotencyStore.markUnknown(storageKey, req.body);
     } catch {

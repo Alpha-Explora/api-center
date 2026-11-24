@@ -8,10 +8,11 @@
 import { PayMongoError } from '../../shared/payment-errors';
 import type { MerchantAccount, MerchantAccountResolver } from './merchant-accounts';
 import type { MoneyMover } from './money-mover';
-import { requiresPayeeVerification } from './payee-verification';
 import { composePayout, type Centavos, type PayoutEvent } from './payout-ledger';
 import { isDue, type PayoutPolicy, type PayoutTrigger } from './payout-policy';
 import type { Environment, OpenAttempt, PayoutRecord, PayoutStore } from './payout-store';
+import { sendingEnabled, type ProjectFeatureSwitches } from './project-features';
+import { FeaturePausedError, type FeaturePauses } from './feature-pauses';
 
 /** How long a transfer PayMongo has no record of stays unknown before an operator must look. */
 export const UNKNOWN_DEADLINE_MS = 24 * 60 * 60 * 1000;
@@ -27,41 +28,50 @@ export type PayoutDeps = {
   mover: MoneyMover;
   accounts: MerchantAccountResolver;
   now: () => Date;
+  projectFeatures?: ProjectFeatureSwitches;
+  pauses?: FeaturePauses;
   callbackUrl?: (token: string) => string;
 };
 
 export type RunReport = { paid: string[]; skipped: Array<{ payeeId: string; reason: string }>; floatLow: string[] };
 
-export function assertLiveEnabled(environment: Environment): void {
-  if (environment === 'live' && process.env.PAYOUTS_LIVE_ENABLED !== 'true') {
-    throw new PayMongoError('Live payouts are disabled', 409, 'PAYOUTS_LIVE_DISABLED');
-  }
-}
-
 /** Pays each due pool from the account holding its released allocations. */
 export async function runPayouts(deps: PayoutDeps, environment: Environment, trigger: PayoutTrigger,
   scope?: { payeeId: string; projectId: string }): Promise<RunReport> {
-  assertLiveEnabled(environment);
+  const paused = await deps.pauses?.isPaused(environment, 'payouts_sending') ?? false;
+  if (scope && trigger.kind === 'cash_out') {
+    if (paused) throw new FeaturePausedError('payouts_sending');
+    if (!await sendingEnabled(deps.projectFeatures, environment, scope.projectId)) {
+      throw new PayMongoError('Live payouts are disabled for this project', 409, 'PAYOUTS_LIVE_DISABLED');
+    }
+  }
   const now = deps.now();
   const accounts = await deps.accounts.listWithReleasedPools?.(environment)
     ?? [await deps.accounts.get('parent', environment)];
   const report: RunReport = { paid: [], skipped: [], floatLow: [] };
   const settings = new Map<string, PayoutPolicy>();
+  const access = new Map<string, boolean>();
   for (const account of accounts) {
-    await payAccountPools(deps, environment, account, trigger, now, settings, report, scope);
+    await payAccountPools(deps, environment, account, trigger, now, settings, report, access, paused, scope);
   }
   return report;
 }
 
 async function payAccountPools(deps: PayoutDeps, environment: Environment, account: MerchantAccount,
   trigger: PayoutTrigger, now: Date, settings: Map<string, PayoutPolicy>, report: RunReport,
+  access: Map<string, boolean>, paused: boolean,
   scope?: { payeeId: string; projectId: string }): Promise<void> {
   const pools = await deps.store.poolSummaries(environment, account.id, scope?.payeeId);
   let budget: Centavos | undefined;
   for (const pool of pools) {
     if (scope && pool.projectId !== scope.projectId) continue;
-    if (requiresPayeeVerification() && !pool.verified) {
-      report.skipped.push({ payeeId: pool.payeeId, reason: 'payee_unverified' });
+    if (paused || await deps.pauses?.isPaused(environment, 'payouts_sending')) {
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'paused' });
+      continue;
+    }
+    if (!access.has(pool.projectId)) access.set(pool.projectId, await sendingEnabled(deps.projectFeatures, environment, pool.projectId));
+    if (!access.get(pool.projectId)) {
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'project_not_enabled' });
       continue;
     }
     let policy = settings.get(pool.projectId);
@@ -69,10 +79,22 @@ async function payAccountPools(deps: PayoutDeps, environment: Environment, accou
       policy = await deps.store.getSettings(environment, pool.projectId);
       settings.set(pool.projectId, policy);
     }
-    const effectiveTrigger = trigger.kind === 'cash_out'
+    if (policy.requirePayeeVerification && !pool.verified) {
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'payee_unverified' });
+      continue;
+    }
+    if (pool.settling && pool.available <= 0) {
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'in_settlement' });
+      continue;
+    }
+    let effectiveTrigger: PayoutTrigger = trigger.kind === 'cash_out'
       ? { kind: 'cash_out' as const, cashedOutToday: await deps.store.cashedOutToday(environment, pool.payeeId, now) }
       : trigger;
-    const due = isDue(pool, policy, effectiveTrigger, now);
+    let due = isDue(pool, policy, effectiveTrigger, now);
+    if (trigger.kind === 'schedule' && !due.due && due.reason === 'not_scheduled' && (policy.immediate || policy.thresholdCentavos !== null)) {
+      effectiveTrigger = { kind: 'release' };
+      due = isDue(pool, policy, effectiveTrigger, now);
+    }
     if (!due.due) {
       report.skipped.push({ payeeId: pool.payeeId, reason: due.reason });
       continue;
@@ -91,7 +113,7 @@ async function payAccountPools(deps: PayoutDeps, environment: Environment, accou
     const created = await deps.store.createPayout(environment, {
       payeeId: pool.payeeId,
       merchantAccountId: account.id,
-      trigger: trigger.kind,
+      trigger: effectiveTrigger.kind,
       // The cash-out cap is checked again under the payee lock, so two cash-outs at once cannot both use it.
       ...(trigger.kind === 'cash_out' && policy.onDemand ? { dailyCap: policy.onDemand.dailyCap } : {}),
       compose: (entries, limits) => {
@@ -111,6 +133,11 @@ async function payAccountPools(deps: PayoutDeps, environment: Environment, accou
         console.warn(JSON.stringify({ type: 'apicenter_payout_float_low', environment, merchantAccountId: account.id,
           payeeId: pool.payeeId, available }));
       }
+      continue;
+    }
+    if (await deps.pauses?.isPaused(environment, 'payouts_sending')) {
+      await deps.store.recordOutcome(environment, created.id, 'abandoned', { failureCode: 'not_submitted' });
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'paused' });
       continue;
     }
     budget -= spend;

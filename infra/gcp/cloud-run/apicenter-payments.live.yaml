@@ -50,8 +50,6 @@ spec:
                   name: apicenter-payments-live-database-url
             - name: PAYMENT_PROVIDER_NAME
               value: paymongo
-            - name: SHARED_SERVICES_DATABASE_ENABLED
-              value: "true"
             - name: NODE_ENV
               value: production
             - name: PAYMONGO_LIVE_SECRET_KEY
@@ -65,8 +63,6 @@ spec:
               value: apicenter-alpha-20260623
             - name: PAYMENT_PROVIDER_MODE
               value: live
-            - name: PUBSUB_DISPATCHER_ENABLED
-              value: "true"
           image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-live
           livenessProbe:
             failureThreshold: 3

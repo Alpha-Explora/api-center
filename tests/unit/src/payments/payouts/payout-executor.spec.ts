@@ -1,3 +1,4 @@
+import { DEFAULT_PAYOUT_POLICY } from '../../../../../apps/payments/src/features/payouts/payout-policy';
 import { MockMoneyMover } from '../../../../../apps/payments/src/features/payouts/mock-money-mover';
 import type { MerchantAccount, MerchantAccountResolver } from '../../../../../apps/payments/src/features/payouts/merchant-accounts';
 import { reconcileOpenAttempts, runPayouts, type PayoutDeps } from '../../../../../apps/payments/src/features/payouts/payout-executor';
@@ -12,6 +13,7 @@ async function setup(amounts = [42_500, 30_000]) {
   let sequence = 0;
   const clock = () => now;
   const store = new MemoryPayoutStore(clock);
+  await store.saveSettings('test', context.projectId, { ...DEFAULT_PAYOUT_POLICY, settlementHoldDays: 0 });
   const mover = new MockMoneyMover();
   const { payee } = await store.upsertPayee(context, { externalRef: 'ext-1', legalName: 'Juan Dela Cruz' });
   await store.setPayeeDestination('test', 'project-1', payee.id,
@@ -46,20 +48,41 @@ describe('runPayouts', () => {
   it('skips unverified payees before checking the wallet when required', async () => {
     const { deps, mover, payee, store } = await setup();
     const balance = jest.spyOn(mover, 'availableBalance');
-    const original = process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION;
-    process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = 'true';
-    try {
-      const report = await runPayouts(deps, 'test', schedule);
-      expect(report.skipped).toEqual([{ payeeId: payee.id, reason: 'payee_unverified' }]);
-      expect(balance).not.toHaveBeenCalled();
-      await store.recordPayeeVerification('test', context.projectId, payee.id, {
-        verifiedBy: 'ops-1', verifiedAt: '2026-11-24T04:00:00.000Z', method: 'in_person', reference: null,
-      });
-      expect((await runPayouts(deps, 'test', schedule)).paid).toHaveLength(1);
-    } finally {
-      if (original === undefined) delete process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION;
-      else process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = original;
-    }
+    await store.saveSettings('test', context.projectId, {
+      ...DEFAULT_PAYOUT_POLICY, settlementHoldDays: 0, requirePayeeVerification: true,
+    });
+    const report = await runPayouts(deps, 'test', schedule);
+    expect(report.skipped).toEqual([{ payeeId: payee.id, reason: 'payee_unverified' }]);
+    expect(balance).not.toHaveBeenCalled();
+    await store.recordPayeeVerification('test', context.projectId, payee.id, {
+      verifiedBy: 'ops-1', verifiedAt: '2026-11-24T04:00:00.000Z', method: 'in_person', reference: null,
+    });
+    expect((await runPayouts(deps, 'test', schedule)).paid).toHaveLength(1);
+  });
+
+  it('keeps released earnings in settlement and pays them in a later run after seven days', async () => {
+    const { deps, mover, payee, setNow, store } = await setup([42_500]);
+    await store.saveSettings('test', context.projectId, DEFAULT_PAYOUT_POLICY);
+    await expect(store.earnings('test', payee.id, deps.now())).resolves.toMatchObject({ available: 0, settling: 42_500 });
+    expect((await runPayouts(deps, 'test', schedule)).skipped).toEqual([{ payeeId: payee.id, reason: 'in_settlement' }]);
+    expect(mover.submitted).toHaveLength(0);
+    setNow('2026-12-04T12:05:00Z');
+    expect((await runPayouts(deps, 'test', schedule)).paid).toHaveLength(1);
+    expect(mover.submitted[0]).toMatchObject({ amount: 42_500 });
+  });
+
+  it('stops further transfers when an operator pauses an active run', async () => {
+    const { deps, mover, payee, store } = await setup([20_000]);
+    const child: MerchantAccount = { ...wallet, id: 'org_child', kind: 'child' };
+    deps.accounts = { ...accounts, listWithReleasedPools: async () => [wallet, child] };
+    await store.insertAllocations(context, [{ payeeId: payee.id, merchantAccountId: child.id, resourceType: 'intent',
+      resourceId: 'pi_child', referenceId: 'order-child', template: false, paymentId: 'pay_child',
+      amount: 30_000, grossAmount: 30_000, status: 'released' }]);
+    deps.pauses = { isPaused: async () => mover.submitted.length > 0, list: async () => [], set: async () => {} };
+
+    expect((await runPayouts(deps, 'test', schedule)).skipped).toEqual([{ payeeId: payee.id, reason: 'paused' }]);
+    expect(mover.submitted).toHaveLength(1);
+    expect([...store.allocations.values()].find((allocation) => allocation.resourceId === 'pi_child')?.status).toBe('released');
   });
 
   it('pays a pool as one transfer', async () => {
@@ -168,9 +191,9 @@ describe('runPayouts', () => {
   });
 
   it('refuses live submission unless enabled', async () => {
-    const { mover, deps } = await setup();
-    delete process.env.PAYOUTS_LIVE_ENABLED;
-    await expect(runPayouts(deps, 'live', schedule)).rejects.toMatchObject({ code: 'PAYOUTS_LIVE_DISABLED' });
+    const { mover, deps, payee } = await setup();
+    await expect(runPayouts(deps, 'live', { kind: 'cash_out', cashedOutToday: 0 },
+      { projectId: context.projectId, payeeId: payee.id })).rejects.toMatchObject({ code: 'PAYOUTS_LIVE_DISABLED' });
     expect(mover.submitted).toHaveLength(0);
   });
 

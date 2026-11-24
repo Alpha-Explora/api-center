@@ -122,7 +122,6 @@ const PUBLIC_SERVICE_CONTRACT_FILES = new Set([
   'apps/gateway/src/domains/control-plane/plan-definitions.ts',
   // Control plane event destinations reuse the payment event subscription provisioner.
   'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-provisioning.service.ts',
-  'apps/gateway/src/domains/payments/features/pubsub-provisioning/payment-pubsub-iam-provisioning.service.ts',
   // The request path: authenticates application keys and checks grants, quotas and budgets.
   'apps/gateway/src/domains/control-plane/application-access.service.ts',
 ]);

@@ -3,16 +3,18 @@
 // project, then forwards to the environment's payments runtime with a signed context for the project.
 // Payee account numbers leave the gateway masked.
 
-import { Body, Controller, Get, Header, HttpException, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Header, Optional, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import { AuditEventsService } from "@audit/audit-events.service";
-import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
-import { paymentRuntimeToken, paymentRuntimeUrl } from "@shared/proxy/payment-runtime";
-import { BadGatewayError, ForbiddenError, ServiceUnavailableError, ValidationError } from "@shared/errors";
+import { ForbiddenError, ValidationError } from "@shared/errors";
 import { ConsoleAccessService } from "./console-access.service";
 import { ConsoleActorGuard, type ConsoleRequest } from "./console-actor.guard";
-import { hasPlatformAccess, type ConsoleAction } from "./console-access.policy";
+import { hasPlatformAccess, requireOperatorPerson, type ConsoleAction } from "./console-access.policy";
 import { ConsoleRuntimeContextService } from "./console-runtime-context.service";
+import { PaymentsRuntimeClient, type RuntimeFetch } from "./payments-runtime.client";
+import { assertFeatureAllowed } from "./features/feature-gate";
+import { actorOf, parse } from "./console-request";
+import { FeatureNotifications } from "./features/feature-notifications";
 
 const target = z.object({
   organizationId: z.string().uuid(),
@@ -38,6 +40,7 @@ const READ: Route = { action: "environment.read", scope: "payments:payouts:read"
 const OPERATE: Route = { action: "environment.write", scope: "payments:payouts:write", platformOnly: true };
 const WRITE: Route = { ...OPERATE, platformOnly: false };
 const LINKED = "/admin/payouts/linked-account";
+const PROJECT_FEATURE = z.enum(["payouts_sending", "payee_wallets"]);
 
 /** Masks a payee's destination account number to its last four digits. */
 export function maskPayee(payee: unknown): unknown {
@@ -49,19 +52,20 @@ export function maskPayee(payee: unknown): unknown {
   return { ...raw, destination: { ...rest, accountNumberLast4: String(accountNumber ?? "").slice(-4) } };
 }
 
-export type RuntimeFetch = (url: string, init: RequestInit) => Promise<globalThis.Response>;
-
 @Controller("admin/control-plane/organizations/:organizationId/projects/:projectId/environments/:environment/payouts")
 @UseGuards(ConsoleActorGuard)
 export class PayoutsConsoleController {
-  private fetchImpl: RuntimeFetch = (url, init) => fetch(url, init);
+  private readonly runtime: PaymentsRuntimeClient;
 
-  constructor(private readonly access: ConsoleAccessService, private readonly contexts: ConsoleRuntimeContextService,
-    private readonly audit: AuditEventsService) {}
+  constructor(private readonly access: ConsoleAccessService, contexts: ConsoleRuntimeContextService,
+    private readonly audit: AuditEventsService, @Optional() runtime?: PaymentsRuntimeClient,
+    @Optional() private readonly notifications?: FeatureNotifications) {
+    this.runtime = runtime ?? new PaymentsRuntimeClient(contexts);
+  }
 
   /** For tests: the runtime call. */
   useFetch(fetchImpl: RuntimeFetch): void {
-    this.fetchImpl = fetchImpl;
+    this.runtime.useFetch(fetchImpl);
   }
 
   @Get("overview")
@@ -74,17 +78,55 @@ export class PayoutsConsoleController {
     return this.forward(params, req, READ, "GET", "/admin/payouts/settings");
   }
 
+  @Put("project-features/:feature")
+  async setProjectFeature(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const feature = parse(PROJECT_FEATURE, params.feature, "feature");
+    const { enabled } = parse(z.strictObject({ enabled: z.boolean() }), body, "body");
+    const scope = await this.authorize(params, req, OPERATE);
+    const actor = actorLabel(req);
+    const override = enabled && feature === "payouts_sending" && scope.environmentKind === "live" && req.consoleActor?.kind === "member"
+      && !(z.object({ data: z.object({ enabled: z.boolean() }) }).parse(
+        await this.runtime.call(scope, READ.scope, "GET", `/admin/payouts/project-features/${feature}`))).data.enabled;
+    const result = await this.runtime.call(scope, OPERATE.scope, "PUT", `/admin/payouts/project-features/${feature}`, { enabled, actor });
+    await this.audit.record({
+      type: `feature.project_${enabled ? "enabled" : "disabled"}`, message: "Project payout access changed",
+      actionFamily: "lifecycle", severity: "info", actor, organizationId: scope.organizationId, projectId: scope.projectId,
+      environment: scope.environmentKind, resourceType: "project_feature", resourceId: feature, payload: { enabled },
+    });
+    if (override) await this.notifications?.override(scope, "payouts.sending", {}, actor);
+    return result;
+  }
+
+  @Get("project-features/:feature")
+  projectFeature(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    const feature = parse(PROJECT_FEATURE, params.feature, "feature");
+    return this.forward(params, req, READ, "GET", `/admin/payouts/project-features/${feature}`);
+  }
+
   @Get("linked-account")
   linkedAccount(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
     return this.forward(params, req, READ, "GET", LINKED);
   }
 
   @Put("linked-account/enabled")
-  setLinkedAccountEnabled(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+  async setLinkedAccountEnabled(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const input = z.object({ enabled: z.boolean() }).safeParse(body);
     if (!input.success) throw new ValidationError("enabled must be a boolean");
-    return this.linkedMutation(params, req, OPERATE, "PUT", "/enabled", { ...input.data, actor: actorLabel(req) },
+    let overrideScope;
+    if (input.data.enabled && req.consoleActor?.kind === "member") {
+      const scope = await this.authorize(params, req, WRITE);
+      const state = z.object({ data: z.object({ projectEnabled: z.boolean() }) })
+        .safeParse(await this.runtime.call(scope, READ.scope, "GET", LINKED));
+      const outcome = assertFeatureAllowed(req.consoleActor, "payouts.merchant_account", {},
+        { environment: scope.environmentKind, current: { enabled: state.success && state.data.data.projectEnabled } });
+      if (!hasPlatformAccess(req.consoleActor)) return { success: true, data: { enabled: true } };
+      if (outcome === "override") overrideScope = scope;
+    }
+    const label = actorLabel(req);
+    const result = await this.linkedMutation(params, req, input.data.enabled ? WRITE : OPERATE, "PUT", "/enabled", { ...input.data, actor: label },
       input.data.enabled ? "project_enabled" : "project_disabled");
+    if (overrideScope) await this.notifications?.override(overrideScope, "payouts.merchant_account", {}, label);
+    return result;
   }
 
   @Post("linked-account")
@@ -162,8 +204,7 @@ export class PayoutsConsoleController {
     return response;
   }
 
-  private async forward(params: Record<string, string>, req: ConsoleRequest, route: Route, method: "GET" | "POST" | "PUT", path: string,
-    body?: unknown): Promise<unknown> {
+  private async authorize(params: Record<string, string>, req: ConsoleRequest, route: Route) {
     const parsed = target.safeParse(params);
     if (!parsed.success) throw new ValidationError("organizationId, projectId and environment (test or live) are required");
     if (!req.consoleActor) throw new ValidationError("Console actor is missing");
@@ -173,38 +214,41 @@ export class PayoutsConsoleController {
       throw new ForbiddenError("Only APICenter platform operators can perform this payout action");
     }
 
-    const token = paymentRuntimeToken(environment);
-    if (!token) throw new ServiceUnavailableError("Payment runtime token is not configured");
-    const context = await this.contexts.sign({ organizationId, projectId, environmentKind: environment, capability: "payments",
-      action: route.scope });
-    const base = paymentRuntimeUrl(environment);
-    const headers: Record<string, string> = {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      "x-apicenter-context": context.signedContext,
-      "x-apicenter-environment": environment,
-      "x-apicenter-owner-tribe-id": context.resourceOwner.groupId,
-      "x-apicenter-project-id": context.resourceOwner.projectId,
-      "x-apicenter-consumer-service-id": "console",
-      "x-correlation-id": context.requestId,
-    };
-    const cloudRunAuthorization = await getCloudRunAuthorizationHeader(base);
-    if (cloudRunAuthorization) headers["x-serverless-authorization"] = cloudRunAuthorization;
+    return { organizationId, projectId, environmentKind: environment };
+  }
 
-    let response: globalThis.Response;
-    try {
-      response = await this.fetchImpl(`${base}${path}`, {
-        method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(15_000),
-      });
-    } catch (error) {
-      throw new BadGatewayError(`Payment runtime unavailable: ${(error as Error).message}`);
-    }
-    const payload = await response.json().catch(() => undefined) as Record<string, unknown> | undefined;
-    if (!response.ok) {
-      throw new HttpException(payload ?? { success: false, error: { code: "PAYMENT_RUNTIME_ERROR", message: `HTTP ${response.status}` } },
-        response.status);
-    }
-    return payload;
+  private async forward(params: Record<string, string>, req: ConsoleRequest, route: Route, method: "GET" | "POST" | "PUT", path: string,
+    body?: unknown): Promise<unknown> {
+    return this.runtime.call(await this.authorize(params, req, route), route.scope, method, path, body);
+  }
+}
+
+@Controller("admin/control-plane/payouts/feature-pauses/:environment")
+@UseGuards(ConsoleActorGuard)
+export class PayoutPausesController {
+  constructor(private readonly runtime: PaymentsRuntimeClient, private readonly audit: AuditEventsService) {}
+
+  @Get()
+  list(@Param("environment") rawEnvironment: string, @Req() req: ConsoleRequest) {
+    if (!hasPlatformAccess(actorOf(req))) throw new ForbiddenError("Only APICenter platform operators can read payout pauses");
+    const environment = parse(target.shape.environment, rawEnvironment, "environment");
+    return this.runtime.callPlatform(environment, READ.scope, "GET", "/admin/payouts/feature-pauses");
+  }
+
+  @Put(":feature")
+  async set(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const actor = requireOperatorPerson(actorOf(req));
+    const environment = parse(target.shape.environment, params.environment, "environment");
+    const feature = parse(z.enum(["payouts_sending", "payee_wallets", "merchant_account"]), params.feature, "feature");
+    const { paused, reason } = parse(z.strictObject({ paused: z.boolean(), reason: z.string().trim().min(1).max(500) }), body, "body");
+    const result = await this.runtime.callPlatform(environment, OPERATE.scope, "PUT", `/admin/payouts/feature-pauses/${feature}`,
+      { paused, reason, actor });
+    await this.audit.record({
+      type: paused ? "feature.paused" : "feature.resumed", message: paused ? "Feature paused" : "Feature resumed",
+      actionFamily: "lifecycle", severity: "info", actor, environment, resourceType: "feature_pause", resourceId: feature,
+      payload: { paused, reason },
+    });
+    return result;
   }
 }
 

@@ -1,3 +1,4 @@
+import { databaseConfigured } from "@config/database-configured";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@database/prisma.service";
 import { z } from "zod";
@@ -45,7 +46,7 @@ export type DiagnosticRecord = {
 export class RequestDiagnosticsStore {
   constructor(private readonly prisma: PrismaService) {}
   async record(record: DiagnosticRecord): Promise<void> {
-    if (process.env.DATABASE_ENABLED !== "true") return;
+    if (!databaseConfigured()) return;
     await this.prisma.$executeRawUnsafe(
       "INSERT INTO apic_runtime.request_diagnostics (request_id,correlation_id,service_id,project_id,environment,route,method,status_code,error_code,failure_stage,duration_ms,payment_resource_id,action) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
       record.requestId,

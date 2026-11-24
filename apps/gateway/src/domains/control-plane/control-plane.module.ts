@@ -4,7 +4,7 @@ import { DatabaseModule } from "@database/database.module";
 import { AuthModule } from "@auth/auth.module";
 import { ControlPlaneAdminController } from "./control-plane-admin.controller";
 import { PaymentsMerchantController } from "./payments-merchant.controller";
-import { PayoutsConsoleController } from "./payouts-console.controller";
+import { PayoutPausesController, PayoutsConsoleController } from "./payouts-console.controller";
 import { ConsoleRuntimeContextService } from "./console-runtime-context.service";
 import { ControlPlaneAdminService } from "./control-plane-admin.service";
 import { ApplicationAccessService } from "./application-access.service";
@@ -32,6 +32,14 @@ import { EnvironmentInventoryController } from "./environment-inventory.controll
 import { EnvironmentInventoryService } from "./environment-inventory.service";
 import { QuotaPoliciesController } from "./quota-policies.controller";
 import { ConsumerAccessController } from "./consumer-access.controller";
+import { PaymentsRuntimeClient } from "./payments-runtime.client";
+import { FeatureAppliers } from "./features/feature-appliers";
+import { FeatureRequestService } from "./features/feature-request.service";
+import { FeatureRequestsController } from "./features/feature-requests.controller";
+import { PlatformOperatorsController } from "./platform-operators.controller";
+import { PlatformOperatorsService } from "./platform-operators.service";
+import { PlatformMailService } from "./platform-mail.service";
+import { FeatureNotifications } from "./features/feature-notifications";
 
 /**
  * Control plane v2: organization-owned projects, environment-bound applications, explicit
@@ -47,12 +55,15 @@ import { ConsumerAccessController } from "./consumer-access.controller";
     ApprovalsQueueController,
     PaymentsMerchantController,
     PayoutsConsoleController,
+    PayoutPausesController,
     WhoAmIController,
     ObservabilityController,
     EnvironmentInventoryController,
     QuotaPoliciesController,
     ConsumerAccessController,
     TestRecipientsController,
+    FeatureRequestsController,
+    PlatformOperatorsController,
   ],
   providers: [
     ControlPlaneAdminService,
@@ -74,6 +85,12 @@ import { ConsumerAccessController } from "./consumer-access.controller";
     MemberInviteService,
     ObservabilityService,
     EnvironmentInventoryService,
+    PaymentsRuntimeClient,
+    FeatureAppliers,
+    FeatureRequestService,
+    PlatformOperatorsService,
+    PlatformMailService,
+    FeatureNotifications,
   ],
   exports: [ApplicationAccessService, ConsoleAccessService, ConsoleActorGuard, AuthModule],
 })

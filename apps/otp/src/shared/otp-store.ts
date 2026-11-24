@@ -2,7 +2,7 @@ import type { SharedServiceCaller } from '@apicenter/runtime';
 import { sameProject } from '@apicenter/runtime';
 import type { OtpRepositoryInterface } from './otp-repository.interface';
 import { PostgresOtpStore } from './postgres-otp-store';
-import type { OtpProjectSettings } from './project-settings';
+import { EMPTY_OTP_SETTINGS, type OtpProjectSettings, type OtpSettingsUpdate } from './project-settings';
 
 export interface OtpRecord {
   otpId: string;
@@ -76,9 +76,11 @@ export class MemoryOtpStore implements OtpRepositoryInterface {
     return settings ? { ...settings } : null;
   }
 
-  async setProjectSettings(settings: OtpProjectSettings): Promise<OtpProjectSettings> {
-    this.projectSettings.set(`${settings.projectId}:${settings.environment}`, { ...settings });
-    return { ...settings };
+  async setProjectSettings(settings: OtpSettingsUpdate): Promise<OtpProjectSettings> {
+    const key = `${settings.projectId}:${settings.environment}`;
+    const next = { ...EMPTY_OTP_SETTINGS, ...this.projectSettings.get(key), ...settings };
+    this.projectSettings.set(key, next);
+    return { ...next };
   }
 
   private ownedEntry(otpId: string, owner: SharedServiceCaller): OwnedOtpRecord | undefined {

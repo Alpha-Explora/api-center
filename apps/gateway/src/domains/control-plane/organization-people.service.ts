@@ -12,6 +12,7 @@ import { consoleAccessCacheFor } from "./console-access-cache";
 import { withTenant, type TenantDb } from "./tenant-transaction";
 import { pageFrom, type PageQuery } from "./list-page";
 import { assertProjectsKeepAdministrator } from "./project-admin-guard";
+import { PlatformOperatorsService } from "./platform-operators.service";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -32,6 +33,7 @@ export class OrganizationPeopleService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditEventsService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly operators?: PlatformOperatorsService,
   ) {}
 
   // ── Members ──────────────────────────────────────────────────────────────
@@ -46,7 +48,7 @@ export class OrganizationPeopleService {
       include: { organization: { select: { slug: true, name: true } } },
       orderBy: { organizationId: "asc" },
     });
-    const platformAdmin = this.config?.platformAdminEmails.includes(email) ?? false;
+    const platformAdmin = this.operators ? await this.operators.isOperator(email) : this.config?.platformAdminEmails.includes(email) ?? false;
     return {
       email,
       platformAdmin,

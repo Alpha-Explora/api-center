@@ -7,6 +7,7 @@ import { AccountPanel } from "@/components/account-panel";
 import { OrganizationSettingsPanel } from "@/features/control-plane/views/settings/organization-settings-panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { getManagementEnvironment } from "@/lib/management-environment";
+import { PayoutPausePanel, PlatformOperatorsPanel } from "@/features/control-plane/views/settings/payout-controls";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -25,6 +26,8 @@ export default function SettingsPage() {
       <OrganizationSettingsPanel />
       <PlatformSection>
       <h2 className="mt-2 text-sm font-semibold">Platform</h2>
+      <PayoutPausePanel />
+      <PlatformOperatorsPanel />
       <Panel title="Gateway" description="The console server calls the gateway's admin routes at this address.">
         <DescriptionList
           items={[

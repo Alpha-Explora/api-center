@@ -40,7 +40,7 @@ export class LinkedAccountOnboarding<Details = MerchantDetails> {
   async status(context: PaymentContext) {
     const record = await this.store.current(context);
     return {
-      environmentEnabled: this.switches.environmentEnabled(),
+      environmentEnabled: this.providerAvailable,
       projectEnabled: await this.switches.projectEnabled(context.environment, context.projectId),
       onboarding: record ? this.view(record) : null,
       providerAvailable: this.providerAvailable,

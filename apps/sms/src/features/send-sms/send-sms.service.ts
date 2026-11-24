@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { createSmsSender, mintId, type SmsSender } from '@apicenter/runtime';
+import { createSmsSender, DEFAULT_SMS_PREFIXES, destinationAllowed, mintId, reserveDailySmsSend, SmsDeliveryPolicyError,
+  smsDailyLimitDefault, type SmsSender } from '@apicenter/runtime';
 import type { SmsSendRequest, SmsSendResponse } from '@alpha-explora/apicenter-contracts';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import { SmsRecipient, SmsMessagePayload } from './send-sms.model';
@@ -17,6 +18,15 @@ export class SendSmsService {
     const messageVo = new SmsMessagePayload(input.message);
 
     const mock = owner.suppressDelivery || (process.env.SMS_PROVIDER_MODE === 'mock' && process.env.NODE_ENV !== 'production');
+    const settings = await this.store.getProjectSender(owner.projectId, owner.environment);
+    if (!destinationAllowed(recipientVo.getValue(), settings?.allowedPrefixes ?? DEFAULT_SMS_PREFIXES)) {
+      throw new SmsDeliveryPolicyError('SMS_DESTINATION_NOT_ALLOWED');
+    }
+    if (!mock) {
+      const limit = settings?.dailyLimit ?? smsDailyLimitDefault();
+      const allowed = await (this.store.reserveDailySend?.(owner, limit) ?? reserveDailySmsSend(undefined, 'sms', owner, limit));
+      if (!allowed) throw new SmsDeliveryPolicyError('DAILY_LIMIT_REACHED');
+    }
     const delivery = mock
       ? { providerMessageId: `mock_${crypto.randomUUID().replace(/-/g, '')}`, status: 'queued' as const }
       : await this.sender.send({ to: recipientVo.getValue(), message: messageVo.getValue(), senderId: input.senderId });

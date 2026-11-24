@@ -3,7 +3,8 @@ import type { OtpGenerateRequest, OtpGenerateResponse } from '@alpha-explora/api
 import { OtpTarget } from './generate-otp.model';
 import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
-import { createEmailSender, createSmsSender, formatSender, type EmailSender, type SharedServiceCaller, type SmsSender } from '@apicenter/runtime';
+import { createEmailSender, createSmsSender, DEFAULT_SMS_PREFIXES, destinationAllowed, formatSender, reserveDailySmsSend,
+  SmsDeliveryPolicyError, smsDailyLimitDefault, type EmailSender, type SharedServiceCaller, type SmsSender } from '@apicenter/runtime';
 import { hashOtpCode } from '../../shared/otp-hash';
 import { messageProjectName, renderOtpMessage, resolveOtpPolicy } from '../../shared/project-settings';
 import { otpEmail } from '../../shared/otp-email';
@@ -20,6 +21,17 @@ export class GenerateOtpService {
 
     const settings = await this.store.getProjectSettings(owner.projectId, owner.environment);
     const policy = resolveOtpPolicy(input, settings);
+    const mock = owner.suppressDelivery === true || (process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production');
+    if (targetVo.getChannel() === 'sms') {
+      if (!destinationAllowed(targetVo.getTarget(), settings?.allowedPrefixes ?? DEFAULT_SMS_PREFIXES)) {
+        throw new SmsDeliveryPolicyError('SMS_DESTINATION_NOT_ALLOWED');
+      }
+      if (!mock) {
+        const limit = settings?.dailyLimit ?? smsDailyLimitDefault();
+        const allowed = await (this.store.reserveDailySend?.(owner, limit) ?? reserveDailySmsSend(undefined, 'otp', owner, limit));
+        if (!allowed) throw new SmsDeliveryPolicyError('DAILY_LIMIT_REACHED');
+      }
+    }
 
     const code = String(crypto.randomInt(0, Math.pow(10, policy.digits))).padStart(policy.digits, '0');
     const otpId = `otp_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -40,7 +52,6 @@ export class GenerateOtpService {
 
     // Suppressed: a test OTP for an unregistered recipient. The code is returned instead of sent,
     // so test automation can still verify it.
-    const mock = owner.suppressDelivery === true || (process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production');
     try {
       if (!mock && targetVo.getChannel() === 'sms') {
         await this.senders.sms.send({ to: targetVo.getTarget(), message });

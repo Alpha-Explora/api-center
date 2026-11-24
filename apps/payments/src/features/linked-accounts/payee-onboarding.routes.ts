@@ -4,10 +4,7 @@ import type { PayoutDeps } from '../payouts/payout-executor';
 import type { RouteHelpers } from '../payouts/payouts.routes';
 import type { LinkedAccountOnboarding } from './linked-account-onboarding';
 import { consumerDetailsInput, type ConsumerDetails } from './linked-accounts-provider';
-
-export function payeeOnboardingEnabled(): boolean {
-  return process.env.PAYEE_WALLET_ONBOARDING_ENABLED === 'true';
-}
+import { FeaturePausedError } from '../payouts/feature-pauses';
 
 export function registerPayeeOnboardingRoutes(app: Express, options: {
   onboarding: LinkedAccountOnboarding<ConsumerDetails>;
@@ -22,8 +19,11 @@ export function registerPayeeOnboardingRoutes(app: Express, options: {
     res.setHeader('Cache-Control', 'no-store');
     try {
       const context = helpers.context(req);
-      if (context.environment !== 'test' || !persistent || (action !== 'get' && !payeeOnboardingEnabled())) {
+      if (context.environment !== 'test' || !persistent) {
         throw new PayMongoError('Payee wallet onboarding is unavailable in this environment', 503, 'PAYEE_ONBOARDING_DISABLED');
+      }
+      if (action !== 'get' && await helpers.pauses?.isPaused(context.environment, 'payee_wallets')) {
+        throw new FeaturePausedError('payee_wallets');
       }
       const payeeId = req.params.payeeId;
       const payee = typeof payeeId === 'string' && /^pye_[A-Za-z0-9]+$/.test(payeeId)
@@ -31,6 +31,7 @@ export function registerPayeeOnboardingRoutes(app: Express, options: {
       if (!payee) {
         throw new PayMongoError('Payee not found', 404, 'PAYEE_NOT_FOUND');
       }
+      if (action !== 'get') await onboarding.switches.assertEnabledFor(context.environment, context.projectId);
       const scope = { ...context, payeeId: payee.id };
       if (action !== 'get' && payee.status !== 'active') {
         throw new PayMongoError('Payee must be active to change onboarding', 409, 'PAYEE_INACTIVE');

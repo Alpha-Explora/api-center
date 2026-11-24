@@ -3,7 +3,6 @@ import { PayMongoError } from '../../shared/payment-errors';
 import type { Environment } from '../payouts/payout-store';
 
 export interface LinkedAccountsSwitch {
-  environmentEnabled(): boolean;
   projectEnabled(environment: Environment, projectId: string): Promise<boolean>;
   enabledFor(environment: Environment, projectId: string): Promise<boolean>;
   assertEnabledFor(environment: Environment, projectId: string): Promise<void>;
@@ -12,7 +11,6 @@ export interface LinkedAccountsSwitch {
 
 export function createLinkedAccountsSwitch(pool?: Pick<Pool, 'query'>): LinkedAccountsSwitch {
   const memory = new Map<string, boolean>();
-  const environmentEnabled = () => process.env.LINKED_ACCOUNTS_ENABLED === 'true';
   const projectEnabled = async (environment: Environment, projectId: string) => {
     if (!pool) return memory.get(`${environment}:${projectId}`) ?? false;
     const result = await pool.query<{ enabled: boolean }>(
@@ -21,12 +19,10 @@ export function createLinkedAccountsSwitch(pool?: Pick<Pool, 'query'>): LinkedAc
     );
     return result.rows[0]?.enabled ?? false;
   };
-  const enabledFor = async (environment: Environment, projectId: string) =>
-    environmentEnabled() && await projectEnabled(environment, projectId);
   return {
-    environmentEnabled, projectEnabled, enabledFor,
+    projectEnabled, enabledFor: projectEnabled,
     async assertEnabledFor(environment, projectId) {
-      if (!await enabledFor(environment, projectId)) {
+      if (!await projectEnabled(environment, projectId)) {
         throw new PayMongoError('Linked accounts are disabled for this project environment', 503, 'LINKED_ACCOUNTS_DISABLED');
       }
     },

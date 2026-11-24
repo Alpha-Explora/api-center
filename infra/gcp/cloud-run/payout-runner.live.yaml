@@ -1,8 +1,8 @@
 # Payout runner, live environment. Run as two Cloud Scheduler-triggered executions:
 #   schedule  hourly (0 * * * *, Asia/Manila) - pays pools whose weekly slot has passed
 #   reconcile every 5 minutes                   - settles pending and unknown transfers
-# Live money movement stays off until PAYOUTS_LIVE_ENABLED=true is added here after legal sign-off;
-# without it a schedule run fails with PAYOUTS_LIVE_DISABLED. See docs/operations/payouts-runbook.md.
+# The schedule run skips projects without approval to send live payouts.
+# See docs/operations/payouts-runbook.md.
 apiVersion: run.googleapis.com/v1
 kind: Job
 metadata:
@@ -41,8 +41,6 @@ spec:
                     secretKeyRef:
                       name: apicenter-payments-live-database-url
                       key: latest
-                - name: PUBSUB_DISPATCHER_ENABLED
-                  value: "true"
                 - name: APICENTER_PAYMENT_EVENTS_TOPIC_LIVE
                   value: apicenter.payment-events.live
               resources:

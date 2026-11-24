@@ -41,10 +41,6 @@
                 "name": "MANAGEMENT_ENVIRONMENT"
               },
               {
-                "value": "true",
-                "name": "API_CENTER_CLOUD_RUN_AUTH_ENABLED"
-              },
-              {
                 "value": "565306324295-jaj3lkfq9t8577mmoicvdpe39iriu6u0.apps.googleusercontent.com",
                 "name": "GOOGLE_CLIENT_ID"
               },

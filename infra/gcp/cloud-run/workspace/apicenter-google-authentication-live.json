@@ -28,20 +28,8 @@
             ],
             "env": [
               {
-                "name": "GAUTH_PROVIDER_FAILURE_THRESHOLD",
-                "value": "5"
-              },
-              {
                 "name": "GAUTH_AUTHORIZE_LIMIT_WINDOW_MS",
                 "value": "60000"
-              },
-              {
-                "name": "GAUTH_PROVIDER_TIMEOUT_MS",
-                "value": "2000"
-              },
-              {
-                "name": "GAUTH_PROVIDER_CIRCUIT_RESET_MS",
-                "value": "30000"
               },
               {
                 "name": "GAUTH_AUTHORIZE_LIMIT_PER_SUBJECT",

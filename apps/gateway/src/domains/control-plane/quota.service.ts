@@ -178,13 +178,20 @@ export class QuotaService {
 
   // ── Administration ───────────────────────────────────────────────────────
 
-  async assignPlan(scope: EnvironmentScope, planKey: string, actor: string) {
+  async assignPlan(scope: EnvironmentScope, planKey: string, actor: string, authorizeChange?: (previous: string | null) => void) {
     if (!listPlans().some((plan) => plan.planKey === planKey)) throw new ValidationError(`Plan '${planKey}' does not exist`);
     if (scope.environmentKind === "live" && !planAllowsLive(planKey)) {
       throw new AppError(`Plan '${planKey}' is test-only`, 409, "PLAN_NOT_AVAILABLE");
     }
     const entitlement = await withTenant(this.prisma, { organizationId: scope.organizationId }, async (db) => {
       const environment = await requireEnvironment(db, scope);
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`apicenter:plan:${environment.id}`}, 0))`;
+      if (authorizeChange) {
+        const previous = await db.cpEntitlement.findFirst({
+          where: { organizationId: scope.organizationId, environmentId: environment.id, status: "active" }, select: { planKey: true },
+        });
+        authorizeChange(previous?.planKey ?? null);
+      }
       await db.cpEntitlement.updateMany({
         where: { organizationId: scope.organizationId, environmentId: environment.id, status: "active" },
         data: { status: "archived", archivedAt: new Date() },
@@ -211,13 +218,14 @@ export class QuotaService {
     });
   }
 
-  async createProjectPolicy(organizationId: string, projectId: string, input: QuotaPolicyInput, actor: string) {
-    return this.createPolicy(organizationId, { scope: "project", projectId }, input, actor);
+  async createProjectPolicy(organizationId: string, projectId: string, input: QuotaPolicyInput, actor: string,
+    createdLevel: "organization" | "project" = "project") {
+    return this.createPolicy(organizationId, { scope: "project", projectId }, input, actor, createdLevel);
   }
 
   /** A shared ceiling applies only to the projects listed, never to the whole organization implicitly. */
   async createSharedPolicy(organizationId: string, projectIds: string[], input: QuotaPolicyInput, actor: string) {
-    return this.createPolicy(organizationId, { scope: "shared", projectIds }, input, actor);
+    return this.createPolicy(organizationId, { scope: "shared", projectIds }, input, actor, "organization");
   }
 
   async listPolicies(organizationId: string, projectId?: string) {
@@ -322,6 +330,7 @@ export class QuotaService {
     target: { scope: "project"; projectId: string } | { scope: "shared"; projectIds: string[] },
     input: QuotaPolicyInput,
     actor: string,
+    createdLevel: "organization" | "project",
   ) {
     if (input.capability && !isKnownCapability(input.capability)) throw new ValidationError(`Capability '${input.capability}' does not exist`);
     const policy = await withTenant(this.prisma, { organizationId }, async (db) => {
@@ -339,6 +348,7 @@ export class QuotaService {
           windowSeconds: input.windowSeconds,
           maxRequests: input.maxRequests,
           mode: input.mode,
+          createdLevel,
           createdBy: actor,
         },
       });

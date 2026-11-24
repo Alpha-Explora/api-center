@@ -2,6 +2,7 @@
 // security (migration 20261114000300) hides and protects other organizations' cp_* rows from the
 // application role, so a query that forgets an organization filter still cannot cross tenants.
 
+import { databaseConfigured } from "@config/database-configured";
 import type { Prisma } from "@prisma/client";
 import type { PrismaService } from "@database/prisma.service";
 import { ServiceUnavailableError } from "@shared/errors";
@@ -27,7 +28,7 @@ export const DEFAULT_TENANT_TRANSACTION: TenantTransactionOptions = { timeoutMs:
 export const BULK_TENANT_TRANSACTION: TenantTransactionOptions = { timeoutMs: 120_000, maxWaitMs: 15_000 };
 
 export function requireControlPlaneDatabase(): void {
-  if (process.env.DATABASE_ENABLED !== "true" && !process.env.DATABASE_URL) {
+  if (!databaseConfigured()) {
     throw new ServiceUnavailableError("The control plane requires the APICenter database");
   }
 }

@@ -85,7 +85,7 @@ export function Sidebar({ authMode, onNavigate }: { authMode: "local-dev" | "goo
   const location = parseConsolePath(pathname);
   const { organizationId, platformAdmin } = useOrganization();
   const { access } = useAccess(organizationId);
-  const pending = awaitingYou(useApprovals().data);
+  const pending = awaitingYou(useApprovals().data, platformAdmin);
 
   return (
     <div className="flex h-full flex-col">

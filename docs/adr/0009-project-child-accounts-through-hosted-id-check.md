@@ -16,7 +16,7 @@ The approved design assigns a project its own PayMongo merchant account after pr
 
 Existing resources keep the account chosen at creation. Historical payouts and refunds use that account even if a project moves or a switch is disabled. New collections resolve the active project mapping only when both linked-account switches are enabled. Customers, subscriptions, invoices, and catalog operations use the parent.
 
-APICenter can enforce a shared payee verification requirement using `PAYOUTS_REQUIRE_PAYEE_VERIFICATION`. Products can apply stricter rules and record the project’s verification through the API and SDK.
+APICenter can enforce a payee verification requirement in the project environment's payout settings. Products can apply stricter rules and record the project’s verification through the API and SDK.
 
 ## Rollout
 

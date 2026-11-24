@@ -44,8 +44,6 @@ spec:
               value: apicenter.payment-events.live
             - name: PAYMENT_PROVIDER_NAME
               value: paymongo
-            - name: SHARED_SERVICES_DATABASE_ENABLED
-              value: "true"
             - name: SHARED_SERVICES_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -65,8 +63,6 @@ spec:
                   name: apicenter-payments-test-internal-token
             - name: GCP_PROJECT_ID
               value: apicenter-alpha-20260623
-            - name: PUBSUB_DISPATCHER_ENABLED
-              value: "true"
           image: asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:cloud-run-test
           livenessProbe:
             failureThreshold: 3

@@ -65,7 +65,7 @@ describe("cursors", () => {
         correlationId: "c",
       })),
     );
-    process.env.DATABASE_ENABLED = "true";
+    process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
     const prisma = createFakeControlPlanePrisma();
     prisma.cpEnvironment.rows.push({ id: "env_t", organizationId: ORG, projectId: "prj_a", kind: "test" });
     const service = new ObservabilityService(prisma as unknown as PrismaService, { listForProject } as never, {} as never);
@@ -210,7 +210,7 @@ describe("quota meters and usage from the request path", () => {
   const { privateKey } = generateKeyPairSync("ed25519");
 
   beforeEach(() => {
-    process.env.DATABASE_ENABLED = "true";
+    process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
     prisma = createFakeControlPlanePrisma();
     prisma.organization.rows.push({ id: ORG, status: "active" });
     const db = prisma as unknown as PrismaService;
@@ -344,7 +344,7 @@ describe("audit log", () => {
     const OTHER = `prj_${"b".repeat(24)}`;
 
     beforeEach(() => {
-      process.env.DATABASE_ENABLED = "true";
+      process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
       prisma = createFakeControlPlanePrisma();
       prisma.organization.rows.push({ id: ORG, status: "active" });
       prisma.cpProject.rows.push({ id: PROJECT, organizationId: ORG, slug: "a" }, { id: OTHER, organizationId: ORG, slug: "b" });
@@ -397,7 +397,7 @@ describe("audit log", () => {
 
 describe("audit writes", () => {
   it("store the owning organization and project, and 'none' for organization-level events", async () => {
-    process.env.DATABASE_ENABLED = "true";
+    process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
     const create = jest.fn().mockResolvedValue(undefined);
     const logger = { warn: jest.fn() };
     const service = new AuditEventsService(logger as never, { auditEvent: { create } } as never);

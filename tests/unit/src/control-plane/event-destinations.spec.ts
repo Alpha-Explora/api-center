@@ -19,7 +19,7 @@ let destinations: EventDestinationService;
 let webhookConfigs: ReturnType<typeof createMemoryWebhookConfigStore>;
 
 beforeEach(() => {
-  process.env.DATABASE_ENABLED = "true";
+  process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/apicenter_test";
   process.env.PAYMENTS_MERCHANT_ORGANIZATION_IDS = ORG;
   prisma = createFakeControlPlanePrisma();
   prisma.organization.rows.push({ id: ORG, status: "active" });
@@ -39,15 +39,21 @@ async function setup(enablePayments = true) {
   return { project, scope, app };
 }
 
-const delivery = {
-  pushEndpoint: "https://shop-worker-abc-uc.a.run.app/events",
-  deliveryServiceAccountEmail: "pubsub-push@shop.iam.gserviceaccount.com",
-};
+const delivery = { url: "https://8.8.8.8/payments/events" };
 
 describe("event destinations", () => {
+  beforeEach(() => {
+    process.env.WEBHOOK_DELIVERY_URL = "https://apicenter-webhooks-live-xyz-as.a.run.app";
+    process.env.WEBHOOK_PUSH_SERVICE_ACCOUNT = "apicenter-webhook-push@apicenter.iam.gserviceaccount.com";
+  });
+  afterEach(() => {
+    delete process.env.WEBHOOK_DELIVERY_URL;
+    delete process.env.WEBHOOK_PUSH_SERVICE_ACCOUNT;
+  });
+
   it("provisions a subscription filtered to the recipient application", async () => {
     const { scope, app } = await setup();
-    const destination = await destinations.create(scope, { recipientApplicationId: app.id, ...delivery }, actor);
+    const destination = await destinations.createWebhook(scope, { recipientApplicationId: app.id, ...delivery }, actor);
     expect(provisioner.provision).toHaveBeenCalledWith(
       expect.objectContaining({ consumerServiceId: app.id, ownerTribeId: ORG, environment: "test", endpointEnvironment: "test" }),
     );
@@ -57,14 +63,14 @@ describe("event destinations", () => {
   it("records a failed provisioning without hiding it", async () => {
     const { scope, app } = await setup();
     provisioner.provision.mockRejectedValue(new Error("pushEndpoint must be a Cloud Run run.app URL"));
-    const destination = await destinations.create(scope, { recipientApplicationId: app.id, ...delivery }, actor);
+    const destination = await destinations.createWebhook(scope, { recipientApplicationId: app.id, ...delivery }, actor);
     expect(destination).toMatchObject({ status: "failed", lastError: "pushEndpoint must be a Cloud Run run.app URL" });
   });
 
   it("requires payments in the environment and one destination per application", async () => {
     const withoutPayments = await setup(false);
     await expect(
-      destinations.create(withoutPayments.scope, { recipientApplicationId: withoutPayments.app.id, ...delivery }, actor),
+      destinations.createWebhook(withoutPayments.scope, { recipientApplicationId: withoutPayments.app.id, ...delivery }, actor),
     ).rejects.toMatchObject({ code: "CAPABILITY_NOT_ENABLED" });
 
     const { scope, app } = await (async () => {
@@ -73,14 +79,14 @@ describe("event destinations", () => {
       await admin.setCapability(s, "payments", true, actor);
       return { scope: s, app: await admin.createApplication(s, { slug: "worker", name: "Worker" }, actor) };
     })();
-    await destinations.create(scope, { recipientApplicationId: app.id, ...delivery }, actor);
-    await expect(destinations.create(scope, { recipientApplicationId: app.id, ...delivery }, actor)).rejects.toMatchObject({ status: 409 });
+    await destinations.createWebhook(scope, { recipientApplicationId: app.id, ...delivery }, actor);
+    await expect(destinations.createWebhook(scope, { recipientApplicationId: app.id, ...delivery }, actor)).rejects.toMatchObject({ status: 409 });
   });
 
   it("rejects a recipient from another environment", async () => {
     const { scope } = await setup();
     await expect(
-      destinations.create(scope, { recipientApplicationId: `app_${randomUUID().replaceAll("-", "").slice(0, 24)}`, ...delivery }, actor),
+      destinations.createWebhook(scope, { recipientApplicationId: `app_${randomUUID().replaceAll("-", "").slice(0, 24)}`, ...delivery }, actor),
     ).rejects.toMatchObject({ status: 404 });
   });
 
@@ -94,7 +100,7 @@ describe("event destinations", () => {
       ownerProjectId: "shop",
       migrationRevision: "r1",
     });
-    await destinations.create(scope, { recipientApplicationId: app.id, ...delivery }, actor);
+    await destinations.createWebhook(scope, { recipientApplicationId: app.id, ...delivery }, actor);
     expect(provisioner.provision).toHaveBeenCalledWith(expect.objectContaining({ ownerTribeId: "commerce-tribe" }));
   });
 });
@@ -190,7 +196,8 @@ describe("webhook destinations", () => {
 
   it("does not rotate a Pub/Sub push destination", async () => {
     const { scope, app } = await setup();
-    const destination = await destinations.create(scope, { recipientApplicationId: app.id, ...delivery }, actor);
+    const destination = await destinations.createWebhook(scope, { recipientApplicationId: app.id, ...delivery }, actor);
+    await prisma.cpEventDestination.update({ where: { id: destination.id }, data: { transport: "pubsub-push" } });
     await expect(destinations.rotateSecret(scope, destination.id, actor)).rejects.toMatchObject({ code: "NOT_A_WEBHOOK" });
   });
 });

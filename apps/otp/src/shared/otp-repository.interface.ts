@@ -1,6 +1,6 @@
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { OtpRecord } from './otp-store';
-import type { OtpProjectSettings } from './project-settings';
+import type { OtpProjectSettings, OtpSettingsUpdate } from './project-settings';
 
 /** Every method takes the caller that created the challenge, so verification never crosses owners. */
 export interface OtpRepositoryInterface {
@@ -10,5 +10,6 @@ export interface OtpRepositoryInterface {
   consume(otpId: string, codeHash: string, owner: SharedServiceCaller): Promise<string>;
   getProjectSettings(projectId: string, environment: OtpProjectSettings['environment']): Promise<OtpProjectSettings | null>;
   /** Upserts the project's settings; all-null values clear them (the runtime role cannot delete rows). */
-  setProjectSettings(settings: OtpProjectSettings): Promise<OtpProjectSettings>;
+  setProjectSettings(settings: OtpSettingsUpdate): Promise<OtpProjectSettings>;
+  reserveDailySend?(owner: SharedServiceCaller, limit: number, now?: Date): Promise<boolean>;
 }

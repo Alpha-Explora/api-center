@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-const { closePaymentEventPublishers, publishPaymentEvent } = require('./pubsubPublisher');
+const { closePaymentEventPublishers, hasPaymentEventTopic, publishPaymentEvent } = require('./pubsubPublisher');
 
 const CLAIM_LEASE_SECONDS = 6 * 60;
 const DEFAULT_BATCH_SIZE = 50;
@@ -10,14 +10,15 @@ function createPaymentEventPool(connectionString = process.env.SHARED_SERVICES_D
   return new Pool({ connectionString, max: 2, connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000 });
 }
 
-async function claimPendingPaymentEvents(pool, limit) {
+async function claimPendingPaymentEvents(pool, limit, environments = ['test', 'live']) {
   await pool.query(
     `UPDATE shared_payment.payment_event_outbox
      SET status = 'quarantined', quarantine_reason = COALESCE(quarantine_reason, 'Claim lease expired at maximum attempts'),
          quarantined_at = COALESCE(quarantined_at, now()), quarantine_expires_at = COALESCE(quarantine_expires_at, now() + interval '30 days'),
          quarantine_attempts = quarantine_attempts + 1, claim_token = NULL, claimed_at = NULL, updated_at = now()
-     WHERE attempts >= max_attempts AND status = 'processing' AND claimed_at < now() - make_interval(secs => $1)`,
-    [CLAIM_LEASE_SECONDS],
+     WHERE attempts >= max_attempts AND status = 'processing' AND claimed_at < now() - make_interval(secs => $1)
+       AND environment = ANY($2::text[])`,
+    [CLAIM_LEASE_SECONDS, environments],
   );
 
   const result = await pool.query(
@@ -25,6 +26,7 @@ async function claimPendingPaymentEvents(pool, limit) {
        SELECT id
        FROM shared_payment.payment_event_outbox
        WHERE attempts < max_attempts
+         AND environment = ANY($3::text[])
          AND ((status = 'pending' AND available_at <= now())
            OR (status = 'processing' AND claimed_at < now() - make_interval(secs => $2)))
        ORDER BY available_at, created_at
@@ -42,7 +44,7 @@ async function claimPendingPaymentEvents(pool, limit) {
        event.consumer_service_id AS "consumerServiceId", event.reference_id AS "referenceId",
        event.project_id AS "ownerProjectId", event.created_at AS "createdAt",
        event.attempts, event.max_attempts AS "maxAttempts", event.claim_token AS "claimToken"`,
-    [limit, CLAIM_LEASE_SECONDS],
+    [limit, CLAIM_LEASE_SECONDS, environments],
   );
   return result.rows;
 }
@@ -95,10 +97,11 @@ async function markPaymentEventFailed(pool, event, error) {
   if (result.rowCount !== 1) throw new Error('Payment event claim was lost before failure acknowledgement');
 }
 
-async function drainPaymentEventOutbox({ limit = DEFAULT_BATCH_SIZE, logger = console, pool: providedPool, publish = publishPaymentEvent } = {}) {
-  if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') {
-    throw new Error('PUBSUB_DISPATCHER_ENABLED=true is required for the payment event worker');
-  }
+async function drainPaymentEventOutbox({ limit = DEFAULT_BATCH_SIZE, logger = console, pool: providedPool, publish = publishPaymentEvent,
+  environment } = {}) {
+  const environments = (environment ? [environment] : ['test', 'live'])
+    .filter((name) => publish !== publishPaymentEvent || hasPaymentEventTopic(name));
+  if (!environments.length) return { claimed: 0, published: 0, failed: 0 };
   const batchSize = Math.max(1, Math.min(100, Math.floor(Number(limit) || DEFAULT_BATCH_SIZE)));
   const pool = providedPool || createPaymentEventPool();
   const ownsPool = !providedPool;
@@ -106,7 +109,7 @@ async function drainPaymentEventOutbox({ limit = DEFAULT_BATCH_SIZE, logger = co
   let failed = 0;
   let events = [];
   try {
-    events = await claimPendingPaymentEvents(pool, batchSize);
+    events = await claimPendingPaymentEvents(pool, batchSize, environments);
     for (const event of events) {
       try {
         const result = await publish(event);

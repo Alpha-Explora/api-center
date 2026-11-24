@@ -43,7 +43,8 @@ export async function localApiRequest<T>(
     // Only a rejection of the session still in use ends it. A request sent before sign-in finished, or in
     // a session since replaced, says nothing about the current one.
     if (response.status === 401 && sentSignedIn && sentEpoch === sessionEpoch && path.startsWith("/api/")) onSessionRejected?.();
-    throw new ApiError(formatRequestError(response.status, body), response.status, errorCode(body), retryAfter(response));
+    const { code, details } = errorFields(body);
+    throw new ApiError(formatRequestError(response.status, body), response.status, code, retryAfter(response), details);
   }
 
   return response.json() as Promise<T>;
@@ -60,6 +61,7 @@ export class ApiError extends Error {
     readonly code?: string,
     /** From the response's Retry-After header, when it sent one in seconds. */
     readonly retryAfterSeconds?: number,
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -71,12 +73,12 @@ function retryAfter(response: Response): number | undefined {
   return Number.isFinite(value) && value >= 0 && response.headers.has("retry-after") ? value : undefined;
 }
 
-function errorCode(body: string): string | undefined {
+function errorFields(body: string): { code?: string; details?: unknown } {
   try {
-    const parsed = JSON.parse(body) as { error?: { code?: unknown } };
-    return typeof parsed.error?.code === "string" ? parsed.error.code : undefined;
+    const parsed = JSON.parse(body) as { error?: { code?: unknown; details?: unknown } };
+    return { code: typeof parsed.error?.code === "string" ? parsed.error.code : undefined, details: parsed.error?.details };
   } catch {
-    return undefined;
+    return {};
   }
 }
 

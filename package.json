@@ -121,6 +121,7 @@
     "eslint-plugin-prettier": "^5.2.0",
     "globals": "^17.6.0",
     "jest": "^30.4.2",
+    "libphonenumber-js": "^1.13.1",
     "prettier": "^3.3.0",
     "prisma": "^7.8.0",
     "source-map-support": "^0.5.21",
