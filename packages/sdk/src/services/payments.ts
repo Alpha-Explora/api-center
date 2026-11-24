@@ -1,5 +1,6 @@
 import type {
   Allocation,
+  CashOutPayout,
   Checkout,
   CreatePayeeInput,
   ListPayeesOptions,
@@ -7,6 +8,7 @@ import type {
   Payee,
   PayeeDetail,
   PayeePage,
+  RecordPayeeVerificationInput,
   Payout,
   PayoutDestination,
   PayoutPage,
@@ -267,12 +269,17 @@ class PayeeClient extends PaymentsResource {
     return this.write(`/payees/${id(payeeId)}/destination`, destination, options, 'PUT');
   }
 
+  /** @sdk-operation recordPayeeVerification PUT /api/v1/payments/payees/{payeeId}/verification */
+  recordVerification(payeeId: string, verification: RecordPayeeVerificationInput, options?: WriteOptions): Promise<PaymentResource<Payee>> {
+    return this.write(`/payees/${id(payeeId)}/verification`, verification, options, 'PUT');
+  }
+
   /**
    * Pays the payee's released earnings now, within the daily cash-out cap. A refusal is an
    * ApiCenterError with status 409 and a code such as DAILY_CAP_REACHED or DESTINATION_HOLD.
    * @sdk-operation cashOutPayee POST /api/v1/payments/payees/{payeeId}/cash-out
    */
-  cashOut(payeeId: string, options?: WriteOptions): Promise<PaymentResource<Payout>> {
+  cashOut(payeeId: string, options?: WriteOptions): Promise<PaymentResource<CashOutPayout>> {
     return this.write(`/payees/${id(payeeId)}/cash-out`, {}, options);
   }
 }

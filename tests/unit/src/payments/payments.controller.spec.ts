@@ -381,7 +381,7 @@ describe('PaymentsController', () => {
     const { res, state } = response();
     await createController().proxy(request('/payees', 'GET'), res);
     expect(JSON.parse(Buffer.from(state.body as Buffer).toString('utf8')).data).toEqual({ nextCursor: 'abc', records: [{ payeeId: 'pye_1', externalRef: 'provider-1', legalName: 'Juan',
-      status: 'active', createdAt: '2026-11-24T00:00:00.000Z', destinationHoldUntil: null,
+      status: 'active', createdAt: '2026-11-24T00:00:00.000Z', destinationHoldUntil: null, verification: null,
       destination: { type: 'instapay', bic: 'GXCHPHM2XXX', accountName: 'Juan', accountNumberLast4: '4567' } }] });
     expect(Buffer.from(state.body as Buffer).toString('utf8')).not.toContain('09171234567');
   });

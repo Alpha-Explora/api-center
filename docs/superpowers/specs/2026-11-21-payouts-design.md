@@ -12,6 +12,8 @@ sources: [docs/adr/0008-project-payouts-through-resolved-merchant-accounts.md, a
 
 Design status: approved by the user on 2026-11-21 and built on branch `feat/payouts` (runtime, events, public API, SDK, console). Not deployed; deployment and live money movement follow [the payouts runbook](../../operations/payouts-runbook.md). [ADR-0008](../../adr/0008-project-payouts-through-resolved-merchant-accounts.md) records the decision.
 
+The linked-account follow-up adds sandbox onboarding, account-specific collections and payouts, and the payee verification record. Live onboarding and rollout conditions are tracked in [the linked accounts implementation plan](../plans/2026-11-24-linked-accounts.md).
+
 ## Intent
 
 A project that runs a marketplace pays the people who deliver its service (payees) once its own completion signal fires, for example a finished job. APICenter provides this as a reusable capability:

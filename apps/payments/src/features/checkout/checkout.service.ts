@@ -2,14 +2,14 @@ import crypto from 'node:crypto';
 import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { MemoryPaymentStore, assertTribeCanRead } from '../../shared/payment-store';
-import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
+import { isMockMode, paymongoRequest, type PayMongoAccount } from '../../shared/paymongo-client';
 import { checkoutPaymentStatus, normalizeAmount, paidCheckoutPayment } from './checkout.model';
 import type { PaidCheckoutPayment } from './checkout.model';
 
 export class CheckoutService {
   constructor(private readonly store = MemoryPaymentStore.getInstance()) {}
 
-  async charge(chargeData: any, options: { idempotencyKey?: string; tribeId?: string } = {}) {
+  async charge(chargeData: any, options: { idempotencyKey?: string; tribeId?: string; account?: PayMongoAccount } = {}) {
     const paymentMethodsAllowed = chargeData.paymentMethodsAllowed || ['card', 'gcash', 'paymaya'];
     const tribeId = options.tribeId || chargeData.tribeId;
 
@@ -52,7 +52,7 @@ export class CheckoutService {
     const response = await paymongoRequest('/checkout_sessions', {
       method: 'POST',
       body,
-      idempotencyKey: options.idempotencyKey,
+      idempotencyKey: options.idempotencyKey, account: options.account,
     });
 
     const providerData = response?.data || {};
@@ -76,7 +76,7 @@ export class CheckoutService {
     return session;
   }
 
-  async getCheckoutSession(checkoutId: string, options: { includePayment?: boolean } = {}): Promise<{
+  async getCheckoutSession(checkoutId: string, options: { includePayment?: boolean; account?: PayMongoAccount } = {}): Promise<{
     checkoutId: string; provider: 'paymongo'; status: 'paid' | 'pending' | 'expired'; redirectUrl?: string;
     createdAt?: string; paymentId?: string; paidPayment?: PaidCheckoutPayment;
   }> {
@@ -90,7 +90,7 @@ export class CheckoutService {
       };
     }
 
-    const response = await paymongoRequest(`/checkout_sessions/${encodeURIComponent(toProviderId('chk', checkoutId))}`);
+    const response = await paymongoRequest(`/checkout_sessions/${encodeURIComponent(toProviderId('chk', checkoutId))}`, { account: options.account });
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
@@ -129,14 +129,14 @@ export class CheckoutService {
     throw new PayMongoError(`Checkout session for reference '${referenceId}' was not found.`, 404);
   }
 
-  async markCheckoutCancelled(checkoutId: string, options: { tribeId?: string; reason?: string; idempotencyKey?: string } = {}) {
+  async markCheckoutCancelled(checkoutId: string, options: { tribeId?: string; reason?: string; idempotencyKey?: string; account?: PayMongoAccount } = {}) {
     const current = await this.store.getCheckoutSessionStatus(checkoutId);
     const reason = options.reason || 'user_returned_from_cancel_url';
     if (current) assertTribeCanRead(current, options.tribeId);
     if (!isMockMode()) {
       await paymongoRequest(`/checkout_sessions/${encodeURIComponent(toProviderId('chk', checkoutId))}/expire`, {
         method: 'POST',
-        idempotencyKey: options.idempotencyKey,
+        idempotencyKey: options.idempotencyKey, account: options.account,
       });
     }
     const updated = await this.store.updateCheckoutStatus(checkoutId, { status: 'expired', cancellationReason: reason });

@@ -1,4 +1,7 @@
 export type {
+  CashOutPayout,
+  PayeeVerification,
+  RecordPayeeVerificationInput,
   Checkout,
   ConfirmPaymentIntentInput,
   CreateCheckoutInput,

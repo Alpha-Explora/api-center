@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { PayMongoError } from '../../shared/payment-errors';
-import { isMockMode, paymongoRequest, stepIdempotencyKey } from '../../shared/paymongo-client';
+import { isMockMode, paymongoRequest, stepIdempotencyKey, type PayMongoAccount } from '../../shared/paymongo-client';
 import { toProviderId, toPublicId } from '../../shared/payment-ids';
 
 type PayMongoCall = typeof paymongoRequest;
@@ -48,7 +48,7 @@ export class PaymentLinksService {
   constructor(private readonly request: PayMongoCall = paymongoRequest,
     private readonly mockMode: () => boolean = isMockMode) {}
 
-  async create(payload: any, idempotencyKey?: string) {
+  async create(payload: any, idempotencyKey?: string, account?: PayMongoAccount) {
     const { amount, currency = 'PHP', referenceId, description, remarks, metadata } = payload || {};
     if (!Number.isSafeInteger(amount) || amount < 100) {
       throw new PayMongoError('amount must be an integer of at least 100 centavos', 400, 'INVALID_AMOUNT');
@@ -63,7 +63,7 @@ export class PaymentLinksService {
     if (this.mockMode()) return { paymentLinkId: `pl_mock_${crypto.randomUUID().replace(/-/g, '')}`,
       amount, currency, description: text, url: 'https://paymongo.test/link', status: 'active', active: true,
       archived: false, referenceNumber: `mock${crypto.randomBytes(6).toString('hex')}`, metadata: providerMetadata };
-    const response = await this.request('/payment_links', { method: 'POST', idempotencyKey,
+    const response = await this.request('/payment_links', { method: 'POST', idempotencyKey, ...(account ? { account } : {}),
       body: { amount, currency, description: text, remarks, metadata: providerMetadata } });
     const link = paymentLink(response);
     // A link without PayMongo's reference number could never be matched to its paid event.
@@ -73,16 +73,16 @@ export class PaymentLinksService {
     return { ...link, paymentLinkId: link.paymentLinkId, referenceNumber: link.referenceNumber };
   }
 
-  async get(id: string) {
+  async get(id: string, account?: PayMongoAccount) {
     if (this.mockMode()) return { paymentLinkId: id, status: 'active', active: true, archived: false };
-    return paymentLink(await this.request(`/payment_links/${encodeURIComponent(toProviderId('pl', id))}`));
+    return paymentLink(await this.request(`/payment_links/${encodeURIComponent(toProviderId('pl', id))}`, account ? { account } : undefined));
   }
 
-  async setArchived(id: string, archive: boolean, idempotencyKey?: string) {
+  async setArchived(id: string, archive: boolean, idempotencyKey?: string, account?: PayMongoAccount) {
     if (typeof archive !== 'boolean') throw new PayMongoError('archive must be a boolean', 400, 'INVALID_ARCHIVE_STATE');
     if (this.mockMode()) return { paymentLinkId: id, status: archive ? 'archived' : 'active', active: !archive, archived: archive };
     const response = await this.request(`/payment_links/${encodeURIComponent(toProviderId('pl', id))}`, {
-      method: 'PATCH', body: { archive }, idempotencyKey });
+      method: 'PATCH', body: { archive }, idempotencyKey, ...(account ? { account } : {}) });
     return paymentLink(response);
   }
 }
@@ -91,7 +91,7 @@ export class QrPhService {
   constructor(private readonly request: PayMongoCall = paymongoRequest,
     private readonly mockMode: () => boolean = isMockMode) {}
 
-  async create(payload: any, idempotencyKey?: string) {
+  async create(payload: any, idempotencyKey?: string, account?: PayMongoAccount) {
     const { amount, currency = 'PHP', referenceId, description, expirySeconds } = payload || {};
     if (!Number.isSafeInteger(amount) || amount < 100) {
       throw new PayMongoError('amount must be an integer of at least 100 centavos', 400, 'INVALID_AMOUNT');
@@ -105,17 +105,17 @@ export class QrPhService {
       referenceId, status: 'awaiting_next_action', amount, currency, qrCodeImageUrl: 'data:image/png;base64,bW9jaw==',
       expirySeconds: expirySeconds ?? 1800 };
 
-    const intentResponse = await this.request('/payment_intents', { method: 'POST', idempotencyKey: stepIdempotencyKey(idempotencyKey, 'intent'),
+    const intentResponse = await this.request('/payment_intents', { method: 'POST', ...(account ? { account } : {}), idempotencyKey: stepIdempotencyKey(idempotencyKey, 'intent'),
       body: { data: { attributes: { amount, currency, description, payment_method_allowed: ['qrph'], metadata: { referenceId } } } } });
     const intent = intentResponse?.data || {};
     const intentAttrs = intent.attributes || {};
     if (!intent.id || !intentAttrs.client_key) throw new PayMongoError('PayMongo did not return the intent client key', 502, 'INVALID_PROVIDER_RESPONSE');
-    const methodResponse = await this.request('/payment_methods', { method: 'POST', idempotencyKey: stepIdempotencyKey(idempotencyKey, 'method'),
+    const methodResponse = await this.request('/payment_methods', { method: 'POST', ...(account ? { account } : {}), idempotencyKey: stepIdempotencyKey(idempotencyKey, 'method'),
       body: { data: { attributes: { type: 'qrph', ...(expirySeconds === undefined ? {} : { expiry_seconds: expirySeconds }) } } } });
     const paymentMethodId = methodResponse?.data?.id;
     if (!paymentMethodId) throw new PayMongoError('PayMongo did not return a QR Ph payment method', 502, 'INVALID_PROVIDER_RESPONSE');
     const attachedResponse = await this.request(`/payment_intents/${encodeURIComponent(intent.id)}/attach`, {
-      method: 'POST', idempotencyKey: stepIdempotencyKey(idempotencyKey, 'attach'),
+      method: 'POST', ...(account ? { account } : {}), idempotencyKey: stepIdempotencyKey(idempotencyKey, 'attach'),
       body: { data: { attributes: { payment_method: paymentMethodId, client_key: intentAttrs.client_key } } } });
     const attached = attachedResponse?.data || intent;
     const attrs = attached.attributes || {};

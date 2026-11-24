@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { payouts } from "../data/payouts";
 import type { EnvironmentKind } from "../model/control-plane";
-import type { PayoutPolicy } from "../model/payouts";
+import type { LinkedAccountAction, PayoutPolicy } from "../model/payouts";
 import { useProjectEnvironment } from "./project-environment";
 import { cpKeys } from "./query-keys";
 
@@ -12,6 +12,24 @@ export const payoutsKey = (organizationId: string, projectId: string, kind: Envi
 function useScope() {
   const { organizationId, project, kind } = useProjectEnvironment();
   return { organizationId, projectId: project.id, kind };
+}
+
+export function useLinkedAccount() {
+  const scope = useScope();
+  return useQuery({
+    queryKey: [...payoutsKey(scope.organizationId, scope.projectId, scope.kind), "linked-account"],
+    queryFn: () => payouts.linkedAccount(scope),
+  });
+}
+
+export function useUpdateLinkedAccount() {
+  const scope = useScope();
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (action: LinkedAccountAction) => payouts.updateLinkedAccount(scope, action),
+    onSettled: () => void invalidate(),
+    gcTime: 0,
+  });
 }
 
 export function usePayoutOverview() {

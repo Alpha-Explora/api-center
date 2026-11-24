@@ -39,15 +39,32 @@ export class PaymentWebhookController {
     @Req() req: RawBodyRequest<Request>,
     @Res({ passthrough: true }) res?: Response,
   ) {
+    return this.forwardWebhook(environment, req, res);
+  }
+
+  @Post(":environment/accounts/:accountId")
+  @HttpCode(200)
+  async forwardChildWebhook(
+    @Param("environment") environment: string,
+    @Param("accountId") accountId: string,
+    @Req() req: RawBodyRequest<Request>,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    if (!/^org_[A-Za-z0-9]+$/.test(accountId)) throw new NotFoundError("Invalid payment webhook account");
+    return this.forwardWebhook(environment, req, res, accountId);
+  }
+
+  private async forwardWebhook(environment: string, req: RawBodyRequest<Request>, res?: Response, accountId?: string) {
     const targetEnvironment = resolveWebhookEnvironment(environment);
     const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
     const signatureHeader = getHeader(req, "paymongo-signature");
-    assertValidPayMongoSignature(
-      rawBody,
-      signatureHeader,
-      resolvePayMongoWebhookSecret(this.config, targetEnvironment),
-      targetEnvironment,
-    );
+    if (!accountId) {
+      assertValidPayMongoSignature(
+        rawBody, signatureHeader, resolvePayMongoWebhookSecret(this.config, targetEnvironment), targetEnvironment,
+      );
+    } else if (!signatureHeader) {
+      throw new UnauthorizedError("Invalid PayMongo webhook signature");
+    }
 
     const upstream = this.resolvePaymentWebhookUpstream(targetEnvironment);
     const providerEventId = resolveProviderEventId(req.body, rawBody);
@@ -57,7 +74,7 @@ export class PaymentWebhookController {
       providerEventId,
     };
 
-    await this.auditEvents.record({
+    const recordReceipt = () => this.auditEvents.record({
       type: "shared_service.webhook.received",
       actionFamily: "shared_service",
       sharedServiceId: "payment",
@@ -68,13 +85,15 @@ export class PaymentWebhookController {
         environment: targetEnvironment,
         provider: "paymongo",
         providerEventKey,
-        route: `/webhooks/${targetEnvironment}`,
+        route: accountId ? `/webhooks/${targetEnvironment}/accounts/${accountId}` : `/webhooks/${targetEnvironment}`,
+        ...(accountId ? { merchantAccountId: accountId, verifiedBy: "payments-runtime" } : {}),
         upstream,
         contentType: getHeader(req, "content-type") || "application/json",
         rawBodyBytes: rawBody.length,
         signaturePresent: Boolean(signatureHeader),
       },
     });
+    if (!accountId) await recordReceipt();
 
     const cloudRunAuthorization =
       await getCloudRunAuthorizationHeader(upstream);
@@ -83,6 +102,8 @@ export class PaymentWebhookController {
       "Paymongo-Signature": signatureHeader,
       "X-APICenter-Environment": targetEnvironment,
     };
+    // The payments runtime holds the child secrets and verifies this signed body against this account.
+    if (accountId) headers["X-APICenter-Webhook-Account"] = accountId;
     if (cloudRunAuthorization) {
       headers.Authorization = cloudRunAuthorization;
     }
@@ -105,6 +126,7 @@ export class PaymentWebhookController {
 
     const text = await response.text();
     res?.status(response.status);
+    if (accountId && response.ok) await recordReceipt();
 
     if (!text) {
       return {};

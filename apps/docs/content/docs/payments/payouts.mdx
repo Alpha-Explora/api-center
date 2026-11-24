@@ -58,6 +58,23 @@ Responses show the account number masked, as `accountNumberLast4`.
 
 Have the payee confirm a destination change in your app, for example with a one-time code from the [OTP service](/guides/messaging-verification/otp).
 
+## Record how you verified a payee
+
+Your project verifies its payees and records who performed the check, when it happened and what method they used. APICenter can require a verification record before a live payout.
+
+Use `PUT /api/v1/payments/payees/{payeeId}/verification` with the `payments:payouts:write` scope and an `Idempotency-Key`.
+
+```ts
+await api.payments.payees.recordVerification(payee.payeeId, {
+  verifiedBy: 'operator-17',
+  verifiedAt: '2026-11-24T04:00:00Z',
+  method: 'government_id',
+  reference: 'verification-0042',
+});
+```
+
+Use your own record identifier for the optional `reference` field. Keep identity document numbers and images in your own verification system. If verification is required, cash-out returns `409 PAYEE_NOT_VERIFIED` until you record the check.
+
 ## Attach allocations to a payment
 
 Add `allocations` when you create a checkout, a payment intent or a payment link. Your application key needs that resource's write scope.

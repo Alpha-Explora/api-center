@@ -53,6 +53,7 @@ const requiredOperations: Record<string, string> = {
   'GET /api/v1/payments/payees': 'listPayees',
   'GET /api/v1/payments/payees/{payeeId}': 'getPayee',
   'PUT /api/v1/payments/payees/{payeeId}/destination': 'setPayeeDestination',
+  'PUT /api/v1/payments/payees/{payeeId}/verification': 'recordPayeeVerification',
   'POST /api/v1/payments/payees/{payeeId}/cash-out': 'cashOutPayee',
   'POST /api/v1/payments/allocations/{allocationId}/release': 'releaseAllocation',
   'POST /api/v1/payments/allocations/{allocationId}/cancel': 'cancelAllocation',

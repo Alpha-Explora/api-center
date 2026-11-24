@@ -8,6 +8,7 @@ import type { Pool, PoolClient } from 'pg';
 import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
 import type { PayoutDestination } from './money-mover';
+import { requiresPayeeVerification, type PayeeVerification } from './payee-verification';
 import {
   PayoutStateError,
   refundEffect,
@@ -46,6 +47,7 @@ export type Payee = {
   status: 'active' | 'suspended';
   destination: PayoutDestination | null;
   destinationHoldUntil: string | null;
+  verification: PayeeVerification | null;
   createdAt: string;
 };
 
@@ -183,6 +185,7 @@ export interface PayoutStore {
   /** Cancels or claws back the shares of a refunded payment. Idempotent per refund. */
   applyRefund(environment: Environment, refund: RefundFact, client?: PoolClient): Promise<void>;
   setPayeeDestination(environment: Environment, projectId: string, payeeId: string, destination: PayoutDestination, now: Date): Promise<Payee | null>;
+  recordPayeeVerification(environment: Environment, projectId: string, payeeId: string, verification: PayeeVerification): Promise<Payee | null>;
   /**
    * Stores each share once: a payee has at most one share per intent or checkout, and one template per
    * payment link. Repeating the call (a retried create) stores nothing new and returns the stored shares.
@@ -328,7 +331,7 @@ export class MemoryPayoutStore implements PayoutStore {
     const payee: MemoryPayee = {
       id: newId('pye'), environment: context.environment, organizationId: context.organizationId, projectId: context.projectId,
       consumerServiceId: context.consumerServiceId, externalRef: input.externalRef, legalName: input.legalName, status: 'active',
-      destination: null, destinationHoldUntil: null, createdAt: this.clock().toISOString(),
+      destination: null, destinationHoldUntil: null, verification: null, createdAt: this.clock().toISOString(),
     };
     this.payees.set(payee.id, payee);
     return { payee: publicPayee(payee), created: true };
@@ -400,6 +403,13 @@ export class MemoryPayoutStore implements PayoutStore {
     return publicPayee(payee);
   }
 
+  async recordPayeeVerification(environment: Environment, projectId: string, payeeId: string, verification: PayeeVerification) {
+    const payee = this.payees.get(payeeId);
+    if (!payee || payee.environment !== environment || payee.projectId !== projectId) return null;
+    payee.verification = verification;
+    return publicPayee(payee);
+  }
+
   async insertAllocations(context: PayoutContext, rows: NewAllocation[]) {
     return rows.map((row) => {
       const existing = [...this.allocations.values()].find((entry) => entry.environment === context.environment
@@ -436,11 +446,13 @@ export class MemoryPayoutStore implements PayoutStore {
           && entry.voidedAt === null)
         .reduce((sum, entry) => sum + entry.amount, 0);
       const scheduled = [...this.payouts.values()]
-        .filter((payout) => payout.payeeId === id && payout.trigger === 'schedule' && payout.status !== 'failed')
+        .filter((payout) => payout.environment === environment && payout.merchantAccountId === merchantAccountId
+          && payout.payeeId === id && payout.trigger === 'schedule' && payout.status !== 'failed')
         .map((payout) => payout.createdAt).sort().at(-1) ?? null;
       summaries.push({
         payeeId: id, projectId: payee.projectId, available: released + adjustments, hasDestination: payee.destination !== null,
         destinationHoldUntil: payee.destinationHoldUntil, lastScheduledPayoutAt: scheduled,
+        verified: payee.verification !== null,
       });
     }
     return summaries;
@@ -459,6 +471,7 @@ export class MemoryPayoutStore implements PayoutStore {
     const payee = this.payees.get(input.payeeId);
     const clock = this.clock();
     if (!payee || payee.environment !== environment) return { skipped: 'payee_not_found' };
+    if (requiresPayeeVerification() && !payee.verification) return { skipped: 'payee_unverified' };
     if (!payee.destination) return { skipped: 'no_destination' };
     if (payee.destinationHoldUntil && Date.parse(payee.destinationHoldUntil) > clock.getTime()) return { skipped: 'destination_hold' };
     let remainingDailyCap: number | undefined;
@@ -668,7 +681,8 @@ function normalizeDestination(destination: PayoutDestination | null) {
 
 function publicPayee(payee: MemoryPayee): Payee {
   return { id: payee.id, projectId: payee.projectId, externalRef: payee.externalRef, legalName: payee.legalName, status: payee.status,
-    destination: payee.destination, destinationHoldUntil: payee.destinationHoldUntil, createdAt: payee.createdAt };
+    destination: payee.destination, destinationHoldUntil: payee.destinationHoldUntil,
+    verification: payee.verification, createdAt: payee.createdAt };
 }
 
 function publicAllocation(allocation: MemoryAllocation): AllocationRecord {
@@ -687,7 +701,8 @@ function publicPayout(payout: PayoutRecord): PayoutRecord {
 // ---------------------------------------------------------------------------------------------------
 
 const PAYOUT_COLUMNS = `id, payee_id, project_id, merchant_account_id, gross, fee, net, trigger, status, failure_code, created_at, updated_at`;
-const PAYEE_COLUMNS = `id, project_id, external_ref, legal_name, status, destination, destination_hold_until, created_at`;
+const PAYEE_COLUMNS = `id, project_id, external_ref, legal_name, status, destination, destination_hold_until, created_at,
+  verified_by, verified_at, verification_method, verification_reference`;
 const ALLOCATION_COLUMNS = `id, payee_id, project_id, merchant_account_id, resource_type, resource_id, reference_id, template,
   payment_id, amount, gross_amount, status, payout_id, created_at`;
 
@@ -827,6 +842,18 @@ export class PostgresPayoutStore implements PayoutStore {
     });
   }
 
+  async recordPayeeVerification(environment: Environment, projectId: string, payeeId: string, verification: PayeeVerification) {
+    const result = await this.pool.query(
+      `UPDATE shared_payment.payees SET verified_by = $4, verified_at = $5, verification_method = $6,
+        verification_reference = $7, updated_at = CASE WHEN
+          ROW(verified_by, verified_at, verification_method, verification_reference)
+            IS DISTINCT FROM ROW($4::text, $5::timestamptz, $6::text, $7::text) THEN now() ELSE updated_at END
+        WHERE environment = $1 AND project_id = $2 AND id = $3 RETURNING ${PAYEE_COLUMNS}`,
+      [environment, projectId, payeeId, verification.verifiedBy, verification.verifiedAt, verification.method, verification.reference],
+    );
+    return result.rows[0] ? payeeRow(result.rows[0]) : null;
+  }
+
   async insertAllocations(context: PayoutContext, rows: NewAllocation[], client?: PoolClient): Promise<AllocationRecord[]> {
     if (!client) return this.transaction((target) => this.insertAllocations(context, rows, target));
     const target = client;
@@ -878,6 +905,7 @@ export class PostgresPayoutStore implements PayoutStore {
   async poolSummaries(environment: Environment, merchantAccountId: string, payeeId?: string) {
     const result = await this.pool.query(
       `SELECT p.id AS payee_id, p.project_id, p.destination IS NOT NULL AS has_destination, p.destination_hold_until,
+              p.verified_at IS NOT NULL AS verified,
               released.total + COALESCE(adjusted.total, 0) AS available, scheduled.last_at
          FROM (SELECT payee_id, sum(amount) AS total FROM shared_payment.payout_allocations
                 WHERE environment = $1 AND merchant_account_id = $2 AND status = 'released' AND ($3::text IS NULL OR payee_id = $3)
@@ -888,7 +916,8 @@ export class PostgresPayoutStore implements PayoutStore {
                      GROUP BY payee_id) adjusted
            ON adjusted.payee_id = p.id
          LEFT JOIN (SELECT payee_id, max(created_at) AS last_at FROM shared_payment.payouts
-                     WHERE environment = $1 AND trigger = 'schedule' AND status <> 'failed' GROUP BY payee_id) scheduled
+                     WHERE environment = $1 AND merchant_account_id = $2 AND trigger = 'schedule'
+                       AND status <> 'failed' GROUP BY payee_id) scheduled
            ON scheduled.payee_id = p.id`,
       [environment, merchantAccountId, payeeId ?? null],
     );
@@ -897,6 +926,7 @@ export class PostgresPayoutStore implements PayoutStore {
       projectId: row.project_id,
       available: Number(row.available),
       hasDestination: row.has_destination,
+      verified: row.verified,
       destinationHoldUntil: row.destination_hold_until ? new Date(row.destination_hold_until).toISOString() : null,
       lastScheduledPayoutAt: row.last_at ? new Date(row.last_at).toISOString() : null,
     }));
@@ -917,9 +947,10 @@ export class PostgresPayoutStore implements PayoutStore {
     return this.transaction(async (client) => {
       // Serialize pooling per payee: a concurrent run waits here, then finds the allocations already pooled.
       const payee = await client.query(
-        `SELECT id, organization_id, project_id, consumer_service_id, destination, destination_hold_until FROM shared_payment.payees
+        `SELECT id, organization_id, project_id, consumer_service_id, destination, destination_hold_until, verified_at FROM shared_payment.payees
           WHERE environment = $1 AND id = $2 FOR UPDATE`, [environment, input.payeeId]);
       if (!payee.rows[0]) return { skipped: 'payee_not_found' };
+      if (requiresPayeeVerification() && !payee.rows[0].verified_at) return { skipped: 'payee_unverified' };
       if (!payee.rows[0].destination) return { skipped: 'no_destination' };
       const clock = this.clock();
       // Checked again under the lock: the destination may have changed since the run read its pools.
@@ -1188,6 +1219,8 @@ export function payeeRow(row: any): Payee {
     id: row.id, projectId: row.project_id, externalRef: row.external_ref, legalName: row.legal_name, status: row.status,
     destination: row.destination ?? null,
     destinationHoldUntil: row.destination_hold_until ? new Date(row.destination_hold_until).toISOString() : null,
+    verification: row.verified_at ? { verifiedBy: row.verified_by, verifiedAt: new Date(row.verified_at).toISOString(),
+      method: row.verification_method, reference: row.verification_reference ?? null } : null,
     createdAt: new Date(row.created_at).toISOString(),
   };
 }

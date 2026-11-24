@@ -2065,10 +2065,88 @@
         }
       }
     },
+    "/api/v1/payments/payees/{payeeId}/verification": {
+      "put": {
+        "operationId": "recordPayeeVerification",
+        "description": "Records a verification performed by the project. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPayeeVerificationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Payee"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v1/payments/payees/{payeeId}/cash-out": {
       "post": {
         "operationId": "cashOutPayee",
-        "description": "Pays the payee's released earnings now, whole allocations oldest first, up to what is left of the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED or NOTHING_RELEASED. Requires payments:payouts:write.",
+        "description": "Pays the payee's released earnings now, whole allocations oldest first, up to what is left of the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED, PAYEE_NOT_VERIFIED or NOTHING_RELEASED. Requires payments:payouts:write.",
         "tags": [
           "Payments"
         ],
@@ -2096,7 +2174,7 @@
                       "const": true
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Payout"
+                      "$ref": "#/components/schemas/CashOutPayout"
                     }
                   }
                 }
@@ -5085,6 +5163,56 @@
           }
         }
       },
+      "RecordPayeeVerificationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "verifiedBy",
+          "verifiedAt",
+          "method"
+        ],
+        "properties": {
+          "verifiedBy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "government_id",
+              "in_person",
+              "third_party",
+              "other"
+            ]
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Project verification record identifier. Never use an identity document number."
+          }
+        }
+      },
+      "PayeeVerification": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordPayeeVerificationInput"
+          },
+          {
+            "required": [
+              "reference"
+            ]
+          }
+        ]
+      },
       "Payee": {
         "type": "object",
         "required": [
@@ -5093,6 +5221,7 @@
           "legalName",
           "status",
           "destination",
+          "verification",
           "createdAt"
         ],
         "properties": {
@@ -5116,6 +5245,16 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PayeeDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PayeeVerification"
               },
               {
                 "type": "null"
@@ -5197,6 +5336,25 @@
             "type": "string"
           }
         }
+      },
+      "CashOutPayout": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Payout"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "additionalPayouts": {
+                "type": "array",
+                "description": "Additional transfers when released earnings span merchant accounts.",
+                "items": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          }
+        ]
       },
       "Payout": {
         "type": "object",

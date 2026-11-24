@@ -142,6 +142,26 @@ describe("PaymentWebhookController", () => {
     );
   });
 
+  it("audits a child delivery only after the runtime accepts its signature", async () => {
+    const rawBody = Buffer.from('{"data":{"id":"evt_child"}}');
+    const req = { rawBody, body: { data: { id: "evt_child" } },
+      headers: { "paymongo-signature": "t=1,te=fixture" } } as any;
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    await controller.forwardChildWebhook("test", "org_child", req);
+    expect(auditEvents.record).not.toHaveBeenCalled();
+
+    fetchMock.mockImplementationOnce(async () => {
+      expect(auditEvents.record).not.toHaveBeenCalled();
+      return new Response(null, { status: 204 });
+    });
+    await controller.forwardChildWebhook("test", "org_child", req);
+    expect(auditEvents.record).toHaveBeenCalledWith(expect.objectContaining({
+      type: "shared_service.webhook.received",
+      payload: expect.objectContaining({ merchantAccountId: "org_child", verifiedBy: "payments-runtime",
+        providerEventKey: { environment: "test", provider: "paymongo", providerEventId: "evt_child" } }),
+    }));
+  });
+
   it("adds Cloud Run IAM Authorization when forwarding to private payment Cloud Run", async () => {
     (mockRouting.resolve as jest.Mock).mockReturnValue({
       sharedServiceId: "payment",

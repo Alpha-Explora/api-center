@@ -13,7 +13,7 @@ describe('refund reconciliation', () => {
     const request = jest.mocked(paymongoRequest);
     request.mockResolvedValueOnce({ data: { id: 'ref_123', attributes: { status: 'processing', amount: 100, currency: 'PHP' } } });
     await expect(new RefundsService().getRefund('ref_123')).resolves.toMatchObject({ status: 'processing', amount: 100 });
-    expect(request).toHaveBeenCalledWith('/refunds/ref_123');
+    expect(request).toHaveBeenCalledWith('/refunds/ref_123', { account: undefined });
     request.mockResolvedValueOnce({ data: { id: 'ref_other', attributes: { status: 'succeeded' } } });
     await expect(new RefundsService().getRefund('ref_123')).rejects.toMatchObject({ code: 'PROVIDER_RESOURCE_MISMATCH' });
   });

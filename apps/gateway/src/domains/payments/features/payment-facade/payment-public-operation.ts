@@ -41,6 +41,12 @@ const schemas = {
   paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().trim().min(1).max(255),
     remarks: z.string().max(255).optional(), metadata: z.record(z.string(), z.string()).optional(), allocations }),
   payee: z.object({ externalRef: z.string().trim().min(1).max(120), legalName: z.string().trim().min(1).max(200) }).strict(),
+  payeeVerification: z.object({
+    verifiedBy: z.string().trim().min(1).max(200),
+    verifiedAt: z.iso.datetime({ offset: true }),
+    method: z.enum(['government_id', 'in_person', 'third_party', 'other']),
+    reference: z.string().trim().min(1).max(120).nullable().optional(),
+  }).strict(),
   destination: z.discriminatedUnion('type', [
     z.object({ type: z.literal('instapay'), bic: z.string().regex(/^[A-Z0-9]{8}([A-Z0-9]{3})?$/), accountNumber, accountName }).strict(),
     z.object({ type: z.literal('provider_wallet'), accountNumber, accountName }).strict(),
@@ -95,6 +101,7 @@ const operations: Operation[] = [
   { method: 'POST', pattern: /^\/payees$/, scope: 'payments:payouts:write', target: () => '/payouts/payees', resource: 'payee', shape: 'payee' },
   { method: 'GET', pattern: /^\/payees$/, scope: 'payments:payouts:read', target: () => '/payouts/payees', resource: 'payee' },
   { method: 'PUT', pattern: /^\/payees\/([^/]+)\/destination$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/destination`, resource: 'payee', shape: 'destination' },
+  { method: 'PUT', pattern: /^\/payees\/([^/]+)\/verification$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/verification`, resource: 'payee', shape: 'payeeVerification' },
   { method: 'POST', pattern: /^\/payees\/([^/]+)\/cash-out$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/cash-out`, resource: 'payout', shape: 'empty' },
   { method: 'GET', pattern: /^\/payees\/([^/]+)$/, scope: 'payments:payouts:read', target: (m) => `/payouts/payees/${m[1]}`, resource: 'payee' },
   { method: 'POST', pattern: /^\/allocations\/([^/]+)\/release$/, scope: 'payments:payouts:write', target: (m) => `/payouts/allocations/${m[1]}/release`, resource: 'allocation', shape: 'empty' },
@@ -199,13 +206,19 @@ export function publicPayee(raw: Record<string, unknown>) {
   return {
     payeeId: raw.id, externalRef: raw.externalRef, legalName: raw.legalName, status: raw.status,
     destination: publicDestination(raw.destination), destinationHoldUntil: raw.destinationHoldUntil ?? null, createdAt: raw.createdAt,
+    verification: raw.verification ?? null,
     ...(earnings ? { earnings: Object.fromEntries(Object.entries(earnings).map(([key, value]) => [key, centavos(value)])) } : {}),
   };
 }
 
-export function publicPayout(raw: Record<string, unknown>) {
+function payoutRecord(raw: Record<string, unknown>) {
   return { payoutId: raw.id, payeeId: raw.payeeId, status: raw.status, trigger: raw.trigger, gross: centavos(raw.gross),
     fee: centavos(raw.fee), net: centavos(raw.net), failureCode: raw.failureCode ?? null, createdAt: raw.createdAt, updatedAt: raw.updatedAt };
+}
+
+export function publicPayout(raw: Record<string, unknown>) {
+  return { ...payoutRecord(raw),
+    ...(Array.isArray(raw.additionalPayouts) ? { additionalPayouts: raw.additionalPayouts.map(payoutRecord) } : {}) };
 }
 
 function withAllocations<T extends Record<string, unknown>>(view: T, raw: Record<string, unknown>): T {

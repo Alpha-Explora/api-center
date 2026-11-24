@@ -36,7 +36,7 @@ describe('merchant-account resolver', () => {
   it('resolves the child account in effect at the given time', async () => {
     const resolver = createMerchantAccountResolver(fakePool(
       [{ project_id: 'project-1', effective_from: '2026-12-01T00:00:00Z', merchant_account_id: 'org_child1' }],
-      [parentRow, childRow]) as any);
+      [parentRow, childRow]) as any, { enabledFor: async () => true });
     await expect(resolver.resolve('project-1', 'live', new Date('2026-12-02T00:00:00Z')))
       .resolves.toEqual({ id: 'org_child1', kind: 'child', wallet: null, lowFloatAlert: 0 });
     await expect(resolver.resolve('project-1', 'live', new Date('2026-11-30T00:00:00Z'))).resolves.toMatchObject({ id: 'parent' });

@@ -84,3 +84,23 @@ test('the payments runtime can write but never delete ledger rows', { skip }, as
     assert.deepEqual(privileges, ['INSERT', 'SELECT', 'UPDATE'], `shared_payment.${table}`);
   }
 });
+
+test('a project can replace a declined onboarding but cannot have two open accounts', { skip }, async () => {
+  await inRollback(async () => {
+    const insert = `INSERT INTO shared_payment.linked_accounts (id, environment, organization_id, project_id)
+      VALUES ($1, 'test', 'org-1', 'project-1')`;
+    await client.query(insert, ['lac_1']);
+    await client.query("UPDATE shared_payment.linked_accounts SET status = 'declined' WHERE id = 'lac_1'");
+    await client.query(insert, ['lac_2']);
+    await expectSqlState(client.query(insert, ['lac_3']), '23505');
+  });
+});
+
+test('payee verification must have the verifier, date and method', { skip }, async () => {
+  await inRollback(async () => {
+    await seedPayout();
+    await client.query(`UPDATE shared_payment.payees SET verified_by = 'ops-1', verified_at = now(),
+      verification_method = 'in_person' WHERE id = 'pye_1'`);
+    await expectSqlState(client.query("UPDATE shared_payment.payees SET verified_by = NULL WHERE id = 'pye_1'"), '23514');
+  });
+});

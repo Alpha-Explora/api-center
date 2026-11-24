@@ -13,6 +13,7 @@ export type PaymentContext = {
 export type OwnerRecord = PaymentContext & {
   resourceType: string;
   resourceId: string;
+  merchantAccountId?: string;
   referenceId?: string;
   /** Reference number PayMongo assigned to the resource. Paid payment-link events are matched only on it. */
   providerReference?: string | null;
@@ -67,8 +68,8 @@ export type AppliedWebhook = { duplicate: boolean; queued: boolean };
 
 const UPSERT_OWNER = `INSERT INTO shared_payment.resource_owners
     (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
-     amount_minor, currency, status, provider_reference)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
+     amount_minor, currency, status, provider_reference, merchant_account_id)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12, $13)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = CASE WHEN EXCLUDED.resource_type = 'payment_link'
        THEN shared_payment.resource_owners.snapshot || EXCLUDED.snapshot
@@ -109,8 +110,8 @@ const FRESH_READ_SNAPSHOT = `(CASE
 
 const UPSERT_FRESH_READ = `INSERT INTO shared_payment.resource_owners AS current_owner
     (resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id, snapshot,
-     amount_minor, currency, status, provider_reference)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12)
+     amount_minor, currency, status, provider_reference, merchant_account_id)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::bigint, $10, $11, $12, $15)
    ON CONFLICT (environment, resource_type, resource_id) DO UPDATE SET
      snapshot = ${FRESH_READ_SNAPSHOT},
      amount_minor = COALESCE(EXCLUDED.amount_minor, current_owner.amount_minor),
@@ -212,7 +213,7 @@ export class PaymentOwnerStore {
 
   async save(record: OwnerRecord): Promise<void> {
     if (this.pool) {
-      const result = await this.pool.query(UPSERT_OWNER, ownerParams(record));
+      const result = await this.pool.query(UPSERT_OWNER, [...ownerParams(record), record.merchantAccountId ?? 'parent']);
       if (!result.rowCount) {
         await this.assertOwned(record.resourceType, record.resourceId, record);
       }
@@ -262,7 +263,7 @@ export class PaymentOwnerStore {
     if (this.pool) {
       const result = await this.pool.query(
         `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-                provider_reference, snapshot, amount_minor, currency, status, created_at, aggregate_version
+                provider_reference, snapshot, amount_minor, currency, status, created_at, aggregate_version, merchant_account_id
          FROM shared_payment.resource_owners
          WHERE environment = $1 AND resource_type = 'refund' AND snapshot->>'paymentId' = $2`,
         [environment, paymentId],
@@ -347,7 +348,8 @@ export class PaymentOwnerStore {
     const clearNextAction = type === 'intent' && Object.hasOwn(fresh, 'nextAction') && fresh.nextAction === undefined;
     if (type === 'intent' && terminalStatuses.includes(String(snapshot.status).toLowerCase())) delete snapshot.nextAction;
     if (this.pool) {
-      const result = await this.pool.query(UPSERT_FRESH_READ, [...ownerParams(record), terminalStatuses, clearNextAction]);
+      const result = await this.pool.query(UPSERT_FRESH_READ,
+        [...ownerParams(record), terminalStatuses, clearNextAction, record.merchantAccountId ?? 'parent']);
       if (result.rows[0]) return this.fromRow(result.rows[0]);
       try { return await this.assertOwned(type, id, context); }
       catch (error) {
@@ -442,7 +444,7 @@ export class PaymentOwnerStore {
 
       let aggregateVersion: number | undefined;
       for (const record of webhook.updates) {
-        const saved = await client.query(UPSERT_OWNER, ownerParams(record));
+        const saved = await client.query(UPSERT_OWNER, [...ownerParams(record), record.merchantAccountId ?? 'parent']);
         if (!saved.rowCount) {
           const current = await client.query(
             `SELECT tribe_id, project_id FROM shared_payment.resource_owners
@@ -532,6 +534,7 @@ export class PaymentOwnerStore {
         ? { ...existing.snapshot, ...record.snapshot } : record.snapshot,
       referenceId: record.referenceId || existing?.referenceId,
       providerReference: existing?.providerReference ?? record.providerReference ?? null,
+      merchantAccountId: existing?.merchantAccountId ?? record.merchantAccountId ?? 'parent',
       amountMinor: facts.amountMinor ?? existing?.amountMinor ?? null,
       currency: facts.currency ?? existing?.currency ?? null,
       status: facts.status ?? existing?.status ?? null,
@@ -571,20 +574,21 @@ export class PaymentOwnerStore {
    * Resolves a webhook source by the reference number PayMongo assigned to it. Callers choose reference_id,
    * so it is never used here. Only the signature-verified webhook path may call this.
    */
-  async findWebhookSourceByProviderReference(type: string, providerReference: string, environment: 'test' | 'live'):
+  async findWebhookSourceByProviderReference(type: string, providerReference: string, environment: 'test' | 'live', merchantAccountId = 'parent'):
     Promise<OwnerRecord | undefined> {
     if (this.pool) {
       const result = await this.pool.query(
         `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-                provider_reference, snapshot, aggregate_version
+                provider_reference, snapshot, aggregate_version, merchant_account_id
          FROM shared_payment.resource_owners
-         WHERE environment = $1 AND resource_type = $2 AND provider_reference = $3`,
-        [environment, type, providerReference],
+         WHERE environment = $1 AND resource_type = $2 AND provider_reference = $3 AND merchant_account_id = $4`,
+        [environment, type, providerReference, merchantAccountId],
       );
       return result.rows[0] ? this.fromRow(result.rows[0]) : undefined;
     }
     return [...this.memory.values()].find((record) => record.environment === environment
-      && record.resourceType === type && record.providerReference === providerReference);
+      && record.resourceType === type && record.providerReference === providerReference
+      && (record.merchantAccountId ?? 'parent') === merchantAccountId);
   }
 
   async findByReference(type: string, referenceId: string, context: PaymentContext): Promise<OwnerRecord> {
@@ -592,7 +596,7 @@ export class PaymentOwnerStore {
     if (this.pool) {
       const result = await this.pool.query(
         `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-                provider_reference, snapshot, amount_minor, currency, status, aggregate_version
+                provider_reference, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
          FROM shared_payment.resource_owners
          WHERE environment = $1 AND resource_type = $2 AND tribe_id = $3 AND project_id = $4
            AND reference_id = $5
@@ -688,7 +692,7 @@ export class PaymentOwnerStore {
     if (!this.pool) return this.memory.get(this.key(environment, type, id));
     const result = await this.pool.query(
       `SELECT resource_type, resource_id, environment, tribe_id, project_id, consumer_service_id, reference_id,
-              provider_reference, snapshot, amount_minor, currency, status, aggregate_version
+              provider_reference, snapshot, amount_minor, currency, status, aggregate_version, merchant_account_id
        FROM shared_payment.resource_owners
        WHERE environment = $1 AND resource_type = $2 AND resource_id = $3`,
       [environment, type, id],
@@ -702,6 +706,7 @@ export class PaymentOwnerStore {
       projectId: row.project_id,
       consumerServiceId: row.consumer_service_id, referenceId: row.reference_id,
       providerReference: row.provider_reference ?? null,
+      merchantAccountId: row.merchant_account_id ?? 'parent',
       snapshot: row.snapshot, amountMinor: row.amount_minor == null ? null : String(row.amount_minor),
       currency: row.currency, status: row.status, aggregateVersion: Number(row.aggregate_version ?? 1) };
   }

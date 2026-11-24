@@ -662,6 +662,16 @@ export interface PayeeDestination {
   accountNumberLast4: string;
 }
 
+export interface RecordPayeeVerificationInput {
+  verifiedBy: string;
+  verifiedAt: string;
+  method: 'government_id' | 'in_person' | 'third_party' | 'other';
+  /** Reference to the project's verification record. Never use an identity document number. */
+  reference?: string | null;
+}
+
+export type PayeeVerification = RecordPayeeVerificationInput & { reference: string | null };
+
 export interface Payee {
   payeeId: string;
   externalRef: string;
@@ -670,6 +680,7 @@ export interface Payee {
   destination: PayeeDestination | null;
   /** Payouts to the payee wait until this time after a destination change. */
   destinationHoldUntil: string | null;
+  verification: PayeeVerification | null;
   createdAt: string;
 }
 
@@ -713,6 +724,11 @@ export interface Payout {
   failureCode: string | null;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface CashOutPayout extends Payout {
+  /** Additional transfers for the same cash-out when released earnings span accounts. */
+  additionalPayouts?: Payout[];
 }
 
 export interface PayoutPage {

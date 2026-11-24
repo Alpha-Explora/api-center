@@ -1,0 +1,17 @@
+{
+  "create": {
+    "data": {
+      "id": "org_test_merchant",
+      "type": "merchant",
+      "activation_status": "pending"
+    }
+  },
+  "verification": {
+    "data": {
+      "id": "verif_fixture",
+      "account_id": "org_test_merchant",
+      "url": "https://example.com/verification-fixture",
+      "expired_at": 1795766400
+    }
+  }
+}

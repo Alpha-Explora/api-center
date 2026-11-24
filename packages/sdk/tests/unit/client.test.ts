@@ -78,7 +78,7 @@ describe('requests', () => {
     expect(calls[0].url).toBe('https://api.apicenter.itsandbox.site/api/v1/shared/geo/reverse-geocode');
     expect(calls[0].headers.get('authorization')).toBe(`Bearer ${KEY}`);
     expect(calls[0].headers.get('apicenter-version')).toBe('2026-11-19');
-    expect(calls[0].headers.get('apicenter-sdk')).toBe('apicenter-sdk-js/3.3.0');
+    expect(calls[0].headers.get('apicenter-sdk')).toBe('apicenter-sdk-js/3.4.0');
     expect(calls[0].headers.get('idempotency-key')).toBeNull();
   });
 
@@ -88,6 +88,16 @@ describe('requests', () => {
     const [first, second] = calls.map((call) => call.headers.get('idempotency-key'));
     expect(first).toMatch(/^sdk_[0-9a-f-]{36}$/);
     expect(second).toBe(first);
+  });
+
+  it('records a payee verification using the payment API and a write idempotency key', async () => {
+    const verification = { verifiedBy: 'ops-2', verifiedAt: '2026-11-24T00:00:00Z', method: 'in_person' as const };
+    const { api, calls } = client([ok({ payeeId: 'pye_2', verification })]);
+    await api.payments.payees.recordVerification('pye_2', verification);
+    expect(calls[0].url).toMatch(/\/api\/v1\/payments\/payees\/pye_2\/verification$/);
+    expect(calls[0].init.method).toBe('PUT');
+    expect(JSON.parse(String(calls[0].init.body))).toEqual(verification);
+    expect(calls[0].headers.get('idempotency-key')).toMatch(/^sdk_/);
   });
 
   it('uses a caller key as given, and validates its length', async () => {
