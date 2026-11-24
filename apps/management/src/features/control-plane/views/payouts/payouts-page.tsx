@@ -94,7 +94,11 @@ function Payouts() {
               <dd className="text-lg font-semibold">
                 {overview.data.wallet.available === null ? "Unavailable" : formatCentavos(overview.data.wallet.available)}
               </dd>
-              <dd className="text-xs text-muted-foreground">Payouts pause below {formatCentavos(overview.data.wallet.lowFloatAlert)}</dd>
+              <dd className="text-xs text-muted-foreground">
+                {overview.data.wallet.simulated
+                  ? "Simulated test wallet. Test payouts succeed at once and never reach the payment provider."
+                  : `Payouts pause below ${formatCentavos(overview.data.wallet.lowFloatAlert)}`}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Next weekly payout</dt>

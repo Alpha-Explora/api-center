@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ProviderAccountId } from './linked-account-lifecycle';
+import type { AccountEvent } from './account-events';
 
 export const merchantDetailsInput = z.object({
   businessName: z.string().trim().min(1).max(200),
@@ -44,7 +45,7 @@ export class FakeLinkedAccountsProvider implements LinkedAccountsProvider {
     this.now = now;
   }
 
-  private account(reference: string): { providerAccountId: ProviderAccountId } {
+  protected account(reference: string): { providerAccountId: ProviderAccountId } {
     return { providerAccountId: `org_${createHash('sha256').update(reference).digest('hex').slice(0, 24)}` };
   }
 
@@ -72,4 +73,47 @@ export class FakeLinkedAccountsProvider implements LinkedAccountsProvider {
   async activate() { return { kind: 'ok' as const, value: undefined }; }
 
   async requestPaymentMethods() { return { kind: 'ok' as const, value: undefined }; }
+}
+
+/**
+ * Payee wallet onboarding in the deployed test environment, where the provider's test mode has no consumer identity
+ * check. The identity check passes as soon as a verification link is issued, and activation attaches a simulated
+ * wallet. It queues the events the provider would have sent; the route applies them once the onboarding lock is
+ * released. It keeps no state that an instance restart would lose, apart from the payee's name for the wallet.
+ */
+export class SimulatedConsumerProvider extends FakeLinkedAccountsProvider {
+  private readonly names = new Map<string, string>();
+  private queue: AccountEvent[] = [];
+
+  async findByReference(reference: string) {
+    return { kind: 'ok' as const, value: this.account(reference) };
+  }
+
+  async submitDetails(id?: ProviderAccountId, details?: ConsumerDetails) {
+    if (id && details) this.names.set(id, `${details.firstName} ${details.lastName}`);
+    return { kind: 'ok' as const, value: undefined };
+  }
+
+  async issueVerificationLink(id: ProviderAccountId, requestKey: string) {
+    const result = await super.issueVerificationLink(id, requestKey);
+    this.queue.push({ providerEventId: `sim_verified_${result.value.sessionId}`, providerAccountId: id, accountKind: 'consumer',
+      sessionId: result.value.sessionId, event: { type: 'verification_passed' } });
+    return result;
+  }
+
+  async activate(id?: ProviderAccountId) {
+    if (id) {
+      const digits = BigInt(`0x${createHash('sha256').update(id).digest('hex').slice(0, 15)}`).toString().padStart(12, '0').slice(-12);
+      this.queue.push({ providerEventId: `sim_activated_${id}`, providerAccountId: id, accountKind: 'consumer',
+        event: { type: 'activated', wallet: { number: digits, name: this.names.get(id) ?? 'Simulated payee' } } });
+    }
+    return { kind: 'ok' as const, value: undefined };
+  }
+
+  /** The events queued since the last call. */
+  takeEvents(): AccountEvent[] {
+    const events = this.queue;
+    this.queue = [];
+    return events;
+  }
 }

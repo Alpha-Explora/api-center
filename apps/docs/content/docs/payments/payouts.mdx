@@ -23,8 +23,8 @@ Payouts are being rolled out in stages: new features open in test first, then in
 | Payees, destinations and verification records | Available | Available |
 | Allocations: hold, release, cancel, refund recovery | Available | Available |
 | Earnings (`GET /payees/{payeeId}`) and the payout list | Available | Available |
-| Sending payouts: the weekly payout and cash-out | Available once APICenter sets the test payout wallet (until then `409 WALLET_NOT_CONFIGURED`) | Not available yet. Cash-out returns `409 PAYOUTS_LIVE_DISABLED`. |
-| [Payee wallet onboarding](#test-payee-wallet-onboarding) | Pilot: turn it on for your project in the console | Not available yet |
+| Sending payouts: the weekly payout and cash-out | Available, simulated: transfers succeed at once and never reach the payment provider, whose test mode has no payout wallet | Not available yet. Cash-out returns `409 PAYOUTS_LIVE_DISABLED`. |
+| [Payee wallet onboarding](#test-payee-wallet-onboarding) | Pilot, simulated identity check: turn it on for your project in the console | Not available yet |
 | A merchant account of the project's own | Available: turn it on for your project in the console | Not available yet. Payments are collected through APICenter's account, and nothing changes in your integration when it opens. |
 
 The console's **Payouts** page shows availability in each environment. When APICenter pauses sending, cash-out returns `409 PAYOUTS_PAUSED`. Earnings are kept for the next eligible payout after sending resumes.
@@ -119,11 +119,11 @@ if (!isPending(onboarding) && onboarding.verification) {
 
 The API returns a new hosted link only on the response that issued it. Status reads and idempotent replays
 return `verification: null`. To issue a new link, call `reissueOnboardingLink(payeeId)` with a new idempotency key.
-The payment provider's test environment returns placeholder links. Use the local mock flow to test the identity and activation steps.
+In test the identity check is simulated, because the payment provider's test mode has none: it passes as soon as the link is issued, and the link is a placeholder.
 
 Listen for `payee.onboarding.updated`, then read `getOnboarding(payeeId)`. When `nextAction` is `activate`,
-call `activateOnboarding(payeeId)`. In local mock payments mode, a verified activation can attach a test wallet
-and start the existing 24-hour destination hold. Your application owns payee eligibility and release rules.
+call `activateOnboarding(payeeId)`. In test, activation attaches a simulated wallet in the payee's name as the payee's destination
+and starts the 24-hour destination hold. Your application owns payee eligibility and release rules.
 Provider wallet onboarding is test-only. The [project verification record](#record-how-you-verified-a-payee)
 continues to govern payouts where the project requires it.
 

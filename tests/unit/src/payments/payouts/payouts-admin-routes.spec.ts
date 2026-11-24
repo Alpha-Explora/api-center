@@ -72,7 +72,7 @@ describe('runtime payout admin routes', () => {
   it('reports an unconfigured wallet, and that sending payouts is not available yet', async () => {
     wallet = { ...wallet, wallet: null };
     const { data } = (await call('GET', '/admin/payouts/overview')).body;
-    expect(data.wallet).toEqual({ configured: false, available: null, lowFloatAlert: 100_000 });
+    expect(data.wallet).toEqual({ configured: false, available: null, lowFloatAlert: 100_000, simulated: false });
     expect(data.availability.transfers).toEqual({ available: false, reason: 'wallet_not_configured' });
     expect(data.nextScheduledAt).toBeNull();
   });

@@ -2,10 +2,11 @@
 // pending and reported as succeeded on lookup; tests can force the next submission to fail.
 
 import { randomUUID } from 'node:crypto';
-import { isMockMode } from '../../shared/paymongo-client';
+import { isMockMode, simulatesTestWallets } from '../../shared/paymongo-client';
 import type { MerchantAccount } from './merchant-accounts';
 import type { LookupResult, MoneyMover, SubmitResult, TransferRequest } from './money-mover';
 import { PayMongoMoneyMover } from './paymongo-money-mover';
+import { SimulatedMoneyMover } from './simulated-money-mover';
 
 export class MockMoneyMover implements MoneyMover {
   private readonly transfers = new Map<string, { referenceNumber: string }>();
@@ -47,5 +48,6 @@ export class MockMoneyMover implements MoneyMover {
 }
 
 export function createMoneyMover(): MoneyMover {
-  return isMockMode() ? new MockMoneyMover() : new PayMongoMoneyMover();
+  if (isMockMode()) return new MockMoneyMover();
+  return simulatesTestWallets() ? new SimulatedMoneyMover() : new PayMongoMoneyMover();
 }

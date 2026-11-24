@@ -24,6 +24,14 @@ export function isMockMode(): boolean {
   return false;
 }
 
+/**
+ * The deployed test environment: real provider test mode for payments, but simulated payouts and payee wallet checks,
+ * because the provider's test mode has no payout wallet or consumer identity check.
+ */
+export function simulatesTestWallets(): boolean {
+  return providerMode() === 'test';
+}
+
 export function providerMode(): string {
   if (isMockMode()) return 'mock';
   return process.env.PAYMENT_PROVIDER_MODE === 'test' ? 'test' : 'live';

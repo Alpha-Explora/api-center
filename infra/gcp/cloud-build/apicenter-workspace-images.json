@@ -12,13 +12,15 @@
   "steps": [
     {
       "name": "gcr.io/cloud-builders/docker",
-      "id": "workspace",
+      "id": "builder",
       "args": [
         "build",
         "-f",
         "docker/Dockerfile.workspace",
         "--target",
-        "workspace",
+        "builder",
+        "--build-arg",
+        "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
         "-t",
         "apicenter-workspace-build",
         "."
@@ -27,6 +29,9 @@
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-gateway",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -42,14 +47,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-payments",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -65,14 +70,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-email",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -88,14 +93,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-sms",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -111,14 +116,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-otp",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -134,14 +139,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-gauth",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -157,14 +162,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-geo",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -180,14 +185,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-webhooks",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -203,14 +208,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-webhooks:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "workspace"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-management",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -226,20 +231,14 @@
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:build-${BUILD_ID}",
         "."
-      ],
-      "waitFor": [
-        "build-gateway",
-        "build-payments",
-        "build-email",
-        "build-sms",
-        "build-otp",
-        "build-gauth",
-        "build-geo"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
       "id": "build-docs",
+      "waitFor": [
+        "builder"
+      ],
       "args": [
         "build",
         "-f",
@@ -247,15 +246,128 @@
         "--target",
         "docs-runtime",
         "--build-arg",
-        "APP=docs",
-        "--build-arg",
         "GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}",
         "-t",
         "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}",
         "."
-      ],
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-gateway",
       "waitFor": [
-        "build-management"
+        "build-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gateway:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-payments",
+      "waitFor": [
+        "build-payments",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-payments:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-email",
+      "waitFor": [
+        "build-email",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-email:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-sms",
+      "waitFor": [
+        "build-sms",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-sms:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-otp",
+      "waitFor": [
+        "build-otp",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-otp:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-gauth",
+      "waitFor": [
+        "build-gauth",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-gauth:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-geo",
+      "waitFor": [
+        "build-geo",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-geo:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-webhooks",
+      "waitFor": [
+        "build-webhooks",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-webhooks:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-management",
+      "waitFor": [
+        "build-management",
+        "push-gateway"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-management:build-${BUILD_ID}"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "id": "push-docs",
+      "waitFor": [
+        "build-docs"
+      ],
+      "args": [
+        "push",
+        "asia-southeast1-docker.pkg.dev/apicenter-alpha-20260623/api-center/apicenter-docs:build-${BUILD_ID}"
       ]
     }
   ],
