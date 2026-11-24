@@ -39,9 +39,9 @@ export class PayMongoLinkedAccountsSandbox implements LinkedAccountsProvider {
     return { kind: 'ok' as const, value: { providerAccountId: account.data.data.id } };
   }
 
-  async findByReference() {
-    // The sandbox does not persist accounts or expose a reference search.
-    return { kind: 'ok' as const, value: null };
+  async findByReference(reference: string) {
+    // The sandbox returns a static fixture, so repeating the test create cannot create another merchant.
+    return this.create(reference);
   }
 
   async submitDetails(id: ProviderAccountId, details: MerchantDetails) {

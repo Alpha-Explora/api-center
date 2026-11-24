@@ -82,4 +82,27 @@ describe('linked account onboarding', () => {
     await expect(onboarding.reissueVerificationLink(context, started.id, randomUUID())).rejects
       .toMatchObject({ code: 'VERIFICATION_ATTEMPTS_EXHAUSTED' });
   });
+
+  it('accepts a pass from an older issued session and ignores its stale failure', async () => {
+    const { store, switches, onboarding } = setup();
+    await switches.setProject('test', context.projectId, true, 'operator');
+    const started = await onboarding.start(context, details);
+    const record = (await store.current(context))!;
+    const sessionId = record.verificationSessionId!;
+    const providerAccountId = record.providerAccountId!;
+    await onboarding.reissueVerificationLink(context, started.id, randomUUID());
+    const currentSession = (await store.current(context))!.verificationSessionId!;
+    expect(currentSession).not.toBe(sessionId);
+    const failure = { type: 'verification_failed' as const, reason: 'fixture' };
+    await onboarding.applyProviderEvent('test', { providerEventId: 'evt_stale_failure', providerAccountId, sessionId, event: failure });
+    await expect(onboarding.current(context)).resolves.toMatchObject({ status: 'verification_pending', attempts: 0 });
+    const pass = { type: 'verification_passed' as const };
+    await expect(onboarding.applyProviderEvent('test', { providerEventId: 'evt_unrecognized', providerAccountId,
+      sessionId: 'verif_unknown', event: pass })).resolves.toBe('unknown_account');
+    const update = { providerEventId: 'evt_older_pass', providerAccountId, sessionId, event: pass };
+    await expect(onboarding.applyProviderEvent('test', update)).resolves.toBe('applied');
+    await expect(onboarding.applyProviderEvent('test', update)).resolves.toBe('duplicate');
+    await onboarding.applyProviderEvent('test', { providerEventId: 'evt_late_failure', providerAccountId, sessionId: currentSession, event: failure });
+    await expect(onboarding.current(context)).resolves.toMatchObject({ status: 'activation_pending', attempts: 0 });
+  });
 });

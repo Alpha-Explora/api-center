@@ -74,7 +74,7 @@ export class PaymentWebhookController {
       providerEventId,
     };
 
-    if (!accountId) await this.auditEvents.record({
+    const recordReceipt = () => this.auditEvents.record({
       type: "shared_service.webhook.received",
       actionFamily: "shared_service",
       sharedServiceId: "payment",
@@ -85,13 +85,15 @@ export class PaymentWebhookController {
         environment: targetEnvironment,
         provider: "paymongo",
         providerEventKey,
-        route: `/webhooks/${targetEnvironment}`,
+        route: accountId ? `/webhooks/${targetEnvironment}/accounts/${accountId}` : `/webhooks/${targetEnvironment}`,
+        ...(accountId ? { merchantAccountId: accountId, verifiedBy: "payments-runtime" } : {}),
         upstream,
         contentType: getHeader(req, "content-type") || "application/json",
         rawBodyBytes: rawBody.length,
         signaturePresent: Boolean(signatureHeader),
       },
     });
+    if (!accountId) await recordReceipt();
 
     const cloudRunAuthorization =
       await getCloudRunAuthorizationHeader(upstream);
@@ -124,6 +126,7 @@ export class PaymentWebhookController {
 
     const text = await response.text();
     res?.status(response.status);
+    if (accountId && response.ok) await recordReceipt();
 
     if (!text) {
       return {};

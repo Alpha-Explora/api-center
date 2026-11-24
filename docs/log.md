@@ -2,6 +2,8 @@
 
 ## 2026-11-24
 
+- Recorded the linked-account review fixes, including recovery after an uncertain create, sandbox session matching, and the resource owner index lock during migration.
+
 - Added linked-account sandbox evidence, the merchant-account operating procedures and the payee verification API guide. The working plan tracks the remaining live onboarding and rollout checks.
 
 ## 2026-11-21

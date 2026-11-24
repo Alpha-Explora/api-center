@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { PayMongoError } from '../../shared/payment-errors';
 import type { PaymentContext } from '../../shared/payment-owner-store';
+import type { WalletAccount } from '../payouts/merchant-accounts';
 import { SANDBOX_MERCHANT_ID, type AccountEvent } from './account-events';
 import { applyEvent, initialState, type LinkedAccountState, type ProviderAccountId } from './linked-account-lifecycle';
 
@@ -48,6 +49,7 @@ function fromRow(row: AccountRow): LinkedAccountRecord {
 export class LinkedAccountStore {
   private readonly records = new Map<string, LinkedAccountRecord>();
   private readonly events = new Set<string>();
+  private readonly sessions = new Map<string, Set<string>>();
   private readonly locks = new Map<string, Promise<unknown>>();
 
   constructor(private readonly pool?: Pool) {}
@@ -98,22 +100,50 @@ export class LinkedAccountStore {
     );
   }
 
+  async addVerificationSession(record: LinkedAccountRecord, sessionId: string, query?: PoolClient): Promise<boolean> {
+    if (!query) {
+      const sessions = this.sessions.get(record.id) ?? new Set<string>();
+      if (sessions.has(sessionId)) return false;
+      sessions.add(sessionId);
+      this.sessions.set(record.id, sessions);
+      return true;
+    }
+    const result = await query.query(
+      `INSERT INTO shared_payment.linked_account_verification_sessions (linked_account_id, session_id)
+        VALUES ($1,$2) ON CONFLICT DO NOTHING`, [record.id, sessionId],
+    );
+    return result.rowCount === 1;
+  }
+
+  private async eventAccount(environment: Environment, event: AccountEvent, query?: PoolClient | Pool) {
+    const sandbox = event.providerAccountId === SANDBOX_MERCHANT_ID;
+    if (sandbox && (environment !== 'test' || !event.sessionId)) return undefined;
+    if (!query) {
+      const matches = [...this.records.values()].filter((record) => record.environment === environment
+        && record.providerAccountId === event.providerAccountId
+        && (!event.sessionId || this.sessions.get(record.id)?.has(event.sessionId)));
+      return matches.length === 1 ? matches[0] : undefined;
+    }
+    const result = await query.query<AccountRow>(
+      `SELECT a.* FROM shared_payment.linked_accounts a
+        WHERE a.environment = $1 AND a.provider_account_id = $2
+        AND ($3::text IS NULL OR EXISTS (
+          SELECT 1 FROM shared_payment.linked_account_verification_sessions s
+          WHERE s.linked_account_id = a.id AND s.session_id = $3
+        )) LIMIT 2`,
+      [environment, event.providerAccountId, event.sessionId ?? null],
+    );
+    return result.rows.length === 1 ? fromRow(result.rows[0]) : undefined;
+  }
+
   async applyProviderEvent(environment: Environment, event: AccountEvent): Promise<'applied' | 'duplicate' | 'unknown_account'> {
-    if (environment === 'live' && event.providerAccountId === SANDBOX_MERCHANT_ID) return 'unknown_account';
-    const find = async (query?: PoolClient | Pool) => {
-      if (!query) return [...this.records.values()].find((record) => record.environment === environment
-        && record.providerAccountId === event.providerAccountId);
-      const result = await query.query<AccountRow>(
-        'SELECT * FROM shared_payment.linked_accounts WHERE environment = $1 AND provider_account_id = $2',
-        [environment, event.providerAccountId],
-      );
-      return result.rows[0] ? fromRow(result.rows[0]) : undefined;
-    };
-    const candidate = await find(this.pool);
+    // A real merchant can be found before its in-flight link transaction commits.
+    const accountLookup = event.providerAccountId === SANDBOX_MERCHANT_ID ? event : { ...event, sessionId: undefined };
+    const candidate = await this.eventAccount(environment, accountLookup, this.pool);
     if (!candidate) return 'unknown_account';
     return this.lock(environment, candidate.projectId, async (query) => {
-      const record = await find(query);
-      if (!record) return 'unknown_account';
+      const record = await this.eventAccount(environment, event, query);
+      if (!record || record.id !== candidate.id) return 'unknown_account';
       if (query) {
         const result = await query.query(
           `INSERT INTO shared_payment.linked_account_events (environment, provider_event_id, linked_account_id, type)
@@ -125,7 +155,9 @@ export class LinkedAccountStore {
         if (this.events.has(key)) return 'duplicate';
         this.events.add(key);
       }
-      if (record.closedAt || (event.sessionId && record.verificationSessionId !== event.sessionId)) return 'applied';
+      if (record.closedAt || (event.event.type === 'verification_failed' && record.verificationSessionId !== event.sessionId)) {
+        return 'applied';
+      }
       const next = applyEvent(record, event.event);
       if (next !== record) await this.save({ ...record, ...next }, query);
       if (query && event.event.type === 'activated' && next.status === 'active' && event.providerAccountId !== SANDBOX_MERCHANT_ID) {
@@ -144,15 +176,31 @@ export class LinkedAccountStore {
     });
   }
 
-  async move(record: LinkedAccountRecord, accountId: 'parent' | ProviderAccountId, query?: PoolClient): Promise<void> {
+  async hasWallet(record: LinkedAccountRecord, query: Pool | PoolClient | undefined = this.pool): Promise<boolean> {
+    if (!query) return false;
+    const result = await query.query(
+      `SELECT 1 FROM shared_payment.merchant_accounts WHERE environment = $1 AND id = $2
+        AND linked_account_id = $3 AND status = 'active' AND wallet_account_number IS NOT NULL
+        AND wallet_account_name IS NOT NULL`, [record.environment, record.providerAccountId, record.id],
+    );
+    return result.rowCount === 1;
+  }
+
+  async move(record: LinkedAccountRecord, accountId: 'parent' | ProviderAccountId,
+    query?: PoolClient, discoveredWallet?: WalletAccount | null): Promise<void> {
     if (!query) throw new PayMongoError('Project routing requires persistent storage', 503, 'LINKED_ACCOUNTS_STORAGE_REQUIRED');
     if (accountId !== 'parent') {
-      const eligible = await query.query(
-        `SELECT 1 FROM shared_payment.merchant_accounts WHERE environment = $1 AND id = $2
-          AND linked_account_id = $3 AND status = 'active' AND wallet_account_number IS NOT NULL
-          AND wallet_account_name IS NOT NULL`, [record.environment, accountId, record.id],
-      );
-      if (!eligible.rowCount) throw new PayMongoError('The linked account wallet is unavailable', 409, 'WALLET_NOT_CONFIGURED');
+      if (discoveredWallet) {
+        await query.query(
+          `UPDATE shared_payment.merchant_accounts SET wallet_account_number = $4, wallet_account_name = $5, updated_at = now()
+            WHERE environment = $1 AND id = $2 AND linked_account_id = $3 AND status = 'active'
+              AND (wallet_account_number IS NULL OR wallet_account_name IS NULL)`,
+          [record.environment, accountId, record.id, discoveredWallet.number, discoveredWallet.name],
+        );
+      }
+      if (!await this.hasWallet(record, query)) {
+        throw new PayMongoError('The linked account wallet is unavailable', 409, 'WALLET_NOT_CONFIGURED');
+      }
     }
     await query.query(
       `INSERT INTO shared_payment.project_merchant_accounts (environment, project_id, effective_from, merchant_account_id)
@@ -161,6 +209,9 @@ export class LinkedAccountStore {
   }
 
   async close(record: LinkedAccountRecord, query?: PoolClient): Promise<void> {
+    if (record.status === 'draft' && record.createStartedAt) {
+      throw new PayMongoError('Reconcile account creation before closing onboarding', 409, 'LINKED_ACCOUNT_OUTCOME_UNKNOWN');
+    }
     if (query && record.providerAccountId) {
       const balance = await query.query(
         `SELECT 1 FROM shared_payment.payout_allocations WHERE environment = $1 AND merchant_account_id = $2

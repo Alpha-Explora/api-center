@@ -78,7 +78,7 @@ PayMongo documents that its test Accounts API returns mock responses without per
 |---|---|
 | 15 | Test endpoint and response shape captured. Live activation requirements, idempotency, a working hosted session, capability request and end-to-end webhook delivery are open. |
 | 16–18 | Lifecycle, migrations, environment and project switches, and merchant-account resolver implemented. |
-| 19–21 | Mock and PayMongo sandbox adapters, onboarding storage and verified lifecycle callbacks implemented. A lost create remains pending if its account cannot be proved. Live provider onboarding and capability provisioning remain open. |
+| 19–21 | Mock and PayMongo sandbox adapters, onboarding storage and verified lifecycle callbacks implemented. The create claim commits before dispatch and each successful step commits before the next call. Sandbox projects can share the static merchant ID. Verified session IDs resolve callbacks to one onboarding record. Live provider onboarding and capability provisioning remain open. |
 | 22–23 | Collections and retries retain the originally selected account. Reads and refunds use ownership records. Payout pools and reporting are split by account. Child delivery uses its own account-scoped signing secret. |
 | 24 | Projects can record payee verification through the API and SDK. Optional payout enforcement defaults off. |
 | 25 | Console state, write permissions, audit, wallet overview, and operator runbook implemented. The test account cannot route collections because it has no verified wallet. |
@@ -458,7 +458,7 @@ The project verifies its payees; APICenter records what the project says and can
 ## After Phase A
 
 Deployment needs the user's approval. In order:
-1. Apply migrations `20261124001300` and `20261124001400` (after `20261121001200`).
+1. Apply migrations `20261124001300` through `20261124001500` (after `20261121001200`). Schedule the first migration as described in the [payouts runbook](../../operations/payouts-runbook.md#onboarding-a-projects-account).
 2. Deploy with `LINKED_ACCOUNTS_ENABLED` and `PAYOUTS_REQUIRE_PAYEE_VERIFICATION` unset. Nothing changes.
 3. In the test runtime only: turn on `LINKED_ACCOUNTS_ENABLED`, enable one project, and onboard it end to end.
 4. Live, only after the PayMongo blockers clear: enable Serbizio alone, make the approved ₱1 transfer from its child account, then move it.

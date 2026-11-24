@@ -59,6 +59,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Fixed
 
+- PayMongo payouts and wallet reads use the v2 endpoints. Linked merchant onboarding retains the original create reference when a write fails, and sandbox onboarding supports separate records per project.
 - Members: a new member is invited and must sign in within 7 days. Before, the membership was active at once and never lapsed, so whoever first signed in with a mistyped or recycled address got access. An expired invite grants nothing until **Resend invite** renews it. Members can also be suspended and restored. Existing members are unaffected (migration `20261120001090`).
 - Retention: usage records (90 days), quota counters (62 days) and key-issue receipts (30 days) are purged by the history purge job, which previously never touched the control-plane tables. A managed table that no longer exists no longer fails the job.
 - Console: a failure that may clear by itself (the gateway busy or starting, a timeout, rate limiting, the network) is retried up to three times with backoff, honouring `Retry-After`; answers such as 403 or 404 are not retried. Error panels for those failures say so in plain words and offer Try again, which refetches every failed query on the page; the gateway's error code moves under Details. HTML error pages from a proxy no longer appear in messages.
