@@ -21,6 +21,23 @@ describe("feature escalation decisions", () => {
     expect(FEATURE_CATALOG[key].needsApproval(change, { environment: "live", current })).toBe(expected);
   });
 
+  it("never asks approval to lower a limit, only to raise it above what is already allowed", () => {
+    const approved = (environment: "test" | "live", dailyLimit: number) => ({ environment, current: { dailyLimit, defaultDailyLimit: 500 } });
+    expect(FEATURE_CATALOG["sms.daily_limit"].needsApproval({ dailyLimit: 1500 }, approved("live", 2000))).toBe(false);
+    expect(FEATURE_CATALOG["sms.daily_limit"].needsApproval({ dailyLimit: 2500 }, approved("live", 2000))).toBe(true);
+    const sender = { fromAddress: "billing@example.com" };
+    for (const environment of ["test", "live"] as const) {
+      const current = { ...approved(environment, 2000).current, ...sender };
+      expect(FEATURE_CATALOG["email.sender"].needsApproval({ ...sender, dailyLimit: 1500 }, { environment, current })).toBe(false);
+      expect(FEATURE_CATALOG["email.sender"].needsApproval({ ...sender, dailyLimit: null }, { environment, current })).toBe(false);
+      expect(FEATURE_CATALOG["email.sender"].needsApproval({ ...sender, dailyLimit: 2500 }, { environment, current })).toBe(true);
+    }
+    expect(FEATURE_CATALOG["email.sender"].needsApproval({ fromAddress: "other@example.com", dailyLimit: 1500 },
+      { environment: "live", current: { ...approved("live", 2000).current, ...sender } })).toBe(true);
+    expect(FEATURE_CATALOG["email.sender"].needsApproval({ fromAddress: "other@example.com", dailyLimit: null },
+      { environment: "test", current: { defaultDailyLimit: 500, ...sender } })).toBe(false);
+  });
+
   it("returns a feature key to the project and rejects malformed changes", () => {
     const member = { kind: "member", email: "admin@example.com", subject: "subject", platformAdmin: false } as const;
     expect(() => assertFeatureAllowed(member, "payments.live", {}, { environment: "live", current: {} }))

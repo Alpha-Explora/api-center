@@ -28,6 +28,12 @@ type Definition<C extends Record<string, unknown>> = {
   summary(change: C): string;
 };
 
+/** The highest daily limit the project may already use: the approved limit, or the default when that is higher. */
+function allowedLimit(current: Record<string, unknown>): number {
+  const fallback = typeof current.defaultDailyLimit === "number" ? current.defaultDailyLimit : SMS_DAILY_LIMIT_DEFAULT;
+  return typeof current.dailyLimit === "number" ? Math.max(current.dailyLimit, fallback) : fallback;
+}
+
 function define<C extends Record<string, unknown>>(definition: Definition<C>) {
   return {
     ...definition,
@@ -51,7 +57,7 @@ export const FEATURE_CATALOG = {
     summary: () => "Enable live payments",
   }),
   "payouts.sending": define({
-    ...available, title: "Sending payouts", description: "Send payouts from your project's wallet.", release: "coming_soon",
+    ...available, title: "Sending payouts", description: "Pay payees from the money your project collects.", release: "coming_soon",
     change: empty, needsApproval: (_, { environment, current }) => environment === "live" && current.enabled !== true,
     summary: () => "Enable payout transfers",
   }),
@@ -76,19 +82,14 @@ export const FEATURE_CATALOG = {
   "email.sender": define({
     ...available, title: "Email sender", description: "Set a sender address or raise the email sending limit.",
     change: z.strictObject({ fromAddress: z.email().max(320), dailyLimit: smsDailyLimit.nullable() }),
-    needsApproval: ({ fromAddress, dailyLimit }, { environment, current }) => {
-      const previousLimit = current.dailyLimit ?? null;
-      if (fromAddress === current.fromAddress && dailyLimit === previousLimit) return false;
-      return environment === "live" || (dailyLimit !== null
-        && (typeof current.defaultDailyLimit !== "number" || dailyLimit > current.defaultDailyLimit));
-    },
+    needsApproval: ({ fromAddress, dailyLimit }, { environment, current }) =>
+      (environment === "live" && fromAddress !== current.fromAddress) || (dailyLimit !== null && dailyLimit > allowedLimit(current)),
     summary: ({ fromAddress, dailyLimit }) => `Send email from ${fromAddress}${dailyLimit === null ? "" : ` with a daily limit of ${dailyLimit}`}`,
   }),
   "sms.daily_limit": define({
     ...available, title: "Higher SMS limit", description: "Raise the daily SMS and OTP text limit.",
     change: z.strictObject({ dailyLimit: smsDailyLimit.nullable() }),
-    needsApproval: ({ dailyLimit }, { current }) => dailyLimit !== null && dailyLimit !== current.dailyLimit
-      && dailyLimit > (typeof current.defaultDailyLimit === "number" ? current.defaultDailyLimit : SMS_DAILY_LIMIT_DEFAULT),
+    needsApproval: ({ dailyLimit }, { current }) => dailyLimit !== null && dailyLimit > allowedLimit(current),
     summary: ({ dailyLimit }) => `Set daily SMS limit to ${dailyLimit ?? SMS_DAILY_LIMIT_DEFAULT}`,
   }),
   "sms.international": define({

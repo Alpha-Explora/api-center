@@ -57,8 +57,8 @@ User permissions (console roles) stay a third, separate check.
 | `payouts.merchant_account` | `{}` | The project's own merchant account is turned on (test and live) |
 | `payouts.payee_wallets` | `{}` | Payee wallet onboarding is turned on for the project (test only) |
 | `sms.sender` | `{ senderId }` | A sender ID is pinned or changed in live |
-| `email.sender` | `{ fromAddress, dailyLimit }` | In live: the address or limit changes. In both environments: `dailyLimit` is above the runtime's default. |
-| `sms.daily_limit` | `{ dailyLimit }` | `dailyLimit` is above the default of 500 (test and live) |
+| `email.sender` | `{ fromAddress, dailyLimit }` | In live: the address changes. In both environments: `dailyLimit` is above both the runtime's default and the current limit. |
+| `sms.daily_limit` | `{ dailyLimit }` | `dailyLimit` is above both the default of 500 and the current limit (test and live) |
 | `sms.international` | `{ prefixes }` | `prefixes` adds a calling code other than `+63` that isn't already allowed (test and live) |
 
 Rules that apply to every feature:
