@@ -3,8 +3,7 @@
   "serviceAccount": "projects/apicenter-alpha-20260623/serviceAccounts/apicenter-cloudbuild-deployer@apicenter-alpha-20260623.iam.gserviceaccount.com",
   "options": {
     "logging": "CLOUD_LOGGING_ONLY",
-    "diskSizeGb": 100,
-    "machineType": "E2_HIGHCPU_8"
+    "diskSizeGb": 100
   },
   "substitutions": {
     "_GOOGLE_CLIENT_ID": "",
