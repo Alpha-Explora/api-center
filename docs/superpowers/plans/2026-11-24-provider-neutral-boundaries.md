@@ -36,7 +36,7 @@ Built on `feat/provider-neutral`, stacked on the PR #236 branch; rebase onto `ma
 | Task | State | Commit |
 |---|---|---|
 | 1 | ADR-0010 and the deprecation section of the public versioning page. | `f9b2529a` |
-| 2 | Report script built and run against a replayed database. **Running it against test and live needs the user's approval.** | `4cce38ed` |
+| 2 | Report script built; production results in the Usage section. | `4cce38ed` |
 | 3 | Guardrail live in `npm run contracts:validate` and `npm run check:documentation`; existing leaks cleaned; sub-processors listed on `providers-and-data.mdx`. | `eb8c8bca` |
 | 4 | Neutral payment errors, intent failure reasons and payout failure codes. | `cd0be2fb` |
 | 5 | APICenter payment IDs; migration `20261124001700` replaces existing IDs. | `27e15522` |
@@ -55,6 +55,20 @@ Built on `feat/provider-neutral`, stacked on the PR #236 branch; rebase onto `ma
 - **One version bump.** Contracts 1.5.0 and SDK 3.6.0 cover every additive change in this plan, since none is released yet.
 
 **Verification:** typecheck, lint, contract validation and compatibility, docs checks, 1036 unit tests, 269 console tests, 41 SDK tests, and, on a fresh Supabase Postgres 17 with all 43 migrations replayed, 26 integration tests and the payout and payment schema tests. The two retention tests that `SET ROLE` fail on that image for lack of permission, before and after this plan.
+
+## Usage (production database, 2026-11-24, read-only)
+
+Test and live share one Supabase database (`hguyivbodlrmooayuxwt`), separated by `environment`. The runtimes deployed then were built from `main` at `1f76610`; the payouts, linked-account, payee-wallet and provider-neutral migrations were not applied (no `shared_payment.payouts` table).
+
+| Area | Live | Test |
+|---|---|---|
+| Payment records whose IDs migration `…1700` replaces | 3 (1 checkout, 1 intent, 1 payment), one project `prj_wf77n3zzddqttdepy6naqek4` | 48, projects `prj_wf77n3zzddqttdepy6naqek4` and `prj_n33x0no0mfzsdy2xcedqh8jf` |
+| SMS messages (`…1800`) | 0 | 0 |
+| Email messages (`…1900`) | 6, two projects | 10, one project |
+| Geocoding calls (deprecated geo fields) | none recorded | none recorded |
+| Event destinations (`pubsub-push` vs `webhook`) | none | none |
+
+Only project `prj_wf77n3zzddqttdepy6naqek4` needs notice of the payment ID replacement.
 
 ## Decisions
 
