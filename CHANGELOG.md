@@ -19,6 +19,14 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Payouts:
+  - **Payees and allocations.** Register payees with `POST /api/v1/payments/payees` and set where they are paid with `PUT /api/v1/payments/payees/{payeeId}/destination`: InstaPay (GCash or bank) or a provider wallet, held for 24 hours after a change. Attach `allocations` to checkouts, payment intents and payment links. Each is held when the payment is paid, then released or cancelled with `POST /api/v1/payments/allocations/{allocationId}/release|cancel`.
+  - **When payees are paid.** Released earnings are pooled per payee and paid weekly (Friday 20:00 Asia/Manila by default), or on `POST /api/v1/payments/payees/{payeeId}/cash-out` within a daily cap.
+  - **Following payouts.** `GET /api/v1/payments/payouts` lists payouts. A refund after a payout is recovered from the payee's next payout.
+  - **Scopes and events.** New scopes `payments:payouts:read` and `payments:payouts:write`. New events `payment.allocation.held`, `payment.payout.paid` and `payment.payout.failed` (AsyncAPI 2.2.0).
+  - **SDK and contracts.** SDK 3.3.0 adds `payments.payees`, `payments.allocations`, `payments.payouts` and the new event types. Contracts 1.2.0 adds the payout types.
+  - **Deployment.** Requires migration `20261121001200`. Live money movement stays off until `PAYOUTS_LIVE_ENABLED=true`. See `docs/operations/payouts-runbook.md`.
+
 - Lifecycle actions: suspend and resume an application (its keys and workload identities are refused with `APPLICATION_INACTIVE`), archive and restore a project (every request refused with `PROJECT_INACTIVE`, nothing deleted), and delete a team (its project roles go with it, unless it is a project's only administrator). Each is in the console and audited.
 - Public guides "Errors and retries" (the error response, which failures to retry, and the common codes) and "Versions and changes" (what v1 may add at any time, and how breaking changes ship).
 - SDK 3.2.0: `error.retryable` says whether the same request may succeed if sent again. The SDK's own retries use the same rule.

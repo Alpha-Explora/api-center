@@ -9,5 +9,6 @@ Accepted decisions explain boundaries and v1 constraints. A changed decision req
 - [Consumer-supplied amounts](0005-consumer-supplied-charge-amounts.md)
 - [Dedicated GCP project](0006-dedicated-apicenter-gcp-project.md)
 - [Turborepo monorepo](0007-apicenter-turborepo-monorepo.md)
+- [Project payouts through resolved merchant accounts](0008-project-payouts-through-resolved-merchant-accounts.md) (proposed; ADR-0001 and ADR-0002 apply until accepted)
 
 Return to the [documentation index](../index.md).

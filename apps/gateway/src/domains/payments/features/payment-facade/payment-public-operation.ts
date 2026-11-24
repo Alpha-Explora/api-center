@@ -19,20 +19,32 @@ export function enabledPaymentMethods(environment: 'test' | 'live', env: NodeJS.
 const money = z.object({ amountMinor: z.number().int().positive(), currency: z.literal('PHP') });
 const reference = z.string().min(1).max(255);
 const link = z.string().min(1).max(2048);
+/** Payee shares of a payment; held when it is paid, paid out once the project releases them. */
+// One share is paid in one transfer, so it can be no larger than one InstaPay transfer (₱50,000).
+const allocationAmount = z.object({ amountMinor: z.number().int().positive().max(5_000_000), currency: z.literal('PHP') });
+const allocations = z.array(z.object({ payeeId: z.string().regex(/^pye_[A-Za-z0-9]+$/), amount: allocationAmount }).strict())
+  .min(1).max(20).optional();
+const accountNumber = z.string().regex(/^[0-9]{6,20}$/);
+const accountName = z.string().trim().min(1).max(200);
 const schemas = {
   checkout: z.object({ referenceId: reference, amount: money, successUrl: link, cancelUrl: link,
     paymentMethods: z.array(z.enum(PAYMENT_METHODS)).min(1).max(PAYMENT_METHODS.length).optional(),
-    metadata: z.record(z.string(), z.string()).optional() }),
+    metadata: z.record(z.string(), z.string()).optional(), allocations }),
   // A wallet intent names its wallet and where the wallet returns the customer; a plain intent has neither.
   intent: z.object({ referenceId: reference, amount: money, paymentMethod: z.enum(WALLET_METHODS).optional(),
     returnUrl: link.optional(), description: z.string().max(255).optional(),
     billing: z.object({ name: z.string().trim().min(1).max(255).optional(), email: z.email().optional(),
-      phone: z.string().trim().min(1).max(32).optional() }).optional() })
+      phone: z.string().trim().min(1).max(32).optional() }).optional(), allocations })
     .refine((intent) => !intent.paymentMethod === !intent.returnUrl),
   qrph: z.object({ referenceId: reference, amount: money, description: z.string().max(255).optional(),
     expirySeconds: z.number().int().min(60).max(9000).optional() }),
   paymentLink: z.object({ referenceId: reference, amount: money, description: z.string().trim().min(1).max(255),
-    remarks: z.string().max(255).optional(), metadata: z.record(z.string(), z.string()).optional() }),
+    remarks: z.string().max(255).optional(), metadata: z.record(z.string(), z.string()).optional(), allocations }),
+  payee: z.object({ externalRef: z.string().trim().min(1).max(120), legalName: z.string().trim().min(1).max(200) }).strict(),
+  destination: z.discriminatedUnion('type', [
+    z.object({ type: z.literal('instapay'), bic: z.string().regex(/^[A-Z0-9]{8}([A-Z0-9]{3})?$/), accountNumber, accountName }).strict(),
+    z.object({ type: z.literal('provider_wallet'), accountNumber, accountName }).strict(),
+  ]),
   archive: z.object({ archive: z.boolean() }),
   customer: z.object({ customerReference: reference, email: z.email(), name: z.string().max(255).optional() }),
   plan: z.object({ name: z.string().trim().min(1).max(255), description: z.string().max(1000).optional(),
@@ -48,7 +60,8 @@ const schemas = {
 };
 
 type Shape = keyof typeof schemas;
-type Resource = 'checkout' | 'intent' | 'qrph' | 'payment_link' | 'customer' | 'plan' | 'refund' | 'subscription' | 'invoice' | 'capabilities' | 'records';
+type Resource = 'checkout' | 'intent' | 'qrph' | 'payment_link' | 'customer' | 'plan' | 'refund' | 'subscription' | 'invoice'
+  | 'payee' | 'allocation' | 'payout' | 'capabilities' | 'records';
 type Operation = { method: string; pattern: RegExp; scope: string; target: (match: RegExpMatchArray) => string;
   resource: Resource; shape?: Shape };
 
@@ -79,6 +92,15 @@ const operations: Operation[] = [
   { method: 'POST', pattern: /^\/subscriptions\/([^/]+)\/cancel$/, scope: 'payments:subscriptions:write', target: (m) => `/subscriptions/${m[1]}/cancel`, resource: 'subscription', shape: 'cancellation' },
   { method: 'GET', pattern: /^\/subscriptions\/([^/]+)\/invoices$/, scope: 'payments:subscriptions:read', target: (m) => `/subscriptions/${m[1]}/invoices`, resource: 'invoice' },
   { method: 'GET', pattern: /^\/invoices\/([^/]+)$/, scope: 'payments:invoices:read', target: (m) => `/invoices/${m[1]}`, resource: 'invoice' },
+  { method: 'POST', pattern: /^\/payees$/, scope: 'payments:payouts:write', target: () => '/payouts/payees', resource: 'payee', shape: 'payee' },
+  { method: 'GET', pattern: /^\/payees$/, scope: 'payments:payouts:read', target: () => '/payouts/payees', resource: 'payee' },
+  { method: 'PUT', pattern: /^\/payees\/([^/]+)\/destination$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/destination`, resource: 'payee', shape: 'destination' },
+  { method: 'POST', pattern: /^\/payees\/([^/]+)\/cash-out$/, scope: 'payments:payouts:write', target: (m) => `/payouts/payees/${m[1]}/cash-out`, resource: 'payout', shape: 'empty' },
+  { method: 'GET', pattern: /^\/payees\/([^/]+)$/, scope: 'payments:payouts:read', target: (m) => `/payouts/payees/${m[1]}`, resource: 'payee' },
+  { method: 'POST', pattern: /^\/allocations\/([^/]+)\/release$/, scope: 'payments:payouts:write', target: (m) => `/payouts/allocations/${m[1]}/release`, resource: 'allocation', shape: 'empty' },
+  { method: 'POST', pattern: /^\/allocations\/([^/]+)\/cancel$/, scope: 'payments:payouts:write', target: (m) => `/payouts/allocations/${m[1]}/cancel`, resource: 'allocation', shape: 'empty' },
+  { method: 'GET', pattern: /^\/payouts$/, scope: 'payments:payouts:read', target: () => '/payouts', resource: 'payout' },
+  { method: 'GET', pattern: /^\/payouts\/([^/]+)$/, scope: 'payments:payouts:read', target: (m) => `/payouts/${m[1]}`, resource: 'payout' },
   { method: 'GET', pattern: /^\/capabilities$/, scope: 'payments:read', target: () => '', resource: 'capabilities' },
 ];
 
@@ -111,6 +133,10 @@ export function paymentRequestBody(shape: Shape | undefined, input: unknown, con
   if (!result.success) throw new BadRequestException({ code: 'INVALID_PAYMENT_REQUEST',
     message: 'Payment request does not match the public contract' });
   const data = result.data as Record<string, unknown>;
+  if (Array.isArray(data.allocations)) {
+    data.allocations = (data.allocations as Array<{ payeeId: string; amount: { amountMinor: number } }>)
+      .map((allocation) => ({ payeeId: allocation.payeeId, amount: allocation.amount.amountMinor }));
+  }
   if (data.amount && typeof data.amount === 'object') {
     const moneyValue = data.amount as { amountMinor: number; currency: 'PHP' };
     data.currency = moneyValue.currency;
@@ -154,6 +180,39 @@ function responseCurrency(raw: Record<string, unknown>): string | undefined {
   return typeof raw.currency === 'string' ? raw.currency : undefined;
 }
 
+/** The public view of a payee's destination: the account number is masked to its last four digits. */
+function publicDestination(value: unknown) {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const number = typeof raw.accountNumber === 'string' ? raw.accountNumber : '';
+  return { type: raw.type, ...(raw.bic ? { bic: raw.bic } : {}), accountName: raw.accountName, accountNumberLast4: number.slice(-4) };
+}
+
+const centavos = (value: unknown) => ({ amountMinor: value, currency: 'PHP' });
+
+export function publicAllocation(raw: Record<string, unknown>) {
+  return { allocationId: raw.id, payeeId: raw.payeeId, amount: centavos(raw.amount), status: raw.status, paymentId: raw.paymentId ?? null };
+}
+
+export function publicPayee(raw: Record<string, unknown>) {
+  const earnings = raw.earnings && typeof raw.earnings === 'object' ? raw.earnings as Record<string, unknown> : undefined;
+  return {
+    payeeId: raw.id, externalRef: raw.externalRef, legalName: raw.legalName, status: raw.status,
+    destination: publicDestination(raw.destination), destinationHoldUntil: raw.destinationHoldUntil ?? null, createdAt: raw.createdAt,
+    ...(earnings ? { earnings: Object.fromEntries(Object.entries(earnings).map(([key, value]) => [key, centavos(value)])) } : {}),
+  };
+}
+
+export function publicPayout(raw: Record<string, unknown>) {
+  return { payoutId: raw.id, payeeId: raw.payeeId, status: raw.status, trigger: raw.trigger, gross: centavos(raw.gross),
+    fee: centavos(raw.fee), net: centavos(raw.net), failureCode: raw.failureCode ?? null, createdAt: raw.createdAt, updatedAt: raw.updatedAt };
+}
+
+function withAllocations<T extends Record<string, unknown>>(view: T, raw: Record<string, unknown>): T {
+  return Array.isArray(raw.allocations)
+    ? { ...view, allocations: (raw.allocations as Record<string, unknown>[]).map(publicAllocation) } : view;
+}
+
 /** Project a runtime result onto the provider-neutral public payment response shape. */
 export function paymentResponseBody(resource: Resource, upstream: unknown): unknown {
   if (!upstream || typeof upstream !== 'object') return upstream;
@@ -163,20 +222,23 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
     if (!value || typeof value !== 'object') return value;
     const raw = value as Record<string, unknown>;
     switch (resource) {
-      case 'checkout': return { checkoutId: raw.checkoutId, referenceId: raw.referenceId,
+      case 'checkout': return withAllocations({ checkoutId: raw.checkoutId, referenceId: raw.referenceId,
         status: raw.status === 'active' ? 'pending' : raw.status, amount: amount(raw.amount, responseCurrency(raw)), checkoutUrl: raw.checkoutUrl || raw.redirectUrl,
-        aggregateVersion: raw.aggregateVersion };
-      case 'intent': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId,
+        aggregateVersion: raw.aggregateVersion }, raw);
+      case 'intent': return withAllocations({ paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId,
         status: raw.status === 'awaiting_payment_method' || raw.status === 'awaiting_next_action' ? 'requires_action' : raw.status,
         amount: amount(raw.amount, responseCurrency(raw)), aggregateVersion: raw.aggregateVersion,
         clientKey: raw.clientKey, nextAction: raw.nextAction, paymentMethod: raw.paymentMethod,
-        lastPaymentError: raw.lastPaymentError };
+        lastPaymentError: raw.lastPaymentError }, raw);
+      case 'payee': return publicPayee(raw);
+      case 'allocation': return publicAllocation(raw);
+      case 'payout': return publicPayout(raw);
       case 'qrph': return { paymentIntentId: raw.paymentIntentId, referenceId: raw.referenceId, status: raw.status,
         amount: amount(raw.amount, responseCurrency(raw)), qrCodeImageUrl: raw.qrCodeImageUrl, expirySeconds: raw.expirySeconds };
-      case 'payment_link': return { paymentLinkId: raw.paymentLinkId, referenceId: raw.referenceId,
+      case 'payment_link': return withAllocations({ paymentLinkId: raw.paymentLinkId, referenceId: raw.referenceId,
         amount: amount(raw.amount, responseCurrency(raw)), description: raw.description, url: raw.url,
         status: raw.status, active: raw.active, archived: raw.archived, referenceNumber: raw.referenceNumber,
-        metadata: raw.metadata, createdAt: raw.createdAt, updatedAt: raw.updatedAt };
+        metadata: raw.metadata, createdAt: raw.createdAt, updatedAt: raw.updatedAt }, raw);
       case 'customer': return { customerId: raw.customerId, customerReference: raw.customerReference,
         email: raw.email, name: raw.name };
       case 'plan': return { planId: raw.planId, name: raw.name,
@@ -191,5 +253,10 @@ export function paymentResponseBody(resource: Resource, upstream: unknown): unkn
       default: return raw;
     }
   };
+  const data = envelope.data as Record<string, unknown>;
+  // Payee and payout lists are cursor pages: map each record and keep the cursor.
+  if ((resource === 'payee' || resource === 'payout') && Array.isArray(data.records)) {
+    return { success: true, data: { records: data.records.map(map), ...(data.nextCursor ? { nextCursor: data.nextCursor } : {}) } };
+  }
   return { success: true, data: Array.isArray(envelope.data) ? envelope.data.map(map) : map(envelope.data) };
 }

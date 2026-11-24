@@ -17,6 +17,17 @@ export const PAYMENT_EVENT_TYPES: readonly EventTypeDefinition[] = [
     title: "Payment intent failed",
     description: "The customer's attempt did not go through; create a new intent to let them retry.",
   },
+  {
+    type: "payment.allocation.held",
+    title: "Payment allocation held",
+    description: "A payee's share of a payment is confirmed and held until you release it.",
+  },
+  { type: "payment.payout.paid", title: "Payout paid", description: "A payout reached the payee." },
+  {
+    type: "payment.payout.failed",
+    title: "Payout failed",
+    description: "A payout did not go through; the earnings return to the payee's balance.",
+  },
 ];
 
 /**

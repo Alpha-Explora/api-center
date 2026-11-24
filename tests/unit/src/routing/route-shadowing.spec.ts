@@ -32,6 +32,7 @@ describe("gateway route table", () => {
   it("registers the gateway's routes", () => {
     expect(routes.length).toBeGreaterThan(20);
     expect(routes.map((route) => route.path)).toContain("/api/v1/shared/payment/webhooks/:environment");
+    expect(routes.map((route) => route.path)).toContain("/api/v1/shared/payment/payout-callbacks/:environment/:token");
   });
 
   // Express answers with the first registered route that matches. A broader route listed earlier

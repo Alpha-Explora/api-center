@@ -56,6 +56,9 @@ Without the SDK, any Standard Webhooks library works. To verify by hand: decode 
 | `payment.checkout.paid` | A checkout was paid. | `status: "paid"`, `checkoutId`, `paymentId`, `amount`, `currency` |
 | `payment.intent.paid` | A payment intent was paid, for example a [GCash or Maya intent](/guides/payments/intents). | `status: "succeeded"`, `paymentIntentId`, `paymentId`, `amount`, `currency` |
 | `payment.intent.failed` | The customer's attempt on an intent did not go through. To let them retry, create a new intent with a new idempotency key. | `status: "failed"`, `paymentIntentId`, `paymentId`, `amount`, `currency`, `failureCode`, `failureMessage` |
+| `payment.allocation.held` | A payee's share of a payment is held until you release it. See [payouts](/guides/payments/payouts). | `status: "held"`, `allocationId`, `payeeId`, `paymentId`, `amount`, `currency` |
+| `payment.payout.paid` | A payout reached the payee. `referenceId` is the payee's `externalRef`. | `status: "paid"`, `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger` |
+| `payment.payout.failed` | A payout did not go through; the earnings return to the payee's balance. | `status: "failed"`, `payoutId`, `payeeId`, `net`, `fee`, `currency`, `trigger`, `failureCode` |
 
 Intent events have `aggregateType: "payment_intent"`. APICenter does not send an event when a checkout or intent expires or is abandoned; read it to see its current status.
 

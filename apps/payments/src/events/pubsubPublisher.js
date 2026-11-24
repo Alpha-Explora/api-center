@@ -32,7 +32,9 @@ function publicEventId(providerEventId) {
 // Owner records call a payment intent "intent"; the public contract calls it "payment_intent".
 const PUBLIC_AGGREGATE_TYPES = { intent: 'payment_intent' };
 function publicResourceId(aggregateType, value) {
-  const kinds = { checkout: 'chk', intent: 'pi', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv' };
+  // Payout-feature ids (pye_, pal_, po_) are already APICenter's own and pass through unchanged.
+  const kinds = { checkout: 'chk', intent: 'pi', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv',
+    payee: 'pye', allocation: 'pal', payout: 'po' };
   return value ? toPublicId(kinds[aggregateType] || 'res', value) : value;
 }
 /**
@@ -56,7 +58,7 @@ function toCanonicalPaymentEvent(event) {
 
   const aggregateVersion = Number(event.aggregateVersion || 1);
   if (!Number.isInteger(aggregateVersion) || aggregateVersion < 1) throw new Error('Payment event aggregateVersion must be a positive integer');
-  if (['payment.checkout.paid', 'payment.intent.paid', 'payment.intent.failed'].includes(event.eventType) && !payload.amount) {
+  if (['payment.checkout.paid', 'payment.intent.paid', 'payment.intent.failed', 'payment.allocation.held'].includes(event.eventType) && !payload.amount) {
     throw new Error(`${event.eventType} event amount is required`);
   }
 
@@ -82,10 +84,16 @@ function toCanonicalPaymentEvent(event) {
       invoiceId: publicResourceId('invoice', payload.invoiceId),
       paymentId: publicResourceId('payment', payload.paymentId),
       refundId: publicResourceId('refund', payload.refundId),
+      allocationId: publicResourceId('allocation', payload.allocationId),
+      payeeId: publicResourceId('payee', payload.payeeId),
+      payoutId: publicResourceId('payout', payload.payoutId),
       amount: payload.amount,
       currency: payload.currency,
       failureCode: payload.failureCode,
       failureMessage: payload.failureMessage,
+      net: payload.net,
+      fee: payload.fee,
+      trigger: payload.trigger,
     }),
   };
 }

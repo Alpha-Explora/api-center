@@ -1777,6 +1777,640 @@
         }
       }
     },
+    "/api/v1/payments/payees": {
+      "get": {
+        "operationId": "listPayees",
+        "description": "Payees of the calling project, newest first. Requires payments:payouts:read.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of payees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PayeePage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPayee",
+        "description": "Registers a payee: someone the project pays out of its payments. Idempotent per externalRef: repeating it returns the existing payee with 200. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayeeCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A payee with this externalRef already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Payee"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Payee created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Payee"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payees/{payeeId}": {
+      "get": {
+        "operationId": "getPayee",
+        "description": "A payee with its earnings. Requires payments:payouts:read.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The payee and its earnings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PayeeDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payees/{payeeId}/destination": {
+      "put": {
+        "operationId": "setPayeeDestination",
+        "description": "Sets where the payee is paid: a GCash or bank account through InstaPay, or a PayMongo wallet. A new destination holds payouts to the payee for 24 hours; sending the same destination again does not restart the hold. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutDestination"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Destination set; the account number is returned masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Payee"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payees/{payeeId}/cash-out": {
+      "post": {
+        "operationId": "cashOutPayee",
+        "description": "Pays the payee's released earnings now, whole allocations oldest first, up to what is left of the daily cash-out cap. The payee bears the transfer fee unless the project chose otherwise. A refusal is 409 with code DESTINATION_HOLD, NO_DESTINATION, BELOW_CASH_OUT_MINIMUM, DAILY_CAP_REACHED, ON_DEMAND_DISABLED or NOTHING_RELEASED. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/PayeeId"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Payout submitted; payment.payout.paid or payment.payout.failed follows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Payout"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/allocations/{allocationId}/release": {
+      "post": {
+        "operationId": "releaseAllocation",
+        "description": "Releases a held share so it is paid in the payee's next payout. Call it when your own completion rule is met. A share that is not held is 409 INVALID_ALLOCATION_STATE. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/AllocationId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The allocation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Allocation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/allocations/{allocationId}/cancel": {
+      "post": {
+        "operationId": "cancelAllocation",
+        "description": "Cancels a share that has not been paid out, for example when the work was not done. A share already pooled or paid is 409 INVALID_ALLOCATION_STATE. Requires payments:payouts:write.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/AllocationId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The allocation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Allocation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payouts": {
+      "get": {
+        "operationId": "listPayouts",
+        "description": "Payouts of the calling project, newest first. Requires payments:payouts:read.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "name": "payeeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^pye_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "submitting",
+                "pending",
+                "unknown",
+                "paid",
+                "failed",
+                "needs_review"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of payouts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PayoutPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/payouts/{payoutId}": {
+      "get": {
+        "operationId": "getPayout",
+        "description": "One payout. Requires payments:payouts:read.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PayoutId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The payout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Payout"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailure"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v1/shared/email/send": {
       "post": {
         "operationId": "email.send",
@@ -4056,6 +4690,52 @@
           "pattern": "^inv_[A-Za-z0-9_]+$"
         }
       },
+      "PayeeId": {
+        "name": "payeeId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^pye_[A-Za-z0-9]+$"
+        }
+      },
+      "AllocationId": {
+        "name": "allocationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^pal_[A-Za-z0-9]+$"
+        }
+      },
+      "PayoutId": {
+        "name": "payoutId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^po_[A-Za-z0-9]+$"
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "nextCursor from the previous page.",
+        "schema": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "PageLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25
+        }
+      },
       "ReferenceId": {
         "name": "referenceId",
         "in": "path",
@@ -4244,6 +4924,379 @@
           }
         }
       },
+      "AllocationInput": {
+        "type": "object",
+        "description": "A payee's share of the payment, at most 5,000,000 minor units (one InstaPay transfer). The shares may not add up to more than the payment.",
+        "required": [
+          "payeeId",
+          "amount"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "payeeId": {
+            "type": "string",
+            "pattern": "^pye_[A-Za-z0-9]+$"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          }
+        }
+      },
+      "Allocation": {
+        "type": "object",
+        "description": "A payee's share of one payment. awaiting_payment until the payment is confirmed, then held until you release it.",
+        "required": [
+          "allocationId",
+          "payeeId",
+          "amount",
+          "status"
+        ],
+        "properties": {
+          "allocationId": {
+            "type": "string"
+          },
+          "payeeId": {
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_payment",
+              "held",
+              "released",
+              "pooled",
+              "paid",
+              "cancelled"
+            ]
+          },
+          "paymentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PayeeCreateRequest": {
+        "type": "object",
+        "required": [
+          "externalRef",
+          "legalName"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "externalRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Your own identifier for the payee. Payout events carry it as referenceId."
+          },
+          "legalName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The name on the payee's account. A mismatch is the most common reason a transfer fails."
+          }
+        }
+      },
+      "PayoutDestination": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "bic",
+              "accountNumber",
+              "accountName"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "instapay"
+              },
+              "bic": {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{8}([A-Z0-9]{3})?$",
+                "description": "The receiving institution's code, for example GXCHPHM2XXX for GCash."
+              },
+              "accountNumber": {
+                "type": "string",
+                "pattern": "^[0-9]{6,20}$"
+              },
+              "accountName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "accountNumber",
+              "accountName"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "provider_wallet"
+              },
+              "accountNumber": {
+                "type": "string",
+                "pattern": "^[0-9]{6,20}$"
+              },
+              "accountName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        ]
+      },
+      "PayeeDestination": {
+        "type": "object",
+        "description": "The payee's destination as APICenter returns it; the account number is masked.",
+        "required": [
+          "type",
+          "accountName",
+          "accountNumberLast4"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "instapay",
+              "provider_wallet"
+            ]
+          },
+          "bic": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "accountNumberLast4": {
+            "type": "string"
+          }
+        }
+      },
+      "Payee": {
+        "type": "object",
+        "required": [
+          "payeeId",
+          "externalRef",
+          "legalName",
+          "status",
+          "destination",
+          "createdAt"
+        ],
+        "properties": {
+          "payeeId": {
+            "type": "string"
+          },
+          "externalRef": {
+            "type": "string"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended"
+            ]
+          },
+          "destination": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PayeeDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destinationHoldUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Payouts to the payee wait until this time after a destination change."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PayeeEarnings": {
+        "type": "object",
+        "required": [
+          "awaitingPayment",
+          "held",
+          "available",
+          "inFlight",
+          "paidThisWeek"
+        ],
+        "properties": {
+          "awaitingPayment": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "held": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "available": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "inFlight": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "paidThisWeek": {
+            "$ref": "#/components/schemas/Money"
+          }
+        }
+      },
+      "PayeeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Payee"
+          },
+          {
+            "type": "object",
+            "required": [
+              "earnings"
+            ],
+            "properties": {
+              "earnings": {
+                "$ref": "#/components/schemas/PayeeEarnings"
+              }
+            }
+          }
+        ]
+      },
+      "PayeePage": {
+        "type": "object",
+        "required": [
+          "records"
+        ],
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Payee"
+            }
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        }
+      },
+      "Payout": {
+        "type": "object",
+        "description": "One transfer of a payee's pooled earnings.",
+        "required": [
+          "payoutId",
+          "payeeId",
+          "status",
+          "trigger",
+          "gross",
+          "fee",
+          "net",
+          "createdAt"
+        ],
+        "properties": {
+          "payoutId": {
+            "type": "string"
+          },
+          "payeeId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitting",
+              "pending",
+              "unknown",
+              "paid",
+              "failed",
+              "needs_review"
+            ],
+            "description": "unknown and needs_review mean APICenter is confirming the transfer with PayMongo; it is never sent twice."
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "schedule",
+              "release",
+              "cash_out"
+            ]
+          },
+          "gross": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "fee": {
+            "type": "object",
+            "required": [
+              "amountMinor",
+              "currency"
+            ],
+            "properties": {
+              "amountMinor": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "currency": {
+                "type": "string",
+                "enum": [
+                  "PHP"
+                ]
+              }
+            }
+          },
+          "net": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PayoutPage": {
+        "type": "object",
+        "required": [
+          "records"
+        ],
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Payout"
+            }
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        }
+      },
       "CheckoutCreateRequest": {
         "type": "object",
         "required": [
@@ -4253,6 +5306,15 @@
           "cancelUrl"
         ],
         "properties": {
+          "allocations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/AllocationInput"
+            },
+            "description": "Payee shares of this payment, each at most the payment's amount in total. Each share is held when the payment is paid and paid out after you release it."
+          },
           "referenceId": {
             "type": "string",
             "minLength": 1,
@@ -4298,6 +5360,15 @@
           "amount"
         ],
         "properties": {
+          "allocations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/AllocationInput"
+            },
+            "description": "Payee shares of this payment, each at most the payment's amount in total. Each share is held when the payment is paid and paid out after you release it."
+          },
           "referenceId": {
             "type": "string"
           },
@@ -4443,6 +5514,12 @@
           "amount"
         ],
         "properties": {
+          "allocations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Allocation"
+            }
+          },
           "checkoutId": {
             "type": "string"
           },
@@ -4482,6 +5559,12 @@
           "amount"
         ],
         "properties": {
+          "allocations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Allocation"
+            }
+          },
           "paymentIntentId": {
             "type": "string"
           },
@@ -4963,6 +6046,15 @@
           "description"
         ],
         "properties": {
+          "allocations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/AllocationInput"
+            },
+            "description": "Payee shares of this payment, each at most the payment's amount in total. Each share is held when the payment is paid and paid out after you release it."
+          },
           "referenceId": {
             "type": "string",
             "minLength": 1,
@@ -4998,6 +6090,12 @@
           "status"
         ],
         "properties": {
+          "allocations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Allocation"
+            }
+          },
           "paymentLinkId": {
             "type": "string"
           },

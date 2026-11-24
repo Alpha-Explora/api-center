@@ -114,6 +114,13 @@ export const projectSections: { id: string; path: string; label: string; descrip
     keywords: ["events", "destinations", "signing secret", "rotate", "pubsub", "callback", "payment"],
   },
   {
+    id: "payouts",
+    path: "/payouts",
+    label: "Payouts",
+    description: "Payees, weekly payouts, cash-outs and the payout wallet.",
+    keywords: ["payees", "cash out", "wallet", "transfers", "earnings", "float"],
+  },
+  {
     id: "requests",
     path: "/requests",
     label: "Requests",

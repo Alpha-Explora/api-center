@@ -1,5 +1,15 @@
 import type {
+  Allocation,
   Checkout,
+  CreatePayeeInput,
+  ListPayeesOptions,
+  ListPayoutsOptions,
+  Payee,
+  PayeeDetail,
+  PayeePage,
+  Payout,
+  PayoutDestination,
+  PayoutPage,
   ConfirmPaymentIntentInput,
   CreateCheckoutInput,
   CreateCustomerInput,
@@ -45,7 +55,7 @@ abstract class PaymentsResource {
     return this.transport.request({ path: `/api/v1/payments${path}`, method: 'GET', query, options });
   }
 
-  protected write<T>(path: string, body: unknown, options?: WriteOptions, method: 'POST' | 'PATCH' = 'POST'): Promise<PaymentResource<T>> {
+  protected write<T>(path: string, body: unknown, options?: WriteOptions, method: 'POST' | 'PUT' | 'PATCH' = 'POST'): Promise<PaymentResource<T>> {
     return this.transport.request({ path: `/api/v1/payments${path}`, method, body, write: true, idempotencyKey: options?.idempotencyKey, options });
   }
 }
@@ -229,6 +239,71 @@ class PaymentCapabilitiesClient extends PaymentsResource {
   }
 }
 
+class PayeeClient extends PaymentsResource {
+  /**
+   * Registers a payee. Creating the same externalRef again returns the existing payee.
+   * @sdk-operation createPayee POST /api/v1/payments/payees
+   */
+  create(input: CreatePayeeInput, options?: WriteOptions): Promise<PaymentResource<Payee>> {
+    return this.write('/payees', input, options);
+  }
+
+  /** @sdk-operation listPayees GET /api/v1/payments/payees */
+  list(filters: ListPayeesOptions = {}, options?: RequestOptions): Promise<PayeePage> {
+    return this.read('/payees', options, { ...filters });
+  }
+
+  /** @sdk-operation getPayee GET /api/v1/payments/payees/{payeeId} */
+  get(payeeId: string, options?: RequestOptions): Promise<PayeeDetail> {
+    return this.read(`/payees/${id(payeeId)}`, options);
+  }
+
+  /**
+   * Sets where the payee is paid. A new destination holds payouts to the payee for 24 hours;
+   * sending the same destination again does not restart the hold.
+   * @sdk-operation setPayeeDestination PUT /api/v1/payments/payees/{payeeId}/destination
+   */
+  setDestination(payeeId: string, destination: PayoutDestination, options?: WriteOptions): Promise<PaymentResource<Payee>> {
+    return this.write(`/payees/${id(payeeId)}/destination`, destination, options, 'PUT');
+  }
+
+  /**
+   * Pays the payee's released earnings now, within the daily cash-out cap. A refusal is an
+   * ApiCenterError with status 409 and a code such as DAILY_CAP_REACHED or DESTINATION_HOLD.
+   * @sdk-operation cashOutPayee POST /api/v1/payments/payees/{payeeId}/cash-out
+   */
+  cashOut(payeeId: string, options?: WriteOptions): Promise<PaymentResource<Payout>> {
+    return this.write(`/payees/${id(payeeId)}/cash-out`, {}, options);
+  }
+}
+
+class AllocationClient extends PaymentsResource {
+  /**
+   * Releases a held share so it is paid in the payee's next payout. Call it when your own completion rule is met.
+   * @sdk-operation releaseAllocation POST /api/v1/payments/allocations/{allocationId}/release
+   */
+  release(allocationId: string, options?: WriteOptions): Promise<PaymentResource<Allocation>> {
+    return this.write(`/allocations/${id(allocationId)}/release`, {}, options);
+  }
+
+  /** @sdk-operation cancelAllocation POST /api/v1/payments/allocations/{allocationId}/cancel */
+  cancel(allocationId: string, options?: WriteOptions): Promise<PaymentResource<Allocation>> {
+    return this.write(`/allocations/${id(allocationId)}/cancel`, {}, options);
+  }
+}
+
+class PayoutClient extends PaymentsResource {
+  /** @sdk-operation listPayouts GET /api/v1/payments/payouts */
+  list(filters: ListPayoutsOptions = {}, options?: RequestOptions): Promise<PayoutPage> {
+    return this.read('/payouts', options, { ...filters });
+  }
+
+  /** @sdk-operation getPayout GET /api/v1/payments/payouts/{payoutId} */
+  get(payoutId: string, options?: RequestOptions): Promise<Payout> {
+    return this.read(`/payouts/${id(payoutId)}`, options);
+  }
+}
+
 export class PaymentsNamespace {
   readonly checkouts: CheckoutClient;
   readonly intents: IntentClient;
@@ -240,6 +315,9 @@ export class PaymentsNamespace {
   readonly invoices: InvoiceClient;
   readonly records: PaymentRecordsClient;
   readonly capabilities: PaymentCapabilitiesClient;
+  readonly payees: PayeeClient;
+  readonly allocations: AllocationClient;
+  readonly payouts: PayoutClient;
 
   constructor(transport: ApiCenterTransport) {
     this.checkouts = new CheckoutClient(transport);
@@ -252,5 +330,8 @@ export class PaymentsNamespace {
     this.invoices = new InvoiceClient(transport);
     this.records = new PaymentRecordsClient(transport);
     this.capabilities = new PaymentCapabilitiesClient(transport);
+    this.payees = new PayeeClient(transport);
+    this.allocations = new AllocationClient(transport);
+    this.payouts = new PayoutClient(transport);
   }
 }

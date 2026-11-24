@@ -14,6 +14,7 @@ import { isControlPlaneBearer } from "@domains/control-plane/control-plane.types
 import { z } from "zod";
 import { Request, Response } from "express";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
+import { paymentRuntimeToken, paymentRuntimeUrl } from "@shared/proxy/payment-runtime";
 import { PaymentIdempotencyService } from "../../shared/payment-idempotency.service";
 import { AuthenticatedRequest } from "../../../../types";
 import type { PaymentPrincipal } from "../../shared/payment-access.types";
@@ -26,21 +27,8 @@ import {
 import { PaymentLimitsService } from "../payment-limits/payment-limits.service";
 import { PaymentReturnLinks } from "../payment-return/payment-return-links";
 
-const internalBaseUrl = (environment: "test" | "live") => {
-  const configured =
-    process.env.APICENTER_PAYMENTS_URL ||
-    (environment === "live"
-      ? process.env.SHARED_SERVICE_ROUTE_PAYMENT_LIVE
-      : process.env.SHARED_SERVICE_ROUTE_PAYMENT_TEST) ||
-    "http://localhost:4010";
-  return configured.replace(/\/$/, "");
-};
-
-const internalToken = (environment: "test" | "live") =>
-  (environment === "live"
-    ? process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_LIVE
-    : process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST) ||
-  process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
+const internalBaseUrl = paymentRuntimeUrl;
+const internalToken = paymentRuntimeToken;
 @Controller("payments")
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -115,6 +103,9 @@ export class PaymentsController {
               "subscriptions",
               "invoices",
               "records",
+              "payees",
+              "allocations",
+              "payouts",
             ],
           },
         });
@@ -328,6 +319,10 @@ export class PaymentsController {
       "paymentLinkId",
       "customerId",
       "planId",
+      // A payout also names its payee, so its own id is checked first.
+      "payoutId",
+      "allocationId",
+      "payeeId",
     ]) {
       const value = parsed.data.data[field];
       if (typeof value === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(value)) {

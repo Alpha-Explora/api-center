@@ -60,6 +60,49 @@ const IntentFailedEventSchema = z.object({
   }).passthrough(),
 });
 
+/** A payee's share of a payment was confirmed and is held until you release it. referenceId is the payment's reference. */
+const AllocationHeldEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payment.allocation.held'),
+  aggregateType: z.literal('allocation'),
+  data: z.object({
+    status: z.literal('held'),
+    allocationId: z.string().min(1),
+    payeeId: z.string().min(1),
+    paymentId: z.string().min(1),
+    /** In minor units (centavos for PHP). */
+    amount: z.number().int().positive(),
+    currency: z.string().length(3),
+  }).passthrough(),
+});
+
+const payout = {
+  payoutId: z.string().min(1),
+  payeeId: z.string().min(1),
+  /** What the payee receives, in minor units. */
+  net: z.number().int().positive(),
+  /** The transfer fee, in minor units; deducted from net only when the payee bears it. */
+  fee: z.number().int().nonnegative(),
+  currency: z.string().length(3),
+  trigger: z.enum(['schedule', 'release', 'cash_out']),
+};
+
+/** The transfer reached the payee. referenceId is the payee's externalRef. */
+const PayoutPaidEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payment.payout.paid'),
+  aggregateType: z.literal('payout'),
+  data: z.object({ status: z.literal('paid'), ...payout }).passthrough(),
+});
+
+/** The transfer did not go through; the earnings return to the payee's balance for a later payout. */
+const PayoutFailedEventSchema = z.object({
+  ...envelope,
+  eventType: z.literal('payment.payout.failed'),
+  aggregateType: z.literal('payout'),
+  data: z.object({ status: z.literal('failed'), ...payout, failureCode: z.string().optional() }).passthrough(),
+});
+
 /** An event type this SDK version does not know yet. Acknowledge it; upgrade to read it. */
 const UnrecognizedEventSchema = z.object({
   ...envelope,
@@ -71,18 +114,25 @@ const UnrecognizedEventSchema = z.object({
 export type CheckoutPaidEvent = z.infer<typeof CheckoutPaidEventSchema>;
 export type IntentPaidEvent = z.infer<typeof IntentPaidEventSchema>;
 export type IntentFailedEvent = z.infer<typeof IntentFailedEventSchema>;
+export type AllocationHeldEvent = z.infer<typeof AllocationHeldEventSchema>;
+export type PayoutPaidEvent = z.infer<typeof PayoutPaidEventSchema>;
+export type PayoutFailedEvent = z.infer<typeof PayoutFailedEventSchema>;
 export type UnrecognizedPaymentEvent = Omit<z.infer<typeof UnrecognizedEventSchema>, 'eventType'> & {
   eventType: 'unrecognized';
   /** The event type as sent. */
   type: string;
 };
 /** Narrow on `eventType`: `if (event.eventType === 'payment.checkout.paid') { event.data.amount … }`. */
-export type PaymentEvent = CheckoutPaidEvent | IntentPaidEvent | IntentFailedEvent | UnrecognizedPaymentEvent;
+export type PaymentEvent = CheckoutPaidEvent | IntentPaidEvent | IntentFailedEvent | AllocationHeldEvent | PayoutPaidEvent
+  | PayoutFailedEvent | UnrecognizedPaymentEvent;
 
 const KNOWN = {
   'payment.checkout.paid': CheckoutPaidEventSchema,
   'payment.intent.paid': IntentPaidEventSchema,
   'payment.intent.failed': IntentFailedEventSchema,
+  'payment.allocation.held': AllocationHeldEventSchema,
+  'payment.payout.paid': PayoutPaidEventSchema,
+  'payment.payout.failed': PayoutFailedEventSchema,
 } as const;
 
 /** Validates a contract 2.0 payment event. Throws a ZodError for anything malformed. */
@@ -95,4 +145,4 @@ export function parsePaymentEvent(input: unknown): PaymentEvent {
 }
 
 export const PaymentEventSchema = z.union([CheckoutPaidEventSchema, IntentPaidEventSchema, IntentFailedEventSchema,
-  UnrecognizedEventSchema]);
+  AllocationHeldEventSchema, PayoutPaidEventSchema, PayoutFailedEventSchema, UnrecognizedEventSchema]);

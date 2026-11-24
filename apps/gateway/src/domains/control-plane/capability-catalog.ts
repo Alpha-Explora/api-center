@@ -109,6 +109,8 @@ const CAPABILITIES: readonly CapabilityDefinition[] = [
       { action: "payments:refunds:read", description: "Read refunds" },
       { action: "payments:refunds:write", description: "Create refunds" },
       { action: "payments:invoices:read", description: "Read invoices" },
+      { action: "payments:payouts:read", description: "Read payees, allocations and payouts" },
+      { action: "payments:payouts:write", description: "Create payees and release, cancel and cash out earnings" },
     ],
     routes: [],
   },

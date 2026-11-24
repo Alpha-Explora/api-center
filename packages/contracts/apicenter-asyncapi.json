@@ -2,7 +2,7 @@
   "asyncapi": "3.1.0",
   "info": {
     "title": "APICenter Payment Events",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the application that created the resource, and delivers it to that application's webhook as a signed HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature)."
   },
   "defaultContentType": "application/json",
@@ -55,6 +55,15 @@
         },
         "PaymentIntentFailed": {
           "$ref": "#/components/messages/PaymentIntentFailed"
+        },
+        "PaymentAllocationHeld": {
+          "$ref": "#/components/messages/PaymentAllocationHeld"
+        },
+        "PaymentPayoutPaid": {
+          "$ref": "#/components/messages/PaymentPayoutPaid"
+        },
+        "PaymentPayoutFailed": {
+          "$ref": "#/components/messages/PaymentPayoutFailed"
         }
       }
     }
@@ -74,6 +83,15 @@
         },
         {
           "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PaymentIntentFailed"
+        },
+        {
+          "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PaymentAllocationHeld"
+        },
+        {
+          "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PaymentPayoutPaid"
+        },
+        {
+          "$ref": "#/channels/apicenter.payment-events.{environment}/messages/PaymentPayoutFailed"
         }
       ]
     }
@@ -161,6 +179,90 @@
             }
           ]
         }
+      },
+      "PaymentAllocationHeld": {
+        "name": "payment.allocation.held",
+        "title": "Payment allocation held",
+        "description": "A payee's share of a payment was confirmed and is held until you release it. referenceId is the payment's reference.",
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/PaymentEvent"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "eventType": {
+                  "type": "string",
+                  "const": "payment.allocation.held"
+                },
+                "aggregateType": {
+                  "type": "string",
+                  "const": "allocation"
+                },
+                "data": {
+                  "$ref": "#/components/schemas/AllocationHeld"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "PaymentPayoutPaid": {
+        "name": "payment.payout.paid",
+        "title": "Payout paid",
+        "description": "PayMongo confirmed the transfer to the payee. referenceId is the payee's externalRef.",
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/PaymentEvent"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "eventType": {
+                  "type": "string",
+                  "const": "payment.payout.paid"
+                },
+                "aggregateType": {
+                  "type": "string",
+                  "const": "payout"
+                },
+                "data": {
+                  "$ref": "#/components/schemas/PayoutPaid"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "PaymentPayoutFailed": {
+        "name": "payment.payout.failed",
+        "title": "Payout failed",
+        "description": "The transfer did not go through. The earnings return to the payee's balance and are paid in a later payout. referenceId is the payee's externalRef.",
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/PaymentEvent"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "eventType": {
+                  "type": "string",
+                  "const": "payment.payout.failed"
+                },
+                "aggregateType": {
+                  "type": "string",
+                  "const": "payout"
+                },
+                "data": {
+                  "$ref": "#/components/schemas/PayoutFailed"
+                }
+              }
+            }
+          ]
+        }
       }
     },
     "schemas": {
@@ -221,7 +323,9 @@
               "payment_intent",
               "refund",
               "subscription",
-              "invoice"
+              "invoice",
+              "allocation",
+              "payout"
             ]
           },
           "aggregateId": {
@@ -343,6 +447,137 @@
             "type": "string"
           },
           "failureMessage": {
+            "type": "string"
+          }
+        }
+      },
+      "AllocationHeld": {
+        "type": "object",
+        "required": [
+          "status",
+          "allocationId",
+          "payeeId",
+          "paymentId",
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "held"
+          },
+          "allocationId": {
+            "type": "string"
+          },
+          "payeeId": {
+            "type": "string"
+          },
+          "paymentId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Minor units (centavos for PHP)."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          }
+        }
+      },
+      "PayoutPaid": {
+        "type": "object",
+        "required": [
+          "status",
+          "payoutId",
+          "payeeId",
+          "net",
+          "fee",
+          "currency",
+          "trigger"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "paid"
+          },
+          "payoutId": {
+            "type": "string"
+          },
+          "payeeId": {
+            "type": "string"
+          },
+          "net": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "What the payee receives, in minor units."
+          },
+          "fee": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The transfer fee, in minor units. Deducted from net only when the payee bears it."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "schedule",
+              "release",
+              "cash_out"
+            ]
+          }
+        }
+      },
+      "PayoutFailed": {
+        "type": "object",
+        "required": [
+          "status",
+          "payoutId",
+          "payeeId",
+          "net",
+          "fee",
+          "currency",
+          "trigger"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "failed"
+          },
+          "payoutId": {
+            "type": "string"
+          },
+          "payeeId": {
+            "type": "string"
+          },
+          "net": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "fee": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "schedule",
+              "release",
+              "cash_out"
+            ]
+          },
+          "failureCode": {
             "type": "string"
           }
         }

@@ -20,6 +20,9 @@ export type {
   CheckoutPaidEvent,
   IntentFailedEvent,
   IntentPaidEvent,
+  AllocationHeldEvent,
+  PayoutPaidEvent,
+  PayoutFailedEvent,
   PaymentEvent,
   UnrecognizedPaymentEvent,
 } from './payment/events.js';

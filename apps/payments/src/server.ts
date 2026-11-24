@@ -16,6 +16,10 @@ import { OwnerRecord, PaymentContext, PaymentOwnerStore, PaymentRecordFilters } 
 import { PaymentReplayStore } from './events/paymentReplayStore';
 import { createPaymentEventPool, drainPaymentEventOutbox } from './events/paymentEventDispatcher';
 import { z } from 'zod';
+import { attachAllocations, parseAllocations, validateAllocations, type AllocationInput, type PaidResource } from './features/payouts/allocations';
+import { createPayoutsFeature } from './features/payouts/payouts-feature';
+import { registerPayoutCallbackRoute, registerPayoutRoutes } from './features/payouts/payouts.routes';
+import { payoutContext } from './features/payouts/payout-store';
 
 const port = Number(process.env.PORT || 4010);
 const { app, ok, fail } = createSharedServiceApp({
@@ -39,6 +43,7 @@ const invoicesService = new InvoicesService();
 const paymentLinksService = new PaymentLinksService();
 const qrPhService = new QrPhService();
 const owners = PaymentOwnerStore.getInstance();
+const payouts = createPayoutsFeature(owners);
 const eventRecovery = new PaymentReplayStore();
 const replayInput = z.object({ eventId: z.string().uuid(), operationId: z.string().uuid(), reason: z.string().trim().min(1).max(500), actor: z.string().trim().min(1).max(200) }).strict();
 
@@ -91,7 +96,9 @@ function paymentContext(req: Request): PaymentContext {
 
 app.use((req: Request, res: Response, next) => {
   const expected = process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN;
-  const presented = req.path === '/webhooks'
+  // Provider callbacks arrive from the gateway's webhook routes, which send the token in their own header.
+  const providerCallback = req.path === '/webhooks' || req.path.startsWith('/payouts/callbacks/');
+  const presented = providerCallback
     ? req.get('X-APICenter-Internal-Token')
     : req.get('Authorization')?.replace(/^Bearer /, '');
   if (!expected || !presented || presented.length !== expected.length
@@ -99,7 +106,7 @@ app.use((req: Request, res: Response, next) => {
     return fail(res, 401, 'UNAUTHORIZED', 'Payment runtime token is required');
   }
   try {
-    if (req.path === '/webhooks') {
+    if (providerCallback) {
       const mode = process.env.PAYMENT_PROVIDER_MODE;
       if ((mode === 'test' || mode === 'live') && req.get('X-APICenter-Environment') !== mode) {
         return fail(res, 403, 'ENVIRONMENT_MISMATCH', 'Payment environment does not match runtime');
@@ -121,6 +128,23 @@ async function remember(type: string, id: string, req: Request, snapshot: Record
   await owners.save({ ...context, resourceType: type, resourceId: id,
     referenceId: typeof req.body?.referenceId === 'string' ? req.body.referenceId : undefined,
     providerReference, snapshot });
+}
+
+/** Validates `allocations` before the provider call and strips them from the body the provider service sees. */
+async function plannedAllocations(req: Request): Promise<{ body: Record<string, unknown>; allocations?: AllocationInput }> {
+  const { allocations: _allocations, ...body } = (req.body || {}) as Record<string, unknown>;
+  const allocations = parseAllocations(req.body);
+  if (allocations) await validateAllocations(payouts.store, payoutContext(paymentContext(req)), allocations, Number(req.body?.amount));
+  return { body, ...(allocations ? { allocations } : {}) };
+}
+
+async function withAllocations<T extends Record<string, unknown>>(req: Request, snapshot: T, allocations: AllocationInput | undefined,
+  resource: Omit<PaidResource, 'gross' | 'referenceId'>): Promise<T | (T & { allocations: unknown })> {
+  if (!allocations) return snapshot;
+  const referenceId = typeof req.body?.referenceId === 'string' ? req.body.referenceId : resource.id;
+  const attached = await attachAllocations(payouts, payoutContext(paymentContext(req)), {
+    ...resource, gross: Number(req.body?.amount), referenceId }, allocations);
+  return { ...snapshot, allocations: attached };
 }
 
 async function owned(type: string, id: string, req: Request) {
@@ -218,13 +242,14 @@ app.post('/admin/payments/events/replay', async (req: Request, res: Response) =>
 // Payment Intents
 app.post('/payment-intents', async (req: Request, res: Response) => {
   try {
-    const data = await paymentIntentsService.createPaymentIntent(req.body || {}, {
+    const { body, allocations } = await plannedAllocations(req);
+    const data = await paymentIntentsService.createPaymentIntent(body, {
       idempotencyKey: idempotencyKey(req),
       tribeId: tribeId(req),
     });
     const snapshot = { ...data, referenceId: req.body?.referenceId };
     await remember('intent', data.paymentIntentId, req, snapshot);
-    return ok(res, snapshot, 201);
+    return ok(res, await withAllocations(req, snapshot, allocations, { type: 'intent', id: data.paymentIntentId }), 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -276,9 +301,10 @@ app.post('/checkout/sessions', async (req: Request, res: Response) => {
     if (!key) {
       return fail(res, 400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key header is required.');
     }
-    const data = await checkoutService.charge(req.body || {}, { idempotencyKey: key, tribeId: tribeId(req) });
+    const { body, allocations } = await plannedAllocations(req);
+    const data = await checkoutService.charge(body, { idempotencyKey: key, tribeId: tribeId(req) });
     await remember('checkout', data.checkoutId, req, data);
-    return ok(res, data, 201);
+    return ok(res, await withAllocations(req, data, allocations, { type: 'checkout', id: data.checkoutId }), 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -381,10 +407,11 @@ app.get('/plans/:planId', async (req: Request, res: Response) => {
 // Payment Links
 app.post('/payment-links', async (req: Request, res: Response) => {
   try {
-    const data = await paymentLinksService.create(req.body || {}, idempotencyKey(req));
+    const { body, allocations } = await plannedAllocations(req);
+    const data = await paymentLinksService.create(body, idempotencyKey(req));
     const snapshot = { ...data, referenceId: req.body?.referenceId };
     await remember('payment_link', data.paymentLinkId, req, snapshot, data.referenceNumber);
-    return ok(res, snapshot, 201);
+    return ok(res, await withAllocations(req, snapshot, allocations, { type: 'payment_link', id: data.paymentLinkId }), 201);
   } catch (err) { return handleCustomError(res, err); }
 });
 
@@ -510,6 +537,9 @@ app.post('/webhooks', async (req: Request, res: Response) => {
     return handleCustomError(res, err);
   }
 });
+
+registerPayoutCallbackRoute(app, payouts, { handleError: handleCustomError });
+registerPayoutRoutes(app, payouts, { ok, context: paymentContext, handleError: handleCustomError });
 
 if (require.main === module) {
   app.listen(port, () => {

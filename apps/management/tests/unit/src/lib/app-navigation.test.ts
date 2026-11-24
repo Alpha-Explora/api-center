@@ -36,6 +36,7 @@ describe("app navigation", () => {
     });
     expect(parseConsolePath("/projects/prj_1/live/quotas")).toMatchObject({ environment: "live", sectionId: "quotas" });
     expect(parseConsolePath("/projects/prj_1/test/requests")).toMatchObject({ environment: "test", sectionId: "requests" });
+    expect(parseConsolePath("/projects/prj_1/test/payouts")).toMatchObject({ environment: "test", sectionId: "payouts" });
     expect(parseConsolePath("/audit")).toEqual({ kind: "organization", sectionId: "audit" });
   });
 

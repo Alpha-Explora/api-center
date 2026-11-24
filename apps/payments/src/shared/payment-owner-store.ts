@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { isDeepStrictEqual } from 'node:util';
 import { PayMongoError } from './payment-errors';
 
@@ -49,7 +49,19 @@ export type VerifiedWebhook = {
   outbox?: WebhookOutboxEvent;
   receiptStatus: 'processed' | 'needs_reconciliation';
   receiptNote?: string;
+  /** The resource this webhook confirmed as paid, so payee shares attached to it can be held. */
+  paidResource?: { resourceType: 'intent' | 'checkout' | 'payment_link'; resourceId: string; paymentId: string };
+  /** Refunds this webhook confirmed as succeeded, so payee shares of the payment can be cancelled or clawed back. */
+  refunds?: Array<{ paymentId: string; refundId: string; refunded: number }>;
 };
+
+/**
+ * Work another feature does when a webhook is first applied, inside the same transaction (or, without a
+ * database, in the same call), so a replayed webhook never repeats it. Payouts use it to hold shares.
+ */
+export interface WebhookEffects {
+  apply(webhook: VerifiedWebhook, client?: PoolClient): Promise<void>;
+}
 
 export type AppliedWebhook = { duplicate: boolean; queued: boolean };
 
@@ -177,10 +189,20 @@ export class PaymentOwnerStore {
   private readonly memoryReceipts = new Map<string, string>();
   private readonly memoryOutbox: Array<WebhookOutboxEvent & { providerEventId: string; aggregateVersion: number }> = [];
   private readonly pool?: Pool;
+  private effects?: WebhookEffects;
 
   constructor(connectionString = process.env.SHARED_SERVICES_DATABASE_URL || process.env.PAYMENT_DATABASE_URL || process.env.DATABASE_URL) {
     if (connectionString) this.pool = new Pool({ connectionString, max: 5 });
     else if (process.env.NODE_ENV === 'production') throw new Error('Payment database URL is required in production');
+  }
+
+  /** The connection pool, shared by features that keep their own tables in the payment database. */
+  get databasePool(): Pool | undefined {
+    return this.pool;
+  }
+
+  useWebhookEffects(effects: WebhookEffects): void {
+    this.effects = effects;
   }
 
   static getInstance(): PaymentOwnerStore {
@@ -389,7 +411,11 @@ export class PaymentOwnerStore {
    * state twice or queue a second event.
    */
   async applyVerifiedWebhook(webhook: VerifiedWebhook): Promise<AppliedWebhook> {
-    if (!this.pool) return this.applyWebhookInMemory(webhook);
+    if (!this.pool) {
+      const applied = this.applyWebhookInMemory(webhook);
+      if (!applied.duplicate && this.effects) await this.effects.apply(webhook);
+      return applied;
+    }
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -451,6 +477,7 @@ export class PaymentOwnerStore {
           return { duplicate: true, queued: false };
         }
       }
+      if (this.effects) await this.effects.apply(webhook, client);
       await client.query('COMMIT');
       return { duplicate: false, queued: Boolean(outbox) };
     } catch (error) {

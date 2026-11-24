@@ -67,6 +67,11 @@
     "section": "Payments"
   },
   {
+    "slug": "payments/payouts",
+    "section": "Payments",
+    "aliases": ["payees", "cash-out"]
+  },
+  {
     "slug": "payments/subscriptions",
     "section": "Payments"
   },

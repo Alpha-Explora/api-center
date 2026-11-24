@@ -101,7 +101,8 @@ export class WebhooksService {
         payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
         receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
           snapshot: { status: 'paid', paidAt: new Date().toISOString(),
-            ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } }] });
+            ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } }],
+        ...(linkPaymentId ? { paidResource: { resourceType: 'payment_link', resourceId: source.resourceId, paymentId: linkPaymentId } } : {}) });
       return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
     }
 
@@ -126,6 +127,8 @@ export class WebhooksService {
       payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
       updates,
       ...queued,
+      ...(source.resourceType === 'intent' || source.resourceType === 'checkout'
+        ? { paidResource: { resourceType: source.resourceType, resourceId: source.resourceId, paymentId: paid[0].id } } : {}),
     });
     if (queued.receiptStatus === 'needs_reconciliation' && !applied.duplicate) {
       console.warn(JSON.stringify({ type: 'apicenter_payment_webhook_needs_reconciliation',
@@ -169,6 +172,7 @@ export class WebhooksService {
 
     const directRefund = isRefundResource;
     const updates: OwnerRecord[] = [];
+    const refunds: NonNullable<VerifiedWebhook['refunds']> = [];
     for (const owner of sources.values()) {
       let fresh: Record<string, unknown>;
       if (directRefund && owner.resourceId === toPublicId('ref', resourceData.id)) {
@@ -190,6 +194,11 @@ export class WebhooksService {
         if (!isRefundStatus(fresh.status)) continue;
       }
       updates.push({ ...owner, status: String(fresh.status), snapshot: { ...owner.snapshot, ...fresh } });
+      const refunded = Number(fresh.amount ?? owner.snapshot.amount);
+      const paymentId = fresh.paymentId ?? owner.snapshot.paymentId;
+      if (fresh.status === 'succeeded' && typeof paymentId === 'string' && Number.isSafeInteger(refunded) && refunded > 0) {
+        refunds.push({ paymentId: toPublicId('pay', paymentId), refundId: owner.resourceId, refunded });
+      }
     }
     if (!updates.length) return { event: 'ignored', data: { eventType, updated: false } };
 
@@ -200,6 +209,7 @@ export class WebhooksService {
       payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
       receiptStatus: 'processed',
       updates,
+      ...(refunds.length ? { refunds } : {}),
     });
     return { event: applied.duplicate ? 'duplicate' : 'processed',
       data: { eventType, updated: applied.duplicate ? 0 : updates.length } };

@@ -22,6 +22,7 @@ import {
   UsersIcon,
   WaypointsIcon,
   WebhookIcon,
+  BanknoteIcon,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -73,6 +74,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   capabilities: BlocksIcon,
   apis: WaypointsIcon,
   webhooks: WebhookIcon,
+  payouts: BanknoteIcon,
   requests: ActivityIcon,
   quotas: GaugeIcon,
   settings: Settings2Icon,

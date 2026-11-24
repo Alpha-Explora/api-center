@@ -124,6 +124,15 @@ describe('PaymentsController', () => {
     ['POST', '/subscriptions/sub_123/cancel', {}],
     ['GET', '/subscriptions/sub_123/invoices', undefined],
     ['GET', '/invoices/inv_123', undefined],
+    ['POST', '/payees', { externalRef: 'provider-1', legalName: 'Juan Dela Cruz' }],
+    ['GET', '/payees', undefined],
+    ['GET', '/payees/pye_1', undefined],
+    ['PUT', '/payees/pye_1/destination', { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09171234567', accountName: 'Juan Dela Cruz' }],
+    ['POST', '/payees/pye_1/cash-out', {}],
+    ['POST', '/allocations/pal_1/release', {}],
+    ['POST', '/allocations/pal_1/cancel', {}],
+    ['GET', '/payouts', undefined],
+    ['GET', '/payouts/po_1', undefined],
   ])('maps %s %s to the private payments runtime', async (method, path, body) => {
     const idempotency = new PaymentIdempotencyService();
     const controller = new PaymentsController(idempotency, paymentLimits, applications, returnLinks);
@@ -322,6 +331,67 @@ describe('PaymentsController', () => {
     expect(headers['x-apicenter-consumer-service-id']).toBe('app_aaaaaaaaaaaaaaaaaaaaaaaa');
     expect(headers.authorization).toBe('Bearer unit-test-runtime-token');
     expect(JSON.stringify(mockedAxios.request.mock.calls[0][0])).not.toContain(bearer);
+  });
+
+  it.each([
+    ['POST', '/payees', '/payouts/payees', 'payments:payouts:write'],
+    ['GET', '/payees', '/payouts/payees', 'payments:payouts:read'],
+    ['GET', '/payees/pye_1', '/payouts/payees/pye_1', 'payments:payouts:read'],
+    ['PUT', '/payees/pye_1/destination', '/payouts/payees/pye_1/destination', 'payments:payouts:write'],
+    ['POST', '/payees/pye_1/cash-out', '/payouts/payees/pye_1/cash-out', 'payments:payouts:write'],
+    ['POST', '/allocations/pal_1/release', '/payouts/allocations/pal_1/release', 'payments:payouts:write'],
+    ['POST', '/allocations/pal_1/cancel', '/payouts/allocations/pal_1/cancel', 'payments:payouts:write'],
+    ['GET', '/payouts', '/payouts', 'payments:payouts:read'],
+    ['GET', '/payouts/po_1', '/payouts/po_1', 'payments:payouts:read'],
+  ])('authorizes %s %s on runtime path %s with %s', async (method, path, runtimePath, scope) => {
+    const bodies: Record<string, Record<string, unknown>> = {
+      '/payees': { externalRef: 'provider-1', legalName: 'Juan' },
+      '/payees/pye_1/destination': { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09171234567', accountName: 'Juan' },
+    };
+    const { res } = response();
+    await createController().proxy(request(path, method, method === 'GET' ? undefined : (bodies[path] ?? {})), res);
+    expect(applications.authorizeAction).toHaveBeenCalledWith(expect.objectContaining({ action: scope }));
+    const call = mockedAxios.request.mock.calls[0][0] as { method: string; url: string };
+    expect(call.method).toBe(method);
+    expect(new URL(call.url).pathname).toBe(runtimePath);
+  });
+
+  it('flattens allocation amounts for the runtime and returns allocations in public form', async () => {
+    mockedAxios.request.mockResolvedValueOnce({ status: 201, headers: { 'content-type': 'application/json' }, data: Buffer.from(JSON.stringify({
+      success: true, data: { paymentIntentId: 'pi_1', referenceId: 'order-1', status: 'awaiting_payment_method', amount: 50000, currency: 'PHP',
+        allocations: [{ id: 'pal_1', payeeId: 'pye_1', amount: 42500, status: 'awaiting_payment', paymentId: null }] },
+    })) } as any);
+    applications.authorizeAction.mockResolvedValue(authorized('payments:intents:write'));
+    const { res, state } = response();
+    await createController().proxy(request('/intents', 'POST', { referenceId: 'order-1', amount: { amountMinor: 50000, currency: 'PHP' },
+      allocations: [{ payeeId: 'pye_1', amount: { amountMinor: 42500, currency: 'PHP' } }] }), res);
+    const sent = (mockedAxios.request.mock.calls[0][0] as { data: unknown }).data;
+    expect(typeof sent === 'string' ? JSON.parse(sent) : sent).toMatchObject({ amount: 50000, allocations: [{ payeeId: 'pye_1', amount: 42500 }] });
+    expect(JSON.parse(Buffer.from(state.body as Buffer).toString('utf8')).data.allocations).toEqual([{ allocationId: 'pal_1', payeeId: 'pye_1',
+      amount: { amountMinor: 42500, currency: 'PHP' }, status: 'awaiting_payment', paymentId: null }]);
+  });
+
+  it('masks payee account numbers and pages payee lists', async () => {
+    mockedAxios.request.mockResolvedValueOnce({ status: 200, headers: { 'content-type': 'application/json' }, data: Buffer.from(JSON.stringify({
+      success: true, data: { nextCursor: 'abc', records: [{ id: 'pye_1', externalRef: 'provider-1', legalName: 'Juan', status: 'active',
+        createdAt: '2026-11-24T00:00:00.000Z', destinationHoldUntil: null,
+        destination: { type: 'instapay', bic: 'GXCHPHM2XXX', accountNumber: '09171234567', accountName: 'Juan' } }] },
+    })) } as any);
+    applications.authorizeAction.mockResolvedValue(authorized('payments:payouts:read'));
+    const { res, state } = response();
+    await createController().proxy(request('/payees', 'GET'), res);
+    expect(JSON.parse(Buffer.from(state.body as Buffer).toString('utf8')).data).toEqual({ nextCursor: 'abc', records: [{ payeeId: 'pye_1', externalRef: 'provider-1', legalName: 'Juan',
+      status: 'active', createdAt: '2026-11-24T00:00:00.000Z', destinationHoldUntil: null,
+      destination: { type: 'instapay', bic: 'GXCHPHM2XXX', accountName: 'Juan', accountNumberLast4: '4567' } }] });
+    expect(Buffer.from(state.body as Buffer).toString('utf8')).not.toContain('09171234567');
+  });
+
+  it('rejects a destination that does not match the contract before reaching the runtime', async () => {
+    applications.authorizeAction.mockResolvedValue(authorized('payments:payouts:write'));
+    const { res } = response();
+    await expect(createController().proxy(request('/payees/pye_1/destination', 'PUT', { type: 'instapay', accountNumber: '1', accountName: 'J' }), res))
+      .rejects.toMatchObject({ response: expect.objectContaining({ code: 'INVALID_PAYMENT_REQUEST' }) });
+    expect(mockedAxios.request).not.toHaveBeenCalled();
   });
 
   it('never reaches the payment runtime when the application lacks the grant', async () => {

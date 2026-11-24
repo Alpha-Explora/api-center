@@ -49,6 +49,15 @@ const requiredOperations: Record<string, string> = {
   'GET /api/v1/payments/subscriptions/{subscriptionId}/invoices': 'listSubscriptionInvoices',
   'GET /api/v1/payments/invoices/{invoiceId}': 'getInvoice',
   'GET /api/v1/payments/capabilities': 'getPaymentCapabilities',
+  'POST /api/v1/payments/payees': 'createPayee',
+  'GET /api/v1/payments/payees': 'listPayees',
+  'GET /api/v1/payments/payees/{payeeId}': 'getPayee',
+  'PUT /api/v1/payments/payees/{payeeId}/destination': 'setPayeeDestination',
+  'POST /api/v1/payments/payees/{payeeId}/cash-out': 'cashOutPayee',
+  'POST /api/v1/payments/allocations/{allocationId}/release': 'releaseAllocation',
+  'POST /api/v1/payments/allocations/{allocationId}/cancel': 'cancelAllocation',
+  'GET /api/v1/payments/payouts': 'listPayouts',
+  'GET /api/v1/payments/payouts/{payoutId}': 'getPayout',
 };
 for (const [operation, operationId] of Object.entries(requiredOperations)) {
   const [method, route] = operation.split(' ', 2);
@@ -85,10 +94,20 @@ for (const name of ['IntentPaid', 'IntentFailed']) {
   for (const field of ['status', 'paymentIntentId', 'paymentId', 'amount', 'currency']) assert(schema?.required?.includes(field), `${name} must require ${field}`);
 }
 
+const allocationHeld = asyncApi.components?.schemas?.AllocationHeld;
+for (const field of ['status', 'allocationId', 'payeeId', 'paymentId', 'amount', 'currency']) assert(allocationHeld?.required?.includes(field), `AllocationHeld must require ${field}`);
+for (const name of ['PayoutPaid', 'PayoutFailed']) {
+  const schema = asyncApi.components?.schemas?.[name];
+  for (const field of ['status', 'payoutId', 'payeeId', 'net', 'fee', 'currency', 'trigger']) assert(schema?.required?.includes(field), `${name} must require ${field}`);
+}
+
 const examplePaths = [
   'contracts/public/examples/payment-checkout-paid-event.json',
   'contracts/public/examples/payment-intent-paid-event.json',
   'contracts/public/examples/payment-intent-failed-event.json',
+  'contracts/public/examples/payment-allocation-held-event.json',
+  'contracts/public/examples/payment-payout-paid-event.json',
+  'contracts/public/examples/payment-payout-failed-event.json',
 ];
 for (const relativePath of examplePaths) {
   const example = readJson(relativePath);
