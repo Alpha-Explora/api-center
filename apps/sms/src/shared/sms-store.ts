@@ -2,7 +2,7 @@ import type { SharedServiceCaller } from '@apicenter/runtime';
 import { sameProject } from '@apicenter/runtime';
 import { PostgresSmsStore } from './postgres-sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
-import type { SmsDeliveryEvent } from './sms-repository.interface';
+import type { ProviderMessage, SmsDeliveryEvent } from './sms-repository.interface';
 import type { ProjectSmsSender } from './project-sender';
 
 export interface SmsRecord {
@@ -33,14 +33,14 @@ export class MemorySmsStore implements SmsRepositoryInterface {
     return MemorySmsStore.instance;
   }
 
-  async save(record: SmsRecord, owner: SharedServiceCaller, providerMessageId?: string): Promise<SmsRecord> {
+  async save(record: SmsRecord, owner: SharedServiceCaller, sent?: ProviderMessage): Promise<SmsRecord> {
     const existing = this.store.get(record.messageId);
     if (existing && !sameProject(existing.owner, owner)) {
       throw new Error('SMS message id belongs to another project');
     }
     this.store.set(record.messageId, { record: { ...record }, owner: { ...(existing?.owner ?? owner) } });
-    if (providerMessageId && !this.providerMessageIds.has(providerMessageId)) {
-      this.providerMessageIds.set(providerMessageId, record.messageId);
+    if (sent && !this.providerMessageIds.has(`${sent.provider}:${sent.id}`)) {
+      this.providerMessageIds.set(`${sent.provider}:${sent.id}`, record.messageId);
     }
     return record;
   }
@@ -53,7 +53,7 @@ export class MemorySmsStore implements SmsRepositoryInterface {
 
   async applyDeliveryEvent(event: SmsDeliveryEvent): Promise<{ duplicate: boolean }> {
     if (this.deliveryEventIds.has(event.providerEventId)) return { duplicate: true };
-    const messageId = this.providerMessageIds.get(event.providerMessageId);
+    const messageId = this.providerMessageIds.get(`${event.provider}:${event.providerMessageId}`);
     const entry = messageId ? this.store.get(messageId) : undefined;
     if (!messageId || !entry) throw new Error('SMS message is not yet recorded');
     this.deliveryEventIds.add(event.providerEventId);

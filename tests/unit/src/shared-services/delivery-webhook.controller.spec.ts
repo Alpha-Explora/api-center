@@ -1,7 +1,7 @@
 import { Webhook } from 'standardwebhooks';
 import twilio from 'twilio';
 import { DeliveryWebhookController } from '../../../../apps/gateway/src/domains/gateway-proxy/shared-services/delivery-webhook.controller';
-import { UnauthorizedError } from '../../../../apps/gateway/src/shared/errors';
+import { NotFoundError, UnauthorizedError } from '../../../../apps/gateway/src/shared/errors';
 
 jest.mock('../../../../apps/gateway/src/shared/proxy/cloud-run-auth', () => ({
   getCloudRunAuthorizationHeader: jest.fn().mockResolvedValue(undefined),
@@ -37,7 +37,7 @@ describe('DeliveryWebhookController', () => {
     const id = 'evt_resend_123';
     const now = new Date();
     const signature = new Webhook(resendSecret).sign(id, now, body);
-    const result = await controller.resend({
+    const result = await controller.receive('resend', {
       rawBody: body,
       headers: {
         'svix-id': id,
@@ -47,8 +47,9 @@ describe('DeliveryWebhookController', () => {
     } as any);
 
     expect(result).toEqual({ received: true });
-    expect(fetchMock).toHaveBeenCalledWith('https://email.example.test/webhooks/resend', expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith('https://email.example.test/delivery-events', expect.objectContaining({
       body: JSON.stringify({
+        provider: 'resend',
         providerEventId: id,
         messageId: 're_123',
         status: 'delivered',
@@ -58,7 +59,7 @@ describe('DeliveryWebhookController', () => {
   });
 
   it('rejects a Resend event with an invalid signature before forwarding', async () => {
-    await expect(controller.resend({
+    await expect(controller.receive('resend', {
       rawBody: Buffer.from('{"type":"email.delivered","data":{"email_id":"re_123"}}'),
       headers: { 'svix-id': 'evt_bad', 'svix-timestamp': String(Math.floor(Date.now() / 1000)), 'svix-signature': 'v1,bad' },
     } as any)).rejects.toBeInstanceOf(UnauthorizedError);
@@ -68,24 +69,30 @@ describe('DeliveryWebhookController', () => {
   it('verifies and forwards a valid Twilio status callback', async () => {
     const params = { MessageSid: 'SM123', MessageStatus: 'delivered', To: '+15550000000' };
     const signature = twilio.getExpectedTwilioSignature(twilioAuthToken, callbackUrl, params);
-    const result = await controller.twilio({
+    const result = await controller.receive('twilio', {
       originalUrl: '/api/v1/webhooks/twilio',
       headers: { 'x-twilio-signature': signature },
       body: params,
     } as any);
 
     expect(result).toEqual({ received: true });
-    expect(fetchMock).toHaveBeenCalledWith('https://sms.example.test/webhooks/twilio', expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith('https://sms.example.test/delivery-events', expect.objectContaining({
       body: expect.stringContaining('"messageId":"SM123"'),
     }));
   });
 
   it('rejects a Twilio callback with an invalid signature before forwarding', async () => {
-    await expect(controller.twilio({
+    await expect(controller.receive('twilio', {
       originalUrl: '/api/v1/webhooks/twilio',
       headers: { 'x-twilio-signature': 'invalid' },
       body: { MessageSid: 'SM123', MessageStatus: 'delivered' },
     } as any)).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a provider it has no normalizer for', async () => {
+    await expect(controller.receive('unknown-provider', { headers: {}, body: {} } as any)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(controller.receive('__proto__', { headers: {}, body: {} } as any)).rejects.toBeInstanceOf(NotFoundError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

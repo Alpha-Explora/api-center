@@ -6882,7 +6882,9 @@
             "type": "string"
           },
           "provider": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "Which email source handled the message. Returned until 2027-03-01."
           },
           "status": {
             "type": "string"
@@ -6917,7 +6919,9 @@
             "type": "string"
           },
           "provider": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "Which email source handled the message. Returned until 2027-03-01."
           },
           "status": {
             "type": "string"

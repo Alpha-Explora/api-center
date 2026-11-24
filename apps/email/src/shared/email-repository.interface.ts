@@ -9,8 +9,9 @@ export interface EmailRepositoryInterface {
   setProjectSender(sender: ProjectEmailSender): Promise<ProjectEmailSender>;
   /**
    * Reserves a 'pending' message under the project lock, then calls `send` after the lock is released.
-   * `send` returns the provider's message ID, or undefined to keep the local ID. The message is then
-   * stored as 'queued', or as 'failed' when `send` throws. Failed messages do not count toward the limit.
+   * `send` returns the provider's message ID, or undefined when nothing reached a provider. The message keeps
+   * its APICenter ID; the provider's ID is stored beside it for delivery events and never returned. The message
+   * is then stored as 'queued', or as 'failed' when `send` throws. Failed messages do not count toward the limit.
    */
   sendWithinDailyLimit(
     owner: SharedServiceCaller,
@@ -38,7 +39,10 @@ export interface ProjectEmailSender {
 
 export interface EmailDeliveryEvent {
   providerEventId: string;
-  messageId: string;
+  /** The email provider that reported the event. */
+  provider: string;
+  /** The email provider's message ID; the store resolves it to APICenter's. */
+  providerMessageId: string;
   status: 'sent' | 'delivered' | 'delivery_delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed' | 'opened' | 'clicked';
   payload: unknown;
 }

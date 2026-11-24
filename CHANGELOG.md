@@ -6,6 +6,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Breaking
 
+- Email message IDs are APICenter's own (`eml_` plus 26 lowercase base32 characters). The store used to replace its local ID with the email provider's after sending; migration `20261124001900` replaces existing IDs, and an email ID issued before it returns `404` from the status route. Email, SMS and OTP provider failures return APICenter's message instead of the provider's text (ADR-0010).
 - Geocoding errors are provider-neutral: `GEOCODING_NOT_CONFIGURED` (503) and `GEOCODING_FAILED` (502) replace `GOOGLE_MAPS_CONFIG_ERROR`, `GOOGLE_MAPS_GEOCODING_FAILED` and `GOOGLE_MAPS_REVERSE_GEOCODING_FAILED`, and the provider's error message is no longer returned (ADR-0010).
 - SMS message IDs are APICenter's own (`sms_` plus 26 lowercase base32 characters) instead of the SMS provider's. Migration `20261124001800` replaces existing IDs; a message ID issued before it returns `404` from the status route (ADR-0010).
 - Payment IDs are APICenter's own: checkout (`chk_`), payment intent (`pi_`), payment (`pay_`), refund (`ref_`), customer (`cus_`), plan (`plan_`), payment link (`pl_`), subscription (`sub_`) and invoice (`inv_`) IDs are the prefix plus 26 lowercase base32 characters, and are no longer derived from the payment provider's IDs. Migration `20261124001700` replaces every existing payment ID and rewrites stored copies (records, payout allocations, adjustments and queued events); an ID issued before the migration returns `404 NOT_FOUND`. Find records again by `referenceId`, or ask an operator for the project's old-to-new mapping (`scripts/export-payment-id-mapping.ts`, kept 90 days). Treat IDs as opaque strings (ADR-0010).
@@ -23,6 +24,7 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- The email response's `provider` field is deprecated and removed after 2027-03-01; send and status responses carry `Deprecation` and `Sunset` headers. SMS, email and OTP send through provider interfaces in `@apicenter/runtime` (`SMS_PROVIDER`, `EMAIL_PROVIDER`), and provider delivery callbacks go through one normalizer per provider.
 - Geocoding results carry `components` (street, barangay, city, province, region, postal code, country) and `precision` (`exact`, `street`, `area`, `approximate`). `placeId`, `types`, `provider` and `raw`, and the reverse-geocode `resultType` and `locationType` filters, are deprecated and removed after 2027-03-01; responses that carry them send `Deprecation` and `Sunset` headers. Contracts 1.5.0, SDK 3.6.0.
 - SDK 3.5.0 and contracts 1.4.0 add test payee wallet onboarding, hosted verification links and `payee.onboarding.updated`. The test feature defaults to off and requires migration `20261124001600`.
 

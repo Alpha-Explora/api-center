@@ -2,11 +2,9 @@ import { Pool } from 'pg';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import type { SmsRecord } from './sms-store';
 import type { SmsRepositoryInterface } from './sms-repository.interface';
-import type { SmsDeliveryEvent } from './sms-repository.interface';
+import type { ProviderMessage, SmsDeliveryEvent } from './sms-repository.interface';
 import type { ProjectSmsSender } from './project-sender';
 
-/** The SMS provider behind provider_message_id. */
-export const SMS_PROVIDER = 'twilio';
 
 export class PostgresSmsStore implements SmsRepositoryInterface {
   private readonly pool: Pool;
@@ -19,18 +17,18 @@ export class PostgresSmsStore implements SmsRepositoryInterface {
   }
 
   /** Records the creating caller. A later save may update only a record in the same project and environment. */
-  async save(record: SmsRecord, owner: SharedServiceCaller, providerMessageId?: string): Promise<SmsRecord> {
+  async save(record: SmsRecord, owner: SharedServiceCaller, sent?: ProviderMessage): Promise<SmsRecord> {
     const result = await this.pool.query(
       `INSERT INTO shared_sms.sms_messages AS m
          (message_id, tribe_id, project_id, service_id, environment, recipient, message, status, sender_id, created_at,
-          provider_message_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          provider, provider_message_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, 'none'), $12)
        ON CONFLICT (message_id) DO UPDATE SET status = EXCLUDED.status, updated_at = now()
          WHERE m.project_id = EXCLUDED.project_id AND m.environment = EXCLUDED.environment
        RETURNING message_id`,
       [
         record.messageId, owner.tribeId, owner.projectId, owner.serviceId, owner.environment,
-        record.to, record.message, record.status, record.senderId || null, record.createdAt, providerMessageId ?? null,
+        record.to, record.message, record.status, record.senderId || null, record.createdAt, sent?.provider ?? null, sent?.id ?? null,
       ],
     );
     if (result.rowCount === 0) throw new Error('SMS message id belongs to another project');
@@ -62,7 +60,7 @@ export class PostgresSmsStore implements SmsRepositoryInterface {
       await client.query('begin');
       const message = await client.query(
         `SELECT message_id FROM shared_sms.sms_messages WHERE provider = $1 AND provider_message_id = $2`,
-        [SMS_PROVIDER, event.providerMessageId],
+        [event.provider, event.providerMessageId],
       );
       if (message.rowCount === 0) throw new Error('SMS message is not yet recorded');
       const messageId: string = message.rows[0].message_id;

@@ -66,7 +66,7 @@ testDatabase('APICenter-owned SMS IDs', () => {
     process.env.DATABASE_URL = databaseUrl;
     const { PostgresSmsStore } = await import('../../apps/sms/src/shared/postgres-sms-store');
     const store = new PostgresSmsStore(databaseUrl);
-    await expect(store.applyDeliveryEvent({ providerEventId: 'evt-new', providerMessageId: 'SMold0001', status: 'delivered', payload: {} }))
+    await expect(store.applyDeliveryEvent({ providerEventId: 'evt-new', provider: 'twilio', providerMessageId: 'SMold0001', status: 'delivered', payload: {} }))
       .resolves.toEqual({ duplicate: false });
     const { rows: [message] } = await pool.query('SELECT status FROM shared_sms.sms_messages');
     expect(message.status).toBe('delivered');

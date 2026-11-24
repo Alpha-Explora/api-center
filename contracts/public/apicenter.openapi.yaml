@@ -4218,7 +4218,10 @@ components:
       properties:
         messageId: &a1
           type: string
-        provider: *a1
+        provider:
+          type: string
+          deprecated: true
+          description: Which email source handled the message. Returned until 2027-03-01.
         status: *a1
         recipient:
           type: array
@@ -4240,7 +4243,10 @@ components:
       properties:
         messageId: &a1
           type: string
-        provider: *a1
+        provider:
+          type: string
+          deprecated: true
+          description: Which email source handled the message. Returned until 2027-03-01.
         status: *a1
         recipient:
           type: array

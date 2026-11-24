@@ -5,7 +5,8 @@ const { recordProviderMetric } = require('./metrics');
 const { ProviderGuardError, createCircuitBreaker, withProviderTimeout } = require('./providerGuard');
 const { createMemoryRateLimitStore, recipientRateLimitKey } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
-const { sendTwilioSms, sendResendEmail, formatSender } = require('./delivery');
+const { formatSender } = require('./delivery');
+const { MessagingProviderError, createSmsSender, createEmailSender } = require('./messaging');
 const { mintId, mintedIdPattern } = require('./ids');
 const {
   SharedServiceCallerError,
@@ -40,8 +41,9 @@ module.exports = {
   recipientRateLimitKey,
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
-  sendTwilioSms,
-  sendResendEmail,
+  MessagingProviderError,
+  createSmsSender,
+  createEmailSender,
   formatSender,
   createSharedServiceApp,
   createSuccessResponse,

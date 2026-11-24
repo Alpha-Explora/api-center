@@ -77,14 +77,6 @@
         "apps/docs/content/docs/migration/from-direct-paymongo.mdx"
       ],
       "reason": "Migration guide for teams leaving a direct provider integration"
-    },
-    {
-      "term": "\"resend\"",
-      "document": "docs",
-      "files": [
-        "apps/docs/content/docs/messaging-verification/email.mdx"
-      ],
-      "reason": "Temporary until Task 8 of the provider-neutral plan deprecates the email provider field"
     }
   ],
   "rawFieldNames": [
@@ -130,6 +122,16 @@
     {
       "schema": "GeoReverseGeocodeRequest",
       "field": "locationType",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "EmailSendResponse",
+      "field": "provider",
+      "sunset": "2027-03-01"
+    },
+    {
+      "schema": "EmailDeliveryStatus",
+      "field": "provider",
       "sunset": "2027-03-01"
     }
   ],

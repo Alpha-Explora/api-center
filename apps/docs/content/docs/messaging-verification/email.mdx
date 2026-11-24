@@ -46,11 +46,12 @@ The optional `from` address must match the sender approved for the project and e
     "status": "sent",
     "recipientCount": 1,
     "sentAt": "2026-07-31T23:20:00.000Z",
-    "provider": "resend",
     "recipient": ["customer@example.com"]
   }
 }
 ```
+
+The response also carries `provider`, which is deprecated and removed after 2027-03-01, with `Deprecation` and `Sunset` headers. Do not build on it.
 
 ---
 

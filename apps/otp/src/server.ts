@@ -9,6 +9,9 @@ import {
   callerIdempotencyScope,
   recipientRateLimitKey,
   createSuccessResponse,
+  createEmailSender,
+  createSmsSender,
+  MessagingProviderError,
   type SharedServiceCaller,
 } from '@apicenter/runtime';
 import { GenerateOtpService } from './features/generate-otp/generate-otp.service';
@@ -30,7 +33,8 @@ const { app, ok, fail } = createSharedServiceApp({
   },
 });
 
-const generateOtpService = new GenerateOtpService();
+const otpSenders = { sms: createSmsSender(), email: createEmailSender() };
+const generateOtpService = new GenerateOtpService(undefined, otpSenders);
 const verifyOtpService = new VerifyOtpService();
 const getOtpStatusService = new GetOtpStatusService();
 
@@ -96,9 +100,8 @@ app.post('/generate', async (req: Request, res: Response) => {
 
   if (nodeEnv === 'production') {
     const providerConfigured = channel === 'sms'
-      ? Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-        && (process.env.TWILIO_MESSAGING_SERVICE_SID || process.env.TWILIO_FROM_NUMBER))
-      : Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM_ADDRESS);
+      ? otpSenders.sms.configured()
+      : otpSenders.email.configured() && Boolean(process.env.EMAIL_FROM_ADDRESS);
     if (!providerConfigured) return fail(res, 503, 'OTP_PROVIDER_UNAVAILABLE', 'OTP delivery provider is not configured');
   }
 
@@ -155,7 +158,11 @@ app.post('/generate', async (req: Request, res: Response) => {
     } catch {
       return fail(res, 503, 'IDEMPOTENCY_OUTCOME_UNKNOWN', 'OTP may have been delivered, but its outcome could not be recorded');
     }
-    return fail(res, 502, 'DELIVERY_FAILED', error?.message || 'Failed to deliver OTP');
+    // The provider's own answer stays in the log; callers get APICenter's message (ADR-0010).
+    if (error instanceof MessagingProviderError) {
+      console.warn(JSON.stringify({ type: 'apicenter_otp_provider_error', provider: error.provider, kind: error.kind, detail: error.detail }));
+    }
+    return fail(res, 502, 'DELIVERY_FAILED', error instanceof MessagingProviderError ? error.message : 'The code could not be delivered');
   }
 
   const response = createSuccessResponse(result, 201);

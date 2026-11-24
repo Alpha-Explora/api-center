@@ -11,7 +11,7 @@ export interface ProjectSmsSender {
 }
 
 const E164 = /^\+[1-9]\d{6,14}$/;
-/** Twilio alphanumeric sender IDs: 1–11 letters, digits or spaces, with at least one letter. */
+/** Alphanumeric sender IDs: 1–11 letters, digits or spaces, with at least one letter. */
 const ALPHANUMERIC_SENDER = /^(?=.*[A-Za-z])[A-Za-z0-9 ]{1,11}$/;
 
 export function isValidSmsSenderId(value: string): boolean {

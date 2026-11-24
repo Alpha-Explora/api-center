@@ -3,13 +3,16 @@ import type { OtpGenerateRequest, OtpGenerateResponse } from '@alpha-explora/api
 import { OtpTarget } from './generate-otp.model';
 import { createOtpRepository } from '../../shared/otp-store';
 import type { OtpRepositoryInterface } from '../../shared/otp-repository.interface';
-import { sendResendEmail, sendTwilioSms, type SharedServiceCaller } from '@apicenter/runtime';
+import { createEmailSender, createSmsSender, formatSender, type EmailSender, type SharedServiceCaller, type SmsSender } from '@apicenter/runtime';
 import { hashOtpCode } from '../../shared/otp-hash';
 import { messageProjectName, renderOtpMessage, resolveOtpPolicy } from '../../shared/project-settings';
 import { otpEmail } from '../../shared/otp-email';
 
 export class GenerateOtpService {
-  constructor(private readonly store: OtpRepositoryInterface = createOtpRepository()) {}
+  constructor(
+    private readonly store: OtpRepositoryInterface = createOtpRepository(),
+    private readonly senders: { sms: SmsSender; email: EmailSender } = { sms: createSmsSender(), email: createEmailSender() },
+  ) {}
 
   async execute(input: OtpGenerateRequest & { recipient?: string; target?: string; digits?: number; ttlSeconds?: number }, owner: SharedServiceCaller): Promise<OtpGenerateResponse & { target: string; code?: string }> {
     const rawTarget = input.recipient || input.target;
@@ -40,9 +43,13 @@ export class GenerateOtpService {
     const mock = owner.suppressDelivery === true || (process.env.OTP_DELIVERY_MODE === 'mock' && process.env.NODE_ENV !== 'production');
     try {
       if (!mock && targetVo.getChannel() === 'sms') {
-        await sendTwilioSms({ to: targetVo.getTarget(), message });
+        await this.senders.sms.send({ to: targetVo.getTarget(), message });
       } else if (!mock) {
-        await sendResendEmail({ to: targetVo.getTarget(), ...otpEmail({ projectName, code, ttlSeconds: policy.ttlSeconds, message }) });
+        const email = otpEmail({ projectName, code, ttlSeconds: policy.ttlSeconds, message });
+        const fromAddress = process.env.EMAIL_FROM_ADDRESS;
+        if (!fromAddress) throw new Error('A sender address is required to send email');
+        await this.senders.email.send({ to: [targetVo.getTarget()], from: formatSender(fromAddress, email.fromName),
+          subject: email.subject, text: email.text, html: email.html });
       }
     } catch (error) {
       await this.store.update(otpId, { status: 'expired' }, owner);

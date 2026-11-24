@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import {
+  createEmailSender,
+  MessagingProviderError,
   createScopedIdempotencyKey,
   createSharedIdempotencyStore,
   createSharedRateLimitStore,
@@ -31,20 +33,27 @@ function readCaller(req: Request, res: Response): SharedServiceCaller | null {
     return null;
   }
 }
-const resendApiKey = process.env.RESEND_API_KEY;
+const emailSender = createEmailSender();
+
+/** Email responses still carry `provider`, which is deprecated (ADR-0010). */
+function announceDeprecatedProvider(res: Response) {
+  res.setHeader('Deprecation', 'true');
+  res.setHeader('Sunset', 'Mon, 01 Mar 2027 00:00:00 GMT');
+}
 
 const { app, ok, fail } = createSharedServiceApp({
   serviceId: 'email-gateway',
   health: {
     status: 'ok',
-    resendEnabled: !!resendApiKey,
+    provider: emailSender.provider,
+    deliveryConfigured: emailSender.configured(),
     architecture: 'enterprise-feature-sliced',
     nodeEnv,
   },
 });
 
 const emailStore = createEmailStore();
-const sendEmailService = new SendEmailService(emailStore);
+const sendEmailService = new SendEmailService(emailStore, emailSender);
 const getEmailStatusService = new GetEmailStatusService(emailStore);
 const projectSenderAdminHandler = createProjectSenderAdminHandler({
   store: emailStore,
@@ -111,8 +120,8 @@ app.post('/send', async (req: Request, res: Response) => {
     return fail(res, 403, 'IDEMPOTENCY_CONTEXT_REQUIRED', 'Authenticated service, tribe, and environment context are required');
   }
 
-  if (nodeEnv === 'production' && (!resendApiKey || !process.env.EMAIL_FROM_ADDRESS)) {
-    return fail(res, 503, 'EMAIL_PROVIDER_UNAVAILABLE', 'Resend API key and sender address are required in production');
+  if (nodeEnv === 'production' && (!emailSender.configured() || !process.env.EMAIL_FROM_ADDRESS)) {
+    return fail(res, 503, 'EMAIL_PROVIDER_UNAVAILABLE', 'Email delivery is not configured');
   }
 
   let claim;
@@ -123,6 +132,7 @@ app.post('/send', async (req: Request, res: Response) => {
   }
   if (claim.status === 'replay') {
     res.setHeader('x-idempotency-replayed', 'true');
+    announceDeprecatedProvider(res);
     return res.status(claim.response.status).json(claim.response.body);
   }
   if (claim.status !== 'claimed') {
@@ -179,7 +189,11 @@ app.post('/send', async (req: Request, res: Response) => {
     } catch {
       return fail(res, 503, 'IDEMPOTENCY_OUTCOME_UNKNOWN', 'Email may have been sent, but its outcome could not be recorded');
     }
-    return fail(res, 502, 'PROVIDER_ERROR', error?.message || 'Failed to send email via Resend');
+    // The provider's own answer stays in the log; callers get APICenter's message (ADR-0010).
+    if (error instanceof MessagingProviderError) {
+      console.warn(JSON.stringify({ type: 'apicenter_email_provider_error', provider: error.provider, kind: error.kind, detail: error.detail }));
+    }
+    return fail(res, 502, 'PROVIDER_ERROR', error instanceof MessagingProviderError ? error.message : 'The email could not be sent');
   }
 
   const response = createSuccessResponse(data, 201);
@@ -191,6 +205,7 @@ app.post('/send', async (req: Request, res: Response) => {
     } catch { /* The lease will expire into an unknown outcome. */ }
     return fail(res, 503, 'IDEMPOTENCY_OUTCOME_UNKNOWN', 'Email was sent but its response could not be recorded; reconcile before retrying');
   }
+  announceDeprecatedProvider(res);
   return res.status(response.status).json(response.body);
 });
 
@@ -198,17 +213,22 @@ app.get('/admin/projects/:projectId/email-sender/:environment', projectSenderAdm
 app.put('/admin/projects/:projectId/email-sender/:environment', projectSenderAdminHandler);
 app.post('/admin/platform-messages', platformMessageAdminHandler);
 
-app.post('/webhooks/resend', async (req: Request, res: Response) => {
+// Verified provider delivery events, forwarded by the gateway. `messageId` is the provider's message ID.
+// /webhooks/resend is the route before ADR-0010; the gateway now posts to /delivery-events.
+app.post(['/delivery-events', '/webhooks/resend'], async (req: Request, res: Response) => {
   const event = req.body || {};
   const validStatuses = new Set(['sent', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'failed', 'suppressed', 'opened', 'clicked']);
   if (typeof event.providerEventId !== 'string' || !event.providerEventId ||
       typeof event.messageId !== 'string' || !event.messageId ||
       typeof event.status !== 'string' || !validStatuses.has(event.status) ||
       !event.payload || typeof event.payload !== 'object') {
-    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Resend delivery event is invalid');
+    return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Email delivery event is invalid');
   }
   try {
-    const result = await emailStore.applyDeliveryEvent(event);
+    // Before ADR-0010 the gateway posted Resend events to /webhooks/resend without naming the provider.
+    const provider = typeof event.provider === 'string' && event.provider ? event.provider : 'resend';
+    const result = await emailStore.applyDeliveryEvent({ providerEventId: event.providerEventId, provider,
+      providerMessageId: event.messageId, status: event.status, payload: event.payload });
     return res.status(200).json({ received: true, ...result });
   } catch {
     return fail(res, 503, 'EMAIL_MESSAGE_PENDING', 'Email delivery event could not be applied yet');
@@ -225,6 +245,7 @@ app.get('/status/:messageId', async (req: Request, res: Response) => {
     return fail(res, 404, 'NOT_FOUND', 'Message not found');
   }
 
+  announceDeprecatedProvider(res);
   return ok(res, entry);
 });
 

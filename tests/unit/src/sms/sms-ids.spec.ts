@@ -7,7 +7,8 @@ const owner = { tribeId: 'org-a', projectId: 'prj-a', serviceId: 'app-a', enviro
 describe('APICenter SMS message IDs', () => {
   function service(providerMessageId = 'SM0123456789abcdef0123456789abcdef') {
     const store = new MemorySmsStore();
-    const provider = { send: jest.fn(async () => ({ messageId: providerMessageId, status: 'queued' as const })) };
+    const provider = { provider: 'twilio', defaultSenderId: undefined, hasPlatformSender: () => true, configured: () => true,
+      send: jest.fn(async () => ({ providerMessageId, status: 'queued' as const })) };
     return { store, provider, sms: new SendSmsService(store, provider as never) };
   }
 
@@ -21,10 +22,10 @@ describe('APICenter SMS message IDs', () => {
   it('applies a delivery callback for a new message through the provider message ID', async () => {
     const { sms, store } = service('SMfeedface');
     const { messageId } = await sms.execute({ to: '+639171234567', message: 'Hello' }, owner);
-    await expect(store.applyDeliveryEvent({ providerEventId: 'evt-1', providerMessageId: 'SMfeedface', status: 'delivered', payload: {} }))
+    await expect(store.applyDeliveryEvent({ providerEventId: 'evt-1', provider: 'twilio', providerMessageId: 'SMfeedface', status: 'delivered', payload: {} }))
       .resolves.toEqual({ duplicate: false });
     await expect(store.findById(messageId, owner)).resolves.toMatchObject({ messageId, status: 'delivered' });
-    await expect(store.applyDeliveryEvent({ providerEventId: 'evt-2', providerMessageId: 'SMunknown', status: 'delivered', payload: {} }))
+    await expect(store.applyDeliveryEvent({ providerEventId: 'evt-2', provider: 'twilio', providerMessageId: 'SMunknown', status: 'delivered', payload: {} }))
       .rejects.toThrow('not yet recorded');
   });
 });

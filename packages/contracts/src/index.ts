@@ -158,6 +158,7 @@ export interface EmailSendRequest {
 
 export interface EmailSendResponse {
   messageId: string;
+  /** @deprecated Which email source handled the message. Returned until 2027-03-01. */
   provider: string;
   status: string;
   recipient: string[];

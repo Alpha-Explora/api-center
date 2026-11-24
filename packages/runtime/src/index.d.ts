@@ -68,13 +68,36 @@ export interface SharedStoreOptions { databaseUrl?: string; schema: string }
 export function createSharedIdempotencyStore(options: SharedStoreOptions): IdempotencyStore;
 /** Fixed-window limits in `<schema>.rate_limit_windows`; production requires a database URL. */
 export function createSharedRateLimitStore(options: SharedStoreOptions): RateLimitStore;
-/** Send an SMS through Twilio and return its APICenter delivery status. */
-export function sendTwilioSms(input: { to: string; message: string; senderId?: string; statusCallback?: string }): Promise<{ messageId: string; status: 'queued' | 'sent' | 'delivered' | 'failed' }>;
+export type SmsSendResult = { providerMessageId: string; status: 'queued' | 'sent' | 'delivered' | 'failed' };
+/** Sends SMS through the provider SMS_PROVIDER selects (twilio by default, or mock). */
+export interface SmsSender {
+  readonly provider: string;
+  /** The platform's sender ID, used when a project has none pinned. */
+  readonly defaultSenderId?: string;
+  /** Whether the platform has a sender of its own (for example a sender number or messaging service). */
+  hasPlatformSender(): boolean;
+  /** Whether it can send now, with `senderId` when the platform has no sender of its own. */
+  configured(senderId?: string): boolean;
+  send(input: { to: string; message: string; senderId?: string; statusCallback?: string }): Promise<SmsSendResult>;
+}
+/** Sends email through the provider EMAIL_PROVIDER selects (resend by default, or mock). `from` is a formatted From value. */
+export interface EmailSender {
+  readonly provider: string;
+  configured(): boolean;
+  send(input: { to: string[]; from: string; subject: string; text?: string; html?: string; replyTo?: string }): Promise<{ providerMessageId: string }>;
+}
 /**
- * Send an email through Resend and return its APICenter delivery status. `fromName` is shown as the
- * sender's name in front of EMAIL_FROM_ADDRESS; `html` is sent alongside the plain text.
+ * A provider send failed. `message` is safe to return; `detail` is the provider's own answer, for logs only.
+ * `not_configured`: nothing was sent (503). `rejected`: the provider refused it (502). `unreachable`: outcome unknown (502).
  */
-export function sendResendEmail(input: { to: string; subject: string; text: string; html?: string; fromName?: string }): Promise<{ messageId: string; status: 'queued' }>;
+export class MessagingProviderError extends Error {
+  readonly kind: 'not_configured' | 'rejected' | 'unreachable';
+  readonly provider: string;
+  readonly detail: string;
+  readonly statusCode: 502 | 503;
+}
+export function createSmsSender(env?: NodeJS.ProcessEnv): SmsSender;
+export function createEmailSender(env?: NodeJS.ProcessEnv): EmailSender;
 /** `"Name" <address>` for a From header, or the bare address when no usable name is given. */
 export function formatSender(address: string, name?: string): string;
 /** `${prefix}_` + 26 lowercase Crockford base32 characters (ADR-0010). */
