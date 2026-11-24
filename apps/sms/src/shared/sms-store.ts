@@ -23,6 +23,7 @@ export class MemorySmsStore implements SmsRepositoryInterface {
   private static instance: MemorySmsStore;
   private readonly store = new Map<string, OwnedSmsRecord>();
   private readonly deliveryEventIds = new Set<string>();
+  private readonly providerMessageIds = new Map<string, string>();
   private readonly projectSenders = new Map<string, ProjectSmsSender>();
 
   public static getInstance(): MemorySmsStore {
@@ -32,12 +33,15 @@ export class MemorySmsStore implements SmsRepositoryInterface {
     return MemorySmsStore.instance;
   }
 
-  async save(record: SmsRecord, owner: SharedServiceCaller): Promise<SmsRecord> {
+  async save(record: SmsRecord, owner: SharedServiceCaller, providerMessageId?: string): Promise<SmsRecord> {
     const existing = this.store.get(record.messageId);
     if (existing && !sameProject(existing.owner, owner)) {
       throw new Error('SMS message id belongs to another project');
     }
     this.store.set(record.messageId, { record: { ...record }, owner: { ...(existing?.owner ?? owner) } });
+    if (providerMessageId && !this.providerMessageIds.has(providerMessageId)) {
+      this.providerMessageIds.set(providerMessageId, record.messageId);
+    }
     return record;
   }
 
@@ -49,10 +53,11 @@ export class MemorySmsStore implements SmsRepositoryInterface {
 
   async applyDeliveryEvent(event: SmsDeliveryEvent): Promise<{ duplicate: boolean }> {
     if (this.deliveryEventIds.has(event.providerEventId)) return { duplicate: true };
-    const entry = this.store.get(event.messageId);
-    if (!entry) throw new Error('SMS message is not yet recorded');
+    const messageId = this.providerMessageIds.get(event.providerMessageId);
+    const entry = messageId ? this.store.get(messageId) : undefined;
+    if (!messageId || !entry) throw new Error('SMS message is not yet recorded');
     this.deliveryEventIds.add(event.providerEventId);
-    this.store.set(event.messageId, { ...entry, record: { ...entry.record, status: event.status } });
+    this.store.set(messageId, { ...entry, record: { ...entry.record, status: event.status } });
     return { duplicate: false };
   }
 

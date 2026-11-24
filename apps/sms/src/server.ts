@@ -196,7 +196,9 @@ app.post('/webhooks/twilio', async (req: Request, res: Response) => {
     return fail(res, 400, 'INVALID_DELIVERY_EVENT', 'Twilio delivery event is invalid');
   }
   try {
-    const result = await smsStore.applyDeliveryEvent(event);
+    // The gateway forwards the provider's message ID as `messageId`.
+    const result = await smsStore.applyDeliveryEvent({ providerEventId: event.providerEventId,
+      providerMessageId: event.messageId, status: event.status, payload: event.payload });
     return res.status(200).json({ received: true, ...result });
   } catch {
     return fail(res, 503, 'SMS_MESSAGE_PENDING', 'SMS delivery event could not be applied yet');

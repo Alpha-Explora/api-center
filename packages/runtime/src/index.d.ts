@@ -77,6 +77,10 @@ export function sendTwilioSms(input: { to: string; message: string; senderId?: s
 export function sendResendEmail(input: { to: string; subject: string; text: string; html?: string; fromName?: string }): Promise<{ messageId: string; status: 'queued' }>;
 /** `"Name" <address>` for a From header, or the bare address when no usable name is given. */
 export function formatSender(address: string, name?: string): string;
+/** `${prefix}_` + 26 lowercase Crockford base32 characters (ADR-0010). */
+export function mintId(prefix: string): string;
+/** Matches IDs minted with one of `prefixes`. */
+export function mintedIdPattern(prefixes: string[]): RegExp;
 export function createMemoryCacheStore(): CacheStore;
 export function createCircuitBreaker(options: { provider: string; failureThreshold?: number; resetAfterMs?: number }): CircuitBreaker;
 export function withProviderTimeout<T>(promise: Promise<T>, options: { timeoutMs: number; provider: string; operation: string }): Promise<T>;

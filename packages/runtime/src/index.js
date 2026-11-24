@@ -6,6 +6,7 @@ const { ProviderGuardError, createCircuitBreaker, withProviderTimeout } = requir
 const { createMemoryRateLimitStore, recipientRateLimitKey } = require('./rateLimitStore');
 const { createSharedIdempotencyStore, createSharedRateLimitStore } = require('./sharedStores');
 const { sendTwilioSms, sendResendEmail, formatSender } = require('./delivery');
+const { mintId, mintedIdPattern } = require('./ids');
 const {
   SharedServiceCallerError,
   readSharedServiceCaller,
@@ -18,6 +19,8 @@ const {
 const { RuntimeContextError, loadRuntimeContextKeys, verifyRuntimeContext } = require('./runtimeContext');
 
 module.exports = {
+  mintId,
+  mintedIdPattern,
   ProviderGuardError,
   SharedServiceCallerError,
   createCircuitBreaker,

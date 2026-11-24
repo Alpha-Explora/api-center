@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { mintId } from '@apicenter/runtime';
 import type { SmsSendRequest, SmsSendResponse } from '@alpha-explora/apicenter-contracts';
 import type { SharedServiceCaller } from '@apicenter/runtime';
 import { SmsRecipient, SmsMessagePayload } from './send-sms.model';
@@ -22,8 +23,10 @@ export class SendSmsService {
       : await this.provider.send(recipientVo.getValue(), messageVo.getValue(), input.senderId);
     const sentAt = new Date().toISOString();
 
+    // APICenter mints the public ID; the provider's ID is stored beside it and never returned (ADR-0010).
+    const messageId = mintId('sms');
     const record = {
-      messageId: delivery.messageId,
+      messageId,
       to: recipientVo.getValue(),
       message: messageVo.getValue(),
       senderId: input.senderId,
@@ -31,10 +34,12 @@ export class SendSmsService {
       createdAt: sentAt,
     };
 
-    await this.store.save(record, owner);
+    // Only a message the provider accepted has a provider ID; a suppressed or mock send has none.
+    if (mock) await this.store.save(record, owner);
+    else await this.store.save(record, owner, delivery.messageId);
 
     return {
-      messageId: delivery.messageId,
+      messageId,
       status: delivery.status,
       to: recipientVo.getValue(),
       sentAt,
