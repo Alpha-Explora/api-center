@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
-import { isMockMode, paymongoRequest, stepIdempotencyKey } from '../../shared/paymongo-client';
+import { isMockMode, paymongoRequest, stepIdempotencyKey, type PayMongoAccount } from '../../shared/paymongo-client';
 
 const WALLETS = new Set(['gcash', 'paymaya']);
 type PayMongoCall = typeof paymongoRequest;
@@ -41,8 +41,8 @@ export class PaymentIntentsService {
   constructor(private readonly request: PayMongoCall = paymongoRequest,
     private readonly mockMode: () => boolean = isMockMode) {}
 
-  async createPaymentIntent(payload: any, options: { idempotencyKey?: string; tribeId?: string } = {}) {
-    if (payload?.paymentMethod !== undefined) return this.createWalletPaymentIntent(payload, options.idempotencyKey);
+  async createPaymentIntent(payload: any, options: { idempotencyKey?: string; tribeId?: string; account?: PayMongoAccount } = {}) {
+    if (payload?.paymentMethod !== undefined) return this.createWalletPaymentIntent(payload, options.idempotencyKey, options.account);
     const { amount, currency = 'PHP', description, paymentMethodsAllowed = ['card', 'gcash', 'paymaya'] } = payload;
     if (!amount) throw new PayMongoError('amount is required', 400);
 
@@ -73,6 +73,7 @@ export class PaymentIntentsService {
       method: 'POST',
       body,
       idempotencyKey: options.idempotencyKey,
+      ...(options.account ? { account: options.account } : {}),
     });
 
     const providerData = response?.data || {};
@@ -95,7 +96,7 @@ export class PaymentIntentsService {
    * straight from the app to GCash or Maya. Each step has its own idempotency key; a retried request
    * repeats each step once and returns the same redirect.
    */
-  async createWalletPaymentIntent(payload: any, idempotencyKey?: string) {
+  async createWalletPaymentIntent(payload: any, idempotencyKey?: string, account?: PayMongoAccount) {
     const { amount, currency = 'PHP', description, referenceId, paymentMethod, returnUrl, billing } = payload || {};
     if (!Number.isSafeInteger(amount) || amount < 100) {
       throw new PayMongoError('amount must be an integer of at least 100 centavos', 400, 'INVALID_AMOUNT');
@@ -111,7 +112,7 @@ export class PaymentIntentsService {
         nextAction: { type: 'redirect', redirectUrl: `https://pm.link/mock/${paymentMethod}`, returnUrl } };
     }
 
-    const intentResponse = await this.request('/payment_intents', { method: 'POST',
+    const intentResponse = await this.request('/payment_intents', { method: 'POST', ...(account ? { account } : {}),
       idempotencyKey: stepIdempotencyKey(idempotencyKey, 'intent'),
       body: { data: { attributes: { amount, currency, description, payment_method_allowed: [paymentMethod],
         metadata: { referenceId } } } } });
@@ -120,13 +121,13 @@ export class PaymentIntentsService {
       throw new PayMongoError('PayMongo did not return the intent client key', 502, 'INVALID_PROVIDER_RESPONSE');
     }
     const details = billingDetails(billing);
-    const methodResponse = await this.request('/payment_methods', { method: 'POST',
+    const methodResponse = await this.request('/payment_methods', { method: 'POST', ...(account ? { account } : {}),
       idempotencyKey: stepIdempotencyKey(idempotencyKey, 'method'),
       body: { data: { attributes: { type: paymentMethod, ...(details ? { billing: details } : {}) } } } });
     const paymentMethodId = methodResponse?.data?.id;
     if (!paymentMethodId) throw new PayMongoError('PayMongo did not return a wallet payment method', 502, 'INVALID_PROVIDER_RESPONSE');
     const attachedResponse = await this.request(`/payment_intents/${encodeURIComponent(intent.id)}/attach`, {
-      method: 'POST', idempotencyKey: stepIdempotencyKey(idempotencyKey, 'attach'),
+      method: 'POST', ...(account ? { account } : {}), idempotencyKey: stepIdempotencyKey(idempotencyKey, 'attach'),
       body: { data: { attributes: { payment_method: paymentMethodId, client_key: intent.attributes.client_key,
         return_url: returnUrl } } } });
     const attached = attachedResponse?.data || intent;
@@ -138,7 +139,7 @@ export class PaymentIntentsService {
       paymentMethod, nextAction: action };
   }
 
-  async getPaymentIntent(paymentIntentId: string) {
+  async getPaymentIntent(paymentIntentId: string, account?: PayMongoAccount) {
     if (this.mockMode()) {
       return {
         paymentIntentId,
@@ -148,7 +149,7 @@ export class PaymentIntentsService {
       };
     }
 
-    const response = await this.request(`/payment_intents/${encodeURIComponent(toProviderId('pi', paymentIntentId))}`);
+    const response = await this.request(`/payment_intents/${encodeURIComponent(toProviderId('pi', paymentIntentId))}`, { account });
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
@@ -162,7 +163,7 @@ export class PaymentIntentsService {
     };
   }
 
-  async confirmPaymentIntent(paymentIntentId: string, payload: any, options: { idempotencyKey?: string } = {}) {
+  async confirmPaymentIntent(paymentIntentId: string, payload: any, options: { idempotencyKey?: string; account?: PayMongoAccount } = {}) {
     if (this.mockMode()) {
       return {
         paymentIntentId,
@@ -175,6 +176,7 @@ export class PaymentIntentsService {
       method: 'POST',
       body: { data: { attributes: payload } },
       idempotencyKey: options.idempotencyKey,
+      ...(options.account ? { account: options.account } : {}),
     });
 
     const providerData = response?.data || {};
@@ -189,7 +191,7 @@ export class PaymentIntentsService {
     };
   }
 
-  async cancelPaymentIntent(paymentIntentId: string, options: { idempotencyKey?: string } = {}) {
+  async cancelPaymentIntent(paymentIntentId: string, options: { idempotencyKey?: string; account?: PayMongoAccount } = {}) {
     if (this.mockMode()) {
       return { paymentIntentId, status: 'cancelled' };
     }
@@ -197,6 +199,7 @@ export class PaymentIntentsService {
     const response = await this.request(`/payment_intents/${encodeURIComponent(toProviderId('pi', paymentIntentId))}/cancel`, {
       method: 'POST',
       idempotencyKey: options.idempotencyKey,
+      ...(options.account ? { account: options.account } : {}),
     });
 
     const providerData = response?.data || {};

@@ -88,6 +88,28 @@ describe('runtime payout routes', () => {
     expect(response).toMatchObject({ status: 400, body: { error: { code: 'INVALID_DESTINATION' } } });
   });
 
+  it('records project-scoped payee verification and enforces it for cash-out only when required', async () => {
+    const projectId = 'p-verification';
+    const { payee } = await payeeWithReleased(projectId, 42_500);
+    const path = `/payouts/payees/${payee.id}/verification`;
+    const record = { method: 'third_party', verifiedAt: '2026-11-24T00:00:00Z', verifiedBy: 'operator-2', reference: 'verification-2' };
+    const original = process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION;
+    process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = 'true';
+    try {
+      expect(await call(projectId, 'POST', `/payouts/payees/${payee.id}/cash-out`)).toMatchObject({
+        status: 409, body: { error: { code: 'PAYEE_NOT_VERIFIED' } },
+      });
+      expect((await call(projectId, 'PUT', path, { method: 'third_party' })).status).toBe(400);
+      expect((await call('other-project', 'PUT', path, record)).status).toBe(404);
+      expect((await call(projectId, 'PUT', path, record)).status).toBe(200);
+      expect((await call(projectId, 'GET', `/payouts/payees/${payee.id}`)).body.data.verification)
+        .toEqual({ ...record, verifiedAt: '2026-11-24T00:00:00.000Z' });
+    } finally {
+      if (original === undefined) delete process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION;
+      else process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = original;
+    }
+  });
+
   it('rejects allocations for another project\'s payee before creating the payment', async () => {
     const other = (await call('p-other', 'POST', '/payouts/payees', { externalRef: 'ext-1', legalName: 'Maria' })).body.data;
     const response = await call('p-mine', 'POST', '/payment-intents', {

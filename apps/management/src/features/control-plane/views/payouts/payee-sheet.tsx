@@ -37,6 +37,17 @@ export function PayeeSheet({ payeeId, onOpenChange }: { payeeId: string | null; 
                 <dd>
                   <StatusBadge status={payee.data.status} />
                 </dd>
+                <dt className="text-muted-foreground">Verification</dt>
+                <dd>
+                  {payee.data.verification ? (
+                    <>
+                      <span className="capitalize">{payee.data.verification.method.replaceAll("_", " ")}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {payee.data.verification.verifiedBy} · {formatDateTime(payee.data.verification.verifiedAt)}
+                      </span>
+                    </>
+                  ) : "Unrecorded"}
+                </dd>
                 <dt className="text-muted-foreground">Paid to</dt>
                 <dd>
                   {describeDestination(payee.data.destination)}

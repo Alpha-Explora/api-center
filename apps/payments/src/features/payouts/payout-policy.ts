@@ -59,6 +59,7 @@ export type PoolSummary = {
   available: Centavos;
   destinationHoldUntil: string | null;
   hasDestination: boolean;
+  verified?: boolean;
   /** When this payee's latest scheduled payout that did not fail was created. */
   lastScheduledPayoutAt: string | null;
 };

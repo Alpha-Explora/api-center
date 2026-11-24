@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { PayMongoError } from '../../shared/payment-errors';
 import type { VerifiedWebhook, WebhookEffects } from '../../shared/payment-owner-store';
 import type { PoolClient } from 'pg';
-import type { MerchantAccountResolver } from './merchant-accounts';
 import type { AllocationStatus, Centavos } from './payout-ledger';
 import { INSTAPAY_CAP } from './payout-policy';
 import type { AllocationRecord, PayoutContext, PayoutStore, RefundFact } from './payout-store';
@@ -22,7 +21,7 @@ export type AllocationInput = z.infer<typeof allocationsInput>;
 
 export type AllocationView = { id: string; payeeId: string; amount: Centavos; status: AllocationStatus; paymentId: string | null };
 
-export type PaidResource = { type: AllocationRecord['resourceType']; id: string; gross: Centavos; referenceId: string };
+export type PaidResource = { type: AllocationRecord['resourceType']; id: string; gross: Centavos; referenceId: string; merchantAccountId?: string };
 
 /** Parses `allocations` from a create body. Undefined when the body has none. */
 export function parseAllocations(body: unknown): AllocationInput | undefined {
@@ -47,12 +46,11 @@ export async function validateAllocations(store: PayoutStore, context: PayoutCon
   if (payees.some((payee) => payee.status !== 'active')) throw new PayMongoError('Payee is suspended', 409, 'PAYEE_SUSPENDED');
 }
 
-export async function attachAllocations(deps: { store: PayoutStore; accounts: MerchantAccountResolver; now: () => Date },
+export async function attachAllocations(deps: { store: PayoutStore },
   context: PayoutContext, resource: PaidResource, items: AllocationInput): Promise<AllocationView[]> {
-  const account = await deps.accounts.resolve(context.projectId, context.environment, deps.now());
   const created = await deps.store.insertAllocations(context, items.map((item) => ({
     payeeId: item.payeeId,
-    merchantAccountId: account.id,
+    merchantAccountId: resource.merchantAccountId ?? 'parent',
     resourceType: resource.type,
     resourceId: resource.id,
     referenceId: resource.referenceId,

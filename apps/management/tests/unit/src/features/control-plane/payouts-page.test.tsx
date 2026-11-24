@@ -7,6 +7,8 @@ import { PayoutsPage } from "@/features/control-plane/views/payouts/payouts-page
 
 const payouts = vi.hoisted(() => ({
   overview: vi.fn(),
+  linkedAccount: vi.fn(),
+  updateLinkedAccount: vi.fn(),
   settings: vi.fn(),
   saveSettings: vi.fn(),
   payees: vi.fn(),
@@ -43,6 +45,8 @@ describe("PayoutsPage", () => {
   beforeEach(() => {
     environment.canWrite = true;
     environment.platformAdmin = true;
+    payouts.linkedAccount.mockResolvedValue({ environmentEnabled: false, projectEnabled: false,
+      providerAvailable: false, collectionMoveAvailable: false, onboarding: null });
     payouts.overview.mockResolvedValue({ wallet: { configured: true, available: 1_250_000, lowFloatAlert: 100_000 }, counts: { needs_review: 1 },
       needsReview: [stuck], nextScheduledAt: "2026-11-27T12:00:00Z" });
     payouts.settings.mockResolvedValue(policy);
@@ -71,6 +75,27 @@ describe("PayoutsPage", () => {
     renderPage();
     expect(await screen.findByText("The payout wallet is not set")).toBeTruthy();
     expect(screen.getByText(/payouts runbook/)).toBeTruthy();
+  });
+
+  it("explains when linked accounts are switched off and limits the project switch to platform admins", async () => {
+    payouts.linkedAccount.mockResolvedValue({ environmentEnabled: true, projectEnabled: false,
+      providerAvailable: true, collectionMoveAvailable: false, onboarding: null });
+    environment.platformAdmin = false;
+    renderPage();
+    expect(await screen.findByText("Linked accounts are switched off for this project.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enable for project" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("shows a newly issued verification link in the panel", async () => {
+    payouts.linkedAccount.mockResolvedValue({ environmentEnabled: true, projectEnabled: true, providerAvailable: true,
+      collectionMoveAvailable: false, onboarding: { id: "lac_fixture", status: "verification_pending",
+        nextAction: "await_verification", attempts: 0, walletOnly: false, declineReason: null, verification: null } });
+    payouts.updateLinkedAccount.mockResolvedValue({ url: "https://identity.example.test/link-fixture", expiresAt: "2026-11-26T04:00:00Z" });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Reissue verification link" }));
+    expect(await screen.findByText("This link is shown once. Reissue it if it is lost.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("https://identity.example.test/link-fixture")).toBeNull();
   });
 
   it("resolving a payout requires a note and posts the outcome", async () => {

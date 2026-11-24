@@ -8,6 +8,7 @@ import type { PaymentContext } from '../../shared/payment-owner-store';
 import { allocationView } from './allocations';
 import { reconcileOpenAttempts, runPayouts, type PayoutDeps } from './payout-executor';
 import { PayoutStateError } from './payout-ledger';
+import { payeeVerificationInput, requiresPayeeVerification } from './payee-verification';
 import { nextScheduledSlot, payoutPolicySchema } from './payout-policy';
 import { payoutContext, type Environment, type Payee } from './payout-store';
 
@@ -117,13 +118,30 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
 
   app.post('/payouts/payees/:payeeId/cash-out', route(async (req, res) => {
     const { payee, environment, projectId } = await ownedPayee(req);
+    if (requiresPayeeVerification() && !payee.verification) {
+      throw new PayMongoError('The project must record verification for this payee before cash-out', 409, 'PAYEE_NOT_VERIFIED');
+    }
     const report = await runPayouts(deps, environment, { kind: 'cash_out', cashedOutToday: 0 }, { payeeId: payee.id, projectId });
     const [payoutId] = report.paid;
     if (!payoutId) {
       const reason = report.skipped[0]?.reason ?? 'nothing_released';
-      throw new PayMongoError(`Cash-out is not possible: ${reason.replace(/_/g, ' ')}`, 409, reason.toUpperCase());
+      throw new PayMongoError(`Cash-out is not possible: ${reason.replace(/_/g, ' ')}`, 409,
+        reason === 'payee_unverified' ? 'PAYEE_NOT_VERIFIED' : reason.toUpperCase());
     }
-    helpers.ok(res, await deps.store.getPayout(environment, projectId, payoutId), 202);
+    const payout = await deps.store.getPayout(environment, projectId, payoutId);
+    const additionalPayouts = await Promise.all(report.paid.slice(1).map((id) => deps.store.getPayout(environment, projectId, id)));
+    helpers.ok(res, additionalPayouts.length ? { ...payout, additionalPayouts } : payout, 202);
+  }));
+
+  app.put('/payouts/payees/:payeeId/verification', route(async (req, res) => {
+    const { payee, environment, projectId } = await ownedPayee(req);
+    const input = parse(payeeVerificationInput, req.body, 'INVALID_PAYEE_VERIFICATION',
+      'verifiedBy, verifiedAt and method are required');
+    const updated = await deps.store.recordPayeeVerification(environment, projectId, payee.id, {
+      ...input, verifiedAt: new Date(input.verifiedAt).toISOString(), reference: input.reference ?? null,
+    });
+    if (!updated) throw notFound('Payee');
+    helpers.ok(res, updated);
   }));
 
   for (const event of ['release', 'cancel'] as const) {
@@ -141,18 +159,27 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
     const context = payoutContext(helpers.context(req));
     const now = deps.now();
     const account = await deps.accounts.resolve(context.projectId, context.environment, now);
-    let available: number | null = null;
-    if (account.wallet) {
-      try {
-        available = await deps.mover.availableBalance(account);
-      } catch (error) {
-        console.warn(JSON.stringify({ type: 'apicenter_payout_balance_unavailable', environment: context.environment,
-          message: (error as Error).message }));
+    const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const projectWallets = await deps.accounts.listProjectWallets?.(context.environment, context.projectId, since)
+      ?? [{ account, collectedCentavos: 0 }];
+    const wallets = await Promise.all(projectWallets.map(async ({ account: source, collectedCentavos }) => {
+      let available: number | null = null;
+      if (source.wallet) {
+        try {
+          available = await deps.mover.availableBalance(source);
+        } catch {
+          console.warn(JSON.stringify({ type: 'apicenter_payout_balance_unavailable', environment: context.environment,
+            merchantAccountId: source.id }));
+        }
       }
-    }
+      return { accountId: source.id, configured: source.wallet !== null, available,
+        lowFloatAlert: source.lowFloatAlert, collectedCentavos };
+    }));
+    const current = wallets.find((wallet) => wallet.accountId === account.id);
     const policy = await deps.store.getSettings(context.environment, context.projectId);
     helpers.ok(res, {
-      wallet: { configured: account.wallet !== null, available, lowFloatAlert: account.lowFloatAlert },
+      wallet: { configured: account.wallet !== null, available: current?.available ?? null, lowFloatAlert: account.lowFloatAlert },
+      wallets,
       counts: await deps.store.payoutCounts(context.environment, context.projectId),
       needsReview: (await deps.store.listPayouts(context.environment, context.projectId, { status: 'needs_review', limit: 100 })).records,
       nextScheduledAt: policy.schedule ? nextScheduledSlot(policy.schedule, now).toISOString() : null,

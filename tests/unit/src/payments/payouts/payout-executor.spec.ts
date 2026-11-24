@@ -28,10 +28,44 @@ async function setup(amounts = [42_500, 30_000]) {
 const schedule = { kind: 'schedule' } as const;
 
 describe('runPayouts', () => {
+  it('pays released parent and child pools in the same weekly run', async () => {
+    const { deps, store, payee, mover } = await setup([20_000]);
+    const child: MerchantAccount = { ...wallet, id: 'org_child', kind: 'child' };
+    deps.accounts = { ...accounts, listWithReleasedPools: async () => [wallet, child] };
+    await store.insertAllocations(context, [{ payeeId: payee.id, merchantAccountId: child.id, resourceType: 'checkout',
+      resourceId: 'chk_child', referenceId: 'order-child', template: false, paymentId: 'pay_child',
+      amount: 30_000, grossAmount: 30_000, status: 'released' }]);
+
+    const report = await runPayouts(deps, 'test', schedule);
+    expect(report.paid).toHaveLength(2);
+    expect(mover.submitted.map((transfer) => [transfer.account.id, transfer.amount])).toEqual([
+      ['parent', 20_000], ['org_child', 30_000],
+    ]);
+  });
+
+  it('skips unverified payees before checking the wallet when required', async () => {
+    const { deps, mover, payee, store } = await setup();
+    const balance = jest.spyOn(mover, 'availableBalance');
+    const original = process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION;
+    process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = 'true';
+    try {
+      const report = await runPayouts(deps, 'test', schedule);
+      expect(report.skipped).toEqual([{ payeeId: payee.id, reason: 'payee_unverified' }]);
+      expect(balance).not.toHaveBeenCalled();
+      await store.recordPayeeVerification('test', context.projectId, payee.id, {
+        verifiedBy: 'ops-1', verifiedAt: '2026-11-24T04:00:00.000Z', method: 'in_person', reference: null,
+      });
+      expect((await runPayouts(deps, 'test', schedule)).paid).toHaveLength(1);
+    } finally {
+      if (original === undefined) delete process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION;
+      else process.env.PAYOUTS_REQUIRE_PAYEE_VERIFICATION = original;
+    }
+  });
+
   it('pays a pool as one transfer', async () => {
     const { store, mover, deps } = await setup();
     const report = await runPayouts(deps, 'test', schedule);
-    expect(report).toMatchObject({ floatLow: false });
+    expect(report).toMatchObject({ floatLow: [] });
     expect(report.paid).toHaveLength(1);
     expect(mover.submitted).toHaveLength(1);
     expect(mover.submitted[0]).toMatchObject({ amount: 72_500, destination: { bic: 'GXCHPHM2XXX' } });
@@ -128,7 +162,7 @@ describe('runPayouts', () => {
     const { store, mover, deps } = await setup();
     mover.setBalance(50_000);
     const report = await runPayouts(deps, 'test', schedule);
-    expect(report).toMatchObject({ paid: [], floatLow: true, skipped: [expect.objectContaining({ reason: 'float_low' })] });
+    expect(report).toMatchObject({ paid: [], floatLow: ['parent'], skipped: [expect.objectContaining({ reason: 'float_low' })] });
     expect(store.payouts.size).toBe(0);
     expect([...store.allocations.values()].every((entry) => entry.status === 'released')).toBe(true);
   });

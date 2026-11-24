@@ -6,7 +6,7 @@ describe('payout runner', () => {
     const runnerDeps: RunnerDeps = {
       environment: 'test',
       reconcile: jest.fn(async () => { calls.push('reconcile'); return { resolved: 0, needsReview: 0 }; }),
-      run: jest.fn(async (trigger) => { calls.push(`run:${trigger.kind}`); return { paid: [], skipped: [], floatLow: false }; }),
+      run: jest.fn(async (trigger) => { calls.push(`run:${trigger.kind}`); return { paid: [], skipped: [], floatLow: [] }; }),
       drain: jest.fn(async () => { calls.push('drain'); }),
       log: jest.fn(),
     };

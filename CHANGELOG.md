@@ -19,6 +19,9 @@ User-visible changes are recorded under Unreleased until a release is cut. This 
 
 ### Added
 
+- Projects can record who verified a payee, when, and how through `PUT /api/v1/payments/payees/{payeeId}/verification` and SDK 3.4.0. The payouts runtime can require that record with `PAYOUTS_REQUIRE_PAYEE_VERIFICATION=true`. Contracts are version 1.3.0.
+- The payouts console can preview linked-merchant onboarding in test behind environment and project switches. Collections and payouts retain their merchant account across project moves. Live onboarding is pending PayMongo verification.
+
 - Payouts:
   - **Payees and allocations.** Register payees with `POST /api/v1/payments/payees` and set where they are paid with `PUT /api/v1/payments/payees/{payeeId}/destination`: InstaPay (GCash or bank) or a provider wallet, held for 24 hours after a change. Attach `allocations` to checkouts, payment intents and payment links. Each is held when the payment is paid, then released or cancelled with `POST /api/v1/payments/allocations/{allocationId}/release|cancel`.
   - **When payees are paid.** Released earnings are pooled per payee and paid weekly (Friday 20:00 Asia/Manila by default), or on `POST /api/v1/payments/payees/{payeeId}/cash-out` within a daily cap.

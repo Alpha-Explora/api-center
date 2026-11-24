@@ -3,8 +3,9 @@
 // project, then forwards to the environment's payments runtime with a signed context for the project.
 // Payee account numbers leave the gateway masked.
 
-import { Body, Controller, Get, HttpException, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Header, HttpException, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
+import { AuditEventsService } from "@audit/audit-events.service";
 import { getCloudRunAuthorizationHeader } from "@shared/proxy/cloud-run-auth";
 import { paymentRuntimeToken, paymentRuntimeUrl } from "@shared/proxy/payment-runtime";
 import { BadGatewayError, ForbiddenError, ServiceUnavailableError, ValidationError } from "@shared/errors";
@@ -35,6 +36,8 @@ const pageQuery = z.object({
 type Route = { action: ConsoleAction; scope: "payments:payouts:read" | "payments:payouts:write"; platformOnly: boolean };
 const READ: Route = { action: "environment.read", scope: "payments:payouts:read", platformOnly: false };
 const OPERATE: Route = { action: "environment.write", scope: "payments:payouts:write", platformOnly: true };
+const WRITE: Route = { ...OPERATE, platformOnly: false };
+const LINKED = "/admin/payouts/linked-account";
 
 /** Masks a payee's destination account number to its last four digits. */
 export function maskPayee(payee: unknown): unknown {
@@ -53,7 +56,8 @@ export type RuntimeFetch = (url: string, init: RequestInit) => Promise<globalThi
 export class PayoutsConsoleController {
   private fetchImpl: RuntimeFetch = (url, init) => fetch(url, init);
 
-  constructor(private readonly access: ConsoleAccessService, private readonly contexts: ConsoleRuntimeContextService) {}
+  constructor(private readonly access: ConsoleAccessService, private readonly contexts: ConsoleRuntimeContextService,
+    private readonly audit: AuditEventsService) {}
 
   /** For tests: the runtime call. */
   useFetch(fetchImpl: RuntimeFetch): void {
@@ -68,6 +72,46 @@ export class PayoutsConsoleController {
   @Get("settings")
   settings(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
     return this.forward(params, req, READ, "GET", "/admin/payouts/settings");
+  }
+
+  @Get("linked-account")
+  linkedAccount(@Param() params: Record<string, string>, @Req() req: ConsoleRequest) {
+    return this.forward(params, req, READ, "GET", LINKED);
+  }
+
+  @Put("linked-account/enabled")
+  setLinkedAccountEnabled(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    const input = z.object({ enabled: z.boolean() }).safeParse(body);
+    if (!input.success) throw new ValidationError("enabled must be a boolean");
+    return this.linkedMutation(params, req, OPERATE, "PUT", "/enabled", { ...input.data, actor: actorLabel(req) },
+      input.data.enabled ? "project_enabled" : "project_disabled");
+  }
+
+  @Post("linked-account")
+  @Header("Cache-Control", "no-store")
+  startLinkedAccount(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    return this.linkedMutation(params, req, WRITE, "POST", "", body, "onboarding_started");
+  }
+
+  @Post("linked-account/verification-link")
+  @Header("Cache-Control", "no-store")
+  reissueLinkedAccountLink(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    return this.linkedMutation(params, req, WRITE, "POST", "/verification-link", body, "link_reissued");
+  }
+
+  @Post("linked-account/advance")
+  advanceLinkedAccount(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    return this.linkedMutation(params, req, WRITE, "POST", "/advance", body, "onboarding_advanced");
+  }
+
+  @Post("linked-account/move")
+  moveLinkedAccount(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    return this.linkedMutation(params, req, WRITE, "POST", "/move", body, "project_moved");
+  }
+
+  @Post("linked-account/close")
+  closeLinkedAccount(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
+    return this.linkedMutation(params, req, OPERATE, "POST", "/close", body, "closed");
   }
 
   @Post("settings")
@@ -104,7 +148,21 @@ export class PayoutsConsoleController {
       { outcome: input.outcome, note: input.note, actor: actorLabel(req) });
   }
 
-  private async forward(params: Record<string, string>, req: ConsoleRequest, route: Route, method: "GET" | "POST", path: string,
+  private async linkedMutation(params: Record<string, string>, req: ConsoleRequest, route: Route, method: "PUT" | "POST",
+    path: string, body: unknown, action: string) {
+    const response = await this.forward(params, req, route, method, `${LINKED}${path}`, body);
+    const result = z.object({ data: z.object({ id: z.string().regex(/^lac_[A-Za-z0-9]+$/).optional() }) }).safeParse(response);
+    await this.audit.record({
+      type: `linked_account.${action}`, actionFamily: "lifecycle", severity: "info",
+      organizationId: params.organizationId, projectId: params.projectId, environment: params.environment,
+      actor: actorLabel(req), resourceType: "linked_account",
+      resourceId: (result.success ? result.data.data.id : undefined) ?? params.projectId,
+      message: `Linked account ${action.replaceAll("_", " ")}`,
+    });
+    return response;
+  }
+
+  private async forward(params: Record<string, string>, req: ConsoleRequest, route: Route, method: "GET" | "POST" | "PUT", path: string,
     body?: unknown): Promise<unknown> {
     const parsed = target.safeParse(params);
     if (!parsed.success) throw new ValidationError("organizationId, projectId and environment (test or live) are required");
@@ -112,7 +170,7 @@ export class PayoutsConsoleController {
     const { organizationId, projectId, environment } = parsed.data;
     await this.access.require(req.consoleActor, organizationId, route.action, { projectId, environmentKind: environment });
     if (route.platformOnly && !hasPlatformAccess(req.consoleActor)) {
-      throw new ForbiddenError("Only APICenter platform operators can resolve payouts or change payout settings");
+      throw new ForbiddenError("Only APICenter platform operators can perform this payout action");
     }
 
     const token = paymentRuntimeToken(environment);

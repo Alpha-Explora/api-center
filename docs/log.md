@@ -1,5 +1,9 @@
 # Documentation bundle changes
 
+## 2026-11-24
+
+- Added linked-account sandbox evidence, the merchant-account operating procedures and the payee verification API guide. The working plan tracks the remaining live onboarding and rollout checks.
+
 ## 2026-11-21
 
 - Proposed ADR-0008 (project payouts through resolved merchant accounts) and the payouts design: pooled payee payouts from the PayMongo wallet, exactly-once transfers, and a merchant-account resolver so projects can move to PayMongo linked accounts later. ADR-0001 and ADR-0002 still apply until the ADR is accepted.

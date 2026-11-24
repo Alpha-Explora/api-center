@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { PayMongoError } from './payment-errors';
 
-const baseUrl = process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1';
+const baseUrl = (process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1').replace(/\/+$/, '');
+
+export type PayMongoAccount = { id: string; kind: 'parent' | 'child' };
 
 function secretKey(): string {
   const mode = process.env.PAYMENT_PROVIDER_MODE;
@@ -26,6 +28,10 @@ export function providerMode(): string {
   return process.env.PAYMENT_PROVIDER_MODE === 'test' ? 'test' : 'live';
 }
 
+export function hasPayMongoTestCredentials(): boolean {
+  return process.env.PAYMENT_PROVIDER_MODE === 'test' && secretKey().startsWith('sk_test_');
+}
+
 /** One request of a multi-step provider flow, keyed so a retry of the whole flow repeats each step exactly once. */
 export function stepIdempotencyKey(key: string | undefined, step: string): string | undefined {
   return key ? createHash('sha256').update(`${key}:${step}`).digest('hex') : undefined;
@@ -41,13 +47,13 @@ export async function paymongoRequest(endpoint: string, options: {
   body?: any;
   idempotencyKey?: string;
   /** The merchant account to act as. A child account is addressed with PayMongo's Account-ID header. */
-  account?: { id: string; kind: 'parent' | 'child' };
+  account?: PayMongoAccount;
 } = {}): Promise<any> {
   if (isMockMode()) {
     return { data: { id: `mock_${Date.now()}`, attributes: { status: 'succeeded' } } };
   }
 
-  const url = `${baseUrl}${endpoint}`;
+  const url = `${/^\/v\d+\//.test(endpoint) ? baseUrl.replace(/\/v\d+$/, '') : baseUrl}${endpoint}`;
   const headers: Record<string, string> = {
     Authorization: getAuthHeader(),
     'Content-Type': 'application/json',

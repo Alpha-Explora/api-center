@@ -3,7 +3,9 @@ import { PayMongoError } from '../../shared/payment-errors';
 import { OwnerRecord, PaymentOwnerStore, VerifiedWebhook } from '../../shared/payment-owner-store';
 import { toPublicId } from '../../shared/payment-ids';
 import { isRefundStatus, RefundsService } from '../refunds/refunds.service';
-import { isMockMode } from '../../shared/paymongo-client';
+import { isMockMode, type PayMongoAccount } from '../../shared/paymongo-client';
+import { parseAccountEvent } from '../linked-accounts/account-events';
+import type { LinkedAccountOnboarding } from '../linked-accounts/linked-account-onboarding';
 
 const isPaidPayment = (payment: any): boolean => payment?.type === 'payment'
   && typeof payment.id === 'string' && payment.id.startsWith('pay_') && payment.attributes?.status === 'paid';
@@ -29,10 +31,16 @@ function linkObjectPaymentId(link: any): string | undefined {
 }
 
 export class WebhooksService {
-  constructor(private readonly owners = PaymentOwnerStore.getInstance(), private readonly refunds = new RefundsService()) {}
-  async processWebhook(payload: any, options: { signatureHeader?: string; rawBody?: Buffer; environment?: string } = {}) {
+  constructor(private readonly owners = PaymentOwnerStore.getInstance(), private readonly refunds = new RefundsService(),
+    private readonly refundAccount?: (owner: OwnerRecord) => Promise<PayMongoAccount>,
+    private readonly onboarding?: Pick<LinkedAccountOnboarding, 'applyProviderEvent'>,
+    private readonly childSecret?: (accountId: string) => string | undefined) {}
+  async processWebhook(payload: any, options: { signatureHeader?: string; rawBody?: Buffer; environment?: string; accountId?: string } = {}) {
     const environment = options.environment;
-    const secret = environment === 'live' ? process.env.PAYMONGO_LIVE_WEBHOOK_SECRET : process.env.PAYMONGO_TEST_WEBHOOK_SECRET;
+    const accountId = options.accountId ?? 'parent';
+    const secret = options.accountId ? this.childSecret?.(accountId)
+      : environment === 'live' ? process.env.PAYMONGO_LIVE_WEBHOOK_SECRET : process.env.PAYMONGO_TEST_WEBHOOK_SECRET;
+    if (options.accountId && !secret) throw new PayMongoError('Invalid PayMongo webhook signature', 401, 'INVALID_SIGNATURE');
     if (!secret) throw new PayMongoError('PayMongo webhook secret is not configured', 503, 'WEBHOOK_NOT_CONFIGURED');
     if (!options.rawBody || !options.signatureHeader || (environment !== 'live' && environment !== 'test')) {
       throw new PayMongoError('Invalid PayMongo webhook signature', 401, 'INVALID_SIGNATURE');
@@ -55,11 +63,19 @@ export class WebhooksService {
     }
     const eventType = payload?.data?.attributes?.type;
     const resourceData = payload?.data?.attributes?.data || {};
-    if (payload?.data?.attributes?.livemode !== (environment === 'live')) {
+    const accountEvent = options.accountId ? null : parseAccountEvent(payload);
+    // PayMongo's sandbox identity events report livemode=true even on a test-signed delivery.
+    const testIdentityEvent = environment === 'test' && accountEvent?.sessionId && payload?.data?.attributes?.livemode === true;
+    if (!testIdentityEvent && payload?.data?.attributes?.livemode !== (environment === 'live')) {
       throw new PayMongoError('Webhook environment does not match payment', 403, 'ENVIRONMENT_MISMATCH');
     }
+    if (accountEvent && this.onboarding) {
+      const result = await this.onboarding.applyProviderEvent(environment, accountEvent);
+      return { event: result === 'unknown_account' ? 'ignored' : result,
+        data: { eventType, updated: result === 'applied' ? 1 : 0 } };
+    }
     if (eventType === 'payment.refund.updated' || eventType === 'payment.refunded') {
-      return this.processRefundWebhook({ providerEventId, eventType, resourceData, environment, rawBody: options.rawBody });
+      return this.processRefundWebhook({ providerEventId, eventType, resourceData, environment, rawBody: options.rawBody, accountId });
     }
     let source: OwnerRecord | undefined;
     let payments: any[] = [];
@@ -76,7 +92,7 @@ export class WebhooksService {
       linkEvent = true;
       const reference = linkReference(resourceData);
       if (isPaidPayment(resourceData) && reference) {
-        source = await this.owners.findWebhookSourceByProviderReference('payment_link', reference, environment);
+        source = await this.owners.findWebhookSourceByProviderReference('payment_link', reference, environment, accountId);
         linkPaymentId = resourceData.id;
       }
     } else if (eventType === 'link.payment.paid') {
@@ -90,18 +106,28 @@ export class WebhooksService {
         payments = [resourceData];
       }
     }
-    if (!source) return { event: 'ignored', data: { eventType, updated: false } };
+    if (!source || (source.merchantAccountId ?? 'parent') !== accountId) {
+      return { event: 'ignored', data: { eventType, updated: false } };
+    }
     if (eventType === 'payment.failed') {
       return this.processIntentFailure({ providerEventId, environment, source, payment: resourceData, payload,
         rawBody: options.rawBody });
     }
 
     if (linkEvent) {
+      const linkPayments = isLinkObject && Array.isArray(resourceData.attributes?.payments)
+        ? resourceData.attributes.payments.map((entry: any) => entry?.data ?? entry).filter(isPaidPayment)
+        : isPaidPayment(resourceData) ? [resourceData] : [];
       const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
         payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
         receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
           snapshot: { status: 'paid', paidAt: new Date().toISOString(),
-            ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } }],
+            ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } },
+          ...linkPayments.map((payment: any) => ({
+            ...source, resourceType: 'payment', resourceId: toPublicId('pay', payment.id), status: 'paid',
+            snapshot: { paymentId: toPublicId('pay', payment.id), status: 'paid', amount: payment.attributes.amount,
+              currency: payment.attributes.currency, sourceId: source.resourceId },
+          }))],
         ...(linkPaymentId ? { paidResource: { resourceType: 'payment_link', resourceId: source.resourceId, paymentId: linkPaymentId } } : {}) });
       return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
     }
@@ -139,8 +165,8 @@ export class WebhooksService {
   }
 
   private async processRefundWebhook(input: { providerEventId: string; eventType: string; resourceData: any;
-    environment: 'test' | 'live'; rawBody: Buffer }) {
-    const { providerEventId, eventType, resourceData, environment, rawBody } = input;
+    environment: 'test' | 'live'; rawBody: Buffer; accountId: string }) {
+    const { providerEventId, eventType, resourceData, environment, rawBody, accountId } = input;
     const attributes = resourceData?.attributes || {};
     const sources = new Map<string, OwnerRecord>();
     const addSource = async (providerRefundId: string) => {
@@ -174,6 +200,7 @@ export class WebhooksService {
     const updates: OwnerRecord[] = [];
     const refunds: NonNullable<VerifiedWebhook['refunds']> = [];
     for (const owner of sources.values()) {
+      if ((owner.merchantAccountId ?? 'parent') !== accountId) continue;
       let fresh: Record<string, unknown>;
       if (directRefund && owner.resourceId === toPublicId('ref', resourceData.id)) {
         const status = typeof attributes.status === 'string' ? attributes.status
@@ -190,7 +217,9 @@ export class WebhooksService {
         };
       } else {
         if (isMockMode()) continue;
-        fresh = await this.refunds.getRefund(owner.resourceId);
+        fresh = this.refundAccount
+          ? await this.refunds.getRefund(owner.resourceId, await this.refundAccount(owner))
+          : await this.refunds.getRefund(owner.resourceId);
         if (!isRefundStatus(fresh.status)) continue;
       }
       updates.push({ ...owner, status: String(fresh.status), snapshot: { ...owner.snapshot, ...fresh } });

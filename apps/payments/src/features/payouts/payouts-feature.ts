@@ -2,6 +2,7 @@
 // mover follows the provider mode, and webhook effects run inside the payment webhook transaction.
 
 import type { OwnerRecord, PaymentOwnerStore } from '../../shared/payment-owner-store';
+import type { LinkedAccountsSwitch } from '../linked-accounts/linked-accounts-switch';
 import { payoutWebhookEffects } from './allocations';
 import { createMerchantAccountResolver } from './merchant-accounts';
 import { createMoneyMover } from './mock-money-mover';
@@ -17,7 +18,9 @@ function succeededRefund(record: OwnerRecord, paymentId: string) {
     ? [{ paymentId, refundId: record.resourceId, refunded }] : [];
 }
 
-export function createPayoutsFeature(owners: PaymentOwnerStore, options: { now?: () => Date } = {}): PayoutsFeature {
+export function createPayoutsFeature(owners: PaymentOwnerStore, options: {
+  now?: () => Date; linkedAccountsSwitch?: LinkedAccountsSwitch;
+} = {}): PayoutsFeature {
   const now = options.now ?? (() => new Date());
   const pool = owners.databasePool;
   const store = createPayoutStore(pool, now);
@@ -27,7 +30,7 @@ export function createPayoutsFeature(owners: PaymentOwnerStore, options: { now?:
   const environment = process.env.PAYMENT_PROVIDER_MODE === 'live' ? 'live' : 'test';
   return {
     store,
-    accounts: createMerchantAccountResolver(pool),
+    accounts: createMerchantAccountResolver(pool, options.linkedAccountsSwitch),
     mover: createMoneyMover(),
     now,
     ...(base ? { callbackUrl: (token: string) => `${base}/api/v1/shared/payment/payout-callbacks/${environment}/${token}` } : {}),

@@ -11,11 +11,12 @@ describe('PayoutsConsoleController', () => {
   const saved = { token: process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST, url: process.env.APICENTER_PAYMENTS_URL };
   let access: { require: jest.Mock };
   let contexts: { sign: jest.Mock };
+  let audit: { record: jest.Mock };
   let calls: Array<{ url: string; init: any }>;
   let reply: { status: number; body: unknown };
 
   function controller() {
-    const instance = new PayoutsConsoleController(access as any, contexts as any);
+    const instance = new PayoutsConsoleController(access as any, contexts as any, audit as any);
     instance.useFetch(async (url, init) => {
       calls.push({ url, init });
       return new Response(JSON.stringify(reply.body), { status: reply.status, headers: { 'content-type': 'application/json' } });
@@ -27,6 +28,7 @@ describe('PayoutsConsoleController', () => {
     process.env.APICENTER_PAYMENTS_INTERNAL_TOKEN_TEST = 'runtime-token';
     process.env.APICENTER_PAYMENTS_URL = 'https://payments.internal';
     access = { require: jest.fn().mockResolvedValue({}) };
+    audit = { record: jest.fn().mockResolvedValue({}) };
     contexts = { sign: jest.fn().mockResolvedValue({ signedContext: 'signed.ctx', resourceOwner: { groupId: 'legacy-org', projectId: 'legacy-prj' },
       requestId: 'req-1' }) };
     calls = [];
@@ -93,6 +95,22 @@ describe('PayoutsConsoleController', () => {
     const operator = { consoleActor: { ...req.consoleActor, platformAdmin: true } } as any;
     await expect(controller().resolve({ ...params, payoutId: 'po_1' }, { outcome: 'paid', note: 'x' }, operator))
       .rejects.toMatchObject({ status: 409, response: { error: { code: 'INVALID_PAYOUT_STATE' } } });
+  });
+
+  it('records linked-account mutations without forwarding personal details to audit', async () => {
+    const details = { businessName: 'Test Merchant', tin: '111-111-111' };
+    reply = { status: 200, body: { success: true, data: {
+      id: 'lac_example', verification: { url: 'https://identity.example/session' },
+    } } };
+    await controller().startLinkedAccount(params, details, req);
+    expect(access.require).toHaveBeenCalledWith(req.consoleActor, organizationId, 'environment.write',
+      { projectId: 'prj_1', environmentKind: 'test' });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'linked_account.onboarding_started', organizationId, projectId: 'prj_1', resourceId: 'lac_example',
+    }));
+    expect(JSON.stringify(audit.record.mock.calls)).not.toMatch(/111-111-111|identity.example/);
+    await expect(controller().setLinkedAccountEnabled(params, { enabled: true }, req)).rejects.toThrow('platform operators');
+    await expect(controller().closeLinkedAccount(params, { id: 'lac_example' }, req)).rejects.toThrow('platform operators');
   });
 
   it('rejects malformed targets and filters', async () => {

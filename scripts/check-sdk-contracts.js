@@ -79,7 +79,7 @@ const requiredPaymentOperationIds = [
   'createPaymentLink', 'listPaymentLinks', 'getPaymentLink', 'setPaymentLinkArchived',
   'createRefund', 'getRefund', 'createSubscription', 'getSubscription', 'cancelSubscription',
   'listSubscriptionInvoices', 'getInvoice', 'getPaymentCapabilities', 'listPaymentRecords',
-  'createPayee', 'listPayees', 'getPayee', 'setPayeeDestination', 'cashOutPayee',
+  'createPayee', 'listPayees', 'getPayee', 'setPayeeDestination', 'recordPayeeVerification', 'cashOutPayee',
   'releaseAllocation', 'cancelAllocation', 'listPayouts', 'getPayout',
 ];
 const paymentOperations = new Map();

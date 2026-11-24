@@ -8,6 +8,7 @@
 import { PayMongoError } from '../../shared/payment-errors';
 import type { MerchantAccount, MerchantAccountResolver } from './merchant-accounts';
 import type { MoneyMover } from './money-mover';
+import { requiresPayeeVerification } from './payee-verification';
 import { composePayout, type Centavos, type PayoutEvent } from './payout-ledger';
 import { isDue, type PayoutPolicy, type PayoutTrigger } from './payout-policy';
 import type { Environment, OpenAttempt, PayoutRecord, PayoutStore } from './payout-store';
@@ -29,7 +30,7 @@ export type PayoutDeps = {
   callbackUrl?: (token: string) => string;
 };
 
-export type RunReport = { paid: string[]; skipped: Array<{ payeeId: string; reason: string }>; floatLow: boolean };
+export type RunReport = { paid: string[]; skipped: Array<{ payeeId: string; reason: string }>; floatLow: string[] };
 
 export function assertLiveEnabled(environment: Environment): void {
   if (environment === 'live' && process.env.PAYOUTS_LIVE_ENABLED !== 'true') {
@@ -37,24 +38,32 @@ export function assertLiveEnabled(environment: Environment): void {
   }
 }
 
-/**
- * Pays every due pool in the environment, or one payee's pool. Runs per merchant account: today only
- * the parent account. `paid` lists the payouts submitted in this run.
- */
+/** Pays each due pool from the account holding its released allocations. */
 export async function runPayouts(deps: PayoutDeps, environment: Environment, trigger: PayoutTrigger,
   scope?: { payeeId: string; projectId: string }): Promise<RunReport> {
   assertLiveEnabled(environment);
   const now = deps.now();
-  const account = scope
-    ? await deps.accounts.resolve(scope.projectId, environment, now)
-    : await deps.accounts.get('parent', environment);
-  const report: RunReport = { paid: [], skipped: [], floatLow: false };
-  const pools = await deps.store.poolSummaries(environment, account.id, scope?.payeeId);
-  if (!pools.length) return report;
-
+  const accounts = await deps.accounts.listWithReleasedPools?.(environment)
+    ?? [await deps.accounts.get('parent', environment)];
+  const report: RunReport = { paid: [], skipped: [], floatLow: [] };
   const settings = new Map<string, PayoutPolicy>();
+  for (const account of accounts) {
+    await payAccountPools(deps, environment, account, trigger, now, settings, report, scope);
+  }
+  return report;
+}
+
+async function payAccountPools(deps: PayoutDeps, environment: Environment, account: MerchantAccount,
+  trigger: PayoutTrigger, now: Date, settings: Map<string, PayoutPolicy>, report: RunReport,
+  scope?: { payeeId: string; projectId: string }): Promise<void> {
+  const pools = await deps.store.poolSummaries(environment, account.id, scope?.payeeId);
   let budget: Centavos | undefined;
   for (const pool of pools) {
+    if (scope && pool.projectId !== scope.projectId) continue;
+    if (requiresPayeeVerification() && !pool.verified) {
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'payee_unverified' });
+      continue;
+    }
     let policy = settings.get(pool.projectId);
     if (!policy) {
       policy = await deps.store.getSettings(environment, pool.projectId);
@@ -68,7 +77,14 @@ export async function runPayouts(deps: PayoutDeps, environment: Environment, tri
       report.skipped.push({ payeeId: pool.payeeId, reason: due.reason });
       continue;
     }
-    budget ??= await floatBudget(deps, account);
+    try {
+      budget ??= await floatBudget(deps, account);
+    } catch (error) {
+      if (account.kind === 'parent') throw error;
+      report.skipped.push({ payeeId: pool.payeeId, reason: 'wallet_unavailable' });
+      console.warn(JSON.stringify({ type: 'apicenter_payout_balance_unavailable', environment, merchantAccountId: account.id }));
+      return;
+    }
     const available = budget;
     const fee = policy.transferFee;
     let spend = 0;
@@ -91,7 +107,7 @@ export async function runPayouts(deps: PayoutDeps, environment: Environment, tri
     if ('skipped' in created) {
       report.skipped.push({ payeeId: pool.payeeId, reason: created.skipped });
       if (created.skipped === 'float_low') {
-        report.floatLow = true;
+        if (!report.floatLow.includes(account.id)) report.floatLow.push(account.id);
         console.warn(JSON.stringify({ type: 'apicenter_payout_float_low', environment, merchantAccountId: account.id,
           payeeId: pool.payeeId, available }));
       }
@@ -101,7 +117,6 @@ export async function runPayouts(deps: PayoutDeps, environment: Environment, tri
     await submit(deps, environment, account, created);
     report.paid.push(created.id);
   }
-  return report;
 }
 
 async function floatBudget(deps: PayoutDeps, account: MerchantAccount): Promise<Centavos> {

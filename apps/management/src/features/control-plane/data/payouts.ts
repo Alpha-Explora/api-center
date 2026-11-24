@@ -1,5 +1,8 @@
 import type { EnvironmentKind } from "../model/control-plane";
+import { z } from "zod";
 import {
+  linkedAccountSchema,
+  onboardingSchema,
   pageSchema,
   payeeDetailSchema,
   payeeSchema,
@@ -7,6 +10,7 @@ import {
   payoutPolicySchema,
   payoutSchema,
   type PayoutPolicy,
+  type LinkedAccountAction,
   type PayoutStatus,
 } from "../model/payouts";
 import { call, env, send } from "./http";
@@ -22,6 +26,30 @@ function query(values: Record<string, string | undefined>): string {
 
 /** A project environment's payouts: the wallet, payees, payouts, settings, and payouts that need a person. */
 export const payouts = {
+  linkedAccount: (scope: Scope) => call(linkedAccountSchema, `${base(scope)}/linked-account`),
+  updateLinkedAccount: async (scope: Scope, action: LinkedAccountAction) => {
+    const path = `${base(scope)}/linked-account`;
+    switch (action.kind) {
+      case "enabled":
+        await call(z.object({ enabled: z.boolean() }), `${path}/enabled`, send("PUT", { enabled: action.enabled }));
+        return null;
+      case "start":
+        return (await call(onboardingSchema, path, send("POST", action.details))).verification;
+      case "verification-link":
+        return (await call(onboardingSchema, `${path}/verification-link`, send("POST", {
+          id: action.id, requestKey: action.requestKey,
+        }))).verification;
+      case "advance":
+        await call(onboardingSchema, `${path}/advance`, send("POST", { id: action.id }));
+        return null;
+      case "close":
+      case "move":
+        await call(z.object({ id: z.string() }), `${path}/${action.kind}`, send("POST", {
+          id: action.id, ...(action.kind === "move" ? { target: action.target } : {}),
+        }));
+        return null;
+    }
+  },
   overview: (scope: Scope) => call(payoutOverviewSchema, `${base(scope)}/overview`),
   settings: (scope: Scope) => call(payoutPolicySchema, `${base(scope)}/settings`),
   saveSettings: (scope: Scope, policy: PayoutPolicy) => call(payoutPolicySchema, `${base(scope)}/settings`, send("POST", policy)),

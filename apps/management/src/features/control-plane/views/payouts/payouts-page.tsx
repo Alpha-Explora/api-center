@@ -21,6 +21,7 @@ import { usePayees, usePayoutOverview, usePayouts, usePayoutSettings, useResolve
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { useOrganization } from "../../view-models/use-organization";
 import { PayeeSheet } from "./payee-sheet";
+import { LinkedAccountPanel } from "./linked-account-panel";
 import { PayoutSettingsSheet } from "./payout-settings-sheet";
 
 export function PayoutsPage() {
@@ -111,6 +112,30 @@ function Payouts() {
           </dl>
         )}
       </Panel>
+
+      <LinkedAccountPanel key={kind} live={kind === "live"} canWrite={canWrite} platformAdmin={platformAdmin} />
+
+      {overview.data?.wallets?.length ? (
+        <Panel title="Collections by merchant account" description="Payments recorded in the last 30 days for this project." flush>
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>Account</TableHead><TableHead className="text-right">Collected</TableHead>
+                <TableHead className="text-right">Wallet balance</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {overview.data.wallets.map((wallet) => (
+                <TableRow key={wallet.accountId}>
+                  <TableCell>{wallet.accountId === "parent" ? "Main account" : wallet.accountId}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCentavos(wallet.collectedCentavos)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {wallet.available === null ? "Unavailable" : formatCentavos(wallet.available)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Panel>
+      ) : null}
 
       {overview.data && overview.data.needsReview.length > 0 ? (
         <Panel

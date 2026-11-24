@@ -1,5 +1,39 @@
 import { z } from "zod";
 
+export const onboardingSchema = z.object({
+  id: z.string(),
+  status: z.enum(["draft", "created", "details_submitted", "verification_pending", "verification_failed",
+    "manual_review", "activation_pending", "active", "declined"]),
+  nextAction: z.enum(["create", "submit_details", "issue_verification_link", "await_verification", "reissue_verification_link",
+    "activate", "await_activation", "request_payment_methods", "await_manual_review", "none"]),
+  attempts: z.number(),
+  walletOnly: z.boolean(),
+  declineReason: z.string().nullable(),
+  verification: z.object({ url: z.url({ protocol: /^https$/ }), expiresAt: z.string() }).nullable(),
+});
+
+export const linkedAccountSchema = z.object({
+  environmentEnabled: z.boolean(),
+  projectEnabled: z.boolean(),
+  providerAvailable: z.boolean(),
+  collectionMoveAvailable: z.boolean(),
+  onboarding: onboardingSchema.nullable(),
+});
+
+export type LinkedMerchantDetails = {
+  businessName: string;
+  tin: string;
+  expectedMonthlyVolume: number;
+  representative: { email: string; firstName: string; lastName: string };
+};
+
+export type LinkedAccountAction =
+  | { kind: "enabled"; enabled: boolean }
+  | { kind: "start"; details: LinkedMerchantDetails }
+  | { kind: "verification-link"; id: string; requestKey: string }
+  | { kind: "advance" | "close"; id: string }
+  | { kind: "move"; id: string; target: "child" | "parent" };
+
 // Payouts as the payments runtime reports them through the gateway's console routes. Amounts are
 // whole centavos; payee account numbers arrive masked to their last four digits.
 
@@ -36,6 +70,12 @@ export const payeeSchema = z.object({
   status: z.enum(["active", "suspended"]),
   destination: payeeDestinationSchema.nullable(),
   destinationHoldUntil: z.string().nullable(),
+  verification: z.object({
+    verifiedBy: z.string(),
+    verifiedAt: z.string(),
+    method: z.enum(["government_id", "in_person", "third_party", "other"]),
+    reference: z.string().nullable(),
+  }).nullable().default(null),
   createdAt: z.string(),
 });
 export type Payee = z.infer<typeof payeeSchema>;
@@ -49,6 +89,8 @@ export const pageSchema = <T extends z.ZodTypeAny>(item: T) => z.object({ record
 
 export const payoutOverviewSchema = z.object({
   wallet: z.object({ configured: z.boolean(), available: centavos.nullable(), lowFloatAlert: centavos }),
+  wallets: z.array(z.object({ accountId: z.string(), configured: z.boolean(), available: centavos.nullable(),
+    lowFloatAlert: centavos, collectedCentavos: centavos })).default([]),
   counts: z.record(z.string(), z.number().int()),
   needsReview: z.array(payoutSchema),
   nextScheduledAt: z.string().nullable(),

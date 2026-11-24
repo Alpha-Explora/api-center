@@ -12,13 +12,30 @@ describe('verified payment ownership', () => {
     else process.env.PAYMONGO_TEST_WEBHOOK_SECRET = previousSecret;
   });
 
-  function signed(payload: unknown) {
+  function signed(payload: unknown, secret = 'test-webhook-secret') {
     const rawBody = Buffer.from(JSON.stringify(payload));
     const timestamp = '1760000000';
-    const signature = createHmac('sha256', 'test-webhook-secret')
+    const signature = createHmac('sha256', secret)
       .update(`${timestamp}.${rawBody.toString('utf8')}`).digest('hex');
     return { rawBody, signatureHeader: `t=${timestamp},te=${signature}`, environment: 'test' };
   }
+
+  it('accepts a child payment only with its account and signing secret', async () => {
+    const owners = new PaymentOwnerStore('');
+    await owners.save({ ...owner, resourceType: 'intent', resourceId: 'pi_child', merchantAccountId: 'org_child', snapshot: {} });
+    const payload = { data: { id: 'evt_child', attributes: { type: 'payment.paid', livemode: false,
+      data: { id: 'pay_child', type: 'payment', attributes: { payment_intent_id: 'pi_child', status: 'paid' } } } } };
+    const secrets = new Map([['org_child', 'child-secret'], ['org_other', 'other-secret']]);
+    const service = new WebhooksService(owners, undefined, undefined, undefined, (account) => secrets.get(account));
+
+    await expect(service.processWebhook(payload, signed(payload))).resolves.toMatchObject({ event: 'ignored' });
+    await expect(service.processWebhook(payload, { ...signed(payload), accountId: 'org_child' })).rejects.toMatchObject({ statusCode: 401 });
+    await expect(service.processWebhook(payload, { ...signed(payload, 'other-secret'), accountId: 'org_other' }))
+      .resolves.toMatchObject({ event: 'ignored' });
+    await expect(service.processWebhook(payload, { ...signed(payload, 'child-secret'), accountId: 'org_child' }))
+      .resolves.toMatchObject({ event: 'processed' });
+    await expect(owners.assertOwned('payment', 'pay_child', owner)).resolves.toMatchObject({ merchantAccountId: 'org_child' });
+  });
 
   it('records a paid checkout payment for its source tribe only', async () => {
     const owners = new PaymentOwnerStore('');

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { RefundStatus } from '@alpha-explora/apicenter-contracts';
 import { toProviderId, toPublicId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
-import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
+import { isMockMode, paymongoRequest, type PayMongoAccount } from '../../shared/paymongo-client';
 
 const refundStatuses: ReadonlySet<string> = new Set(['pending', 'processing', 'succeeded', 'failed']);
 
@@ -12,7 +12,7 @@ export function isRefundStatus(status: unknown): status is RefundStatus {
 }
 
 export class RefundsService {
-  async refund(payload: any, options: { idempotencyKey?: string; tribeId?: string } = {}) {
+  async refund(payload: any, options: { idempotencyKey?: string; tribeId?: string; account?: PayMongoAccount } = {}) {
     const { amount, paymentId, reason = 'requested_by_customer', notes } = payload;
     if (!amount || !paymentId) throw new PayMongoError('amount and paymentId are required', 400);
 
@@ -30,7 +30,7 @@ export class RefundsService {
     const response = await paymongoRequest('/refunds', {
       method: 'POST',
       body: { data: { attributes: { amount, payment_id: paymentId, reason, notes } } },
-      idempotencyKey: options.idempotencyKey,
+      idempotencyKey: options.idempotencyKey, account: options.account,
     });
 
     const providerData = response?.data || {};
@@ -48,13 +48,13 @@ export class RefundsService {
     };
   }
 
-  async getRefund(refundId: string) {
+  async getRefund(refundId: string, account?: PayMongoAccount) {
     if (isMockMode()) {
       throw new PayMongoError('Refund retrieval is unavailable in mock mode', 503, 'MOCK_PROVIDER_UNAVAILABLE');
     }
 
     const providerId = toProviderId('ref', refundId);
-    const response = await paymongoRequest(`/refunds/${encodeURIComponent(providerId)}`);
+    const response = await paymongoRequest(`/refunds/${encodeURIComponent(providerId)}`, { account });
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
     if (providerData.id !== providerId) {
