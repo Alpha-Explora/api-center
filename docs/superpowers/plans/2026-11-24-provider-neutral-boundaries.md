@@ -36,6 +36,7 @@ sources: [contracts/public/apicenter.openapi.yaml, contracts/public/apicenter.as
   - APICenter mints every public ID.
   - Each external capability is called through one interface.
   - It does not mean running several vendors at once.
+- **Existing IDs are replaced (user decision, 2026-11-24).** Payment and SMS IDs issued before this plan are rewritten to APICenter-minted IDs in one migration; the old IDs stop resolving. This is not covered by the deprecation window. Products are told before the migration runs, find their records again by `referenceId`, and may ask for their project's old-to-new mapping.
 - **Deprecation policy:** mark the item `deprecated: true` in the contract and SDK, send `Deprecation` and `Sunset` response headers, and record it in `CHANGELOG.md`. Remove it no earlier than 90 days later, and only in a contract major version.
 - **In scope:** the contract guardrail, neutral errors, owned payment and SMS IDs, neutral geo results, the SMS, email and geocoding interfaces, webhooks as the default event delivery, a neutral payout wallet destination, and payments guidance.
 - **Only when a trigger occurs:**
@@ -72,8 +73,8 @@ sources: [contracts/public/apicenter.openapi.yaml, contracts/public/apicenter.as
 
 ## Review Focus
 
-1. **An existing ID stops working.** Every payment and SMS ID issued before this plan must keep working for reads, refunds, cancels and status callbacks, forever. Pinned in Task 5 (`a pre-migration checkout ID still reads, cancels and refunds`) and Task 6 (`a provider-issued SMS ID still reads its status`).
-2. **A webhook for an old resource finds nothing.** Provider webhooks resolve records through the backfilled provider ID. Pinned in Task 5 (`a webhook for a pre-migration payment link marks it paid`).
+1. **A replaced ID is left behind somewhere.** Existing IDs are replaced, so one stale copy breaks a refund, an allocation or a replayed event. The migration rewrites every stored copy in one transaction. Pinned in Task 5 (`the migration leaves no provider-derived ID in any table or snapshot`) and Task 6 (`the migration leaves no provider message ID as a public ID`).
+2. **A provider webhook for a resource created before the migration finds nothing.** Provider webhooks resolve records through the stored provider ID. Pinned in Task 5 (`a webhook for a pre-migration payment link marks it paid`) and Task 6 (`a delivery callback for a pre-migration message updates it`).
 3. **Neutral errors hide what a product needs.** A declined card still tells the product it was declined, with a neutral reason. Pinned in Task 4 (`a provider decline becomes PAYMENT_DECLINED with a neutral reason`).
 4. **OTP delivery changes behavior when it moves behind the interface.** OTP's provider timeouts, circuit breaker and suppressed test recipients are unchanged. Pinned in Task 8 (`otp sends through the sms and email senders with the same guards`).
 5. **A deprecated field disappears early.** Deprecated fields stay populated until their sunset date. Pinned in Task 3 (`deprecated fields must declare a sunset`) and Task 7 (`still returns placeId, types and raw while deprecated`).
@@ -173,33 +174,50 @@ sources: [contracts/public/apicenter.openapi.yaml, contracts/public/apicenter.as
 
 ### Task 5: APICenter-owned payment IDs
 
-Staged in three commits, each green.
+Existing IDs are replaced. The code change and the data migration ship together, because after the migration no code may derive an ID from a provider ID.
 
 **Files:**
-- Create: `supabase/migrations/<timestamp>_owned_payment_ids.sql`, `apps/payments/src/shared/payment-id-map.ts`
-- Modify: the nine files that call `toPublicId` / `toProviderId` (`checkout`, `customers-catalog`, `invoices`, `payment-intents`, `payment-links`, `refunds`, `subscriptions`, `webhooks`, `events/pubsubPublisher.js`), `shared/payment-owner-store.ts`; delete `shared/payment-ids.ts` at the end
+- Create: `supabase/migrations/<timestamp>_owned_payment_ids.sql`, `apps/payments/src/shared/payment-id-map.ts`, `scripts/export-payment-id-mapping.ts`
+- Modify: the nine files that call `toPublicId` / `toProviderId` (`checkout`, `customers-catalog`, `invoices`, `payment-intents`, `payment-links`, `refunds`, `subscriptions`, `webhooks`, `events/pubsubPublisher.js`), `shared/payment-owner-store.ts`, `features/payouts/allocations.ts`; delete `shared/payment-ids.ts`
 - Test: `tests/unit/src/payments/payment-id-map.spec.ts`, `tests/integration/owned-payment-ids.integration.spec.ts`
 
-**Migration:**
-- `shared_payment.resource_owners`: add `provider text NOT NULL DEFAULT 'paymongo'` and `provider_resource_id text`.
-- Backfill `provider_resource_id` from `resource_id` with the current prefix map (`chk_`→`cs_`, `pl_`→`link_`, `inv_`→`in_`, the others unchanged).
-- Add a unique index on `(environment, provider, resource_type, provider_resource_id)` where it is not null.
+**Migration** (one transaction):
+- `shared_payment.resource_owners`: add `provider text NOT NULL DEFAULT 'paymongo'` and `provider_resource_id text`, plus a unique index on `(environment, provider, resource_type, provider_resource_id)` where it is not null.
+- `shared_payment.payment_id_replacements (environment, resource_type, old_id, new_id, replaced_at)`, primary key `(environment, old_id)`. Grant `SELECT` to `payments_runtime` only. It holds no personal data and is kept 90 days, then purged by the retention job.
+- For every `resource_owners` row: set `provider_resource_id` from the old `resource_id` with the current prefix map (`chk_`→`cs_`, `pl_`→`link_`, `inv_`→`in_`, the others unchanged), mint a new `resource_id` with `shared_payment.mint_public_id(prefix)`, and record the pair in `payment_id_replacements`.
+- Rewrite every stored copy through `payment_id_replacements`:
+  - `resource_owners.snapshot` keys `paymentId`, `checkoutId`, `sourceId`, `paymentIntentId`, `paymentLinkId`, `refundId`, `invoiceId`, `subscriptionId`, `customerId` and `planId`
+  - `payout_allocations.resource_id` and `payment_id`
+  - `payee_adjustments.source_refund_id`
+  - `payment_event_outbox.aggregate_id`, and the same keys inside each `payload`
+- Delete the gateway's stored idempotent payment responses (`apic_governance.payment_idempotency_keys`) created before the migration, so a retry cannot replay an old ID.
+- End with a check that raises if any column or listed snapshot key still holds an ID found in `payment_id_replacements.old_id`.
 
 **Interfaces:**
 - Produces:
   ```ts
   export function mintPublicId(prefix: 'chk' | 'pi' | 'pay' | 'ref' | 'pl' | 'cus' | 'sub' | 'inv' | 'plan'): string;
-  // `${prefix}_` + 26 lowercase Crockford base32 characters; a primary-key conflict re-mints
+  // `${prefix}_` + 26 lowercase Crockford base32 characters; a primary-key conflict re-mints.
+  // The SQL function shared_payment.mint_public_id(prefix) produces the same format for the migration.
   export interface PaymentIdMap {
     providerId(environment: Environment, resourceType: string, publicId: string): Promise<string>; // 404 NOT_FOUND
     publicId(environment: Environment, provider: string, resourceType: string, providerId: string): Promise<string | null>;
   }
   ```
-- New resources get a minted public ID, and the provider ID is stored in the same insert. Existing rows keep their IDs.
+- `npx ts-node scripts/export-payment-id-mapping.ts --database-url <url> --environment live --project <projectId>` writes that project's old-to-new pairs as CSV, for a product that asks.
 
-- [ ] **Step 1 (5a): Write the failing tests:** `mintPublicId` has the format; the map resolves both ways; `a pre-migration checkout ID still reads, cancels and refunds`. Run them: FAIL. Write the migration, `payment-id-map.ts`, and the owner-store columns. Run: PASS. Commit: `feat(payments): store provider IDs beside APICenter payment IDs`.
-- [ ] **Step 2 (5b): Checkout, intents, payment links, refunds and payments.** Creates mint IDs. Reads, actions and webhooks use `PaymentIdMap`. Test: `a webhook for a pre-migration payment link marks it paid`; a new checkout's public ID differs from its provider ID; a refund of a minted `pay_` ID reaches the provider with the provider's payment ID. Run `npx jest tests/unit/src/payments` and the integration spec: PASS. Commit: `feat(payments): mint IDs for collections and refunds`.
-- [ ] **Step 3 (5c): Customers, plans, subscriptions, invoices and published events.** Same pattern. Then delete `payment-ids.ts`; `git grep -nE "toPublicId|toProviderId"` must return nothing. Run the full suite and `npm run test:integration` against a replayed database: PASS. Commit: `feat(payments): mint IDs for billing resources and events`.
+- [ ] **Step 1: Write the failing tests:**
+  - `mintPublicId` has the format, and the map resolves both ways.
+  - `the migration leaves no provider-derived ID in any table or snapshot`: seed a replayed database with a checkout, its payment, a refund, an allocation, an adjustment and an outbox event, run the migration, and assert that every stored copy holds the new ID.
+  - `a webhook for a pre-migration payment link marks it paid`.
+  - A refund of a migrated `pay_` ID reaches the provider with the provider's payment ID.
+  - A new checkout's public ID differs from its provider ID.
+  - An old ID returns 404 `NOT_FOUND`.
+- [ ] **Step 2: Run** `npx jest tests/unit/src/payments/payment-id-map.spec.ts` and `npm run test:integration -- owned-payment-ids`. Expected: FAIL.
+- [ ] **Step 3: Implement** the migration, `payment-id-map.ts` and the export script. Move every caller to `PaymentIdMap`, then delete `payment-ids.ts`; `git grep -nE "toPublicId|toProviderId"` must return nothing.
+- [ ] **Step 4: Run** `npm test`, `node scripts/replay-supabase-migrations.cjs` against an empty database, and `npm run test:integration` against it. Expected: PASS.
+- [ ] **Step 5: Commit:** `git commit -m "feat(payments): replace provider-derived IDs with APICenter IDs"`
+- [ ] **Step 6: Before applying the migration to live,** tell each project using payments (from Task 2) the date, that old IDs stop resolving, that records can be found again by `referenceId`, and that a mapping export is available. Applying it needs the user's approval.
 
 ### Task 6: APICenter-owned SMS IDs
 
@@ -209,10 +227,11 @@ Staged in three commits, each green.
 - Test: `tests/unit/src/sms/sms-ids.spec.ts`
 
 **Interfaces:**
-- The messages table gains `provider text NOT NULL DEFAULT 'twilio'` and `provider_message_id text`, backfilled from `message_id`, with a unique index on `(provider, provider_message_id)`.
-- New messages get `messageId = 'sms_' + 26 Crockford base32 characters`. Status callbacks look up by `provider_message_id`.
+- `shared_sms.sms_messages` gains `provider text NOT NULL DEFAULT 'twilio'` and `provider_message_id text`, with a unique index on `(provider, provider_message_id)`.
+- The migration replaces existing IDs. It copies each `message_id` to `provider_message_id`, mints `sms_` + 26 Crockford base32 characters as the new `message_id`, and rewrites `shared_sms.sms_delivery_events.message_id` to match, in one transaction. It ends with a check that no `message_id` is a provider ID. It also deletes stored idempotent SMS responses (`shared_sms.idempotency_keys`) created before the migration, and tells projects before it runs in live (with the user's approval), as in Task 5 Step 6.
+- New messages get a minted `messageId`. Status callbacks look up by `provider_message_id`.
 
-- [ ] **Step 1: Write the failing tests:** a new send returns an `sms_` ID; `a provider-issued SMS ID still reads its status`; a delivery callback for a new message updates it through `provider_message_id`.
+- [ ] **Step 1: Write the failing tests:** a new send returns an `sms_` ID; `the migration leaves no provider message ID as a public ID`; `a delivery callback for a pre-migration message updates it`; a delivery callback for a new message updates it through `provider_message_id`.
 - [ ] **Step 2: Run** `npx jest tests/unit/src/sms`. Expected: FAIL.
 - [ ] **Step 3: Implement,** following email, which already mints its own IDs (`postgres-email-store.ts`).
 - [ ] **Step 4: Run** the SMS and gateway delivery-webhook specs. Expected: PASS.
