@@ -74,13 +74,14 @@ export function LinkedAccountPanel({ live, canWrite, platformAdmin, paused = fal
             {paused || !query.data.projectEnabled ? <FeatureAccess feature="payouts.merchant_account" fallback requestAccess={!query.data.projectEnabled} /> : null}
             {live ? <p className="text-live font-medium">Live environment</p> : null}
             {!query.data.environmentEnabled && !platformAdmin ? (
-              <Notice title={<span className="flex items-center gap-2">Project merchant account <ComingSoonBadge /></span>}>
-                {availabilityMessage("linkedAccounts", { available: false, reason: "not_enabled" })}
+              <Notice title={<span className="flex items-center gap-2">Project merchant account <ComingSoonBadge live={live} /></span>}>
+                {availabilityMessage("linkedAccounts", { available: false, reason: live ? "not_enabled" : "provider_unavailable" })}
               </Notice>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>{query.data.projectEnabled ? "Enabled for this project" : "Not enabled for this project yet. A platform operator enables it."}</span>
-                <GuardedButton allowed={canWrite && platformAdmin} reason={platformReason} variant="outline"
+                <span>{query.data.projectEnabled ? "Enabled for this project"
+                  : live ? "Not enabled for this project yet. A platform operator enables it." : "Off for this project. Turn it on to try it in test."}</span>
+                <GuardedButton allowed={canWrite && (platformAdmin || !live)} reason={canWrite ? platformReason : roleReason} variant="outline"
                   disabled={mutation.isPending}
                   onClick={() => void execute({ kind: "enabled", enabled: !query.data?.projectEnabled })}>
                   {query.data.projectEnabled ? "Disable for project" : "Enable for project"}

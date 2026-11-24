@@ -43,6 +43,13 @@ describe("feature escalation decisions", () => {
     expect(() => assertFeatureAllowed(member, "payments.live", {}, { environment: "live", current: {} }))
       .toThrow(expect.objectContaining({ code: "FEATURE_APPROVAL_REQUIRED", response: expect.objectContaining({ details: { feature: "payments.live" } }) }));
     expect(() => parseChange("sms.international", { prefixes: ["65"] })).toThrow("Invalid change");
-    expect(FEATURE_CATALOG["payouts.payee_wallets"].environments).toEqual(["test"]);
+    for (const key of ["payouts.sending", "payouts.merchant_account", "payouts.payee_wallets"] as const) {
+      expect(FEATURE_CATALOG[key].release.live).toBe("coming_soon");
+      expect(FEATURE_CATALOG[key].release.test).not.toBe("coming_soon");
+      expect(FEATURE_CATALOG[key].needsApproval({}, { environment: "test", current: { enabled: false } })).toBe(false);
+      expect(() => assertFeatureAllowed(member, key, {}, { environment: "test", current: { enabled: false } })).not.toThrow();
+      expect(() => assertFeatureAllowed(member, key, {}, { environment: "live", current: { enabled: false } }))
+        .toThrow(expect.objectContaining({ code: "FEATURE_APPROVAL_REQUIRED" }));
+    }
   });
 });

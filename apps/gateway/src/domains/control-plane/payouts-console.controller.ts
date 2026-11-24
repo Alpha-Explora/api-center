@@ -41,6 +41,7 @@ const OPERATE: Route = { action: "environment.write", scope: "payments:payouts:w
 const WRITE: Route = { ...OPERATE, platformOnly: false };
 const LINKED = "/admin/payouts/linked-account";
 const PROJECT_FEATURE = z.enum(["payouts_sending", "payee_wallets"]);
+const PROJECT_FEATURE_KEYS = { payouts_sending: "payouts.sending", payee_wallets: "payouts.payee_wallets" } as const;
 
 /** Masks a payee's destination account number to its last four digits. */
 export function maskPayee(payee: unknown): unknown {
@@ -82,18 +83,23 @@ export class PayoutsConsoleController {
   async setProjectFeature(@Param() params: Record<string, string>, @Body() body: unknown, @Req() req: ConsoleRequest) {
     const feature = parse(PROJECT_FEATURE, params.feature, "feature");
     const { enabled } = parse(z.strictObject({ enabled: z.boolean() }), body, "body");
-    const scope = await this.authorize(params, req, OPERATE);
+    // Test is self-service. In live, switching on goes through the feature gate and switching off stays with operators.
+    const scope = await this.authorize(params, req, enabled || params.environment === "test" ? WRITE : OPERATE);
     const actor = actorLabel(req);
-    const override = enabled && feature === "payouts_sending" && scope.environmentKind === "live" && req.consoleActor?.kind === "member"
-      && !(z.object({ data: z.object({ enabled: z.boolean() }) }).parse(
-        await this.runtime.call(scope, READ.scope, "GET", `/admin/payouts/project-features/${feature}`))).data.enabled;
+    let override = false;
+    if (enabled && req.consoleActor) {
+      const current = z.object({ data: z.object({ enabled: z.boolean() }) }).parse(
+        await this.runtime.call(scope, READ.scope, "GET", `/admin/payouts/project-features/${feature}`)).data.enabled;
+      override = assertFeatureAllowed(req.consoleActor, PROJECT_FEATURE_KEYS[feature], {},
+        { environment: scope.environmentKind, current: { enabled: current } }) === "override";
+    }
     const result = await this.runtime.call(scope, OPERATE.scope, "PUT", `/admin/payouts/project-features/${feature}`, { enabled, actor });
     await this.audit.record({
       type: `feature.project_${enabled ? "enabled" : "disabled"}`, message: "Project payout access changed",
       actionFamily: "lifecycle", severity: "info", actor, organizationId: scope.organizationId, projectId: scope.projectId,
       environment: scope.environmentKind, resourceType: "project_feature", resourceId: feature, payload: { enabled },
     });
-    if (override) await this.notifications?.override(scope, "payouts.sending", {}, actor);
+    if (override) await this.notifications?.override(scope, PROJECT_FEATURE_KEYS[feature], {}, actor);
     return result;
   }
 
@@ -119,11 +125,11 @@ export class PayoutsConsoleController {
         .safeParse(await this.runtime.call(scope, READ.scope, "GET", LINKED));
       const outcome = assertFeatureAllowed(req.consoleActor, "payouts.merchant_account", {},
         { environment: scope.environmentKind, current: { enabled: state.success && state.data.data.projectEnabled } });
-      if (!hasPlatformAccess(req.consoleActor)) return { success: true, data: { enabled: true } };
       if (outcome === "override") overrideScope = scope;
     }
     const label = actorLabel(req);
-    const result = await this.linkedMutation(params, req, input.data.enabled ? WRITE : OPERATE, "PUT", "/enabled", { ...input.data, actor: label },
+    const route = input.data.enabled || params.environment === "test" ? WRITE : OPERATE;
+    const result = await this.linkedMutation(params, req, route, "PUT", "/enabled", { ...input.data, actor: label },
       input.data.enabled ? "project_enabled" : "project_disabled");
     if (overrideScope) await this.notifications?.override(overrideScope, "payouts.merchant_account", {}, label);
     return result;

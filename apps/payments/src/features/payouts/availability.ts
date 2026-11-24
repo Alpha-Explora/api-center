@@ -6,7 +6,7 @@ import type { Environment } from './payout-store';
 export type FeatureAvailability = {
   available: boolean;
   /** Why the feature is not available yet; null when it is. */
-  reason: 'wallet_not_configured' | 'not_enabled' | 'test_only' | 'paused' | null;
+  reason: 'wallet_not_configured' | 'not_enabled' | 'test_only' | 'paused' | 'provider_unavailable' | null;
 };
 
 export type PayoutAvailability = {
@@ -26,6 +26,8 @@ export async function payoutAvailability(input: {
   transfersEnabled: boolean;
   linkedAccountsEnabled: () => Promise<boolean>;
   payeeWalletsEnabled: boolean;
+  /** Whether this runtime can run payee wallet onboarding at all (today: local mock payments only). */
+  payeeWalletsSupported?: boolean;
   paused?: ReadonlySet<PausableFeature>;
 }): Promise<PayoutAvailability> {
   const paused: FeatureAvailability = { available: false, reason: 'paused' };
@@ -37,6 +39,8 @@ export async function payoutAvailability(input: {
     transfers,
     linkedAccounts: input.paused?.has('merchant_account') ? paused : await input.linkedAccountsEnabled() ? AVAILABLE : disabled,
     payeeWallets: input.environment !== 'test' ? { available: false, reason: 'test_only' }
-      : input.paused?.has('payee_wallets') ? paused : input.payeeWalletsEnabled ? AVAILABLE : disabled,
+      : input.paused?.has('payee_wallets') ? paused
+        : input.payeeWalletsSupported === false ? { available: false, reason: 'provider_unavailable' }
+          : input.payeeWalletsEnabled ? AVAILABLE : disabled,
   };
 }

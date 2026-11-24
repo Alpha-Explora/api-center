@@ -43,8 +43,9 @@ export class FeatureRequestsController {
       const pause = key in PAUSES && pauses.success
         ? pauses.data.data.find((row) => row.feature === PAUSES[key as keyof typeof PAUSES]) : undefined;
       return {
-        key, title: definition.title, description: definition.description, release: definition.release,
+        key, title: definition.title, description: definition.description, release: definition.release[scope.environmentKind],
         offered: definition.environments.includes(scope.environmentKind), paused: pause?.paused ?? false,
+        requestable: definition.release[scope.environmentKind] !== "coming_soon" && definition.requestsIn.includes(scope.environmentKind),
         pending: requests.find((row) => row.feature === key && row.status === "pending") ?? null,
         last: requests.find((row) => row.feature === key && row.status !== "pending") ?? null,
       };

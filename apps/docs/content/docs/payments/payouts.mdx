@@ -16,16 +16,16 @@ All amounts are in centavos.
 
 ## What is available now
 
-Payouts are being rolled out in stages. Build against the whole API now: the parts that are not open yet refuse with a stable error code instead of behaving differently later.
+Payouts are being rolled out in stages: new features open in test first, then in live. Build against the whole API now. Where a feature is not open yet, calls refuse with a stable error code instead of behaving differently later.
 
-| Feature | Status | Until it opens |
+| Feature | Test | Live |
 | :--- | :--- | :--- |
-| Payees, destinations and verification records | Available | |
-| Allocations: hold, release, cancel, refund recovery | Available | |
-| Earnings (`GET /payees/{payeeId}`) and the payout list | Available | |
-| Sending payouts: the weekly payout and cash-out | Live project pilot | Ask an APICenter operator to enable sending for your live project. Cash-out returns `409 PAYOUTS_LIVE_DISABLED` until it is enabled, or `409 WALLET_NOT_CONFIGURED` without a payout wallet. |
-| [Payee wallet onboarding](#test-payee-wallet-onboarding) | Coming soon (test-only pilot, off by default) | Returns `503 PAYEE_ONBOARDING_DISABLED`. |
-| A merchant account of the project's own | Coming soon | Payments are collected through APICenter's account. Nothing changes in your integration when it opens. |
+| Payees, destinations and verification records | Available | Available |
+| Allocations: hold, release, cancel, refund recovery | Available | Available |
+| Earnings (`GET /payees/{payeeId}`) and the payout list | Available | Available |
+| Sending payouts: the weekly payout and cash-out | Available once APICenter sets the test payout wallet (until then `409 WALLET_NOT_CONFIGURED`) | Not available yet. Cash-out returns `409 PAYOUTS_LIVE_DISABLED`. |
+| [Payee wallet onboarding](#test-payee-wallet-onboarding) | Pilot: turn it on for your project in the console | Not available yet |
+| A merchant account of the project's own | Available: turn it on for your project in the console | Not available yet. Payments are collected through APICenter's account, and nothing changes in your integration when it opens. |
 
 The console's **Payouts** page shows availability in each environment. When APICenter pauses sending, cash-out returns `409 PAYOUTS_PAUSED`. Earnings are kept for the next eligible payout after sending resumes.
 
@@ -98,7 +98,7 @@ Use your own record identifier for the optional `reference` field. Keep identity
 
 ## Test payee wallet onboarding
 
-**Coming soon.** This is a test-only pilot and is off by default; while it is off, these calls return `503 PAYEE_ONBOARDING_DISABLED`.
+**Test only for now.** This is a pilot. Turn it on for your test project under **Payouts → Project payout access** in the console; while it is off, these calls return `503 PAYEE_ONBOARDING_DISABLED`. It is not available in live yet.
 
 With the feature enabled for your test project, you can start wallet onboarding for an existing payee.
 Use a test key with `payments:payouts:write` to start onboarding, reissue a verification link, and request activation.
@@ -165,7 +165,7 @@ An allocation that is already pooled or paid can't be cancelled; you get `409 IN
 
 ## When payees are paid
 
-**Coming soon.** Sending payouts is not open yet; see [What is available now](#what-is-available-now). The rules below apply once it opens.
+**Test only for now.** Sending payouts works in test and is not available in live yet; see [What is available now](#what-is-available-now).
 
 | Payout | When | Who pays the transfer fee |
 | :--- | :--- | :--- |

@@ -50,7 +50,7 @@ export class FeatureRequestService {
 
   async create(scope: EnvironmentScope, input: { feature: FeatureKey; change: unknown; reason: string }, actor: string) {
     const definition = FEATURE_CATALOG[input.feature];
-    if (definition.release === "coming_soon" || !definition.environments.includes(scope.environmentKind)) {
+    if (definition.release[scope.environmentKind] === "coming_soon" || !definition.requestsIn.includes(scope.environmentKind)) {
       throw new AppError("This feature is not available to request in this environment", 409, "FEATURE_NOT_AVAILABLE");
     }
     const change = parseChange(input.feature, input.change);

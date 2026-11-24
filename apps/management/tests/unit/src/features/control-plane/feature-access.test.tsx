@@ -15,7 +15,7 @@ vi.mock("@/features/control-plane/view-models/use-organization", () => ({
 
 const feature: FeatureView = {
   key: "payouts.payee_wallets", title: "Payee wallet onboarding", description: "Pilot",
-  release: "pilot", offered: true, paused: false, pending: null, last: null,
+  release: "pilot", offered: true, paused: false, requestable: true, pending: null, last: null,
 };
 
 function renderAccess(view: FeatureView) {

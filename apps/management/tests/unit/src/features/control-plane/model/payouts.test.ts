@@ -35,9 +35,11 @@ describe("payout model", () => {
 
   it("explains features that are not available yet", () => {
     expect(availabilityMessage("transfers", { available: true, reason: null })).toBeNull();
-    expect(availabilityMessage("transfers", { available: false, reason: "live_payouts_disabled" })).toMatch(/live payouts is coming soon/);
-    expect(availabilityMessage("payeeWallets", { available: false, reason: "test_only" })).toMatch(/not available in live/);
-    expect(availabilityMessage("linkedAccounts", { available: false, reason: "not_enabled" })).toMatch(/coming soon/);
+    expect(availabilityMessage("transfers", { available: false, reason: "not_enabled" })).toMatch(/not available in live yet\. Try it in test/);
+    expect(availabilityMessage("transfers", { available: false, reason: "wallet_not_configured" })).toMatch(/payout wallet/);
+    expect(availabilityMessage("payeeWallets", { available: false, reason: "test_only" })).toMatch(/not available in live yet/);
+    expect(availabilityMessage("payeeWallets", { available: false, reason: "provider_unavailable" })).toMatch(/local mock mode/);
+    expect(availabilityMessage("linkedAccounts", { available: false, reason: "not_enabled" })).toMatch(/not available in live yet/);
   });
 
   it("assumes a runtime that predates availability can send payouts but has nothing unreleased", () => {

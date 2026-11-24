@@ -13,7 +13,7 @@ export function assertFeatureAllowed(actor: ConsoleActor, feature: FeatureKey, c
   const definition = FEATURE_CATALOG[feature];
   const escalation = definition.needsApproval(parseChange(feature, change), context);
   if (hasPlatformAccess(actor)) return escalation && actor.kind === "member" ? "override" : "allowed";
-  if (escalation || (definition.release === "coming_soon" && context.current.enabled !== true)) {
+  if (escalation || (definition.release[context.environment] === "coming_soon" && context.current.enabled !== true)) {
     throw new AppError(`${definition.title} needs approval from APICenter. Request it in the console.`,
       HttpStatus.FORBIDDEN, "FEATURE_APPROVAL_REQUIRED", true, { feature });
   }

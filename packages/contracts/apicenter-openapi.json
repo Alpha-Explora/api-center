@@ -2188,7 +2188,7 @@
       },
       "post": {
         "operationId": "startPayeeOnboarding",
-        "description": "Starts or resumes wallet onboarding in test. A newly issued hosted link is returned once. Availability: test-only pilot, coming soon; not enabled by default. While it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write.",
+        "description": "Starts or resumes wallet onboarding in test. A newly issued hosted link is returned once. Availability: a test pilot, not available in live yet. Turn it on for the test project in the console; while it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write.",
         "tags": [
           "Payments"
         ],
@@ -2247,7 +2247,7 @@
     "/api/v1/payments/payees/{payeeId}/onboarding/verification-link": {
       "post": {
         "operationId": "reissuePayeeOnboardingLink",
-        "description": "Issues a fresh hosted verification link in test. Use a new idempotency key to request a new link. Availability: test-only pilot, coming soon; not enabled by default. While it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write.",
+        "description": "Issues a fresh hosted verification link in test. Use a new idempotency key to request a new link. Availability: a test pilot, not available in live yet. Turn it on for the test project in the console; while it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write.",
         "tags": [
           "Payments"
         ],
@@ -2296,7 +2296,7 @@
     "/api/v1/payments/payees/{payeeId}/onboarding/activate": {
       "post": {
         "operationId": "activatePayeeOnboarding",
-        "description": "Requests wallet activation after identity verification in test. Availability: test-only pilot, coming soon; not enabled by default. While it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write.",
+        "description": "Requests wallet activation after identity verification in test. Availability: a test pilot, not available in live yet. Turn it on for the test project in the console; while it is off, this returns 503 PAYEE_ONBOARDING_DISABLED. Requires payments:payouts:write.",
         "tags": [
           "Payments"
         ],
@@ -2549,7 +2549,7 @@
     "/api/v1/payments/payouts": {
       "get": {
         "operationId": "listPayouts",
-        "description": "Payouts of the calling project, newest first. Availability: payouts appear here once sending payouts opens for the environment (coming soon). Requires payments:payouts:read.",
+        "description": "Payouts of the calling project, newest first. Availability: sending payouts works in test and is not available in live yet. Requires payments:payouts:read.",
         "tags": [
           "Payments"
         ],

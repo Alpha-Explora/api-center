@@ -16,7 +16,9 @@ export const featureRequestSchema = z.object({
 });
 export const featureViewSchema = z.object({
   key: featureKeySchema, title: z.string(), description: z.string(), release: z.enum(["available", "pilot", "coming_soon"]),
-  offered: z.boolean(), paused: z.boolean(), pending: featureRequestSchema.nullable(), last: featureRequestSchema.nullable(),
+  offered: z.boolean(), paused: z.boolean(),
+  /** Whether this environment takes a request for it; false where it is self-service or not open yet. */
+  requestable: z.boolean().default(true), pending: featureRequestSchema.nullable(), last: featureRequestSchema.nullable(),
 });
 export type FeatureView = z.infer<typeof featureViewSchema>;
 

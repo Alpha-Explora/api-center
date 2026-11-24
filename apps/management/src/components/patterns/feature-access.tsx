@@ -66,9 +66,9 @@ export function FeatureAccess({ feature, fallback, requestAccess = true }: {
     },
   });
   const view = query.data?.find((row) => row.key === feature);
-  if (!view) return fallback ? <ComingSoonBadge /> : null;
+  if (!view) return fallback ? <ComingSoonBadge live={kind === "live"} /> : null;
   const state = featureAccessState(view);
-  if (state === "not_offered" || (state === "coming_soon" && !view.paused)) return <ComingSoonBadge />;
+  if (state === "not_offered" || (state === "coming_soon" && !view.paused)) return <ComingSoonBadge live={kind === "live"} />;
   return <div className="flex flex-wrap items-center gap-2 text-[13px]">
     {view.paused ? <Notice title="Paused by APICenter" /> : null}
     {view.pending ? <>
@@ -80,7 +80,7 @@ export function FeatureAccess({ feature, fallback, requestAccess = true }: {
       {cancel.error ? <ErrorPanel error={cancel.error} /> : null}
     </> : null}
     {view.last?.status === "rejected" && !view.pending && view.last.decisionNote ? <span>Rejected · {view.last.decisionNote}</span> : null}
-    {requestAccess && canWrite && !view.pending && view.release !== "coming_soon"
+    {requestAccess && canWrite && !view.pending && view.requestable && view.release !== "coming_soon"
       ? <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>Request access</Button> : null}
     {open ? <FeatureRequestDialog scope={scope} change={{ feature, change: {} }} title={view.title} close={() => setOpen(false)} /> : null}
   </div>;

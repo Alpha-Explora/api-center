@@ -64,7 +64,7 @@ User permissions (console roles) stay a third, separate check.
 Rules that apply to every feature:
 - **No approval needed** for turning something off, choosing a lower plan, re-saving the current value, or any change made by a platform operator.
 - **Existing setups** keep working as they are. The gate checks only changes, so nothing needs to be backfilled.
-- **Release status:** `payouts.sending` and `payouts.merchant_account` are `coming_soon`, and `payouts.payee_wallets` is `pilot`. Coming-soon features accept no requests from projects. Operators can still switch one on for a pilot project. To open a feature to requests, change its catalog line in a release.
+- **Release status** is per environment. `payouts.sending`, `payouts.merchant_account` and `payouts.payee_wallets` (a pilot) are open and self-service in test, and `coming_soon` in live, where the console reads "Not available in live yet". Coming-soon features accept no requests; operators can still switch one on for a pilot project. Each entry lists the environments that take requests (`requestsIn`). To open a feature in live, change its catalog line in a release.
 - **Pauses:** operators can pause `payouts_sending`, `payee_wallets` and `merchant_account` per environment. The runtime checks the pause first, then the project switch, then the feature's prerequisite (the payout wallet for sending payouts, and mock payments mode for payee wallets, as today).
   - Pausing keeps every project's approval and switch, so resuming restores exactly what ran before.
   - A paused feature still accepts requests, and operators can still approve them. They take effect on resume.

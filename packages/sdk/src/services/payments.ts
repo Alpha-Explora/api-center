@@ -246,7 +246,7 @@ class PaymentCapabilitiesClient extends PaymentsResource {
 class PayeeClient extends PaymentsResource {
   /**
    * Starts or resumes payee wallet onboarding.
-   * Coming soon: a test-only pilot that is off by default. While it is off, this throws an
+   * A test pilot, not available in live yet; turn it on for the test project in the console. While it is off, this throws an
    * ApiCenterError with status 503 and code PAYEE_ONBOARDING_DISABLED.
    * @sdk-operation startPayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding
    */
@@ -261,7 +261,7 @@ class PayeeClient extends PaymentsResource {
 
   /**
    * Issues a fresh hosted verification link.
-   * Coming soon: a test-only pilot that is off by default. While it is off, this throws an
+   * A test pilot, not available in live yet; turn it on for the test project in the console. While it is off, this throws an
    * ApiCenterError with status 503 and code PAYEE_ONBOARDING_DISABLED.
    * @sdk-operation reissuePayeeOnboardingLink POST /api/v1/payments/payees/{payeeId}/onboarding/verification-link
    */
@@ -271,7 +271,7 @@ class PayeeClient extends PaymentsResource {
 
   /**
    * Requests wallet activation after identity verification.
-   * Coming soon: a test-only pilot that is off by default. While it is off, this throws an
+   * A test pilot, not available in live yet; turn it on for the test project in the console. While it is off, this throws an
    * ApiCenterError with status 503 and code PAYEE_ONBOARDING_DISABLED.
    * @sdk-operation activatePayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding/activate
    */
@@ -314,8 +314,8 @@ class PayeeClient extends PaymentsResource {
   /**
    * Pays the payee's released earnings now, within the daily cash-out cap. A refusal is an
    * ApiCenterError with status 409 and a code such as DAILY_CAP_REACHED, IN_SETTLEMENT, DESTINATION_HOLD or PAYOUTS_PAUSED.
-   * Coming soon: until sending payouts opens for the environment, cash-out is refused with
-   * PAYOUTS_LIVE_DISABLED (live) or WALLET_NOT_CONFIGURED. Allocations and earnings are recorded meanwhile.
+   * Works in test; not available in live yet, where it is refused with PAYOUTS_LIVE_DISABLED. Without a payout wallet
+   * it is refused with WALLET_NOT_CONFIGURED. Allocations and earnings are recorded meanwhile.
    * @sdk-operation cashOutPayee POST /api/v1/payments/payees/{payeeId}/cash-out
    */
   cashOut(payeeId: string, options?: WriteOptions): Promise<PaymentResource<CashOutPayout>> {
