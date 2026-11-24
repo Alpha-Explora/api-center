@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { PayMongoError } from './payment-errors';
 
-const baseUrl = process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1';
+const baseUrl = (process.env.PAYMONGO_BASE_URL || 'https://api.paymongo.com/v1').replace(/\/+$/, '');
 
 function secretKey(): string {
   const mode = process.env.PAYMENT_PROVIDER_MODE;
@@ -47,7 +47,7 @@ export async function paymongoRequest(endpoint: string, options: {
     return { data: { id: `mock_${Date.now()}`, attributes: { status: 'succeeded' } } };
   }
 
-  const url = `${baseUrl}${endpoint}`;
+  const url = `${/^\/v\d+\//.test(endpoint) ? baseUrl.replace(/\/v\d+$/, '') : baseUrl}${endpoint}`;
   const headers: Record<string, string> = {
     Authorization: getAuthHeader(),
     'Content-Type': 'application/json',
