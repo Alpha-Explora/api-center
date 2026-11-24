@@ -1990,7 +1990,7 @@
     "/api/v1/payments/payees/{payeeId}/destination": {
       "put": {
         "operationId": "setPayeeDestination",
-        "description": "Sets where the payee is paid: a GCash or bank account through InstaPay, or a PayMongo wallet. A new destination holds payouts to the payee for 24 hours; sending the same destination again does not restart the hold. Requires payments:payouts:write.",
+        "description": "Sets where the payee is paid: a GCash or bank account through InstaPay, or a wallet at the payment provider. A new destination holds payouts to the payee for 24 hours; sending the same destination again does not restart the hold. Requires payments:payouts:write.",
         "tags": [
           "Payments"
         ],
@@ -5719,7 +5719,7 @@
               "failed",
               "needs_review"
             ],
-            "description": "unknown and needs_review mean APICenter is confirming the transfer with PayMongo; it is never sent twice."
+            "description": "unknown and needs_review mean APICenter is confirming the transfer with the payment provider; it is never sent twice."
           },
           "trigger": {
             "type": "string",
@@ -6604,7 +6604,7 @@
           },
           "status": {
             "type": "string",
-            "description": "active or archived from PayMongo, or paid once PayMongo reports a payment for the link."
+            "description": "active or archived, or paid once the payment provider reports a payment for the link."
           },
           "active": {
             "type": "boolean"
@@ -6614,7 +6614,7 @@
           },
           "referenceNumber": {
             "type": "string",
-            "description": "Reference number PayMongo assigned to the link."
+            "description": "Reference number shown to the payer for this link."
           },
           "metadata": {
             "type": "object",

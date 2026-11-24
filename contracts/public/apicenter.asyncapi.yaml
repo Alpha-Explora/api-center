@@ -3,7 +3,7 @@ info:
   title: APICenter Payment Events
   version: 2.3.0
   description: >-
-    Payment lifecycle events. APICenter publishes each event to its Pub/Sub topic, filters it to the
+    Payment lifecycle events. APICenter publishes each event to its event bus, filters it to the
     application that created the resource, and delivers it to that application's webhook as a signed
     HTTPS POST (Standard Webhooks: webhook-id, webhook-timestamp, webhook-signature).
 defaultContentType: application/json
@@ -112,7 +112,7 @@ components:
     PaymentPayoutPaid:
       name: payment.payout.paid
       title: Payout paid
-      description: PayMongo confirmed the transfer to the payee. referenceId is the payee's externalRef.
+      description: The payment provider confirmed the transfer to the payee. referenceId is the payee's externalRef.
       payload:
         allOf:
           - $ref: '#/components/schemas/PaymentEvent'

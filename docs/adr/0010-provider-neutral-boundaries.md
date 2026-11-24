@@ -6,7 +6,7 @@ owner: platform-maintainers
 audience: [engineers, maintainers, agents]
 last_verified: "2026-11-24"
 verification: repository
-sources: [docs/superpowers/plans/2026-11-24-provider-neutral-boundaries.md, scripts/contracts/validate-public-contracts.ts]
+sources: [docs/superpowers/plans/2026-11-24-provider-neutral-boundaries.md, scripts/contracts/validate-public-contracts.ts, scripts/contracts/provider-terms.cjs, contracts/public/provider-terms.json]
 ---
 # Provider-neutral boundaries
 

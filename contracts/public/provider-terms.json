@@ -1,0 +1,129 @@
+{
+  "$comment": "Provider-neutral boundary (ADR-0010). Forbidden terms may not appear in the public contracts or public docs, except at the listed JSON paths. Payment methods (card, gcash, paymaya, qrph) and rails (instapay) are not vendors. Google login is a named capability and is not listed.",
+  "forbidden": [
+    "paymongo",
+    "twilio",
+    "google maps",
+    "google-maps",
+    "maps.googleapis",
+    "pubsub.googleapis",
+    "googlepubsub",
+    "pub/sub",
+    "pubsub",
+    "resend.com",
+    "\"resend\""
+  ],
+  "allowed": [
+    {
+      "term": "pubsub",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding for consumers on Google Cloud"
+    },
+    {
+      "term": "pubsub.googleapis",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding"
+    },
+    {
+      "term": "googlepubsub",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding"
+    },
+    {
+      "term": "pubsub",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/providers-and-data.mdx"
+      ],
+      "reason": "Sub-processor list and the optional Pub/Sub delivery guide"
+    },
+    {
+      "term": "pub/sub",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/providers-and-data.mdx"
+      ],
+      "reason": "Sub-processor list and the optional Pub/Sub delivery guide"
+    },
+    {
+      "term": "*",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/providers-and-data.mdx"
+      ],
+      "reason": "Sub-processor list (Data Privacy Act disclosure)"
+    },
+    {
+      "term": "pub/sub",
+      "document": "asyncapi",
+      "paths": [
+        "^servers\\."
+      ],
+      "reason": "Optional Google Cloud Pub/Sub push binding"
+    },
+    {
+      "term": "google-maps",
+      "document": "openapi",
+      "paths": [
+        "^components\\.schemas\\.GeoAddressResult\\.properties\\.provider\\."
+      ],
+      "reason": "Temporary until Task 7 of the provider-neutral plan deprecates GeoAddressResult.provider"
+    },
+    {
+      "term": "google-maps",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/platform-utilities/geo.mdx"
+      ],
+      "reason": "Temporary until Task 7 of the provider-neutral plan deprecates GeoAddressResult.provider"
+    },
+    {
+      "term": "paymongo",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/migration/from-direct-paymongo.mdx"
+      ],
+      "reason": "Migration guide for teams leaving a direct provider integration"
+    },
+    {
+      "term": "\"resend\"",
+      "document": "docs",
+      "files": [
+        "apps/docs/content/docs/messaging-verification/email.mdx"
+      ],
+      "reason": "Temporary until Task 8 of the provider-neutral plan deprecates the email provider field"
+    }
+  ],
+  "rawFieldNames": [
+    "raw",
+    "placeId"
+  ],
+  "deprecatedFields": [
+    {
+      "schema": "OtpGenerateRequest",
+      "field": "target",
+      "sunset": "2027-03-01"
+    }
+  ],
+  "temporaryExceptions": [
+    {
+      "schema": "GeoAddressResult",
+      "field": "raw",
+      "removedBy": "Task 7 of the provider-neutral plan"
+    },
+    {
+      "schema": "GeoAddressResult",
+      "field": "placeId",
+      "removedBy": "Task 7 of the provider-neutral plan"
+    }
+  ]
+}

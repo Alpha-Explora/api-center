@@ -40,6 +40,6 @@ Verify each delivery's signature with the endpoint's signing secret (`verifyWebh
 
 Retry a transient API failure with the same idempotency key and body. Do not issue a new key just because the first response timed out; the original operation may have completed.
 
-For an event delivery failure, ask the APICenter operator to inspect the webhook destination's deliveries. After correcting the consumer, replay the event and retain its original `eventId` and aggregate version. If a payment cutover rollback is announced, continue serving the consumer's existing local state and pause new payment commands until the operator confirms the path forward. Do not call PayMongo directly.
+For an event delivery failure, ask the APICenter operator to inspect the webhook destination's deliveries. After correcting the consumer, replay the event and retain its original `eventId` and aggregate version. If a payment cutover rollback is announced, continue serving the consumer's existing local state and pause new payment commands until the operator confirms the path forward. Do not call the payment provider directly.
 
 When escalating, include the environment, APICenter resource reference, event ID, and correlation ID. Never include API keys, webhook signing secrets, or provider credentials. Operator procedures remain in the internal `docs/` collection.
