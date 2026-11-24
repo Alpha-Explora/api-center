@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
-import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { MemoryPaymentStore, assertTribeCanRead } from '../../shared/payment-store';
 import { isMockMode, paymongoRequest, type PayMongoAccount } from '../../shared/paymongo-client';
 import { checkoutPaymentStatus, normalizeAmount, paidCheckoutPayment } from './checkout.model';
 import type { PaidCheckoutPayment } from './checkout.model';
 
+/** Speaks the payment provider's checkout IDs only; the runtime maps them to APICenter IDs. */
 export class CheckoutService {
   constructor(private readonly store = MemoryPaymentStore.getInstance()) {}
 
@@ -14,7 +14,7 @@ export class CheckoutService {
     const tribeId = options.tribeId || chargeData.tribeId;
 
     if (isMockMode()) {
-      const checkoutId = toPublicId('chk', `mock_chk_${crypto.randomUUID().replace(/-/g, '')}`);
+      const checkoutId = `cs_mock_${crypto.randomUUID().replace(/-/g, '')}`;
       const session = {
         checkoutId,
         provider: 'paymongo',
@@ -57,7 +57,10 @@ export class CheckoutService {
 
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
-    const checkoutId = toPublicId('chk', providerData.id || `chk_${crypto.randomUUID().replace(/-/g, '')}`);
+    const checkoutId: string = providerData.id;
+    if (typeof checkoutId !== 'string' || !checkoutId) {
+      throw new PayMongoError('The payment provider did not return a checkout ID', 502, 'INVALID_PROVIDER_RESPONSE');
+    }
 
     const session = {
       checkoutId,
@@ -90,16 +93,16 @@ export class CheckoutService {
       };
     }
 
-    const response = await paymongoRequest(`/checkout_sessions/${encodeURIComponent(toProviderId('chk', checkoutId))}`, { account: options.account });
+    const response = await paymongoRequest(`/checkout_sessions/${encodeURIComponent(checkoutId)}`, { account: options.account });
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
-    if (providerData.id !== toProviderId('chk', checkoutId)) {
+    if (providerData.id !== checkoutId) {
       throw new PayMongoError('The payment provider returned a different checkout session', 502, 'PROVIDER_RESOURCE_MISMATCH');
     }
     const payment = paidCheckoutPayment(attributes);
     return {
-      checkoutId: toPublicId('chk', providerData.id || checkoutId),
+      checkoutId,
       provider: 'paymongo',
       status: checkoutPaymentStatus(attributes),
       ...(options.includePayment && payment ? { paymentId: payment.paymentId, paidPayment: payment } : {}),
@@ -134,7 +137,7 @@ export class CheckoutService {
     const reason = options.reason || 'user_returned_from_cancel_url';
     if (current) assertTribeCanRead(current, options.tribeId);
     if (!isMockMode()) {
-      await paymongoRequest(`/checkout_sessions/${encodeURIComponent(toProviderId('chk', checkoutId))}/expire`, {
+      await paymongoRequest(`/checkout_sessions/${encodeURIComponent(checkoutId)}/expire`, {
         method: 'POST',
         idempotencyKey: options.idempotencyKey, account: options.account,
       });

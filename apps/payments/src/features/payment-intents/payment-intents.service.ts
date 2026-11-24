@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { isMockMode, paymongoRequest, stepIdempotencyKey, type PayMongoAccount } from '../../shared/paymongo-client';
 import { declineMessage, declineReason, type DeclineReason } from '../../shared/provider-errors';
@@ -51,7 +50,7 @@ export class PaymentIntentsService {
 
     if (this.mockMode()) {
       return {
-        paymentIntentId: toPublicId('pi', `pi_mock_${crypto.randomUUID().replace(/-/g, '')}`),
+        paymentIntentId: `pi_mock_${crypto.randomUUID().replace(/-/g, '')}`,
         status: 'awaiting_payment_method',
         amount,
         currency,
@@ -83,7 +82,7 @@ export class PaymentIntentsService {
     const attributes = providerData.attributes || {};
 
     return {
-      paymentIntentId: toPublicId('pi', providerData.id),
+      paymentIntentId: providerData.id,
       status: attributes.status,
       amount: attributes.amount,
       currency: attributes.currency,
@@ -110,7 +109,7 @@ export class PaymentIntentsService {
     if (!returnUrl || typeof returnUrl !== 'string') throw new PayMongoError('returnUrl is required', 400, 'INVALID_RETURN_URL');
 
     if (this.mockMode()) {
-      return { paymentIntentId: toPublicId('pi', `pi_mock_${crypto.randomUUID().replace(/-/g, '')}`),
+      return { paymentIntentId: `pi_mock_${crypto.randomUUID().replace(/-/g, '')}`,
         referenceId, status: 'awaiting_next_action', amount, currency, paymentMethod,
         nextAction: { type: 'redirect', redirectUrl: `https://pm.link/mock/${paymentMethod}`, returnUrl } };
     }
@@ -137,7 +136,7 @@ export class PaymentIntentsService {
     const attributes = attached.attributes || {};
     const action = nextAction(attributes);
     if (!action) throw new PayMongoError('The payment provider did not return a wallet redirect', 502, 'INVALID_PROVIDER_RESPONSE');
-    return { paymentIntentId: toPublicId('pi', attached.id || intent.id), referenceId,
+    return { paymentIntentId: attached.id || intent.id, referenceId,
       ...intentStatus(attributes), amount: attributes.amount ?? amount, currency: attributes.currency || currency,
       paymentMethod, nextAction: action };
   }
@@ -152,12 +151,12 @@ export class PaymentIntentsService {
       };
     }
 
-    const response = await this.request(`/payment_intents/${encodeURIComponent(toProviderId('pi', paymentIntentId))}`, { account });
+    const response = await this.request(`/payment_intents/${encodeURIComponent(paymentIntentId)}`, { account });
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
     return {
-      paymentIntentId: toPublicId('pi', providerData.id || paymentIntentId),
+      paymentIntentId: providerData.id || paymentIntentId,
       ...intentStatus(attributes),
       amount: attributes.amount,
       currency: attributes.currency,
@@ -175,7 +174,7 @@ export class PaymentIntentsService {
       };
     }
 
-    const response = await this.request(`/payment_intents/${encodeURIComponent(toProviderId('pi', paymentIntentId))}/attach`, {
+    const response = await this.request(`/payment_intents/${encodeURIComponent(paymentIntentId)}/attach`, {
       method: 'POST',
       body: { data: { attributes: payload } },
       idempotencyKey: options.idempotencyKey,
@@ -186,7 +185,7 @@ export class PaymentIntentsService {
     const attributes = providerData.attributes || {};
 
     return {
-      paymentIntentId: toPublicId('pi', providerData.id || paymentIntentId),
+      paymentIntentId: providerData.id || paymentIntentId,
       status: attributes.status,
       clientKey: attributes.client_key,
       nextAction: nextAction(attributes),
@@ -199,7 +198,7 @@ export class PaymentIntentsService {
       return { paymentIntentId, status: 'cancelled' };
     }
 
-    const response = await this.request(`/payment_intents/${encodeURIComponent(toProviderId('pi', paymentIntentId))}/cancel`, {
+    const response = await this.request(`/payment_intents/${encodeURIComponent(paymentIntentId)}/cancel`, {
       method: 'POST',
       idempotencyKey: options.idempotencyKey,
       ...(options.account ? { account: options.account } : {}),
@@ -209,7 +208,7 @@ export class PaymentIntentsService {
     const attributes = providerData.attributes || {};
 
     return {
-      paymentIntentId: toPublicId('pi', providerData.id || paymentIntentId),
+      paymentIntentId: providerData.id || paymentIntentId,
       status: attributes.status || 'cancelled',
     };
   }

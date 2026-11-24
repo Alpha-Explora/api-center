@@ -81,7 +81,9 @@ testDatabase('linked-account collection routing through the payments runtime', (
     expect((await request('/checkout/sessions', 'POST', checkout, 'linked-original-key')).status).toBe(201);
     expect((await request('/checkout/sessions', 'POST', { ...checkout, referenceId: 'parent-fixture' }, 'linked-new-parent-key')).status).toBe(201);
     expect((await request(`/checkout/sessions/${checkoutId}`)).status).toBe(200);
-    expect((await request('/payments/pay_routingChild/refunds', 'POST', { amount: 100 }, 'linked-refund-key')).status).toBe(201);
+    const { rows: [paid] } = await pool.query(`SELECT resource_id FROM shared_payment.resource_owners
+      WHERE resource_type = 'payment' AND provider_resource_id = 'pay_routingChild'`);
+    expect((await request(`/payments/${paid.resource_id}/refunds`, 'POST', { amount: 100 }, 'linked-refund-key')).status).toBe(201);
     expect(calls.map((call) => call.account)).toEqual([
       'org_routingFixture', 'org_routingFixture', undefined, 'org_routingFixture', 'org_routingFixture',
     ]);

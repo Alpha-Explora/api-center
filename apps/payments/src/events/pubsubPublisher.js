@@ -1,6 +1,5 @@
 const crypto = require('node:crypto');
 const publisherCache = new Map();
-const { toPublicId } = require('../shared/payment-ids');
 
 function getPublisher(environment) {
   if (process.env.PUBSUB_DISPATCHER_ENABLED !== 'true') return null;
@@ -31,12 +30,6 @@ function publicEventId(providerEventId) {
 }
 // Owner records call a payment intent "intent"; the public contract calls it "payment_intent".
 const PUBLIC_AGGREGATE_TYPES = { intent: 'payment_intent' };
-function publicResourceId(aggregateType, value) {
-  // Payout-feature ids (pye_, pal_, po_) are already APICenter's own and pass through unchanged.
-  const kinds = { checkout: 'chk', intent: 'pi', payment_intent: 'pi', payment: 'pay', refund: 'ref', subscription: 'sub', invoice: 'inv',
-    payee: 'pye', allocation: 'pal', payout: 'po', payee_onboarding: 'lac' };
-  return value ? toPublicId(kinds[aggregateType] || 'res', value) : value;
-}
 /**
  * The public payment event (contract 2.0) for an outbox row. Internally a resource's owner is stored
  * as owner_tribe_id (the organization) and consumer_service_id (the application that created it).
@@ -72,23 +65,23 @@ function toCanonicalPaymentEvent(event) {
     applicationId,
     referenceId,
     aggregateType: PUBLIC_AGGREGATE_TYPES[event.aggregateType] || event.aggregateType,
-    aggregateId: publicResourceId(event.aggregateType, event.aggregateId),
+    aggregateId: event.aggregateId,
     aggregateVersion,
     occurredAt: payload.occurredAt || (event.createdAt ? new Date(event.createdAt).toISOString() : new Date().toISOString()),
     ...(payload.correlationId ? { correlationId: publicEventId(payload.correlationId) } : {}),
     data: omitUndefined({
       status: payload.status,
-      checkoutId: publicResourceId('checkout', payload.checkoutId),
-      paymentIntentId: publicResourceId('intent', payload.paymentIntentId),
-      subscriptionId: publicResourceId('subscription', payload.subscriptionId),
-      invoiceId: publicResourceId('invoice', payload.invoiceId),
-      paymentId: publicResourceId('payment', payload.paymentId),
-      refundId: publicResourceId('refund', payload.refundId),
-      allocationId: publicResourceId('allocation', payload.allocationId),
-      payeeId: publicResourceId('payee', payload.payeeId),
-      onboardingId: publicResourceId('payee_onboarding', payload.onboardingId),
+      checkoutId: payload.checkoutId,
+      paymentIntentId: payload.paymentIntentId,
+      subscriptionId: payload.subscriptionId,
+      invoiceId: payload.invoiceId,
+      paymentId: payload.paymentId,
+      refundId: payload.refundId,
+      allocationId: payload.allocationId,
+      payeeId: payload.payeeId,
+      onboardingId: payload.onboardingId,
       attempts: payload.attempts,
-      payoutId: publicResourceId('payout', payload.payoutId),
+      payoutId: payload.payoutId,
       amount: payload.amount,
       currency: payload.currency,
       failureCode: payload.failureCode,

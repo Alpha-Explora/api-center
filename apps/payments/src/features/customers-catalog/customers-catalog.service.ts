@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { toPublicId, toProviderId } from '../../shared/payment-ids';
 import { PayMongoError } from '../../shared/payment-errors';
 import { isMockMode, paymongoRequest } from '../../shared/paymongo-client';
 
@@ -10,7 +9,7 @@ export class CustomersCatalogService {
 
     if (isMockMode()) {
       return {
-        customerId: toPublicId('cus', `cus_mock_${crypto.randomUUID().replace(/-/g, '')}`),
+        customerId: `cus_mock_${crypto.randomUUID().replace(/-/g, '')}`,
         email,
         name: name || 'Mock Customer',
         phone,
@@ -27,7 +26,7 @@ export class CustomersCatalogService {
     const attributes = providerData.attributes || {};
 
     return {
-      customerId: toPublicId('cus', providerData.id),
+      customerId: providerData.id,
       email: attributes.email,
       name: attributes.name,
       phone: attributes.phone,
@@ -38,12 +37,12 @@ export class CustomersCatalogService {
     if (isMockMode()) {
       return { customerId, email: 'customer@mock.local', name: 'Mock Customer' };
     }
-    const response = await paymongoRequest(`/customers/${encodeURIComponent(toProviderId('cus', customerId))}`);
+    const response = await paymongoRequest(`/customers/${encodeURIComponent(customerId)}`);
     const providerData = response?.data || {};
     const attributes = providerData.attributes || {};
 
     return {
-      customerId: toPublicId('cus', providerData.id || customerId),
+      customerId: providerData.id || customerId,
       email: attributes.email,
       name: attributes.name,
       phone: attributes.phone,

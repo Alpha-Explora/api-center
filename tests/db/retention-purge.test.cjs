@@ -88,6 +88,10 @@ const inserts = {
   },
   'apic_governance.payment_idempotency_keys': (days) => client.query(
     "insert into apic_governance.payment_idempotency_keys (storage_key, fingerprint, expires_at) values ($1, 'f', now() - make_interval(days => $2))", [`retention_${Math.random()}`, days]),
+  'shared_payment.collection_account_routes': (days) => client.query(
+    "insert into shared_payment.collection_account_routes (environment, project_id, application_id, request_key, merchant_account_id, created_at) values ('test', 'p', 'a', encode(sha256(convert_to($1, 'utf8')), 'hex'), 'parent', now() - make_interval(days => $2))", [`retention_${Math.random()}`, days]),
+  'shared_payment.payment_id_replacements': (days) => client.query(
+    "insert into shared_payment.payment_id_replacements (environment, project_id, resource_type, old_id, new_id, replaced_at) values ('test', 'p', 'checkout', $1, shared_payment.mint_public_id('chk'), now() - make_interval(days => $2))", [`chk_retention_${Math.random()}`, days]),
 };
 
 async function count(qualified) {

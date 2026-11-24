@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { PayMongoError } from '../../shared/payment-errors';
 import { OwnerRecord, PaymentOwnerStore, VerifiedWebhook } from '../../shared/payment-owner-store';
-import { toPublicId } from '../../shared/payment-ids';
+import { declineMessage, declineReason } from '../../shared/provider-errors';
 import { isRefundStatus, RefundsService } from '../refunds/refunds.service';
 import { isMockMode, type PayMongoAccount } from '../../shared/paymongo-client';
 import { parseAccountEvent } from '../linked-accounts/account-events';
@@ -83,7 +83,7 @@ export class WebhooksService {
     let linkPaymentId: string | undefined;
     const isLinkObject = typeof resourceData.id === 'string' && resourceData.id.startsWith('link_');
     if (eventType === 'checkout_session.payment.paid' && resourceData.id?.startsWith('cs_')) {
-      source = await this.owners.findWebhookSource('checkout', toPublicId('chk', resourceData.id), environment);
+      source = await this.owners.findByProviderId('checkout', resourceData.id, environment);
       payments = Array.isArray(resourceData.attributes?.payments) ? resourceData.attributes.payments : [];
     } else if ((eventType === 'payment.paid' && resourceData.attributes?.origin === 'links')
       || (eventType === 'link.payment.paid' && !isLinkObject)) {
@@ -97,12 +97,12 @@ export class WebhooksService {
       }
     } else if (eventType === 'link.payment.paid') {
       linkEvent = true;
-      source = await this.owners.findWebhookSource('payment_link', toPublicId('pl', resourceData.id), environment);
+      source = await this.owners.findByProviderId('payment_link', resourceData.id, environment);
       linkPaymentId = linkObjectPaymentId(resourceData);
     } else if ((eventType === 'payment.paid' || eventType === 'payment.failed') && resourceData.id?.startsWith('pay_')) {
       const intentId = resourceData.attributes?.payment_intent_id;
       if (typeof intentId === 'string' && intentId.startsWith('pi_')) {
-        source = await this.owners.findWebhookSource('intent', intentId, environment);
+        source = await this.owners.findByProviderId('intent', intentId, environment);
         payments = [resourceData];
       }
     }
@@ -118,34 +118,32 @@ export class WebhooksService {
       const linkPayments = isLinkObject && Array.isArray(resourceData.attributes?.payments)
         ? resourceData.attributes.payments.map((entry: any) => entry?.data ?? entry).filter(isPaidPayment)
         : isPaidPayment(resourceData) ? [resourceData] : [];
+      const publicPaymentIds = await this.publicPaymentIds(environment,
+        [...linkPayments.map((payment: any) => payment.id as string), ...(linkPaymentId ? [linkPaymentId] : [])]);
+      const paidPaymentId = linkPaymentId ? publicPaymentIds.get(linkPaymentId) : undefined;
+      const linkSource = source;
       const applied = await this.owners.applyVerifiedWebhook({ providerEventId, environment, eventType,
         payloadHash: crypto.createHash('sha256').update(options.rawBody).digest('hex'),
         receiptStatus: 'processed', updates: [{ ...source, status: 'paid',
           snapshot: { status: 'paid', paidAt: new Date().toISOString(),
-            ...(linkPaymentId ? { paymentId: linkPaymentId } : {}) } },
-          ...linkPayments.map((payment: any) => ({
-            ...source, resourceType: 'payment', resourceId: toPublicId('pay', payment.id), status: 'paid',
-            snapshot: { paymentId: toPublicId('pay', payment.id), status: 'paid', amount: payment.attributes.amount,
-              currency: payment.attributes.currency, sourceId: source.resourceId },
-          }))],
-        ...(linkPaymentId ? { paidResource: { resourceType: 'payment_link', resourceId: source.resourceId, paymentId: linkPaymentId } } : {}) });
+            ...(paidPaymentId ? { paymentId: paidPaymentId } : {}) } },
+          ...linkPayments.map((payment: any) => this.paymentRecord(linkSource, payment, publicPaymentIds.get(payment.id)!))],
+        ...(paidPaymentId ? { paidResource: { resourceType: 'payment_link', resourceId: source.resourceId, paymentId: paidPaymentId } } : {}) });
       return { event: applied.duplicate ? 'duplicate' : 'processed', data: { eventType, updated: applied.duplicate ? 0 : 1 } };
     }
 
     const paid = payments.filter(isPaidPayment);
     if (paid.length === 0) return { event: 'processed', data: { eventType, updated: 0 } };
-    const updates: OwnerRecord[] = paid.map((payment) => ({
-      ...source, resourceType: 'payment', resourceId: payment.id,
-      status: 'paid',
-      snapshot: { paymentId: payment.id, status: 'paid', amount: payment.attributes.amount,
-        currency: payment.attributes.currency, sourceId: source.resourceId },
-    }));
+    const publicPaymentIds = await this.publicPaymentIds(environment, paid.map((payment) => payment.id as string));
+    const firstPaymentId = publicPaymentIds.get(paid[0].id)!;
+    const paidSource = source;
+    const updates: OwnerRecord[] = paid.map((payment) => this.paymentRecord(paidSource, payment, publicPaymentIds.get(payment.id)!));
     updates.push({ ...source, status: eventType === 'payment.paid' ? 'succeeded' : 'paid', snapshot: { ...source.snapshot,
-      status: eventType === 'payment.paid' ? 'succeeded' : 'paid', paymentId: paid[0].id } });
+      status: eventType === 'payment.paid' ? 'succeeded' : 'paid', paymentId: firstPaymentId } });
 
     const queued = eventType === 'checkout_session.payment.paid'
-      ? this.checkoutPaidEvent(source, paid[0], payload)
-      : this.intentEvent('payment.intent.paid', source, paid[0], payload);
+      ? this.checkoutPaidEvent(source, paid[0], firstPaymentId, payload)
+      : this.intentEvent('payment.intent.paid', source, paid[0], firstPaymentId, payload);
     const applied = await this.owners.applyVerifiedWebhook({
       providerEventId,
       environment,
@@ -154,7 +152,7 @@ export class WebhooksService {
       updates,
       ...queued,
       ...(source.resourceType === 'intent' || source.resourceType === 'checkout'
-        ? { paidResource: { resourceType: source.resourceType, resourceId: source.resourceId, paymentId: paid[0].id } } : {}),
+        ? { paidResource: { resourceType: source.resourceType, resourceId: source.resourceId, paymentId: firstPaymentId } } : {}),
     });
     if (queued.receiptStatus === 'needs_reconciliation' && !applied.duplicate) {
       console.warn(JSON.stringify({ type: 'apicenter_payment_webhook_needs_reconciliation',
@@ -171,8 +169,7 @@ export class WebhooksService {
     const sources = new Map<string, OwnerRecord>();
     const addSource = async (providerRefundId: string) => {
       if (!providerRefundId.startsWith('ref_')) return;
-      const refundId = toPublicId('ref', providerRefundId);
-      const owner = await this.owners.findWebhookSource('refund', refundId, environment);
+      const owner = await this.owners.findByProviderId('refund', providerRefundId, environment);
       if (owner) sources.set(owner.resourceId, owner);
     };
 
@@ -187,11 +184,12 @@ export class WebhooksService {
 
     const providerPaymentId = isPaymentResource ? resourceData.id : undefined;
     if (isPaymentResource && typeof attributes.payment_id === 'string'
-      && toPublicId('pay', attributes.payment_id) !== toPublicId('pay', resourceData.id)) {
+      && attributes.payment_id !== resourceData.id) {
       return { event: 'ignored', data: { eventType, updated: false } };
     }
     if (sources.size === 0 && providerPaymentId) {
-      const related = await this.owners.findWebhookRefundsByPaymentId(toPublicId('pay', providerPaymentId), environment);
+      const payment = await this.owners.findByProviderId('payment', providerPaymentId, environment);
+      const related = payment ? await this.owners.findWebhookRefundsByPaymentId(payment.resourceId, environment) : [];
       for (const owner of related) sources.set(owner.resourceId, owner);
     }
     if (sources.size === 0) return { event: 'ignored', data: { eventType, updated: false } };
@@ -202,13 +200,13 @@ export class WebhooksService {
     for (const owner of sources.values()) {
       if ((owner.merchantAccountId ?? 'parent') !== accountId) continue;
       let fresh: Record<string, unknown>;
-      if (directRefund && owner.resourceId === toPublicId('ref', resourceData.id)) {
+      if (directRefund && owner.providerResourceId === resourceData.id) {
         const status = typeof attributes.status === 'string' ? attributes.status
           : eventType === 'payment.refunded' ? 'succeeded' : undefined;
         if (!isRefundStatus(status)) continue;
         fresh = {
           refundId: owner.resourceId,
-          ...(attributes.payment_id ? { paymentId: toPublicId('pay', attributes.payment_id) } : {}),
+          ...(owner.snapshot.paymentId ? { paymentId: owner.snapshot.paymentId } : {}),
           status,
           ...(attributes.amount !== undefined ? { amount: attributes.amount } : {}),
           ...(attributes.currency ? { currency: attributes.currency } : {}),
@@ -217,16 +215,19 @@ export class WebhooksService {
         };
       } else {
         if (isMockMode()) continue;
-        fresh = this.refundAccount
-          ? await this.refunds.getRefund(owner.resourceId, await this.refundAccount(owner))
-          : await this.refunds.getRefund(owner.resourceId);
+        const providerRefundId = owner.providerResourceId ?? owner.resourceId;
+        const providerRefund = this.refundAccount
+          ? await this.refunds.getRefund(providerRefundId, await this.refundAccount(owner))
+          : await this.refunds.getRefund(providerRefundId);
+        // The provider's IDs stay inside APICenter; the stored refund keeps APICenter's.
+        fresh = { ...providerRefund, refundId: owner.resourceId, paymentId: owner.snapshot.paymentId };
         if (!isRefundStatus(fresh.status)) continue;
       }
       updates.push({ ...owner, status: String(fresh.status), snapshot: { ...owner.snapshot, ...fresh } });
       const refunded = Number(fresh.amount ?? owner.snapshot.amount);
       const paymentId = fresh.paymentId ?? owner.snapshot.paymentId;
       if (fresh.status === 'succeeded' && typeof paymentId === 'string' && Number.isSafeInteger(refunded) && refunded > 0) {
-        refunds.push({ paymentId: toPublicId('pay', paymentId), refundId: owner.resourceId, refunded });
+        refunds.push({ paymentId, refundId: owner.resourceId, refunded });
       }
     }
     if (!updates.length) return { event: 'ignored', data: { eventType, updated: false } };
@@ -252,25 +253,42 @@ export class WebhooksService {
       return { event: 'ignored', data: { eventType: 'payment.failed', updated: false } };
     }
     const attributes = payment.attributes || {};
-    const lastPaymentError = {
-      ...(typeof attributes.failed_code === 'string' ? { code: attributes.failed_code } : {}),
-      ...(typeof attributes.failed_message === 'string' ? { message: attributes.failed_message } : {}),
-    };
+    const providerCode = typeof attributes.failed_code === 'string' ? attributes.failed_code : undefined;
+    const reason = declineReason(providerCode);
+    const lastPaymentError = { code: reason, message: declineMessage(reason),
+      ...(providerCode ? { deprecatedProviderCode: providerCode } : {}) };
+    const paymentId = await this.owners.publicIdFor('payment', payment.id, environment);
     const applied = await this.owners.applyVerifiedWebhook({
       providerEventId,
       environment,
       eventType: 'payment.failed',
       payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
       updates: [{ ...source, status: 'failed', snapshot: { ...source.snapshot, status: 'failed', lastPaymentError } }],
-      ...this.intentEvent('payment.intent.failed', source, payment, payload),
+      ...this.intentEvent('payment.intent.failed', source, payment, paymentId, payload),
     });
     return { event: applied.duplicate ? 'duplicate' : 'processed',
       data: { eventType: 'payment.failed', updated: applied.duplicate ? 0 : 1, queued: applied.queued } };
   }
 
+  /** APICenter's IDs for the provider's payments: existing ones are reused, new ones minted. */
+  private async publicPaymentIds(environment: 'test' | 'live', providerIds: string[]): Promise<Map<string, string>> {
+    const ids = new Map<string, string>();
+    for (const providerId of providerIds) {
+      if (!ids.has(providerId)) ids.set(providerId, await this.owners.publicIdFor('payment', providerId, environment));
+    }
+    return ids;
+  }
+
+  /** The owner record for a paid provider payment, under APICenter's payment ID. */
+  private paymentRecord(source: OwnerRecord, payment: any, paymentId: string): OwnerRecord {
+    return { ...source, resourceType: 'payment', resourceId: paymentId, providerResourceId: payment.id, status: 'paid',
+      snapshot: { paymentId, status: 'paid', amount: payment.attributes.amount,
+        currency: payment.attributes.currency, sourceId: source.resourceId } };
+  }
+
   /** The event consumers receive when a payment on an intent succeeds or fails. */
   private intentEvent(eventType: 'payment.intent.paid' | 'payment.intent.failed', source: OwnerRecord, payment: any,
-    payload: any): Pick<VerifiedWebhook, 'outbox' | 'receiptStatus' | 'receiptNote'> {
+    paymentId: string, payload: any): Pick<VerifiedWebhook, 'outbox' | 'receiptStatus' | 'receiptNote'> {
     const attributes = payment?.attributes || {};
     const amount = Number(attributes.amount);
     if (!source.referenceId) {
@@ -300,12 +318,12 @@ export class WebhooksService {
           referenceId: source.referenceId,
           occurredAt: new Date(Number.isFinite(createdAt) && createdAt > 0 ? createdAt * 1000 : Date.now()).toISOString(),
           paymentIntentId: source.resourceId,
-          paymentId: payment.id,
+          paymentId,
           status: failed ? 'failed' : 'succeeded',
           amount,
           currency: String(attributes.currency || 'PHP').toUpperCase(),
-          ...(failed && typeof attributes.failed_code === 'string' ? { failureCode: attributes.failed_code } : {}),
-          ...(failed && typeof attributes.failed_message === 'string' ? { failureMessage: attributes.failed_message } : {}),
+          ...(failed ? { failureCode: declineReason(attributes.failed_code),
+            failureMessage: declineMessage(declineReason(attributes.failed_code)) } : {}),
         },
       },
     };
@@ -315,7 +333,7 @@ export class WebhooksService {
    * The event consumers receive for a paid checkout. A checkout that cannot be described completely is
    * still recorded as paid, but flagged for reconciliation instead of queueing an event the publisher rejects.
    */
-  private checkoutPaidEvent(source: OwnerRecord, payment: any, payload: any):
+  private checkoutPaidEvent(source: OwnerRecord, payment: any, paymentId: string, payload: any):
     Pick<VerifiedWebhook, 'outbox' | 'receiptStatus' | 'receiptNote'> {
     const amount = Number(payment.attributes.amount);
     if (!source.referenceId) {
@@ -344,7 +362,7 @@ export class WebhooksService {
           referenceId: source.referenceId,
           occurredAt: new Date(Number.isFinite(createdAt) && createdAt > 0 ? createdAt * 1000 : Date.now()).toISOString(),
           checkoutId: source.resourceId,
-          paymentId: payment.id,
+          paymentId,
           status: 'paid',
           amount,
           currency: String(payment.attributes.currency || 'PHP').toUpperCase(),

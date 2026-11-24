@@ -15,7 +15,7 @@ describe('payment links and QR Ph', () => {
 
     await expect(service.create({ ...linkInput, description: '  Order 1  ', remarks: 'Thanks',
       metadata: { team: 'billing', apicenter_reference_id: 'spoofed' } }, 'idem-link'))
-      .resolves.toMatchObject({ paymentLinkId: 'pl_abc', referenceNumber: 'WTV7Ka2', status: 'active',
+      .resolves.toMatchObject({ paymentLinkId: 'link_abc', referenceNumber: 'WTV7Ka2', status: 'active',
         active: true, archived: false, createdAt: '2025-10-09T08:53:20.000Z' });
     expect(request).toHaveBeenCalledWith('/payment_links', { method: 'POST', idempotencyKey: 'idem-link',
       body: { amount: 25000, currency: 'PHP', description: 'Order 1', remarks: 'Thanks',
@@ -67,10 +67,10 @@ describe('payment links and QR Ph', () => {
       .mockResolvedValueOnce({ data: { id: 'link_123', status: 'active' } });
     const service = new PaymentLinksService(request as any, () => false);
 
-    await expect(service.setArchived('pl_123', true, 'idem-archive'))
-      .resolves.toMatchObject({ paymentLinkId: 'pl_123', status: 'archived', active: false, archived: true });
-    await expect(service.setArchived('pl_123', false, 'idem-unarchive'))
-      .resolves.toMatchObject({ paymentLinkId: 'pl_123', status: 'active', active: true, archived: false });
+    await expect(service.setArchived('link_123', true, 'idem-archive'))
+      .resolves.toMatchObject({ paymentLinkId: 'link_123', status: 'archived', active: false, archived: true });
+    await expect(service.setArchived('link_123', false, 'idem-unarchive'))
+      .resolves.toMatchObject({ paymentLinkId: 'link_123', status: 'active', active: true, archived: false });
     expect(request).toHaveBeenNthCalledWith(1, '/payment_links/link_123',
       expect.objectContaining({ method: 'PATCH', body: { archive: true }, idempotencyKey: 'idem-archive' }));
     expect(request).toHaveBeenNthCalledWith(2, '/payment_links/link_123',
