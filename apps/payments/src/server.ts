@@ -620,7 +620,10 @@ app.post('/webhooks', async (req: Request, res: Response) => {
 });
 
 registerPayoutCallbackRoute(app, payouts, { handleError: handleCustomError });
-registerPayoutRoutes(app, payouts, { ok, context: paymentContext, handleError: handleCustomError });
+registerPayoutRoutes(app, payouts, { ok, context: paymentContext, handleError: handleCustomError, features: {
+  linkedAccountsEnabled: (environment, projectId) => linkedAccountsSwitch.enabledFor(environment, projectId),
+  payeeWalletsEnabled: () => payeeOnboardingEnabled() && Boolean(owners.databasePool),
+} });
 registerLinkedAccountRoutes(app, onboarding, { ok, context: paymentContext, handleError: handleCustomError });
 registerPayeeOnboardingRoutes(app, {
   onboarding: consumerOnboarding, payees: payouts.store, persistent: Boolean(owners.databasePool),

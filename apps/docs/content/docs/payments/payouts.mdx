@@ -14,6 +14,21 @@ For a Node.js backend, use `api.payments.payees`, `api.payments.allocations` and
 
 All amounts are in centavos.
 
+## What is available now
+
+Payouts are being rolled out in stages. Build against the whole API now: the parts that are not open yet refuse with a stable error code instead of behaving differently later.
+
+| Feature | Status | Until it opens |
+| :--- | :--- | :--- |
+| Payees, destinations and verification records | Available | |
+| Allocations: hold, release, cancel, refund recovery | Available | |
+| Earnings (`GET /payees/{payeeId}`) and the payout list | Available | The payout list stays empty, because nothing is sent yet. |
+| Sending payouts: the weekly payout and cash-out | Coming soon | Cash-out returns `409 PAYOUTS_LIVE_DISABLED` in live, or `409 WALLET_NOT_CONFIGURED` where the payout wallet is not set. Released earnings keep accumulating and are paid once sending opens. |
+| [Payee wallet onboarding](#test-payee-wallet-onboarding) | Coming soon (test-only pilot, off by default) | Returns `503 PAYEE_ONBOARDING_DISABLED`. |
+| A merchant account of the project's own | Coming soon | Payments are collected through APICenter's account. Nothing changes in your integration when it opens. |
+
+The console's **Payouts** page shows the same status for each environment, marked **Coming soon**.
+
 ## Register a payee
 
 - **Endpoint**: `POST /api/v1/payments/payees`
@@ -76,6 +91,8 @@ await api.payments.payees.recordVerification(payee.payeeId, {
 Use your own record identifier for the optional `reference` field. Keep identity document numbers and images in your own verification system. If verification is required, cash-out returns `409 PAYEE_NOT_VERIFIED` until you record the check.
 
 ## Test payee wallet onboarding
+
+**Coming soon.** This is a test-only pilot and is off by default; while it is off, these calls return `503 PAYEE_ONBOARDING_DISABLED`.
 
 With the feature enabled for your test project, you can start wallet onboarding for an existing payee.
 Use a test key with `payments:payouts:write` to start onboarding, reissue a verification link, and request activation.
@@ -141,6 +158,8 @@ An allocation's status moves like this:
 An allocation that is already pooled or paid can't be cancelled; you get `409 INVALID_ALLOCATION_STATE`. Refund the payment instead.
 
 ## When payees are paid
+
+**Coming soon.** Sending payouts is not open yet; see [What is available now](#what-is-available-now). The rules below apply once it opens.
 
 | Payout | When | Who pays the transfer fee |
 | :--- | :--- | :--- |

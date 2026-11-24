@@ -1,6 +1,7 @@
 // The payments runtime's payout routes. Every route is scoped to the caller's signed project; another
 // project's payee, allocation or payout answers 404. The gateway exposes these under /api/v1/payments.
 
+import { payoutAvailability } from './availability';
 import type { Express, Request, Response } from 'express';
 import { z } from 'zod';
 import { PayMongoError } from '../../shared/payment-errors';
@@ -16,6 +17,11 @@ export type RouteHelpers = {
   ok: (res: Response, data: unknown, status?: number) => unknown;
   context: (req: Request) => PaymentContext;
   handleError: (res: Response, error: unknown) => unknown;
+  /** Feature switches the console overview reports; both default to off. */
+  features?: {
+    linkedAccountsEnabled: (environment: Environment, projectId: string) => Promise<boolean>;
+    payeeWalletsEnabled: () => boolean;
+  };
 };
 
 const payeeInput = z.object({
@@ -184,12 +190,20 @@ export function registerPayoutRoutes(app: Express, deps: PayoutDeps, helpers: Ro
     }));
     const current = wallets.find((wallet) => wallet.accountId === account.id);
     const policy = await deps.store.getSettings(context.environment, context.projectId);
+    const availability = await payoutAvailability({
+      environment: context.environment,
+      walletConfigured: account.wallet !== null,
+      linkedAccountsEnabled: () => helpers.features?.linkedAccountsEnabled(context.environment, context.projectId) ?? Promise.resolve(false),
+      payeeWalletsEnabled: helpers.features?.payeeWalletsEnabled() ?? false,
+    });
     helpers.ok(res, {
       wallet: { configured: account.wallet !== null, available: current?.available ?? null, lowFloatAlert: account.lowFloatAlert },
       wallets,
       counts: await deps.store.payoutCounts(context.environment, context.projectId),
       needsReview: (await deps.store.listPayouts(context.environment, context.projectId, { status: 'needs_review', limit: 100 })).records,
-      nextScheduledAt: policy.schedule ? nextScheduledSlot(policy.schedule, now).toISOString() : null,
+      // No payout is scheduled while sending payouts is not available.
+      nextScheduledAt: policy.schedule && availability.transfers.available ? nextScheduledSlot(policy.schedule, now).toISOString() : null,
+      availability,
     });
   }));
 

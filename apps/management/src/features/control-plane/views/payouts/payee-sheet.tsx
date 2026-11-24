@@ -1,10 +1,11 @@
 "use client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ComingSoonBadge } from "@/components/patterns/coming-soon";
 import { ErrorPanel } from "@/components/patterns/notices";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { formatDateTime } from "@/lib/format";
-import { describeDestination, formatCentavos } from "../../model/payouts";
+import { availabilityMessage, describeDestination, formatCentavos, type FeatureAvailability } from "../../model/payouts";
 import { usePayee } from "../../view-models/payouts";
 
 const EARNINGS: Array<[keyof import("../../model/payouts").PayeeDetail["earnings"], string]> = [
@@ -16,7 +17,12 @@ const EARNINGS: Array<[keyof import("../../model/payouts").PayeeDetail["earnings
 ];
 
 /** One payee: where they are paid and what they have earned. */
-export function PayeeSheet({ payeeId, onOpenChange }: { payeeId: string | null; onOpenChange: (open: boolean) => void }) {
+export function PayeeSheet({ payeeId, onOpenChange, walletOnboarding }: {
+  payeeId: string | null;
+  onOpenChange: (open: boolean) => void;
+  /** Whether payee wallet onboarding is available; shown as coming soon until it is. */
+  walletOnboarding?: FeatureAvailability;
+}) {
   const payee = usePayee(payeeId);
   return (
     <Sheet open={payeeId !== null} onOpenChange={onOpenChange}>
@@ -48,6 +54,14 @@ export function PayeeSheet({ payeeId, onOpenChange }: { payeeId: string | null; 
                     </>
                   ) : "Unrecorded"}
                 </dd>
+                {walletOnboarding && !walletOnboarding.available ? (
+                  <>
+                    <dt className="text-muted-foreground">Wallet onboarding</dt>
+                    <dd title={availabilityMessage("payeeWallets", walletOnboarding) ?? undefined}>
+                      <ComingSoonBadge />
+                    </dd>
+                  </>
+                ) : null}
                 <dt className="text-muted-foreground">Paid to</dt>
                 <dd>
                   {describeDestination(payee.data.destination)}

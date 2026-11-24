@@ -10,13 +10,14 @@ import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { Explainer } from "@/components/patterns/explainer";
 import { GuardedButton } from "@/components/patterns/guarded-button";
+import { ComingSoonBadge } from "@/components/patterns/coming-soon";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { PageHeader } from "@/components/patterns/page-header";
 import { Panel } from "@/components/patterns/panel";
 import { RelativeTime } from "@/components/patterns/relative-time";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { formatDateTime } from "@/lib/format";
-import { describeDestination, describeSchedule, formatCentavos, PAYOUT_OPERATOR_REASON, TRIGGER_LABELS, type Payout } from "../../model/payouts";
+import { availabilityMessage, describeDestination, describeSchedule, formatCentavos, PAYOUT_OPERATOR_REASON, TRIGGER_LABELS, type Payout } from "../../model/payouts";
 import { usePayees, usePayoutOverview, usePayouts, usePayoutSettings, useResolvePayout } from "../../view-models/payouts";
 import { RequireEnvironment, useProjectEnvironment } from "../../view-models/project-environment";
 import { useOrganization } from "../../view-models/use-organization";
@@ -80,11 +81,10 @@ function Payouts() {
           <ErrorPanel title="The payout wallet could not be loaded" error={overview.error} />
         ) : overview.isLoading || !overview.data ? (
           <Skeleton className="h-16 w-full" />
-        ) : !overview.data.wallet.configured ? (
-          <ErrorPanel
-            title="The payout wallet is not set"
-            error="Payouts cannot be sent until an operator sets the payout wallet. Follow “Before the first payout” in the payouts runbook."
-          />
+        ) : !overview.data.availability.transfers.available ? (
+          <Notice title={<span className="flex items-center gap-2">Sending payouts <ComingSoonBadge /></span>}>
+            {availabilityMessage("transfers", overview.data.availability.transfers)}
+          </Notice>
         ) : (
           <dl className="grid gap-4 text-sm sm:grid-cols-3">
             <div>
@@ -275,7 +275,8 @@ function Payouts() {
       </Panel>
 
       <PayoutSettingsSheet open={editing} onOpenChange={setEditing} />
-      <PayeeSheet payeeId={payeeId} onOpenChange={(open) => !open && setPayeeId(null)} />
+      <PayeeSheet payeeId={payeeId} onOpenChange={(open) => !open && setPayeeId(null)}
+        walletOnboarding={overview.data?.availability.payeeWallets} />
       <ConfirmDialog
         open={resolving !== null}
         onOpenChange={(next) => {

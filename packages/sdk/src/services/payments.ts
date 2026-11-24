@@ -244,7 +244,12 @@ class PaymentCapabilitiesClient extends PaymentsResource {
 }
 
 class PayeeClient extends PaymentsResource {
-  /** @sdk-operation startPayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding */
+  /**
+   * Starts or resumes payee wallet onboarding.
+   * Coming soon: a test-only pilot that is off by default. While it is off, this throws an
+   * ApiCenterError with status 503 and code PAYEE_ONBOARDING_DISABLED.
+   * @sdk-operation startPayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding
+   */
   startOnboarding(payeeId: string, details: PayeeOnboardingInput, options?: WriteOptions): Promise<PaymentResource<PayeeOnboarding>> {
     return this.write(`/payees/${id(payeeId)}/onboarding`, details, options);
   }
@@ -254,12 +259,22 @@ class PayeeClient extends PaymentsResource {
     return this.read(`/payees/${id(payeeId)}/onboarding`, options);
   }
 
-  /** @sdk-operation reissuePayeeOnboardingLink POST /api/v1/payments/payees/{payeeId}/onboarding/verification-link */
+  /**
+   * Issues a fresh hosted verification link.
+   * Coming soon: a test-only pilot that is off by default. While it is off, this throws an
+   * ApiCenterError with status 503 and code PAYEE_ONBOARDING_DISABLED.
+   * @sdk-operation reissuePayeeOnboardingLink POST /api/v1/payments/payees/{payeeId}/onboarding/verification-link
+   */
   reissueOnboardingLink(payeeId: string, options?: WriteOptions): Promise<PaymentResource<PayeeOnboarding>> {
     return this.write(`/payees/${id(payeeId)}/onboarding/verification-link`, {}, options);
   }
 
-  /** @sdk-operation activatePayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding/activate */
+  /**
+   * Requests wallet activation after identity verification.
+   * Coming soon: a test-only pilot that is off by default. While it is off, this throws an
+   * ApiCenterError with status 503 and code PAYEE_ONBOARDING_DISABLED.
+   * @sdk-operation activatePayeeOnboarding POST /api/v1/payments/payees/{payeeId}/onboarding/activate
+   */
   activateOnboarding(payeeId: string, options?: WriteOptions): Promise<PaymentResource<PayeeOnboarding>> {
     return this.write(`/payees/${id(payeeId)}/onboarding/activate`, {}, options);
   }
@@ -299,6 +314,8 @@ class PayeeClient extends PaymentsResource {
   /**
    * Pays the payee's released earnings now, within the daily cash-out cap. A refusal is an
    * ApiCenterError with status 409 and a code such as DAILY_CAP_REACHED or DESTINATION_HOLD.
+   * Coming soon: until sending payouts opens for the environment, cash-out is refused with
+   * PAYOUTS_LIVE_DISABLED (live) or WALLET_NOT_CONFIGURED. Allocations and earnings are recorded meanwhile.
    * @sdk-operation cashOutPayee POST /api/v1/payments/payees/{payeeId}/cash-out
    */
   cashOut(payeeId: string, options?: WriteOptions): Promise<PaymentResource<CashOutPayout>> {

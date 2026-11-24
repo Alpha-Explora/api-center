@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { ComingSoonBadge } from "@/components/patterns/coming-soon";
 import { ErrorPanel, Notice } from "@/components/patterns/notices";
 import { GuardedButton } from "@/components/patterns/guarded-button";
 import { Panel } from "@/components/patterns/panel";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { formatDateTime } from "@/lib/format";
-import type { LinkedAccountAction } from "../../model/payouts";
+import { availabilityMessage, type LinkedAccountAction } from "../../model/payouts";
 import { useLinkedAccount, useUpdateLinkedAccount } from "../../view-models/payouts";
 
 const fields = [
@@ -69,9 +70,13 @@ export function LinkedAccountPanel({ live, canWrite, platformAdmin }: {
         {query.data ? (
           <>
             {live ? <p className="text-live font-medium">Live environment</p> : null}
-            {!query.data.environmentEnabled ? <p>Linked accounts are switched off in this environment.</p> : (
+            {!query.data.environmentEnabled ? (
+              <Notice title={<span className="flex items-center gap-2">Project merchant account <ComingSoonBadge /></span>}>
+                {availabilityMessage("linkedAccounts", { available: false, reason: "not_enabled" })}
+              </Notice>
+            ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>{query.data.projectEnabled ? "Enabled for this project" : "Linked accounts are switched off for this project."}</span>
+                <span>{query.data.projectEnabled ? "Enabled for this project" : "Not enabled for this project yet. A platform operator enables it."}</span>
                 <GuardedButton allowed={canWrite && platformAdmin} reason={platformReason} variant="outline"
                   disabled={mutation.isPending}
                   onClick={() => void execute({ kind: "enabled", enabled: !query.data?.projectEnabled })}>
@@ -79,7 +84,7 @@ export function LinkedAccountPanel({ live, canWrite, platformAdmin }: {
                 </GuardedButton>
               </div>
             )}
-            {enabled && !query.data.providerAvailable ? <Notice title="PayMongo onboarding is awaiting provider verification" /> : null}
+            {enabled && !query.data.providerAvailable ? <Notice title="Onboarding is waiting on the payment provider's verification of this feature" /> : null}
             {account ? (
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={account.status} />
@@ -88,7 +93,7 @@ export function LinkedAccountPanel({ live, canWrite, platformAdmin }: {
               </div>
             ) : null}
             {account?.declineReason ? <p>{account.declineReason}</p> : null}
-            {account?.nextAction === "await_manual_review" ? <p>PayMongo’s manual review can take 7 to 14 days.</p> : null}
+            {account?.nextAction === "await_manual_review" ? <p>The payment provider’s manual review can take 7 to 14 days.</p> : null}
             {link ? (
               <div className="space-y-2 rounded-md border p-3">
                 <p>This link is shown once. Reissue it if it is lost.</p>

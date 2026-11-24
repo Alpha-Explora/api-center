@@ -87,6 +87,35 @@ export type PayeeDetail = z.infer<typeof payeeDetailSchema>;
 
 export const pageSchema = <T extends z.ZodTypeAny>(item: T) => z.object({ records: z.array(item), nextCursor: z.string().optional() });
 
+export const featureAvailabilitySchema = z.object({ available: z.boolean(), reason: z.string().nullable() });
+export type FeatureAvailability = z.infer<typeof featureAvailabilitySchema>;
+
+const notYet = { available: false, reason: "not_enabled" };
+/** What the payouts area can do right now. A runtime that predates this reports nothing; assume the safe answer. */
+export const payoutAvailabilitySchema = z.object({
+  transfers: featureAvailabilitySchema,
+  linkedAccounts: featureAvailabilitySchema,
+  payeeWallets: featureAvailabilitySchema,
+});
+export type PayoutAvailability = z.infer<typeof payoutAvailabilitySchema>;
+
+/** What to tell a project about a feature that is not available yet. */
+export function availabilityMessage(feature: keyof PayoutAvailability, availability: FeatureAvailability): string | null {
+  if (availability.available) return null;
+  switch (feature) {
+    case "transfers":
+      return availability.reason === "live_payouts_disabled"
+        ? "Sending live payouts is coming soon. Payees, shares and earnings are recorded now and are paid once live payouts open."
+        : "Sending payouts is coming soon in this environment. Payees, shares and earnings are recorded now; payouts start once an operator sets the payout wallet (“Before the first payout” in the payouts runbook).";
+    case "linkedAccounts":
+      return "A merchant account of the project's own, which collects payments in the project's name, is coming soon. Payments are collected through APICenter's account until then.";
+    case "payeeWallets":
+      return availability.reason === "test_only"
+        ? "Payee wallets are in a test pilot and are not available in live."
+        : "Payee wallets, with a hosted identity check, are coming soon. Pay payees through InstaPay or a wallet number until then.";
+  }
+}
+
 export const payoutOverviewSchema = z.object({
   wallet: z.object({ configured: z.boolean(), available: centavos.nullable(), lowFloatAlert: centavos }),
   wallets: z.array(z.object({ accountId: z.string(), configured: z.boolean(), available: centavos.nullable(),
@@ -94,6 +123,9 @@ export const payoutOverviewSchema = z.object({
   counts: z.record(z.string(), z.number().int()),
   needsReview: z.array(payoutSchema),
   nextScheduledAt: z.string().nullable(),
+  availability: payoutAvailabilitySchema.default({
+    transfers: { available: true, reason: null }, linkedAccounts: notYet, payeeWallets: notYet,
+  }),
 });
 export type PayoutOverview = z.infer<typeof payoutOverviewSchema>;
 
